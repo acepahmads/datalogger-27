@@ -35,10 +35,16 @@ fi
 systemctl enable mariadb 2>/dev/null || systemctl enable mysql 2>/dev/null || true
 systemctl start mariadb 2>/dev/null || systemctl start mysql 2>/dev/null || true
 
-# Initialize datalogger database
-echo "Creating MariaDB 'datalogger' database if not exists..."
-mariadb -e "CREATE DATABASE IF NOT EXISTS datalogger CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || \
-mysql -e "CREATE DATABASE IF NOT EXISTS datalogger CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+# Initialize datalogger database and dedicated edge credentials
+echo "Configuring MariaDB database & permissions for Datalogger..."
+mariadb -e "CREATE DATABASE IF NOT EXISTS datalogger CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || mysql -e "CREATE DATABASE IF NOT EXISTS datalogger CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+mariadb -e "CREATE USER IF NOT EXISTS 'datalogger'@'localhost' IDENTIFIED BY 'datalogger';" 2>/dev/null || true
+mariadb -e "CREATE USER IF NOT EXISTS 'datalogger'@'127.0.0.1' IDENTIFIED BY 'datalogger';" 2>/dev/null || true
+mariadb -e "GRANT ALL PRIVILEGES ON datalogger.* TO 'datalogger'@'localhost' IDENTIFIED BY 'datalogger';" 2>/dev/null || true
+mariadb -e "GRANT ALL PRIVILEGES ON datalogger.* TO 'datalogger'@'127.0.0.1' IDENTIFIED BY 'datalogger';" 2>/dev/null || true
+mariadb -e "GRANT ALL PRIVILEGES ON datalogger.* TO 'root'@'localhost';" 2>/dev/null || true
+mariadb -e "GRANT ALL PRIVILEGES ON datalogger.* TO 'root'@'127.0.0.1';" 2>/dev/null || true
+mariadb -e "FLUSH PRIVILEGES;" 2>/dev/null || mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
 
 echo "[3/6] Selecting and copying binary for this CPU architecture..."
 ARCH=$(uname -m)
@@ -81,6 +87,12 @@ if [ ! -f "$INSTALL_DIR/config.json" ]; then
   fi
 fi
 
+# Ensure config.json uses datalogger credentials
+if [ -f "$INSTALL_DIR/config.json" ]; then
+  sed -i 's/"db_user": "root"/"db_user": "datalogger"/g' "$INSTALL_DIR/config.json" 2>/dev/null || true
+  sed -i 's/"db_password": ""/"db_password": "datalogger"/g' "$INSTALL_DIR/config.json" 2>/dev/null || true
+fi
+
 echo "[4/6] Configuring systemd service unit..."
 cat <<EOF > "$SERVICE_FILE"
 [Unit]
@@ -94,14 +106,14 @@ User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/datalogger
 Restart=always
-RestartSec=5s
+RestartSec=3s
 Environment="DATALOGGER_PORT=8080"
 Environment="DB_DRIVER=mariadb"
 Environment="DB_HOST=127.0.0.1"
 Environment="DB_PORT=3306"
 Environment="DB_NAME=datalogger"
-Environment="DB_USER=root"
-Environment="DB_PASSWORD="
+Environment="DB_USER=datalogger"
+Environment="DB_PASSWORD=datalogger"
 Environment="DATALOGGER_LOG_DIR=$LOG_DIR"
 LimitNOFILE=65536
 
@@ -115,8 +127,13 @@ systemctl enable datalogger.service
 systemctl restart datalogger.service
 
 echo "[6/6] Checking service status..."
-sleep 2
-systemctl is-active --quiet datalogger.service && echo "Service is RUNNING!" || echo "Check systemctl status datalogger"
+sleep 3
+if systemctl is-active --quiet datalogger.service; then
+  echo "Service is RUNNING!"
+else
+  echo "Notice: Service starting up... checking logs:"
+  journalctl -u datalogger.service -n 15 --no-pager || true
+fi
 
 IP_ADDR=$(hostname -I | awk '{print $1}')
 

@@ -21,6 +21,7 @@ import (
 	"datalogger/internal/websocket"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -41,10 +42,18 @@ func main() {
 	logger.Info("Starting %s (%s)...", cfg.AppName, cfg.Version)
 	logger.Info("Environment: %s | Target Host: %s:%s", cfg.Environment, cfg.Host, cfg.Port)
 
-	// 3. Initialize MariaDB Database
-	db, err := database.Init(cfg)
+	// 3. Initialize MariaDB Database (with retry loop for edge cold-boot resilience)
+	var db *gorm.DB
+	for attempt := 1; attempt <= 10; attempt++ {
+		db, err = database.Init(cfg)
+		if err == nil {
+			break
+		}
+		logger.Warn("Database connection attempt %d/10 failed: %v. Retrying in 2s...", attempt, err)
+		time.Sleep(2 * time.Second)
+	}
 	if err != nil {
-		logger.Error("Database initialization failed: %v", err)
+		logger.Error("Database initialization permanently failed: %v", err)
 		os.Exit(1)
 	}
 

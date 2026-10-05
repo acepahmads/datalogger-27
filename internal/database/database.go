@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -64,28 +65,77 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 		dbName = "datalogger"
 	}
 
-	// 1. Ensure database exists in MariaDB
-	rootDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/?charset=utf8mb4&parseTime=True&loc=Local",
-		dbUser, cfg.DBPassword, dbHost, dbPort)
-
-	rawDB, err := sql.Open("mysql", rootDSN)
-	if err == nil {
-		defer rawDB.Close()
-		_, _ = rawDB.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;", dbName))
+	// 1. Build candidates for root server connection to ensure database exists
+	rootCandidates := []string{
+		fmt.Sprintf("%s:%s@tcp(%s:%s)/?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s",
+			dbUser, cfg.DBPassword, dbHost, dbPort),
+	}
+	if dbHost == "127.0.0.1" || dbHost == "localhost" {
+		for _, sock := range []string{"/var/run/mysqld/mysqld.sock", "/run/mysqld/mysqld.sock", "/tmp/mysql.sock"} {
+			if _, statErr := os.Stat(sock); statErr == nil {
+				rootCandidates = append(rootCandidates, fmt.Sprintf("%s:%s@unix(%s)/?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s", dbUser, cfg.DBPassword, sock))
+			}
+		}
+		if dbUser != "datalogger" {
+			rootCandidates = append(rootCandidates, fmt.Sprintf("datalogger:datalogger@tcp(%s:%s)/?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s", dbHost, dbPort))
+		}
 	}
 
-	// 2. Open connection to the target database
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=10s&writeTimeout=10s",
-		dbUser, cfg.DBPassword, dbHost, dbPort, dbName)
+	for _, rdsn := range rootCandidates {
+		rawDB, err := sql.Open("mysql", rdsn)
+		if err == nil {
+			if pingErr := rawDB.Ping(); pingErr == nil {
+				_, _ = rawDB.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;", dbName))
+				rawDB.Close()
+				break
+			}
+			rawDB.Close()
+		}
+	}
+
+	// 2. Open connection to the target database with fallback candidate DSNs
+	candidateDSNs := []string{
+		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=10s&writeTimeout=10s",
+			dbUser, cfg.DBPassword, dbHost, dbPort, dbName),
+	}
+	if dbHost == "127.0.0.1" || dbHost == "localhost" {
+		for _, sock := range []string{"/var/run/mysqld/mysqld.sock", "/run/mysqld/mysqld.sock", "/tmp/mysql.sock"} {
+			if _, statErr := os.Stat(sock); statErr == nil {
+				candidateDSNs = append(candidateDSNs, fmt.Sprintf("%s:%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s", dbUser, cfg.DBPassword, sock, dbName))
+			}
+		}
+		if dbUser != "datalogger" {
+			candidateDSNs = append(candidateDSNs, fmt.Sprintf("datalogger:datalogger@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s", dbHost, dbPort, dbName))
+		}
+	}
 
 	start := time.Now()
-	gormDB, err := gorm.Open(gormmysql.Open(dsn), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
-		PrepareStmt: true,
-	})
-	if err != nil {
-		logger.Error("Failed to connect to MariaDB at %s:%s/%s: %v", dbHost, dbPort, dbName, err)
-		return nil, fmt.Errorf("mariadb connection failed: %w", err)
+	var gormDB *gorm.DB
+	var lastErr error
+
+	for _, dsn := range candidateDSNs {
+		db, err := gorm.Open(gormmysql.Open(dsn), &gorm.Config{
+			Logger:      gormlogger.Default.LogMode(gormlogger.Silent),
+			PrepareStmt: true,
+		})
+		if err == nil {
+			if sqlD, sErr := db.DB(); sErr == nil {
+				if pingErr := sqlD.Ping(); pingErr == nil {
+					gormDB = db
+					lastErr = nil
+					break
+				} else {
+					lastErr = pingErr
+				}
+			}
+		} else {
+			lastErr = err
+		}
+	}
+
+	if gormDB == nil {
+		logger.Error("Failed to connect to MariaDB at %s:%s/%s: %v", dbHost, dbPort, dbName, lastErr)
+		return nil, fmt.Errorf("mariadb connection failed: %w", lastErr)
 	}
 
 	latency := float64(time.Since(start).Microseconds()) / 1000.0

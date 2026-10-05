@@ -124,6 +124,12 @@ func Load(configPath string) (*Config, error) {
 	if jwtSecret := os.Getenv("DATALOGGER_JWT_SECRET"); jwtSecret != "" {
 		cfg.JWTSecret = jwtSecret
 	}
+	if logDir := os.Getenv("DATALOGGER_LOG_DIR"); logDir != "" {
+		cfg.LogDir = logDir
+	}
+	if dataDir := os.Getenv("DATALOGGER_DATA_DIR"); dataDir != "" {
+		cfg.DataDir = dataDir
+	}
 	if env := os.Getenv("DATALOGGER_ENV"); env != "" {
 		cfg.Environment = env
 	}
