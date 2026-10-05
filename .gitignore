@@ -4,8 +4,9 @@
 *.dll
 *.so
 *.dylib
-bin/
 datalogger
+bin/*.exe
+!bin/datalogger-linux-*
 
 # Go build cache & test artifacts
 *.test

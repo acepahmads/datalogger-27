@@ -58,6 +58,11 @@ elif [ -f "./bin/datalogger" ]; then
 elif [ -f "./datalogger" ]; then
   cp "./datalogger" "$INSTALL_DIR/datalogger"
 else
+  echo "No pre-built binary found for $ARCH."
+  if ! command -v go &> /dev/null; then
+    echo "Go compiler not found on this machine. Installing golang-go via apt..."
+    apt-get update && apt-get install -y golang-go
+  fi
   echo "Compiling native binary on target machine using Go..."
   CGO_ENABLED=0 go build -ldflags "-s -w" -o "$INSTALL_DIR/datalogger" ./cmd/main.go
 fi
