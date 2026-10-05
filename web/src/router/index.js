@@ -1,0 +1,42 @@
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+
+import DashboardView from '../views/DashboardView.vue';
+import DevelopmentView from '../views/DevelopmentView.vue';
+import TasksView from '../views/TasksView.vue';
+import ActivityView from '../views/ActivityView.vue';
+import SystemMonitoringView from '../views/SystemMonitoringView.vue';
+import DevicesView from '../views/DevicesView.vue';
+import AlarmsView from '../views/AlarmsView.vue';
+import LogsView from '../views/LogsView.vue';
+import ReleaseDocView from '../views/ReleaseDocView.vue';
+import ConfigView from '../views/ConfigView.vue';
+
+Vue.use(VueRouter);
+
+const routes = [
+  { path: '/', redirect: '/dashboard' },
+  { path: '/dashboard', name: 'Dashboard', component: DashboardView },
+  { path: '/development', name: 'Development', component: DevelopmentView },
+  { path: '/development/phases', name: 'Phases', component: DevelopmentView },
+  { path: '/development/tasks', name: 'Tasks', component: TasksView },
+  { path: '/development/activity', name: 'Activity', component: ActivityView },
+  { path: '/development/release', name: 'Release', component: ReleaseDocView },
+  { path: '/monitoring/system', name: 'SystemMonitoring', component: SystemMonitoringView },
+  { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
+  { path: '/monitoring/parameters', name: 'Parameters', component: DevicesView },
+  { path: '/alarm/active', name: 'ActiveAlarms', component: AlarmsView },
+  { path: '/alarm/history', name: 'AlarmHistory', component: AlarmsView },
+  { path: '/system/logs', name: 'SystemLogs', component: LogsView },
+  { path: '/system/audit', name: 'AuditTrails', component: LogsView },
+  { path: '/administration/config', name: 'Configuration', component: ConfigView },
+  { path: '*', redirect: '/dashboard' },
+];
+
+const router = new VueRouter({
+  mode: 'hash',
+  base: '/',
+  routes,
+});
+
+export default router;

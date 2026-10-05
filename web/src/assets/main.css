@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0B0F19] text-slate-200 antialiased font-sans text-xs selection:bg-blue-600 selection:text-white;
+  }
+}
+
+/* Modern Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Modern Card Utilities */
+.saas-card {
+  @apply bg-[#111827]/90 border border-slate-800/70 rounded-xl shadow-sm transition-all duration-200;
+}
+.saas-card-hover {
+  @apply hover:border-slate-700/80 hover:shadow-soft;
+}
+
+/* Tabular numbers for clean data alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom smooth transitions */
+.transition-smooth {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}

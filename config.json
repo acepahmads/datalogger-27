@@ -1,0 +1,21 @@
+{
+  "app_name": "Datalogger Analysis Application",
+  "version": "v1.0.0-phase1",
+  "environment": "production",
+  "port": "8080",
+  "host": "0.0.0.0",
+  "db_type": "mariadb",
+  "db_host": "127.0.0.1",
+  "db_port": "3306",
+  "db_name": "datalogger",
+  "db_user": "root",
+  "db_password": "",
+  "db_path": "data/datalogger.db",
+  "jwt_secret": "datalogger-local-secret-key-prod-2026",
+  "jwt_expiration_hours": 24,
+  "log_level": "info",
+  "log_dir": "logs",
+  "data_dir": "data",
+  "enable_cloud_sync": false,
+  "cloud_endpoint": ""
+}
