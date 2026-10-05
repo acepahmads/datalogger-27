@@ -22,6 +22,7 @@
     <!-- System Telemetry Gauges Grid -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <!-- CPU -->
+      <!-- CPU -->
       <div class="saas-card p-5 space-y-3">
         <div class="flex items-center justify-between text-xs font-sans">
           <span class="text-slate-400 font-medium">Edge CPU Utilization</span>
@@ -30,6 +31,18 @@
         <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
           <div class="bg-blue-500 h-full rounded-full transition-all duration-300"
                :style="{ width: Math.min(status.cpu_percent, 100) + '%' }"></div>
+        </div>
+        <!-- Per-core breakdown -->
+        <div v-if="status.cpu_per_core && status.cpu_per_core.length" class="grid grid-cols-4 gap-2 pt-1 border-t border-slate-800/40">
+          <div v-for="(c, idx) in status.cpu_per_core" :key="idx" class="text-2xs font-mono">
+            <div class="flex justify-between text-[10px] text-slate-400">
+              <span>C{{ idx }}</span>
+              <span :class="c > 75 ? 'text-rose-400' : 'text-slate-300'">{{ c.toFixed(0) }}%</span>
+            </div>
+            <div class="w-full bg-slate-800/80 h-1 rounded-full overflow-hidden mt-0.5">
+              <div class="bg-sky-400 h-full rounded-full" :style="{ width: Math.min(c, 100) + '%' }"></div>
+            </div>
+          </div>
         </div>
         <div class="text-2xs text-slate-400 font-sans flex justify-between pt-1">
           <span>{{ status.num_cpu || 4 }} Logical Cores</span>
@@ -40,7 +53,7 @@
       <!-- RAM -->
       <div class="saas-card p-5 space-y-3">
         <div class="flex items-center justify-between text-xs font-sans">
-          <span class="text-slate-400 font-medium">Memory Allocation</span>
+          <span class="text-slate-400 font-medium">Memory Allocation (htop formula)</span>
           <span class="font-mono text-emerald-400 font-bold">{{ status.ram_percent.toFixed(1) }}%</span>
         </div>
         <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
@@ -48,8 +61,12 @@
                :style="{ width: Math.min(status.ram_percent, 100) + '%' }"></div>
         </div>
         <div class="text-2xs text-slate-400 font-sans flex justify-between pt-1">
-          <span class="font-mono">{{ status.ram_used_mb.toFixed(0) }} MB used</span>
-          <span class="font-mono">{{ status.ram_total_mb.toFixed(0) }} MB total</span>
+          <span class="font-mono font-medium text-slate-200">
+            {{ status.ram_total_mb >= 1024 ? (status.ram_used_mb / 1024).toFixed(2) + ' GB' : status.ram_used_mb.toFixed(0) + ' MB' }} used
+          </span>
+          <span class="font-mono text-slate-400">
+            {{ status.ram_total_mb >= 1024 ? (status.ram_total_mb / 1024).toFixed(2) + ' GB' : status.ram_total_mb.toFixed(0) + ' MB' }} total
+          </span>
         </div>
       </div>
 

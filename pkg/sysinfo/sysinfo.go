@@ -1,9 +1,13 @@
 package sysinfo
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,28 +18,118 @@ import (
 )
 
 var (
-	startTime = time.Now()
-	mu        sync.RWMutex
-	lastCPU   float64
-	lastCheck time.Time
+	startTime      = time.Now()
+	mu             sync.RWMutex
+	lastCPU        float64
+	lastPerCoreCPU []float64
 )
 
 type SystemInfo struct {
-	CPUPercent     float64 `json:"cpu_percent"`
-	RAMUsedBytes   uint64  `json:"ram_used_bytes"`
-	RAMTotalBytes  uint64  `json:"ram_total_bytes"`
-	RAMPercent     float64 `json:"ram_percent"`
-	DiskUsedBytes  uint64  `json:"disk_used_bytes"`
-	DiskTotalBytes uint64  `json:"disk_total_bytes"`
-	DiskPercent    float64 `json:"disk_percent"`
-	UptimeSeconds  uint64  `json:"uptime_seconds"`
-	UptimeHuman    string  `json:"uptime_human"`
-	OS             string  `json:"os"`
-	Arch           string  `json:"arch"`
-	Hostname       string  `json:"hostname"`
-	NumCPU         int     `json:"num_cpu"`
-	Goroutines     int     `json:"goroutines"`
-	GoVersion      string  `json:"go_version"`
+	CPUPercent     float64   `json:"cpu_percent"`
+	CPUPerCore     []float64 `json:"cpu_per_core,omitempty"`
+	RAMUsedBytes   uint64    `json:"ram_used_bytes"`
+	RAMTotalBytes  uint64    `json:"ram_total_bytes"`
+	RAMPercent     float64   `json:"ram_percent"`
+	DiskUsedBytes  uint64    `json:"disk_used_bytes"`
+	DiskTotalBytes uint64    `json:"disk_total_bytes"`
+	DiskPercent    float64   `json:"disk_percent"`
+	UptimeSeconds  uint64    `json:"uptime_seconds"`
+	UptimeHuman    string    `json:"uptime_human"`
+	OS             string    `json:"os"`
+	Arch           string    `json:"arch"`
+	Hostname       string    `json:"hostname"`
+	NumCPU         int       `json:"num_cpu"`
+	Goroutines     int       `json:"goroutines"`
+	GoVersion      string    `json:"go_version"`
+}
+
+func init() {
+	// Start continuous background CPU sampler matching htop's 1-second sampling window
+	go startCPUSampler()
+}
+
+func startCPUSampler() {
+	// Warm-up initial CPU readings
+	_, _ = cpu.Percent(200*time.Millisecond, false)
+	_, _ = cpu.Percent(0, true)
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Calculate average CPU across all cores over a steady 1-second window (identical to htop)
+		percentages, err := cpu.Percent(0, false)
+		perCores, perCoreErr := cpu.Percent(0, true)
+
+		mu.Lock()
+		if err == nil && len(percentages) > 0 {
+			lastCPU = percentages[0]
+		}
+		if perCoreErr == nil && len(perCores) > 0 {
+			lastPerCoreCPU = make([]float64, len(perCores))
+			copy(lastPerCoreCPU, perCores)
+		}
+		mu.Unlock()
+	}
+}
+
+// readMemInfoLinux calculates memory exactly matching htop from /proc/meminfo
+// In htop: usedMem = MemTotal - MemFree - Buffers - Cached - SReclaimable + Shmem
+func readMemInfoLinux() (uint64, uint64, float64, bool) {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0, 0, 0, false
+	}
+
+	var memTotal, memFree, buffers, cached, sReclaimable, shmem uint64
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		valFields := strings.Fields(parts[1])
+		if len(valFields) == 0 {
+			continue
+		}
+		valKB, _ := strconv.ParseUint(valFields[0], 10, 64)
+		valBytes := valKB * 1024 // /proc/meminfo reports values in kB
+
+		switch key {
+		case "MemTotal":
+			memTotal = valBytes
+		case "MemFree":
+			memFree = valBytes
+		case "Buffers":
+			buffers = valBytes
+		case "Cached":
+			cached = valBytes
+		case "SReclaimable":
+			sReclaimable = valBytes
+		case "Shmem":
+			shmem = valBytes
+		}
+	}
+
+	if memTotal == 0 {
+		return 0, 0, 0, false
+	}
+
+	// Exact htop memory formula (LinuxProcessList.c):
+	// usedMem = MemTotal - MemFree - Buffers - (Cached + SReclaimable - Shmem)
+	// which equals: MemTotal - MemFree - Buffers - Cached - SReclaimable + Shmem
+	var nonUsed uint64 = memFree + buffers + cached + sReclaimable
+	var used uint64
+	if memTotal+shmem > nonUsed {
+		used = (memTotal + shmem) - nonUsed
+	} else {
+		used = memTotal - memFree
+	}
+
+	pct := (float64(used) / float64(memTotal)) * 100.0
+	return used, memTotal, pct, true
 }
 
 // GetInfo collects system metrics safely with minimal CPU impact
@@ -62,19 +156,29 @@ func GetInfo() SystemInfo {
 	}
 	info.UptimeHuman = FormatDuration(time.Duration(info.UptimeSeconds) * time.Second)
 
-	// Memory info
-	if vMem, err := mem.VirtualMemory(); err == nil {
-		info.RAMUsedBytes = vMem.Used
-		info.RAMTotalBytes = vMem.Total
-		info.RAMPercent = vMem.UsedPercent
-	} else {
-		// Fallback to runtime memory stats
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
-		info.RAMUsedBytes = m.Alloc
-		info.RAMTotalBytes = m.Sys
-		if m.Sys > 0 {
-			info.RAMPercent = float64(m.Alloc) / float64(m.Sys) * 100
+	// Memory info - use exact htop calculation on Linux
+	if runtime.GOOS == "linux" {
+		if used, total, pct, ok := readMemInfoLinux(); ok {
+			info.RAMUsedBytes = used
+			info.RAMTotalBytes = total
+			info.RAMPercent = pct
+		}
+	}
+
+	// Fallback to gopsutil if not on Linux or if /proc/meminfo wasn't readable
+	if info.RAMTotalBytes == 0 {
+		if vMem, err := mem.VirtualMemory(); err == nil {
+			info.RAMUsedBytes = vMem.Used
+			info.RAMTotalBytes = vMem.Total
+			info.RAMPercent = vMem.UsedPercent
+		} else {
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			info.RAMUsedBytes = m.Alloc
+			info.RAMTotalBytes = m.Sys
+			if m.Sys > 0 {
+				info.RAMPercent = float64(m.Alloc) / float64(m.Sys) * 100
+			}
 		}
 	}
 
@@ -92,18 +196,14 @@ func GetInfo() SystemInfo {
 		info.DiskPercent = dUsage.UsedPercent
 	}
 
-	// CPU percentage with rate-limiting (to avoid blocking or high CPU spikes on Raspberry Pi)
-	mu.Lock()
-	now := time.Now()
-	if now.Sub(lastCheck) >= 1*time.Second {
-		percentages, err := cpu.Percent(0, false)
-		if err == nil && len(percentages) > 0 {
-			lastCPU = percentages[0]
-		}
-		lastCheck = now
-	}
+	// CPU percentage from background sampler
+	mu.RLock()
 	info.CPUPercent = lastCPU
-	mu.Unlock()
+	if len(lastPerCoreCPU) > 0 {
+		info.CPUPerCore = make([]float64, len(lastPerCoreCPU))
+		copy(info.CPUPerCore, lastPerCoreCPU)
+	}
+	mu.RUnlock()
 
 	return info
 }

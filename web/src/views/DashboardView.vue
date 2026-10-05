@@ -143,13 +143,27 @@
                 <div class="bg-blue-500 h-full rounded-full transition-all duration-300"
                      :style="{ width: Math.min(systemStatus.cpu_percent, 100) + '%' }"></div>
               </div>
+              <!-- Per-core breakdown matching htop -->
+              <div v-if="systemStatus.cpu_per_core && systemStatus.cpu_per_core.length" class="grid grid-cols-4 gap-1.5 mt-2 pt-1 border-t border-slate-800/40">
+                <div v-for="(c, idx) in systemStatus.cpu_per_core" :key="idx" class="text-2xs">
+                  <div class="flex justify-between font-mono text-[10px] text-slate-400 mb-0.5">
+                    <span>Core {{ idx }}</span>
+                    <span :class="c > 75 ? 'text-rose-400' : c > 50 ? 'text-amber-400' : 'text-slate-300'">{{ c.toFixed(0) }}%</span>
+                  </div>
+                  <div class="w-full bg-slate-800/80 h-1 rounded-full overflow-hidden">
+                    <div class="bg-sky-400 h-full rounded-full transition-all duration-300" :style="{ width: Math.min(c, 100) + '%' }"></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- RAM -->
             <div>
               <div class="flex justify-between mb-1">
                 <span class="text-slate-400">Memory (RAM)</span>
-                <span class="font-mono text-slate-200 font-medium">{{ systemStatus.ram_used_mb.toFixed(0) }} MB / {{ systemStatus.ram_total_mb.toFixed(0) }} MB</span>
+                <span class="font-mono text-slate-200 font-medium">
+                  {{ systemStatus.ram_total_mb >= 1024 ? (systemStatus.ram_used_mb / 1024).toFixed(2) + ' GB' : systemStatus.ram_used_mb.toFixed(0) + ' MB' }} / {{ systemStatus.ram_total_mb >= 1024 ? (systemStatus.ram_total_mb / 1024).toFixed(2) + ' GB' : systemStatus.ram_total_mb.toFixed(0) + ' MB' }}
+                </span>
               </div>
               <div class="w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
                 <div class="bg-emerald-500 h-full rounded-full transition-all duration-300"
