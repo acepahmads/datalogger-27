@@ -108,7 +108,8 @@ func main() {
 	{
 		// Auth
 		api.POST("/auth/login", authHandler.Login)
-		api.GET("/auth/me", authHandler.Me)
+		api.GET("/auth/me", middleware.JWTAuth(authService), authHandler.Me)
+		api.GET("/users/me", middleware.JWTAuth(authService), authHandler.Me)
 
 		// Development Phases & Tasks
 		api.GET("/phases", devHandler.GetPhases)

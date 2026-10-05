@@ -221,3 +221,54 @@ func TestAPISystemStatus(t *testing.T) {
 		t.Errorf("Expected 3 seeded devices, got %d", res.Data.TotalDevices)
 	}
 }
+
+func TestAPIAuthLogin(t *testing.T) {
+	r, _ := setupTestRouter(t)
+
+	// 1. Missing credentials -> 400
+	reqMissing, _ := http.NewRequest("POST", "/api/auth/login", bytes.NewBuffer([]byte("{}")))
+	reqMissing.Header.Set("Content-Type", "application/json")
+	wMissing := httptest.NewRecorder()
+	r.ServeHTTP(wMissing, reqMissing)
+	if wMissing.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for missing credentials, got %d", wMissing.Code)
+	}
+
+	// 2. Invalid credentials -> 401
+	invalidCreds, _ := json.Marshal(map[string]string{"username": "admin", "password": "wrongpassword"})
+	reqInvalid, _ := http.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(invalidCreds))
+	reqInvalid.Header.Set("Content-Type", "application/json")
+	wInvalid := httptest.NewRecorder()
+	r.ServeHTTP(wInvalid, reqInvalid)
+	if wInvalid.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for wrong credentials, got %d", wInvalid.Code)
+	}
+
+	// 3. Valid credentials -> 200 with JWT
+	validCreds, _ := json.Marshal(map[string]string{"username": "admin", "password": "admin123"})
+	reqValid, _ := http.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(validCreds))
+	reqValid.Header.Set("Content-Type", "application/json")
+	wValid := httptest.NewRecorder()
+	r.ServeHTTP(wValid, reqValid)
+	if wValid.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for valid login, got %d (body: %s)", wValid.Code, wValid.Body.String())
+	}
+
+	var loginRes struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Token string `json:"token"`
+			User  struct {
+				Username string `json:"username"`
+				Role     string `json:"role"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wValid.Body.Bytes(), &loginRes)
+	if loginRes.Data.Token == "" {
+		t.Fatalf("Expected non-empty JWT token")
+	}
+	if loginRes.Data.User.Username != "admin" {
+		t.Errorf("Expected username admin, got %s", loginRes.Data.User.Username)
+	}
+}
