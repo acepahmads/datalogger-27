@@ -50,6 +50,11 @@ new Vue({
     this.$store.dispatch('fetchAlarms');
     this.$store.dispatch('fetchActivity');
     this.$store.dispatch('initWebSocket');
+
+    // Live continuous telemetry polling every 2 seconds
+    setInterval(() => {
+      this.$store.dispatch('fetchSystemStatus');
+    }, 2000);
   },
   render: (h) => h(App),
 }).$mount('#app');

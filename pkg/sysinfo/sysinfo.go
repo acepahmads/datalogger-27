@@ -49,27 +49,27 @@ func init() {
 }
 
 func startCPUSampler() {
-	// Warm-up initial CPU readings
-	_, _ = cpu.Percent(200*time.Millisecond, false)
-	_, _ = cpu.Percent(0, true)
+	// Initial baseline reading
+	_, _ = cpu.Percent(100*time.Millisecond, true)
 
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	for {
+		// Clean 1-second sampling across all logical cores (identical to htop)
+		perCores, err := cpu.Percent(1*time.Second, true)
+		if err == nil && len(perCores) > 0 {
+			var total float64
+			for _, p := range perCores {
+				total += p
+			}
+			avg := total / float64(len(perCores))
 
-	for range ticker.C {
-		// Calculate average CPU across all cores over a steady 1-second window (identical to htop)
-		percentages, err := cpu.Percent(0, false)
-		perCores, perCoreErr := cpu.Percent(0, true)
-
-		mu.Lock()
-		if err == nil && len(percentages) > 0 {
-			lastCPU = percentages[0]
-		}
-		if perCoreErr == nil && len(perCores) > 0 {
+			mu.Lock()
+			lastCPU = avg
 			lastPerCoreCPU = make([]float64, len(perCores))
 			copy(lastPerCoreCPU, perCores)
+			mu.Unlock()
+		} else {
+			time.Sleep(1 * time.Second)
 		}
-		mu.Unlock()
 	}
 }
 
