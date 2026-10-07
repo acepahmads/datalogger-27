@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"time"
 
 	"datalogger/internal/logger"
@@ -12,6 +13,9 @@ import (
 // RunMigrations executes auto-migrations and Phase 2.1 schema synchronization
 func RunMigrations(db *gorm.DB) error {
 	logger.Info("Executing MariaDB schema migrations for Phase 2.1...")
+
+	// 0. Pre-migrate existing tables to ensure unique columns are populated before index creation
+	preMigrateEdgeSchema(db)
 
 	// 1. Auto-migrate models
 	err := db.AutoMigrate(
@@ -204,5 +208,100 @@ func ensureDevicePermissions(db *gorm.DB) {
 		var opPerms []model.Permission
 		db.Where("code IN ?", []string{"device.view"}).Find(&opPerms)
 		_ = db.Model(&opRole).Association("Permissions").Replace(opPerms)
+	}
+}
+
+// preMigrateEdgeSchema safely pre-populates existing database rows before unique indexes are built
+func preMigrateEdgeSchema(db *gorm.DB) {
+	// 1. Devices table pre-migration
+	if db.Migrator().HasTable("devices") {
+		_ = db.Exec("UPDATE devices SET device_code = code WHERE (device_code IS NULL OR device_code = '') AND (code IS NOT NULL AND code != '');").Error
+		_ = db.Exec("UPDATE devices SET device_name = name WHERE (device_name IS NULL OR device_name = '') AND (name IS NOT NULL AND name != '');").Error
+
+		if !db.Migrator().HasColumn("devices", "device_code") {
+			_ = db.Migrator().AddColumn(&model.Device{}, "DeviceCode")
+		}
+		if !db.Migrator().HasColumn("devices", "device_name") {
+			_ = db.Migrator().AddColumn(&model.Device{}, "DeviceName")
+		}
+
+		type DevMini struct {
+			ID         uint   `gorm:"primaryKey"`
+			Code       string `gorm:"column:code"`
+			Name       string `gorm:"column:name"`
+			DeviceCode string `gorm:"column:device_code"`
+			DeviceName string `gorm:"column:device_name"`
+		}
+		var rows []DevMini
+		if err := db.Table("devices").Select("id, code, name, device_code, device_name").Find(&rows).Error; err == nil {
+			for _, r := range rows {
+				dCode := r.DeviceCode
+				if dCode == "" {
+					if r.Code != "" {
+						dCode = r.Code
+					} else {
+						dCode = fmt.Sprintf("DEV-%d", r.ID)
+					}
+				}
+				dName := r.DeviceName
+				if dName == "" {
+					if r.Name != "" {
+						dName = r.Name
+					} else {
+						dName = fmt.Sprintf("Device %d", r.ID)
+					}
+				}
+				_ = db.Table("devices").Where("id = ?", r.ID).Updates(map[string]interface{}{
+					"device_code": dCode,
+					"device_name": dName,
+				}).Error
+			}
+		}
+	}
+
+	// 2. Parameters table pre-migration
+	if db.Migrator().HasTable("parameters") {
+		_ = db.Exec("UPDATE parameters SET parameter_code = code WHERE (parameter_code IS NULL OR parameter_code = '') AND (code IS NOT NULL AND code != '');").Error
+		_ = db.Exec("UPDATE parameters SET parameter_name = name WHERE (parameter_name IS NULL OR parameter_name = '') AND (name IS NOT NULL AND name != '');").Error
+
+		if !db.Migrator().HasColumn("parameters", "parameter_code") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "ParameterCode")
+		}
+		if !db.Migrator().HasColumn("parameters", "parameter_name") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "ParameterName")
+		}
+
+		type ParamMini struct {
+			ID            uint   `gorm:"primaryKey"`
+			Code          string `gorm:"column:code"`
+			Name          string `gorm:"column:name"`
+			ParameterCode string `gorm:"column:parameter_code"`
+			ParameterName string `gorm:"column:parameter_name"`
+		}
+		var pRows []ParamMini
+		if err := db.Table("parameters").Select("id, code, name, parameter_code, parameter_name").Find(&pRows).Error; err == nil {
+			for _, r := range pRows {
+				pCode := r.ParameterCode
+				if pCode == "" {
+					if r.Code != "" {
+						pCode = r.Code
+					} else {
+						pCode = fmt.Sprintf("PARAM-%d", r.ID)
+					}
+				}
+				pName := r.ParameterName
+				if pName == "" {
+					if r.Name != "" {
+						pName = r.Name
+					} else {
+						pName = fmt.Sprintf("Parameter %d", r.ID)
+					}
+				}
+				_ = db.Table("parameters").Where("id = ?", r.ID).Updates(map[string]interface{}{
+					"parameter_code": pCode,
+					"parameter_name": pName,
+				}).Error
+			}
+		}
 	}
 }
