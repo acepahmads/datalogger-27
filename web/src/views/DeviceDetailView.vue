@@ -239,45 +239,25 @@
             <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
               Phase 2.2 Active
             </span>
+            <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Auto-Connect Active
+            </span>
           </div>
-          <p class="text-2xs text-slate-400 mt-0.5">Physical serial & socket lifecycle, timeout, retry backoff, and register polling engine</p>
+          <p class="text-2xs text-slate-400 mt-0.5">Physical serial & socket lifecycle, auto-reconnect backoff, and continuous background register polling</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-          <!-- Connect Button -->
-          <button
-            @click="handleConnect"
-            :disabled="commActionLoading"
-            class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-            </svg>
-            <span>Connect</span>
-          </button>
-
-          <!-- Disconnect Button -->
-          <button
-            @click="handleDisconnect"
-            :disabled="commActionLoading"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
-            </svg>
-            <span>Disconnect</span>
-          </button>
-
-          <!-- Reconnect Button -->
+          <!-- Force Reconnect (Manual Override) -->
           <button
             @click="handleReconnect"
             :disabled="commActionLoading"
             class="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            title="Sistem sudah otomatis menyambung di background. Tombol ini untuk memicu penyambungan ulang instan."
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Reconnect</span>
+            <span>Reconnect Now</span>
           </button>
 
           <!-- Test Link Button -->
@@ -299,6 +279,35 @@
           >
             Edit Settings
           </button>
+        </div>
+      </div>
+
+      <!-- Auto-Connect & Background Polling Explanatory Banner -->
+      <div
+        class="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+        :class="((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'"
+      >
+        <div class="flex items-center space-x-2.5">
+          <span
+            class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+            :class="((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-ping'"
+          ></span>
+          <div>
+            <div class="font-bold flex items-center space-x-2">
+              <span>Mode: Auto-Connect &amp; Auto-Polling Aktif (Background Loop)</span>
+              <span class="px-1.5 py-0.5 rounded text-3xs font-mono font-medium uppercase bg-slate-800 text-slate-300">
+                Tidak Perlu Connect Manual
+              </span>
+            </div>
+            <p class="text-3xs opacity-85 mt-0.5">
+              {{ ((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'Komunikasi serial/network terhubung normal. Data telemetry diambil setiap detik dan dicatat ke log.' : 'Port serial/network terputus atau offline. Background engine terus mencoba menyambung ulang otomatis secara berkala (Auto-Reconnect). Semua kegagalan dicatat ke System Log & Warning.' }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3 text-3xs font-mono text-slate-300 flex-shrink-0">
+          <span>Interval: {{ (device.connection && device.connection.polling_interval) || 1000 }}ms</span>
+          <span>•</span>
+          <span>Auto-Recovery: ON</span>
         </div>
       </div>
 
@@ -1363,8 +1372,8 @@ export default {
       if (!this.device) return;
       try {
         const res = await this.$store.dispatch('fetchCommunicationStatus', this.device.id);
-        if (res && res.data) {
-          this.commStatus = res.data;
+        if (res) {
+          this.commStatus = (res.data !== undefined && typeof res.data === 'object') ? res.data : res;
         }
       } catch (err) {
         // silent fail

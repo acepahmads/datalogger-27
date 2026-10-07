@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 )
@@ -102,14 +104,19 @@ type UpdateParameterRequest struct {
 }
 
 type DeviceService struct {
-	repo       *repository.DeviceRepository
-	systemRepo *repository.SystemRepository
+	repo        *repository.DeviceRepository
+	systemRepo  *repository.SystemRepository
+	commMu      sync.Mutex
+	lastCommErr map[uint]time.Time
+	prevStatus  map[uint]model.DeviceConnectionStatus
 }
 
 func NewDeviceService(repo *repository.DeviceRepository, systemRepo *repository.SystemRepository) *DeviceService {
 	return &DeviceService{
-		repo:       repo,
-		systemRepo: systemRepo,
+		repo:        repo,
+		systemRepo:  systemRepo,
+		lastCommErr: make(map[uint]time.Time),
+		prevStatus:  make(map[uint]model.DeviceConnectionStatus),
 	}
 }
 
@@ -467,15 +474,91 @@ func (s *DeviceService) UpdateLastData(deviceID uint) error {
 }
 
 func (s *DeviceService) SetOnline(deviceID uint) error {
-	_ = s.repo.UpdateLastSeen(deviceID, time.Now())
+	now := time.Now()
+	_ = s.repo.UpdateLastSeen(deviceID, now)
+
+	s.commMu.Lock()
+	wasError := (s.prevStatus[deviceID] == model.DeviceConnError)
+	s.prevStatus[deviceID] = model.DeviceConnOnline
+	s.commMu.Unlock()
+
+	if wasError {
+		logger.Info("Device ID %d communication restored: ONLINE", deviceID)
+		if s.systemRepo != nil {
+			dev, err := s.repo.GetByID(deviceID)
+			devCode := fmt.Sprintf("#%d", deviceID)
+			if err == nil && dev != nil {
+				devCode = dev.DeviceCode
+			}
+			_ = s.systemRepo.AddSystemLog(&model.SystemLog{
+				Level:     "INFO",
+				Component: "COMMUNICATION",
+				Message:   fmt.Sprintf("Device %s communication restored successfully", devCode),
+				Details:   "Auto-reconnect succeeded; telemetry polling active.",
+				CreatedAt: now,
+			})
+			_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+				Username:  "system",
+				Action:    "COMMUNICATION_RESTORED",
+				Resource:  fmt.Sprintf("device:%s", devCode),
+				Details:   "Device communication link re-established; operational telemetry active.",
+				CreatedAt: now,
+			})
+		}
+	}
+
 	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnOnline)
 }
 
 func (s *DeviceService) SetOffline(deviceID uint) error {
+	s.commMu.Lock()
+	s.prevStatus[deviceID] = model.DeviceConnOffline
+	s.commMu.Unlock()
 	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnOffline)
 }
 
 func (s *DeviceService) SetConnectionError(deviceID uint, errMessage string) error {
+	now := time.Now()
+	s.commMu.Lock()
+	prev := s.prevStatus[deviceID]
+	lastLogged := s.lastCommErr[deviceID]
+	shouldLog := (prev != model.DeviceConnError) || now.Sub(lastLogged) >= 60*time.Second
+	if shouldLog {
+		s.lastCommErr[deviceID] = now
+	}
+	s.prevStatus[deviceID] = model.DeviceConnError
+	s.commMu.Unlock()
+
+	if shouldLog {
+		devCode := fmt.Sprintf("#%d", deviceID)
+		protocol := "SERIAL/TCP"
+		if dev, err := s.repo.GetByID(deviceID); err == nil && dev != nil {
+			devCode = dev.DeviceCode
+			if dev.Connection != nil {
+				protocol = string(dev.Connection.Protocol)
+			}
+		}
+
+		logger.Warn("Device %s (%s) communication error: %s (auto-reconnecting in background...)", devCode, protocol, errMessage)
+
+		if s.systemRepo != nil {
+			_ = s.systemRepo.AddSystemLog(&model.SystemLog{
+				Level:     "WARN",
+				Component: "COMMUNICATION",
+				Message:   fmt.Sprintf("Device %s communication error: %s", devCode, errMessage),
+				Details:   fmt.Sprintf("Protocol: %s. Background engine is continuously attempting auto-reconnect.", protocol),
+				CreatedAt: now,
+			})
+			_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+				Username:  "system",
+				Action:    "COMMUNICATION_ERROR",
+				Resource:  fmt.Sprintf("device:%s", devCode),
+				Details:   fmt.Sprintf("Communication failed: %s. Automatic background reconnect is active.", errMessage),
+				CreatedAt: now,
+			})
+		}
+	}
+
 	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnError)
 }
 
