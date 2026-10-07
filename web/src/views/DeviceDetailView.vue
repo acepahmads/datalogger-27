@@ -779,102 +779,619 @@
     <!-- TAB 7: HISTORICAL DATA (Phase 3.1) -->
     <div v-if="device && activeTab === 'history'" class="space-y-4">
       <!-- Filter Bar -->
-      <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
+      <div class="saas-card p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-[#0F172A]/90 border border-slate-800 rounded-2xl">
         <div class="flex flex-wrap items-center gap-3">
           <!-- Parameter Filter -->
           <div>
             <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Parameter</label>
             <select
               v-model="historyParamId"
-              @change="fetchHistory"
+              @change="onFilterChange"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
             >
-              <option value="">All Parameters</option>
+              <option value="">Semua Parameter (All)</option>
               <option v-for="p in device.parameters" :key="p.id" :value="p.id">
-                {{ p.parameter_code }} — {{ p.parameter_name }}
+                {{ p.parameter_code }} — {{ p.parameter_name }} ({{ p.unit }})
               </option>
             </select>
           </div>
 
-          <!-- Time Range Filter -->
+          <!-- Time Range Quick Buttons -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Time Range</label>
-            <select
-              v-model="historyTimeRange"
-              @change="fetchHistory"
-              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
-            >
-              <option value="15m">Last 15 Minutes</option>
-              <option value="1h">Last 1 Hour</option>
-              <option value="6h">Last 6 Hours</option>
-              <option value="24h">Last 24 Hours</option>
-              <option value="all">All Telemetry</option>
-            </select>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Rentang Waktu</label>
+            <div class="flex items-center space-x-1">
+              <button
+                v-for="tr in timeRangeOptions"
+                :key="tr.value"
+                @click="setTimeRange(tr.value)"
+                class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition"
+                :class="historyTimeRange === tr.value
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                  : 'bg-[#0B0F19] text-slate-400 hover:text-slate-200 border border-slate-700/60'"
+              >
+                {{ tr.label }}
+              </button>
+            </div>
           </div>
 
           <!-- Quality Filter -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Quality</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Kualitas Data</label>
             <select
               v-model="historyQuality"
               @change="fetchHistory"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
             >
-              <option value="">All Qualities</option>
-              <option value="GOOD">GOOD Only</option>
-              <option value="BAD">BAD Only</option>
-              <option value="UNCERTAIN">UNCERTAIN Only</option>
+              <option value="">Semua Kualitas</option>
+              <option value="GOOD">GOOD (Normal)</option>
+              <option value="BAD">BAD (Error)</option>
+              <option value="UNCERTAIN">UNCERTAIN</option>
+            </select>
+          </div>
+
+          <!-- Resolution / Sample Limit -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Kerapatan Titik</label>
+            <select
+              v-model="historyPageSize"
+              @change="onPageSizeChange"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500 font-mono"
+            >
+              <option :value="20">20 Sampel</option>
+              <option :value="50">50 Sampel</option>
+              <option :value="100">100 Sampel</option>
+              <option :value="250">250 Sampel</option>
             </select>
           </div>
         </div>
 
-        <div class="flex items-center space-x-2 pt-2 md:pt-0">
+        <div class="flex items-center space-x-2 pt-2 lg:pt-0">
           <button
             @click="fetchHistory"
             :disabled="historyLoading"
-            class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 shadow-sm shadow-blue-500/20"
           >
             <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': historyLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Query History</span>
+            <span>Segarkan Grafik</span>
           </button>
         </div>
       </div>
 
       <!-- Historical Trend Chart Card -->
-      <div v-if="historyRecords.length > 0" class="saas-card p-4 space-y-3">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+      <div class="saas-card p-4 sm:p-5 space-y-4 bg-[#0B1120]/90 border border-slate-800 shadow-xl rounded-2xl overflow-hidden">
+        <!-- Card Top Bar: Title, Parameter Quick Tabs, Controls -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
-            <h4 class="text-xs font-bold text-white uppercase tracking-wider">Historical Trend Curve</h4>
-            <p class="text-3xs text-slate-400">Engineering value sequence across queried timeframe</p>
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-widest">
+                TELEMETRY TREND CURVE
+              </span>
+              <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-4xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>REALTIME STREAM</span>
+              </span>
+            </div>
+            <h3 class="text-sm font-bold text-white mt-1 flex items-center space-x-2">
+              <span>{{ chartActiveName }}</span>
+              <span class="text-cyan-400 font-mono font-normal">({{ chartActiveCode }})</span>
+            </h3>
+            <p class="text-3xs text-slate-400">
+              Grafik dinamika nilai sensor terhadap waktu &bull; Jendela: <span class="text-slate-300 font-medium">{{ historyTimeRangeLabel }}</span>
+            </p>
           </div>
-          <div class="flex items-center space-x-3 text-3xs font-mono text-slate-400">
-            <span>Min: <b class="text-emerald-400">{{ historyStats.min }}</b></span>
-            <span>Max: <b class="text-rose-400">{{ historyStats.max }}</b></span>
-            <span>Avg: <b class="text-blue-400">{{ historyStats.avg }}</b></span>
-            <span>Samples: <b class="text-slate-200">{{ historyStats.count }}</b></span>
+
+          <!-- Parameter Switcher Pills (If multiple parameters) -->
+          <div v-if="device.parameters && device.parameters.length > 1" class="flex items-center space-x-1.5 flex-wrap">
+            <span class="text-3xs text-slate-500 uppercase font-semibold mr-1">Parameter:</span>
+            <button
+              v-for="p in device.parameters"
+              :key="p.id"
+              @click="selectChartParam(p.id)"
+              class="px-2.5 py-1 rounded-lg text-2xs font-medium transition flex items-center space-x-1"
+              :class="activeChartParamId === p.id
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold shadow-sm'
+                : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/60'"
+            >
+              <span>{{ p.parameter_code }}</span>
+              <span class="text-3xs text-slate-400">({{ p.unit || '--' }})</span>
+            </button>
+          </div>
+
+          <!-- Chart Visual Controls Toolbar -->
+          <div class="flex items-center space-x-2 text-2xs">
+            <!-- Curve Type Toggle -->
+            <div class="bg-slate-800/80 p-0.5 rounded-lg border border-slate-700 flex items-center">
+              <button
+                @click="chartCurveType = 'smooth'"
+                class="px-2 py-1 rounded-md text-3xs font-semibold transition"
+                :class="chartCurveType === 'smooth' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                title="Kurva Spline Halus (Bezier)"
+              >
+                Halus
+              </button>
+              <button
+                @click="chartCurveType = 'linear'"
+                class="px-2 py-1 rounded-md text-3xs font-semibold transition"
+                :class="chartCurveType === 'linear' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                title="Garis Sudut Linear"
+              >
+                Garis
+              </button>
+            </div>
+
+            <!-- Toggle Dots -->
+            <button
+              @click="chartShowPoints = !chartShowPoints"
+              class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1"
+              :class="chartShowPoints
+                ? 'bg-slate-800 text-cyan-400 border-cyan-500/30'
+                : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-slate-300'"
+              title="Tampilkan / Sembunyikan Titik Data"
+            >
+              <span class="w-1.5 h-1.5 rounded-full" :class="chartShowPoints ? 'bg-cyan-400' : 'bg-slate-600'"></span>
+              <span>Titik</span>
+            </button>
+
+            <!-- Toggle Avg Line -->
+            <button
+              @click="chartShowAvgLine = !chartShowAvgLine"
+              class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1"
+              :class="chartShowAvgLine
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-slate-300'"
+              title="Garis Referensi Rata-Rata"
+            >
+              <span>Rata-Rata</span>
+            </button>
           </div>
         </div>
 
-        <!-- SVG Trend Chart -->
-        <div class="w-full h-32 bg-[#0B0F19] rounded-xl border border-slate-800 p-2 flex items-center justify-center relative overflow-hidden">
-          <svg class="w-full h-full overflow-visible" viewBox="0 0 600 120" preserveAspectRatio="none">
+        <!-- 5 KPI Cards Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <!-- KPI 1: Nilai Terkini -->
+          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-cyan-500/40 transition">
+            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
+              <span class="uppercase tracking-wider font-semibold">Nilai Terkini</span>
+              <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(chartStats.latestQuality)">
+                {{ chartStats.latestQuality }}
+              </span>
+            </div>
+            <div class="flex items-baseline space-x-1.5">
+              <span class="text-xl sm:text-2xl font-mono font-extrabold text-white tracking-tight">
+                {{ chartStats.latest }}
+              </span>
+              <span class="text-xs font-mono font-semibold text-cyan-400">{{ chartActiveUnit }}</span>
+            </div>
+            <div class="text-3xs text-slate-500 font-mono mt-1 flex items-center justify-between">
+              <span>Jam {{ chartStats.latestTime }}</span>
+              <span class="text-emerald-400 text-4xs">Live</span>
+            </div>
+          </div>
+
+          <!-- KPI 2: Minimum -->
+          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-emerald-500/40 transition">
+            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
+              <span class="uppercase tracking-wider font-semibold">Minimum (Valley)</span>
+              <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+              </svg>
+            </div>
+            <div class="flex items-baseline space-x-1.5">
+              <span class="text-xl sm:text-2xl font-mono font-extrabold text-emerald-400 tracking-tight">
+                {{ chartStats.min }}
+              </span>
+              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+            </div>
+            <div class="text-3xs text-slate-500 font-mono mt-1">
+              Terendah @ {{ chartStats.minTime }}
+            </div>
+          </div>
+
+          <!-- KPI 3: Maximum -->
+          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-rose-500/40 transition">
+            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
+              <span class="uppercase tracking-wider font-semibold">Maksimum (Peak)</span>
+              <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+              </svg>
+            </div>
+            <div class="flex items-baseline space-x-1.5">
+              <span class="text-xl sm:text-2xl font-mono font-extrabold text-rose-400 tracking-tight">
+                {{ chartStats.max }}
+              </span>
+              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+            </div>
+            <div class="text-3xs text-slate-500 font-mono mt-1">
+              Puncak @ {{ chartStats.maxTime }}
+            </div>
+          </div>
+
+          <!-- KPI 4: Average -->
+          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-blue-500/40 transition">
+            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
+              <span class="uppercase tracking-wider font-semibold">Rata-Rata (Mean)</span>
+              <span class="text-3xs font-mono text-blue-400 font-bold">&micro;</span>
+            </div>
+            <div class="flex items-baseline space-x-1.5">
+              <span class="text-xl sm:text-2xl font-mono font-extrabold text-blue-400 tracking-tight">
+                {{ chartStats.avg }}
+              </span>
+              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+            </div>
+            <div class="text-3xs text-slate-500 font-mono mt-1">
+              Rerata Seluruh Sampel
+            </div>
+          </div>
+
+          <!-- KPI 5: Samples & Delta -->
+          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden col-span-2 sm:col-span-1 group hover:border-amber-500/40 transition">
+            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
+              <span class="uppercase tracking-wider font-semibold">Variasi & Sampel</span>
+              <span class="text-3xs font-mono text-amber-400 font-bold">&Delta;</span>
+            </div>
+            <div class="flex items-baseline space-x-1.5">
+              <span class="text-xl sm:text-2xl font-mono font-extrabold text-amber-300 tracking-tight">
+                {{ chartStats.delta }}
+              </span>
+              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+            </div>
+            <div class="text-3xs text-slate-400 font-mono mt-1">
+              Total <b class="text-slate-200">{{ chartStats.count }}</b> Sampel Data
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Trend Chart Canvas Area -->
+        <div
+          ref="chartContainer"
+          class="w-full h-72 sm:h-80 bg-gradient-to-b from-[#080D1A] via-[#050914] to-[#03060E] rounded-2xl border border-slate-800/90 relative p-1 sm:p-2 select-none overflow-hidden group shadow-inner"
+        >
+          <!-- Top Left Unit Watermark -->
+          <div class="absolute top-2.5 left-4 z-10 flex items-center space-x-1.5 text-3xs font-mono text-slate-500 pointer-events-none">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <span>Skala Y: <b class="text-slate-400">{{ chartActiveUnit || 'Nilai' }}</b></span>
+          </div>
+
+          <!-- Empty State if no records -->
+          <div v-if="chartPoints.length === 0" class="w-full h-full flex flex-col items-center justify-center space-y-2 text-center">
+            <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+            </svg>
+            <p class="text-xs text-slate-400 font-medium">Belum ada data rekaman telemetri untuk parameter ini.</p>
+            <p class="text-3xs text-slate-500">Data akan muncul secara otomatis saat polling engine mengirimkan pembacaan sensor.</p>
+          </div>
+
+          <!-- SVG Chart -->
+          <svg
+            v-else
+            class="w-full h-full overflow-visible"
+            viewBox="0 0 900 280"
+            preserveAspectRatio="none"
+            @mousemove="onChartMouseMove"
+            @mouseleave="onChartMouseLeave"
+          >
             <defs>
-              <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.3"/>
-                <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
+              <!-- Gradient Area Fill -->
+              <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.38" />
+                <stop offset="60%" stop-color="#3B82F6" stop-opacity="0.10" />
+                <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.00" />
               </linearGradient>
+
+              <!-- Neon Stroke Gradient -->
+              <linearGradient id="trendStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#06B6D4" />
+                <stop offset="50%" stop-color="#38BDF8" />
+                <stop offset="100%" stop-color="#60A5FA" />
+              </linearGradient>
+
+              <!-- Glow Drop Filter -->
+              <filter id="neonCurveGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
-            <polyline
+
+            <!-- Horizontal Grid Lines & Y-Axis Labels -->
+            <g class="grid-lines">
+              <g v-for="(tick, idx) in chartGridTicks" :key="'grid-' + idx">
+                <line
+                  :x1="65"
+                  :y1="tick.y"
+                  :x2="860"
+                  :y2="tick.y"
+                  stroke="#1E293B"
+                  stroke-dasharray="4 4"
+                  stroke-width="1"
+                />
+                <text
+                  :x="55"
+                  :y="tick.y + 4"
+                  text-anchor="end"
+                  fill="#64748B"
+                  font-size="11"
+                  font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+            </g>
+
+            <!-- Vertical Ticks & Timestamps on X-Axis -->
+            <g class="time-ticks">
+              <g v-for="(tick, idx) in chartTimeTicks" :key="'ttick-' + idx">
+                <line
+                  :x1="tick.x"
+                  :y1="232"
+                  :x2="tick.x"
+                  :y2="238"
+                  stroke="#334155"
+                  stroke-width="1.2"
+                />
+                <text
+                  :x="tick.x"
+                  :y="256"
+                  text-anchor="middle"
+                  fill="#64748B"
+                  font-size="10"
+                  font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                >
+                  {{ tick.time }}
+                </text>
+              </g>
+            </g>
+
+            <!-- Area Fill Under Curve -->
+            <path
+              :d="chartAreaPath"
+              fill="url(#trendAreaGradient)"
+              class="transition-all duration-300"
+            />
+
+            <!-- Average Reference Line -->
+            <g v-if="chartShowAvgLine && chartStats.count > 0">
+              <line
+                :x1="65"
+                :y1="chartAvgY"
+                :x2="860"
+                :y2="chartAvgY"
+                stroke="#F59E0B"
+                stroke-dasharray="5 4"
+                stroke-width="1.3"
+                opacity="0.8"
+              />
+              <rect
+                :x="795"
+                :y="Math.max(6, chartAvgY - 9)"
+                width="65"
+                height="18"
+                rx="4"
+                fill="#1E1B18"
+                stroke="#F59E0B"
+                stroke-width="1"
+                opacity="0.95"
+              />
+              <text
+                :x="827"
+                :y="Math.max(6, chartAvgY - 9) + 12"
+                text-anchor="middle"
+                fill="#FBBF24"
+                font-size="9"
+                font-family="monospace"
+                font-weight="bold"
+              >
+                AVG {{ chartStats.avg }}
+              </text>
+            </g>
+
+            <!-- Main Neon Trend Curve Line -->
+            <path
+              :d="chartCurvePath"
               fill="none"
-              stroke="#3B82F6"
-              stroke-width="2.5"
+              stroke="url(#trendStrokeGradient)"
+              stroke-width="3"
               stroke-linecap="round"
               stroke-linejoin="round"
-              :points="trendLinePoints"
+              filter="url(#neonCurveGlow)"
+              class="transition-all duration-200"
             />
+
+            <!-- Peak (Max) Annotation Badge -->
+            <g v-if="chartShowMinMax && chartMaxPoint && chartStats.count > 1">
+              <circle
+                :cx="chartMaxPoint.x"
+                :cy="chartMaxPoint.y"
+                r="5.5"
+                fill="#F43F5E"
+                stroke="#FFFFFF"
+                stroke-width="1.5"
+              />
+              <rect
+                :x="Math.max(65, Math.min(chartMaxPoint.x - 32, 795))"
+                :y="Math.max(6, chartMaxPoint.y - 24)"
+                width="64"
+                height="18"
+                rx="4"
+                fill="#881337"
+                stroke="#F43F5E"
+                stroke-width="1"
+                opacity="0.95"
+              />
+              <text
+                :x="Math.max(97, Math.min(chartMaxPoint.x, 827))"
+                :y="Math.max(6, chartMaxPoint.y - 24) + 12"
+                text-anchor="middle"
+                fill="#FECDD3"
+                font-size="9"
+                font-family="monospace"
+                font-weight="bold"
+              >
+                MAX {{ chartMaxPoint.value.toFixed(2) }}
+              </text>
+            </g>
+
+            <!-- Valley (Min) Annotation Badge -->
+            <g v-if="chartShowMinMax && chartMinPoint && chartStats.count > 1 && chartMinPoint.y !== chartMaxPoint.y">
+              <circle
+                :cx="chartMinPoint.x"
+                :cy="chartMinPoint.y"
+                r="5.5"
+                fill="#10B981"
+                stroke="#FFFFFF"
+                stroke-width="1.5"
+              />
+              <rect
+                :x="Math.max(65, Math.min(chartMinPoint.x - 32, 795))"
+                :y="Math.min(214, chartMinPoint.y + 7)"
+                width="64"
+                height="18"
+                rx="4"
+                fill="#064E3B"
+                stroke="#10B981"
+                stroke-width="1"
+                opacity="0.95"
+              />
+              <text
+                :x="Math.max(97, Math.min(chartMinPoint.x, 827))"
+                :y="Math.min(214, chartMinPoint.y + 7) + 12"
+                text-anchor="middle"
+                fill="#A7F3D0"
+                font-size="9"
+                font-family="monospace"
+                font-weight="bold"
+              >
+                MIN {{ chartMinPoint.value.toFixed(2) }}
+              </text>
+            </g>
+
+            <!-- Data Point Dots -->
+            <g v-if="chartShowPoints">
+              <circle
+                v-for="(p, i) in chartPoints"
+                :key="'dot-' + i"
+                :cx="p.x"
+                :cy="p.y"
+                :r="chartPoints.length > 50 ? 2 : 3"
+                fill="#06B6D4"
+                stroke="#0B1120"
+                stroke-width="1.5"
+                class="hover:opacity-100"
+              />
+            </g>
+
+            <!-- Active Mouse Crosshair Guidelines -->
+            <g v-if="hoveredPoint">
+              <line
+                :x1="hoveredPoint.x"
+                :y1="32"
+                :x2="hoveredPoint.x"
+                :y2="232"
+                stroke="#22D3EE"
+                stroke-width="1.5"
+                stroke-dasharray="3 3"
+                opacity="0.8"
+              />
+              <line
+                :x1="65"
+                :y1="hoveredPoint.y"
+                :x2="860"
+                :y2="hoveredPoint.y"
+                stroke="#22D3EE"
+                stroke-width="1"
+                stroke-dasharray="3 3"
+                opacity="0.5"
+              />
+              <!-- Pulsing beacon on the hovered point -->
+              <circle
+                :cx="hoveredPoint.x"
+                :cy="hoveredPoint.y"
+                r="8"
+                fill="none"
+                stroke="#22D3EE"
+                stroke-width="2"
+                class="animate-ping"
+              />
+              <circle
+                :cx="hoveredPoint.x"
+                :cy="hoveredPoint.y"
+                r="5.5"
+                fill="#06B6D4"
+                stroke="#FFFFFF"
+                stroke-width="2"
+              />
+            </g>
           </svg>
+
+          <!-- Floating Glassmorphism Tooltip -->
+          <div
+            v-if="hoveredPoint"
+            class="absolute pointer-events-none z-30 transition-all duration-75"
+            :style="tooltipStyle"
+          >
+            <div class="bg-slate-900/95 backdrop-blur-md border border-cyan-500/40 shadow-2xl rounded-xl p-3 text-xs w-60 space-y-1.5 ring-1 ring-white/10">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-1">
+                <span class="text-3xs font-mono font-bold text-cyan-400 uppercase tracking-wider">
+                  {{ getParamCode(hoveredPoint.rawRecord.parameter_id) }}
+                </span>
+                <span
+                  class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold"
+                  :class="qualityBadgeClass(hoveredPoint.quality)"
+                >
+                  {{ hoveredPoint.quality }}
+                </span>
+              </div>
+              <div class="text-3xs text-slate-300 font-medium truncate">
+                {{ getParamName(hoveredPoint.rawRecord.parameter_id) }}
+              </div>
+              <div class="flex items-baseline space-x-1.5 pt-0.5">
+                <span class="text-2xl font-mono font-black text-white tracking-tight">
+                  {{ hoveredPoint.value !== undefined ? hoveredPoint.value.toFixed(2) : '--' }}
+                </span>
+                <span class="text-xs font-semibold text-cyan-400 font-mono">{{ chartActiveUnit }}</span>
+              </div>
+              <div class="pt-1 border-t border-slate-800/80 flex items-center justify-between text-3xs text-slate-400 font-mono">
+                <span>{{ formatTimestamp(hoveredPoint.timestamp) }}</span>
+                <span class="text-slate-500">#{{ hoveredPoint.index + 1 }}/{{ chartPoints.length }}</span>
+              </div>
+              <div v-if="hoveredPoint.rawRecord.raw_value !== undefined" class="text-4xs text-slate-500 font-mono flex items-center justify-between">
+                <span>Raw: {{ hoveredPoint.rawRecord.raw_value }}</span>
+                <span>{{ hoveredPoint.rawRecord.source || 'MODBUS' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legend and Operator Guide -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-3xs text-slate-400 pt-1">
+          <div class="flex items-center space-x-4 flex-wrap">
+            <span class="flex items-center space-x-1.5">
+              <span class="w-3 h-1 rounded bg-cyan-400 inline-block"></span>
+              <span>Tren Telemetri ({{ chartActiveUnit }})</span>
+            </span>
+            <span v-if="chartShowAvgLine" class="flex items-center space-x-1.5">
+              <span class="w-3 h-0.5 border-t border-dashed border-amber-400 inline-block"></span>
+              <span>Rata-Rata ({{ chartStats.avg }})</span>
+            </span>
+            <span v-if="chartShowMinMax" class="flex items-center space-x-1.5">
+              <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+              <span>Puncak Max</span>
+            </span>
+            <span v-if="chartShowMinMax" class="flex items-center space-x-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+              <span>Titik Min</span>
+            </span>
+          </div>
+          <div class="text-slate-500 italic flex items-center space-x-1">
+            <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+            </svg>
+            <span>Gerakkan kursor pada grafik untuk membaca rincian telemetri pada setiap detik.</span>
+          </div>
         </div>
       </div>
 
@@ -1257,6 +1774,25 @@ export default {
       historyTimeRange: '1h',
       historyLoading: false,
 
+      // Historical Chart Enhancements
+      chartCurveType: 'smooth',
+      chartShowPoints: true,
+      chartShowAvgLine: true,
+      chartShowMinMax: true,
+      chartParamId: '',
+      hoveredPoint: null,
+      hoverMouseClientX: 0,
+      hoverMouseClientY: 0,
+      containerWidth: 800,
+      containerHeight: 320,
+      timeRangeOptions: [
+        { label: '15m', value: '15m' },
+        { label: '1j', value: '1h' },
+        { label: '6j', value: '6h' },
+        { label: '24j', value: '24h' },
+        { label: 'Semua', value: 'all' },
+      ],
+
       // Phase 3.1 Raw Telemetry
       rawRecords: [],
       rawTotal: 0,
@@ -1271,40 +1807,280 @@ export default {
       if (!this.device || !this.device.parameters) return [];
       return this.device.parameters;
     },
-    trendLinePoints() {
-      if (!this.historyRecords || this.historyRecords.length === 0) return '';
-      const pts = [...this.historyRecords].reverse();
-      const vals = pts.map(p => (p.value !== undefined ? p.value : 0));
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const range = max - min || 1;
-      const width = 600;
-      const height = 120;
-      const padding = 15;
+    historyTimeRangeLabel() {
+      switch (this.historyTimeRange) {
+        case '15m': return '15 Menit Terakhir';
+        case '1h': return '1 Jam Terakhir';
+        case '6h': return '6 Jam Terakhir';
+        case '24h': return '24 Jam Terakhir';
+        default: return 'Semua Riwayat Tersimpan';
+      }
+    },
+    activeChartParamId() {
+      if (this.chartParamId) return Number(this.chartParamId);
+      if (this.historyParamId) return Number(this.historyParamId);
+      if (this.historyRecords && this.historyRecords.length > 0) {
+        return this.historyRecords[0].parameter_id;
+      }
+      if (this.device && this.device.parameters && this.device.parameters.length > 0) {
+        return this.device.parameters[0].id;
+      }
+      return null;
+    },
+    chartActiveParam() {
+      if (!this.device || !this.device.parameters || !this.activeChartParamId) return null;
+      return this.device.parameters.find(p => p.id === this.activeChartParamId) || null;
+    },
+    chartActiveUnit() {
+      return this.chartActiveParam ? (this.chartActiveParam.unit || '') : '';
+    },
+    chartActiveName() {
+      return this.chartActiveParam
+        ? (this.chartActiveParam.parameter_name || this.chartActiveParam.name || this.chartActiveParam.parameter_code)
+        : 'Parameter Sensor';
+    },
+    chartActiveCode() {
+      return this.chartActiveParam ? (this.chartActiveParam.parameter_code || this.chartActiveParam.code) : '';
+    },
+    chartFilteredRecords() {
+      if (!this.historyRecords || this.historyRecords.length === 0) return [];
+      if (this.activeChartParamId) {
+        const filtered = this.historyRecords.filter(r => r.parameter_id === this.activeChartParamId);
+        if (filtered.length > 0) return filtered;
+      }
+      return this.historyRecords;
+    },
+    chartPoints() {
+      const records = this.chartFilteredRecords;
+      if (!records || records.length === 0) return [];
 
-      return pts
-        .map((p, idx) => {
-          const x = padding + (idx / (pts.length - 1 || 1)) * (width - 2 * padding);
-          const y = height - padding - (((p.value !== undefined ? p.value : 0) - min) / range) * (height - 2 * padding);
-          return `${x.toFixed(1)},${y.toFixed(1)}`;
-        })
-        .join(' ');
+      // Telemetry is fetched newest first (DESC); reverse for chronological left-to-right plotting
+      const chronological = [...records].reverse();
+      const vals = chronological.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      let min = Math.min(...vals);
+      let max = Math.max(...vals);
+
+      // If all values are identical (flat line)
+      if (min === max) {
+        min = min - 1;
+        max = max + 1;
+      }
+
+      const range = max - min || 1;
+      const left = 65;
+      const right = 860;
+      const top = 32;
+      const bottom = 232;
+      const plotWidth = right - left;
+      const plotHeight = bottom - top;
+
+      const count = chronological.length;
+      const maxVal = Math.max(...vals);
+      const minVal = Math.min(...vals);
+
+      return chronological.map((rec, idx) => {
+        const val = (rec.value !== undefined && rec.value !== null) ? Number(rec.value) : 0;
+        const x = count === 1 ? (left + plotWidth / 2) : (left + (idx / (count - 1)) * plotWidth);
+        const normalizedY = (val - min) / range;
+        const y = bottom - (normalizedY * plotHeight);
+
+        return {
+          x: Number(x.toFixed(1)),
+          y: Number(y.toFixed(1)),
+          value: val,
+          rawRecord: rec,
+          timestamp: rec.received_at || rec.timestamp,
+          quality: rec.quality || 'GOOD',
+          index: idx,
+          isMax: val === maxVal,
+          isMin: val === minVal,
+        };
+      });
+    },
+    chartCurvePath() {
+      const pts = this.chartPoints;
+      if (!pts || pts.length === 0) return '';
+      if (pts.length === 1) return `M ${pts[0].x - 5},${pts[0].y} L ${pts[0].x + 5},${pts[0].y}`;
+
+      if (this.chartCurveType === 'linear') {
+        return 'M ' + pts.map(p => `${p.x},${p.y}`).join(' L ');
+      }
+
+      // Cubic Bezier Spline
+      let d = `M ${pts[0].x},${pts[0].y}`;
+      for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1];
+        const curr = pts[i];
+        const dx = curr.x - prev.x;
+        const cp1x = (prev.x + dx * 0.35).toFixed(1);
+        const cp1y = prev.y.toFixed(1);
+        const cp2x = (curr.x - dx * 0.35).toFixed(1);
+        const cp2y = curr.y.toFixed(1);
+        d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${curr.x},${curr.y}`;
+      }
+      return d;
+    },
+    chartAreaPath() {
+      const curve = this.chartCurvePath;
+      const pts = this.chartPoints;
+      if (!curve || !pts || pts.length === 0) return '';
+      const bottom = 232;
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      return `${curve} L ${last.x},${bottom} L ${first.x},${bottom} Z`;
+    },
+    chartGridTicks() {
+      const records = this.chartFilteredRecords;
+      if (!records || records.length === 0) {
+        return [
+          { y: 32, label: '100.00' },
+          { y: 82, label: '75.00' },
+          { y: 132, label: '50.00' },
+          { y: 182, label: '25.00' },
+          { y: 232, label: '0.00' },
+        ];
+      }
+      const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      let min = Math.min(...vals);
+      let max = Math.max(...vals);
+      if (min === max) {
+        min = min - 1;
+        max = max + 1;
+      }
+      const range = max - min;
+      const top = 32;
+      const bottom = 232;
+      const plotHeight = bottom - top;
+
+      const ratios = [1.0, 0.75, 0.5, 0.25, 0.0];
+      return ratios.map(r => {
+        const val = min + range * r;
+        const y = Number((bottom - r * plotHeight).toFixed(1));
+        return {
+          y,
+          value: val,
+          label: val.toFixed(2),
+        };
+      });
+    },
+    chartTimeTicks() {
+      const pts = this.chartPoints;
+      if (!pts || pts.length === 0) return [];
+      const n = pts.length;
+      if (n <= 6) {
+        return pts.map(p => ({
+          x: p.x,
+          time: this.formatTimeShort(p.timestamp),
+        }));
+      }
+      const stepIndices = [
+        0,
+        Math.floor((n - 1) * 0.25),
+        Math.floor((n - 1) * 0.5),
+        Math.floor((n - 1) * 0.75),
+        n - 1,
+      ];
+      return stepIndices.map(idx => ({
+        x: pts[idx].x,
+        time: this.formatTimeShort(pts[idx].timestamp),
+      }));
+    },
+    chartStats() {
+      const records = this.chartFilteredRecords;
+      if (!records || records.length === 0) {
+        return {
+          latest: '--',
+          latestQuality: 'UNKNOWN',
+          latestTime: '--',
+          min: '0.00',
+          max: '0.00',
+          avg: '0.00',
+          delta: '0.00',
+          count: 0,
+          minTime: '--',
+          maxTime: '--',
+        };
+      }
+
+      // records[0] is the newest telemetry record
+      const latestRec = records[0];
+      const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      const minVal = Math.min(...vals);
+      const maxVal = Math.max(...vals);
+      const sum = vals.reduce((a, b) => a + b, 0);
+      const avgVal = sum / vals.length;
+      const deltaVal = maxVal - minVal;
+
+      const minRec = records.find(r => r.value === minVal);
+      const maxRec = records.find(r => r.value === maxVal);
+
+      return {
+        latest: (latestRec.value !== undefined && latestRec.value !== null) ? Number(latestRec.value).toFixed(2) : '--',
+        latestQuality: latestRec.quality || 'GOOD',
+        latestTime: this.formatTimeShort(latestRec.received_at || latestRec.timestamp),
+        min: minVal.toFixed(2),
+        max: maxVal.toFixed(2),
+        avg: avgVal.toFixed(2),
+        delta: deltaVal.toFixed(2),
+        count: vals.length,
+        minTime: minRec ? this.formatTimeShort(minRec.received_at || minRec.timestamp) : '--',
+        maxTime: maxRec ? this.formatTimeShort(maxRec.received_at || maxRec.timestamp) : '--',
+      };
+    },
+    chartMaxPoint() {
+      const pts = this.chartPoints;
+      if (!pts || pts.length === 0) return null;
+      return pts.find(p => p.isMax) || null;
+    },
+    chartMinPoint() {
+      const pts = this.chartPoints;
+      if (!pts || pts.length === 0) return null;
+      return pts.find(p => p.isMin) || null;
+    },
+    chartAvgY() {
+      const stats = this.chartStats;
+      const records = this.chartFilteredRecords;
+      if (!records || records.length === 0) return 132;
+      const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      let min = Math.min(...vals);
+      let max = Math.max(...vals);
+      if (min === max) {
+        min = min - 1;
+        max = max + 1;
+      }
+      const range = max - min || 1;
+      const avg = Number(stats.avg);
+      const top = 32;
+      const bottom = 232;
+      const plotHeight = bottom - top;
+      const ratio = (avg - min) / range;
+      return Number((bottom - ratio * plotHeight).toFixed(1));
+    },
+    tooltipStyle() {
+      if (!this.hoveredPoint) return {};
+      const tooltipWidth = 240;
+      let left = this.hoverMouseClientX + 16;
+      if (left + tooltipWidth > this.containerWidth) {
+        left = this.hoverMouseClientX - tooltipWidth - 16;
+      }
+      if (left < 10) left = 10;
+
+      let top = this.hoverMouseClientY - 70;
+      if (top < 10) top = 10;
+      if (top + 130 > this.containerHeight) top = this.containerHeight - 140;
+
+      return {
+        left: `${left}px`,
+        top: `${top}px`,
+      };
+    },
+    trendLinePoints() {
+      const pts = this.chartPoints;
+      if (!pts || pts.length === 0) return '';
+      return pts.map(p => `${p.x},${p.y}`).join(' ');
     },
     historyStats() {
-      if (!this.historyRecords || this.historyRecords.length === 0) {
-        return { min: '0.00', max: '0.00', avg: '0.00', count: 0 };
-      }
-      const vals = this.historyRecords.map(p => (p.value !== undefined ? p.value : 0));
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const sum = vals.reduce((a, b) => a + b, 0);
-      const avg = sum / vals.length;
-      return {
-        min: min.toFixed(2),
-        max: max.toFixed(2),
-        avg: avg.toFixed(2),
-        count: vals.length,
-      };
+      return this.chartStats;
     },
   },
   watch: {
@@ -1744,8 +2520,72 @@ export default {
         this.rawLoading = false;
       }
     },
+    setTimeRange(range) {
+      this.historyTimeRange = range;
+      this.historyPage = 1;
+      this.fetchHistory();
+    },
+    onFilterChange() {
+      this.chartParamId = this.historyParamId;
+      this.historyPage = 1;
+      this.fetchHistory();
+    },
+    onPageSizeChange() {
+      this.historyPage = 1;
+      this.fetchHistory();
+    },
+    selectChartParam(paramId) {
+      this.chartParamId = paramId;
+      this.historyParamId = paramId;
+      this.historyPage = 1;
+      this.fetchHistory();
+    },
+    getParamName(paramId) {
+      if (!this.device || !this.device.parameters) return `Parameter #${paramId}`;
+      const p = this.device.parameters.find(x => x.id === paramId);
+      return p ? (p.parameter_name || p.name || p.parameter_code) : `Parameter #${paramId}`;
+    },
+    formatTimeShort(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    onChartMouseMove(e) {
+      const container = this.$refs.chartContainer;
+      if (!container || !this.chartPoints || this.chartPoints.length === 0) return;
+      const rect = container.getBoundingClientRect();
+      const mouseX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const mouseY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+
+      this.hoverMouseClientX = mouseX;
+      this.hoverMouseClientY = mouseY;
+      this.containerWidth = rect.width;
+      this.containerHeight = rect.height;
+
+      // Convert mouseX to SVG coordinate space (viewBox width 900)
+      const svgX = (mouseX / rect.width) * 900;
+
+      // Find nearest point along the X axis
+      let nearest = this.chartPoints[0];
+      let minDiff = Math.abs(nearest.x - svgX);
+
+      for (let i = 1; i < this.chartPoints.length; i++) {
+        const pt = this.chartPoints[i];
+        const diff = Math.abs(pt.x - svgX);
+        if (diff < minDiff) {
+          minDiff = diff;
+          nearest = pt;
+        }
+      }
+
+      this.hoveredPoint = nearest;
+    },
+    onChartMouseLeave() {
+      this.hoveredPoint = null;
+    },
     inspectHistoryForParam(paramId) {
       this.historyParamId = paramId;
+      this.chartParamId = paramId;
       this.activeTab = 'history';
       this.fetchHistory();
     },
