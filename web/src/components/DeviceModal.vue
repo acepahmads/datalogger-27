@@ -340,15 +340,71 @@
           <div v-if="isSerialProtocol" class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Serial Port <span class="text-rose-400">*</span>
-                </label>
-                <input
-                  v-model="form.connection.serial_port"
-                  type="text"
-                  placeholder="e.g. COM1, COM3, /dev/ttyUSB0"
-                  class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
-                />
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+                    Serial Port <span class="text-rose-400">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    @click="fetchAvailableSerialPorts"
+                    :disabled="loadingPorts"
+                    class="text-3xs text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                    title="Scan available hardware COM ports on system"
+                  >
+                    <svg class="w-3 h-3" :class="{ 'animate-spin': loadingPorts }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{{ loadingPorts ? 'Scanning...' : 'Scan Ports' }}</span>
+                  </button>
+                </div>
+
+                <div class="space-y-1.5">
+                  <div v-if="!useCustomPort" class="relative">
+                    <select
+                      v-model="form.connection.serial_port"
+                      class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                    >
+                      <optgroup v-if="systemPorts.length > 0" label="✨ Detected Hardware Ports">
+                        <option v-for="port in systemPorts" :key="'sys-' + port" :value="port">
+                          {{ port }} (Active on System)
+                        </option>
+                      </optgroup>
+                      <optgroup label="Standard / Virtual Ports">
+                        <option v-for="port in fallbackPorts" :key="'fb-' + port" :value="port">
+                          {{ port }}
+                        </option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <input
+                    v-else
+                    v-model="form.connection.serial_port"
+                    type="text"
+                    placeholder="e.g. COM1, COM3, /dev/ttyUSB0"
+                    class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                  />
+
+                  <div class="flex items-center justify-between text-3xs text-slate-400">
+                    <span v-if="systemPorts.length > 0 && !useCustomPort" class="text-emerald-400 font-mono flex items-center space-x-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>{{ systemPorts.length }} port(s) detected: {{ systemPorts.join(', ') }}</span>
+                    </span>
+                    <span v-else-if="!useCustomPort" class="text-slate-500">
+                      No active COM ports detected
+                    </span>
+                    <span v-else class="text-slate-400">
+                      Custom port manual mode
+                    </span>
+                    <button
+                      type="button"
+                      @click="useCustomPort = !useCustomPort"
+                      class="text-blue-400 hover:text-blue-300 underline ml-auto text-3xs"
+                    >
+                      {{ useCustomPort ? 'Choose from list' : 'Type custom port' }}
+                    </button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -530,6 +586,8 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: 'DeviceModal',
   props: {
@@ -547,6 +605,10 @@ export default {
       activeTab: 'basic',
       loading: false,
       error: null,
+      systemPorts: [],
+      loadingPorts: false,
+      useCustomPort: false,
+      fallbackPorts: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyS0'],
       form: {
         device_code: '',
         device_name: '',
@@ -596,6 +658,14 @@ export default {
     },
   },
   watch: {
+    isOpen: {
+      immediate: true,
+      handler(newVal) {
+        if (newVal) {
+          this.fetchAvailableSerialPorts();
+        }
+      },
+    },
     deviceToEdit: {
       immediate: true,
       handler(newVal) {
@@ -639,7 +709,29 @@ export default {
       },
     },
   },
+  mounted() {
+    this.fetchAvailableSerialPorts();
+  },
   methods: {
+    async fetchAvailableSerialPorts() {
+      this.loadingPorts = true;
+      try {
+        const res = await axios.get('/api/system/serial-ports');
+        if (res.data && res.data.data) {
+          this.systemPorts = res.data.data || [];
+          if (this.systemPorts.length > 0) {
+            // If current port is empty or default COM1 and COM1 is not detected, use first detected port
+            if (!this.form.connection.serial_port || (this.form.connection.serial_port === 'COM1' && !this.systemPorts.includes('COM1'))) {
+              this.form.connection.serial_port = this.systemPorts[0];
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch system serial ports:', err);
+      } finally {
+        this.loadingPorts = false;
+      }
+    },
     closeModal() {
       this.error = null;
       this.activeTab = 'basic';
@@ -677,6 +769,7 @@ export default {
         this.form.connection.data_bits = 8;
         this.form.connection.parity = 'N';
         this.form.connection.stop_bits = 1;
+        this.fetchAvailableSerialPorts();
       } else if (p === 'MQTT') {
         this.form.connection.port = 1883;
         this.form.connection.connection_type = 'ETHERNET';

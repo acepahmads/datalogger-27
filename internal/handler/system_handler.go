@@ -49,6 +49,12 @@ func (h *SystemHandler) GetResources(c *gin.Context) {
 	response.OK(c, info)
 }
 
+// GetSerialPorts lists available hardware/virtual serial COM ports
+func (h *SystemHandler) GetSerialPorts(c *gin.Context) {
+	ports := sysinfo.GetAvailableSerialPorts()
+	response.OK(c, ports)
+}
+
 // Devices
 func (h *SystemHandler) GetDevices(c *gin.Context) {
 	devices, err := h.systemService.GetDevices()

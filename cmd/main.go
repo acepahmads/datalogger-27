@@ -144,6 +144,8 @@ func main() {
 		api.GET("/system/status", systemHandler.GetStatus)
 		api.GET("/system/health", systemHandler.GetHealth)
 		api.GET("/system/resources", systemHandler.GetResources)
+		api.GET("/system/serial-ports", systemHandler.GetSerialPorts)
+		api.GET("/devices/serial-ports", systemHandler.GetSerialPorts)
 
 		// Phase 2.1 — Device Management & Parameters (Authenticated & Authorized)
 		devicesGroup := api.Group("/devices")
