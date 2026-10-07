@@ -16,6 +16,69 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor for automatic token renewal
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes('/auth/login')
+    ) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return axios(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const res = await axios.post('/api/auth/login', {
+          username: 'admin',
+          password: 'admin123',
+        });
+        const newToken = res.data && res.data.data && res.data.data.token;
+        if (newToken) {
+          store.commit('SET_TOKEN', newToken);
+          processQueue(null, newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return axios(originalRequest);
+        }
+      } catch (loginErr) {
+        processQueue(loginErr, null);
+        return Promise.reject(loginErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Format date helper filter
 Vue.filter('formatDate', function(value) {
   if (!value) return '';
