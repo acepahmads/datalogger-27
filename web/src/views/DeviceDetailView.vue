@@ -860,38 +860,38 @@
       </div>
 
       <!-- Historical Trend Chart Card -->
-      <div class="saas-card p-4 sm:p-5 space-y-4 bg-[#0B1120]/90 border border-slate-800 shadow-xl rounded-2xl overflow-hidden">
+      <div class="saas-card p-4 sm:p-5 space-y-4">
         <!-- Card Top Bar: Title, Parameter Quick Tabs, Controls -->
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
             <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-widest">
-                TELEMETRY TREND CURVE
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
+                Historical Trend Curve
               </span>
-              <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-4xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-3xs font-sans font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>REALTIME STREAM</span>
+                <span>Live Stream</span>
               </span>
             </div>
-            <h3 class="text-sm font-bold text-white mt-1 flex items-center space-x-2">
+            <h3 class="text-sm font-bold text-white mt-1.5 flex items-center space-x-2 font-sans">
               <span>{{ chartActiveName }}</span>
-              <span class="text-cyan-400 font-mono font-normal">({{ chartActiveCode }})</span>
+              <span class="text-blue-400 font-mono font-medium">({{ chartActiveCode }})</span>
             </h3>
-            <p class="text-3xs text-slate-400">
+            <p class="text-3xs text-slate-400 font-sans mt-0.5">
               Grafik dinamika nilai sensor terhadap waktu &bull; Jendela: <span class="text-slate-300 font-medium">{{ historyTimeRangeLabel }}</span>
             </p>
           </div>
 
           <!-- Parameter Switcher Pills (If multiple parameters) -->
           <div v-if="device.parameters && device.parameters.length > 1" class="flex items-center space-x-1.5 flex-wrap">
-            <span class="text-3xs text-slate-500 uppercase font-semibold mr-1">Parameter:</span>
+            <span class="text-3xs text-slate-400 uppercase font-semibold mr-1 font-sans">Parameter:</span>
             <button
               v-for="p in device.parameters"
               :key="p.id"
               @click="selectChartParam(p.id)"
-              class="px-2.5 py-1 rounded-lg text-2xs font-medium transition flex items-center space-x-1"
+              class="px-2.5 py-1 rounded-lg text-2xs font-medium transition flex items-center space-x-1 font-sans"
               :class="activeChartParamId === p.id
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold shadow-sm'
+                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40 font-semibold shadow-sm'
                 : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/60'"
             >
               <span>{{ p.parameter_code }}</span>
@@ -900,21 +900,21 @@
           </div>
 
           <!-- Chart Visual Controls Toolbar -->
-          <div class="flex items-center space-x-2 text-2xs">
+          <div class="flex items-center space-x-2 text-2xs font-sans">
             <!-- Curve Type Toggle -->
-            <div class="bg-slate-800/80 p-0.5 rounded-lg border border-slate-700 flex items-center">
+            <div class="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex items-center">
               <button
                 @click="chartCurveType = 'smooth'"
-                class="px-2 py-1 rounded-md text-3xs font-semibold transition"
-                :class="chartCurveType === 'smooth' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                class="px-2.5 py-1 rounded-md text-3xs font-semibold transition"
+                :class="chartCurveType === 'smooth' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
                 title="Kurva Spline Halus (Bezier)"
               >
                 Halus
               </button>
               <button
                 @click="chartCurveType = 'linear'"
-                class="px-2 py-1 rounded-md text-3xs font-semibold transition"
-                :class="chartCurveType === 'linear' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                class="px-2.5 py-1 rounded-md text-3xs font-semibold transition"
+                :class="chartCurveType === 'linear' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
                 title="Garis Sudut Linear"
               >
                 Garis
@@ -924,23 +924,23 @@
             <!-- Toggle Dots -->
             <button
               @click="chartShowPoints = !chartShowPoints"
-              class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1"
+              class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1.5"
               :class="chartShowPoints
-                ? 'bg-slate-800 text-cyan-400 border-cyan-500/30'
-                : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-slate-300'"
+                ? 'bg-blue-600/15 text-blue-400 border-blue-500/30'
+                : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'"
               title="Tampilkan / Sembunyikan Titik Data"
             >
-              <span class="w-1.5 h-1.5 rounded-full" :class="chartShowPoints ? 'bg-cyan-400' : 'bg-slate-600'"></span>
+              <span class="w-1.5 h-1.5 rounded-full" :class="chartShowPoints ? 'bg-blue-400' : 'bg-slate-600'"></span>
               <span>Titik</span>
             </button>
 
             <!-- Toggle Avg Line -->
             <button
               @click="chartShowAvgLine = !chartShowAvgLine"
-              class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1"
+              class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1.5"
               :class="chartShowAvgLine
                 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-slate-300'"
+                : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'"
               title="Garis Referensi Rata-Rata"
             >
               <span>Rata-Rata</span>
@@ -949,96 +949,96 @@
         </div>
 
         <!-- 5 KPI Cards Row -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 font-sans">
           <!-- KPI 1: Nilai Terkini -->
-          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-cyan-500/40 transition">
-            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
-              <span class="uppercase tracking-wider font-semibold">Nilai Terkini</span>
+          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
+            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+              <span>Nilai Terkini</span>
               <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(chartStats.latestQuality)">
                 {{ chartStats.latestQuality }}
               </span>
             </div>
-            <div class="flex items-baseline space-x-1.5">
-              <span class="text-xl sm:text-2xl font-mono font-extrabold text-white tracking-tight">
+            <div class="flex items-baseline space-x-1">
+              <span class="text-2xl font-mono font-bold text-white tracking-tight">
                 {{ chartStats.latest }}
               </span>
-              <span class="text-xs font-mono font-semibold text-cyan-400">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-500 font-mono mt-1 flex items-center justify-between">
+            <div class="text-3xs text-slate-400 font-sans flex items-center justify-between">
               <span>Jam {{ chartStats.latestTime }}</span>
-              <span class="text-emerald-400 text-4xs">Live</span>
+              <span class="text-emerald-400 font-medium">Live</span>
             </div>
           </div>
 
           <!-- KPI 2: Minimum -->
-          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-emerald-500/40 transition">
-            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
-              <span class="uppercase tracking-wider font-semibold">Minimum (Valley)</span>
+          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
+            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+              <span>Minimum (Valley)</span>
               <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
               </svg>
             </div>
-            <div class="flex items-baseline space-x-1.5">
-              <span class="text-xl sm:text-2xl font-mono font-extrabold text-emerald-400 tracking-tight">
+            <div class="flex items-baseline space-x-1">
+              <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">
                 {{ chartStats.min }}
               </span>
-              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-500 font-mono mt-1">
+            <div class="text-3xs text-slate-400 font-sans">
               Terendah @ {{ chartStats.minTime }}
             </div>
           </div>
 
           <!-- KPI 3: Maximum -->
-          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-rose-500/40 transition">
-            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
-              <span class="uppercase tracking-wider font-semibold">Maksimum (Peak)</span>
+          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
+            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+              <span>Maksimum (Peak)</span>
               <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
               </svg>
             </div>
-            <div class="flex items-baseline space-x-1.5">
-              <span class="text-xl sm:text-2xl font-mono font-extrabold text-rose-400 tracking-tight">
+            <div class="flex items-baseline space-x-1">
+              <span class="text-2xl font-mono font-bold text-rose-400 tracking-tight">
                 {{ chartStats.max }}
               </span>
-              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-500 font-mono mt-1">
+            <div class="text-3xs text-slate-400 font-sans">
               Puncak @ {{ chartStats.maxTime }}
             </div>
           </div>
 
           <!-- KPI 4: Average -->
-          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden group hover:border-blue-500/40 transition">
-            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
-              <span class="uppercase tracking-wider font-semibold">Rata-Rata (Mean)</span>
-              <span class="text-3xs font-mono text-blue-400 font-bold">&micro;</span>
+          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
+            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+              <span>Rata-Rata (Mean)</span>
+              <span class="text-3xs text-blue-400 font-bold font-sans">AVG</span>
             </div>
-            <div class="flex items-baseline space-x-1.5">
-              <span class="text-xl sm:text-2xl font-mono font-extrabold text-blue-400 tracking-tight">
+            <div class="flex items-baseline space-x-1">
+              <span class="text-2xl font-mono font-bold text-blue-400 tracking-tight">
                 {{ chartStats.avg }}
               </span>
-              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-500 font-mono mt-1">
+            <div class="text-3xs text-slate-400 font-sans">
               Rerata Seluruh Sampel
             </div>
           </div>
 
           <!-- KPI 5: Samples & Delta -->
-          <div class="bg-[#070B14] rounded-xl p-3 border border-slate-800/90 relative overflow-hidden col-span-2 sm:col-span-1 group hover:border-amber-500/40 transition">
-            <div class="flex items-center justify-between text-3xs text-slate-400 mb-1">
-              <span class="uppercase tracking-wider font-semibold">Variasi & Sampel</span>
-              <span class="text-3xs font-mono text-amber-400 font-bold">&Delta;</span>
+          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1 col-span-2 sm:col-span-1">
+            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+              <span>Variasi Rentang</span>
+              <span class="text-3xs text-slate-400 font-bold font-sans">DELTA</span>
             </div>
-            <div class="flex items-baseline space-x-1.5">
-              <span class="text-xl sm:text-2xl font-mono font-extrabold text-amber-300 tracking-tight">
-                {{ chartStats.delta }}
+            <div class="flex items-baseline space-x-1">
+              <span class="text-2xl font-mono font-bold text-slate-200 tracking-tight">
+                &Delta; {{ chartStats.delta }}
               </span>
-              <span class="text-xs font-mono font-semibold text-slate-400">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-400 font-mono mt-1">
-              Total <b class="text-slate-200">{{ chartStats.count }}</b> Sampel Data
+            <div class="text-3xs text-slate-400 font-sans">
+              Total <b class="text-slate-300 font-mono">{{ chartStats.count }}</b> Sampel Data
             </div>
           </div>
         </div>
@@ -1046,12 +1046,12 @@
         <!-- SVG Trend Chart Canvas Area -->
         <div
           ref="chartContainer"
-          class="w-full h-72 sm:h-80 bg-gradient-to-b from-[#080D1A] via-[#050914] to-[#03060E] rounded-2xl border border-slate-800/90 relative p-1 sm:p-2 select-none overflow-hidden group shadow-inner"
+          class="w-full h-72 sm:h-80 bg-[#0B0F19] rounded-xl border border-slate-800 relative p-1 sm:p-2 select-none overflow-hidden group font-sans"
         >
           <!-- Top Left Unit Watermark -->
-          <div class="absolute top-2.5 left-4 z-10 flex items-center space-x-1.5 text-3xs font-mono text-slate-500 pointer-events-none">
-            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-            <span>Skala Y: <b class="text-slate-400">{{ chartActiveUnit || 'Nilai' }}</b></span>
+          <div class="absolute top-2.5 left-4 z-10 flex items-center space-x-1.5 text-3xs font-sans text-slate-400 pointer-events-none">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            <span>Skala Y: <b class="text-slate-300 font-mono">{{ chartActiveUnit || 'Nilai' }}</b></span>
           </div>
 
           <!-- Empty State if no records -->
@@ -1059,8 +1059,8 @@
             <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
             </svg>
-            <p class="text-xs text-slate-400 font-medium">Belum ada data rekaman telemetri untuk parameter ini.</p>
-            <p class="text-3xs text-slate-500">Data akan muncul secara otomatis saat polling engine mengirimkan pembacaan sensor.</p>
+            <p class="text-xs text-slate-400 font-medium font-sans">Belum ada data rekaman telemetri untuk parameter ini.</p>
+            <p class="text-3xs text-slate-500 font-sans">Data akan muncul secara otomatis saat polling engine mengirimkan pembacaan sensor.</p>
           </div>
 
           <!-- SVG Chart -->
@@ -1075,21 +1075,20 @@
             <defs>
               <!-- Gradient Area Fill -->
               <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.38" />
-                <stop offset="60%" stop-color="#3B82F6" stop-opacity="0.10" />
+                <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.22" />
+                <stop offset="60%" stop-color="#3B82F6" stop-opacity="0.05" />
                 <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.00" />
               </linearGradient>
 
-              <!-- Neon Stroke Gradient -->
+              <!-- Stroke Gradient -->
               <linearGradient id="trendStrokeGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stop-color="#06B6D4" />
-                <stop offset="50%" stop-color="#38BDF8" />
-                <stop offset="100%" stop-color="#60A5FA" />
+                <stop offset="0%" stop-color="#60A5FA" />
+                <stop offset="100%" stop-color="#3B82F6" />
               </linearGradient>
 
-              <!-- Glow Drop Filter -->
-              <filter id="neonCurveGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <!-- Subtle Soft Drop Filter -->
+              <filter id="neonCurveGlow" x="-10%" y="-10%" width="120%" height="120%">
+                <feGaussianBlur stdDeviation="1.5" result="blur" />
                 <feMerge>
                   <feMergeNode in="blur" />
                   <feMergeNode in="SourceGraphic" />
@@ -1113,9 +1112,10 @@
                   :x="55"
                   :y="tick.y + 4"
                   text-anchor="end"
-                  fill="#64748B"
+                  fill="#94A3B8"
                   font-size="11"
-                  font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                  font-family="'JetBrains Mono', 'Inter', monospace"
+                  font-weight="500"
                 >
                   {{ tick.label }}
                 </text>
@@ -1135,11 +1135,12 @@
                 />
                 <text
                   :x="tick.x"
-                  :y="256"
+                  :y="254"
                   text-anchor="middle"
-                  fill="#64748B"
-                  font-size="10"
-                  font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                  fill="#94A3B8"
+                  font-size="11"
+                  font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                  font-weight="500"
                 >
                   {{ tick.time }}
                 </text>
@@ -1162,39 +1163,39 @@
                 :y2="chartAvgY"
                 stroke="#F59E0B"
                 stroke-dasharray="5 4"
-                stroke-width="1.3"
+                stroke-width="1.2"
                 opacity="0.8"
               />
               <rect
-                :x="795"
+                :x="790"
                 :y="Math.max(6, chartAvgY - 9)"
-                width="65"
+                width="70"
                 height="18"
-                rx="4"
-                fill="#1E1B18"
+                rx="5"
+                fill="#1E293B"
                 stroke="#F59E0B"
                 stroke-width="1"
                 opacity="0.95"
               />
               <text
-                :x="827"
+                :x="825"
                 :y="Math.max(6, chartAvgY - 9) + 12"
                 text-anchor="middle"
                 fill="#FBBF24"
-                font-size="9"
-                font-family="monospace"
-                font-weight="bold"
+                font-size="10"
+                font-family="'Inter', -apple-system, sans-serif"
+                font-weight="600"
               >
                 AVG {{ chartStats.avg }}
               </text>
             </g>
 
-            <!-- Main Neon Trend Curve Line -->
+            <!-- Main Trend Curve Line -->
             <path
               :d="chartCurvePath"
               fill="none"
               stroke="url(#trendStrokeGradient)"
-              stroke-width="3"
+              stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
               filter="url(#neonCurveGlow)"
@@ -1206,30 +1207,30 @@
               <circle
                 :cx="chartMaxPoint.x"
                 :cy="chartMaxPoint.y"
-                r="5.5"
+                r="5"
                 fill="#F43F5E"
                 stroke="#FFFFFF"
                 stroke-width="1.5"
               />
               <rect
-                :x="Math.max(65, Math.min(chartMaxPoint.x - 32, 795))"
+                :x="Math.max(65, Math.min(chartMaxPoint.x - 34, 795))"
                 :y="Math.max(6, chartMaxPoint.y - 24)"
-                width="64"
-                height="18"
-                rx="4"
-                fill="#881337"
+                width="68"
+                height="19"
+                rx="6"
+                fill="#1E293B"
                 stroke="#F43F5E"
-                stroke-width="1"
+                stroke-width="1.2"
                 opacity="0.95"
               />
               <text
-                :x="Math.max(97, Math.min(chartMaxPoint.x, 827))"
-                :y="Math.max(6, chartMaxPoint.y - 24) + 12"
+                :x="Math.max(99, Math.min(chartMaxPoint.x, 829))"
+                :y="Math.max(6, chartMaxPoint.y - 24) + 13"
                 text-anchor="middle"
-                fill="#FECDD3"
-                font-size="9"
-                font-family="monospace"
-                font-weight="bold"
+                fill="#FDA4AF"
+                font-size="10"
+                font-family="'Inter', -apple-system, sans-serif"
+                font-weight="600"
               >
                 MAX {{ chartMaxPoint.value.toFixed(2) }}
               </text>
@@ -1240,30 +1241,30 @@
               <circle
                 :cx="chartMinPoint.x"
                 :cy="chartMinPoint.y"
-                r="5.5"
+                r="5"
                 fill="#10B981"
                 stroke="#FFFFFF"
                 stroke-width="1.5"
               />
               <rect
-                :x="Math.max(65, Math.min(chartMinPoint.x - 32, 795))"
+                :x="Math.max(65, Math.min(chartMinPoint.x - 34, 795))"
                 :y="Math.min(214, chartMinPoint.y + 7)"
-                width="64"
-                height="18"
-                rx="4"
-                fill="#064E3B"
+                width="68"
+                height="19"
+                rx="6"
+                fill="#1E293B"
                 stroke="#10B981"
-                stroke-width="1"
+                stroke-width="1.2"
                 opacity="0.95"
               />
               <text
-                :x="Math.max(97, Math.min(chartMinPoint.x, 827))"
-                :y="Math.min(214, chartMinPoint.y + 7) + 12"
+                :x="Math.max(99, Math.min(chartMinPoint.x, 829))"
+                :y="Math.min(214, chartMinPoint.y + 7) + 13"
                 text-anchor="middle"
-                fill="#A7F3D0"
-                font-size="9"
-                font-family="monospace"
-                font-weight="bold"
+                fill="#6EE7B7"
+                font-size="10"
+                font-family="'Inter', -apple-system, sans-serif"
+                font-weight="600"
               >
                 MIN {{ chartMinPoint.value.toFixed(2) }}
               </text>
@@ -1277,8 +1278,8 @@
                 :cx="p.x"
                 :cy="p.y"
                 :r="chartPoints.length > 50 ? 2 : 3"
-                fill="#06B6D4"
-                stroke="#0B1120"
+                fill="#3B82F6"
+                stroke="#0B0F19"
                 stroke-width="1.5"
                 class="hover:opacity-100"
               />
@@ -1291,8 +1292,8 @@
                 :y1="32"
                 :x2="hoveredPoint.x"
                 :y2="232"
-                stroke="#22D3EE"
-                stroke-width="1.5"
+                stroke="#60A5FA"
+                stroke-width="1.2"
                 stroke-dasharray="3 3"
                 opacity="0.8"
               />
@@ -1301,7 +1302,7 @@
                 :y1="hoveredPoint.y"
                 :x2="860"
                 :y2="hoveredPoint.y"
-                stroke="#22D3EE"
+                stroke="#60A5FA"
                 stroke-width="1"
                 stroke-dasharray="3 3"
                 opacity="0.5"
@@ -1310,19 +1311,19 @@
               <circle
                 :cx="hoveredPoint.x"
                 :cy="hoveredPoint.y"
-                r="8"
+                r="7"
                 fill="none"
-                stroke="#22D3EE"
+                stroke="#60A5FA"
                 stroke-width="2"
                 class="animate-ping"
               />
               <circle
                 :cx="hoveredPoint.x"
                 :cy="hoveredPoint.y"
-                r="5.5"
-                fill="#06B6D4"
+                r="5"
+                fill="#3B82F6"
                 stroke="#FFFFFF"
-                stroke-width="2"
+                stroke-width="1.5"
               />
             </g>
           </svg>
@@ -1333,9 +1334,9 @@
             class="absolute pointer-events-none z-30 transition-all duration-75"
             :style="tooltipStyle"
           >
-            <div class="bg-slate-900/95 backdrop-blur-md border border-cyan-500/40 shadow-2xl rounded-xl p-3 text-xs w-60 space-y-1.5 ring-1 ring-white/10">
-              <div class="flex items-center justify-between border-b border-slate-800 pb-1">
-                <span class="text-3xs font-mono font-bold text-cyan-400 uppercase tracking-wider">
+            <div class="bg-[#111827]/95 backdrop-blur-md border border-slate-700 shadow-2xl rounded-xl p-3 text-xs w-60 space-y-1.5 font-sans ring-1 ring-white/10">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                <span class="text-3xs font-mono font-bold text-blue-400 uppercase tracking-wider">
                   {{ getParamCode(hoveredPoint.rawRecord.parameter_id) }}
                 </span>
                 <span
@@ -1345,18 +1346,18 @@
                   {{ hoveredPoint.quality }}
                 </span>
               </div>
-              <div class="text-3xs text-slate-300 font-medium truncate">
+              <div class="text-3xs text-slate-300 font-medium truncate font-sans">
                 {{ getParamName(hoveredPoint.rawRecord.parameter_id) }}
               </div>
-              <div class="flex items-baseline space-x-1.5 pt-0.5">
-                <span class="text-2xl font-mono font-black text-white tracking-tight">
+              <div class="flex items-baseline space-x-1 pt-0.5">
+                <span class="text-2xl font-mono font-bold text-white tracking-tight">
                   {{ hoveredPoint.value !== undefined ? hoveredPoint.value.toFixed(2) : '--' }}
                 </span>
-                <span class="text-xs font-semibold text-cyan-400 font-mono">{{ chartActiveUnit }}</span>
+                <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
               </div>
-              <div class="pt-1 border-t border-slate-800/80 flex items-center justify-between text-3xs text-slate-400 font-mono">
+              <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-3xs text-slate-400 font-sans">
                 <span>{{ formatTimestamp(hoveredPoint.timestamp) }}</span>
-                <span class="text-slate-500">#{{ hoveredPoint.index + 1 }}/{{ chartPoints.length }}</span>
+                <span class="text-slate-500 font-mono">#{{ hoveredPoint.index + 1 }}/{{ chartPoints.length }}</span>
               </div>
               <div v-if="hoveredPoint.rawRecord.raw_value !== undefined" class="text-4xs text-slate-500 font-mono flex items-center justify-between">
                 <span>Raw: {{ hoveredPoint.rawRecord.raw_value }}</span>
@@ -1367,10 +1368,10 @@
         </div>
 
         <!-- Legend and Operator Guide -->
-        <div class="flex flex-wrap items-center justify-between gap-3 text-3xs text-slate-400 pt-1">
+        <div class="flex flex-wrap items-center justify-between gap-3 text-3xs text-slate-400 pt-1 font-sans">
           <div class="flex items-center space-x-4 flex-wrap">
             <span class="flex items-center space-x-1.5">
-              <span class="w-3 h-1 rounded bg-cyan-400 inline-block"></span>
+              <span class="w-3 h-1 rounded bg-blue-500 inline-block"></span>
               <span>Tren Telemetri ({{ chartActiveUnit }})</span>
             </span>
             <span v-if="chartShowAvgLine" class="flex items-center space-x-1.5">
