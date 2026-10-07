@@ -175,7 +175,7 @@ type Device struct {
 	// Phase 1 Backward Compatibility Fields
 	Code              string      `gorm:"size:64" json:"code,omitempty"`
 	Name              string      `gorm:"size:128" json:"name,omitempty"`
-	DeviceTypeID      uint        `gorm:"index" json:"device_type_id,omitempty"`
+	DeviceTypeID      *uint       `gorm:"index" json:"device_type_id,omitempty"`
 	TypeRel           *DeviceType `gorm:"foreignKey:DeviceTypeID" json:"device_type_rel,omitempty"`
 	LastCommunication *time.Time  `json:"last_communication,omitempty"`
 	LatencyMs         int         `gorm:"default:0" json:"latency_ms"`
@@ -218,6 +218,15 @@ func (d *Device) BeforeSave(tx *gorm.DB) error {
 	}
 	if d.Timezone == "" {
 		d.Timezone = "UTC"
+	}
+	if tx != nil && (d.DeviceTypeID == nil || *d.DeviceTypeID == 0) {
+		var dt DeviceType
+		dtCode := string(d.DeviceType)
+		if tx.Where("code = ? OR protocol = ?", dtCode, dtCode).First(&dt).Error == nil {
+			d.DeviceTypeID = &dt.ID
+		} else {
+			d.DeviceTypeID = nil
+		}
 	}
 	return nil
 }
