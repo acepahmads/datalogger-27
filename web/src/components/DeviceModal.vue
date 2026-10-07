@@ -48,7 +48,7 @@
       </div>
 
       <!-- Modal Body -->
-      <form @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-5">
+      <form novalidate @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-5">
         <!-- Error Alert -->
         <div v-if="error" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center space-x-2">
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +68,6 @@
               <input
                 v-model="form.device_code"
                 type="text"
-                required
                 placeholder="e.g. PM-01, SHT-02"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
@@ -82,7 +81,6 @@
               <input
                 v-model="form.device_name"
                 type="text"
-                required
                 placeholder="e.g. Main Power Quality Meter"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
@@ -648,10 +646,23 @@ export default {
       this.$emit('close');
     },
     nextTab() {
-      if (this.activeTab === 'basic') this.activeTab = 'location';
-      else if (this.activeTab === 'location') this.activeTab = 'connection';
+      this.error = null;
+      if (this.activeTab === 'basic') {
+        if (!this.form.device_code || !this.form.device_code.trim()) {
+          this.error = 'Device Code is required before continuing.';
+          return;
+        }
+        if (!this.form.device_name || !this.form.device_name.trim()) {
+          this.error = 'Device Name is required before continuing.';
+          return;
+        }
+        this.activeTab = 'location';
+      } else if (this.activeTab === 'location') {
+        this.activeTab = 'connection';
+      }
     },
     prevTab() {
+      this.error = null;
       if (this.activeTab === 'connection') this.activeTab = 'location';
       else if (this.activeTab === 'location') this.activeTab = 'basic';
     },
@@ -710,8 +721,33 @@ export default {
       };
     },
     async submitForm() {
-      this.loading = true;
       this.error = null;
+
+      // Validate Basic Info
+      if (!this.form.device_code || !this.form.device_code.trim()) {
+        this.activeTab = 'basic';
+        this.error = 'Device Code is required.';
+        return;
+      }
+      if (!this.form.device_name || !this.form.device_name.trim()) {
+        this.activeTab = 'basic';
+        this.error = 'Device Name is required.';
+        return;
+      }
+
+      // Validate Connection Info
+      if (this.isNetworkProtocol && (!this.form.connection.host || !this.form.connection.host.trim())) {
+        this.activeTab = 'connection';
+        this.error = 'Host / IP Address is required for network protocols.';
+        return;
+      }
+      if (this.isSerialProtocol && (!this.form.connection.serial_port || !this.form.connection.serial_port.trim())) {
+        this.activeTab = 'connection';
+        this.error = 'Serial Port (e.g. COM1, COM3, or /dev/ttyUSB0) is required.';
+        return;
+      }
+
+      this.loading = true;
 
       try {
         if (this.isEditing) {

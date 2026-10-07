@@ -1215,7 +1215,17 @@ export default {
       };
     },
   },
+  watch: {
+    '$route.query.tab'(newTab) {
+      if (newTab) {
+        this.switchTab(newTab);
+      }
+    },
+  },
   mounted() {
+    if (this.$route.query.tab) {
+      this.activeTab = this.$route.query.tab;
+    }
     this.loadDevice();
     window.addEventListener('device-comm-event', this.onCommEvent);
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
@@ -1232,6 +1242,13 @@ export default {
         this.device = res;
         this.loadActivity();
         this.fetchCommStatus();
+        if (this.activeTab === 'telemetry') {
+          this.fetchLatestTelemetry();
+        } else if (this.activeTab === 'history') {
+          this.fetchHistory();
+        } else if (this.activeTab === 'raw') {
+          this.fetchRawTelemetry();
+        }
       } catch (err) {
         console.error('Failed to load device:', err);
       }

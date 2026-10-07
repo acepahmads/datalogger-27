@@ -259,6 +259,10 @@
 
               <!-- Actions -->
               <td class="py-3 px-4 text-right space-x-2">
+                <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-2xs bg-emerald-950/50 hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800/60 transition">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Live Data</span>
+                </router-link>
                 <router-link :to="'/monitoring/devices/' + dev.id" class="text-blue-400 hover:text-blue-300 font-semibold text-2xs transition">
                   View
                 </router-link>
@@ -367,9 +371,15 @@
 
         <!-- Card Footer Actions -->
         <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-          <router-link :to="'/monitoring/devices/' + dev.id" class="text-xs font-bold text-blue-400 hover:text-blue-300">
-            View Details →
-          </router-link>
+          <div class="flex items-center space-x-2">
+            <router-link :to="'/monitoring/devices/' + dev.id" class="text-xs font-bold text-blue-400 hover:text-blue-300">
+              Details →
+            </router-link>
+            <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-2xs bg-emerald-950/50 hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800/60 transition">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Live</span>
+            </router-link>
+          </div>
           <div class="space-x-2">
             <button @click="openEditModal(dev)" class="text-slate-400 hover:text-white text-2xs">Edit</button>
             <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 text-2xs">Delete</button>

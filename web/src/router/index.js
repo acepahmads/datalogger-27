@@ -8,6 +8,7 @@ import ActivityView from '../views/ActivityView.vue';
 import SystemMonitoringView from '../views/SystemMonitoringView.vue';
 import DevicesView from '../views/DevicesView.vue';
 import DeviceDetailView from '../views/DeviceDetailView.vue';
+import TelemetryMonitorView from '../views/TelemetryMonitorView.vue';
 import AlarmsView from '../views/AlarmsView.vue';
 import LogsView from '../views/LogsView.vue';
 import ReleaseDocView from '../views/ReleaseDocView.vue';
@@ -24,6 +25,7 @@ const routes = [
   { path: '/development/activity', name: 'Activity', component: ActivityView },
   { path: '/development/release', name: 'Release', component: ReleaseDocView },
   { path: '/monitoring/system', name: 'SystemMonitoring', component: SystemMonitoringView },
+  { path: '/monitoring/telemetry', name: 'LiveTelemetry', component: TelemetryMonitorView },
   { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/monitoring/parameters', name: 'Parameters', component: DevicesView },
