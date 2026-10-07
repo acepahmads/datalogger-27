@@ -331,7 +331,9 @@ export default new Vuex.Store({
         return null;
       }
     },
-    async testReadParameter(_, { deviceId, paramId }) {
+    async testReadParameter(_, payload) {
+      const deviceId = payload.deviceId || payload.device_id;
+      const paramId = payload.paramId || payload.parameterId || payload.parameter_id;
       try {
         const res = await axios.post(`${API_BASE}/devices/${deviceId}/parameters/${paramId}/test-read`);
         return res.data ? (res.data.data || res.data) : null;

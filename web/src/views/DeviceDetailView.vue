@@ -1449,9 +1449,10 @@ export default {
       try {
         const res = await this.$store.dispatch('testReadParameter', {
           deviceId: this.device.id,
+          paramId: this.testParam.id,
           parameterId: this.testParam.id,
         });
-        this.testReadResult = res.data;
+        this.testReadResult = (res && res.data && typeof res.data === 'object' && res.data.success !== undefined) ? res.data : res;
         if (this.testReadResult && this.testReadResult.success && this.testReadResult.decoded_value !== undefined) {
           this.testParam.current_value = this.testReadResult.decoded_value;
         }
