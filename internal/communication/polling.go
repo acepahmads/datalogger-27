@@ -117,8 +117,19 @@ func (p *PollingEngine) StopDeviceWorker(deviceID uint) {
 	_ = p.connManager.DisconnectDevice(deviceID)
 }
 
+// ActiveWorkerCount returns the number of active polling workers currently running
+func (p *PollingEngine) ActiveWorkerCount() int {
+	p.workersMu.Lock()
+	defer p.workersMu.Unlock()
+	return len(p.workers)
+}
+
 // runWorker is the isolated loop executing on a per-device schedule
 func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
+	if p.deviceService == nil {
+		return
+	}
+
 	// Query device to get interval
 	dev, err := p.deviceService.GetDeviceByID(deviceID)
 	if err != nil || dev == nil || dev.Connection == nil {

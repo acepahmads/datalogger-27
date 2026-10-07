@@ -103,17 +103,17 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		currentPhaseNum = 1
 	}
 	if currentTaskName == "" {
-		currentTaskName = "Phase 2 Preparation & Modbus Architecture"
+		currentTaskName = "Phase 2.3 — Communication Hardening & Real Device Validation"
 	}
 
 	dto := &OverallProgressDTO{
 		OverallPercentage:   overallPct,
 		CurrentPhase:        currentPhaseName,
 		CurrentPhaseNumber:  currentPhaseNum,
-		CurrentSubphase:     "Phase 2.2 — Modbus RTU / TCP Communication Engine",
+		CurrentSubphase:     "Phase 2.3 — Communication Hardening & Real Device Validation",
 		CurrentTask:         currentTaskName,
-		NextAction:          "Implement Modbus RTU / TCP Communication Engine & Register Decoding",
-		EstimatedCompletion: "Phase 1 & 2.1 Accepted | Full System: Q4 2026",
+		NextAction:          "Execute communication hardening, simulator validation, stability & failure recovery tests",
+		EstimatedCompletion: "Phase 1, 2.1 & 2.2 Accepted | Full System: Q4 2026",
 		LastUpdate:          lastUpdateTime.Format("2006-01-02 15:04:05"),
 		CompletedTasksCount: completedCount,
 		ActiveTasksCount:    activeCount,

@@ -54,6 +54,49 @@ func TestModbusRTUMaster(t *testing.T) {
 		t.Fatalf("expected [0x11, 0x22], got %v", resp.Data)
 	}
 
+	// 2b. Read Input Registers (FC 04)
+	respFC04, err := adapter.ReadRegisters(ctx, ModbusReadRequest{
+		SlaveID:         1,
+		FunctionCode:    FunctionReadInputRegisters,
+		StartingAddress: 200,
+		Quantity:        1,
+	})
+	if err != nil {
+		t.Fatalf("ReadRegisters FC04 failed: %v", err)
+	}
+	if respFC04.Data[0] != 0x33 || respFC04.Data[1] != 0x44 {
+		t.Fatalf("expected [0x33, 0x44], got %v", respFC04.Data)
+	}
+
+	// 2c. Read Coils (FC 01)
+	respFC01, err := adapter.ReadRegisters(ctx, ModbusReadRequest{
+		SlaveID:         1,
+		FunctionCode:    FunctionReadCoils,
+		StartingAddress: 10,
+		Quantity:        1,
+	})
+	if err != nil {
+		t.Fatalf("ReadRegisters FC01 failed: %v", err)
+	}
+	if len(respFC01.Data) == 0 || (respFC01.Data[0]&0x01) == 0 {
+		t.Fatalf("expected coil bit set, got %v", respFC01.Data)
+	}
+
+	// 2d. Read Discrete Inputs (FC 02)
+	server.SetDiscreteInput(5, true)
+	respFC02, err := adapter.ReadRegisters(ctx, ModbusReadRequest{
+		SlaveID:         1,
+		FunctionCode:    FunctionReadDiscreteInputs,
+		StartingAddress: 5,
+		Quantity:        1,
+	})
+	if err != nil {
+		t.Fatalf("ReadRegisters FC02 failed: %v", err)
+	}
+	if len(respFC02.Data) == 0 || (respFC02.Data[0]&0x01) == 0 {
+		t.Fatalf("expected discrete input bit set, got %v", respFC02.Data)
+	}
+
 	// 3. Test CRC Error Detection
 	server.SetMode(SimModeCRCError, 0, 0)
 	_, err = adapter.ReadRegisters(ctx, ModbusReadRequest{

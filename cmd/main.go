@@ -253,6 +253,9 @@ func main() {
 
 	logger.Info("Shutting down %s...", cfg.AppName)
 
+	// Stop all active polling workers and close connections gracefully
+	pollingEngine.Stop()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

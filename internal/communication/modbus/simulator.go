@@ -34,6 +34,7 @@ type MockModbusServer struct {
 	listener         net.Listener
 	address          string
 	stopChan         chan struct{}
+	conns            map[net.Conn]struct{}
 }
 
 // NewMockModbusServer initializes an in-memory register bank
@@ -45,6 +46,7 @@ func NewMockModbusServer() *MockModbusServer {
 		discreteInputs:   make(map[uint16]bool),
 		mode:             SimModeNormal,
 		stopChan:         make(chan struct{}),
+		conns:            make(map[net.Conn]struct{}),
 	}
 	return s
 }
@@ -99,6 +101,19 @@ func (s *MockModbusServer) StartTCP() (string, error) {
 	return s.address, nil
 }
 
+// StartTCPAt starts a local TCP server on a specific host:port address
+func (s *MockModbusServer) StartTCPAt(addr string) error {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	s.listener = l
+	s.address = l.Addr().String()
+
+	go s.serveTCP()
+	return nil
+}
+
 // Stop closes the server listener and active sessions
 func (s *MockModbusServer) Stop() {
 	s.mu.Lock()
@@ -106,6 +121,10 @@ func (s *MockModbusServer) Stop() {
 	if s.listener != nil {
 		_ = s.listener.Close()
 		s.listener = nil
+	}
+	for c := range s.conns {
+		_ = c.Close()
+		delete(s.conns, c)
 	}
 	select {
 	case <-s.stopChan:
@@ -115,17 +134,34 @@ func (s *MockModbusServer) Stop() {
 }
 
 func (s *MockModbusServer) serveTCP() {
+	s.mu.RLock()
+	l := s.listener
+	s.mu.RUnlock()
+	if l == nil {
+		return
+	}
+
 	for {
-		conn, err := s.listener.Accept()
+		conn, err := l.Accept()
 		if err != nil {
 			return
 		}
+		s.mu.Lock()
+		if s.conns != nil {
+			s.conns[conn] = struct{}{}
+		}
+		s.mu.Unlock()
 		go s.handleTCPConn(conn)
 	}
 }
 
 func (s *MockModbusServer) handleTCPConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+		s.mu.Lock()
+		delete(s.conns, conn)
+		s.mu.Unlock()
+	}()
 
 	for {
 		hdr := make([]byte, 6)
