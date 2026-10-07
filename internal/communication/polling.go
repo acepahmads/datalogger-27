@@ -3,6 +3,7 @@ package communication
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -160,8 +161,26 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 		case <-ticker.C:
 			// Re-fetch device in case status changed
 			freshDev, err := p.deviceService.GetDeviceByID(deviceID)
-			if err != nil || freshDev == nil {
+			if err != nil {
+				if strings.Contains(strings.ToLower(err.Error()), "not found") {
+					logger.Info("Device %d deleted or removed, terminating polling worker", deviceID)
+					return
+				}
+				logger.Warn("Transient error querying device %d in poll cycle: %v", deviceID, err)
+				continue
+			}
+			if freshDev == nil {
 				return
+			}
+
+			// Dynamically adjust interval if updated in DB
+			if freshDev.Connection != nil && freshDev.Connection.PollingInterval >= 200 {
+				newInterval := freshDev.Connection.PollingInterval
+				if newInterval != intervalMs {
+					intervalMs = newInterval
+					ticker.Reset(time.Duration(intervalMs) * time.Millisecond)
+					logger.Info("Device %s (%d) polling interval adjusted to %dms", freshDev.DeviceCode, deviceID, intervalMs)
+				}
 			}
 
 			// Device Isolation & Admin Status Check

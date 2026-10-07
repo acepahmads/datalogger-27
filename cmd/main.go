@@ -112,7 +112,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	devHandler := handler.NewDevHandler(phaseService, hub)
 	systemHandler := handler.NewSystemHandler(systemService)
-	deviceHandler := handler.NewDeviceHandler(deviceService)
+	deviceHandler := handler.NewDeviceHandler(deviceService, pollingEngine)
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
 

@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"datalogger/internal/communication"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -14,10 +15,19 @@ import (
 
 type DeviceHandler struct {
 	deviceService *service.DeviceService
+	pollingEngine *communication.PollingEngine
 }
 
-func NewDeviceHandler(deviceService *service.DeviceService) *DeviceHandler {
-	return &DeviceHandler{deviceService: deviceService}
+func NewDeviceHandler(deviceService *service.DeviceService, pollingEngine ...*communication.PollingEngine) *DeviceHandler {
+	h := &DeviceHandler{deviceService: deviceService}
+	if len(pollingEngine) > 0 {
+		h.pollingEngine = pollingEngine[0]
+	}
+	return h
+}
+
+func (h *DeviceHandler) SetPollingEngine(pe *communication.PollingEngine) {
+	h.pollingEngine = pe
 }
 
 // ListDevices handles GET /api/devices with pagination, search, and filtering
@@ -113,6 +123,10 @@ func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 		return
 	}
 
+	if h.pollingEngine != nil && device.Enabled && device.Status == model.DeviceStatusActive {
+		h.pollingEngine.StartDeviceWorker(device)
+	}
+
 	response.Created(c, device)
 }
 
@@ -140,6 +154,14 @@ func (h *DeviceHandler) UpdateDevice(c *gin.Context) {
 		return
 	}
 
+	if h.pollingEngine != nil {
+		if device.Enabled && device.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(device)
+		} else {
+			h.pollingEngine.StopDeviceWorker(device.ID)
+		}
+	}
+
 	response.OK(c, device)
 }
 
@@ -158,6 +180,10 @@ func (h *DeviceHandler) DeleteDevice(c *gin.Context) {
 	if err := h.deviceService.DeleteDevice(uint(id), username, ip, ua); err != nil {
 		response.BadRequest(c, err.Error())
 		return
+	}
+
+	if h.pollingEngine != nil {
+		h.pollingEngine.StopDeviceWorker(uint(id))
 	}
 
 	response.OK(c, gin.H{"deleted": true, "id": id})
@@ -188,6 +214,16 @@ func (h *DeviceHandler) ToggleDeviceEnabled(c *gin.Context) {
 		return
 	}
 
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil {
+			if dev.Enabled && dev.Status == model.DeviceStatusActive {
+				h.pollingEngine.StartDeviceWorker(dev)
+			} else {
+				h.pollingEngine.StopDeviceWorker(dev.ID)
+			}
+		}
+	}
+
 	response.OK(c, gin.H{"id": id, "enabled": req.Enabled})
 }
 
@@ -216,6 +252,16 @@ func (h *DeviceHandler) UpdateDeviceStatus(c *gin.Context) {
 		return
 	}
 
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil {
+			if dev.Enabled && dev.Status == model.DeviceStatusActive {
+				h.pollingEngine.StartDeviceWorker(dev)
+			} else {
+				h.pollingEngine.StopDeviceWorker(dev.ID)
+			}
+		}
+	}
+
 	response.OK(c, gin.H{"id": id, "status": req.Status})
 }
 
@@ -241,6 +287,12 @@ func (h *DeviceHandler) UpdateConnection(c *gin.Context) {
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
+	}
+
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
 	}
 
 	response.OK(c, conn)
@@ -325,6 +377,12 @@ func (h *DeviceHandler) CreateParameter(c *gin.Context) {
 		return
 	}
 
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
+	}
+
 	response.Created(c, param)
 }
 
@@ -356,6 +414,12 @@ func (h *DeviceHandler) UpdateParameter(c *gin.Context) {
 		return
 	}
 
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
+	}
+
 	response.OK(c, param)
 }
 
@@ -378,6 +442,12 @@ func (h *DeviceHandler) DeleteParameter(c *gin.Context) {
 	if err := h.deviceService.DeleteParameter(uint(id), uint(paramID), username, ip, ua); err != nil {
 		response.BadRequest(c, err.Error())
 		return
+	}
+
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
 	}
 
 	response.OK(c, gin.H{"deleted": true, "device_id": id, "parameter_id": paramID})
@@ -410,6 +480,12 @@ func (h *DeviceHandler) ToggleParameterEnabled(c *gin.Context) {
 	if err := h.deviceService.ToggleParameterEnabled(uint(id), uint(paramID), req.Enabled, username, ip, ua); err != nil {
 		response.BadRequest(c, err.Error())
 		return
+	}
+
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
 	}
 
 	response.OK(c, gin.H{"device_id": id, "parameter_id": paramID, "enabled": req.Enabled})
