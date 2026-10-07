@@ -35,6 +35,10 @@
 .chart-container svg text,
 svg.chart-svg text {
   font-family: var(--font-family-ui) !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  letter-spacing: normal !important;
 }
 
 

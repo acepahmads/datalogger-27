@@ -1067,8 +1067,7 @@
           <svg
             v-else
             class="w-full h-full overflow-visible chart-svg"
-            viewBox="0 0 900 280"
-            preserveAspectRatio="none"
+            :viewBox="`0 0 ${containerWidth} ${containerHeight}`"
             @mousemove="onChartMouseMove"
             @mouseleave="onChartMouseLeave"
           >
@@ -1100,16 +1099,16 @@
             <g class="grid-lines">
               <g v-for="(tick, idx) in chartGridTicks" :key="'grid-' + idx">
                 <line
-                  :x1="65"
+                  :x1="60"
                   :y1="tick.y"
-                  :x2="860"
+                  :x2="containerWidth - 30"
                   :y2="tick.y"
                   stroke="#1E293B"
                   stroke-dasharray="4 4"
                   stroke-width="1"
                 />
                 <text
-                  :x="55"
+                  :x="52"
                   :y="tick.y + 4"
                   text-anchor="end"
                   fill="#94A3B8"
@@ -1127,15 +1126,15 @@
               <g v-for="(tick, idx) in chartTimeTicks" :key="'ttick-' + idx">
                 <line
                   :x1="tick.x"
-                  :y1="232"
+                  :y1="containerHeight - 48"
                   :x2="tick.x"
-                  :y2="238"
+                  :y2="containerHeight - 42"
                   stroke="#334155"
                   stroke-width="1.2"
                 />
                 <text
                   :x="tick.x"
-                  :y="254"
+                  :y="containerHeight - 26"
                   text-anchor="middle"
                   fill="#94A3B8"
                   font-size="11"
@@ -1157,9 +1156,9 @@
             <!-- Average Reference Line -->
             <g v-if="chartShowAvgLine && chartStats.count > 0">
               <line
-                :x1="65"
+                :x1="60"
                 :y1="chartAvgY"
-                :x2="860"
+                :x2="containerWidth - 30"
                 :y2="chartAvgY"
                 stroke="#F59E0B"
                 stroke-dasharray="5 4"
@@ -1167,7 +1166,7 @@
                 opacity="0.8"
               />
               <rect
-                :x="790"
+                :x="containerWidth - 100"
                 :y="Math.max(6, chartAvgY - 9)"
                 width="70"
                 height="18"
@@ -1178,7 +1177,7 @@
                 opacity="0.95"
               />
               <text
-                :x="825"
+                :x="containerWidth - 65"
                 :y="Math.max(6, chartAvgY - 9) + 12"
                 text-anchor="middle"
                 fill="#FBBF24"
@@ -1213,7 +1212,7 @@
                 stroke-width="1.5"
               />
               <rect
-                :x="Math.max(65, Math.min(chartMaxPoint.x - 34, 795))"
+                :x="Math.max(60, Math.min(chartMaxPoint.x - 34, containerWidth - 98))"
                 :y="Math.max(6, chartMaxPoint.y - 24)"
                 width="68"
                 height="19"
@@ -1224,7 +1223,7 @@
                 opacity="0.95"
               />
               <text
-                :x="Math.max(99, Math.min(chartMaxPoint.x, 829))"
+                :x="Math.max(94, Math.min(chartMaxPoint.x, containerWidth - 64))"
                 :y="Math.max(6, chartMaxPoint.y - 24) + 13"
                 text-anchor="middle"
                 fill="#FDA4AF"
@@ -1247,8 +1246,8 @@
                 stroke-width="1.5"
               />
               <rect
-                :x="Math.max(65, Math.min(chartMinPoint.x - 34, 795))"
-                :y="Math.min(214, chartMinPoint.y + 7)"
+                :x="Math.max(60, Math.min(chartMinPoint.x - 34, containerWidth - 98))"
+                :y="Math.min(containerHeight - 70, chartMinPoint.y + 7)"
                 width="68"
                 height="19"
                 rx="6"
@@ -1258,8 +1257,8 @@
                 opacity="0.95"
               />
               <text
-                :x="Math.max(99, Math.min(chartMinPoint.x, 829))"
-                :y="Math.min(214, chartMinPoint.y + 7) + 13"
+                :x="Math.max(94, Math.min(chartMinPoint.x, containerWidth - 64))"
+                :y="Math.min(containerHeight - 70, chartMinPoint.y + 7) + 13"
                 text-anchor="middle"
                 fill="#6EE7B7"
                 font-size="10"
@@ -1289,18 +1288,18 @@
             <g v-if="hoveredPoint">
               <line
                 :x1="hoveredPoint.x"
-                :y1="32"
+                :y1="28"
                 :x2="hoveredPoint.x"
-                :y2="232"
+                :y2="containerHeight - 48"
                 stroke="#60A5FA"
                 stroke-width="1.2"
                 stroke-dasharray="3 3"
                 opacity="0.8"
               />
               <line
-                :x1="65"
+                :x1="60"
                 :y1="hoveredPoint.y"
-                :x2="860"
+                :x2="containerWidth - 30"
                 :y2="hoveredPoint.y"
                 stroke="#60A5FA"
                 stroke-width="1"
@@ -1400,7 +1399,7 @@
       <div class="saas-card overflow-hidden">
         <div class="p-3 border-b border-slate-800 flex items-center justify-between text-xs">
           <span class="font-bold text-white">Historical Telemetry Records ({{ historyTotal }} total)</span>
-          <span class="text-3xs text-slate-400 font-mono">Page {{ historyPage }} of {{ Math.ceil(historyTotal / historyPageSize) || 1 }}</span>
+          <span class="text-3xs text-slate-400 font-sans tabular-nums">Page {{ historyPage }} of {{ Math.ceil(historyTotal / historyPageSize) || 1 }}</span>
         </div>
 
         <div class="overflow-x-auto">
@@ -1415,7 +1414,7 @@
                 <th class="py-2.5 px-4">Protocol Source</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 font-mono text-2xs">
+            <tbody class="divide-y divide-slate-800/60 font-sans text-2xs tabular-nums">
               <tr v-for="rec in historyRecords" :key="rec.id" class="hover:bg-slate-800/30 transition">
                 <td class="py-2.5 px-4 text-slate-300">
                   {{ formatTimestamp(rec.received_at || rec.timestamp) }}
@@ -1786,6 +1785,7 @@ export default {
       hoverMouseClientY: 0,
       containerWidth: 800,
       containerHeight: 320,
+      chartResizeObserver: null,
       timeRangeOptions: [
         { label: '15m', value: '15m' },
         { label: '1j', value: '1h' },
@@ -1868,10 +1868,10 @@ export default {
       }
 
       const range = max - min || 1;
-      const left = 65;
-      const right = 860;
-      const top = 32;
-      const bottom = 232;
+      const left = 60;
+      const right = Math.max(left + 100, (this.containerWidth || 800) - 30);
+      const top = 30;
+      const bottom = Math.max(top + 80, (this.containerHeight || 320) - 48);
       const plotWidth = right - left;
       const plotHeight = bottom - top;
 
@@ -1925,20 +1925,24 @@ export default {
       const curve = this.chartCurvePath;
       const pts = this.chartPoints;
       if (!curve || !pts || pts.length === 0) return '';
-      const bottom = 232;
+      const bottom = Math.max(80, (this.containerHeight || 320) - 48);
       const first = pts[0];
       const last = pts[pts.length - 1];
       return `${curve} L ${last.x},${bottom} L ${first.x},${bottom} Z`;
     },
     chartGridTicks() {
+      const top = 30;
+      const bottom = Math.max(top + 80, (this.containerHeight || 320) - 48);
+      const plotHeight = bottom - top;
+
       const records = this.chartFilteredRecords;
       if (!records || records.length === 0) {
         return [
-          { y: 32, label: '100.00' },
-          { y: 82, label: '75.00' },
-          { y: 132, label: '50.00' },
-          { y: 182, label: '25.00' },
-          { y: 232, label: '0.00' },
+          { y: top, label: '100.00' },
+          { y: Math.round(top + plotHeight * 0.25), label: '75.00' },
+          { y: Math.round(top + plotHeight * 0.50), label: '50.00' },
+          { y: Math.round(top + plotHeight * 0.75), label: '25.00' },
+          { y: bottom, label: '0.00' },
         ];
       }
       const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
@@ -1949,9 +1953,6 @@ export default {
         max = max + 1;
       }
       const range = max - min;
-      const top = 32;
-      const bottom = 232;
-      const plotHeight = bottom - top;
 
       const ratios = [1.0, 0.75, 0.5, 0.25, 0.0];
       return ratios.map(r => {
@@ -2041,7 +2042,10 @@ export default {
     chartAvgY() {
       const stats = this.chartStats;
       const records = this.chartFilteredRecords;
-      if (!records || records.length === 0) return 132;
+      const top = 30;
+      const bottom = Math.max(top + 80, (this.containerHeight || 320) - 48);
+      const plotHeight = bottom - top;
+      if (!records || records.length === 0) return Math.round(top + plotHeight / 2);
       const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
       let min = Math.min(...vals);
       let max = Math.max(...vals);
@@ -2051,9 +2055,6 @@ export default {
       }
       const range = max - min || 1;
       const avg = Number(stats.avg);
-      const top = 32;
-      const bottom = 232;
-      const plotHeight = bottom - top;
       const ratio = (avg - min) / range;
       return Number((bottom - ratio * plotHeight).toFixed(1));
     },
@@ -2101,13 +2102,36 @@ export default {
     }
     window.addEventListener('device-comm-event', this.onCommEvent);
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
+    this.initChartResizeObserver();
   },
   beforeDestroy() {
     this.stopActivityPolling();
     window.removeEventListener('device-comm-event', this.onCommEvent);
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
+    if (this.chartResizeObserver) {
+      this.chartResizeObserver.disconnect();
+      this.chartResizeObserver = null;
+    }
   },
   methods: {
+    initChartResizeObserver() {
+      this.$nextTick(() => {
+        this.updateChartDimensions();
+        if (window.ResizeObserver && this.$refs.chartContainer) {
+          this.chartResizeObserver = new ResizeObserver(() => {
+            this.updateChartDimensions();
+          });
+          this.chartResizeObserver.observe(this.$refs.chartContainer);
+        }
+      });
+    },
+    updateChartDimensions() {
+      if (this.$refs.chartContainer) {
+        const rect = this.$refs.chartContainer.getBoundingClientRect();
+        if (rect.width > 0) this.containerWidth = Math.round(rect.width);
+        if (rect.height > 0) this.containerHeight = Math.round(rect.height);
+      }
+    },
     async loadDevice() {
       const id = this.$route.params.id;
       try {
@@ -2391,6 +2415,9 @@ export default {
         this.fetchLatestTelemetry();
       } else if (tab === 'history') {
         this.fetchHistory();
+        this.$nextTick(() => {
+          this.updateChartDimensions();
+        });
       } else if (tab === 'raw') {
         this.fetchRawTelemetry();
       }
@@ -2560,11 +2587,11 @@ export default {
 
       this.hoverMouseClientX = mouseX;
       this.hoverMouseClientY = mouseY;
-      this.containerWidth = rect.width;
-      this.containerHeight = rect.height;
+      this.containerWidth = Math.round(rect.width);
+      this.containerHeight = Math.round(rect.height);
 
-      // Convert mouseX to SVG coordinate space (viewBox width 900)
-      const svgX = (mouseX / rect.width) * 900;
+      // SVG coordinates are 1:1 with container screen pixels
+      const svgX = mouseX;
 
       // Find nearest point along the X axis
       let nearest = this.chartPoints[0];
