@@ -1229,21 +1229,10 @@ export default {
     this.loadDevice();
     window.addEventListener('device-comm-event', this.onCommEvent);
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
-    this.livePollTimer = setInterval(() => {
-      if (this.activeTab === 'telemetry') {
-        this.fetchLatestTelemetry();
-      } else if (this.activeTab === 'raw') {
-        this.fetchRawTelemetry();
-      } else if (this.activeTab === 'history') {
-        this.fetchHistory();
-      }
-      this.fetchCommStatus();
-    }, 4000);
   },
   beforeDestroy() {
     window.removeEventListener('device-comm-event', this.onCommEvent);
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
-    if (this.livePollTimer) clearInterval(this.livePollTimer);
   },
   methods: {
     async loadDevice() {
@@ -1538,6 +1527,45 @@ export default {
         }, 800);
 
         this.device.last_data_at = data.received_at;
+
+        // Reactive stream into Raw Telemetry table if on page 1
+        if (this.activeTab === 'raw' && this.rawPage === 1 && (!this.rawParamId || Number(this.rawParamId) === data.parameter_id)) {
+          const rawItem = {
+            id: Date.now(),
+            device_id: data.device_id,
+            parameter_id: data.parameter_id,
+            value: data.value,
+            raw_value: data.raw_value,
+            raw_hex: data.raw_hex,
+            quality: data.quality || 'GOOD',
+            source: data.source || 'MODBUS_RTU',
+            received_at: data.received_at,
+          };
+          this.rawRecords.unshift(rawItem);
+          if (this.rawRecords.length > this.rawPageSize) {
+            this.rawRecords.pop();
+          }
+          this.rawTotal++;
+        }
+
+        // Reactive stream into Historical Data table & SVG Trend Chart if on page 1
+        if (this.activeTab === 'history' && this.historyPage === 1 && (!this.historyParamId || Number(this.historyParamId) === data.parameter_id)) {
+          const histItem = {
+            id: Date.now(),
+            device_id: data.device_id,
+            parameter_id: data.parameter_id,
+            value: data.value,
+            raw_value: data.raw_value,
+            quality: data.quality || 'GOOD',
+            source: data.source || 'MODBUS_RTU',
+            received_at: data.received_at,
+          };
+          this.historyRecords.unshift(histItem);
+          if (this.historyRecords.length > this.historyPageSize) {
+            this.historyRecords.pop();
+          }
+          this.historyTotal++;
+        }
       }
     },
     async fetchHistory() {
@@ -1671,84 +1699,6 @@ export default {
         case 'BAD': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
         case 'UNCERTAIN': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
         default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
-      }
-    },
-    onTelemetryEvent(e) {
-      if (!e || !e.detail) return;
-      const data = e.detail;
-      if (data.device_id && this.device && Number(data.device_id) !== Number(this.device.id)) {
-        return;
-      }
-      this.$set(this.liveTelemetry, data.parameter_id, data);
-      this.$set(this.liveBlinks, data.parameter_id, true);
-      this.lastLivePacketTime = data.received_at || new Date().toISOString();
-      if (this.device) {
-        this.device.last_data_at = this.lastLivePacketTime;
-        this.device.last_seen_at = this.lastLivePacketTime;
-        this.device.connection_status = 'ONLINE';
-        if (this.device.parameters) {
-          const p = this.device.parameters.find(x => x.id === data.parameter_id);
-          if (p) {
-            this.$set(p, 'current_value', data.value);
-            this.$set(p, 'current_quality', data.quality);
-          }
-        }
-      }
-      setTimeout(() => {
-        this.$set(this.liveBlinks, data.parameter_id, false);
-      }, 1200);
-
-      // Realtime insertion into Raw Telemetry table if active
-      if (this.activeTab === 'raw') {
-        if (!this.rawParamId || String(this.rawParamId) === String(data.parameter_id)) {
-          const exists = this.rawRecords.some(r => r.id && data.id && r.id === data.id);
-          if (!exists) {
-            this.rawRecords.unshift({
-              id: data.id || Date.now(),
-              parameter_id: data.parameter_id,
-              received_at: data.received_at || new Date().toISOString(),
-              raw_hex: data.raw_hex || '--',
-              raw_value: data.raw_value,
-              value: data.value,
-              quality: data.quality || 'GOOD',
-              source: data.source || 'MODBUS_RTU',
-            });
-            if (this.rawRecords.length > 50) this.rawRecords.pop();
-            this.rawTotal++;
-          }
-        }
-      }
-
-      // Realtime insertion into Historical Data table / chart if active
-      if (this.activeTab === 'history') {
-        if (!this.historyParamId || String(this.historyParamId) === String(data.parameter_id)) {
-          const exists = this.historyRecords.some(r => r.id && data.id && r.id === data.id);
-          if (!exists) {
-            this.historyRecords.unshift({
-              id: data.id || Date.now(),
-              parameter_id: data.parameter_id,
-              received_at: data.received_at || new Date().toISOString(),
-              timestamp: data.received_at || new Date().toISOString(),
-              value: data.value,
-              quality: data.quality || 'GOOD',
-            });
-            if (this.historyRecords.length > 100) this.historyRecords.pop();
-            this.historyTotal++;
-          }
-        }
-      }
-    },
-    onCommEvent(e) {
-      if (!e || !e.detail || !this.device) return;
-      const evt = e.detail;
-      if (evt.data && evt.data.device_id && Number(evt.data.device_id) !== Number(this.device.id)) return;
-      if (evt.type === 'device.communication.success') {
-        this.device.connection_status = 'ONLINE';
-        if (evt.data && evt.data.latency_ms !== undefined) {
-          this.device.latency_ms = evt.data.latency_ms;
-        }
-      } else if (evt.type === 'device.communication.error') {
-        this.fetchCommStatus();
       }
     },
   },
