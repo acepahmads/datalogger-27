@@ -127,7 +127,7 @@
             <div class="flex items-center space-x-4 self-end md:self-center font-sans">
               <!-- Task Count -->
               <span class="text-2xs text-slate-400 font-sans hidden sm:inline-block">
-                {{ getCompletedTasksCount(phase) }} / {{ phase.tasks ? phase.tasks.length : 0 }} tasks
+                {{ getCompletedTasksCount(phase) }} / {{ getActiveTasksCount(phase) }} active tasks
               </span>
 
               <!-- Thin subtle Progress Bar -->
@@ -159,22 +159,74 @@
           </div>
 
           <!-- Phase Details Accordion Content -->
-          <div v-if="openPhases[phase.id]" class="px-4 pb-4 pt-2 border-t border-slate-800/60 bg-[#0E1524]/40">
-            <div class="flex items-center justify-between mb-3 pt-2">
-              <span class="text-2xs font-semibold text-slate-400 uppercase tracking-wider font-sans">
-                Tasks & Deliverables ({{ phase.tasks ? phase.tasks.length : 0 }})
-              </span>
-              <button @click.stop="openNewTaskForPhase(phase.id)"
-                      class="text-2xs text-blue-400 hover:text-blue-300 font-medium font-sans flex items-center">
-                + Add Task to Phase {{ phase.phase_number }}
-              </button>
+          <div v-if="openPhases[phase.id]" class="px-4 pb-4 pt-3 border-t border-slate-800/60 bg-[#0E1524]/40 space-y-4">
+            
+            <!-- Subphase Breakdown (Hierarchy for phases with subphases like Phase 2) -->
+            <div v-if="phase.subphases && phase.subphases.length" class="space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-2xs font-semibold text-slate-300 uppercase tracking-wider font-sans flex items-center space-x-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  <span>Subphase Verification & Delivery Breakdown</span>
+                </span>
+                <span class="text-3xs text-emerald-400 font-mono">Normalized Hierarchy</span>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                <div v-for="sp in phase.subphases" :key="sp.id"
+                     @click="toggleSubphaseFilter(sp.id)"
+                     class="p-3 rounded-lg bg-[#0B0F19]/80 border transition-all cursor-pointer"
+                     :class="selectedSubphaseId === sp.id ? 'border-blue-500 ring-1 ring-blue-500/40 bg-blue-950/20' : 'border-slate-800/80 hover:border-slate-700'">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-3xs font-mono font-bold px-1.5 py-0.5 rounded"
+                          :class="getSubphaseBadgeClass(sp)">
+                      {{ sp.status || (sp.progress >= 100 ? 'DONE' : 'WORKING') }}
+                    </span>
+                    <span class="text-2xs font-bold font-mono"
+                          :class="sp.progress >= 100 ? 'text-emerald-400' : sp.progress > 0 ? 'text-blue-400' : 'text-slate-400'">
+                      {{ sp.progress.toFixed(0) }}%
+                    </span>
+                  </div>
+                  <div class="text-xs font-bold text-white font-sans truncate">{{ sp.name }}</div>
+                  <div class="text-2xs text-slate-400 font-sans mt-0.5 line-clamp-1">{{ sp.description }}</div>
+                  <div class="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-3xs font-mono">
+                    <span class="text-slate-400">{{ sp.acceptance_criteria || 'VERIFIED' }}</span>
+                    <span class="text-blue-400 hover:underline">
+                      {{ getSubphaseTasks(phase, sp.id).length }} tasks
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Task Header & Filter Bar -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/50">
+              <div class="flex items-center space-x-2">
+                <span class="text-2xs font-semibold text-slate-400 uppercase tracking-wider font-sans">
+                  Tasks & Deliverables ({{ getDisplayedTasks(phase).length }})
+                </span>
+                <span v-if="selectedSubphaseId" class="text-3xs text-blue-400 font-sans bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center">
+                  Subphase Filter Active
+                  <button @click.stop="selectedSubphaseId = null" class="ml-1.5 text-slate-400 hover:text-white" title="Clear filter">&times;</button>
+                </span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button v-if="selectedSubphaseId" @click.stop="selectedSubphaseId = null"
+                        class="text-3xs text-slate-400 hover:text-white font-sans">
+                  Show All Tasks
+                </button>
+                <button @click.stop="openNewTaskForPhase(phase.id)"
+                        class="text-2xs text-blue-400 hover:text-blue-300 font-medium font-sans flex items-center">
+                  + Add Task to Phase {{ phase.phase_number }}
+                </button>
+              </div>
             </div>
 
             <!-- Tasks Grid in Modern SaaS Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              <div v-for="task in phase.tasks" :key="task.id"
+              <div v-for="task in getDisplayedTasks(phase)" :key="task.id"
                    @click="selectedTask = task"
-                   class="p-3 rounded-lg bg-[#111827] border border-slate-800/80 hover:border-blue-500/50 hover:shadow-soft cursor-pointer transition-all duration-150 flex flex-col justify-between">
+                   class="p-3 rounded-lg bg-[#111827] border border-slate-800/80 hover:border-blue-500/50 hover:shadow-soft cursor-pointer transition-all duration-150 flex flex-col justify-between"
+                   :class="{'opacity-60 bg-slate-900/50': task.status === 'SUPERSEDED'}">
                 <div>
                   <div class="flex items-center justify-between mb-1.5">
                     <span class="text-3xs font-mono text-slate-500">#{{ task.id }}</span>
@@ -188,8 +240,8 @@
                 </div>
 
                 <div class="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-2xs">
-                  <span class="text-slate-400 font-sans">{{ task.owner || 'Engineer' }}</span>
-                  <span class="font-sans font-medium" :class="task.progress >= 100 ? 'text-emerald-400' : 'text-blue-400'">
+                  <span class="text-slate-400 font-sans truncate max-w-[120px]">{{ task.owner || 'Engineer' }}</span>
+                  <span class="font-sans font-medium" :class="task.progress >= 100 ? 'text-emerald-400' : task.progress > 0 ? 'text-blue-400' : 'text-slate-500'">
                     {{ task.progress }}%
                   </span>
                 </div>
@@ -218,15 +270,23 @@
           <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
           <div class="text-xs font-semibold text-white font-sans">Phase 1 Foundation Completed</div>
           <div class="text-2xs text-slate-400 font-sans mt-0.5">Go backend, Vue 2 UI, MariaDB schema, and cross-platform architecture deployed.</div>
-          <div class="text-3xs text-slate-500 font-mono mt-1">2026-10-05 · Verified</div>
+          <div class="text-3xs text-slate-500 font-mono mt-1">2026-10-05 · Verified (17/17 PASS)</div>
         </div>
 
         <!-- Milestone 2 -->
         <div class="relative">
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
+          <div class="text-xs font-semibold text-white font-sans">Phase 2 Device & Communication Completed</div>
+          <div class="text-2xs text-slate-400 font-sans mt-0.5">Phase 2.1 Device Management, Phase 2.2 Modbus RTU/TCP Engine, and Phase 2.3 Hardening verified.</div>
+          <div class="text-3xs text-emerald-400 font-mono mt-1">2026-10-07 · Verified (81/81 PASS)</div>
+        </div>
+
+        <!-- Milestone 3 -->
+        <div class="relative">
           <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">Phase 2 Device & Communication (Next)</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">Device registration, Modbus RTU/TCP protocols, serial communications.</div>
-          <div class="text-3xs text-blue-400 font-mono mt-1">Active Pipeline</div>
+          <div class="text-xs font-semibold text-white font-sans">Phase 3 Data Engine (Next Milestone)</div>
+          <div class="text-2xs text-slate-400 font-sans mt-0.5">Raw data acquisition, scaling, calibration formulas, and moving average aggregations.</div>
+          <div class="text-3xs text-blue-400 font-mono mt-1">Planned Roadmap</div>
         </div>
       </div>
     </div>
@@ -255,6 +315,7 @@ export default {
       selectedTask: null,
       showNewTaskModal: false,
       newTaskPhaseId: 1,
+      selectedSubphaseId: null,
       openPhases: { 1: true, 2: true }, // Open Phase 1 & 2 by default
     };
   },
@@ -266,15 +327,34 @@ export default {
       if (this.progress.current_phase) {
         return this.progress.current_phase;
       }
-      return 'Phase 1 — Foundation';
+      return 'Phase 2 — Device & Communication';
     },
     activePhaseDescription() {
-      return 'Core architecture, Go backend, Vue 2 Web UI shell, MariaDB database, configuration, logging, and cross-platform service installer.';
+      return 'Device registration, connection profiles, Modbus RTU & TCP communication engines, concurrency isolation, and production hardening.';
     },
   },
   methods: {
     togglePhase(id) {
       this.$set(this.openPhases, id, !this.openPhases[id]);
+      this.selectedSubphaseId = null;
+    },
+    toggleSubphaseFilter(spId) {
+      if (this.selectedSubphaseId === spId) {
+        this.selectedSubphaseId = null;
+      } else {
+        this.selectedSubphaseId = spId;
+      }
+    },
+    getSubphaseTasks(phase, subphaseId) {
+      if (!phase || !phase.tasks) return [];
+      return phase.tasks.filter((t) => t.subphase_id === subphaseId);
+    },
+    getDisplayedTasks(phase) {
+      if (!phase || !phase.tasks) return [];
+      if (this.selectedSubphaseId) {
+        return phase.tasks.filter((t) => t.subphase_id === this.selectedSubphaseId);
+      }
+      return phase.tasks;
     },
     openNewTaskForPhase(phaseId) {
       this.newTaskPhaseId = phaseId;
@@ -283,6 +363,10 @@ export default {
     getCompletedTasksCount(phase) {
       if (!phase || !phase.tasks) return 0;
       return phase.tasks.filter((t) => t.status === 'DONE').length;
+    },
+    getActiveTasksCount(phase) {
+      if (!phase || !phase.tasks) return 0;
+      return phase.tasks.filter((t) => t.status !== 'SUPERSEDED' && t.status !== 'PLANNED').length;
     },
     async refreshAll() {
       this.refreshing = true;
@@ -306,6 +390,18 @@ export default {
       }
       return 'bg-slate-800/40 text-slate-400 border border-slate-700/30';
     },
+    getSubphaseBadgeClass(sp) {
+      if (sp.status === 'DONE' || sp.progress >= 100) {
+        return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      }
+      if (sp.status === 'PLANNED') {
+        return 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30';
+      }
+      if (sp.progress > 0 || sp.status === 'WORKING') {
+        return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+      }
+      return 'bg-slate-800 text-slate-400 border border-slate-700';
+    },
     getProgressBarColor(phase) {
       if (phase.progress >= 100) return 'bg-emerald-500';
       if (phase.progress > 0) return 'bg-blue-500';
@@ -325,6 +421,10 @@ export default {
           return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
         case 'WAITING_APPROVAL':
           return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+        case 'PLANNED':
+          return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
+        case 'SUPERSEDED':
+          return 'bg-slate-700/30 text-slate-400 border border-slate-600/40';
         case 'PENDING':
         default:
           return 'bg-slate-800/50 text-slate-400 border border-slate-700/40';

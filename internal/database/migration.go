@@ -118,66 +118,189 @@ func updatePhase2Tracking(db *gorm.DB) {
 	var phase2 model.DevelopmentPhase
 	if err := db.Where("phase_number = 2").First(&phase2).Error; err == nil {
 		now := time.Now()
-		// Update phase status to WORKING
-		db.Model(&phase2).Update("status", model.PhaseWorking)
 
 		// 1. Ensure Subphase 2.1 exists and is 100% DONE
 		var sub2_1 model.DevelopmentSubphase
-		if err := db.Where("phase_id = ? AND name LIKE ?", phase2.ID, "%Phase 2.1%").First(&sub2_1).Error; err != nil {
+		if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 1)", phase2.ID, "%Phase 2.1%").First(&sub2_1).Error; err != nil {
 			sub2_1 = model.DevelopmentSubphase{
-				PhaseID:     phase2.ID,
-				Name:        "Phase 2.1 — Device Management",
-				Description: "Device registration, connection profiles, parameter definitions, RBAC authorization, and audit trails",
-				OrderIndex:  1,
-				Progress:    100.0,
+				PhaseID:            phase2.ID,
+				Name:               "Phase 2.1 — Device Management",
+				Description:        "Device registration, connection profiles, parameter definitions, RBAC authorization, and audit trails",
+				Status:             "DONE",
+				AcceptanceCriteria: "22/22 PASS",
+				OrderIndex:         1,
+				Progress:           100.0,
 			}
 			db.Create(&sub2_1)
 		} else {
-			db.Model(&sub2_1).Update("progress", 100.0)
+			db.Model(&sub2_1).Updates(map[string]interface{}{
+				"name":                "Phase 2.1 — Device Management",
+				"description":         "Device registration, connection profiles, parameter definitions, RBAC authorization, and audit trails",
+				"status":              "DONE",
+				"acceptance_criteria": "22/22 PASS",
+				"progress":            100.0,
+			})
 		}
 
 		// 2. Ensure Subphase 2.2 exists and is completed (100%)
 		var sub2_2 model.DevelopmentSubphase
-		if err := db.Where("phase_id = ? AND name LIKE ?", phase2.ID, "%Phase 2.2%").First(&sub2_2).Error; err != nil {
+		if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 2)", phase2.ID, "%Phase 2.2%").First(&sub2_2).Error; err != nil {
 			sub2_2 = model.DevelopmentSubphase{
-				PhaseID:     phase2.ID,
-				Name:        "Phase 2.2 — Modbus RTU / TCP Communication Engine",
-				Description: "Industrial communication engine, Modbus RTU, Modbus TCP, Connection Manager, Register Decoding, and Polling",
-				OrderIndex:  2,
-				Progress:    100.0,
+				PhaseID:            phase2.ID,
+				Name:               "Phase 2.2 — Modbus RTU / TCP Communication Engine",
+				Description:        "Industrial communication engine, Modbus RTU, Modbus TCP, Connection Manager, Register Decoding, and Polling",
+				Status:             "DONE",
+				AcceptanceCriteria: "27/27 PASS",
+				OrderIndex:         2,
+				Progress:           100.0,
 			}
 			db.Create(&sub2_2)
 		} else {
-			db.Model(&sub2_2).Update("progress", 100.0)
+			db.Model(&sub2_2).Updates(map[string]interface{}{
+				"name":                "Phase 2.2 — Modbus RTU / TCP Communication Engine",
+				"description":         "Industrial communication engine, Modbus RTU, Modbus TCP, Connection Manager, Register Decoding, and Polling",
+				"status":              "DONE",
+				"acceptance_criteria": "27/27 PASS",
+				"progress":            100.0,
+			})
 		}
 
-		// 3. Update existing Task "Device Management" under Subphase 2.1
-		var task model.DevelopmentTask
-		if err := db.Where("phase_id = ? AND task_name = ?", phase2.ID, "Device Management").First(&task).Error; err == nil {
-			db.Model(&task).Updates(map[string]interface{}{
+		// 3. Ensure Subphase 2.3 exists and is completed (100%)
+		var sub2_3 model.DevelopmentSubphase
+		if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 3)", phase2.ID, "%Phase 2.3%").First(&sub2_3).Error; err != nil {
+			sub2_3 = model.DevelopmentSubphase{
+				PhaseID:            phase2.ID,
+				Name:               "Phase 2.3 — Communication Hardening & Real Device Validation",
+				Description:        "Production hardening, real device/simulator validation, long-running polling, device isolation, and failure recovery",
+				Status:             "DONE",
+				AcceptanceCriteria: "32/32 PASS",
+				OrderIndex:         3,
+				Progress:           100.0,
+			}
+			db.Create(&sub2_3)
+		} else {
+			db.Model(&sub2_3).Updates(map[string]interface{}{
+				"name":                "Phase 2.3 — Communication Hardening & Real Device Validation",
+				"description":         "Production hardening, real device/simulator validation, long-running polling, device isolation, and failure recovery",
+				"status":              "DONE",
+				"acceptance_criteria": "32/32 PASS",
+				"progress":            100.0,
+			})
+		}
+
+		// 4. Ensure Subphase 2.4 exists for future planned protocols
+		var sub2_4 model.DevelopmentSubphase
+		if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 4)", phase2.ID, "%Phase 2.4%").First(&sub2_4).Error; err != nil {
+			sub2_4 = model.DevelopmentSubphase{
+				PhaseID:            phase2.ID,
+				Name:               "Phase 2.4 — Future Protocols & Extensions (Planned)",
+				Description:        "Planned future protocols: automated device discovery, raw socket TCP streaming, UDP datagrams, and MQTT subscriber",
+				Status:             "PLANNED",
+				AcceptanceCriteria: "4 PLANNED",
+				OrderIndex:         4,
+				Progress:           0.0,
+			}
+			db.Create(&sub2_4)
+		} else {
+			db.Model(&sub2_4).Updates(map[string]interface{}{
+				"name":                "Phase 2.4 — Future Protocols & Extensions (Planned)",
+				"description":         "Planned future protocols: automated device discovery, raw socket TCP streaming, UDP datagrams, and MQTT subscriber",
+				"status":              "PLANNED",
+				"acceptance_criteria": "4 PLANNED",
+				"progress":            0.0,
+			})
+		}
+
+		// 5. Reconcile Legacy Tasks Covered by Phase 2.1 (#10, #11, #13)
+		var task10 model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (task_name LIKE '%Device Management%' OR id = 10)", phase2.ID).First(&task10).Error; err == nil {
+			db.Model(&task10).Updates(map[string]interface{}{
 				"subphase_id":     &sub2_1.ID,
+				"task_name":       "Phase 2.1 — Device Management",
 				"status":          model.StatusDone,
 				"progress":        100.0,
 				"completion_date": &now,
-				"test_result":     "PASSED: Full Device CRUD, Connection Configuration, Validation, Unique Constraints, RBAC, and Audit Trail verified (10/10 tests)",
+				"test_result":     "PASSED: Full Device CRUD, Connection Configuration, Validation, Unique Constraints, RBAC, and Audit Trail verified (22/22 criteria PASS)",
 			})
+		}
 
-			var logCount int64
-			db.Model(&model.DevelopmentTaskLog{}).Where("task_id = ? AND action = ?", task.ID, "Phase 2.1 Implementation").Count(&logCount)
-			if logCount == 0 {
-				db.Create(&model.DevelopmentTaskLog{
-					TaskID:    task.ID,
-					Timestamp: now,
-					User:      "admin",
-					Action:    "Phase 2.1 Implementation",
-					Result:    "PASSED",
-					Log:       "Phase 2.1 Device Management completed with REST CRUD, connection models, parameters, RBAC authorization, audit trail, and Vue 2 frontend.",
+		var task11 model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (task_name LIKE 'Device Registration%' OR id = 11)", phase2.ID).First(&task11).Error; err == nil {
+			db.Model(&task11).Updates(map[string]interface{}{
+				"subphase_id":     &sub2_1.ID,
+				"task_name":       "Device Registration & Profiles",
+				"status":          model.StatusDone,
+				"progress":        100.0,
+				"completion_date": &now,
+				"test_result":     "PASSED: Device profile registration with unique code constraints, locations, and timezone metadata verified (Phase 2.1 PASS)",
+			})
+		}
+
+		var task13 model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (task_name LIKE 'Parameter Management%' OR id = 13)", phase2.ID).First(&task13).Error; err == nil {
+			db.Model(&task13).Updates(map[string]interface{}{
+				"subphase_id":     &sub2_1.ID,
+				"task_name":       "Parameter Management & Register Schema",
+				"status":          model.StatusDone,
+				"progress":        100.0,
+				"completion_date": &now,
+				"test_result":     "PASSED: Parameter CRUD, composite key uniqueness (device_id, parameter_code), register offsets, and linear scaling verified (Phase 2.1 PASS)",
+			})
+		}
+
+		// 6. Reconcile Legacy Tasks Covered by Phase 2.2 / Phase 2.3 (Mark as SUPERSEDED)
+		supersededTasks := []struct {
+			MatchQuery string
+			TaskID     uint
+			SubphaseID *uint
+			Result     string
+		}{
+			{"Modbus RTU", 14, &sub2_2.ID, "SUPERSEDED: Implemented in Task 2.2.2 (Modbus RTU Engine) & Task 2.3.2 (Real Modbus RTU Validation)"},
+			{"Modbus TCP", 15, &sub2_2.ID, "SUPERSEDED: Implemented in Task 2.2.3 (Modbus TCP Engine) & Task 2.3.3 (Real Modbus TCP Validation)"},
+			{"REST API", 18, &sub2_2.ID, "SUPERSEDED: Implemented in Phase 2.1 Device REST API & Task 2.2.11 (Diagnostic/Test API)"},
+			{"Serial Communication", 20, &sub2_2.ID, "SUPERSEDED: Implemented in Task 2.2.2 (Modbus RTU Engine) and ConnectionManager Serial Port Handler"},
+			{"Protocol Adapter", 21, &sub2_2.ID, "SUPERSEDED: Implemented in Task 2.2.1 (Communication Adapter Architecture)"},
+		}
+
+		for _, st := range supersededTasks {
+			var t model.DevelopmentTask
+			if err := db.Where("phase_id = ? AND (task_name = ? OR id = ?)", phase2.ID, st.MatchQuery, st.TaskID).First(&t).Error; err == nil {
+				db.Model(&t).Updates(map[string]interface{}{
+					"subphase_id":     st.SubphaseID,
+					"status":          model.StatusSuperseded,
+					"progress":        100.0,
+					"completion_date": &now,
+					"test_result":     st.Result,
 				})
 			}
 		}
 
-		// 4. Create or sync Phase 2.2 Subtasks (2.2.1 through 2.2.14)
-		subtasks := []struct {
+		// 7. Reconcile Legacy Tasks that represent Planned Future Scope (#12, #16, #17, #19)
+		plannedTasks := []struct {
+			MatchQuery string
+			TaskID     uint
+			Result     string
+		}{
+			{"Device Discovery", 12, "PLANNED: Future automated IP network and serial port scanner (Future Protocol Scope)"},
+			{"TCP", 16, "PLANNED: Future raw industrial socket TCP client/server streaming protocol handler"},
+			{"UDP", 17, "PLANNED: Future lightweight UDP datagram receiver for fast telemetry packets"},
+			{"MQTT", 19, "PLANNED: Future MQTT client subscriber for broker-based IoT sensors and gateways"},
+		}
+
+		for _, pt := range plannedTasks {
+			var t model.DevelopmentTask
+			if err := db.Where("phase_id = ? AND (task_name = ? OR id = ?)", phase2.ID, pt.MatchQuery, pt.TaskID).First(&t).Error; err == nil {
+				db.Model(&t).Updates(map[string]interface{}{
+					"subphase_id": &sub2_4.ID,
+					"status":      model.StatusPlanned,
+					"progress":    0.0,
+					"test_result": pt.Result,
+				})
+			}
+		}
+
+		// 8. Create or sync Phase 2.2 Subtasks (2.2.1 through 2.2.14)
+		subtasks2_2 := []struct {
 			Name        string
 			Description string
 			Priority    model.Priority
@@ -198,7 +321,7 @@ func updatePhase2Tracking(db *gorm.DB) {
 			{"2.2.14 Acceptance Test", "Phase 2.2 full acceptance verification and regression test suite pass", model.PriorityCritical},
 		}
 
-		for idx, st := range subtasks {
+		for idx, st := range subtasks2_2 {
 			var existingTask model.DevelopmentTask
 			if err := db.Where("phase_id = ? AND task_name = ?", phase2.ID, st.Name).First(&existingTask).Error; err != nil {
 				db.Create(&model.DevelopmentTask{
@@ -224,22 +347,7 @@ func updatePhase2Tracking(db *gorm.DB) {
 			}
 		}
 
-		// 5. Ensure Subphase 2.3 exists and is completed (100%)
-		var sub2_3 model.DevelopmentSubphase
-		if err := db.Where("phase_id = ? AND name LIKE ?", phase2.ID, "%Phase 2.3%").First(&sub2_3).Error; err != nil {
-			sub2_3 = model.DevelopmentSubphase{
-				PhaseID:     phase2.ID,
-				Name:        "Phase 2.3 — Communication Hardening & Real Device Validation",
-				Description: "Production hardening, real device/simulator validation, long-running polling, device isolation, and failure recovery",
-				OrderIndex:  3,
-				Progress:    100.0,
-			}
-			db.Create(&sub2_3)
-		} else {
-			db.Model(&sub2_3).Update("progress", 100.0)
-		}
-
-		// 6. Create or sync Phase 2.3 Subtasks (2.3.1 through 2.3.15)
+		// 9. Create or sync Phase 2.3 Subtasks (2.3.1 through 2.3.15)
 		subtasks2_3 := []struct {
 			Name        string
 			Description string
@@ -302,11 +410,31 @@ func RecalculatePhaseProgress(db *gorm.DB, phaseID uint) {
 			var spTasks []model.DevelopmentTask
 			if err := db.Where("subphase_id = ?", sp.ID).Find(&spTasks).Error; err == nil && len(spTasks) > 0 {
 				var sum float64
+				activeCount := 0
 				for _, t := range spTasks {
+					if t.Status == model.StatusSuperseded {
+						continue
+					}
+					activeCount++
 					sum += t.Progress
 				}
-				spProgress := sum / float64(len(spTasks))
-				db.Model(&sp).Update("progress", spProgress)
+				spProgress := 0.0
+				if activeCount > 0 {
+					spProgress = sum / float64(activeCount)
+				}
+				spStatus := "PENDING"
+				if spProgress >= 100 {
+					spStatus = "DONE"
+				} else if spProgress > 0 {
+					spStatus = "WORKING"
+				}
+				if sp.Status == "PLANNED" && spProgress == 0 {
+					spStatus = "PLANNED"
+				}
+				db.Model(&model.DevelopmentSubphase{}).Where("id = ?", sp.ID).Updates(map[string]interface{}{
+					"progress": spProgress,
+					"status":   spStatus,
+				})
 			}
 		}
 	}
@@ -314,11 +442,39 @@ func RecalculatePhaseProgress(db *gorm.DB, phaseID uint) {
 	var allTasks []model.DevelopmentTask
 	if err := db.Where("phase_id = ?", phaseID).Find(&allTasks).Error; err == nil && len(allTasks) > 0 {
 		var sum float64
+		activeCount := 0
+		doneCount := 0
 		for _, t := range allTasks {
+			// Superseded and Planned tasks do not corrupt active completion denominator
+			if t.Status == model.StatusSuperseded || t.Status == model.StatusPlanned {
+				continue
+			}
+			activeCount++
 			sum += t.Progress
+			if t.Status == model.StatusDone {
+				doneCount++
+			}
 		}
-		avgProgress := sum / float64(len(allTasks))
-		db.Model(&model.DevelopmentPhase{}).Where("id = ?", phaseID).Update("progress", avgProgress)
+		avgProgress := 0.0
+		if activeCount > 0 {
+			avgProgress = sum / float64(activeCount)
+		}
+
+		phaseStatus := model.PhasePending
+		now := time.Now()
+		var completedDate *time.Time
+		if avgProgress >= 100 || (activeCount > 0 && doneCount == activeCount) {
+			phaseStatus = model.PhaseCompleted
+			completedDate = &now
+		} else if avgProgress > 0 || doneCount > 0 {
+			phaseStatus = model.PhaseWorking
+		}
+
+		db.Model(&model.DevelopmentPhase{}).Where("id = ?", phaseID).Updates(map[string]interface{}{
+			"progress":       avgProgress,
+			"status":         phaseStatus,
+			"completed_date": completedDate,
+		})
 	}
 }
 

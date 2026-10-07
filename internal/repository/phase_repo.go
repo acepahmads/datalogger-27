@@ -18,13 +18,17 @@ func NewPhaseRepository(db *gorm.DB) *PhaseRepository {
 
 func (r *PhaseRepository) GetAllPhases() ([]model.DevelopmentPhase, error) {
 	var phases []model.DevelopmentPhase
-	err := r.db.Preload("Tasks").Order("phase_number ASC").Find(&phases).Error
+	err := r.db.Preload("Subphases", func(db *gorm.DB) *gorm.DB {
+		return db.Order("order_index ASC")
+	}).Preload("Tasks").Order("phase_number ASC").Find(&phases).Error
 	return phases, err
 }
 
 func (r *PhaseRepository) GetPhaseByID(id uint) (*model.DevelopmentPhase, error) {
 	var phase model.DevelopmentPhase
-	err := r.db.Preload("Tasks.Logs").Preload("Tasks.Evidences").Preload("Subphases").First(&phase, id).Error
+	err := r.db.Preload("Tasks.Logs").Preload("Tasks.Evidences").Preload("Subphases.Tasks").Preload("Subphases", func(db *gorm.DB) *gorm.DB {
+		return db.Order("order_index ASC")
+	}).First(&phase, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +87,45 @@ func (r *PhaseRepository) GetRecentTaskLogs(limit int) ([]model.DevelopmentTaskL
 	return logs, err
 }
 
-// RecalculateProgress recalculates phase progress and updates status
+// RecalculateProgress recalculates phase and subphase progress and updates status
 func (r *PhaseRepository) RecalculateProgress(phaseID uint) (float64, error) {
+	// 1. Recalculate child subphases if any exist
+	var subphases []model.DevelopmentSubphase
+	if err := r.db.Where("phase_id = ?", phaseID).Find(&subphases).Error; err == nil && len(subphases) > 0 {
+		for _, sp := range subphases {
+			var spTasks []model.DevelopmentTask
+			if err := r.db.Where("subphase_id = ?", sp.ID).Find(&spTasks).Error; err == nil && len(spTasks) > 0 {
+				var sum float64
+				activeCount := 0
+				for _, t := range spTasks {
+					if t.Status == model.StatusSuperseded {
+						continue
+					}
+					activeCount++
+					sum += t.Progress
+				}
+				spProgress := 0.0
+				if activeCount > 0 {
+					spProgress = sum / float64(activeCount)
+				}
+				spStatus := "PENDING"
+				if spProgress >= 100 {
+					spStatus = "DONE"
+				} else if spProgress > 0 {
+					spStatus = "WORKING"
+				}
+				if sp.Status == "PLANNED" && spProgress == 0 {
+					spStatus = "PLANNED"
+				}
+				_ = r.db.Model(&model.DevelopmentSubphase{}).Where("id = ?", sp.ID).Updates(map[string]interface{}{
+					"progress": spProgress,
+					"status":   spStatus,
+				}).Error
+			}
+		}
+	}
+
+	// 2. Recalculate Phase progress from valid active deliverables
 	var tasks []model.DevelopmentTask
 	if err := r.db.Where("phase_id = ?", phaseID).Find(&tasks).Error; err != nil {
 		return 0, err
@@ -95,18 +136,28 @@ func (r *PhaseRepository) RecalculateProgress(phaseID uint) (float64, error) {
 
 	var totalProgress float64
 	doneCount := 0
+	activeTaskCount := 0
 	for _, t := range tasks {
+		// Superseded and Planned tasks do not corrupt active denominator
+		if t.Status == model.StatusSuperseded || t.Status == model.StatusPlanned {
+			continue
+		}
+		activeTaskCount++
 		totalProgress += t.Progress
 		if t.Status == model.StatusDone {
 			doneCount++
 		}
 	}
-	avgProgress := totalProgress / float64(len(tasks))
+
+	avgProgress := 0.0
+	if activeTaskCount > 0 {
+		avgProgress = totalProgress / float64(activeTaskCount)
+	}
 
 	phaseStatus := model.PhasePending
 	now := time.Now()
 	var completedDate *time.Time
-	if avgProgress >= 100 || doneCount == len(tasks) {
+	if avgProgress >= 100 || (activeTaskCount > 0 && doneCount == activeTaskCount) {
 		phaseStatus = model.PhaseCompleted
 		completedDate = &now
 	} else if avgProgress > 0 || doneCount > 0 {

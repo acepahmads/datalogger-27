@@ -29,6 +29,8 @@
           <option value="WORKING">WORKING</option>
           <option value="TESTING">TESTING</option>
           <option value="PENDING">PENDING</option>
+          <option value="PLANNED">PLANNED</option>
+          <option value="SUPERSEDED">SUPERSEDED</option>
           <option value="BLOCKED">BLOCKED</option>
           <option value="FAILED">FAILED</option>
           <option value="WAITING_APPROVAL">WAITING_APPROVAL</option>
@@ -201,6 +203,10 @@ export default {
           return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
         case 'WAITING_APPROVAL':
           return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+        case 'PLANNED':
+          return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
+        case 'SUPERSEDED':
+          return 'bg-slate-700/30 text-slate-400 border border-slate-600/40';
         case 'PENDING':
         default:
           return 'bg-slate-800/40 text-slate-400 border border-slate-700/30';
