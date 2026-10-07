@@ -59,6 +59,46 @@ func JWTAuth(authService *service.AuthService) gin.HandlerFunc {
 	}
 }
 
+// RequirePermission checks if the authenticated user has the specified permission
+func RequirePermission(permissionCode string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleVal, exists := c.Get("role")
+		if !exists {
+			response.Unauthorized(c, "Authentication required")
+			c.Abort()
+			return
+		}
+
+		role, _ := roleVal.(string)
+
+		// Administrator always has full system permissions
+		if strings.EqualFold(role, "Administrator") || strings.EqualFold(role, "admin") {
+			c.Next()
+			return
+		}
+
+		// Engineer has permissions for creating, updating, managing, and viewing devices
+		if strings.EqualFold(role, "Engineer") {
+			if permissionCode == "device.view" || permissionCode == "device.create" ||
+				permissionCode == "device.update" || permissionCode == "device.manage" {
+				c.Next()
+				return
+			}
+		}
+
+		// Operator only has read/view permissions
+		if strings.EqualFold(role, "Operator") {
+			if permissionCode == "device.view" {
+				c.Next()
+				return
+			}
+		}
+
+		response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")
+		c.Abort()
+	}
+}
+
 // RequestLogger logs incoming HTTP requests with latency
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {

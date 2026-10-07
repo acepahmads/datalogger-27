@@ -162,14 +162,128 @@ export default new Vuex.Store({
         console.error('Failed to fetch tasks:', err);
       }
     },
-    async fetchDevices({ commit }) {
+    async fetchDevices({ commit }, filterParams = {}) {
       try {
-        const res = await axios.get(`${API_BASE}/devices`);
+        let url = `${API_BASE}/devices`;
+        const params = [];
+        if (filterParams.page) params.push(`page=${filterParams.page}`);
+        if (filterParams.pageSize) params.push(`page_size=${filterParams.pageSize}`);
+        if (filterParams.search) params.push(`search=${encodeURIComponent(filterParams.search)}`);
+        if (filterParams.status) params.push(`status=${encodeURIComponent(filterParams.status)}`);
+        if (filterParams.connectionStatus) params.push(`connection_status=${encodeURIComponent(filterParams.connectionStatus)}`);
+        if (filterParams.protocol) params.push(`protocol=${encodeURIComponent(filterParams.protocol)}`);
+        if (filterParams.sortBy) params.push(`sort_by=${filterParams.sortBy}`);
+        if (filterParams.sortDir) params.push(`sort_dir=${filterParams.sortDir}`);
+        if (filterParams.all) params.push(`all=true`);
+
+        if (params.length) url += `?${params.join('&')}`;
+
+        const res = await axios.get(url);
         if (res.data && res.data.data) {
-          commit('SET_DEVICES', res.data.data);
+          const data = res.data.data;
+          if (data.items) {
+            commit('SET_DEVICES', data.items);
+            return data;
+          } else {
+            commit('SET_DEVICES', data);
+            return data;
+          }
         }
       } catch (err) {
         console.error('Failed to fetch devices:', err);
+        throw err;
+      }
+    },
+    async fetchDeviceByID(_, id) {
+      try {
+        const res = await axios.get(`${API_BASE}/devices/${id}`);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to fetch device by ID:', err);
+        throw err;
+      }
+    },
+    async createDevice({ dispatch }, deviceData) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices`, deviceData);
+        dispatch('fetchDevices');
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to create device:', err);
+        throw err;
+      }
+    },
+    async updateDevice({ dispatch }, { id, updates }) {
+      try {
+        const res = await axios.put(`${API_BASE}/devices/${id}`, updates);
+        dispatch('fetchDevices');
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to update device:', err);
+        throw err;
+      }
+    },
+    async deleteDevice({ dispatch }, id) {
+      try {
+        await axios.delete(`${API_BASE}/devices/${id}`);
+        dispatch('fetchDevices');
+      } catch (err) {
+        console.error('Failed to delete device:', err);
+        throw err;
+      }
+    },
+    async toggleDeviceEnabled({ dispatch }, { id, enabled }) {
+      try {
+        const res = await axios.put(`${API_BASE}/devices/${id}/enable`, { enabled });
+        dispatch('fetchDevices');
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to toggle device enabled:', err);
+        throw err;
+      }
+    },
+    async fetchDeviceActivity(_, { deviceId, limit = 50 }) {
+      try {
+        const res = await axios.get(`${API_BASE}/devices/${deviceId}/activity?limit=${limit}`);
+        return res.data ? res.data.data : [];
+      } catch (err) {
+        console.error('Failed to fetch device activity:', err);
+        return [];
+      }
+    },
+    async createParameter(_, { deviceId, paramData }) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${deviceId}/parameters`, paramData);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to create parameter:', err);
+        throw err;
+      }
+    },
+    async updateParameter(_, { deviceId, paramId, updates }) {
+      try {
+        const res = await axios.put(`${API_BASE}/devices/${deviceId}/parameters/${paramId}`, updates);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to update parameter:', err);
+        throw err;
+      }
+    },
+    async deleteParameter(_, { deviceId, paramId }) {
+      try {
+        await axios.delete(`${API_BASE}/devices/${deviceId}/parameters/${paramId}`);
+      } catch (err) {
+        console.error('Failed to delete parameter:', err);
+        throw err;
+      }
+    },
+    async toggleParameterEnabled(_, { deviceId, paramId, enabled }) {
+      try {
+        const res = await axios.put(`${API_BASE}/devices/${deviceId}/parameters/${paramId}/enable`, { enabled });
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to toggle parameter enabled:', err);
+        throw err;
       }
     },
     async fetchAlarms({ commit }) {

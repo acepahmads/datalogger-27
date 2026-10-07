@@ -403,46 +403,70 @@ func Seed(db *gorm.DB) error {
 	db.Create(&mqttType)
 
 	dev1 := model.Device{
-		Code:         "PM-01",
-		Name:         "Main Power Quality Meter PM-500",
-		DeviceTypeID: modbusTCPType.ID,
-		Status:       model.DeviceOnline,
-		Enabled:      true,
-		Location:     "Main Electrical Switchboard A",
-		LatencyMs:    12,
-		SuccessCount: 14820,
-		FailedCount:  3,
+		DeviceCode:       "PM-01",
+		DeviceName:       "Main Power Quality Meter PM-500",
+		DeviceType:       "MODBUS_TCP",
+		Manufacturer:     "Schneider Electric",
+		Model:            "PowerLogic PM5560",
+		SerialNumber:     "SN-PM500-9841",
+		FirmwareVersion:  "v2.4.1",
+		Description:      "Main incoming power quality and energy meter for switchboard A",
+		Location:         "Main Electrical Switchboard A",
+		Timezone:         "UTC",
+		Status:           model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline,
+		Enabled:          true,
+		DeviceTypeID:     modbusTCPType.ID,
+		LatencyMs:        12,
+		SuccessCount:     14820,
+		FailedCount:      3,
 	}
 	dev2 := model.Device{
-		Code:         "TH-01",
-		Name:         "Server Room Temp & Humidity Sensor",
-		DeviceTypeID: modbusRTUType.ID,
-		Status:       model.DeviceOnline,
-		Enabled:      true,
-		Location:     "Edge Server Rack 01",
-		LatencyMs:    35,
-		SuccessCount: 9640,
-		FailedCount:  12,
+		DeviceCode:       "TH-01",
+		DeviceName:       "Server Room Temp & Humidity Sensor",
+		DeviceType:       "MODBUS_RTU",
+		Manufacturer:     "Sensirion",
+		Model:            "SHT35-DIS",
+		SerialNumber:     "SN-TH01-5521",
+		FirmwareVersion:  "v1.0.3",
+		Description:      "Environmental temperature and humidity sensor for server rack 01",
+		Location:         "Edge Server Rack 01",
+		Timezone:         "UTC",
+		Status:           model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline,
+		Enabled:          true,
+		DeviceTypeID:     modbusRTUType.ID,
+		LatencyMs:        35,
+		SuccessCount:     9640,
+		FailedCount:      12,
 	}
 	dev3 := model.Device{
-		Code:         "FM-01",
-		Name:         "Cooling Water Flow Meter FM-100",
-		DeviceTypeID: modbusTCPType.ID,
-		Status:       model.DeviceOnline,
-		Enabled:      true,
-		Location:     "Chiller Plant Room",
-		LatencyMs:    18,
-		SuccessCount: 8200,
-		FailedCount:  0,
+		DeviceCode:       "FM-01",
+		DeviceName:       "Cooling Water Flow Meter FM-100",
+		DeviceType:       "MODBUS_TCP",
+		Manufacturer:     "Endress+Hauser",
+		Model:            "Promag 50W",
+		SerialNumber:     "SN-FM100-3329",
+		FirmwareVersion:  "v3.1.0",
+		Description:      "Electromagnetic flow meter for chilled water loop",
+		Location:         "Chiller Plant Room",
+		Timezone:         "UTC",
+		Status:           model.DeviceStatusActive,
+		ConnectionStatus: model.DeviceConnOnline,
+		Enabled:          true,
+		DeviceTypeID:     modbusTCPType.ID,
+		LatencyMs:        18,
+		SuccessCount:     8200,
+		FailedCount:      0,
 	}
 	db.Create(&dev1)
 	db.Create(&dev2)
 	db.Create(&dev3)
 
 	// Connections
-	db.Create(&model.DeviceConnection{DeviceID: dev1.ID, ConnectionType: "TCP", Address: "192.168.1.101", Port: 502, TimeoutMs: 1000, PollIntervalMs: 1000})
-	db.Create(&model.DeviceConnection{DeviceID: dev2.ID, ConnectionType: "SERIAL", Address: "COM3", BaudRate: 9600, DataBits: 8, StopBits: 1, Parity: "N", TimeoutMs: 1000, PollIntervalMs: 2000})
-	db.Create(&model.DeviceConnection{DeviceID: dev3.ID, ConnectionType: "TCP", Address: "192.168.1.103", Port: 502, TimeoutMs: 1000, PollIntervalMs: 1000})
+	db.Create(&model.DeviceConnection{DeviceID: dev1.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.101", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 1000, Enabled: true})
+	db.Create(&model.DeviceConnection{DeviceID: dev2.ID, Protocol: model.ProtocolModbusRTU, ConnectionType: "SERIAL", SerialPort: "COM3", BaudRate: 9600, DataBits: 8, StopBits: 1, Parity: "N", Timeout: 1000, RetryCount: 3, PollingInterval: 2000, Enabled: true})
+	db.Create(&model.DeviceConnection{DeviceID: dev3.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.103", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 1000, Enabled: true})
 
 	// Sample Parameters
 	v := 220.5
@@ -450,11 +474,11 @@ func Seed(db *gorm.DB) error {
 	t := 24.8
 	h := 58.2
 	f := 125.4
-	db.Create(&model.Parameter{DeviceID: dev1.ID, Code: "VOLTAGE_L1", Name: "Phase Voltage L1-N", Unit: "V", DataType: model.DataTypeFloat32, RegisterAddress: 30001, ScaleFactor: 0.1, CurrentValue: &v})
-	db.Create(&model.Parameter{DeviceID: dev1.ID, Code: "CURRENT_L1", Name: "Line Current L1", Unit: "A", DataType: model.DataTypeFloat32, RegisterAddress: 30003, ScaleFactor: 0.01, CurrentValue: &c})
-	db.Create(&model.Parameter{DeviceID: dev2.ID, Code: "ROOM_TEMP", Name: "Ambient Temperature", Unit: "°C", DataType: model.DataTypeFloat32, RegisterAddress: 40001, ScaleFactor: 0.1, CurrentValue: &t})
-	db.Create(&model.Parameter{DeviceID: dev2.ID, Code: "ROOM_HUM", Name: "Relative Humidity", Unit: "%RH", DataType: model.DataTypeFloat32, RegisterAddress: 40002, ScaleFactor: 0.1, CurrentValue: &h})
-	db.Create(&model.Parameter{DeviceID: dev3.ID, Code: "FLOW_RATE", Name: "Chilled Water Flow Rate", Unit: "m³/h", DataType: model.DataTypeFloat32, RegisterAddress: 30101, ScaleFactor: 0.1, CurrentValue: &f})
+	db.Create(&model.Parameter{DeviceID: dev1.ID, ParameterCode: "VOLTAGE_L1", ParameterName: "Phase Voltage L1-N", Unit: "V", DataType: model.DataTypeFloat32, RegisterAddress: 30001, Scale: 0.1, CurrentValue: &v, Enabled: true})
+	db.Create(&model.Parameter{DeviceID: dev1.ID, ParameterCode: "CURRENT_L1", ParameterName: "Line Current L1", Unit: "A", DataType: model.DataTypeFloat32, RegisterAddress: 30003, Scale: 0.01, CurrentValue: &c, Enabled: true})
+	db.Create(&model.Parameter{DeviceID: dev2.ID, ParameterCode: "ROOM_TEMP", ParameterName: "Ambient Temperature", Unit: "°C", DataType: model.DataTypeFloat32, RegisterAddress: 40001, Scale: 0.1, CurrentValue: &t, Enabled: true})
+	db.Create(&model.Parameter{DeviceID: dev2.ID, ParameterCode: "ROOM_HUM", ParameterName: "Relative Humidity", Unit: "%RH", DataType: model.DataTypeFloat32, RegisterAddress: 40002, Scale: 0.1, CurrentValue: &h, Enabled: true})
+	db.Create(&model.Parameter{DeviceID: dev3.ID, ParameterCode: "FLOW_RATE", ParameterName: "Chilled Water Flow Rate", Unit: "m³/h", DataType: model.DataTypeFloat32, RegisterAddress: 30101, Scale: 0.1, CurrentValue: &f, Enabled: true})
 
 	// 5. Notification Channels
 	db.Create(&model.NotificationChannel{Name: "Web Notification Alert", Type: model.ChannelWeb, Enabled: true})

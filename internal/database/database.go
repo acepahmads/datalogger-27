@@ -9,7 +9,6 @@ import (
 
 	"datalogger/internal/config"
 	"datalogger/internal/logger"
-	"datalogger/internal/model"
 
 	_ "github.com/go-sql-driver/mysql"
 	gormmysql "gorm.io/driver/mysql"
@@ -163,41 +162,11 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 
 	logger.Info("Connected to MariaDB (%s) at: %s:%s/%s in %.2fms", dbVersion, dbHost, dbPort, dbName, latency)
 
-	// 5. Auto-migrate models
-	err = gormDB.AutoMigrate(
-		&model.User{},
-		&model.Role{},
-		&model.Permission{},
-		&model.DevelopmentPhase{},
-		&model.DevelopmentSubphase{},
-		&model.DevelopmentTask{},
-		&model.DevelopmentTaskLog{},
-		&model.DevelopmentDependency{},
-		&model.DevelopmentEvidence{},
-		&model.DeviceType{},
-		&model.Device{},
-		&model.DeviceConnection{},
-		&model.Parameter{},
-		&model.Sensor{},
-		&model.RawData{},
-		&model.ProcessedData{},
-		&model.AggregatedData{},
-		&model.Alarm{},
-		&model.NotificationChannel{},
-		&model.Notification{},
-		&model.AuditTrail{},
-		&model.SystemLog{},
-		&model.CommunicationLog{},
-		&model.OutputDestination{},
-		&model.DeliveryLog{},
-		&model.SystemHealth{},
-	)
-	if err != nil {
+	// 5. Run schema migrations and synchronization
+	if err := RunMigrations(gormDB); err != nil {
 		logger.Error("Database schema migration error: %v", err)
 		return nil, fmt.Errorf("failed to auto-migrate MariaDB schema: %w", err)
 	}
-
-	logger.Info("MariaDB schema migration completed successfully")
 
 	DB = gormDB
 	return gormDB, nil

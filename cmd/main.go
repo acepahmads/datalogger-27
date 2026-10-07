@@ -63,11 +63,13 @@ func main() {
 	}
 
 	// 5. Initialize Repositories
+	deviceRepo := repository.NewDeviceRepository(db)
 	phaseRepo := repository.NewPhaseRepository(db)
 	systemRepo := repository.NewSystemRepository(db)
 
 	// 6. Initialize Services
 	authService := service.NewAuthService(systemRepo, cfg)
+	deviceService := service.NewDeviceService(deviceRepo, systemRepo)
 	phaseService := service.NewPhaseService(phaseRepo, systemRepo)
 	systemService := service.NewSystemService(systemRepo, phaseRepo, cfg)
 
@@ -97,6 +99,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	devHandler := handler.NewDevHandler(phaseService, hub)
 	systemHandler := handler.NewSystemHandler(systemService)
+	deviceHandler := handler.NewDeviceHandler(deviceService)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -127,10 +130,38 @@ func main() {
 		api.GET("/system/health", systemHandler.GetHealth)
 		api.GET("/system/resources", systemHandler.GetResources)
 
-		// Devices & Telemetry
-		api.GET("/devices", systemHandler.GetDevices)
-		api.GET("/devices/:id", systemHandler.GetDeviceByID)
-		api.GET("/devices/:id/status", systemHandler.GetDeviceStatus)
+		// Phase 2.1 — Device Management & Parameters (Authenticated & Authorized)
+		devicesGroup := api.Group("/devices")
+		devicesGroup.Use(middleware.JWTAuth(authService))
+		{
+			// Read endpoints (device.view)
+			devicesGroup.GET("", middleware.RequirePermission("device.view"), deviceHandler.ListDevices)
+			devicesGroup.GET("/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
+			devicesGroup.GET("/:id/status", middleware.RequirePermission("device.view"), systemHandler.GetDeviceStatus)
+			devicesGroup.GET("/:id/activity", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceActivity)
+
+			// Create endpoint (device.create)
+			devicesGroup.POST("", middleware.RequirePermission("device.create"), deviceHandler.CreateDevice)
+
+			// Update endpoints (device.update)
+			devicesGroup.PUT("/:id", middleware.RequirePermission("device.update"), deviceHandler.UpdateDevice)
+			devicesGroup.PUT("/:id/enable", middleware.RequirePermission("device.update"), deviceHandler.ToggleDeviceEnabled)
+			devicesGroup.PUT("/:id/status", middleware.RequirePermission("device.update"), deviceHandler.UpdateDeviceStatus)
+			devicesGroup.PUT("/:id/connection", middleware.RequirePermission("device.update"), deviceHandler.UpdateConnection)
+
+			// Delete endpoint (device.delete)
+			devicesGroup.DELETE("/:id", middleware.RequirePermission("device.delete"), deviceHandler.DeleteDevice)
+
+			// Parameters (inside device)
+			devicesGroup.GET("/:id/parameters", middleware.RequirePermission("device.view"), deviceHandler.ListParameters)
+			devicesGroup.GET("/:id/parameters/:paramId", middleware.RequirePermission("device.view"), deviceHandler.GetParameter)
+			devicesGroup.POST("/:id/parameters", middleware.RequirePermission("device.manage"), deviceHandler.CreateParameter)
+			devicesGroup.PUT("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameter)
+			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
+			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
+		}
+
+		// Operational Telemetry Data
 		api.GET("/data", systemHandler.GetData)
 		api.GET("/data/latest", systemHandler.GetLatestData)
 		api.GET("/data/trend", systemHandler.GetDataTrend)

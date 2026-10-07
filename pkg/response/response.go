@@ -60,6 +60,13 @@ func Unauthorized(c *gin.Context, errMsg string) {
 	Error(c, http.StatusUnauthorized, errMsg)
 }
 
+func Forbidden(c *gin.Context, errMsg string) {
+	if errMsg == "" {
+		errMsg = "Forbidden: insufficient permissions"
+	}
+	Error(c, http.StatusForbidden, errMsg)
+}
+
 func NotFound(c *gin.Context, errMsg string) {
 	if errMsg == "" {
 		errMsg = "Resource not found"

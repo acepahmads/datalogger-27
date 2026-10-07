@@ -1,0 +1,822 @@
+package service
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"datalogger/internal/model"
+	"datalogger/internal/repository"
+)
+
+// Request DTOs
+type ConnectionConfigDTO struct {
+	Protocol        model.ProtocolType `json:"protocol"`
+	ConnectionType  string             `json:"connection_type"`
+	Host            string             `json:"host"`
+	Port            int                `json:"port"`
+	SerialPort      string             `json:"serial_port"`
+	BaudRate        int                `json:"baud_rate"`
+	DataBits        int                `json:"data_bits"`
+	Parity          string             `json:"parity"`
+	StopBits        int                `json:"stop_bits"`
+	Timeout         int                `json:"timeout"`
+	RetryCount      int                `json:"retry_count"`
+	PollingInterval int                `json:"polling_interval"`
+	Enabled         bool               `json:"enabled"`
+	ExtraConfig     string             `json:"extra_config,omitempty"`
+}
+
+type CreateDeviceRequest struct {
+	DeviceCode      string               `json:"device_code"`
+	DeviceName      string               `json:"device_name"`
+	DeviceType      string               `json:"device_type"`
+	Manufacturer    string               `json:"manufacturer"`
+	Model           string               `json:"model"`
+	SerialNumber    string               `json:"serial_number"`
+	FirmwareVersion string               `json:"firmware_version"`
+	Description     string               `json:"description"`
+	Location        string               `json:"location"`
+	Latitude        *float64             `json:"latitude"`
+	Longitude       *float64             `json:"longitude"`
+	Timezone        string               `json:"timezone"`
+	Status          model.DeviceAdminStatus `json:"status"`
+	Enabled         *bool                `json:"enabled"`
+	Connection      *ConnectionConfigDTO `json:"connection,omitempty"`
+}
+
+type UpdateDeviceRequest struct {
+	DeviceCode      *string              `json:"device_code"`
+	DeviceName      *string              `json:"device_name"`
+	DeviceType      *string              `json:"device_type"`
+	Manufacturer    *string              `json:"manufacturer"`
+	Model           *string              `json:"model"`
+	SerialNumber    *string              `json:"serial_number"`
+	FirmwareVersion *string              `json:"firmware_version"`
+	Description     *string              `json:"description"`
+	Location        *string              `json:"location"`
+	Latitude        *float64             `json:"latitude"`
+	Longitude       *float64             `json:"longitude"`
+	Timezone        *string              `json:"timezone"`
+	Status          *model.DeviceAdminStatus `json:"status"`
+	Enabled         *bool                `json:"enabled"`
+	Connection      *ConnectionConfigDTO `json:"connection,omitempty"`
+}
+
+type CreateParameterRequest struct {
+	ParameterCode   string                  `json:"parameter_code"`
+	ParameterName   string                  `json:"parameter_name"`
+	DataType        model.ParameterDataType `json:"data_type"`
+	Unit            string                  `json:"unit"`
+	Description     string                  `json:"description"`
+	MinValue        *float64                `json:"min_value"`
+	MaxValue        *float64                `json:"max_value"`
+	Precision       int                     `json:"precision"`
+	Scale           float64                 `json:"scale"`
+	Offset          float64                 `json:"offset"`
+	RegisterAddress int                     `json:"register_address"`
+	RegisterType    string                  `json:"register_type"`
+	Enabled         *bool                   `json:"enabled"`
+}
+
+type UpdateParameterRequest struct {
+	ParameterCode   *string                  `json:"parameter_code"`
+	ParameterName   *string                  `json:"parameter_name"`
+	DataType        *model.ParameterDataType `json:"data_type"`
+	Unit            *string                  `json:"unit"`
+	Description     *string                  `json:"description"`
+	MinValue        *float64                 `json:"min_value"`
+	MaxValue        *float64                 `json:"max_value"`
+	Precision       *int                     `json:"precision"`
+	Scale           *float64                 `json:"scale"`
+	Offset          *float64                 `json:"offset"`
+	RegisterAddress *int                     `json:"register_address"`
+	RegisterType    *string                  `json:"register_type"`
+	Enabled         *bool                    `json:"enabled"`
+}
+
+type DeviceService struct {
+	repo       *repository.DeviceRepository
+	systemRepo *repository.SystemRepository
+}
+
+func NewDeviceService(repo *repository.DeviceRepository, systemRepo *repository.SystemRepository) *DeviceService {
+	return &DeviceService{
+		repo:       repo,
+		systemRepo: systemRepo,
+	}
+}
+
+// ListDevices retrieves devices matching filter parameters
+func (s *DeviceService) ListDevices(params repository.DeviceFilterParams) ([]model.Device, int64, error) {
+	return s.repo.List(params)
+}
+
+// GetDeviceByID retrieves device by ID
+func (s *DeviceService) GetDeviceByID(id uint) (*model.Device, error) {
+	return s.repo.GetByID(id)
+}
+
+// GetDeviceByCode retrieves device by its code
+func (s *DeviceService) GetDeviceByCode(code string) (*model.Device, error) {
+	return s.repo.GetByCode(code)
+}
+
+// CreateDevice registers a new device with validation and audit trail
+func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddress, userAgent string) (*model.Device, error) {
+	// 1. Validation
+	code := strings.TrimSpace(req.DeviceCode)
+	if code == "" {
+		return nil, errors.New("device_code is required")
+	}
+	if len(code) > 64 {
+		return nil, errors.New("device_code cannot exceed 64 characters")
+	}
+
+	name := strings.TrimSpace(req.DeviceName)
+	if name == "" {
+		return nil, errors.New("device_name is required")
+	}
+	if len(name) > 128 {
+		return nil, errors.New("device_name cannot exceed 128 characters")
+	}
+
+	devType := strings.TrimSpace(req.DeviceType)
+	if devType == "" {
+		devType = "MODBUS_TCP"
+	}
+
+	// Check unique device_code
+	if existing, _ := s.repo.GetByCode(code); existing != nil {
+		return nil, fmt.Errorf("device with code '%s' already exists", code)
+	}
+
+	// Validate coordinates if provided
+	if req.Latitude != nil {
+		if *req.Latitude < -90.0 || *req.Latitude > 90.0 {
+			return nil, errors.New("latitude must be between -90 and 90")
+		}
+	}
+	if req.Longitude != nil {
+		if *req.Longitude < -180.0 || *req.Longitude > 180.0 {
+			return nil, errors.New("longitude must be between -180 and 180")
+		}
+	}
+
+	// Validate status
+	status := req.Status
+	if status == "" {
+		status = model.DeviceStatusActive
+	}
+	switch status {
+	case model.DeviceStatusActive, model.DeviceStatusInactive, model.DeviceStatusMaintenance, model.DeviceStatusDisabled:
+	default:
+		return nil, fmt.Errorf("invalid status: %s (must be ACTIVE, INACTIVE, MAINTENANCE, or DISABLED)", status)
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	tz := strings.TrimSpace(req.Timezone)
+	if tz == "" {
+		tz = "UTC"
+	}
+
+	device := &model.Device{
+		DeviceCode:       code,
+		DeviceName:       name,
+		DeviceType:       devType,
+		Manufacturer:     strings.TrimSpace(req.Manufacturer),
+		Model:            strings.TrimSpace(req.Model),
+		SerialNumber:     strings.TrimSpace(req.SerialNumber),
+		FirmwareVersion:  strings.TrimSpace(req.FirmwareVersion),
+		Description:      strings.TrimSpace(req.Description),
+		Location:         strings.TrimSpace(req.Location),
+		Latitude:         req.Latitude,
+		Longitude:        req.Longitude,
+		Timezone:         tz,
+		Status:           status,
+		Enabled:          enabled,
+		ConnectionStatus: model.DeviceConnUnknown,
+	}
+
+	// Connection config
+	if req.Connection != nil {
+		device.Connection = s.buildConnectionModel(req.Connection)
+	}
+
+	// Persist
+	if err := s.repo.Create(device); err != nil {
+		return nil, fmt.Errorf("failed to create device: %w", err)
+	}
+
+	// Audit Trail
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":   device.ID,
+		"device_code": device.DeviceCode,
+		"device_name": device.DeviceName,
+		"status":      device.Status,
+		"type":        device.DeviceType,
+	})
+	s.recordAudit(username, "CREATE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
+
+	return device, nil
+}
+
+// UpdateDevice updates an existing device
+func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username, ipAddress, userAgent string) (*model.Device, error) {
+	device, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, errors.New("device not found")
+	}
+
+	beforeState, _ := json.Marshal(map[string]interface{}{
+		"device_code": device.DeviceCode,
+		"device_name": device.DeviceName,
+		"status":      device.Status,
+		"enabled":     device.Enabled,
+		"location":    device.Location,
+	})
+
+	if req.DeviceCode != nil {
+		cleanCode := strings.TrimSpace(*req.DeviceCode)
+		if cleanCode == "" {
+			return nil, errors.New("device_code cannot be empty")
+		}
+		if len(cleanCode) > 64 {
+			return nil, errors.New("device_code cannot exceed 64 characters")
+		}
+		if !strings.EqualFold(cleanCode, device.DeviceCode) {
+			if existing, _ := s.repo.GetByCode(cleanCode); existing != nil && existing.ID != device.ID {
+				return nil, fmt.Errorf("device code '%s' is already in use by another device", cleanCode)
+			}
+			device.DeviceCode = cleanCode
+			device.Code = cleanCode
+		}
+	}
+
+	if req.DeviceName != nil {
+		cleanName := strings.TrimSpace(*req.DeviceName)
+		if cleanName == "" {
+			return nil, errors.New("device_name cannot be empty")
+		}
+		if len(cleanName) > 128 {
+			return nil, errors.New("device_name cannot exceed 128 characters")
+		}
+		device.DeviceName = cleanName
+		device.Name = cleanName
+	}
+
+	if req.DeviceType != nil {
+		device.DeviceType = strings.TrimSpace(*req.DeviceType)
+	}
+	if req.Manufacturer != nil {
+		device.Manufacturer = strings.TrimSpace(*req.Manufacturer)
+	}
+	if req.Model != nil {
+		device.Model = strings.TrimSpace(*req.Model)
+	}
+	if req.SerialNumber != nil {
+		device.SerialNumber = strings.TrimSpace(*req.SerialNumber)
+	}
+	if req.FirmwareVersion != nil {
+		device.FirmwareVersion = strings.TrimSpace(*req.FirmwareVersion)
+	}
+	if req.Description != nil {
+		device.Description = strings.TrimSpace(*req.Description)
+	}
+	if req.Location != nil {
+		device.Location = strings.TrimSpace(*req.Location)
+	}
+	if req.Latitude != nil {
+		if *req.Latitude < -90.0 || *req.Latitude > 90.0 {
+			return nil, errors.New("latitude must be between -90 and 90")
+		}
+		device.Latitude = req.Latitude
+	}
+	if req.Longitude != nil {
+		if *req.Longitude < -180.0 || *req.Longitude > 180.0 {
+			return nil, errors.New("longitude must be between -180 and 180")
+		}
+		device.Longitude = req.Longitude
+	}
+	if req.Timezone != nil {
+		device.Timezone = strings.TrimSpace(*req.Timezone)
+	}
+	if req.Status != nil {
+		status := *req.Status
+		switch status {
+		case model.DeviceStatusActive, model.DeviceStatusInactive, model.DeviceStatusMaintenance, model.DeviceStatusDisabled:
+			device.Status = status
+		default:
+			return nil, fmt.Errorf("invalid status: %s", status)
+		}
+	}
+	if req.Enabled != nil {
+		device.Enabled = *req.Enabled
+	}
+
+	if req.Connection != nil {
+		device.Connection = s.buildConnectionModel(req.Connection)
+	}
+
+	if err := s.repo.Update(device); err != nil {
+		return nil, fmt.Errorf("failed to update device: %w", err)
+	}
+
+	afterState, _ := json.Marshal(map[string]interface{}{
+		"device_code": device.DeviceCode,
+		"device_name": device.DeviceName,
+		"status":      device.Status,
+		"enabled":     device.Enabled,
+		"location":    device.Location,
+	})
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id": device.ID,
+		"before":    string(beforeState),
+		"after":     string(afterState),
+	})
+	s.recordAudit(username, "UPDATE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
+
+	return device, nil
+}
+
+// DeleteDevice performs soft delete of device
+func (s *DeviceService) DeleteDevice(id uint, username, ipAddress, userAgent string) error {
+	device, err := s.repo.GetByID(id)
+	if err != nil {
+		return errors.New("device not found")
+	}
+
+	if err := s.repo.Delete(id); err != nil {
+		return fmt.Errorf("failed to delete device: %w", err)
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":   id,
+		"device_code": device.DeviceCode,
+		"device_name": device.DeviceName,
+		"action":      "soft_delete",
+	})
+	s.recordAudit(username, "DELETE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
+
+	return nil
+}
+
+// ToggleDeviceEnabled enables or disables a device
+func (s *DeviceService) ToggleDeviceEnabled(id uint, enabled bool, username, ipAddress, userAgent string) error {
+	device, err := s.repo.GetByID(id)
+	if err != nil {
+		return errors.New("device not found")
+	}
+
+	if err := s.repo.SetEnabled(id, enabled); err != nil {
+		return err
+	}
+
+	action := "ENABLE_DEVICE"
+	if !enabled {
+		action = "DISABLE_DEVICE"
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":   id,
+		"device_code": device.DeviceCode,
+		"enabled":     enabled,
+	})
+	s.recordAudit(username, action, "DEVICE", string(auditDetails), ipAddress, userAgent)
+
+	return nil
+}
+
+// UpdateDeviceStatus updates device administrative status
+func (s *DeviceService) UpdateDeviceStatus(id uint, status model.DeviceAdminStatus, username, ipAddress, userAgent string) error {
+	switch status {
+	case model.DeviceStatusActive, model.DeviceStatusInactive, model.DeviceStatusMaintenance, model.DeviceStatusDisabled:
+	default:
+		return fmt.Errorf("invalid status: %s", status)
+	}
+
+	device, err := s.repo.GetByID(id)
+	if err != nil {
+		return errors.New("device not found")
+	}
+
+	if err := s.repo.SetStatus(id, status); err != nil {
+		return err
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":   id,
+		"device_code": device.DeviceCode,
+		"old_status":  device.Status,
+		"new_status":  status,
+	})
+	s.recordAudit(username, "UPDATE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
+
+	return nil
+}
+
+// UpdateConnection updates or configures device communication foundation
+func (s *DeviceService) UpdateConnection(deviceID uint, req *ConnectionConfigDTO, username, ipAddress, userAgent string) (*model.DeviceConnection, error) {
+	device, err := s.repo.GetByID(deviceID)
+	if err != nil {
+		return nil, errors.New("device not found")
+	}
+
+	conn := s.buildConnectionModel(req)
+	conn.DeviceID = deviceID
+
+	device.Connection = conn
+	if err := s.repo.Update(device); err != nil {
+		return nil, err
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":       deviceID,
+		"device_code":     device.DeviceCode,
+		"protocol":        conn.Protocol,
+		"connection_type": conn.ConnectionType,
+		"host":            conn.Host,
+		"port":            conn.Port,
+		"serial_port":     conn.SerialPort,
+	})
+	s.recordAudit(username, "CHANGE_CONNECTION", "DEVICE", string(auditDetails), ipAddress, userAgent)
+
+	return conn, nil
+}
+
+// Health Foundation Methods (Section 9)
+func (s *DeviceService) UpdateLastSeen(deviceID uint) error {
+	return s.repo.UpdateLastSeen(deviceID, time.Now())
+}
+
+func (s *DeviceService) UpdateLastData(deviceID uint) error {
+	now := time.Now()
+	_ = s.repo.UpdateLastSeen(deviceID, now)
+	return s.repo.UpdateLastData(deviceID, now)
+}
+
+func (s *DeviceService) SetOnline(deviceID uint) error {
+	_ = s.repo.UpdateLastSeen(deviceID, time.Now())
+	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnOnline)
+}
+
+func (s *DeviceService) SetOffline(deviceID uint) error {
+	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnOffline)
+}
+
+func (s *DeviceService) SetConnectionError(deviceID uint, errMessage string) error {
+	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnError)
+}
+
+// Parameters Management (Section 8 & 16)
+func (s *DeviceService) ListParameters(deviceID uint) ([]model.Parameter, error) {
+	if _, err := s.repo.GetByID(deviceID); err != nil {
+		return nil, errors.New("device not found")
+	}
+	return s.repo.ListParameters(deviceID)
+}
+
+func (s *DeviceService) GetParameter(deviceID, paramID uint) (*model.Parameter, error) {
+	return s.repo.GetParameterByID(deviceID, paramID)
+}
+
+func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterRequest, username, ipAddress, userAgent string) (*model.Parameter, error) {
+	dev, err := s.repo.GetByID(deviceID)
+	if err != nil {
+		return nil, errors.New("device not found")
+	}
+
+	code := strings.TrimSpace(req.ParameterCode)
+	if code == "" {
+		return nil, errors.New("parameter_code is required")
+	}
+	if len(code) > 64 {
+		return nil, errors.New("parameter_code cannot exceed 64 characters")
+	}
+
+	name := strings.TrimSpace(req.ParameterName)
+	if name == "" {
+		return nil, errors.New("parameter_name is required")
+	}
+	if len(name) > 128 {
+		return nil, errors.New("parameter_name cannot exceed 128 characters")
+	}
+
+	// Check uniqueness per device
+	if existing, _ := s.repo.GetParameterByCode(deviceID, code); existing != nil {
+		return nil, fmt.Errorf("parameter '%s' already exists for this device", code)
+	}
+
+	if req.MinValue != nil && req.MaxValue != nil && *req.MinValue > *req.MaxValue {
+		return nil, errors.New("min_value cannot be greater than max_value")
+	}
+
+	scale := req.Scale
+	if scale == 0 {
+		scale = 1.0
+	}
+
+	precision := req.Precision
+	if precision <= 0 {
+		precision = 2
+	}
+
+	dataType := req.DataType
+	if dataType == "" {
+		dataType = model.DataTypeFloat32
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	param := &model.Parameter{
+		DeviceID:        deviceID,
+		ParameterCode:   code,
+		ParameterName:   name,
+		DataType:        dataType,
+		Unit:            strings.TrimSpace(req.Unit),
+		Description:     strings.TrimSpace(req.Description),
+		MinValue:        req.MinValue,
+		MaxValue:        req.MaxValue,
+		Precision:       precision,
+		Scale:           scale,
+		Offset:          req.Offset,
+		RegisterAddress: req.RegisterAddress,
+		RegisterType:    strings.TrimSpace(req.RegisterType),
+		Enabled:         enabled,
+	}
+
+	if err := s.repo.CreateParameter(param); err != nil {
+		return nil, fmt.Errorf("failed to create parameter: %w", err)
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":      deviceID,
+		"device_code":    dev.DeviceCode,
+		"parameter_id":   param.ID,
+		"parameter_code": param.ParameterCode,
+		"parameter_name": param.ParameterName,
+	})
+	s.recordAudit(username, "CREATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return param, nil
+}
+
+func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParameterRequest, username, ipAddress, userAgent string) (*model.Parameter, error) {
+	param, err := s.repo.GetParameterByID(deviceID, paramID)
+	if err != nil {
+		return nil, errors.New("parameter not found")
+	}
+
+	beforeState, _ := json.Marshal(map[string]interface{}{
+		"parameter_code": param.ParameterCode,
+		"parameter_name": param.ParameterName,
+		"scale":          param.Scale,
+		"offset":         param.Offset,
+		"enabled":        param.Enabled,
+	})
+
+	if req.ParameterCode != nil {
+		cleanCode := strings.TrimSpace(*req.ParameterCode)
+		if cleanCode == "" {
+			return nil, errors.New("parameter_code cannot be empty")
+		}
+		if !strings.EqualFold(cleanCode, param.ParameterCode) {
+			if existing, _ := s.repo.GetParameterByCode(deviceID, cleanCode); existing != nil && existing.ID != param.ID {
+				return nil, fmt.Errorf("parameter code '%s' is already in use for this device", cleanCode)
+			}
+			param.ParameterCode = cleanCode
+			param.Code = cleanCode
+		}
+	}
+
+	if req.ParameterName != nil {
+		cleanName := strings.TrimSpace(*req.ParameterName)
+		if cleanName == "" {
+			return nil, errors.New("parameter_name cannot be empty")
+		}
+		param.ParameterName = cleanName
+		param.Name = cleanName
+	}
+
+	if req.DataType != nil {
+		param.DataType = *req.DataType
+	}
+	if req.Unit != nil {
+		param.Unit = strings.TrimSpace(*req.Unit)
+	}
+	if req.Description != nil {
+		param.Description = strings.TrimSpace(*req.Description)
+	}
+	if req.MinValue != nil {
+		param.MinValue = req.MinValue
+		param.LowLimit = req.MinValue
+	}
+	if req.MaxValue != nil {
+		param.MaxValue = req.MaxValue
+		param.HighLimit = req.MaxValue
+	}
+	if param.MinValue != nil && param.MaxValue != nil && *param.MinValue > *param.MaxValue {
+		return nil, errors.New("min_value cannot be greater than max_value")
+	}
+	if req.Precision != nil {
+		param.Precision = *req.Precision
+	}
+	if req.Scale != nil {
+		if *req.Scale == 0 {
+			return nil, errors.New("scale factor cannot be zero")
+		}
+		param.Scale = *req.Scale
+		param.ScaleFactor = *req.Scale
+	}
+	if req.Offset != nil {
+		param.Offset = *req.Offset
+	}
+	if req.RegisterAddress != nil {
+		param.RegisterAddress = *req.RegisterAddress
+	}
+	if req.RegisterType != nil {
+		param.RegisterType = strings.TrimSpace(*req.RegisterType)
+	}
+	if req.Enabled != nil {
+		param.Enabled = *req.Enabled
+	}
+
+	if err := s.repo.UpdateParameter(param); err != nil {
+		return nil, fmt.Errorf("failed to update parameter: %w", err)
+	}
+
+	afterState, _ := json.Marshal(map[string]interface{}{
+		"parameter_code": param.ParameterCode,
+		"parameter_name": param.ParameterName,
+		"scale":          param.Scale,
+		"offset":         param.Offset,
+		"enabled":        param.Enabled,
+	})
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":    deviceID,
+		"parameter_id": param.ID,
+		"before":       string(beforeState),
+		"after":        string(afterState),
+	})
+	s.recordAudit(username, "UPDATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return param, nil
+}
+
+func (s *DeviceService) DeleteParameter(deviceID, paramID uint, username, ipAddress, userAgent string) error {
+	param, err := s.repo.GetParameterByID(deviceID, paramID)
+	if err != nil {
+		return errors.New("parameter not found")
+	}
+
+	if err := s.repo.DeleteParameter(deviceID, paramID); err != nil {
+		return fmt.Errorf("failed to delete parameter: %w", err)
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":      deviceID,
+		"parameter_id":   paramID,
+		"parameter_code": param.ParameterCode,
+		"parameter_name": param.ParameterName,
+	})
+	s.recordAudit(username, "DELETE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return nil
+}
+
+func (s *DeviceService) ToggleParameterEnabled(deviceID, paramID uint, enabled bool, username, ipAddress, userAgent string) error {
+	param, err := s.repo.GetParameterByID(deviceID, paramID)
+	if err != nil {
+		return errors.New("parameter not found")
+	}
+
+	if err := s.repo.SetParameterEnabled(deviceID, paramID, enabled); err != nil {
+		return err
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":      deviceID,
+		"parameter_id":   paramID,
+		"parameter_code": param.ParameterCode,
+		"enabled":        enabled,
+	})
+	s.recordAudit(username, "UPDATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return nil
+}
+
+// GetDeviceAuditTrail fetches audit trail for a device
+func (s *DeviceService) GetDeviceAuditTrail(deviceID uint, limit int) ([]model.AuditTrail, error) {
+	dev, err := s.repo.GetByID(deviceID)
+	if err != nil {
+		return nil, errors.New("device not found")
+	}
+	return s.repo.GetDeviceAuditTrail(deviceID, dev.DeviceCode, limit)
+}
+
+func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.DeviceConnection {
+	proto := dto.Protocol
+	if proto == "" {
+		proto = model.ProtocolModbusTCP
+	}
+
+	timeout := dto.Timeout
+	if timeout <= 0 {
+		timeout = 1000
+	}
+
+	retry := dto.RetryCount
+	if retry <= 0 {
+		retry = 3
+	}
+
+	interval := dto.PollingInterval
+	if interval <= 0 {
+		interval = 1000
+	}
+
+	port := dto.Port
+	if port <= 0 {
+		if proto == model.ProtocolModbusTCP {
+			port = 502
+		} else if proto == model.ProtocolMQTT {
+			port = 1883
+		} else if proto == model.ProtocolHTTP {
+			port = 80
+		}
+	}
+
+	baud := dto.BaudRate
+	if baud <= 0 {
+		baud = 9600
+	}
+
+	dataBits := dto.DataBits
+	if dataBits <= 0 {
+		dataBits = 8
+	}
+
+	stopBits := dto.StopBits
+	if stopBits <= 0 {
+		stopBits = 1
+	}
+
+	parity := dto.Parity
+	if parity == "" {
+		parity = "N"
+	}
+
+	connType := dto.ConnectionType
+	if connType == "" {
+		if proto == model.ProtocolModbusRTU || proto == model.ProtocolSerial {
+			connType = "SERIAL"
+		} else {
+			connType = "ETHERNET"
+		}
+	}
+
+	return &model.DeviceConnection{
+		Protocol:        proto,
+		ConnectionType:  connType,
+		Host:            strings.TrimSpace(dto.Host),
+		Port:            port,
+		SerialPort:      strings.TrimSpace(dto.SerialPort),
+		BaudRate:        baud,
+		DataBits:        dataBits,
+		Parity:          parity,
+		StopBits:        stopBits,
+		Timeout:         timeout,
+		RetryCount:      retry,
+		PollingInterval: interval,
+		Enabled:         dto.Enabled,
+		ExtraConfig:     dto.ExtraConfig,
+	}
+}
+
+func (s *DeviceService) recordAudit(username, action, resource, details, ipAddress, userAgent string) {
+	if s.systemRepo != nil {
+		if username == "" {
+			username = "system"
+		}
+		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			Username:  username,
+			Action:    action,
+			Resource:  resource,
+			Details:   details,
+			IPAddress: ipAddress,
+			UserAgent: userAgent,
+			CreatedAt: time.Now(),
+		})
+	}
+}
