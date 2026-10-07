@@ -510,28 +510,108 @@
 
     <!-- TAB 4: ACTIVITY & AUDIT -->
     <div v-if="device && activeTab === 'activity'" class="saas-card p-5 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
-          <h3 class="text-sm font-bold text-white">Device Audit Trail</h3>
-          <p class="text-2xs text-slate-400 mt-0.5">Immutable historical record of configuration updates and status changes</p>
+          <div class="flex items-center space-x-2">
+            <h3 class="text-sm font-bold text-white">Device Activity &amp; Audit Log</h3>
+            <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Live Audit Stream
+            </span>
+          </div>
+          <p class="text-2xs text-slate-400 mt-0.5">Riwayat lengkap perubahan konfigurasi, event komunikasi, dan status operasional perangkat</p>
+        </div>
+
+        <div class="flex items-center space-x-3 text-xs">
+          <span class="text-3xs text-slate-400 font-mono flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Auto-Sync 3s
+          </span>
+          <button
+            @click="loadActivity"
+            :disabled="activityLoading"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-2xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': activityLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Segarkan Log</span>
+          </button>
         </div>
       </div>
 
-      <div class="space-y-2">
-        <div v-for="trail in activities" :key="trail.id" class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800 flex items-start justify-between text-xs">
-          <div>
-            <div class="flex items-center space-x-2">
-              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                {{ trail.action }}
+      <div class="space-y-3">
+        <div
+          v-for="trail in activities"
+          :key="trail.id"
+          class="p-4 bg-[#0B0F19] rounded-xl border transition space-y-2.5 text-xs shadow-sm"
+          :class="getAuditCardBorder(trail.action)"
+        >
+          <!-- Top Row: Action Badge, Operator, Timestamp -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/60 pb-2">
+            <div class="flex items-center space-x-2.5">
+              <span
+                class="px-2.5 py-0.5 rounded-lg text-3xs font-mono font-bold flex items-center space-x-1"
+                :class="getAuditActionClass(trail.action)"
+              >
+                <span>{{ formatAuditActionName(trail.action) }}</span>
               </span>
-              <span class="text-slate-400 text-3xs">by {{ trail.username }}</span>
+              <span class="text-slate-400 text-2xs">
+                Oleh: <strong class="text-slate-200 font-semibold">{{ trail.username || 'System' }}</strong>
+              </span>
+              <span v-if="trail.ip_address" class="text-3xs text-slate-500 font-mono">
+                ({{ trail.ip_address }})
+              </span>
             </div>
-            <p class="text-slate-300 mt-1 font-sans text-xs break-all">{{ trail.details }}</p>
+            <span class="text-slate-400 font-mono text-3xs flex items-center space-x-1.5">
+              <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>{{ formatTimestamp(trail.created_at) }}</span>
+            </span>
           </div>
-          <span class="text-slate-500 font-mono text-3xs flex-shrink-0 ml-4">{{ formatTimestamp(trail.created_at) }}</span>
+
+          <!-- Human-Readable Summary -->
+          <div class="space-y-2">
+            <p class="text-slate-200 font-medium text-xs leading-relaxed flex items-start space-x-2">
+              <span class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" :class="trail.action.includes('ERROR') ? 'bg-rose-400' : (trail.action.includes('RESTORED') ? 'bg-emerald-400' : 'bg-blue-400')"></span>
+              <span>{{ formatAuditDescription(trail) }}</span>
+            </p>
+
+            <!-- Attribute Chips -->
+            <div v-if="getAuditChips(trail).length > 0" class="flex flex-wrap gap-1.5 pl-3.5">
+              <span
+                v-for="(chip, idx) in getAuditChips(trail)"
+                :key="idx"
+                class="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-3xs font-mono text-slate-300 flex items-center space-x-1.5 shadow-sm"
+              >
+                <span class="text-slate-400 font-sans font-medium">{{ chip.label }}:</span>
+                <span class="font-bold text-white font-mono">{{ chip.val }}</span>
+              </span>
+            </div>
+
+            <!-- Optional Collapsible JSON (Technical Details) -->
+            <div v-if="hasJsonDetails(trail.details)" class="pl-3.5 pt-1">
+              <button
+                type="button"
+                @click="toggleRawAudit(trail.id)"
+                class="text-3xs font-mono text-blue-400 hover:text-blue-300 flex items-center space-x-1 transition"
+              >
+                <span>{{ showRawAudit[trail.id] ? '▲ Sembunyikan Detail Teknis JSON' : '▼ Lihat Detail Teknis JSON' }}</span>
+              </button>
+              <pre
+                v-if="showRawAudit[trail.id]"
+                class="mt-2 p-3 rounded-xl bg-[#060910] border border-slate-800 text-3xs font-mono text-slate-400 overflow-x-auto whitespace-pre-wrap break-all"
+              >{{ formatRawJson(trail.details) }}</pre>
+            </div>
+          </div>
         </div>
-        <div v-if="activities.length === 0" class="text-center py-8 text-xs text-slate-400">
-          No audit entries recorded for this device yet.
+
+        <div v-if="activities.length === 0" class="text-center py-10 text-xs text-slate-400 saas-card">
+          <svg class="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <span class="font-medium text-slate-300">Belum ada riwayat aktivitas yang tercatat untuk perangkat ini.</span>
+          <p class="text-3xs text-slate-500 mt-0.5">Semua perubahan parameter, status koneksi, dan event operasional akan muncul di sini secara realtime.</p>
         </div>
       </div>
     </div>
@@ -1146,6 +1226,9 @@ export default {
     return {
       device: null,
       activities: [],
+      activityLoading: false,
+      showRawAudit: {},
+      activityPollTimer: null,
       activeTab: 'overview',
       isEditModalOpen: false,
       isParamModalOpen: false,
@@ -1236,10 +1319,14 @@ export default {
       this.activeTab = this.$route.query.tab;
     }
     this.loadDevice();
+    if (this.activeTab === 'activity') {
+      this.startActivityPolling();
+    }
     window.addEventListener('device-comm-event', this.onCommEvent);
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
   },
   beforeDestroy() {
+    this.stopActivityPolling();
     window.removeEventListener('device-comm-event', this.onCommEvent);
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
   },
@@ -1264,14 +1351,31 @@ export default {
     },
     async loadActivity() {
       if (!this.device) return;
+      this.activityLoading = true;
       try {
         const res = await this.$store.dispatch('fetchDeviceActivity', {
           deviceId: this.device.id,
-          limit: 30,
+          limit: 50,
         });
         this.activities = res || [];
       } catch (err) {
         console.error('Failed to load device activities:', err);
+      } finally {
+        this.activityLoading = false;
+      }
+    },
+    startActivityPolling() {
+      this.stopActivityPolling();
+      this.activityPollTimer = setInterval(() => {
+        if (this.activeTab === 'activity' && this.device) {
+          this.loadActivity();
+        }
+      }, 3000);
+    },
+    stopActivityPolling() {
+      if (this.activityPollTimer) {
+        clearInterval(this.activityPollTimer);
+        this.activityPollTimer = null;
       }
     },
     openEditModal() {
@@ -1498,7 +1602,15 @@ export default {
     },
     switchTab(tab) {
       this.activeTab = tab;
-      if (tab === 'telemetry') {
+      if (tab === 'activity') {
+        this.loadActivity();
+        this.startActivityPolling();
+      } else {
+        this.stopActivityPolling();
+      }
+      if (tab === 'connection') {
+        this.fetchCommStatus();
+      } else if (tab === 'telemetry') {
         this.fetchLatestTelemetry();
       } else if (tab === 'history') {
         this.fetchHistory();
@@ -1709,6 +1821,122 @@ export default {
         case 'UNCERTAIN': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
         default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
       }
+    },
+    formatAuditActionName(action) {
+      if (!action) return 'Aktivitas';
+      switch (action) {
+        case 'UPDATE_PARAMETER': return 'Parameter Diperbarui';
+        case 'CREATE_PARAMETER': return 'Parameter Baru Ditambahkan';
+        case 'DELETE_PARAMETER': return 'Parameter Dihapus';
+        case 'UPDATE_DEVICE': return 'Konfigurasi Perangkat Diperbarui';
+        case 'CREATE_DEVICE': return 'Perangkat Baru Dibuat';
+        case 'DELETE_DEVICE': return 'Perangkat Dihapus';
+        case 'COMMUNICATION_ERROR': return 'Koneksi Terputus / Error';
+        case 'COMMUNICATION_RESTORED': return 'Koneksi Pulih (Online)';
+        case 'CONNECT_DEVICE': return 'Perangkat Dihubungkan';
+        case 'DISCONNECT_DEVICE': return 'Perangkat Diputuskan';
+        default: return action.replace(/_/g, ' ');
+      }
+    },
+    getAuditActionClass(action) {
+      if (!action) return 'bg-slate-500/10 text-slate-300 border border-slate-500/20';
+      if (action.includes('ERROR') || action.includes('DELETE')) {
+        return 'bg-rose-500/15 text-rose-400 border border-rose-500/30';
+      }
+      if (action.includes('RESTORED') || action.includes('CREATE')) {
+        return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+      }
+      if (action.includes('UPDATE') || action.includes('CONNECT')) {
+        return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+      }
+      return 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
+    },
+    getAuditCardBorder(action) {
+      if (!action) return 'border-slate-800/80';
+      if (action.includes('ERROR')) return 'border-rose-900/50 bg-rose-950/10';
+      if (action.includes('RESTORED')) return 'border-emerald-900/50 bg-emerald-950/10';
+      return 'border-slate-800/80';
+    },
+    parseSafeJson(val) {
+      if (!val) return null;
+      if (typeof val === 'object') return val;
+      if (typeof val === 'string') {
+        try {
+          const res = JSON.parse(val);
+          if (typeof res === 'string') {
+            return this.parseSafeJson(res);
+          }
+          return res;
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    },
+    formatAuditDescription(trail) {
+      if (!trail) return '';
+      if (trail.action === 'COMMUNICATION_ERROR') {
+        return trail.details || 'Komunikasi serial/network gagal atau port terputus. Sistem terus mencoba rekoneksi otomatis.';
+      }
+      if (trail.action === 'COMMUNICATION_RESTORED') {
+        return 'Koneksi komunikasi pulih dan stream data sensor kembali normal.';
+      }
+      const parsed = this.parseSafeJson(trail.details);
+      if (parsed) {
+        const after = this.parseSafeJson(parsed.after);
+        if (after && typeof after === 'object') {
+          if (trail.action.includes('PARAMETER')) {
+            const pName = after.parameter_name || after.name || after.parameter_code || 'Parameter';
+            const pCode = after.parameter_code || after.code || '';
+            return `Memperbarui konfigurasi sensor: "${pName}" (${pCode}).`;
+          }
+          if (trail.action.includes('DEVICE')) {
+            const dName = after.device_name || after.name || after.device_code || 'Perangkat';
+            return `Memperbarui profil perangkat: "${dName}".`;
+          }
+        }
+      }
+      return trail.details || 'Aktivitas konfigurasi dicatat.';
+    },
+    getAuditChips(trail) {
+      if (!trail || !trail.details) return [];
+      const chips = [];
+      const parsed = this.parseSafeJson(trail.details);
+      if (parsed) {
+        const after = this.parseSafeJson(parsed.after) || parsed;
+        if (after && typeof after === 'object') {
+          if (after.parameter_code) chips.push({ label: 'Kode', val: after.parameter_code });
+          if (after.parameter_name) chips.push({ label: 'Nama', val: after.parameter_name });
+          if (after.data_type) chips.push({ label: 'Tipe Data', val: after.data_type });
+          if (after.register_address !== undefined) chips.push({ label: 'Register', val: `#${after.register_address}` });
+          if (after.scale !== undefined) chips.push({ label: 'Scale', val: after.scale });
+          if (after.offset !== undefined) chips.push({ label: 'Offset', val: after.offset });
+          if (after.unit) chips.push({ label: 'Satuan', val: after.unit });
+          if (after.enabled !== undefined) chips.push({ label: 'Status', val: after.enabled ? 'Aktif' : 'Non-Aktif' });
+          if (after.device_name) chips.push({ label: 'Nama Perangkat', val: after.device_name });
+          if (after.device_code) chips.push({ label: 'Kode Perangkat', val: after.device_code });
+          if (after.status) chips.push({ label: 'Status Admin', val: after.status });
+          if (after.serial_port) chips.push({ label: 'Port', val: after.serial_port });
+          if (after.baud_rate) chips.push({ label: 'Baud', val: after.baud_rate });
+        }
+      }
+      return chips;
+    },
+    hasJsonDetails(details) {
+      if (!details || typeof details !== 'string') return false;
+      const s = details.trim();
+      return (s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'));
+    },
+    formatRawJson(details) {
+      try {
+        const parsed = JSON.parse(details);
+        return JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        return details;
+      }
+    },
+    toggleRawAudit(id) {
+      this.$set(this.showRawAudit, id, !this.showRawAudit[id]);
     },
   },
 };

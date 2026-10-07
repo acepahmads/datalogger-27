@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -272,12 +273,16 @@ func (r *DeviceRepository) SetParameterEnabled(deviceID, paramID uint, enabled b
 // GetDeviceAuditTrail fetches audit records related to a specific device
 func (r *DeviceRepository) GetDeviceAuditTrail(deviceID uint, deviceCode string, limit int) ([]model.AuditTrail, error) {
 	var trails []model.AuditTrail
+	idStr := strconv.FormatUint(uint64(deviceID), 10)
+	devPattern1 := "%\"device_id\":" + idStr + "%"
+	devPattern2 := "%\"device_id\": " + idStr + "%"
+	resPattern := "device:" + deviceCode
+	codePattern := "%" + deviceCode + "%"
+
 	query := r.db.Where(
-		"resource IN ('DEVICE', 'PARAMETER') AND (details LIKE ? OR details LIKE ?)",
-		"%\"device_id\":"+string(rune(deviceID))+"%",
-		"%"+deviceCode+"%",
-	).Or("action LIKE 'DEVICE_%' OR action LIKE '%_DEVICE' OR action LIKE '%_PARAMETER'").
-		Order("created_at DESC")
+		"(resource = ? OR resource = 'DEVICE' OR resource = 'PARAMETER' OR resource = ?) AND (details LIKE ? OR details LIKE ? OR details LIKE ? OR resource = ?)",
+		deviceCode, resPattern, devPattern1, devPattern2, codePattern, resPattern,
+	).Order("created_at DESC")
 
 	if limit > 0 {
 		query = query.Limit(limit)
