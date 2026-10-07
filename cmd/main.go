@@ -67,6 +67,7 @@ func main() {
 	deviceRepo := repository.NewDeviceRepository(db)
 	phaseRepo := repository.NewPhaseRepository(db)
 	systemRepo := repository.NewSystemRepository(db)
+	telemetryRepo := repository.NewTelemetryRepository(db)
 
 	// 6. Initialize Services
 	authService := service.NewAuthService(systemRepo, cfg)
@@ -79,6 +80,10 @@ func main() {
 	go hub.Run()
 	logger.Info("WebSocket hub initialized for real-time edge telemetry")
 
+	// 7b. Initialize Telemetry Ingestion Pipeline (Phase 3.1)
+	telemetryService := service.NewTelemetryService(telemetryRepo, hub, service.DefaultTelemetryConfig())
+	defer telemetryService.Stop()
+
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)
 	sched.Start()
@@ -87,6 +92,7 @@ func main() {
 	// 8b. Initialize Communication Engine (Phase 2.2)
 	connManager := communication.NewConnectionManager(deviceService, communication.DefaultAdapterFactory)
 	pollingEngine := communication.NewPollingEngine(connManager, deviceService, hub)
+	pollingEngine.SetTelemetryService(telemetryService)
 	pollingEngine.Start()
 	defer pollingEngine.Stop()
 
@@ -108,6 +114,7 @@ func main() {
 	systemHandler := handler.NewSystemHandler(systemService)
 	deviceHandler := handler.NewDeviceHandler(deviceService)
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
+	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -175,7 +182,16 @@ func main() {
 			devicesGroup.POST("/:id/communication/test", middleware.RequirePermission("device.communication.test"), commHandler.TestConnection)
 			devicesGroup.GET("/:id/communication/status", middleware.RequirePermission("device.communication.view"), commHandler.GetStatus)
 			devicesGroup.POST("/:id/parameters/:paramId/test-read", middleware.RequirePermission("device.communication.test"), commHandler.TestReadParameter)
+
+			// Phase 3.1 — Telemetry Data Pipeline (Authenticated & Authorized)
+			devicesGroup.GET("/:id/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForDevice)
+			devicesGroup.GET("/:id/parameters/:paramId/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForParameter)
+			devicesGroup.GET("/:id/telemetry/history", middleware.RequirePermission("device.view"), telemetryHandler.GetHistorical)
+			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetRawTelemetry)
 		}
+
+		// Telemetry Pipeline Diagnostics
+		api.GET("/telemetry/metrics", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
 
 		// Operational Telemetry Data
 		api.GET("/data", systemHandler.GetData)
@@ -253,9 +269,13 @@ func main() {
 
 	logger.Info("Shutting down %s...", cfg.AppName)
 
-	// Stop all active polling workers and close connections gracefully
+	// 1. Stop all active polling workers
 	pollingEngine.Stop()
 
+	// 2. Flush pending telemetry buffer to MariaDB (Phase 3.1 Zero Data Loss)
+	telemetryService.Stop()
+
+	// 3. Gracefully shutdown HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

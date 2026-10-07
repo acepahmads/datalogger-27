@@ -131,6 +131,28 @@
         </span>
       </button>
       <button
+        @click="switchTab('telemetry')"
+        :class="activeTab === 'telemetry' ? 'border-b-2 border-emerald-500 text-emerald-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        class="transition-colors flex items-center space-x-1.5"
+      >
+        <span class="w-2 h-2 rounded-full bg-emerald-400" :class="{ 'animate-pulse': livePacketBlink }"></span>
+        <span>Live Telemetry</span>
+      </button>
+      <button
+        @click="switchTab('history')"
+        :class="activeTab === 'history' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        class="transition-colors flex items-center space-x-1.5"
+      >
+        <span>Historical Data</span>
+      </button>
+      <button
+        @click="switchTab('raw')"
+        :class="activeTab === 'raw' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        class="transition-colors flex items-center space-x-1.5"
+      >
+        <span>Raw Telemetry</span>
+      </button>
+      <button
         @click="activeTab = 'activity'"
         :class="activeTab === 'activity' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -551,6 +573,400 @@
       </div>
     </div>
 
+    <!-- TAB 6: LIVE TELEMETRY (Phase 3.1) -->
+    <div v-if="device && activeTab === 'telemetry'" class="space-y-4">
+      <!-- Live Status Bar -->
+      <div class="saas-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0F172A]/90">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-xs font-bold text-white uppercase tracking-wider">Realtime Telemetry Stream</h3>
+              <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                WEBSOCKET LIVE
+              </span>
+            </div>
+            <p class="text-2xs text-slate-400 mt-0.5">
+              Live engineering measurements updated reactively from field polling engine without page reload.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4 text-xs font-mono">
+          <div class="text-right">
+            <span class="text-3xs text-slate-500 uppercase block">Last Received Packet</span>
+            <span class="text-slate-200">{{ formatTimestamp(lastLivePacketTime || device.last_data_at) }}</span>
+          </div>
+          <button
+            @click="fetchLatestTelemetry"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-2xs font-semibold transition flex items-center space-x-1.5"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Parameter Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="param in displayParameters"
+          :key="param.id"
+          class="saas-card p-4 space-y-3 relative overflow-hidden transition-all duration-300 hover:border-slate-700"
+          :class="{ 'border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.15)]': liveBlinks[param.id] }"
+        >
+          <!-- Card Header -->
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="font-mono text-2xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                  {{ param.parameter_code }}
+                </span>
+                <span class="text-3xs text-slate-500 font-mono">
+                  #{{ param.register_address }} ({{ param.data_type }})
+                </span>
+              </div>
+              <h4 class="text-sm font-semibold text-white mt-1.5 truncate">{{ param.parameter_name }}</h4>
+            </div>
+            <span
+              class="px-2 py-0.5 rounded text-3xs font-mono font-bold"
+              :class="qualityBadgeClass(getParamQuality(param))"
+            >
+              {{ getParamQuality(param) }}
+            </span>
+          </div>
+
+          <!-- Primary Metric Value -->
+          <div class="py-2">
+            <div class="flex items-baseline space-x-2">
+              <span class="text-3xl font-mono font-bold text-white tracking-tight">
+                {{ formatParamValue(param) }}
+              </span>
+              <span class="text-sm font-medium text-slate-400 font-mono">{{ param.unit }}</span>
+            </div>
+          </div>
+
+          <!-- Raw & Decoded Diagnostics Sub-bar -->
+          <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800/80 grid grid-cols-2 gap-2 text-3xs font-mono text-slate-400">
+            <div>
+              <span class="text-slate-500 block uppercase">Raw / Hex</span>
+              <span class="text-slate-300 truncate block">
+                {{ getParamRaw(param) }}
+              </span>
+            </div>
+            <div>
+              <span class="text-slate-500 block uppercase">Timestamp</span>
+              <span class="text-slate-300 truncate block">
+                {{ formatTimestamp(getParamTime(param)) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Card Action -->
+          <div class="pt-1 flex items-center justify-between border-t border-slate-800/60 text-2xs">
+            <span class="text-slate-500 font-mono">Source: {{ (device.connection && device.connection.protocol) || 'MODBUS' }}</span>
+            <button
+              @click="inspectHistoryForParam(param.id)"
+              class="text-blue-400 hover:text-blue-300 font-semibold flex items-center space-x-1"
+            >
+              <span>View History</span>
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!device.parameters || device.parameters.length === 0" class="col-span-full py-12 text-center text-xs text-slate-400">
+          No parameters configured for this device. Add parameters in the Parameters tab to start telemetry ingestion.
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: HISTORICAL DATA (Phase 3.1) -->
+    <div v-if="device && activeTab === 'history'" class="space-y-4">
+      <!-- Filter Bar -->
+      <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Parameter Filter -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Parameter</label>
+            <select
+              v-model="historyParamId"
+              @change="fetchHistory"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            >
+              <option value="">All Parameters</option>
+              <option v-for="p in device.parameters" :key="p.id" :value="p.id">
+                {{ p.parameter_code }} — {{ p.parameter_name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Time Range Filter -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Time Range</label>
+            <select
+              v-model="historyTimeRange"
+              @change="fetchHistory"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            >
+              <option value="15m">Last 15 Minutes</option>
+              <option value="1h">Last 1 Hour</option>
+              <option value="6h">Last 6 Hours</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="all">All Telemetry</option>
+            </select>
+          </div>
+
+          <!-- Quality Filter -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Quality</label>
+            <select
+              v-model="historyQuality"
+              @change="fetchHistory"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            >
+              <option value="">All Qualities</option>
+              <option value="GOOD">GOOD Only</option>
+              <option value="BAD">BAD Only</option>
+              <option value="UNCERTAIN">UNCERTAIN Only</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2 pt-2 md:pt-0">
+          <button
+            @click="fetchHistory"
+            :disabled="historyLoading"
+            class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': historyLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Query History</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Historical Trend Chart Card -->
+      <div v-if="historyRecords.length > 0" class="saas-card p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h4 class="text-xs font-bold text-white uppercase tracking-wider">Historical Trend Curve</h4>
+            <p class="text-3xs text-slate-400">Engineering value sequence across queried timeframe</p>
+          </div>
+          <div class="flex items-center space-x-3 text-3xs font-mono text-slate-400">
+            <span>Min: <b class="text-emerald-400">{{ historyStats.min }}</b></span>
+            <span>Max: <b class="text-rose-400">{{ historyStats.max }}</b></span>
+            <span>Avg: <b class="text-blue-400">{{ historyStats.avg }}</b></span>
+            <span>Samples: <b class="text-slate-200">{{ historyStats.count }}</b></span>
+          </div>
+        </div>
+
+        <!-- SVG Trend Chart -->
+        <div class="w-full h-32 bg-[#0B0F19] rounded-xl border border-slate-800 p-2 flex items-center justify-center relative overflow-hidden">
+          <svg class="w-full h-full overflow-visible" viewBox="0 0 600 120" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <polyline
+              fill="none"
+              stroke="#3B82F6"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              :points="trendLinePoints"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Historical Data Table -->
+      <div class="saas-card overflow-hidden">
+        <div class="p-3 border-b border-slate-800 flex items-center justify-between text-xs">
+          <span class="font-bold text-white">Historical Telemetry Records ({{ historyTotal }} total)</span>
+          <span class="text-3xs text-slate-400 font-mono">Page {{ historyPage }} of {{ Math.ceil(historyTotal / historyPageSize) || 1 }}</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-sans">
+            <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-4">Received Time (UTC / Local)</th>
+                <th class="py-2.5 px-4">Parameter</th>
+                <th class="py-2.5 px-4">Value</th>
+                <th class="py-2.5 px-4">Raw Decoded</th>
+                <th class="py-2.5 px-4">Quality</th>
+                <th class="py-2.5 px-4">Protocol Source</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 font-mono text-2xs">
+              <tr v-for="rec in historyRecords" :key="rec.id" class="hover:bg-slate-800/30 transition">
+                <td class="py-2.5 px-4 text-slate-300">
+                  {{ formatTimestamp(rec.received_at || rec.timestamp) }}
+                </td>
+                <td class="py-2.5 px-4">
+                  <span class="text-blue-400 font-semibold">{{ getParamCode(rec.parameter_id) }}</span>
+                </td>
+                <td class="py-2.5 px-4 text-white font-bold">
+                  {{ rec.value !== undefined ? rec.value.toFixed(2) : '--' }}
+                  <span class="text-slate-400 font-normal ml-0.5">{{ getParamUnit(rec.parameter_id) }}</span>
+                </td>
+                <td class="py-2.5 px-4 text-slate-400">
+                  {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
+                </td>
+                <td class="py-2.5 px-4">
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(rec.quality)">
+                    {{ rec.quality || 'GOOD' }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-4 text-slate-400">
+                  {{ rec.source || 'MODBUS_TCP' }}
+                </td>
+              </tr>
+              <tr v-if="historyRecords.length === 0">
+                <td colspan="6" class="py-8 text-center text-xs text-slate-400 font-sans">
+                  {{ historyLoading ? 'Loading telemetry records...' : 'No telemetry records found for selected query filter.' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="p-3 border-t border-slate-800 flex items-center justify-between text-xs">
+          <button
+            @click="prevHistoryPage"
+            :disabled="historyPage <= 1 || historyLoading"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+          >
+            Previous
+          </button>
+          <span class="text-slate-400 text-2xs font-mono">
+            Showing {{ (historyPage - 1) * historyPageSize + 1 }} to {{ Math.min(historyPage * historyPageSize, historyTotal) }} of {{ historyTotal }}
+          </span>
+          <button
+            @click="nextHistoryPage"
+            :disabled="historyPage * historyPageSize >= historyTotal || historyLoading"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 8: RAW TELEMETRY (Phase 3.1) -->
+    <div v-if="device && activeTab === 'raw'" class="space-y-4">
+      <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
+        <div>
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Raw Telemetry & Frame Inspection</h3>
+          <p class="text-2xs text-slate-400 mt-0.5">
+            Diagnostic wire hex inspection for Modbus register verification and field troubleshooting.
+          </p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <select
+            v-model="rawParamId"
+            @change="fetchRawTelemetry"
+            class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+          >
+            <option value="">All Parameters</option>
+            <option v-for="p in device.parameters" :key="p.id" :value="p.id">
+              {{ p.parameter_code }}
+            </option>
+          </select>
+          <button
+            @click="fetchRawTelemetry"
+            :disabled="rawLoading"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Raw Inspection Table -->
+      <div class="saas-card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-4">Received Time</th>
+                <th class="py-2.5 px-4">Parameter</th>
+                <th class="py-2.5 px-4">Raw Hex Stream</th>
+                <th class="py-2.5 px-4">Raw Float</th>
+                <th class="py-2.5 px-4">Scaled Value</th>
+                <th class="py-2.5 px-4">Quality</th>
+                <th class="py-2.5 px-4">Protocol</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-2xs">
+              <tr v-for="rec in rawRecords" :key="rec.id" class="hover:bg-slate-800/30 transition">
+                <td class="py-2.5 px-4 text-slate-300">
+                  {{ formatTimestamp(rec.received_at || rec.timestamp) }}
+                </td>
+                <td class="py-2.5 px-4 text-blue-400 font-bold">
+                  {{ getParamCode(rec.parameter_id) }}
+                </td>
+                <td class="py-2.5 px-4 text-emerald-400 font-bold tracking-widest">
+                  {{ rec.raw_hex || '--' }}
+                </td>
+                <td class="py-2.5 px-4 text-slate-400">
+                  {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
+                </td>
+                <td class="py-2.5 px-4 text-white font-bold">
+                  {{ rec.value !== undefined ? rec.value.toFixed(2) : '--' }}
+                </td>
+                <td class="py-2.5 px-4">
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(rec.quality)">
+                    {{ rec.quality || 'GOOD' }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-4 text-slate-400">
+                  {{ rec.source || 'MODBUS_TCP' }}
+                </td>
+              </tr>
+              <tr v-if="rawRecords.length === 0">
+                <td colspan="7" class="py-8 text-center text-xs text-slate-400 font-sans">
+                  {{ rawLoading ? 'Loading raw telemetry...' : 'No raw telemetry records captured yet.' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Raw Pagination -->
+        <div class="p-3 border-t border-slate-800 flex items-center justify-between text-xs">
+          <button
+            @click="prevRawPage"
+            :disabled="rawPage <= 1 || rawLoading"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+          >
+            Previous
+          </button>
+          <span class="text-slate-400 text-2xs font-mono">
+            Page {{ rawPage }} of {{ Math.ceil(rawTotal / rawPageSize) || 1 }} ({{ rawTotal }} records)
+          </span>
+          <button
+            @click="nextRawPage"
+            :disabled="rawPage * rawPageSize >= rawTotal || rawLoading"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modals -->
     <DeviceModal
       :is-open="isEditModalOpen"
@@ -707,6 +1123,7 @@
 </template>
 
 <script>
+import axios from 'axios';
 import DeviceModal from '../components/DeviceModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 
@@ -731,14 +1148,81 @@ export default {
       testParam: null,
       testReadLoading: false,
       testReadResult: null,
+
+      // Phase 3.1 Live Telemetry
+      liveTelemetry: {},
+      liveBlinks: {},
+      lastLivePacketTime: null,
+      livePacketBlink: false,
+
+      // Phase 3.1 Historical Telemetry
+      historyRecords: [],
+      historyTotal: 0,
+      historyPage: 1,
+      historyPageSize: 20,
+      historyParamId: '',
+      historyQuality: '',
+      historyTimeRange: '1h',
+      historyLoading: false,
+
+      // Phase 3.1 Raw Telemetry
+      rawRecords: [],
+      rawTotal: 0,
+      rawPage: 1,
+      rawPageSize: 20,
+      rawParamId: '',
+      rawLoading: false,
     };
+  },
+  computed: {
+    displayParameters() {
+      if (!this.device || !this.device.parameters) return [];
+      return this.device.parameters;
+    },
+    trendLinePoints() {
+      if (!this.historyRecords || this.historyRecords.length === 0) return '';
+      const pts = [...this.historyRecords].reverse();
+      const vals = pts.map(p => (p.value !== undefined ? p.value : 0));
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const range = max - min || 1;
+      const width = 600;
+      const height = 120;
+      const padding = 15;
+
+      return pts
+        .map((p, idx) => {
+          const x = padding + (idx / (pts.length - 1 || 1)) * (width - 2 * padding);
+          const y = height - padding - (((p.value !== undefined ? p.value : 0) - min) / range) * (height - 2 * padding);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(' ');
+    },
+    historyStats() {
+      if (!this.historyRecords || this.historyRecords.length === 0) {
+        return { min: '0.00', max: '0.00', avg: '0.00', count: 0 };
+      }
+      const vals = this.historyRecords.map(p => (p.value !== undefined ? p.value : 0));
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const sum = vals.reduce((a, b) => a + b, 0);
+      const avg = sum / vals.length;
+      return {
+        min: min.toFixed(2),
+        max: max.toFixed(2),
+        avg: avg.toFixed(2),
+        count: vals.length,
+      };
+    },
   },
   mounted() {
     this.loadDevice();
     window.addEventListener('device-comm-event', this.onCommEvent);
+    window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
   },
   beforeDestroy() {
     window.removeEventListener('device-comm-event', this.onCommEvent);
+    window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
   },
   methods: {
     async loadDevice() {
@@ -983,6 +1467,181 @@ export default {
           if (data.connection_status) this.commStatus.status = data.connection_status;
           if (data.latency_ms !== undefined) this.commStatus.latency_ms = data.latency_ms;
         }
+      }
+    },
+    switchTab(tab) {
+      this.activeTab = tab;
+      if (tab === 'telemetry') {
+        this.fetchLatestTelemetry();
+      } else if (tab === 'history') {
+        this.fetchHistory();
+      } else if (tab === 'raw') {
+        this.fetchRawTelemetry();
+      }
+    },
+    async fetchLatestTelemetry() {
+      if (!this.device) return;
+      try {
+        const res = await axios.get(`/api/devices/${this.device.id}/telemetry/latest`);
+        if (res.data && res.data.data) {
+          for (const item of res.data.data) {
+            this.$set(this.liveTelemetry, item.parameter_id, item);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch latest telemetry:', err);
+      }
+    },
+    onTelemetryEvent(e) {
+      if (!this.device || !e.detail) return;
+      const data = e.detail;
+      if (data.device_id === this.device.id) {
+        this.$set(this.liveTelemetry, data.parameter_id, data);
+        this.$set(this.liveBlinks, data.parameter_id, true);
+        setTimeout(() => {
+          this.$set(this.liveBlinks, data.parameter_id, false);
+        }, 1200);
+
+        this.lastLivePacketTime = data.received_at;
+        this.livePacketBlink = true;
+        setTimeout(() => {
+          this.livePacketBlink = false;
+        }, 800);
+
+        this.device.last_data_at = data.received_at;
+      }
+    },
+    async fetchHistory() {
+      if (!this.device) return;
+      this.historyLoading = true;
+      try {
+        let startTimeStr = '';
+        if (this.historyTimeRange !== 'all') {
+          const now = new Date();
+          let ms = 60 * 60 * 1000;
+          if (this.historyTimeRange === '15m') ms = 15 * 60 * 1000;
+          if (this.historyTimeRange === '6h') ms = 6 * 60 * 60 * 1000;
+          if (this.historyTimeRange === '24h') ms = 24 * 60 * 60 * 1000;
+          const start = new Date(now.getTime() - ms);
+          startTimeStr = start.toISOString();
+        }
+
+        const params = {
+          page: this.historyPage,
+          page_size: this.historyPageSize,
+        };
+        if (this.historyParamId) params.parameter_id = this.historyParamId;
+        if (this.historyQuality) params.quality = this.historyQuality;
+        if (startTimeStr) params.start_time = startTimeStr;
+
+        const res = await axios.get(`/api/devices/${this.device.id}/telemetry/history`, { params });
+        if (res.data && res.data.data) {
+          this.historyRecords = res.data.data.items || [];
+          this.historyTotal = res.data.data.total || 0;
+        }
+      } catch (err) {
+        console.error('Failed to query historical telemetry:', err);
+      } finally {
+        this.historyLoading = false;
+      }
+    },
+    async fetchRawTelemetry() {
+      if (!this.device) return;
+      this.rawLoading = true;
+      try {
+        const params = {
+          page: this.rawPage,
+          page_size: this.rawPageSize,
+        };
+        if (this.rawParamId) params.parameter_id = this.rawParamId;
+
+        const res = await axios.get(`/api/devices/${this.device.id}/telemetry/raw`, { params });
+        if (res.data && res.data.data) {
+          this.rawRecords = res.data.data.items || [];
+          this.rawTotal = res.data.data.total || 0;
+        }
+      } catch (err) {
+        console.error('Failed to query raw telemetry:', err);
+      } finally {
+        this.rawLoading = false;
+      }
+    },
+    inspectHistoryForParam(paramId) {
+      this.historyParamId = paramId;
+      this.activeTab = 'history';
+      this.fetchHistory();
+    },
+    prevHistoryPage() {
+      if (this.historyPage > 1) {
+        this.historyPage--;
+        this.fetchHistory();
+      }
+    },
+    nextHistoryPage() {
+      if (this.historyPage * this.historyPageSize < this.historyTotal) {
+        this.historyPage++;
+        this.fetchHistory();
+      }
+    },
+    prevRawPage() {
+      if (this.rawPage > 1) {
+        this.rawPage--;
+        this.fetchRawTelemetry();
+      }
+    },
+    nextRawPage() {
+      if (this.rawPage * this.rawPageSize < this.rawTotal) {
+        this.rawPage++;
+        this.fetchRawTelemetry();
+      }
+    },
+    getParamCode(paramId) {
+      if (!this.device || !this.device.parameters) return `#${paramId}`;
+      const p = this.device.parameters.find(x => x.id === paramId);
+      return p ? (p.parameter_code || p.code) : `#${paramId}`;
+    },
+    getParamUnit(paramId) {
+      if (!this.device || !this.device.parameters) return '';
+      const p = this.device.parameters.find(x => x.id === paramId);
+      return p ? p.unit : '';
+    },
+    formatParamValue(param) {
+      if (this.liveTelemetry[param.id] !== undefined) {
+        const item = this.liveTelemetry[param.id];
+        if (item.value_text) return item.value_text;
+        if (item.value !== undefined) return item.value.toFixed(param.precision || 2);
+      }
+      if (param.current_value !== null && param.current_value !== undefined) {
+        return param.current_value.toFixed(param.precision || 2);
+      }
+      return '--';
+    },
+    getParamQuality(param) {
+      if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].quality) {
+        return this.liveTelemetry[param.id].quality;
+      }
+      return param.current_quality || 'UNKNOWN';
+    },
+    getParamRaw(param) {
+      if (this.liveTelemetry[param.id]) {
+        const item = this.liveTelemetry[param.id];
+        if (item.raw_hex) return item.raw_hex;
+        if (item.raw_value !== undefined) return `Raw: ${item.raw_value}`;
+      }
+      return '--';
+    },
+    getParamTime(param) {
+      if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].received_at) {
+        return this.liveTelemetry[param.id].received_at;
+      }
+      return param.current_received_at || param.last_updated;
+    },
+    qualityBadgeClass(quality) {
+      switch (quality) {
+        case 'GOOD': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+        case 'BAD': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+        case 'UNCERTAIN': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+        default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
       }
     },
   },

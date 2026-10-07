@@ -289,6 +289,15 @@ type Parameter struct {
 	CurrentValue    *float64   `json:"current_value,omitempty"`
 	LastUpdated     *time.Time `json:"last_updated,omitempty"`
 
+	// Phase 3.1 Latest Telemetry State
+	CurrentValueNumeric    *float64         `gorm:"type:double" json:"current_value_numeric,omitempty"`
+	CurrentValueText       string           `gorm:"size:255" json:"current_value_text,omitempty"`
+	CurrentValueBool       *bool            `json:"current_value_bool,omitempty"`
+	CurrentQuality         TelemetryQuality `gorm:"size:32;default:'UNKNOWN'" json:"current_quality,omitempty"`
+	CurrentRawHex          string           `gorm:"size:255" json:"current_raw_hex,omitempty"`
+	CurrentReceivedAt      *time.Time       `json:"current_received_at,omitempty"`
+	CurrentDeviceTimestamp *time.Time       `json:"current_device_timestamp,omitempty"`
+
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`

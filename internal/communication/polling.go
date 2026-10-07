@@ -16,14 +16,15 @@ import (
 
 // PollingEngine coordinates concurrent, isolated polling loops for all active edge devices
 type PollingEngine struct {
-	connManager   *ConnectionManager
-	deviceService *service.DeviceService
-	hub           *websocket.Hub
-	workersMu     sync.Mutex
-	workers       map[uint]context.CancelFunc
-	ctx           context.Context
-	cancel        context.CancelFunc
-	stopOnce      sync.Once
+	connManager      *ConnectionManager
+	deviceService    *service.DeviceService
+	telemetryService *service.TelemetryService
+	hub              *websocket.Hub
+	workersMu        sync.Mutex
+	workers          map[uint]context.CancelFunc
+	ctx              context.Context
+	cancel           context.CancelFunc
+	stopOnce         sync.Once
 }
 
 // NewPollingEngine constructs the polling coordinator
@@ -37,6 +38,11 @@ func NewPollingEngine(connManager *ConnectionManager, deviceService *service.Dev
 		ctx:           ctx,
 		cancel:        cancel,
 	}
+}
+
+// SetTelemetryService injects the Phase 3.1 Telemetry Ingestion Pipeline
+func (p *PollingEngine) SetTelemetryService(ts *service.TelemetryService) {
+	p.telemetryService = ts
 }
 
 // Start spawns polling workers for all enabled devices
@@ -278,6 +284,30 @@ func (p *PollingEngine) ReadParameter(
 			err.Error(),
 			elapsed,
 		)
+
+		if p.telemetryService != nil {
+			source := ""
+			if device.Connection != nil {
+				source = string(device.Connection.Protocol)
+			}
+			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+				DeviceID:      device.ID,
+				DeviceCode:    device.DeviceCode,
+				DeviceName:    device.DeviceName,
+				ParameterID:   param.ID,
+				ParameterCode: param.ParameterCode,
+				ParameterName: param.ParameterName,
+				Unit:          param.Unit,
+				DataType:      param.DataType,
+				RawValue:      0,
+				Value:         0,
+				Quality:       model.QualityBad,
+				Source:        source,
+				ErrorMessage:  err.Error(),
+				ReceivedAt:    errRes.Timestamp,
+			})
+		}
+
 		return errRes, err
 	}
 
@@ -317,6 +347,31 @@ func (p *PollingEngine) ReadParameter(
 		engVal,
 		resp.ResponseTime,
 	)
+
+	// 7. Pipeline Telemetry Ingestion (Phase 3.1)
+	if p.telemetryService != nil {
+		source := ""
+		if device.Connection != nil {
+			source = string(device.Connection.Protocol)
+		}
+		_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+			DeviceID:      device.ID,
+			DeviceCode:    device.DeviceCode,
+			DeviceName:    device.DeviceName,
+			ParameterID:   param.ID,
+			ParameterCode: param.ParameterCode,
+			ParameterName: param.ParameterName,
+			Unit:          param.Unit,
+			DataType:      param.DataType,
+			RawBytes:      resp.Data,
+			RawHex:        result.RawHex,
+			RawValue:      decoded.RawValue,
+			Value:         engVal,
+			Quality:       model.QualityGood,
+			Source:        source,
+			ReceivedAt:    result.Timestamp,
+		})
+	}
 
 	return result, nil
 }

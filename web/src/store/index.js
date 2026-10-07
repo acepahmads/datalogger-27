@@ -463,6 +463,8 @@ export default new Vuex.Store({
             commit('ADD_ACTIVITY', msg.data);
           } else if (msg.type === 'device.connection.changed' || msg.type === 'device.communication.success' || msg.type === 'device.communication.error') {
             window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
+          } else if (msg.type === 'device.telemetry.received' && msg.data) {
+            window.dispatchEvent(new CustomEvent('device-telemetry-event', { detail: msg.data }));
           }
         } catch (e) {
           // ignore parse errors
