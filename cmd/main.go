@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"datalogger/internal/communication"
 	"datalogger/internal/config"
 	"datalogger/internal/database"
 	"datalogger/internal/handler"
@@ -83,6 +84,12 @@ func main() {
 	sched.Start()
 	defer sched.Stop()
 
+	// 8b. Initialize Communication Engine (Phase 2.2)
+	connManager := communication.NewConnectionManager(deviceService, communication.DefaultAdapterFactory)
+	pollingEngine := communication.NewPollingEngine(connManager, deviceService, hub)
+	pollingEngine.Start()
+	defer pollingEngine.Stop()
+
 	// 9. Setup Gin HTTP Engine
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -100,6 +107,7 @@ func main() {
 	devHandler := handler.NewDevHandler(phaseService, hub)
 	systemHandler := handler.NewSystemHandler(systemService)
 	deviceHandler := handler.NewDeviceHandler(deviceService)
+	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -159,6 +167,14 @@ func main() {
 			devicesGroup.PUT("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameter)
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
+
+			// Phase 2.2 — Communication Controls & Diagnostics
+			devicesGroup.POST("/:id/communication/connect", middleware.RequirePermission("device.communication.manage"), commHandler.Connect)
+			devicesGroup.POST("/:id/communication/disconnect", middleware.RequirePermission("device.communication.manage"), commHandler.Disconnect)
+			devicesGroup.POST("/:id/communication/reconnect", middleware.RequirePermission("device.communication.manage"), commHandler.Reconnect)
+			devicesGroup.POST("/:id/communication/test", middleware.RequirePermission("device.communication.test"), commHandler.TestConnection)
+			devicesGroup.GET("/:id/communication/status", middleware.RequirePermission("device.communication.view"), commHandler.GetStatus)
+			devicesGroup.POST("/:id/parameters/:paramId/test-read", middleware.RequirePermission("device.communication.test"), commHandler.TestReadParameter)
 		}
 
 		// Operational Telemetry Data

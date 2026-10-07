@@ -286,6 +286,60 @@ export default new Vuex.Store({
         throw err;
       }
     },
+    async connectDevice(_, id) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${id}/communication/connect`);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to connect device:', err);
+        throw err;
+      }
+    },
+    async disconnectDevice(_, id) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${id}/communication/disconnect`);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to disconnect device:', err);
+        throw err;
+      }
+    },
+    async reconnectDevice(_, id) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${id}/communication/reconnect`);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to reconnect device:', err);
+        throw err;
+      }
+    },
+    async testDeviceConnection(_, id) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${id}/communication/test`);
+        return res.data ? (res.data.data || res.data) : null;
+      } catch (err) {
+        console.error('Failed to test device connection:', err);
+        throw err;
+      }
+    },
+    async fetchCommunicationStatus(_, id) {
+      try {
+        const res = await axios.get(`${API_BASE}/devices/${id}/communication/status`);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to fetch communication status:', err);
+        return null;
+      }
+    },
+    async testReadParameter(_, { deviceId, paramId }) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${deviceId}/parameters/${paramId}/test-read`);
+        return res.data ? (res.data.data || res.data) : null;
+      } catch (err) {
+        console.error('Failed to test-read parameter:', err);
+        throw err;
+      }
+    },
     async fetchAlarms({ commit }) {
       try {
         const res = await axios.get(`${API_BASE}/alarms`);
@@ -407,6 +461,8 @@ export default new Vuex.Store({
             dispatch('fetchTasks');
           } else if (msg.type === 'ACTIVITY_LOG' && msg.data) {
             commit('ADD_ACTIVITY', msg.data);
+          } else if (msg.type === 'device.connection.changed' || msg.type === 'device.communication.success' || msg.type === 'device.communication.error') {
+            window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
           }
         } catch (e) {
           // ignore parse errors

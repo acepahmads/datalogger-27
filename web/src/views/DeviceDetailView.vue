@@ -208,20 +208,126 @@
     </div>
 
     <!-- TAB 2: CONNECTION CONFIG -->
-    <div v-if="device && activeTab === 'connection'" class="saas-card p-6 space-y-5">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div v-if="device && activeTab === 'connection'" class="saas-card p-6 space-y-6">
+      <!-- Header & Actions -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
-          <h3 class="text-sm font-bold text-white">Connection Architecture</h3>
-          <p class="text-2xs text-slate-400 mt-0.5">Physical and network protocol parameters for communication adapter</p>
+          <div class="flex items-center space-x-2">
+            <h3 class="text-sm font-bold text-white">Modbus RTU / TCP Communication Engine</h3>
+            <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Phase 2.2 Active
+            </span>
+          </div>
+          <p class="text-2xs text-slate-400 mt-0.5">Physical serial & socket lifecycle, timeout, retry backoff, and register polling engine</p>
         </div>
-        <button
-          @click="openEditModal"
-          class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition"
-        >
-          Edit Configuration
-        </button>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Connect Button -->
+          <button
+            @click="handleConnect"
+            :disabled="commActionLoading"
+            class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            <span>Connect</span>
+          </button>
+
+          <!-- Disconnect Button -->
+          <button
+            @click="handleDisconnect"
+            :disabled="commActionLoading"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+            </svg>
+            <span>Disconnect</span>
+          </button>
+
+          <!-- Reconnect Button -->
+          <button
+            @click="handleReconnect"
+            :disabled="commActionLoading"
+            class="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Reconnect</span>
+          </button>
+
+          <!-- Test Link Button -->
+          <button
+            @click="handleTestConnection"
+            :disabled="commActionLoading"
+            class="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>Test Link</span>
+          </button>
+
+          <!-- Edit Config -->
+          <button
+            @click="openEditModal"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition"
+          >
+            Edit Settings
+          </button>
+        </div>
       </div>
 
+      <!-- Action Feedback Banner -->
+      <div
+        v-if="commFeedback"
+        :class="commFeedback.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
+        class="p-3 rounded-xl border text-xs flex items-center justify-between"
+      >
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full" :class="commFeedback.type === 'success' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
+          <span>{{ commFeedback.message }}</span>
+        </div>
+        <button @click="commFeedback = null" class="text-slate-400 hover:text-white text-3xs font-mono">Dismiss</button>
+      </div>
+
+      <!-- Live Engine Diagnostics Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Engine Lifecycle State</div>
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full" :class="commDotClass(commStatus ? commStatus.status : device.connection_status)"></span>
+            <span class="text-xs font-mono font-bold" :class="commTextClass(commStatus ? commStatus.status : device.connection_status)">
+              {{ (commStatus && commStatus.status) || device.connection_status || 'UNKNOWN' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Roundtrip Latency</div>
+          <div class="text-xs font-mono font-bold text-emerald-400">
+            {{ commStatus ? commStatus.latency_ms : (device.latency_ms || 0) }} ms
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Consecutive Retries</div>
+          <div class="text-xs font-mono font-bold text-slate-200">
+            {{ commStatus ? commStatus.consecutive_errors : 0 }} / {{ (device.connection && device.connection.retry_count) || 3 }} max
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Last Comm Error</div>
+          <div class="text-xs font-mono truncate text-rose-400" :title="(commStatus && commStatus.last_error) || 'None'">
+            {{ (commStatus && commStatus.last_error) || 'None' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Configuration Grid -->
       <div v-if="device.connection" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-sans">
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
           <div class="text-3xs text-slate-400 font-semibold uppercase">Protocol</div>
@@ -230,6 +336,14 @@
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
           <div class="text-3xs text-slate-400 font-semibold uppercase">Connection Type</div>
           <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.connection_type }}</div>
+        </div>
+        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Modbus Slave ID (Unit)</div>
+          <div class="text-xs font-mono font-bold text-amber-400 mt-1">#{{ device.connection.slave_id || 1 }}</div>
+        </div>
+        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Byte / Word Order</div>
+          <div class="text-xs font-mono font-bold text-indigo-400 mt-1">{{ device.connection.byte_order || 'ABCD' }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
           <div class="text-3xs text-slate-400 font-semibold uppercase">Host / Address</div>
@@ -244,25 +358,33 @@
           <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.serial_port || '--' }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Baud Rate</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.baud_rate || 9600 }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Data / Parity / Stop</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Baud Rate & Framing</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.data_bits || 8 }}-{{ device.connection.parity || 'N' }}-{{ device.connection.stop_bits || 1 }}
+            {{ device.connection.baud_rate || 9600 }} ({{ device.connection.data_bits || 8 }}-{{ device.connection.parity || 'N' }}-{{ device.connection.stop_bits || 1 }})
           </div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Timeout / Retry</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Timeout</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.timeout || device.connection.timeout_ms || 1000 }}ms ({{ device.connection.retry_count || 3 }} retries)
+            {{ device.connection.timeout || device.connection.timeout_ms || 1000 }} ms
+          </div>
+        </div>
+        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Retry Policy</div>
+          <div class="text-xs font-mono text-slate-200 mt-1">
+            {{ device.connection.retry_count || 3 }} retries with exponential backoff
           </div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
           <div class="text-3xs text-slate-400 font-semibold uppercase">Polling Interval</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.polling_interval || device.connection.poll_interval_ms || 1000 }}ms
+            {{ device.connection.polling_interval || device.connection.poll_interval_ms || 1000 }} ms
+          </div>
+        </div>
+        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+          <div class="text-3xs text-slate-400 font-semibold uppercase">Adapter Status</div>
+          <div class="text-xs font-mono text-emerald-400 mt-1">
+            {{ (commStatus && commStatus.adapter_status) || 'ACTIVE' }}
           </div>
         </div>
       </div>
@@ -331,6 +453,12 @@
                 </button>
               </td>
               <td class="py-2.5 px-3 text-right space-x-2">
+                <button
+                  @click="openTestReadModal(param)"
+                  class="text-emerald-400 hover:text-emerald-300 transition text-2xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
+                >
+                  Test Read
+                </button>
                 <button @click="openEditParamModal(param)" class="text-blue-400 hover:text-blue-300 transition text-2xs font-semibold">
                   Edit
                 </button>
@@ -439,6 +567,142 @@
       @close="isParamModalOpen = false"
       @saved="loadDevice"
     />
+
+    <!-- Modbus Parameter Test Read Diagnostic Modal -->
+    <div v-if="isTestReadModalOpen && testParam" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+          <div class="flex items-center space-x-2.5">
+            <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white tracking-wide">Modbus Diagnostic Parameter Read</h2>
+              <p class="text-3xs text-slate-400 font-mono">Device: {{ device.device_code }} | Param: {{ testParam.parameter_code }}</p>
+            </div>
+          </div>
+          <button @click="closeTestReadModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-4 text-xs font-sans">
+          <!-- Parameter Specs -->
+          <div class="grid grid-cols-2 gap-3 p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+            <div>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">Parameter</span>
+              <div class="text-xs text-white font-medium mt-0.5 truncate">{{ testParam.parameter_name }}</div>
+            </div>
+            <div>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">Data Type</span>
+              <div class="text-xs font-mono font-bold text-blue-400 mt-0.5">{{ testParam.data_type }}</div>
+            </div>
+            <div>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">Register & Type</span>
+              <div class="text-xs font-mono text-slate-200 mt-0.5">#{{ testParam.register_address }} ({{ testParam.register_type }})</div>
+            </div>
+            <div>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">Scale & Offset</span>
+              <div class="text-xs font-mono text-slate-200 mt-0.5">×{{ testParam.scale || 1 }} + {{ testParam.offset || 0 }} ({{ testParam.unit || '--' }})</div>
+            </div>
+          </div>
+
+          <!-- Loading state -->
+          <div v-if="testReadLoading" class="py-8 flex flex-col items-center justify-center space-y-3">
+            <div class="w-7 h-7 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+            <span class="text-xs text-slate-400 font-mono">Executing Modbus frame transaction...</span>
+          </div>
+
+          <!-- Result card -->
+          <div v-else-if="testReadResult" class="space-y-3">
+            <div
+              :class="testReadResult.success ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'"
+              class="p-4 rounded-xl border space-y-2.5"
+            >
+              <div class="flex items-center justify-between">
+                <span
+                  :class="testReadResult.success ? 'text-emerald-400' : 'text-rose-400'"
+                  class="text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5"
+                >
+                  <span class="w-2 h-2 rounded-full" :class="testReadResult.success ? 'bg-emerald-400' : 'bg-rose-400'"></span>
+                  <span>{{ testReadResult.success ? 'Transaction Succeeded' : 'Transaction Failed' }}</span>
+                </span>
+                <span class="text-3xs font-mono text-slate-400">{{ testReadResult.response_time_ms || 0 }} ms</span>
+              </div>
+
+              <!-- Error display if failed -->
+              <div v-if="!testReadResult.success" class="text-xs text-rose-300 font-mono bg-rose-950/40 p-2.5 rounded-lg border border-rose-500/20">
+                {{ testReadResult.error || testReadResult.error_message || 'Modbus communication failed' }}
+              </div>
+
+              <!-- Values display if success -->
+              <div v-else class="grid grid-cols-2 gap-3 pt-1">
+                <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
+                  <div class="text-3xs text-slate-400 uppercase font-semibold">Decoded Value</div>
+                  <div class="text-base font-mono font-bold text-emerald-400 mt-1">
+                    {{ testReadResult.decoded_value !== undefined && testReadResult.decoded_value !== null ? testReadResult.decoded_value : '--' }}
+                    <span class="text-xs font-normal text-slate-300 ml-1">{{ testParam.unit }}</span>
+                  </div>
+                </div>
+                <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
+                  <div class="text-3xs text-slate-400 uppercase font-semibold">Raw PDU Value</div>
+                  <div class="text-xs font-mono text-slate-200 mt-1">
+                    {{ testReadResult.raw_value !== undefined ? testReadResult.raw_value : '--' }}
+                    <span v-if="testReadResult.raw_bytes_hex" class="block text-3xs text-slate-400 font-mono mt-0.5">
+                      Bytes: {{ testReadResult.raw_bytes_hex }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Diagnostics Metadata -->
+            <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800 grid grid-cols-3 gap-2 text-3xs font-mono text-slate-400">
+              <div>
+                <span class="text-slate-500 block uppercase">Function Code</span>
+                <span class="text-slate-300 font-bold">FC {{ testReadResult.function_code || '--' }}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block uppercase">PDU Offset</span>
+                <span class="text-slate-300 font-bold">{{ testReadResult.register_address !== undefined ? testReadResult.register_address : '--' }}</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block uppercase">Timestamp</span>
+                <span class="text-slate-300">{{ formatTimestamp(testReadResult.timestamp) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-3 border-t border-slate-800 flex items-center justify-between bg-[#0B0F19]/60">
+          <button
+            type="button"
+            @click="closeTestReadModal"
+            class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            @click="executeTestRead"
+            :disabled="testReadLoading"
+            class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Read Again</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -460,10 +724,21 @@ export default {
       isEditModalOpen: false,
       isParamModalOpen: false,
       paramToEdit: null,
+      commStatus: null,
+      commFeedback: null,
+      commActionLoading: false,
+      isTestReadModalOpen: false,
+      testParam: null,
+      testReadLoading: false,
+      testReadResult: null,
     };
   },
   mounted() {
     this.loadDevice();
+    window.addEventListener('device-comm-event', this.onCommEvent);
+  },
+  beforeDestroy() {
+    window.removeEventListener('device-comm-event', this.onCommEvent);
   },
   methods: {
     async loadDevice() {
@@ -472,6 +747,7 @@ export default {
         const res = await this.$store.dispatch('fetchDeviceByID', id);
         this.device = res;
         this.loadActivity();
+        this.fetchCommStatus();
       } catch (err) {
         console.error('Failed to load device:', err);
       }
@@ -581,6 +857,133 @@ export default {
       return d.toLocaleString('en-GB', {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit',
       });
+    },
+    async fetchCommStatus() {
+      if (!this.device) return;
+      try {
+        const res = await this.$store.dispatch('fetchCommunicationStatus', this.device.id);
+        if (res && res.data) {
+          this.commStatus = res.data;
+        }
+      } catch (err) {
+        // silent fail
+      }
+    },
+    async handleConnect() {
+      if (!this.device) return;
+      this.commActionLoading = true;
+      this.commFeedback = null;
+      try {
+        const res = await this.$store.dispatch('connectDevice', this.device.id);
+        this.commFeedback = { type: 'success', message: res.message || 'Device communication connected' };
+        await this.loadDevice();
+      } catch (err) {
+        this.commFeedback = { type: 'error', message: (err.response && err.response.data && err.response.data.error) || err.message };
+      } finally {
+        this.commActionLoading = false;
+      }
+    },
+    async handleDisconnect() {
+      if (!this.device) return;
+      this.commActionLoading = true;
+      this.commFeedback = null;
+      try {
+        const res = await this.$store.dispatch('disconnectDevice', this.device.id);
+        this.commFeedback = { type: 'success', message: res.message || 'Device communication disconnected' };
+        await this.loadDevice();
+      } catch (err) {
+        this.commFeedback = { type: 'error', message: (err.response && err.response.data && err.response.data.error) || err.message };
+      } finally {
+        this.commActionLoading = false;
+      }
+    },
+    async handleReconnect() {
+      if (!this.device) return;
+      this.commActionLoading = true;
+      this.commFeedback = null;
+      try {
+        const res = await this.$store.dispatch('reconnectDevice', this.device.id);
+        this.commFeedback = { type: 'success', message: res.message || 'Device reconnection initiated' };
+        await this.loadDevice();
+      } catch (err) {
+        this.commFeedback = { type: 'error', message: (err.response && err.response.data && err.response.data.error) || err.message };
+      } finally {
+        this.commActionLoading = false;
+      }
+    },
+    async handleTestConnection() {
+      if (!this.device) return;
+      this.commActionLoading = true;
+      this.commFeedback = null;
+      try {
+        const res = await this.$store.dispatch('testDeviceConnection', this.device.id);
+        const data = res.data;
+        if (data && data.connected) {
+          this.commFeedback = { type: 'success', message: `Physical link verified: connected in ${data.latency_ms} ms (status: ${data.status})` };
+        } else {
+          this.commFeedback = { type: 'error', message: `Link check failed: ${data ? data.error : 'Connection error'}` };
+        }
+        await this.fetchCommStatus();
+      } catch (err) {
+        this.commFeedback = { type: 'error', message: (err.response && err.response.data && err.response.data.error) || err.message };
+      } finally {
+        this.commActionLoading = false;
+      }
+    },
+    openTestReadModal(param) {
+      this.testParam = param;
+      this.testReadResult = null;
+      this.isTestReadModalOpen = true;
+      this.executeTestRead();
+    },
+    closeTestReadModal() {
+      this.isTestReadModalOpen = false;
+      this.testParam = null;
+      this.testReadResult = null;
+    },
+    async executeTestRead() {
+      if (!this.device || !this.testParam) return;
+      this.testReadLoading = true;
+      this.testReadResult = null;
+      try {
+        const res = await this.$store.dispatch('testReadParameter', {
+          deviceId: this.device.id,
+          parameterId: this.testParam.id,
+        });
+        this.testReadResult = res.data;
+        if (this.testReadResult && this.testReadResult.success && this.testReadResult.decoded_value !== undefined) {
+          this.testParam.current_value = this.testReadResult.decoded_value;
+        }
+      } catch (err) {
+        this.testReadResult = {
+          success: false,
+          error: (err.response && err.response.data && err.response.data.error) || err.message,
+          timestamp: new Date().toISOString(),
+          response_time_ms: 0,
+        };
+      } finally {
+        this.testReadLoading = false;
+      }
+    },
+    onCommEvent(e) {
+      if (!this.device || !e.detail || !e.detail.data) return;
+      const data = e.detail.data;
+      if (data.device_id === this.device.id) {
+        if (data.connection_status) this.device.connection_status = data.connection_status;
+        if (data.latency_ms !== undefined) this.device.latency_ms = data.latency_ms;
+        if (data.last_seen_at) this.device.last_seen_at = data.last_seen_at;
+        if (data.last_data_at) this.device.last_data_at = data.last_data_at;
+        if (data.parameter_id && this.device.parameters) {
+          const p = this.device.parameters.find(x => x.id === data.parameter_id);
+          if (p && data.decoded_value !== undefined) {
+            p.current_value = data.decoded_value;
+          }
+        }
+        if (this.commStatus) {
+          if (data.connection_status) this.commStatus.status = data.connection_status;
+          if (data.latency_ms !== undefined) this.commStatus.latency_ms = data.latency_ms;
+        }
+      }
     },
   },
 };

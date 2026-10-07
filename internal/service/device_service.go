@@ -26,6 +26,8 @@ type ConnectionConfigDTO struct {
 	RetryCount      int                `json:"retry_count"`
 	PollingInterval int                `json:"polling_interval"`
 	Enabled         bool               `json:"enabled"`
+	SlaveID         int                `json:"slave_id"`
+	ByteOrder       string             `json:"byte_order"`
 	ExtraConfig     string             `json:"extra_config,omitempty"`
 }
 
@@ -78,6 +80,7 @@ type CreateParameterRequest struct {
 	Offset          float64                 `json:"offset"`
 	RegisterAddress int                     `json:"register_address"`
 	RegisterType    string                  `json:"register_type"`
+	ByteOrder       string                  `json:"byte_order"`
 	Enabled         *bool                   `json:"enabled"`
 }
 
@@ -94,6 +97,7 @@ type UpdateParameterRequest struct {
 	Offset          *float64                 `json:"offset"`
 	RegisterAddress *int                     `json:"register_address"`
 	RegisterType    *string                  `json:"register_type"`
+	ByteOrder       *string                  `json:"byte_order"`
 	Enabled         *bool                    `json:"enabled"`
 }
 
@@ -475,6 +479,14 @@ func (s *DeviceService) SetConnectionError(deviceID uint, errMessage string) err
 	return s.repo.SetConnectionStatus(deviceID, model.DeviceConnError)
 }
 
+func (s *DeviceService) RecordCommunicationResult(deviceID uint, success bool, latencyMs int) error {
+	return s.repo.RecordCommunicationResult(deviceID, success, latencyMs)
+}
+
+func (s *DeviceService) UpdateParameterCurrentValue(paramID uint, value float64) error {
+	return s.repo.UpdateParameterCurrentValue(paramID, value, time.Now())
+}
+
 // Parameters Management (Section 8 & 16)
 func (s *DeviceService) ListParameters(deviceID uint) ([]model.Parameter, error) {
 	if _, err := s.repo.GetByID(deviceID); err != nil {
@@ -538,6 +550,11 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		enabled = *req.Enabled
 	}
 
+	byteOrder := req.ByteOrder
+	if byteOrder == "" {
+		byteOrder = "ABCD"
+	}
+
 	param := &model.Parameter{
 		DeviceID:        deviceID,
 		ParameterCode:   code,
@@ -552,6 +569,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		Offset:          req.Offset,
 		RegisterAddress: req.RegisterAddress,
 		RegisterType:    strings.TrimSpace(req.RegisterType),
+		ByteOrder:       byteOrder,
 		Enabled:         enabled,
 	}
 
@@ -646,6 +664,9 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.RegisterType != nil {
 		param.RegisterType = strings.TrimSpace(*req.RegisterType)
+	}
+	if req.ByteOrder != nil && *req.ByteOrder != "" {
+		param.ByteOrder = strings.TrimSpace(*req.ByteOrder)
 	}
 	if req.Enabled != nil {
 		param.Enabled = *req.Enabled
@@ -786,6 +807,16 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 		}
 	}
 
+	slaveID := dto.SlaveID
+	if slaveID <= 0 {
+		slaveID = 1
+	}
+
+	byteOrder := dto.ByteOrder
+	if byteOrder == "" {
+		byteOrder = "ABCD"
+	}
+
 	return &model.DeviceConnection{
 		Protocol:        proto,
 		ConnectionType:  connType,
@@ -800,6 +831,8 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 		RetryCount:      retry,
 		PollingInterval: interval,
 		Enabled:         dto.Enabled,
+		SlaveID:         slaveID,
+		ByteOrder:       byteOrder,
 		ExtraConfig:     dto.ExtraConfig,
 	}
 }

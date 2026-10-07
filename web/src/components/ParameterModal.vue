@@ -107,7 +107,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Register Address -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -135,6 +135,23 @@
               <option value="COIL">Coil (0x)</option>
               <option value="DISCRETE_INPUT">Discrete Input (1x)</option>
               <option value="VARIABLE">Virtual / Internal Variable</option>
+            </select>
+          </div>
+
+          <!-- Byte Order Override -->
+          <div>
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              Byte / Word Order
+            </label>
+            <select
+              v-model="form.byte_order"
+              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+            >
+              <option value="">Default (Device Conn)</option>
+              <option value="ABCD">ABCD (Big Endian)</option>
+              <option value="CDAB">CDAB (Word Swap)</option>
+              <option value="BADC">BADC (Byte Swap)</option>
+              <option value="DCBA">DCBA (Little Endian)</option>
             </select>
           </div>
         </div>
@@ -279,6 +296,7 @@ export default {
         description: '',
         register_address: 0,
         register_type: 'HOLDING_REGISTER',
+        byte_order: '',
         min_value: null,
         max_value: null,
         precision: 2,
@@ -306,6 +324,7 @@ export default {
             description: newVal.description || '',
             register_address: newVal.register_address || 0,
             register_type: newVal.register_type || 'HOLDING_REGISTER',
+            byte_order: newVal.byte_order || '',
             min_value: newVal.min_value !== undefined ? newVal.min_value : (newVal.low_limit || null),
             max_value: newVal.max_value !== undefined ? newVal.max_value : (newVal.high_limit || null),
             precision: newVal.precision !== undefined ? newVal.precision : 2,
@@ -333,6 +352,7 @@ export default {
         description: '',
         register_address: 0,
         register_type: 'HOLDING_REGISTER',
+        byte_order: '',
         min_value: null,
         max_value: null,
         precision: 2,

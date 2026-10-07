@@ -79,6 +79,8 @@ type DeviceConnection struct {
 	RetryCount      int          `gorm:"default:3" json:"retry_count"`
 	PollingInterval int          `gorm:"default:1000" json:"polling_interval"`
 	Enabled         bool         `gorm:"default:true" json:"enabled"`
+	SlaveID         int          `gorm:"default:1" json:"slave_id"`
+	ByteOrder       string       `gorm:"size:32;default:'ABCD'" json:"byte_order"`
 	ExtraConfig     string       `gorm:"type:text" json:"extra_config,omitempty"`
 
 	// Compatibility aliases with Phase 1
@@ -91,6 +93,12 @@ type DeviceConnection struct {
 }
 
 func (c *DeviceConnection) BeforeSave(tx *gorm.DB) error {
+	if c.SlaveID == 0 {
+		c.SlaveID = 1
+	}
+	if c.ByteOrder == "" {
+		c.ByteOrder = "ABCD"
+	}
 	if c.Host == "" && c.Address != "" {
 		c.Host = c.Address
 	}
@@ -116,6 +124,12 @@ func (c *DeviceConnection) BeforeSave(tx *gorm.DB) error {
 }
 
 func (c *DeviceConnection) AfterFind(tx *gorm.DB) error {
+	if c.SlaveID == 0 {
+		c.SlaveID = 1
+	}
+	if c.ByteOrder == "" {
+		c.ByteOrder = "ABCD"
+	}
 	if c.Host == "" && c.Address != "" {
 		c.Host = c.Address
 	}
@@ -257,6 +271,7 @@ type Parameter struct {
 	Precision     int               `gorm:"default:2" json:"precision"`
 	Scale         float64           `gorm:"default:1.0" json:"scale"`
 	Offset        float64           `gorm:"default:0.0" json:"offset"`
+	ByteOrder     string            `gorm:"size:32;default:'ABCD'" json:"byte_order"`
 	Enabled       bool              `gorm:"index;default:true" json:"enabled"`
 
 	// Phase 1 Compatibility
@@ -280,6 +295,9 @@ type Parameter struct {
 }
 
 func (p *Parameter) BeforeSave(tx *gorm.DB) error {
+	if p.ByteOrder == "" {
+		p.ByteOrder = "ABCD"
+	}
 	if p.ParameterCode == "" && p.Code != "" {
 		p.ParameterCode = p.Code
 	}
@@ -317,6 +335,9 @@ func (p *Parameter) BeforeSave(tx *gorm.DB) error {
 }
 
 func (p *Parameter) AfterFind(tx *gorm.DB) error {
+	if p.ByteOrder == "" {
+		p.ByteOrder = "ABCD"
+	}
 	if p.ParameterCode == "" && p.Code != "" {
 		p.ParameterCode = p.Code
 	}

@@ -412,6 +412,39 @@
             </div>
           </div>
 
+          <!-- Modbus Specific Settings (for MODBUS_TCP, MODBUS_RTU) -->
+          <div v-if="form.connection.protocol === 'MODBUS_TCP' || form.connection.protocol === 'MODBUS_RTU'" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+            <div>
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Modbus Slave ID (Unit ID) <span class="text-rose-400">*</span>
+              </label>
+              <input
+                v-model.number="form.connection.slave_id"
+                type="number"
+                min="1"
+                max="247"
+                placeholder="1"
+                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+              />
+              <span class="text-3xs text-slate-400 mt-1 block">Device slave address (1-247)</span>
+            </div>
+            <div>
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Byte / Word Ordering
+              </label>
+              <select
+                v-model="form.connection.byte_order"
+                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              >
+                <option value="ABCD">ABCD — Big Endian (Standard)</option>
+                <option value="CDAB">CDAB — Word Swap (Modicon / ABB)</option>
+                <option value="BADC">BADC — Byte Swap</option>
+                <option value="DCBA">DCBA — Little Endian</option>
+              </select>
+              <span class="text-3xs text-slate-400 mt-1 block">Multi-register byte transposition</span>
+            </div>
+          </div>
+
           <!-- Common Timing Configuration -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/80">
             <div>
@@ -536,6 +569,8 @@ export default {
           connection_type: 'ETHERNET',
           host: '',
           port: 502,
+          slave_id: 1,
+          byte_order: 'ABCD',
           serial_port: 'COM1',
           baud_rate: 9600,
           data_bits: 8,
@@ -587,6 +622,8 @@ export default {
               connection_type: (newVal.connection && newVal.connection.connection_type) || 'ETHERNET',
               host: (newVal.connection && (newVal.connection.host || newVal.connection.address)) || '',
               port: (newVal.connection && newVal.connection.port) || 502,
+              slave_id: (newVal.connection && newVal.connection.slave_id) || 1,
+              byte_order: (newVal.connection && newVal.connection.byte_order) || 'ABCD',
               serial_port: (newVal.connection && (newVal.connection.serial_port || newVal.connection.address)) || 'COM1',
               baud_rate: (newVal.connection && newVal.connection.baud_rate) || 9600,
               data_bits: (newVal.connection && newVal.connection.data_bits) || 8,
@@ -658,6 +695,8 @@ export default {
           connection_type: 'ETHERNET',
           host: '',
           port: 502,
+          slave_id: 1,
+          byte_order: 'ABCD',
           serial_port: 'COM1',
           baud_rate: 9600,
           data_bits: 8,

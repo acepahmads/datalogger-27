@@ -285,3 +285,26 @@ func (r *DeviceRepository) GetDeviceAuditTrail(deviceID uint, deviceCode string,
 	err := query.Find(&trails).Error
 	return trails, err
 }
+
+// RecordCommunicationResult updates latency and atomic success/failed counters
+func (r *DeviceRepository) RecordCommunicationResult(deviceID uint, success bool, latencyMs int) error {
+	updates := map[string]interface{}{
+		"latency_ms": latencyMs,
+	}
+	if success {
+		return r.db.Model(&model.Device{}).Where("id = ?", deviceID).
+			Updates(updates).
+			UpdateColumn("success_count", gorm.Expr("success_count + ?", 1)).Error
+	}
+	return r.db.Model(&model.Device{}).Where("id = ?", deviceID).
+		Updates(updates).
+		UpdateColumn("failed_count", gorm.Expr("failed_count + ?", 1)).Error
+}
+
+// UpdateParameterCurrentValue persists the latest decoded parameter engineering value
+func (r *DeviceRepository) UpdateParameterCurrentValue(paramID uint, value float64, t time.Time) error {
+	return r.db.Model(&model.Parameter{}).Where("id = ?", paramID).Updates(map[string]interface{}{
+		"current_value": &value,
+		"last_updated":  &t,
+	}).Error
+}
