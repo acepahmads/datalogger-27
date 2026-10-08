@@ -19,6 +19,7 @@ export default new Vuex.Store({
     wsConnected: false,
     systemStatus: {
       cpu_percent: 0,
+      process_cpu_percent: 0,
       cpu_per_core: [],
       ram_percent: 0,
       ram_used_mb: 0,
@@ -450,6 +451,7 @@ export default new Vuex.Store({
           if (msg.type === 'HEALTH_UPDATE' && msg.data) {
             commit('SET_SYSTEM_STATUS', {
               cpu_percent: msg.data.cpu_percent,
+              process_cpu_percent: msg.data.process_cpu_percent != null ? msg.data.process_cpu_percent : 0,
               cpu_per_core: msg.data.cpu_per_core || [],
               ram_percent: msg.data.ram_percent,
               ram_used_mb: msg.data.ram_used_bytes / (1024 * 1024),

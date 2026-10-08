@@ -15,6 +15,7 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 var (
@@ -22,28 +23,34 @@ var (
 	mu             sync.RWMutex
 	lastCPU        float64
 	lastPerCoreCPU []float64
+	lastProcessCPU float64
+	currentProc    *process.Process
 )
 
 type SystemInfo struct {
-	CPUPercent     float64   `json:"cpu_percent"`
-	CPUPerCore     []float64 `json:"cpu_per_core,omitempty"`
-	RAMUsedBytes   uint64    `json:"ram_used_bytes"`
-	RAMTotalBytes  uint64    `json:"ram_total_bytes"`
-	RAMPercent     float64   `json:"ram_percent"`
-	DiskUsedBytes  uint64    `json:"disk_used_bytes"`
-	DiskTotalBytes uint64    `json:"disk_total_bytes"`
-	DiskPercent    float64   `json:"disk_percent"`
-	UptimeSeconds  uint64    `json:"uptime_seconds"`
-	UptimeHuman    string    `json:"uptime_human"`
-	OS             string    `json:"os"`
-	Arch           string    `json:"arch"`
-	Hostname       string    `json:"hostname"`
-	NumCPU         int       `json:"num_cpu"`
-	Goroutines     int       `json:"goroutines"`
-	GoVersion      string    `json:"go_version"`
+	CPUPercent        float64   `json:"cpu_percent"`
+	ProcessCPUPercent float64   `json:"process_cpu_percent"`
+	CPUPerCore        []float64 `json:"cpu_per_core,omitempty"`
+	RAMUsedBytes      uint64    `json:"ram_used_bytes"`
+	RAMTotalBytes     uint64    `json:"ram_total_bytes"`
+	RAMPercent        float64   `json:"ram_percent"`
+	DiskUsedBytes     uint64    `json:"disk_used_bytes"`
+	DiskTotalBytes    uint64    `json:"disk_total_bytes"`
+	DiskPercent       float64   `json:"disk_percent"`
+	UptimeSeconds     uint64    `json:"uptime_seconds"`
+	UptimeHuman       string    `json:"uptime_human"`
+	OS                string    `json:"os"`
+	Arch              string    `json:"arch"`
+	Hostname          string    `json:"hostname"`
+	NumCPU            int       `json:"num_cpu"`
+	Goroutines        int       `json:"goroutines"`
+	GoVersion         string    `json:"go_version"`
 }
 
 func init() {
+	if p, err := process.NewProcess(int32(os.Getpid())); err == nil {
+		currentProc = p
+	}
 	// Start continuous background CPU sampler matching htop's 1-second sampling window
 	go startCPUSampler()
 }
@@ -51,10 +58,25 @@ func init() {
 func startCPUSampler() {
 	// Initial baseline reading
 	_, _ = cpu.Percent(100*time.Millisecond, true)
+	if currentProc != nil {
+		_, _ = currentProc.CPUPercent()
+	}
 
 	for {
 		// Clean 1-second sampling across all logical cores (identical to htop)
 		perCores, err := cpu.Percent(1*time.Second, true)
+		var procCPU float64
+		if currentProc != nil {
+			if pc, pErr := currentProc.CPUPercent(); pErr == nil {
+				numCPU := runtime.NumCPU()
+				if numCPU > 1 {
+					procCPU = pc / float64(numCPU)
+				} else {
+					procCPU = pc
+				}
+			}
+		}
+
 		if err == nil && len(perCores) > 0 {
 			var total float64
 			for _, p := range perCores {
@@ -64,10 +86,14 @@ func startCPUSampler() {
 
 			mu.Lock()
 			lastCPU = avg
+			lastProcessCPU = procCPU
 			lastPerCoreCPU = make([]float64, len(perCores))
 			copy(lastPerCoreCPU, perCores)
 			mu.Unlock()
 		} else {
+			mu.Lock()
+			lastProcessCPU = procCPU
+			mu.Unlock()
 			time.Sleep(1 * time.Second)
 		}
 	}
@@ -199,6 +225,7 @@ func GetInfo() SystemInfo {
 	// CPU percentage from background sampler
 	mu.RLock()
 	info.CPUPercent = lastCPU
+	info.ProcessCPUPercent = lastProcessCPU
 	if len(lastPerCoreCPU) > 0 {
 		info.CPUPerCore = make([]float64, len(lastPerCoreCPU))
 		copy(info.CPUPerCore, lastPerCoreCPU)

@@ -114,10 +114,12 @@ new Vue({
     this.$store.dispatch('fetchActivity');
     this.$store.dispatch('initWebSocket');
 
-    // Live continuous telemetry polling every 2 seconds
+    // Fallback telemetry polling: only poll via HTTP if WebSocket is disconnected
     setInterval(() => {
-      this.$store.dispatch('fetchSystemStatus');
-    }, 2000);
+      if (!this.$store.state.wsConnected) {
+        this.$store.dispatch('fetchSystemStatus');
+      }
+    }, 3000);
   },
   render: (h) => h(App),
 }).$mount('#app');

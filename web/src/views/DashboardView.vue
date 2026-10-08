@@ -133,16 +133,38 @@
 
           <!-- Gauges -->
           <div class="space-y-3 font-sans text-xs">
-            <!-- CPU -->
+            <!-- CPU Breakdown: Datalogger App vs Total Pi Host -->
             <div>
-              <div class="flex justify-between mb-1">
-                <span class="text-slate-400">CPU Load</span>
-                <span class="font-mono text-slate-200 font-medium">{{ systemStatus.cpu_percent.toFixed(1) }}% ({{ systemStatus.num_cpu || 4 }} Cores)</span>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-slate-400 font-medium">CPU Load</span>
+                  <!-- App Process CPU Badge -->
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                        title="Datalogger Daemon actual CPU footprint">
+                    App: {{ (systemStatus.process_cpu_percent || 0).toFixed(1) }}%
+                  </span>
+                </div>
+                <div class="text-right">
+                  <span class="font-mono text-slate-200 font-medium text-xs">Host: {{ systemStatus.cpu_percent.toFixed(1) }}%</span>
+                  <span class="text-3xs text-slate-500 ml-1">({{ systemStatus.num_cpu || 4 }} Cores)</span>
+                </div>
               </div>
               <div class="w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
-                <div class="bg-blue-500 h-full rounded-full transition-all duration-300"
+                <div class="bg-blue-500 h-full rounded-full transition-[width] duration-300"
                      :style="{ width: Math.min(systemStatus.cpu_percent, 100) + '%' }"></div>
               </div>
+
+              <!-- Host Note if CPU is high due to browser -->
+              <div v-if="systemStatus.cpu_percent > 70" class="mt-1 flex items-center justify-between text-[10px] text-slate-500 font-sans">
+                <span class="flex items-center text-amber-400/90">
+                  <svg class="w-3 h-3 mr-1 inline flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                  </svg>
+                  Host CPU dipengaruhi Browser Chromium di Pi
+                </span>
+                <span class="text-slate-400 font-mono text-[9px]">Akses via Remote IP agar &lt;10%</span>
+              </div>
+
               <!-- Per-core breakdown matching htop -->
               <div v-if="systemStatus.cpu_per_core && systemStatus.cpu_per_core.length" class="grid grid-cols-4 gap-1.5 mt-2 pt-1 border-t border-slate-800/40">
                 <div v-for="(c, idx) in systemStatus.cpu_per_core" :key="idx" class="text-2xs">
@@ -151,7 +173,7 @@
                     <span :class="c > 75 ? 'text-rose-400' : c > 50 ? 'text-amber-400' : 'text-slate-300'">{{ c.toFixed(0) }}%</span>
                   </div>
                   <div class="w-full bg-slate-800/80 h-1 rounded-full overflow-hidden">
-                    <div class="bg-sky-400 h-full rounded-full transition-all duration-300" :style="{ width: Math.min(c, 100) + '%' }"></div>
+                    <div class="bg-sky-400 h-full rounded-full transition-[width] duration-300" :style="{ width: Math.min(c, 100) + '%' }"></div>
                   </div>
                 </div>
               </div>

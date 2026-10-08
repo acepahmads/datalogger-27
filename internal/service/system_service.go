@@ -92,9 +92,10 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 	}
 
 	overview := &model.SystemStatusOverview{
-		CPUPercent:     info.CPUPercent,
-		CPUPerCore:     info.CPUPerCore,
-		RAMPercent:     info.RAMPercent,
+		CPUPercent:        info.CPUPercent,
+		ProcessCPUPercent: info.ProcessCPUPercent,
+		CPUPerCore:        info.CPUPerCore,
+		RAMPercent:        info.RAMPercent,
 		RAMUsedMB:      float64(info.RAMUsedBytes) / (1024 * 1024),
 		RAMTotalMB:     float64(info.RAMTotalBytes) / (1024 * 1024),
 		DiskPercent:    info.DiskPercent,

@@ -25,9 +25,10 @@ type SystemHealth struct {
 
 type SystemStatusOverview struct {
 	// System resources
-	CPUPercent     float64   `json:"cpu_percent"`
-	CPUPerCore     []float64 `json:"cpu_per_core,omitempty"`
-	RAMPercent     float64   `json:"ram_percent"`
+	CPUPercent        float64   `json:"cpu_percent"`
+	ProcessCPUPercent float64   `json:"process_cpu_percent"`
+	CPUPerCore        []float64 `json:"cpu_per_core,omitempty"`
+	RAMPercent        float64   `json:"ram_percent"`
 	RAMUsedMB      float64 `json:"ram_used_mb"`
 	RAMTotalMB     float64 `json:"ram_total_mb"`
 	DiskPercent    float64 `json:"disk_percent"`

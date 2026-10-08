@@ -131,7 +131,7 @@ func (p *PollingEngine) ActiveWorkerCount() int {
 	return len(p.workers)
 }
 
-// runWorker is the isolated loop executing on a per-device schedule
+// runWorker is the isolated loop executing on a per-device schedule with in-memory caching & adaptive backoff
 func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 	if p.deviceService == nil {
 		return
@@ -143,14 +143,29 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 		return
 	}
 
-	intervalMs := dev.Connection.PollingInterval
-	if intervalMs < 200 {
-		intervalMs = 1000
+	baseIntervalMs := dev.Connection.PollingInterval
+	if baseIntervalMs < 200 {
+		baseIntervalMs = 1000
 	}
-	ticker := time.NewTicker(time.Duration(intervalMs) * time.Millisecond)
+	currentIntervalMs := baseIntervalMs
+	ticker := time.NewTicker(time.Duration(currentIntervalMs) * time.Millisecond)
 	defer ticker.Stop()
 
-	logger.Debug("Worker for device %s (%d) started (interval: %dms)", dev.DeviceCode, dev.ID, intervalMs)
+	logger.Debug("Worker for device %s (%d) started (interval: %dms)", dev.DeviceCode, dev.ID, currentIntervalMs)
+
+	// In-memory cached device & parameters to avoid hitting MariaDB on every poll cycle
+	cachedDev := dev
+	var cachedParams []model.Parameter
+	if params, pErr := p.deviceService.ListParameters(deviceID); pErr == nil {
+		for _, param := range params {
+			if param.Enabled {
+				cachedParams = append(cachedParams, param)
+			}
+		}
+	}
+
+	cyclesSinceRefresh := 0
+	consecutiveFailures := 0
 
 	for {
 		select {
@@ -159,65 +174,86 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 			return
 
 		case <-ticker.C:
-			// Re-fetch device in case status changed
-			freshDev, err := p.deviceService.GetDeviceByID(deviceID)
-			if err != nil {
-				if strings.Contains(strings.ToLower(err.Error()), "not found") {
-					logger.Info("Device %d deleted or removed, terminating polling worker", deviceID)
-					return
-				}
-				logger.Warn("Transient error querying device %d in poll cycle: %v", deviceID, err)
-				continue
-			}
-			if freshDev == nil {
-				return
-			}
+			cyclesSinceRefresh++
 
-			// Dynamically adjust interval if updated in DB
-			if freshDev.Connection != nil && freshDev.Connection.PollingInterval >= 200 {
-				newInterval := freshDev.Connection.PollingInterval
-				if newInterval != intervalMs {
-					intervalMs = newInterval
-					ticker.Reset(time.Duration(intervalMs) * time.Millisecond)
-					logger.Info("Device %s (%d) polling interval adjusted to %dms", freshDev.DeviceCode, deviceID, intervalMs)
+			// Periodically (every 10 cycles, ~10-20s) re-sync device config & parameters from DB
+			if cyclesSinceRefresh >= 10 {
+				cyclesSinceRefresh = 0
+				freshDev, err := p.deviceService.GetDeviceByID(deviceID)
+				if err != nil {
+					if strings.Contains(strings.ToLower(err.Error()), "not found") {
+						logger.Info("Device %d deleted or removed, terminating polling worker", deviceID)
+						return
+					}
+				} else if freshDev != nil {
+					cachedDev = freshDev
+					if freshDev.Connection != nil && freshDev.Connection.PollingInterval >= 200 {
+						baseIntervalMs = freshDev.Connection.PollingInterval
+					}
+					if params, pErr := p.deviceService.ListParameters(deviceID); pErr == nil {
+						cachedParams = cachedParams[:0]
+						for _, param := range params {
+							if param.Enabled {
+								cachedParams = append(cachedParams, param)
+							}
+						}
+					}
 				}
 			}
 
 			// Device Isolation & Admin Status Check
-			if !freshDev.Enabled || freshDev.Status != model.DeviceStatusActive || freshDev.Connection == nil || !freshDev.Connection.Enabled {
-				// Device disabled or in maintenance, standby without heavy polling
+			if cachedDev == nil || !cachedDev.Enabled || cachedDev.Status != model.DeviceStatusActive || cachedDev.Connection == nil || !cachedDev.Connection.Enabled {
+				// Standby mode without heavy polling: check every 5s
+				if currentIntervalMs != 5000 {
+					currentIntervalMs = 5000
+					ticker.Reset(5 * time.Second)
+				}
 				continue
 			}
 
-			p.pollDevice(ctx, freshDev)
+			// Execute cached parameter poll cycle
+			cycleSuccess := p.pollDevice(ctx, cachedDev, cachedParams)
+			if cycleSuccess {
+				if consecutiveFailures > 0 {
+					consecutiveFailures = 0
+					currentIntervalMs = baseIntervalMs
+					ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+					logger.Info("Device %s (%d) communication active, restored normal polling interval (%dms)",
+						cachedDev.DeviceCode, deviceID, baseIntervalMs)
+				}
+			} else {
+				consecutiveFailures++
+				// Adaptive backoff on consecutive connection failures to preserve edge CPU and reduce log spam
+				var backoffMs int
+				if consecutiveFailures >= 5 {
+					backoffMs = 15000 // 15s backoff
+				} else if consecutiveFailures >= 2 {
+					backoffMs = 5000 // 5s backoff
+				}
+				if backoffMs > 0 && currentIntervalMs != backoffMs {
+					currentIntervalMs = backoffMs
+					ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+					logger.Debug("Device %s (%d) offline/unreachable (%d failures), backing off polling to %dms",
+						cachedDev.DeviceCode, deviceID, consecutiveFailures, backoffMs)
+				}
+			}
 		}
 	}
 }
 
-// pollDevice executes the parameter read loop for one device cycle
-func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device) {
-	params, err := p.deviceService.ListParameters(device.ID)
-	if err != nil {
-		return
-	}
-
-	var enabledParams []model.Parameter
-	for _, param := range params {
-		if param.Enabled {
-			enabledParams = append(enabledParams, param)
-		}
-	}
-
+// pollDevice executes the parameter read loop using pre-cached parameters
+func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, enabledParams []model.Parameter) bool {
 	if len(enabledParams) == 0 {
 		// No parameters configured, perform health check
 		_ = p.connManager.ConnectDevice(ctx, device)
-		return
+		return true
 	}
 
+	anySuccess := false
 	for _, param := range enabledParams {
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		default:
 		}
 
@@ -237,9 +273,20 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device) {
 					},
 				})
 			}
+
+			// If device transport itself is dead, skip subsequent parameters in this cycle to avoid blocking
+			errStr := strings.ToLower(err.Error())
+			if strings.Contains(errStr, "offline") ||
+				strings.Contains(errStr, "connection refused") ||
+				strings.Contains(errStr, "dial failed") ||
+				strings.Contains(errStr, "cannot find") ||
+				strings.Contains(errStr, "timeout") {
+				return false
+			}
 			continue
 		}
 
+		anySuccess = true
 		// Broadcast success event
 		if p.hub != nil {
 			p.hub.Broadcast(websocket.WSMessage{
@@ -249,6 +296,8 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device) {
 			})
 		}
 	}
+
+	return anySuccess
 }
 
 // ReadParameter reads and decodes a single parameter from the device

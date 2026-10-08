@@ -33,13 +33,14 @@ func (h *SystemHandler) GetStatus(c *gin.Context) {
 func (h *SystemHandler) GetHealth(c *gin.Context) {
 	info := sysinfo.GetInfo()
 	response.OK(c, gin.H{
-		"status":      "HEALTHY",
-		"timestamp":   time.Now(),
-		"cpu_percent": info.CPUPercent,
-		"ram_percent": info.RAMPercent,
-		"disk_percent": info.DiskPercent,
-		"uptime":      info.UptimeHuman,
-		"goroutines":  info.Goroutines,
+		"status":              "HEALTHY",
+		"timestamp":           time.Now(),
+		"cpu_percent":         info.CPUPercent,
+		"process_cpu_percent": info.ProcessCPUPercent,
+		"ram_percent":         info.RAMPercent,
+		"disk_percent":        info.DiskPercent,
+		"uptime":              info.UptimeHuman,
+		"goroutines":          info.Goroutines,
 	})
 }
 
