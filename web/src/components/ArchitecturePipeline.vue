@@ -14,11 +14,11 @@
 
       <div class="mt-3 pt-2 border-t border-slate-800/60 text-3xs font-sans space-y-0.5">
         <div class="flex justify-between">
-          <span class="text-slate-500">Health:</span>
+          <span class="text-slate-500">{{ $t('common.health') }}:</span>
           <span class="text-emerald-400 font-semibold font-mono">{{ node.health }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-slate-500">Activity:</span>
+          <span class="text-slate-500">{{ $t('common.activity') }}:</span>
           <span class="text-slate-300 font-mono">{{ node.lastActivity }}</span>
         </div>
       </div>

@@ -8,14 +8,14 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
-            <span>Devices & Sensors</span>
+            <span>{{ $t('deviceDetail.devicesAndSensors') }}</span>
           </router-link>
           <span>/</span>
           <span class="text-slate-200 font-mono font-semibold">{{ device ? (device.device_code || device.code) : 'Device' }}</span>
         </div>
         <div class="flex items-center space-x-3">
           <h1 class="text-xl font-bold tracking-tight text-white">
-            {{ device ? (device.device_name || device.name) : 'Loading Device...' }}
+            {{ device ? (device.device_name || device.name) : $t('deviceDetail.loadingDevice') }}
           </h1>
           <span v-if="device" class="px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono text-2xs font-bold">
             {{ device.device_code || device.code }}
@@ -31,7 +31,7 @@
           class="px-3 py-1.5 rounded-xl border text-xs font-semibold transition flex items-center space-x-1.5"
         >
           <span class="w-2 h-2 rounded-full" :class="device.enabled ? 'bg-amber-400' : 'bg-emerald-400'"></span>
-          <span>{{ device.enabled ? 'Disable Device' : 'Enable Device' }}</span>
+          <span>{{ device.enabled ? $t('deviceDetail.disableDevice') : $t('deviceDetail.enableDevice') }}</span>
         </button>
 
         <button
@@ -41,7 +41,7 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
           </svg>
-          <span>Edit</span>
+          <span>{{ $t('common.edit') }}</span>
         </button>
 
         <button
@@ -51,7 +51,7 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
           </svg>
-          <span>Delete</span>
+          <span>{{ $t('common.delete') }}</span>
         </button>
       </div>
     </div>
@@ -60,7 +60,7 @@
     <div v-if="device" class="grid grid-cols-2 md:grid-cols-5 gap-3">
       <!-- Admin Status -->
       <div class="saas-card p-3 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Administrative Status</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.adminStatus') }}</div>
         <div class="flex items-center space-x-2">
           <span class="px-2 py-0.5 rounded-md text-2xs font-bold font-mono" :class="statusBadgeClass(device.status)">
             {{ device.status }}
@@ -70,7 +70,7 @@
 
       <!-- Comm Status -->
       <div class="saas-card p-3 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Communication Status</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.commStatus') }}</div>
         <div class="flex items-center space-x-1.5">
           <span class="w-2 h-2 rounded-full" :class="commDotClass(device.connection_status)"></span>
           <span class="text-xs font-mono font-bold" :class="commTextClass(device.connection_status)">
@@ -81,7 +81,7 @@
 
       <!-- Protocol -->
       <div class="saas-card p-3 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Protocol</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.protocol') }}</div>
         <div class="text-xs font-mono font-bold text-blue-400">
           {{ (device.connection && device.connection.protocol) || device.device_type || 'MODBUS_TCP' }}
         </div>
@@ -89,7 +89,7 @@
 
       <!-- Last Seen -->
       <div class="saas-card p-3 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Last Communication</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.lastComm') }}</div>
         <div class="text-xs font-mono text-slate-200">
           {{ formatTimestamp(device.last_seen_at || device.last_communication) }}
         </div>
@@ -97,7 +97,7 @@
 
       <!-- Last Data -->
       <div class="saas-card p-3 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Last Data Packet</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.lastDataPacket') }}</div>
         <div class="text-xs font-mono text-slate-200">
           {{ formatTimestamp(device.last_data_at) }}
         </div>
@@ -111,21 +111,21 @@
         :class="activeTab === 'overview' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Overview</span>
+        <span>{{ $t('deviceDetail.overview') }}</span>
       </button>
       <button
         @click="activeTab = 'connection'"
         :class="activeTab === 'connection' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Connection Config</span>
+        <span>{{ $t('deviceDetail.connectionConfig') }}</span>
       </button>
       <button
         @click="activeTab = 'parameters'"
         :class="activeTab === 'parameters' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Parameters</span>
+        <span>{{ $t('deviceDetail.parameters') }}</span>
         <span class="px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 text-3xs font-mono">
           {{ device.parameters ? device.parameters.length : 0 }}
         </span>
@@ -136,35 +136,35 @@
         class="transition-colors flex items-center space-x-1.5"
       >
         <span class="w-2 h-2 rounded-full bg-emerald-400" :class="{ 'animate-pulse': livePacketBlink }"></span>
-        <span>Live Telemetry</span>
+        <span>{{ $t('deviceDetail.liveTelemetry') }}</span>
       </button>
       <button
         @click="switchTab('history')"
         :class="activeTab === 'history' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Historical Data</span>
+        <span>{{ $t('deviceDetail.historical') }}</span>
       </button>
       <button
         @click="switchTab('raw')"
         :class="activeTab === 'raw' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Raw Telemetry</span>
+        <span>{{ $t('deviceDetail.rawTelemetry') }}</span>
       </button>
       <button
         @click="activeTab = 'activity'"
         :class="activeTab === 'activity' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Activity & Audit</span>
+        <span>{{ $t('deviceDetail.activityAudit') }}</span>
       </button>
       <button
         @click="activeTab = 'health'"
         :class="activeTab === 'health' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span>Health Diagnostics</span>
+        <span>{{ $t('deviceDetail.healthDiagnostics') }}</span>
       </button>
     </div>
 
@@ -173,28 +173,28 @@
       <!-- Hardware Profile -->
       <div class="saas-card p-5 space-y-4">
         <h3 class="text-xs font-bold text-white uppercase tracking-wider border-b border-slate-800/80 pb-2.5">
-          Equipment Profile
+          {{ $t('deviceDetail.equipmentProfile') }}
         </h3>
         <dl class="grid grid-cols-2 gap-3 text-xs">
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Manufacturer</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.manufacturer') }}</dt>
             <dd class="text-slate-200 font-medium mt-0.5">{{ device.manufacturer || '--' }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Model</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.model') }}</dt>
             <dd class="text-slate-200 font-medium mt-0.5">{{ device.model || '--' }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Serial Number</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.serialNumber') }}</dt>
             <dd class="text-slate-200 font-mono text-2xs mt-0.5">{{ device.serial_number || '--' }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Firmware Version</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.firmwareVersion') }}</dt>
             <dd class="text-slate-200 font-mono text-2xs mt-0.5">{{ device.firmware_version || '--' }}</dd>
           </div>
           <div class="col-span-2">
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Description</dt>
-            <dd class="text-slate-300 mt-0.5">{{ device.description || 'No description provided.' }}</dd>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.description') }}</dt>
+            <dd class="text-slate-300 mt-0.5">{{ device.description || $t('deviceDetail.noDescription') }}</dd>
           </div>
         </dl>
       </div>
@@ -202,27 +202,27 @@
       <!-- Location & Metadata -->
       <div class="saas-card p-5 space-y-4">
         <h3 class="text-xs font-bold text-white uppercase tracking-wider border-b border-slate-800/80 pb-2.5">
-          Location & Geography
+          {{ $t('deviceDetail.locationGeography') }}
         </h3>
         <dl class="grid grid-cols-2 gap-3 text-xs">
           <div class="col-span-2">
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Physical Location</dt>
-            <dd class="text-slate-200 font-medium mt-0.5">{{ device.location || 'Not specified' }}</dd>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.physicalLocation') }}</dt>
+            <dd class="text-slate-200 font-medium mt-0.5">{{ device.location || $t('deviceDetail.notSpecified') }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Latitude</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.latitude') }}</dt>
             <dd class="text-slate-200 font-mono text-2xs mt-0.5">{{ device.latitude !== null && device.latitude !== undefined ? device.latitude : '--' }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Longitude</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.longitude') }}</dt>
             <dd class="text-slate-200 font-mono text-2xs mt-0.5">{{ device.longitude !== null && device.longitude !== undefined ? device.longitude : '--' }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Timezone</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.timezone') }}</dt>
             <dd class="text-slate-200 font-mono text-2xs mt-0.5">{{ device.timezone || 'UTC' }}</dd>
           </div>
           <div>
-            <dt class="text-3xs text-slate-400 uppercase font-semibold">Created At</dt>
+            <dt class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.createdAt') }}</dt>
             <dd class="text-slate-200 font-mono text-3xs mt-0.5">{{ formatTimestamp(device.created_at) }}</dd>
           </div>
         </dl>
@@ -235,15 +235,15 @@
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <div class="flex items-center space-x-2">
-            <h3 class="text-sm font-bold text-white">Modbus RTU / TCP Communication Engine</h3>
+            <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.commEngineTitle') }}</h3>
             <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Phase 2.2 Active
+              {{ $t('deviceDetail.phase22Active') }}
             </span>
             <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Auto-Connect Active
+              {{ $t('deviceDetail.autoConnectActive') }}
             </span>
           </div>
-          <p class="text-2xs text-slate-400 mt-0.5">Physical serial & socket lifecycle, auto-reconnect backoff, and continuous background register polling</p>
+          <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.commSubtitle') }}</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -252,12 +252,12 @@
             @click="handleReconnect"
             :disabled="commActionLoading"
             class="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
-            title="Sistem sudah otomatis menyambung di background. Tombol ini untuk memicu penyambungan ulang instan."
+            :title="$t('deviceDetail.reconnectTooltip')"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Reconnect Now</span>
+            <span>{{ $t('deviceDetail.reconnectNow') }}</span>
           </button>
 
           <!-- Test Link Button -->
@@ -269,7 +269,7 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-            <span>Test Link</span>
+            <span>{{ $t('deviceDetail.testLink') }}</span>
           </button>
 
           <!-- Edit Config -->
@@ -277,7 +277,7 @@
             @click="openEditModal"
             class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition"
           >
-            Edit Settings
+            {{ $t('deviceDetail.editSettings') }}
           </button>
         </div>
       </div>
@@ -294,20 +294,20 @@
           ></span>
           <div>
             <div class="font-bold flex items-center space-x-2">
-              <span>Mode: Auto-Connect &amp; Auto-Polling Aktif (Background Loop)</span>
+              <span>{{ $t('deviceDetail.autoConnectBannerTitle') }}</span>
               <span class="px-1.5 py-0.5 rounded text-3xs font-mono font-medium uppercase bg-slate-800 text-slate-300">
-                Tidak Perlu Connect Manual
+                {{ $t('deviceDetail.noManualConnectNeeded') }}
               </span>
             </div>
             <p class="text-3xs opacity-85 mt-0.5">
-              {{ ((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'Komunikasi serial/network terhubung normal. Data telemetry diambil setiap detik dan dicatat ke log.' : 'Port serial/network terputus atau offline. Background engine terus mencoba menyambung ulang otomatis secara berkala (Auto-Reconnect). Semua kegagalan dicatat ke System Log & Warning.' }}
+              {{ ((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? $t('deviceDetail.autoConnectOnlineDesc') : $t('deviceDetail.autoConnectOfflineDesc') }}
             </p>
           </div>
         </div>
         <div class="flex items-center space-x-3 text-3xs font-mono text-slate-300 flex-shrink-0">
-          <span>Interval: {{ (device.connection && device.connection.polling_interval) || 1000 }}ms</span>
+          <span>{{ $t('deviceDetail.interval') }} {{ (device.connection && device.connection.polling_interval) || 1000 }}ms</span>
           <span>•</span>
-          <span>Auto-Recovery: ON</span>
+          <span>{{ $t('deviceDetail.autoRecoveryOn') }}</span>
         </div>
       </div>
 
@@ -321,13 +321,13 @@
           <span class="w-2 h-2 rounded-full" :class="commFeedback.type === 'success' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
           <span>{{ commFeedback.message }}</span>
         </div>
-        <button @click="commFeedback = null" class="text-slate-400 hover:text-white text-3xs font-mono">Dismiss</button>
+        <button @click="commFeedback = null" class="text-slate-400 hover:text-white text-3xs font-mono">{{ $t('deviceDetail.dismiss') }}</button>
       </div>
 
       <!-- Live Engine Diagnostics Strip -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Engine Lifecycle State</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.engineLifecycle') }}</div>
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full" :class="commDotClass(commStatus ? commStatus.status : device.connection_status)"></span>
             <span class="text-xs font-mono font-bold" :class="commTextClass(commStatus ? commStatus.status : device.connection_status)">
@@ -337,23 +337,23 @@
         </div>
 
         <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Roundtrip Latency</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.roundtripLatency') }}</div>
           <div class="text-xs font-mono font-bold text-emerald-400">
             {{ commStatus ? commStatus.latency_ms : (device.latency_ms || 0) }} ms
           </div>
         </div>
 
         <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Consecutive Retries</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.consecutiveRetries') }}</div>
           <div class="text-xs font-mono font-bold text-slate-200">
-            {{ commStatus ? commStatus.consecutive_errors : 0 }} / {{ (device.connection && device.connection.retry_count) || 3 }} max
+            {{ commStatus ? commStatus.consecutive_errors : 0 }} / {{ (device.connection && device.connection.retry_count) || 3 }} {{ $t('deviceDetail.max') }}
           </div>
         </div>
 
         <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Last Comm Error</div>
-          <div class="text-xs font-mono truncate text-rose-400" :title="(commStatus && commStatus.last_error) || 'None'">
-            {{ (commStatus && commStatus.last_error) || 'None' }}
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.lastCommError') }}</div>
+          <div class="text-xs font-mono truncate text-rose-400" :title="(commStatus && commStatus.last_error) || $t('deviceDetail.none')">
+            {{ (commStatus && commStatus.last_error) || $t('deviceDetail.none') }}
           </div>
         </div>
       </div>
@@ -361,66 +361,66 @@
       <!-- Detailed Configuration Grid -->
       <div v-if="device.connection" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-sans">
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Protocol</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.protocol') }}</div>
           <div class="text-xs font-mono font-bold text-blue-400 mt-1">{{ device.connection.protocol }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Connection Type</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.connectionType') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.connection_type }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Modbus Slave ID (Unit)</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.slaveIdUnit') }}</div>
           <div class="text-xs font-mono font-bold text-amber-400 mt-1">#{{ device.connection.slave_id || 1 }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Byte / Word Order</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.byteWordOrder') }}</div>
           <div class="text-xs font-mono font-bold text-indigo-400 mt-1">{{ device.connection.byte_order || 'ABCD' }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Host / Address</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.hostAddress') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.host || device.connection.address || '--' }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Port</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.port') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.port || '--' }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Serial Port</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.serialPort') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.serial_port || '--' }}</div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Baud Rate & Framing</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.baudAndFraming') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
             {{ device.connection.baud_rate || 9600 }} ({{ device.connection.data_bits || 8 }}-{{ device.connection.parity || 'N' }}-{{ device.connection.stop_bits || 1 }})
           </div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Timeout</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.timeout') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
             {{ device.connection.timeout || device.connection.timeout_ms || 1000 }} ms
           </div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Retry Policy</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.retryPolicy') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.retry_count || 3 }} retries with exponential backoff
+            {{ $t('deviceDetail.retriesWithBackoff', { count: device.connection.retry_count || 3 }) }}
           </div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Polling Interval</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.pollingInterval') }}</div>
           <div class="text-xs font-mono text-slate-200 mt-1">
             {{ device.connection.polling_interval || device.connection.poll_interval_ms || 1000 }} ms
           </div>
         </div>
         <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">Adapter Status</div>
+          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.adapterStatus') }}</div>
           <div class="text-xs font-mono text-emerald-400 mt-1">
             {{ (commStatus && commStatus.adapter_status) || 'ACTIVE' }}
           </div>
         </div>
       </div>
       <div v-else class="text-center py-8 text-xs text-slate-400">
-        No connection configuration found for this device.
+        {{ $t('deviceDetail.noConnConfig') }}
       </div>
     </div>
 
@@ -428,8 +428,8 @@
     <div v-if="device && activeTab === 'parameters'" class="saas-card p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div>
-          <h3 class="text-sm font-bold text-white">Telemetry Parameters ({{ device.parameters ? device.parameters.length : 0 }})</h3>
-          <p class="text-2xs text-slate-400 mt-0.5">Engineering parameter definitions, scaling factor, and registers</p>
+          <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.telemetryParamsCount', { count: device.parameters ? device.parameters.length : 0 }) }}</h3>
+          <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.paramDefSubtitle') }}</p>
         </div>
         <button
           @click="openAddParamModal"
@@ -438,7 +438,7 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
-          <span>Add Parameter</span>
+          <span>{{ $t('deviceDetail.addParam') }}</span>
         </button>
       </div>
 
@@ -447,16 +447,16 @@
         <table class="w-full text-left text-xs font-sans">
           <thead>
             <tr class="border-b border-slate-800 text-3xs uppercase font-semibold text-slate-400 tracking-wider">
-              <th class="py-2.5 px-3">Code</th>
-              <th class="py-2.5 px-3">Name</th>
-              <th class="py-2.5 px-3">Data Type</th>
-              <th class="py-2.5 px-3">Unit</th>
-              <th class="py-2.5 px-3">Register</th>
-              <th class="py-2.5 px-3">Scale / Offset</th>
-              <th class="py-2.5 px-3">Limits</th>
-              <th class="py-2.5 px-3">Current Value</th>
-              <th class="py-2.5 px-3">Enabled</th>
-              <th class="py-2.5 px-3 text-right">Actions</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.code') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.colName') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.dataType') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.unit') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.register') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.colScaleOffset') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.colLimits') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.colCurrentValue') }}</th>
+              <th class="py-2.5 px-3">{{ $t('deviceDetail.colEnabled') }}</th>
+              <th class="py-2.5 px-3 text-right">{{ $t('deviceDetail.colActions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60">
@@ -480,7 +480,7 @@
                   :class="param.enabled ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-400'"
                   class="font-mono text-3xs font-semibold transition"
                 >
-                  {{ param.enabled ? 'Active' : 'Disabled' }}
+                  {{ param.enabled ? $t('deviceDetail.active') : $t('deviceDetail.disabled') }}
                 </button>
               </td>
               <td class="py-2.5 px-3 text-right space-x-2">
@@ -488,19 +488,19 @@
                   @click="openTestReadModal(param)"
                   class="text-emerald-400 hover:text-emerald-300 transition text-2xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
                 >
-                  Test Read
+                  {{ $t('deviceDetail.testRead') }}
                 </button>
                 <button @click="openEditParamModal(param)" class="text-blue-400 hover:text-blue-300 transition text-2xs font-semibold">
-                  Edit
+                  {{ $t('common.edit') }}
                 </button>
                 <button @click="confirmDeleteParam(param)" class="text-rose-400 hover:text-rose-300 transition text-2xs font-semibold">
-                  Delete
+                  {{ $t('common.delete') }}
                 </button>
               </td>
             </tr>
             <tr v-if="!device.parameters || device.parameters.length === 0">
               <td colspan="10" class="py-8 text-center text-xs text-slate-400">
-                No parameters configured yet. Click "Add Parameter" to configure your first telemetry register.
+                {{ $t('deviceDetail.noParamsConfigured') }}
               </td>
             </tr>
           </tbody>
@@ -513,18 +513,18 @@
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
           <div class="flex items-center space-x-2">
-            <h3 class="text-sm font-bold text-white">Device Activity &amp; Audit Log</h3>
+            <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.activityAuditTitle') }}</h3>
             <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Live Audit Stream
+              {{ $t('deviceDetail.liveAuditStream') }}
             </span>
           </div>
-          <p class="text-2xs text-slate-400 mt-0.5">Riwayat lengkap perubahan konfigurasi, event komunikasi, dan status operasional perangkat</p>
+          <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.activityAuditSubtitle') }}</p>
         </div>
 
         <div class="flex items-center space-x-3 text-xs">
           <span class="text-3xs text-slate-400 font-mono flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            Auto-Sync 3s
+            {{ $t('deviceDetail.autoSync3s') }}
           </span>
           <button
             @click="loadActivity"
@@ -534,7 +534,7 @@
             <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': activityLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Segarkan Log</span>
+            <span>{{ $t('deviceDetail.refreshLog') }}</span>
           </button>
         </div>
       </div>
@@ -556,7 +556,7 @@
                 <span>{{ formatAuditActionName(trail.action) }}</span>
               </span>
               <span class="text-slate-400 text-2xs">
-                Oleh: <strong class="text-slate-200 font-semibold">{{ trail.username || 'System' }}</strong>
+                {{ $t('deviceDetail.byOperator') }} <strong class="text-slate-200 font-semibold">{{ trail.username || 'System' }}</strong>
               </span>
               <span v-if="trail.ip_address" class="text-3xs text-slate-500 font-mono">
                 ({{ trail.ip_address }})
@@ -596,7 +596,7 @@
                 @click="toggleRawAudit(trail.id)"
                 class="text-3xs font-mono text-blue-400 hover:text-blue-300 flex items-center space-x-1 transition"
               >
-                <span>{{ showRawAudit[trail.id] ? '▲ Sembunyikan Detail Teknis JSON' : '▼ Lihat Detail Teknis JSON' }}</span>
+                <span>{{ showRawAudit[trail.id] ? $t('deviceDetail.hideJsonDetails') : $t('deviceDetail.showJsonDetails') }}</span>
               </button>
               <pre
                 v-if="showRawAudit[trail.id]"
@@ -610,8 +610,8 @@
           <svg class="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
-          <span class="font-medium text-slate-300">Belum ada riwayat aktivitas yang tercatat untuk perangkat ini.</span>
-          <p class="text-3xs text-slate-500 mt-0.5">Semua perubahan parameter, status koneksi, dan event operasional akan muncul di sini secara realtime.</p>
+          <span class="font-medium text-slate-300">{{ $t('deviceDetail.noActivityRecorded') }}</span>
+          <p class="text-3xs text-slate-500 mt-0.5">{{ $t('deviceDetail.noActivitySub') }}</p>
         </div>
       </div>
     </div>
@@ -619,33 +619,33 @@
     <!-- TAB 5: HEALTH DIAGNOSTICS -->
     <div v-if="device && activeTab === 'health'" class="saas-card p-6 space-y-6">
       <div class="border-b border-slate-800 pb-3">
-        <h3 class="text-sm font-bold text-white">Device Health & Diagnostic Foundation</h3>
-        <p class="text-2xs text-slate-400 mt-0.5">Real hardware counters, latency tracking, and communication stability</p>
+        <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.healthFoundation') }}</h3>
+        <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.healthSubtitle') }}</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="p-4 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
-          <div class="text-3xs text-slate-400 uppercase font-semibold">Communication Status</div>
+          <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.commStatus') }}</div>
           <div class="text-sm font-mono font-bold" :class="commTextClass(device.connection_status)">
             {{ device.connection_status || 'UNKNOWN' }}
           </div>
-          <p class="text-3xs text-slate-400">Tracked by health supervisor</p>
+          <p class="text-3xs text-slate-400">{{ $t('deviceDetail.trackedBySupervisor') }}</p>
         </div>
 
         <div class="p-4 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
-          <div class="text-3xs text-slate-400 uppercase font-semibold">Observed Latency</div>
+          <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.observedLatency') }}</div>
           <div class="text-sm font-mono font-bold text-emerald-400">
             {{ device.latency_ms || 0 }} ms
           </div>
-          <p class="text-3xs text-slate-400">Roundtrip request/response delay</p>
+          <p class="text-3xs text-slate-400">{{ $t('deviceDetail.roundtripDelay') }}</p>
         </div>
 
         <div class="p-4 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
-          <div class="text-3xs text-slate-400 uppercase font-semibold">Packets Delivery</div>
+          <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.packetsDelivery') }}</div>
           <div class="text-sm font-mono font-bold text-slate-200">
             {{ device.success_count || 0 }} ok / {{ device.failed_count || 0 }} err
           </div>
-          <p class="text-3xs text-slate-400">Accumulated transmission packets</p>
+          <p class="text-3xs text-slate-400">{{ $t('deviceDetail.accumulatedPackets') }}</p>
         </div>
       </div>
 
@@ -654,10 +654,10 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
-          <span>Phase 2.1 Health Architecture</span>
+          <span>{{ $t('deviceDetail.healthArchitectureTitle') }}</span>
         </div>
         <p class="text-3xs text-blue-200">
-          Uptime calculations, continuous error rate monitoring, and data quality flags will be fed dynamically when Phase 2.2 / 2.3 communication engines are connected. No fake telemetry metrics are generated.
+          {{ $t('deviceDetail.healthArchitectureDesc') }}
         </p>
       </div>
     </div>
@@ -672,20 +672,20 @@
           </div>
           <div>
             <div class="flex items-center space-x-2">
-              <h3 class="text-xs font-bold text-white uppercase tracking-wider">Realtime Telemetry Stream</h3>
+              <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('telemetry.liveStream') }}</h3>
               <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                WEBSOCKET LIVE
+                {{ $t('telemetry.websocketLive') }}
               </span>
             </div>
             <p class="text-2xs text-slate-400 mt-0.5">
-              Live engineering measurements updated reactively from field polling engine without page reload.
+              {{ $t('telemetry.liveStreamDesc') }}
             </p>
           </div>
         </div>
 
         <div class="flex items-center space-x-4 text-xs font-mono">
           <div class="text-right">
-            <span class="text-3xs text-slate-500 uppercase block">Last Received Packet</span>
+            <span class="text-3xs text-slate-500 uppercase block">{{ $t('telemetry.lastPacket') }}</span>
             <span class="text-slate-200">{{ formatTimestamp(lastLivePacketTime || device.last_data_at) }}</span>
           </div>
           <button
@@ -695,7 +695,7 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Refresh</span>
+            <span>{{ $t('common.refresh') }}</span>
           </button>
         </div>
       </div>
@@ -742,13 +742,13 @@
           <!-- Raw & Decoded Diagnostics Sub-bar -->
           <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800/80 grid grid-cols-2 gap-2 text-3xs font-mono text-slate-400">
             <div>
-              <span class="text-slate-500 block uppercase">Raw / Hex</span>
+              <span class="text-slate-500 block uppercase">{{ $t('telemetry.rawHex') }}</span>
               <span class="text-slate-300 truncate block">
                 {{ getParamRaw(param) }}
               </span>
             </div>
             <div>
-              <span class="text-slate-500 block uppercase">Timestamp</span>
+              <span class="text-slate-500 block uppercase">{{ $t('common.timestamp') }}</span>
               <span class="text-slate-300 truncate block">
                 {{ formatTimestamp(getParamTime(param)) }}
               </span>
@@ -757,12 +757,12 @@
 
           <!-- Card Action -->
           <div class="pt-1 flex items-center justify-between border-t border-slate-800/60 text-2xs">
-            <span class="text-slate-500 font-mono">Source: {{ (device.connection && device.connection.protocol) || 'MODBUS' }}</span>
+            <span class="text-slate-500 font-mono">{{ $t('telemetry.source') }}: {{ (device.connection && device.connection.protocol) || 'MODBUS' }}</span>
             <button
               @click="inspectHistoryForParam(param.id)"
               class="text-blue-400 hover:text-blue-300 font-semibold flex items-center space-x-1"
             >
-              <span>View History</span>
+              <span>{{ $t('deviceDetail.viewHistory') }}</span>
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
               </svg>
@@ -771,7 +771,7 @@
         </div>
 
         <div v-if="!device.parameters || device.parameters.length === 0" class="col-span-full py-12 text-center text-xs text-slate-400">
-          No parameters configured for this device. Add parameters in the Parameters tab to start telemetry ingestion.
+          {{ $t('deviceDetail.noParamsTelemetry') }}
         </div>
       </div>
     </div>
@@ -783,13 +783,13 @@
         <div class="flex flex-wrap items-center gap-3">
           <!-- Parameter Filter -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Parameter</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.paramLabel') }}</label>
             <select
               v-model="historyParamId"
               @change="onFilterChange"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
             >
-              <option value="">Semua Parameter (All)</option>
+              <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
               <option v-for="p in device.parameters" :key="p.id" :value="p.id">
                 {{ p.parameter_code }} — {{ p.parameter_name }} ({{ p.unit }})
               </option>
@@ -798,7 +798,7 @@
 
           <!-- Time Range Quick Buttons -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Rentang Waktu</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.timeRange') }}</label>
             <div class="flex items-center space-x-1">
               <button
                 v-for="tr in timeRangeOptions"
@@ -816,13 +816,13 @@
 
           <!-- Quality Filter -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Kualitas Data</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.dataQuality') }}</label>
             <select
               v-model="historyQuality"
               @change="fetchHistory"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
             >
-              <option value="">Semua Kualitas</option>
+              <option value="">{{ $t('deviceDetail.allQualitiesOption') }}</option>
               <option value="GOOD">GOOD (Normal)</option>
               <option value="BAD">BAD (Error)</option>
               <option value="UNCERTAIN">UNCERTAIN</option>
@@ -831,16 +831,16 @@
 
           <!-- Resolution / Sample Limit -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Kerapatan Titik</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.pointDensity') }}</label>
             <select
               v-model="historyPageSize"
               @change="onPageSizeChange"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500 font-mono"
             >
-              <option :value="20">20 Sampel</option>
-              <option :value="50">50 Sampel</option>
-              <option :value="100">100 Sampel</option>
-              <option :value="250">250 Sampel</option>
+              <option :value="20">{{ $t('deviceDetail.samplesOption', { count: 20 }) }}</option>
+              <option :value="50">{{ $t('deviceDetail.samplesOption', { count: 50 }) }}</option>
+              <option :value="100">{{ $t('deviceDetail.samplesOption', { count: 100 }) }}</option>
+              <option :value="250">{{ $t('deviceDetail.samplesOption', { count: 250 }) }}</option>
             </select>
           </div>
         </div>
@@ -854,7 +854,7 @@
             <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': historyLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Segarkan Grafik</span>
+            <span>{{ $t('deviceDetail.refreshChart') }}</span>
           </button>
         </div>
       </div>
@@ -866,11 +866,11 @@
           <div>
             <div class="flex items-center space-x-2">
               <span class="px-2 py-0.5 rounded text-3xs font-sans font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
-                Historical Trend Curve
+                {{ $t('history.trendCurve') }}
               </span>
               <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-3xs font-sans font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Live Stream</span>
+                <span>{{ $t('history.liveStream') }}</span>
               </span>
             </div>
             <h3 class="text-sm font-bold text-white mt-1.5 flex items-center space-x-2 font-sans">
@@ -878,13 +878,13 @@
               <span class="text-blue-400 font-sans font-medium">({{ chartActiveCode }})</span>
             </h3>
             <p class="text-3xs text-slate-400 font-sans mt-0.5">
-              Grafik dinamika nilai sensor terhadap waktu &bull; Jendela: <span class="text-slate-300 font-medium">{{ historyTimeRangeLabel }}</span>
+              {{ $t('deviceDetail.chartDynamicsSubtitle', { range: historyTimeRangeLabel }) }}
             </p>
           </div>
 
           <!-- Parameter Switcher Pills (If multiple parameters) -->
           <div v-if="device.parameters && device.parameters.length > 1" class="flex items-center space-x-1.5 flex-wrap">
-            <span class="text-3xs text-slate-400 uppercase font-semibold mr-1 font-sans">Parameter:</span>
+            <span class="text-3xs text-slate-400 uppercase font-semibold mr-1 font-sans">{{ $t('deviceDetail.paramLabel') }}</span>
             <button
               v-for="p in device.parameters"
               :key="p.id"
@@ -907,17 +907,17 @@
                 @click="chartCurveType = 'smooth'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans"
                 :class="chartCurveType === 'smooth' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
-                title="Kurva Spline Halus (Bezier)"
+                :title="$t('deviceDetail.curveSmoothTitle')"
               >
-                Halus
+                {{ $t('deviceDetail.curveSmooth') }}
               </button>
               <button
                 @click="chartCurveType = 'linear'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans"
                 :class="chartCurveType === 'linear' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
-                title="Garis Sudut Linear"
+                :title="$t('deviceDetail.curveLinearTitle')"
               >
-                Garis
+                {{ $t('deviceDetail.curveLinear') }}
               </button>
             </div>
 
@@ -928,10 +928,10 @@
               :class="chartShowPoints
                 ? 'bg-blue-600/15 text-blue-400 border-blue-500/30'
                 : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'"
-              title="Tampilkan / Sembunyikan Titik Data"
+              :title="$t('deviceDetail.toggleDotsTitle')"
             >
               <span class="w-1.5 h-1.5 rounded-full" :class="chartShowPoints ? 'bg-blue-400' : 'bg-slate-600'"></span>
-              <span>Titik</span>
+              <span>{{ $t('deviceDetail.toggleDots') }}</span>
             </button>
 
             <!-- Toggle Avg Line -->
@@ -941,9 +941,9 @@
               :class="chartShowAvgLine
                 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                 : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'"
-              title="Garis Referensi Rata-Rata"
+              :title="$t('deviceDetail.toggleAvgLineTitle')"
             >
-              <span>Rata-Rata</span>
+              <span>{{ $t('deviceDetail.toggleAvgLine') }}</span>
             </button>
           </div>
         </div>
@@ -953,7 +953,7 @@
           <!-- KPI 1: Nilai Terkini -->
           <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
             <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
-              <span>Nilai Terkini</span>
+              <span>{{ $t('deviceDetail.kpiLatest') }}</span>
               <span class="px-1.5 py-0.2 rounded text-4xs font-sans font-bold" :class="qualityBadgeClass(chartStats.latestQuality)">
                 {{ chartStats.latestQuality }}
               </span>
@@ -965,15 +965,15 @@
               <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
             <div class="text-3xs text-slate-400 font-sans flex items-center justify-between">
-              <span>Jam {{ chartStats.latestTime }}</span>
-              <span class="text-emerald-400 font-medium">Live</span>
+              <span>{{ $t('deviceDetail.atHour', { time: chartStats.latestTime }) }}</span>
+              <span class="text-emerald-400 font-medium">{{ $t('deviceDetail.liveTag') }}</span>
             </div>
           </div>
 
           <!-- KPI 2: Minimum -->
           <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
             <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
-              <span>Minimum (Valley)</span>
+              <span>{{ $t('deviceDetail.kpiMin') }}</span>
               <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
               </svg>
@@ -985,14 +985,14 @@
               <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
             <div class="text-3xs text-slate-400 font-sans">
-              Terendah @ {{ chartStats.minTime }}
+              {{ $t('deviceDetail.lowestAt', { time: chartStats.minTime }) }}
             </div>
           </div>
 
           <!-- KPI 3: Maximum -->
           <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
             <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
-              <span>Maksimum (Peak)</span>
+              <span>{{ $t('deviceDetail.kpiMax') }}</span>
               <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
               </svg>
@@ -1004,14 +1004,14 @@
               <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
             <div class="text-3xs text-slate-400 font-sans">
-              Puncak @ {{ chartStats.maxTime }}
+              {{ $t('deviceDetail.peakAt', { time: chartStats.maxTime }) }}
             </div>
           </div>
 
           <!-- KPI 4: Average -->
           <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
             <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
-              <span>Rata-Rata (Mean)</span>
+              <span>{{ $t('deviceDetail.kpiAvg') }}</span>
               <span class="text-3xs text-blue-400 font-semibold font-sans">AVG</span>
             </div>
             <div class="flex items-baseline space-x-1">
@@ -1021,14 +1021,14 @@
               <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
             <div class="text-3xs text-slate-400 font-sans">
-              Rerata Seluruh Sampel
+              {{ $t('deviceDetail.allSamplesMean') }}
             </div>
           </div>
 
           <!-- KPI 5: Samples & Delta -->
           <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1 col-span-2 sm:col-span-1">
             <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
-              <span>Variasi Rentang</span>
+              <span>{{ $t('deviceDetail.kpiDelta') }}</span>
               <span class="text-3xs text-slate-400 font-semibold font-sans">DELTA</span>
             </div>
             <div class="flex items-baseline space-x-1">
@@ -1038,7 +1038,7 @@
               <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
             <div class="text-3xs text-slate-400 font-sans">
-              Total <b class="text-slate-300 font-medium">{{ chartStats.count }}</b> Sampel Data
+              <span v-html="$t('deviceDetail.samplesCount', { count: '<b class=\'text-slate-300 font-medium\'>' + chartStats.count + '</b>' })"></span>
             </div>
           </div>
         </div>
@@ -1051,7 +1051,7 @@
           <!-- Top Left Unit Watermark -->
           <div class="absolute top-2.5 left-4 z-10 flex items-center space-x-1.5 text-3xs font-sans text-slate-400 pointer-events-none">
             <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-            <span>Skala Y: <b class="text-slate-300 font-medium">{{ chartActiveUnit || 'Nilai' }}</b></span>
+            <span>{{ $t('deviceDetail.yScale') }} <b class="text-slate-300 font-medium">{{ chartActiveUnit || $t('common.value') }}</b></span>
           </div>
 
           <!-- Empty State if no records -->
@@ -1059,8 +1059,8 @@
             <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
             </svg>
-            <p class="text-xs text-slate-400 font-medium font-sans">Belum ada data rekaman telemetri untuk parameter ini.</p>
-            <p class="text-3xs text-slate-500 font-sans">Data akan muncul secara otomatis saat polling engine mengirimkan pembacaan sensor.</p>
+            <p class="text-xs text-slate-400 font-medium font-sans">{{ $t('deviceDetail.noHistory') }}</p>
+            <p class="text-3xs text-slate-500 font-sans">{{ $t('deviceDetail.noHistorySubtitle') }}</p>
           </div>
 
           <!-- SVG Chart -->
@@ -1371,26 +1371,26 @@
           <div class="flex items-center space-x-4 flex-wrap font-sans">
             <span class="flex items-center space-x-1.5">
               <span class="w-3 h-1 rounded bg-blue-500 inline-block"></span>
-              <span>Tren Telemetri ({{ chartActiveUnit }})</span>
+              <span>{{ $t('deviceDetail.legendTrend', { unit: chartActiveUnit }) }}</span>
             </span>
             <span v-if="chartShowAvgLine" class="flex items-center space-x-1.5">
               <span class="w-3 h-0.5 border-t border-dashed border-amber-400 inline-block"></span>
-              <span>Rata-Rata ({{ chartStats.avg }})</span>
+              <span>{{ $t('deviceDetail.legendAvg', { avg: chartStats.avg }) }}</span>
             </span>
             <span v-if="chartShowMinMax" class="flex items-center space-x-1.5">
               <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
-              <span>Puncak Max</span>
+              <span>{{ $t('deviceDetail.legendMax') }}</span>
             </span>
             <span v-if="chartShowMinMax" class="flex items-center space-x-1.5">
               <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-              <span>Titik Min</span>
+              <span>{{ $t('deviceDetail.legendMin') }}</span>
             </span>
           </div>
           <div class="text-slate-500 italic flex items-center space-x-1 font-sans">
             <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
             </svg>
-            <span>Gerakkan kursor pada grafik untuk membaca rincian telemetri pada setiap detik.</span>
+            <span>{{ $t('deviceDetail.hoverGuide') }}</span>
           </div>
         </div>
       </div>
@@ -1398,20 +1398,20 @@
       <!-- Historical Data Table -->
       <div class="saas-card overflow-hidden">
         <div class="p-3 border-b border-slate-800 flex items-center justify-between text-xs">
-          <span class="font-bold text-white">Historical Telemetry Records ({{ historyTotal }} total)</span>
-          <span class="text-3xs text-slate-400 font-sans tabular-nums">Page {{ historyPage }} of {{ Math.ceil(historyTotal / historyPageSize) || 1 }}</span>
+          <span class="font-bold text-white">{{ $t('deviceDetail.historicalRecordsTitle', { count: historyTotal }) }}</span>
+          <span class="text-3xs text-slate-400 font-sans tabular-nums">{{ $t('deviceDetail.pageOf', { page: historyPage, total: Math.ceil(historyTotal / historyPageSize) || 1 }) }}</span>
         </div>
 
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs font-sans">
             <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th class="py-2.5 px-4">Received Time (UTC / Local)</th>
-                <th class="py-2.5 px-4">Parameter</th>
-                <th class="py-2.5 px-4">Value</th>
-                <th class="py-2.5 px-4">Raw Decoded</th>
-                <th class="py-2.5 px-4">Quality</th>
-                <th class="py-2.5 px-4">Protocol Source</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTimeCol') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
+                <th class="py-2.5 px-4">{{ $t('common.value') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.rawDecodedCol') }}</th>
+                <th class="py-2.5 px-4">{{ $t('telemetry.quality') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.protocolSourceCol') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/60 font-sans text-2xs tabular-nums">
@@ -1440,7 +1440,7 @@
               </tr>
               <tr v-if="historyRecords.length === 0">
                 <td colspan="6" class="py-8 text-center text-xs text-slate-400 font-sans">
-                  {{ historyLoading ? 'Loading telemetry records...' : 'No telemetry records found for selected query filter.' }}
+                  {{ historyLoading ? $t('deviceDetail.loadingRecords') : $t('deviceDetail.noRecordsFound') }}
                 </td>
               </tr>
             </tbody>
@@ -1454,17 +1454,17 @@
             :disabled="historyPage <= 1 || historyLoading"
             class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
           >
-            Previous
+            {{ $t('common.previous') }}
           </button>
           <span class="text-slate-400 text-2xs font-mono">
-            Showing {{ (historyPage - 1) * historyPageSize + 1 }} to {{ Math.min(historyPage * historyPageSize, historyTotal) }} of {{ historyTotal }}
+            {{ $t('deviceDetail.showingPagination', { start: (historyPage - 1) * historyPageSize + 1, end: Math.min(historyPage * historyPageSize, historyTotal), total: historyTotal }) }}
           </span>
           <button
             @click="nextHistoryPage"
             :disabled="historyPage * historyPageSize >= historyTotal || historyLoading"
             class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
           >
-            Next
+            {{ $t('common.next') }}
           </button>
         </div>
       </div>
@@ -1474,9 +1474,9 @@
     <div v-if="device && activeTab === 'raw'" class="space-y-4">
       <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
         <div>
-          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Raw Telemetry & Frame Inspection</h3>
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.rawInspectionTitle') }}</h3>
           <p class="text-2xs text-slate-400 mt-0.5">
-            Diagnostic wire hex inspection for Modbus register verification and field troubleshooting.
+            {{ $t('deviceDetail.rawInspectionSubtitle') }}
           </p>
         </div>
         <div class="flex items-center space-x-2">
@@ -1485,7 +1485,7 @@
             @change="fetchRawTelemetry"
             class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
-            <option value="">All Parameters</option>
+            <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
             <option v-for="p in device.parameters" :key="p.id" :value="p.id">
               {{ p.parameter_code }}
             </option>
@@ -1495,7 +1495,7 @@
             :disabled="rawLoading"
             class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition"
           >
-            Refresh
+            {{ $t('common.refresh') }}
           </button>
         </div>
       </div>
@@ -1506,13 +1506,13 @@
           <table class="w-full text-left text-xs font-mono">
             <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th class="py-2.5 px-4">Received Time</th>
-                <th class="py-2.5 px-4">Parameter</th>
-                <th class="py-2.5 px-4">Raw Hex Stream</th>
-                <th class="py-2.5 px-4">Raw Float</th>
-                <th class="py-2.5 px-4">Scaled Value</th>
-                <th class="py-2.5 px-4">Quality</th>
-                <th class="py-2.5 px-4">Protocol</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.rawHexStream') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.rawFloat') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.scaledValue') }}</th>
+                <th class="py-2.5 px-4">{{ $t('telemetry.quality') }}</th>
+                <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/60 text-2xs">
@@ -1543,7 +1543,7 @@
               </tr>
               <tr v-if="rawRecords.length === 0">
                 <td colspan="7" class="py-8 text-center text-xs text-slate-400 font-sans">
-                  {{ rawLoading ? 'Loading raw telemetry...' : 'No raw telemetry records captured yet.' }}
+                  {{ rawLoading ? $t('deviceDetail.loadingRaw') : $t('deviceDetail.noRawCaptured') }}
                 </td>
               </tr>
             </tbody>
@@ -1557,17 +1557,17 @@
             :disabled="rawPage <= 1 || rawLoading"
             class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
           >
-            Previous
+            {{ $t('common.previous') }}
           </button>
           <span class="text-slate-400 text-2xs font-mono">
-            Page {{ rawPage }} of {{ Math.ceil(rawTotal / rawPageSize) || 1 }} ({{ rawTotal }} records)
+            {{ $t('deviceDetail.pageOfWithRecords', { page: rawPage, totalPages: Math.ceil(rawTotal / rawPageSize) || 1, total: rawTotal }) }}
           </span>
           <button
             @click="nextRawPage"
             :disabled="rawPage * rawPageSize >= rawTotal || rawLoading"
             class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
           >
-            Next
+            {{ $t('common.next') }}
           </button>
         </div>
       </div>
@@ -1602,8 +1602,8 @@
               </svg>
             </div>
             <div>
-              <h2 class="text-sm font-bold text-white tracking-wide">Modbus Diagnostic Parameter Read</h2>
-              <p class="text-3xs text-slate-400 font-mono">Device: {{ device.device_code }} | Param: {{ testParam.parameter_code }}</p>
+              <h2 class="text-sm font-bold text-white tracking-wide">{{ $t('deviceDetail.testReadTitle') }}</h2>
+              <p class="text-3xs text-slate-400 font-mono">{{ $t('deviceDetail.testReadDeviceParam', { device: device.device_code, param: testParam.parameter_code }) }}</p>
             </div>
           </div>
           <button @click="closeTestReadModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
@@ -1618,19 +1618,19 @@
           <!-- Parameter Specs -->
           <div class="grid grid-cols-2 gap-3 p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
             <div>
-              <span class="text-3xs text-slate-400 font-semibold uppercase">Parameter</span>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.paramLabel') }}</span>
               <div class="text-xs text-white font-medium mt-0.5 truncate">{{ testParam.parameter_name }}</div>
             </div>
             <div>
-              <span class="text-3xs text-slate-400 font-semibold uppercase">Data Type</span>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.dataType') }}</span>
               <div class="text-xs font-mono font-bold text-blue-400 mt-0.5">{{ testParam.data_type }}</div>
             </div>
             <div>
-              <span class="text-3xs text-slate-400 font-semibold uppercase">Register & Type</span>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.registerAndType') }}</span>
               <div class="text-xs font-mono text-slate-200 mt-0.5">#{{ testParam.register_address }} ({{ testParam.register_type }})</div>
             </div>
             <div>
-              <span class="text-3xs text-slate-400 font-semibold uppercase">Scale & Offset</span>
+              <span class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.scaleAndOffset') }}</span>
               <div class="text-xs font-mono text-slate-200 mt-0.5">×{{ testParam.scale || 1 }} + {{ testParam.offset || 0 }} ({{ testParam.unit || '--' }})</div>
             </div>
           </div>
@@ -1638,7 +1638,7 @@
           <!-- Loading state -->
           <div v-if="testReadLoading" class="py-8 flex flex-col items-center justify-center space-y-3">
             <div class="w-7 h-7 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
-            <span class="text-xs text-slate-400 font-mono">Executing Modbus frame transaction...</span>
+            <span class="text-xs text-slate-400 font-mono">{{ $t('deviceDetail.executingTransaction') }}</span>
           </div>
 
           <!-- Result card -->
@@ -1653,31 +1653,31 @@
                   class="text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5"
                 >
                   <span class="w-2 h-2 rounded-full" :class="testReadResult.success ? 'bg-emerald-400' : 'bg-rose-400'"></span>
-                  <span>{{ testReadResult.success ? 'Transaction Succeeded' : 'Transaction Failed' }}</span>
+                  <span>{{ testReadResult.success ? $t('deviceDetail.transactionSuccess') : $t('deviceDetail.transactionFailed') }}</span>
                 </span>
                 <span class="text-3xs font-mono text-slate-400">{{ testReadResult.response_time_ms || 0 }} ms</span>
               </div>
 
               <!-- Error display if failed -->
               <div v-if="!testReadResult.success" class="text-xs text-rose-300 font-mono bg-rose-950/40 p-2.5 rounded-lg border border-rose-500/20">
-                {{ testReadResult.error || testReadResult.error_message || 'Modbus communication failed' }}
+                {{ testReadResult.error || testReadResult.error_message || $t('deviceDetail.modbusFailed') }}
               </div>
 
               <!-- Values display if success -->
               <div v-else class="grid grid-cols-2 gap-3 pt-1">
                 <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
-                  <div class="text-3xs text-slate-400 uppercase font-semibold">Decoded Value</div>
+                  <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.decodedValue') }}</div>
                   <div class="text-base font-mono font-bold text-emerald-400 mt-1">
                     {{ testReadResult.decoded_value !== undefined && testReadResult.decoded_value !== null ? testReadResult.decoded_value : '--' }}
                     <span class="text-xs font-normal text-slate-300 ml-1">{{ testParam.unit }}</span>
                   </div>
                 </div>
                 <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
-                  <div class="text-3xs text-slate-400 uppercase font-semibold">Raw PDU Value</div>
+                  <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.rawPduValue') }}</div>
                   <div class="text-xs font-mono text-slate-200 mt-1">
                     {{ testReadResult.raw_value !== undefined ? testReadResult.raw_value : '--' }}
                     <span v-if="testReadResult.raw_bytes_hex" class="block text-3xs text-slate-400 font-mono mt-0.5">
-                      Bytes: {{ testReadResult.raw_bytes_hex }}
+                      {{ $t('deviceDetail.bytes') }} {{ testReadResult.raw_bytes_hex }}
                     </span>
                   </div>
                 </div>
@@ -1687,15 +1687,15 @@
             <!-- Diagnostics Metadata -->
             <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800 grid grid-cols-3 gap-2 text-3xs font-mono text-slate-400">
               <div>
-                <span class="text-slate-500 block uppercase">Function Code</span>
+                <span class="text-slate-500 block uppercase">{{ $t('deviceDetail.functionCode') }}</span>
                 <span class="text-slate-300 font-bold">FC {{ testReadResult.function_code || '--' }}</span>
               </div>
               <div>
-                <span class="text-slate-500 block uppercase">PDU Offset</span>
+                <span class="text-slate-500 block uppercase">{{ $t('deviceDetail.pduOffset') }}</span>
                 <span class="text-slate-300 font-bold">{{ testReadResult.register_address !== undefined ? testReadResult.register_address : '--' }}</span>
               </div>
               <div>
-                <span class="text-slate-500 block uppercase">Timestamp</span>
+                <span class="text-slate-500 block uppercase">{{ $t('common.timestamp') }}</span>
                 <span class="text-slate-300">{{ formatTimestamp(testReadResult.timestamp) }}</span>
               </div>
             </div>
@@ -1709,7 +1709,7 @@
             @click="closeTestReadModal"
             class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
-            Close
+            {{ $t('common.close') }}
           </button>
           <button
             type="button"
@@ -1720,7 +1720,7 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
-            <span>Read Again</span>
+            <span>{{ $t('deviceDetail.readAgain') }}</span>
           </button>
         </div>
       </div>
@@ -1786,14 +1786,6 @@ export default {
       containerWidth: 800,
       containerHeight: 320,
       chartResizeObserver: null,
-      timeRangeOptions: [
-        { label: '15m', value: '15m' },
-        { label: '1j', value: '1h' },
-        { label: '6j', value: '6h' },
-        { label: '24j', value: '24h' },
-        { label: 'Semua', value: 'all' },
-      ],
-
       // Phase 3.1 Raw Telemetry
       rawRecords: [],
       rawTotal: 0,
@@ -1804,17 +1796,26 @@ export default {
     };
   },
   computed: {
+    timeRangeOptions() {
+      return [
+        { label: '15m', value: '15m' },
+        { label: this.$t('deviceDetail.timeRange1h'), value: '1h' },
+        { label: this.$t('deviceDetail.timeRange6h'), value: '6h' },
+        { label: this.$t('deviceDetail.timeRange24h'), value: '24h' },
+        { label: this.$t('deviceDetail.timeRangeAll'), value: 'all' },
+      ];
+    },
     displayParameters() {
       if (!this.device || !this.device.parameters) return [];
       return this.device.parameters;
     },
     historyTimeRangeLabel() {
       switch (this.historyTimeRange) {
-        case '15m': return '15 Menit Terakhir';
-        case '1h': return '1 Jam Terakhir';
-        case '6h': return '6 Jam Terakhir';
-        case '24h': return '24 Jam Terakhir';
-        default: return 'Semua Riwayat Tersimpan';
+        case '15m': return this.$t('deviceDetail.last15MinOption');
+        case '1h': return this.$t('deviceDetail.last1HourOption');
+        case '6h': return this.$t('deviceDetail.last6HoursOption');
+        case '24h': return this.$t('deviceDetail.last24HoursOption');
+        default: return this.$t('deviceDetail.allStoredHistory');
       }
     },
     activeChartParamId() {
@@ -2199,18 +2200,18 @@ export default {
         });
         this.loadDevice();
       } catch (err) {
-        alert('Failed to toggle device state: ' + err.message);
+        alert(this.$t('deviceDetail.toggleDeviceError') + ': ' + err.message);
       }
     },
     async confirmDelete() {
-      if (!confirm(`Are you sure you want to delete device ${this.device.device_code || this.device.code}? Historical data will be preserved.`)) {
+      if (!confirm(this.$t('deviceDetail.deleteConfirm', { code: this.device.device_code || this.device.code }))) {
         return;
       }
       try {
         await this.$store.dispatch('deleteDevice', this.device.id);
         this.$router.push('/monitoring/devices');
       } catch (err) {
-        alert('Failed to delete device: ' + err.message);
+        alert(this.$t('deviceDetail.deleteDeviceError') + ': ' + err.message);
       }
     },
     async toggleParamEnabled(param) {
@@ -2222,11 +2223,11 @@ export default {
         });
         this.loadDevice();
       } catch (err) {
-        alert('Failed to toggle parameter: ' + err.message);
+        alert(this.$t('deviceDetail.toggleParamError') + ': ' + err.message);
       }
     },
     async confirmDeleteParam(param) {
-      if (!confirm(`Delete parameter ${param.parameter_code || param.code}?`)) {
+      if (!confirm(this.$t('deviceDetail.deleteParamConfirm', { code: param.parameter_code || param.code }))) {
         return;
       }
       try {
@@ -2236,7 +2237,7 @@ export default {
         });
         this.loadDevice();
       } catch (err) {
-        alert('Failed to delete parameter: ' + err.message);
+        alert(this.$t('deviceDetail.deleteParamError') + ': ' + err.message);
       }
     },
     statusBadgeClass(status) {
@@ -2691,20 +2692,11 @@ export default {
       }
     },
     formatAuditActionName(action) {
-      if (!action) return 'Aktivitas';
-      switch (action) {
-        case 'UPDATE_PARAMETER': return 'Parameter Diperbarui';
-        case 'CREATE_PARAMETER': return 'Parameter Baru Ditambahkan';
-        case 'DELETE_PARAMETER': return 'Parameter Dihapus';
-        case 'UPDATE_DEVICE': return 'Konfigurasi Perangkat Diperbarui';
-        case 'CREATE_DEVICE': return 'Perangkat Baru Dibuat';
-        case 'DELETE_DEVICE': return 'Perangkat Dihapus';
-        case 'COMMUNICATION_ERROR': return 'Koneksi Terputus / Error';
-        case 'COMMUNICATION_RESTORED': return 'Koneksi Pulih (Online)';
-        case 'CONNECT_DEVICE': return 'Perangkat Dihubungkan';
-        case 'DISCONNECT_DEVICE': return 'Perangkat Diputuskan';
-        default: return action.replace(/_/g, ' ');
-      }
+      if (!action) return this.$t('deviceDetail.auditActionDefault');
+      const actionKey = 'deviceDetail.auditAction_' + action.toLowerCase();
+      const val = this.$t(actionKey);
+      if (val && val !== actionKey) return val;
+      return action.replace(/_/g, ' ');
     },
     getAuditActionClass(action) {
       if (!action) return 'bg-slate-500/10 text-slate-300 border border-slate-500/20';
@@ -2744,10 +2736,10 @@ export default {
     formatAuditDescription(trail) {
       if (!trail) return '';
       if (trail.action === 'COMMUNICATION_ERROR') {
-        return trail.details || 'Komunikasi serial/network gagal atau port terputus. Sistem terus mencoba rekoneksi otomatis.';
+        return trail.details || this.$t('deviceDetail.auditCommErrorDesc');
       }
       if (trail.action === 'COMMUNICATION_RESTORED') {
-        return 'Koneksi komunikasi pulih dan stream data sensor kembali normal.';
+        return this.$t('deviceDetail.auditCommRestoredDesc');
       }
       const parsed = this.parseSafeJson(trail.details);
       if (parsed) {
@@ -2756,15 +2748,15 @@ export default {
           if (trail.action.includes('PARAMETER')) {
             const pName = after.parameter_name || after.name || after.parameter_code || 'Parameter';
             const pCode = after.parameter_code || after.code || '';
-            return `Memperbarui konfigurasi sensor: "${pName}" (${pCode}).`;
+            return this.$t('deviceDetail.auditUpdateParamDesc', { name: pName, code: pCode });
           }
           if (trail.action.includes('DEVICE')) {
-            const dName = after.device_name || after.name || after.device_code || 'Perangkat';
-            return `Memperbarui profil perangkat: "${dName}".`;
+            const dName = after.device_name || after.name || after.device_code || 'Device';
+            return this.$t('deviceDetail.auditUpdateDeviceDesc', { name: dName });
           }
         }
       }
-      return trail.details || 'Aktivitas konfigurasi dicatat.';
+      return trail.details || this.$t('deviceDetail.auditDefaultDesc');
     },
     getAuditChips(trail) {
       if (!trail || !trail.details) return [];
@@ -2773,18 +2765,18 @@ export default {
       if (parsed) {
         const after = this.parseSafeJson(parsed.after) || parsed;
         if (after && typeof after === 'object') {
-          if (after.parameter_code) chips.push({ label: 'Kode', val: after.parameter_code });
-          if (after.parameter_name) chips.push({ label: 'Nama', val: after.parameter_name });
-          if (after.data_type) chips.push({ label: 'Tipe Data', val: after.data_type });
-          if (after.register_address !== undefined) chips.push({ label: 'Register', val: `#${after.register_address}` });
+          if (after.parameter_code) chips.push({ label: this.$t('deviceDetail.code'), val: after.parameter_code });
+          if (after.parameter_name) chips.push({ label: this.$t('deviceDetail.colName'), val: after.parameter_name });
+          if (after.data_type) chips.push({ label: this.$t('deviceDetail.dataType'), val: after.data_type });
+          if (after.register_address !== undefined) chips.push({ label: this.$t('deviceDetail.register'), val: `#${after.register_address}` });
           if (after.scale !== undefined) chips.push({ label: 'Scale', val: after.scale });
           if (after.offset !== undefined) chips.push({ label: 'Offset', val: after.offset });
-          if (after.unit) chips.push({ label: 'Satuan', val: after.unit });
-          if (after.enabled !== undefined) chips.push({ label: 'Status', val: after.enabled ? 'Aktif' : 'Non-Aktif' });
-          if (after.device_name) chips.push({ label: 'Nama Perangkat', val: after.device_name });
-          if (after.device_code) chips.push({ label: 'Kode Perangkat', val: after.device_code });
-          if (after.status) chips.push({ label: 'Status Admin', val: after.status });
-          if (after.serial_port) chips.push({ label: 'Port', val: after.serial_port });
+          if (after.unit) chips.push({ label: this.$t('deviceDetail.unit'), val: after.unit });
+          if (after.enabled !== undefined) chips.push({ label: this.$t('deviceDetail.status'), val: after.enabled ? this.$t('deviceDetail.active') : this.$t('deviceDetail.disabled') });
+          if (after.device_name) chips.push({ label: this.$t('deviceDetail.deviceName'), val: after.device_name });
+          if (after.device_code) chips.push({ label: this.$t('deviceDetail.deviceCode'), val: after.device_code });
+          if (after.status) chips.push({ label: this.$t('deviceDetail.adminStatus'), val: after.status });
+          if (after.serial_port) chips.push({ label: this.$t('deviceDetail.serialPort'), val: after.serial_port });
           if (after.baud_rate) chips.push({ label: 'Baud', val: after.baud_rate });
         }
       }

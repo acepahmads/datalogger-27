@@ -10,7 +10,7 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </div>
-        <input type="text" v-model="searchQuery" placeholder="Search tasks, deliverables, or owners..."
+        <input type="text" v-model="searchQuery" :placeholder="$t('tasks.searchPlaceholder')"
                class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-sans transition-colors" />
       </div>
 
@@ -18,28 +18,28 @@
       <div class="flex flex-wrap items-center gap-2.5 text-xs font-sans">
         <!-- Phase Filter -->
         <select v-model="filterPhase" class="bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-sans text-xs">
-          <option value="">All Phases (1-10)</option>
-          <option v-for="p in phases" :key="p.id" :value="p.id">Phase {{ p.phase_number }}: {{ p.name.replace(/^Phase \d+ — /, '') }}</option>
+          <option value="">{{ $t('tasks.allPhases') }}</option>
+          <option v-for="p in phases" :key="p.id" :value="p.id">{{ $t('development.phaseNumber', { number: p.phase_number }) }}: {{ p.name.replace(/^Phase \d+ — /, '') }}</option>
         </select>
 
         <!-- Status Filter -->
         <select v-model="filterStatus" class="bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-sans text-xs">
-          <option value="">All Statuses</option>
-          <option value="DONE">DONE</option>
-          <option value="WORKING">WORKING</option>
-          <option value="TESTING">TESTING</option>
-          <option value="PENDING">PENDING</option>
-          <option value="PLANNED">PLANNED</option>
-          <option value="SUPERSEDED">SUPERSEDED</option>
-          <option value="BLOCKED">BLOCKED</option>
-          <option value="FAILED">FAILED</option>
-          <option value="WAITING_APPROVAL">WAITING_APPROVAL</option>
+          <option value="">{{ $t('tasks.allStatuses') }}</option>
+          <option value="DONE">{{ $t('status.done') }}</option>
+          <option value="WORKING">{{ $t('status.working') }}</option>
+          <option value="TESTING">{{ $t('status.testing') }}</option>
+          <option value="PENDING">{{ $t('status.pending') }}</option>
+          <option value="PLANNED">{{ $t('status.planned') }}</option>
+          <option value="SUPERSEDED">{{ $t('status.superseded') }}</option>
+          <option value="BLOCKED">{{ $t('status.blocked') }}</option>
+          <option value="FAILED">{{ $t('status.failed') }}</option>
+          <option value="WAITING_APPROVAL">{{ $t('status.waitingApproval') }}</option>
         </select>
 
         <!-- New Task Button -->
         <button @click="showNewTaskModal = true"
                 class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
-          + New Task
+          {{ $t('tasks.newTask') }}
         </button>
       </div>
     </div>
@@ -49,9 +49,9 @@
       <div class="px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between">
         <div>
           <h2 class="text-sm font-bold text-white font-sans tracking-tight">
-            Task Directory
+            {{ $t('tasks.directoryTitle') }}
           </h2>
-          <span class="text-2xs text-slate-400 font-sans">Showing {{ filteredTasks.length }} of {{ tasks.length }} tasks across 10 phases</span>
+          <span class="text-2xs text-slate-400 font-sans">{{ $t('tasks.showingTasks', { filtered: filteredTasks.length, total: tasks.length }) }}</span>
         </div>
       </div>
 
@@ -59,15 +59,15 @@
         <table class="w-full text-left text-xs border-collapse font-sans">
           <thead>
             <tr class="border-b border-slate-800/80 bg-[#0B0F19]/60 text-3xs font-semibold text-slate-400 uppercase tracking-wider font-sans">
-              <th class="py-3 px-4 w-14 text-center">ID</th>
-              <th class="py-3 px-4 w-28">Phase</th>
-              <th class="py-3 px-4">Task Name & Scope</th>
-              <th class="py-3 px-4 w-28">Status</th>
-              <th class="py-3 px-4 w-32">Progress</th>
-              <th class="py-3 px-4 w-24">Priority</th>
-              <th class="py-3 px-4 w-32">Owner</th>
-              <th class="py-3 px-4 w-40">Test Verification</th>
-              <th class="py-3 px-4 w-16 text-center">Action</th>
+              <th class="py-3 px-4 w-14 text-center">{{ $t('tasks.id') }}</th>
+              <th class="py-3 px-4 w-28">{{ $t('tasks.phase') }}</th>
+              <th class="py-3 px-4">{{ $t('tasks.taskNameScope') }}</th>
+              <th class="py-3 px-4 w-28">{{ $t('common.status') }}</th>
+              <th class="py-3 px-4 w-32">{{ $t('dashboard.phaseProgress') }}</th>
+              <th class="py-3 px-4 w-24">{{ $t('tasks.priority') }}</th>
+              <th class="py-3 px-4 w-32">{{ $t('tasks.owner') }}</th>
+              <th class="py-3 px-4 w-40">{{ $t('tasks.testVerification') }}</th>
+              <th class="py-3 px-4 w-16 text-center">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/50 text-slate-300">
@@ -75,7 +75,7 @@
                 class="hover:bg-slate-800/25 transition-colors cursor-pointer"
                 @click="selectedTask = task">
               <td class="py-3 px-4 text-center font-mono text-3xs text-slate-500">#{{ task.id }}</td>
-              <td class="py-3 px-4 font-mono text-2xs text-blue-400 font-medium">Phase {{ task.phase_id }}</td>
+              <td class="py-3 px-4 font-mono text-2xs text-blue-400 font-medium">{{ $t('development.phaseNumber', { number: task.phase_id }) }}</td>
               <td class="py-3 px-4">
                 <div class="font-semibold text-slate-100 font-sans text-xs">{{ task.task_name }}</div>
                 <div class="text-2xs text-slate-400 line-clamp-1 mt-0.5 font-sans">{{ task.description }}</div>
@@ -83,7 +83,7 @@
               <td class="py-3 px-4">
                 <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono tracking-wide inline-block"
                       :class="getStatusPillClass(task.status)">
-                  {{ task.status }}
+                  {{ $t('status.' + task.status.toLowerCase()) }}
                 </span>
               </td>
               <td class="py-3 px-4">
@@ -109,12 +109,12 @@
                 {{ task.owner || 'Engineer' }}
               </td>
               <td class="py-3 px-4 font-sans text-2xs text-slate-400 truncate max-w-[160px]">
-                {{ task.test_result || 'Pending test' }}
+                {{ task.test_result || $t('tasks.pendingTest') }}
               </td>
               <td class="py-3 px-4 text-center" @click.stop>
                 <button @click="selectedTask = task"
                         class="p-1.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-blue-400 hover:text-white transition-colors"
-                        title="Edit Task">
+                        :title="$t('tasks.editTask')">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>

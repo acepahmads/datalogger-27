@@ -5,10 +5,10 @@
       <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
         <div>
           <h2 class="text-base font-bold text-white tracking-wide">
-            {{ isEditing ? 'Edit Parameter Definition' : 'Add Telemetry Parameter' }}
+            {{ isEditing ? $t('parameterModal.titleEdit') : $t('parameterModal.titleAdd') }}
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Configure register mapping, engineering units, scaling factor, and boundary limits.
+            {{ isEditing ? $t('parameterModal.subtitleEdit') : $t('parameterModal.subtitleAdd') }}
           </p>
         </div>
         <button @click="closeModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
@@ -32,13 +32,13 @@
           <!-- Parameter Code -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Parameter Code <span class="text-rose-400">*</span>
+              {{ $t('parameterModal.code') }}
             </label>
             <input
               v-model="form.parameter_code"
               type="text"
               required
-              placeholder="e.g. VOLTAGE_L1, ROOM_TEMP"
+              :placeholder="$t('parameterModal.placeholders.code')"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
             />
           </div>
@@ -46,13 +46,13 @@
           <!-- Parameter Name -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Parameter Name <span class="text-rose-400">*</span>
+              {{ $t('parameterModal.name') }}
             </label>
             <input
               v-model="form.parameter_name"
               type="text"
               required
-              placeholder="e.g. Phase Voltage L1-N"
+              :placeholder="$t('parameterModal.placeholders.name')"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -62,7 +62,7 @@
           <!-- Data Type -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Data Type
+              {{ $t('parameterModal.dataType') }}
             </label>
             <select
               v-model="form.data_type"
@@ -82,12 +82,12 @@
           <!-- Unit -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Unit
+              {{ $t('parameterModal.unit') }}
             </label>
             <input
               v-model="form.unit"
               type="text"
-              placeholder="e.g. °C, V, A, bar, %RH"
+              :placeholder="$t('parameterModal.placeholders.unit')"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -95,7 +95,7 @@
           <!-- Decimal Precision -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Decimal Precision
+              {{ $t('parameterModal.precision') }}
             </label>
             <input
               v-model.number="form.precision"
@@ -111,7 +111,7 @@
           <!-- Register Address -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Register Address / Offset
+              {{ $t('parameterModal.addressOffset') }}
             </label>
             <input
               v-model.number="form.register_address"
@@ -124,7 +124,7 @@
           <!-- Register Type -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Register Type
+              {{ $t('parameterModal.registerType') }}
             </label>
             <select
               v-model="form.register_type"
@@ -141,13 +141,13 @@
           <!-- Byte Order Override -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Byte / Word Order
+              {{ $t('parameterModal.byteOrderOverride') }}
             </label>
             <select
               v-model="form.byte_order"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
             >
-              <option value="">Default (Device Conn)</option>
+              <option value="">{{ $t('parameterModal.defaultDeviceConn') }}</option>
               <option value="ABCD">ABCD (Big Endian)</option>
               <option value="CDAB">CDAB (Word Swap)</option>
               <option value="BADC">BADC (Byte Swap)</option>
@@ -160,7 +160,7 @@
           <!-- Scale Factor -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Scale Factor (Multiplier)
+              {{ $t('parameterModal.scaleFactor') }}
             </label>
             <input
               v-model.number="form.scale"
@@ -174,7 +174,7 @@
           <!-- Offset -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Offset (Adder)
+              {{ $t('parameterModal.offsetAdder') }}
             </label>
             <input
               v-model.number="form.offset"
@@ -190,7 +190,7 @@
           <!-- Min Value -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Minimum Value Limit
+              {{ $t('parameterModal.minLimit') }}
             </label>
             <input
               v-model.number="form.min_value"
@@ -204,7 +204,7 @@
           <!-- Max Value -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Maximum Value Limit
+              {{ $t('parameterModal.maxLimit') }}
             </label>
             <input
               v-model.number="form.max_value"
@@ -219,12 +219,12 @@
         <!-- Description -->
         <div>
           <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Description
+            {{ $t('common.description') }}
           </label>
           <input
             v-model="form.description"
             type="text"
-            placeholder="Measurement details, physical transducer type..."
+            :placeholder="$t('parameterModal.placeholders.description')"
             class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
         </div>
@@ -238,8 +238,8 @@
               class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
             />
             <div>
-              <span class="text-xs font-semibold text-slate-200">Parameter Active</span>
-              <span class="block text-3xs text-slate-400">Collect and log this telemetry channel</span>
+              <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.paramActive') }}</span>
+              <span class="block text-3xs text-slate-400">{{ $t('parameterModal.collectChannel') }}</span>
             </div>
           </label>
         </div>
@@ -251,7 +251,7 @@
             @click="closeModal"
             class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
-            Cancel
+            {{ $t('common.cancel') }}
           </button>
           <button
             type="submit"
@@ -259,7 +259,7 @@
             class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition flex items-center space-x-1.5 disabled:opacity-50"
           >
             <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            <span>{{ isEditing ? 'Update Parameter' : 'Add Parameter' }}</span>
+            <span>{{ isEditing ? $t('parameterModal.updateParam') : $t('parameterModal.addParam') }}</span>
           </button>
         </div>
       </form>

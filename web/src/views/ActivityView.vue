@@ -3,21 +3,24 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-bold tracking-tight text-white font-sans">
-          Activity Log
+          {{ $t('activity.title') }}
         </h1>
         <p class="text-xs text-slate-400 mt-0.5 font-sans">
-          Real-time chronological timeline of engineering tasks, milestones, and audit traces.
+          {{ $t('activity.subtitle') }}
         </p>
       </div>
 
       <button @click="refreshActivity" class="px-3.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700/60 transition-colors">
-        Refresh Feed
+        {{ $t('activity.refreshFeed') }}
       </button>
     </div>
 
     <!-- Timeline Container -->
     <div class="saas-card p-6">
-      <div class="relative pl-6 border-l border-slate-800 space-y-6">
+      <div v-if="activities.length === 0" class="py-8 text-center text-slate-500 font-sans text-xs">
+        {{ $t('activity.noActivity') }}
+      </div>
+      <div v-else class="relative pl-6 border-l border-slate-800 space-y-6">
         <div v-for="item in activities" :key="item.id" class="relative group">
           <!-- Soft Timeline Node -->
           <div class="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full bg-[#111827] border-2 border-blue-500 group-hover:scale-110 transition-transform"></div>

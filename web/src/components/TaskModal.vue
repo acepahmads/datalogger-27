@@ -5,9 +5,9 @@
       <div class="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between bg-[#0B0F19]/60 rounded-t-2xl">
         <div class="flex items-center space-x-2.5">
           <span class="font-mono text-3xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">
-            Task #{{ task.id }}
+            {{ $t('tasks.taskNumber', { id: task.id }) }}
           </span>
-          <span class="text-3xs text-slate-400 font-sans font-medium">Phase {{ task.phase_id }}</span>
+          <span class="text-3xs text-slate-400 font-sans font-medium">{{ $t('development.phase', { num: task.phase_id }) }}</span>
           <h2 class="text-sm font-bold text-white truncate max-w-md font-sans">{{ task.task_name }}</h2>
         </div>
         <button @click="$emit('close')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
@@ -22,39 +22,39 @@
       <div class="p-5 overflow-y-auto space-y-4 flex-1">
         <!-- Description -->
         <div>
-          <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Task Description</label>
+          <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.descriptionLabel') }}</label>
           <div class="p-3 rounded-xl bg-[#0B0F19] border border-slate-800/80 text-slate-300 font-sans leading-relaxed">
-            {{ task.description || 'No detailed description provided.' }}
+            {{ task.description || $t('tasks.noDescription') }}
           </div>
         </div>
 
         <!-- Status & Progress Inputs -->
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div>
-            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Status</label>
+            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('common.status') }}</label>
             <select v-model="editForm.status" class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans">
-              <option value="PENDING">PENDING</option>
-              <option value="WORKING">WORKING</option>
-              <option value="TESTING">TESTING</option>
-              <option value="DONE">DONE</option>
-              <option value="BLOCKED">BLOCKED</option>
-              <option value="FAILED">FAILED</option>
-              <option value="WAITING_APPROVAL">WAITING_APPROVAL</option>
+              <option value="PENDING">{{ $t('status.pending') }}</option>
+              <option value="WORKING">{{ $t('status.working') }}</option>
+              <option value="TESTING">{{ $t('status.testing') }}</option>
+              <option value="DONE">{{ $t('status.done') }}</option>
+              <option value="BLOCKED">{{ $t('status.blocked') }}</option>
+              <option value="FAILED">{{ $t('status.failed') }}</option>
+              <option value="WAITING_APPROVAL">{{ $t('status.waitingApproval') }}</option>
             </select>
           </div>
 
           <div>
-            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Progress ({{ editForm.progress }}%)</label>
+            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.progressLabel', { progress: editForm.progress }) }}</label>
             <input type="range" min="0" max="100" v-model.number="editForm.progress" class="w-full mt-2.5" />
           </div>
 
           <div>
-            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Priority</label>
+            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.priorityLabel') }}</label>
             <select v-model="editForm.priority" class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans">
-              <option value="LOW">LOW</option>
-              <option value="MEDIUM">MEDIUM</option>
-              <option value="HIGH">HIGH</option>
-              <option value="CRITICAL">CRITICAL</option>
+              <option value="LOW">{{ $t('tasks.low') }}</option>
+              <option value="MEDIUM">{{ $t('tasks.medium') }}</option>
+              <option value="HIGH">{{ $t('tasks.high') }}</option>
+              <option value="CRITICAL">{{ $t('tasks.critical') }}</option>
             </select>
           </div>
         </div>
@@ -62,24 +62,24 @@
         <!-- Owner & Test Result -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Owner</label>
+            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.owner') }}</label>
             <input type="text" v-model="editForm.owner" class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans" />
           </div>
           <div>
-            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Test Verification Result</label>
-            <input type="text" v-model="editForm.test_result" placeholder="e.g. MariaDB migration verified, passed" class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans" />
+            <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.testResultLabel') }}</label>
+            <input type="text" v-model="editForm.test_result" :placeholder="$t('tasks.testResultPlaceholder')" class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans" />
           </div>
         </div>
 
         <!-- Notes -->
         <div>
-          <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Engineering Notes</label>
-          <textarea v-model="editForm.notes" rows="2" placeholder="Implementation details, architecture decisions..." class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans"></textarea>
+          <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.notesLabel') }}</label>
+          <textarea v-model="editForm.notes" rows="2" :placeholder="$t('tasks.notesPlaceholder')" class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-sans"></textarea>
         </div>
 
         <!-- Task Logs History -->
         <div v-if="task.logs && task.logs.length > 0">
-          <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Activity Log History ({{ task.logs.length }})</label>
+          <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('tasks.activityLogHistory', { count: task.logs.length }) }}</label>
           <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
             <div v-for="log in task.logs" :key="log.id" class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800/80 text-2xs flex items-start justify-between font-sans">
               <div>
@@ -96,15 +96,15 @@
       <!-- Modal Footer -->
       <div class="px-5 py-4 border-t border-slate-800/80 bg-[#0B0F19]/60 rounded-b-2xl flex items-center justify-between">
         <button @click="deleteTask" class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 font-sans text-xs transition-colors">
-          Delete Task
+          {{ $t('tasks.deleteTask') }}
         </button>
         <div class="flex items-center space-x-2.5">
           <button @click="$emit('close')" class="px-3.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition-colors">
-            Cancel
+            {{ $t('common.cancel') }}
           </button>
           <button @click="saveTask" :disabled="saving" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-soft transition-colors flex items-center">
             <span v-if="saving" class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5"></span>
-            Save Changes
+            {{ $t('common.saveChanges') }}
           </button>
         </div>
       </div>

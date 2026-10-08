@@ -4,10 +4,10 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-xl font-bold tracking-tight text-white font-sans">
-          Development Lifecycle
+          {{ $t('development.title') }}
         </h1>
         <p class="text-xs text-slate-400 mt-1 font-sans">
-          Single source of truth for complete hardware and software delivery.
+          {{ $t('development.subtitle') }}
         </p>
       </div>
 
@@ -18,11 +18,11 @@
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          Add Task
+          {{ $t('dashboard.addTask') }}
         </button>
         <button @click="refreshAll" :disabled="refreshing"
                 class="p-2 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 rounded-lg text-xs transition-colors"
-                title="Refresh">
+                :title="$t('common.refresh')">
           <svg class="w-4 h-4" :class="{ 'animate-spin': refreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <polyline points="23 4 23 10 17 10"></polyline>
             <polyline points="1 20 1 14 7 14"></polyline>
@@ -43,7 +43,7 @@
         <!-- Visually Dominant Left Section: Active Phase -->
         <div class="lg:col-span-6 space-y-2">
           <div class="flex items-center space-x-2">
-            <span class="text-3xs font-bold uppercase tracking-widest text-blue-400 font-mono">ACTIVE MILESTONE</span>
+            <span class="text-3xs font-bold uppercase tracking-widest text-blue-400 font-mono">{{ $t('development.activeMilestone') }}</span>
             <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
           </div>
           <div class="text-2xl font-extrabold text-white tracking-tight font-sans">
@@ -58,7 +58,7 @@
         <div class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t lg:border-t-0 lg:border-l border-slate-800/80 pt-4 lg:pt-0 lg:pl-6 text-xs font-sans">
           <!-- Current Task -->
           <div class="space-y-1">
-            <span class="text-3xs font-medium uppercase tracking-wider text-slate-400 block">CURRENT TASK</span>
+            <span class="text-3xs font-medium uppercase tracking-wider text-slate-400 block">{{ $t('development.currentTask') }}</span>
             <div class="text-sm font-semibold text-slate-100 flex items-center space-x-1.5">
               <span class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
               <span class="truncate">{{ progress.current_task || 'UI Redesign & MariaDB' }}</span>
@@ -68,7 +68,7 @@
 
           <!-- Next Action -->
           <div class="space-y-1">
-            <span class="text-3xs font-medium uppercase tracking-wider text-slate-400 block">NEXT ACTION</span>
+            <span class="text-3xs font-medium uppercase tracking-wider text-slate-400 block">{{ $t('development.nextAction') }}</span>
             <div class="text-xs text-slate-200 leading-snug">
               {{ progress.next_action || 'Complete Phase 1 deployment and verify MariaDB connectivity' }}
             </div>
@@ -77,10 +77,10 @@
           <!-- Last Update -->
           <div class="sm:col-span-2 pt-2 border-t border-slate-800/50 flex items-center justify-between text-2xs text-slate-400 font-sans">
             <div class="flex items-center space-x-2">
-              <span>Last update:</span>
+              <span>{{ $t('development.lastUpdate') }}</span>
               <span class="font-mono text-slate-300">{{ progress.last_update }}</span>
             </div>
-            <span class="text-emerald-400 font-medium">MariaDB Edge Synchronized</span>
+            <span class="text-emerald-400 font-medium">{{ $t('development.dbSynchronized') }}</span>
           </div>
         </div>
       </div>
@@ -90,9 +90,9 @@
     <div class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-bold text-slate-200 tracking-tight font-sans">
-          Engineering Roadmap (10 Phases)
+          {{ $t('development.roadmapTitle') }}
         </h2>
-        <span class="text-2xs text-slate-400">Click to expand tasks & deliverables</span>
+        <span class="text-2xs text-slate-400">{{ $t('development.clickToExpand') }}</span>
       </div>
 
       <!-- Phase Cards List -->
@@ -109,7 +109,7 @@
               <!-- Phase Number Pill -->
               <span class="px-2.5 py-1 rounded-md text-2xs font-mono font-bold tracking-wider"
                     :class="getPhaseBadgeClass(phase)">
-                PHASE 0{{ phase.phase_number }}
+                {{ $t('development.phaseLabel') }} 0{{ phase.phase_number }}
               </span>
 
               <!-- Name & Description -->
@@ -127,7 +127,7 @@
             <div class="flex items-center space-x-4 self-end md:self-center font-sans">
               <!-- Task Count -->
               <span class="text-2xs text-slate-400 font-sans hidden sm:inline-block">
-                {{ getCompletedTasksCount(phase) }} / {{ getActiveTasksCount(phase) }} active tasks
+                {{ getCompletedTasksCount(phase) }} / {{ getActiveTasksCount(phase) }} {{ $t('development.activeTasks') }}
               </span>
 
               <!-- Thin subtle Progress Bar -->
@@ -146,7 +146,7 @@
               <!-- Status Pill -->
               <span class="px-2 py-0.5 rounded-md text-3xs font-semibold tracking-wider font-mono uppercase"
                     :class="getStatusPillClass(phase.status)">
-                {{ phase.status === 'COMPLETED' ? 'DONE' : phase.status }}
+                {{ phase.status === 'COMPLETED' ? $t('status.done') : $t('status.' + phase.status.toLowerCase()) }}
               </span>
 
               <!-- Chevron -->
@@ -166,9 +166,9 @@
               <div class="flex items-center justify-between">
                 <span class="text-2xs font-semibold text-slate-300 uppercase tracking-wider font-sans flex items-center space-x-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                  <span>Subphase Verification & Delivery Breakdown</span>
+                  <span>{{ $t('development.subphaseBreakdown') }}</span>
                 </span>
-                <span class="text-3xs text-emerald-400 font-mono">Normalized Hierarchy</span>
+                <span class="text-3xs text-emerald-400 font-mono">{{ $t('development.normalizedHierarchy') }}</span>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
@@ -179,7 +179,7 @@
                   <div class="flex items-center justify-between mb-1.5">
                     <span class="text-3xs font-mono font-bold px-1.5 py-0.5 rounded"
                           :class="getSubphaseBadgeClass(sp)">
-                      {{ sp.status || (sp.progress >= 100 ? 'DONE' : 'WORKING') }}
+                      {{ $t('status.' + (sp.status ? sp.status.toLowerCase() : (sp.progress >= 100 ? 'done' : 'working'))) }}
                     </span>
                     <span class="text-2xs font-bold font-mono"
                           :class="sp.progress >= 100 ? 'text-emerald-400' : sp.progress > 0 ? 'text-blue-400' : 'text-slate-400'">
@@ -189,9 +189,9 @@
                   <div class="text-xs font-bold text-white font-sans truncate">{{ sp.name }}</div>
                   <div class="text-2xs text-slate-400 font-sans mt-0.5 line-clamp-1">{{ sp.description }}</div>
                   <div class="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-3xs font-mono">
-                    <span class="text-slate-400">{{ sp.acceptance_criteria || 'VERIFIED' }}</span>
+                    <span class="text-slate-400">{{ sp.acceptance_criteria || $t('development.verified') }}</span>
                     <span class="text-blue-400 hover:underline">
-                      {{ getSubphaseTasks(phase, sp.id).length }} tasks
+                      {{ getSubphaseTasks(phase, sp.id).length }} {{ $t('development.tasksCount') }}
                     </span>
                   </div>
                 </div>
@@ -202,21 +202,21 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/50">
               <div class="flex items-center space-x-2">
                 <span class="text-2xs font-semibold text-slate-400 uppercase tracking-wider font-sans">
-                  Tasks & Deliverables ({{ getDisplayedTasks(phase).length }})
+                  {{ $t('development.tasksDeliverables') }} ({{ getDisplayedTasks(phase).length }})
                 </span>
                 <span v-if="selectedSubphaseId" class="text-3xs text-blue-400 font-sans bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center">
-                  Subphase Filter Active
+                  {{ $t('development.subphaseFilterActive') }}
                   <button @click.stop="selectedSubphaseId = null" class="ml-1.5 text-slate-400 hover:text-white" title="Clear filter">&times;</button>
                 </span>
               </div>
               <div class="flex items-center space-x-2">
                 <button v-if="selectedSubphaseId" @click.stop="selectedSubphaseId = null"
                         class="text-3xs text-slate-400 hover:text-white font-sans">
-                  Show All Tasks
+                  {{ $t('development.showAllTasks') }}
                 </button>
                 <button @click.stop="openNewTaskForPhase(phase.id)"
                         class="text-2xs text-blue-400 hover:text-blue-300 font-medium font-sans flex items-center">
-                  + Add Task to Phase {{ phase.phase_number }}
+                  + {{ $t('development.addTaskToPhase', { num: phase.phase_number }) }}
                 </button>
               </div>
             </div>
@@ -232,7 +232,7 @@
                     <span class="text-3xs font-mono text-slate-500">#{{ task.id }}</span>
                     <span class="px-1.5 py-0.5 rounded text-3xs font-semibold font-mono tracking-wide"
                           :class="getStatusPillClass(task.status)">
-                      {{ task.status }}
+                      {{ $t('status.' + task.status.toLowerCase()) }}
                     </span>
                   </div>
                   <div class="text-xs font-semibold text-slate-100 font-sans">{{ task.task_name }}</div>
@@ -256,11 +256,11 @@
     <div class="saas-card p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
         <div>
-          <h2 class="text-sm font-bold text-white font-sans tracking-tight">Milestone Timeline</h2>
-          <p class="text-2xs text-slate-400 font-sans mt-0.5">Chronological record of verified deliverables</p>
+          <h2 class="text-sm font-bold text-white font-sans tracking-tight">{{ $t('development.milestoneTimeline') }}</h2>
+          <p class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestoneTimelineSubtitle') }}</p>
         </div>
         <router-link to="/development/activity" class="text-2xs text-blue-400 hover:text-blue-300 font-sans font-medium">
-          View all activity &rarr;
+          {{ $t('development.viewAllActivity') }} &rarr;
         </router-link>
       </div>
 
@@ -268,25 +268,25 @@
         <!-- Milestone 1 -->
         <div class="relative">
           <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">Phase 1 Foundation Completed</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">Go backend, Vue 2 UI, MariaDB schema, and cross-platform architecture deployed.</div>
-          <div class="text-3xs text-slate-500 font-mono mt-1">2026-10-05 · Verified (17/17 PASS)</div>
+          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone1Title') }}</div>
+          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone1Desc') }}</div>
+          <div class="text-3xs text-slate-500 font-mono mt-1">2026-10-05 · {{ $t('development.verified') }} (17/17 PASS)</div>
         </div>
 
         <!-- Milestone 2 -->
         <div class="relative">
           <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">Phase 2 Device & Communication Completed</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">Phase 2.1 Device Management, Phase 2.2 Modbus RTU/TCP Engine, and Phase 2.3 Hardening verified.</div>
-          <div class="text-3xs text-emerald-400 font-mono mt-1">2026-10-07 · Verified (81/81 PASS)</div>
+          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone2Title') }}</div>
+          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone2Desc') }}</div>
+          <div class="text-3xs text-emerald-400 font-mono mt-1">2026-10-07 · {{ $t('development.verified') }} (81/81 PASS)</div>
         </div>
 
         <!-- Milestone 3 -->
         <div class="relative">
           <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">Phase 3 Data Engine (Next Milestone)</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">Raw data acquisition, scaling, calibration formulas, and moving average aggregations.</div>
-          <div class="text-3xs text-blue-400 font-mono mt-1">Planned Roadmap</div>
+          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone3Title') }}</div>
+          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone3Desc') }}</div>
+          <div class="text-3xs text-blue-400 font-mono mt-1">{{ $t('development.plannedRoadmap') }}</div>
         </div>
       </div>
     </div>

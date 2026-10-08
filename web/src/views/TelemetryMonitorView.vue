@@ -8,25 +8,25 @@
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
-            <span>Monitoring</span>
+            <span>{{ $t('navigation.monitoring') }}</span>
           </router-link>
           <span>/</span>
-          <span class="text-emerald-400 font-semibold">Live Telemetry & Sensors</span>
+          <span class="text-emerald-400 font-semibold">{{ $t('navigation.liveTelemetry') }}</span>
         </div>
         <div class="flex items-center space-x-3">
           <h1 class="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
-            <span>Incoming Sensor Telemetry</span>
+            <span>{{ $t('telemetry.incomingTitle') }}</span>
             <span class="relative flex h-3 w-3">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
           </h1>
           <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-3xs font-mono font-bold">
-            Realtime Ingestion Active
+            {{ $t('telemetry.realtimeIngestionActive') }}
           </span>
         </div>
         <p class="text-xs text-slate-400 mt-1">
-          Unified real-time telemetry stream across all connected Modbus RTU/TCP devices and field sensors.
+          {{ $t('telemetry.incomingSubtitle') }}
         </p>
       </div>
 
@@ -40,7 +40,7 @@
           <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          <span>Refresh Data</span>
+          <span>{{ $t('common.refresh') }}</span>
         </button>
 
         <router-link
@@ -51,7 +51,7 @@
             <circle cx="12" cy="12" r="2"></circle>
             <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"></path>
           </svg>
-          <span>Manage Devices</span>
+          <span>{{ $t('telemetry.manageDevices') }}</span>
         </router-link>
       </div>
     </div>
@@ -59,38 +59,38 @@
     <!-- Summary KPI Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">Connected Devices</div>
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.connectedDevices') }}</div>
         <div class="flex items-baseline space-x-2">
           <span class="text-2xl font-mono font-bold text-white">{{ stats.activeDevices }}</span>
-          <span class="text-2xs text-slate-400">/ {{ stats.totalDevices }} configured</span>
+          <span class="text-2xs text-slate-400">/ {{ stats.totalDevices }} {{ $t('telemetry.configured') }}</span>
         </div>
-        <div class="text-3xs text-emerald-400 font-mono">Modbus engines running</div>
+        <div class="text-3xs text-emerald-400 font-mono">{{ $t('telemetry.enginesRunning') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">Total Monitored Sensors</div>
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.totalSensors') }}</div>
         <div class="flex items-baseline space-x-2">
           <span class="text-2xl font-mono font-bold text-blue-400">{{ parametersList.length }}</span>
-          <span class="text-2xs text-slate-400">parameters</span>
+          <span class="text-2xs text-slate-400">{{ $t('telemetry.parametersCount') }}</span>
         </div>
-        <div class="text-3xs text-slate-400">Auto-polled periodically</div>
+        <div class="text-3xs text-slate-400">{{ $t('telemetry.autoPolled') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">Signal Quality (Good)</div>
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.goodQuality') }}</div>
         <div class="flex items-baseline space-x-2">
           <span class="text-2xl font-mono font-bold text-emerald-400">{{ stats.goodSensors }}</span>
-          <span class="text-2xs text-slate-400">healthy</span>
+          <span class="text-2xs text-slate-400">{{ $t('telemetry.healthySensors') }}</span>
         </div>
-        <div class="text-3xs text-emerald-400">CRC & Modbus valid</div>
+        <div class="text-3xs text-emerald-400">{{ $t('telemetry.goodQualityDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">Last Telemetry Ingest</div>
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.lastPacket') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-lg font-mono font-bold text-slate-200">{{ lastPacketTime ? formatRelative(lastPacketTime) : 'Listening...' }}</span>
+          <span class="text-lg font-mono font-bold text-slate-200">{{ lastPacketTime ? formatRelative(lastPacketTime) : $t('common.listening') }}</span>
         </div>
-        <div class="text-3xs text-slate-400 font-mono truncate">{{ lastPacketTime || 'Awaiting incoming packet' }}</div>
+        <div class="text-3xs text-slate-400 font-mono truncate">{{ lastPacketTime || $t('telemetry.awaitingPacket') }}</div>
       </div>
     </div>
 
@@ -102,7 +102,7 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search parameter, code, unit..."
+            :placeholder="$t('telemetry.searchPlaceholder')"
             class="w-full pl-9 pr-4 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
           <svg class="w-4 h-4 text-slate-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@
             v-model="selectedDeviceId"
             class="px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
           >
-            <option value="">All Devices ({{ devices.length }})</option>
+            <option value="">{{ $t('telemetry.allDevices') }} ({{ devices.length }})</option>
             <option v-for="d in devices" :key="d.id" :value="d.id">
               {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
             </option>
@@ -129,22 +129,22 @@
             v-model="selectedQuality"
             class="px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
           >
-            <option value="">All Qualities</option>
-            <option value="GOOD">GOOD Quality Only</option>
-            <option value="BAD">BAD / Error Only</option>
-            <option value="UNCERTAIN">UNCERTAIN Only</option>
+            <option value="">{{ $t('telemetry.allQualities') }}</option>
+            <option value="GOOD">{{ $t('telemetry.goodQualityOnly') }}</option>
+            <option value="BAD">{{ $t('telemetry.badQualityOnly') }}</option>
+            <option value="UNCERTAIN">{{ $t('telemetry.uncertainOnly') }}</option>
           </select>
         </div>
       </div>
 
       <!-- View Switcher -->
       <div class="flex items-center space-x-2 self-end md:self-auto">
-        <span class="text-3xs text-slate-400 uppercase font-semibold mr-1">Display:</span>
+        <span class="text-3xs text-slate-400 uppercase font-semibold mr-1">{{ $t('telemetry.display') }}</span>
         <button
           @click="viewMode = 'grid'"
           :class="viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
           class="p-2 rounded-lg transition"
-          title="Sensor Cards Grid"
+          :title="$t('telemetry.cardsGrid')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <rect x="3" y="3" width="7" height="7" rx="1"></rect>
@@ -157,7 +157,7 @@
           @click="viewMode = 'table'"
           :class="viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
           class="p-2 rounded-lg transition"
-          title="Telemetry Data Table"
+          :title="$t('telemetry.dataTable')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -177,13 +177,13 @@
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
       </div>
-      <h3 class="text-sm font-bold text-white">No incoming sensor parameters match filters</h3>
+      <h3 class="text-sm font-bold text-white">{{ $t('telemetry.noSensorsMatch') }}</h3>
       <p class="text-xs text-slate-400 max-w-md mx-auto">
-        Verify that devices are registered and parameters have been configured in Devices & Sensors.
+        {{ $t('telemetry.verifyNotice') }}
       </p>
       <div class="pt-2">
         <router-link to="/monitoring/devices" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold inline-block">
-          Open Devices Configuration
+          {{ $t('telemetry.openDevices') }}
         </router-link>
       </div>
     </div>
@@ -248,8 +248,8 @@
         <!-- Card Footer -->
         <div class="pt-2 border-t border-slate-800/80 space-y-2">
           <div class="flex items-center justify-between text-3xs font-mono text-slate-400">
-            <span>Last packet:</span>
-            <span class="text-slate-300">{{ item.received_at ? formatRelative(item.received_at) : 'No data yet' }}</span>
+            <span>{{ $t('telemetry.lastPacketLabel') }}</span>
+            <span class="text-slate-300">{{ item.received_at ? formatRelative(item.received_at) : $t('common.noData') }}</span>
           </div>
 
           <!-- Quick Navigation Actions -->
@@ -258,20 +258,20 @@
               :to="'/monitoring/devices/' + item.device_id + '?tab=telemetry'"
               class="text-3xs text-emerald-400 hover:text-emerald-300 font-semibold px-2 py-1 rounded bg-emerald-950/30 border border-emerald-800/40 hover:bg-emerald-900/40 transition"
             >
-              Live Telemetry
+              {{ $t('navigation.liveTelemetry') }}
             </router-link>
             <div class="flex items-center space-x-1">
               <router-link
                 :to="'/monitoring/devices/' + item.device_id + '?tab=history'"
                 class="text-3xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded bg-blue-950/30 border border-blue-800/40 hover:bg-blue-900/40 transition"
               >
-                Chart
+                {{ $t('telemetry.chart') }}
               </router-link>
               <router-link
                 :to="'/monitoring/devices/' + item.device_id + '?tab=raw'"
                 class="text-3xs text-slate-400 hover:text-slate-200 font-medium px-2 py-1 rounded bg-slate-800/60 hover:bg-slate-700 transition"
               >
-                Raw
+                {{ $t('telemetry.raw') }}
               </router-link>
             </div>
           </div>
@@ -285,14 +285,14 @@
         <table class="w-full text-left border-collapse text-xs">
           <thead>
             <tr class="border-b border-slate-800 bg-[#0B0F19]/60 text-slate-400 text-3xs font-semibold uppercase tracking-wider">
-              <th class="py-3 px-4">Device</th>
-              <th class="py-3 px-4">Parameter Name</th>
-              <th class="py-3 px-4">Code</th>
-              <th class="py-3 px-4 text-right">Current Value</th>
-              <th class="py-3 px-4">Unit</th>
-              <th class="py-3 px-4 text-center">Quality</th>
-              <th class="py-3 px-4">Last Timestamp</th>
-              <th class="py-3 px-4 text-right">Inspect</th>
+              <th class="py-3 px-4">{{ $t('telemetry.device') }}</th>
+              <th class="py-3 px-4">{{ $t('telemetry.parameterName') }}</th>
+              <th class="py-3 px-4">{{ $t('common.code') }}</th>
+              <th class="py-3 px-4 text-right">{{ $t('telemetry.currentValue') }}</th>
+              <th class="py-3 px-4">{{ $t('common.unit') }}</th>
+              <th class="py-3 px-4 text-center">{{ $t('common.quality') }}</th>
+              <th class="py-3 px-4">{{ $t('telemetry.lastTimestamp') }}</th>
+              <th class="py-3 px-4 text-right">{{ $t('telemetry.inspect') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60">
@@ -354,13 +354,13 @@
                   :to="'/monitoring/devices/' + item.device_id + '?tab=telemetry'"
                   class="text-emerald-400 hover:text-emerald-300 text-3xs font-semibold px-2 py-1 rounded bg-emerald-950/40 border border-emerald-800/40"
                 >
-                  Live
+                  {{ $t('devices.live') }}
                 </router-link>
                 <router-link
                   :to="'/monitoring/devices/' + item.device_id + '?tab=history'"
                   class="text-blue-400 hover:text-blue-300 text-3xs font-semibold px-2 py-1 rounded bg-blue-950/40 border border-blue-800/40"
                 >
-                  History
+                  {{ $t('deviceDetail.history') }}
                 </router-link>
               </td>
             </tr>

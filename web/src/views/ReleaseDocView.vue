@@ -4,23 +4,23 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-bold tracking-tight text-white font-sans">
-          Phase 1 Foundation — Architecture & Release Verification
+          {{ $t('release.title') }}
         </h1>
         <p class="text-xs text-slate-400 mt-0.5 font-sans">
-          Certified baseline for production local-first edge datalogger deployments with MariaDB.
+          {{ $t('release.subtitle') }}
         </p>
       </div>
 
       <span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold font-mono">
-        PHASE 1 VERIFIED · MARIADB EDGE
+        {{ $t('release.verifiedBadge') }}
       </span>
     </div>
 
     <!-- Phase 1 Deliverables Checklist Card -->
     <div class="saas-card p-5 space-y-4">
       <div class="border-b border-slate-800/80 pb-3">
-        <h2 class="text-sm font-bold text-white tracking-tight">Phase 1 Foundation Deliverables Checklist</h2>
-        <p class="text-2xs text-slate-400 mt-0.5">Single source of truth tracking completed deliverables</p>
+        <h2 class="text-sm font-bold text-white tracking-tight">{{ $t('release.deliverablesTitle') }}</h2>
+        <p class="text-2xs text-slate-400 mt-0.5">{{ $t('release.deliverablesSubtitle') }}</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -43,12 +43,12 @@
         <div>
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-            <h2 class="text-sm font-bold text-white tracking-tight">Standar Ketahanan USB Serial Lapangan (Solusi 3 Pilar)</h2>
+            <h2 class="text-sm font-bold text-white tracking-tight">{{ $t('release.usbStandardsTitle') }}</h2>
           </div>
-          <p class="text-2xs text-slate-400 mt-0.5">Penanggulangan port melompat (ttyUSB0 ➔ ttyUSB1) dan urutan tertukar saat banyak sensor USB terhubung</p>
+          <p class="text-2xs text-slate-400 mt-0.5">{{ $t('release.usbStandardsSubtitle') }}</p>
         </div>
         <span class="px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-3xs font-mono font-semibold">
-          INDUSTRIAL RESILIENCE
+          {{ $t('release.industrialResilience') }}
         </span>
       </div>
 
@@ -56,49 +56,49 @@
         <!-- Pilar 1 -->
         <div class="p-3.5 rounded-xl bg-[#0B0F19]/80 border border-slate-800/90 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-emerald-400 font-sans">Pilar 1: Jalur Linux Permanen</span>
-            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300">by-id / by-path</span>
+            <span class="text-xs font-bold text-emerald-400 font-sans">{{ $t('release.pillar1Title') }}</span>
+            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300">{{ $t('release.pillar1Sub') }}</span>
           </div>
           <p class="text-2xs text-slate-300 leading-relaxed">
-            Gunakan symlink bawaan kernel Linux di <code class="text-emerald-300 font-mono">/dev/serial/by-id/</code> (kunci nomor seri chip) atau <code class="text-emerald-300 font-mono">/dev/serial/by-path/</code> (kunci colokan fisik USB Raspberry Pi).
+            {{ $t('release.pillar1Desc') }}
           </p>
           <div class="text-3xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded border border-slate-800">
             • /dev/serial/by-id/usb-FTDI...<br/>
             • /dev/serial/by-path/platform...
           </div>
-          <span class="text-3xs text-emerald-400 font-semibold block">✓ 100% Anti-Tertukar antar banyak USB</span>
+          <span class="text-3xs text-emerald-400 font-semibold block">{{ $t('release.pillar1Badge') }}</span>
         </div>
 
         <!-- Pilar 2 -->
         <div class="p-3.5 rounded-xl bg-[#0B0F19]/80 border border-slate-800/90 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-blue-400 font-sans">Pilar 2: Self-Healing Rebind</span>
-            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">Go Backend</span>
+            <span class="text-xs font-bold text-blue-400 font-sans">{{ $t('release.pillar2Title') }}</span>
+            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">{{ $t('release.pillar2Sub') }}</span>
           </div>
           <p class="text-2xs text-slate-300 leading-relaxed">
-            Jika port terdaftar adalah <code class="text-blue-300 font-mono">ttyUSB0</code> dan tiba-tiba hilang akibat micro-disconnect/glitch, backend Go otomatis mendeteksi re-enumerasi ke <code class="text-blue-300 font-mono">ttyUSB1</code> dan memindahkan transport secara mandiri.
+            {{ $t('release.pillar2Desc') }}
           </p>
           <div class="text-3xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded border border-slate-800">
             ResolvePortAddress():<br/>
             ttyUSB0 (offline) ➔ ttyUSB1 (active)
           </div>
-          <span class="text-3xs text-blue-400 font-semibold block">✓ Auto-recover tanpa restart server</span>
+          <span class="text-3xs text-blue-400 font-semibold block">{{ $t('release.pillar2Badge') }}</span>
         </div>
 
         <!-- Pilar 3 -->
         <div class="p-3.5 rounded-xl bg-[#0B0F19]/80 border border-slate-800/90 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-indigo-400 font-sans">Pilar 3: udev Alias Rules</span>
-            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300">Tool Otomatis</span>
+            <span class="text-xs font-bold text-indigo-400 font-sans">{{ $t('release.pillar3Title') }}</span>
+            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300">{{ $t('release.pillar3Sub') }}</span>
           </div>
           <p class="text-2xs text-slate-300 leading-relaxed">
-            Untuk instalasi panel boks permanen di pabrik, jalankan script generator udev untuk membuat alias tetap yang deskriptif dan permanen selamanya.
+            {{ $t('release.pillar3Desc') }}
           </p>
           <div class="text-3xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded border border-slate-800">
             sudo bash scripts/setup-usb-udev.sh<br/>
             ➔ /dev/datalogger_rs485_1
           </div>
-          <span class="text-3xs text-indigo-400 font-semibold block">✓ Standar industri substation & pabrik</span>
+          <span class="text-3xs text-indigo-400 font-semibold block">{{ $t('release.pillar3Badge') }}</span>
         </div>
       </div>
     </div>
@@ -108,20 +108,20 @@
       <!-- Windows Setup -->
       <div class="saas-card p-5 space-y-3">
         <div class="flex items-center justify-between">
-          <h3 class="text-xs font-bold text-slate-200 uppercase font-sans">Windows Local Installation</h3>
+          <h3 class="text-xs font-bold text-slate-200 uppercase font-sans">{{ $t('release.windowsTitle') }}</h3>
           <span class="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-3xs font-mono font-medium">PowerShell</span>
         </div>
-        <p class="text-2xs text-slate-400 font-sans">Run the automated installer script to set up data directories and start the application:</p>
+        <p class="text-2xs text-slate-400 font-sans">{{ $t('release.windowsDesc') }}</p>
         <pre class="bg-[#0B0F19] p-3 rounded-lg border border-slate-800 font-mono text-3xs text-blue-300 overflow-x-auto">powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1</pre>
       </div>
 
       <!-- Linux / Raspberry Pi Setup -->
       <div class="saas-card p-5 space-y-3">
         <div class="flex items-center justify-between">
-          <h3 class="text-xs font-bold text-slate-200 uppercase font-sans">Linux / Raspberry Pi OS Service</h3>
+          <h3 class="text-xs font-bold text-slate-200 uppercase font-sans">{{ $t('release.linuxTitle') }}</h3>
           <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-3xs font-mono font-medium">systemd</span>
         </div>
-        <p class="text-2xs text-slate-400 font-sans">Deploy as a self-restarting systemd background service on Raspberry Pi or Linux server:</p>
+        <p class="text-2xs text-slate-400 font-sans">{{ $t('release.linuxDesc') }}</p>
         <pre class="bg-[#0B0F19] p-3 rounded-lg border border-slate-800 font-mono text-3xs text-emerald-300 overflow-x-auto">sudo bash ./scripts/install-linux.sh</pre>
       </div>
     </div>

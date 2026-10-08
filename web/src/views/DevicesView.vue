@@ -4,10 +4,10 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-xl font-bold tracking-tight text-white">
-          Device & Sensor Management
+          {{ $t('devices.title') }}
         </h1>
         <p class="text-xs text-slate-400 mt-0.5">
-          Edge equipment registry, communication protocol adapters, live channel parameters, and diagnostics.
+          {{ $t('devices.subtitle') }}
         </p>
       </div>
 
@@ -20,7 +20,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
-          <span>Register Device</span>
+          <span>{{ $t('devices.registerDevice') }}</span>
         </button>
       </div>
     </div>
@@ -28,30 +28,30 @@
     <!-- Quick Stats Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Total Registered</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.totalRegistered') }}</div>
         <div class="text-xl font-bold text-white font-mono">{{ totalDevices }}</div>
-        <div class="text-3xs text-slate-500">Physical & virtual edge nodes</div>
+        <div class="text-3xs text-slate-500">{{ $t('devices.totalRegisteredDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Online & Healthy</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.onlineHealthy') }}</div>
         <div class="text-xl font-bold text-emerald-400 font-mono flex items-center space-x-2">
           <span>{{ onlineDevicesCount }}</span>
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         </div>
-        <div class="text-3xs text-slate-500">Active communication polling</div>
+        <div class="text-3xs text-slate-500">{{ $t('devices.onlineHealthyDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Offline / Error</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.offlineError') }}</div>
         <div class="text-xl font-bold text-rose-400 font-mono">{{ offlineDevicesCount }}</div>
-        <div class="text-3xs text-slate-500">Awaiting heartbeat or network link</div>
+        <div class="text-3xs text-slate-500">{{ $t('devices.offlineErrorDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">Maintenance / Inactive</div>
+        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.maintenanceInactive') }}</div>
         <div class="text-xl font-bold text-amber-400 font-mono">{{ maintenanceDevicesCount }}</div>
-        <div class="text-3xs text-slate-500">Administrative hold</div>
+        <div class="text-3xs text-slate-500">{{ $t('devices.maintenanceDesc') }}</div>
       </div>
     </div>
 
@@ -64,7 +64,7 @@
             v-model="searchQuery"
             @input="onFilterChange"
             type="text"
-            placeholder="Search code, name, model, location..."
+            :placeholder="$t('devices.searchPlaceholder')"
             class="w-full pl-9 pr-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
           <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,11 +78,11 @@
           @change="onFilterChange"
           class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-blue-500"
         >
-          <option value="">All Admin Status</option>
-          <option value="ACTIVE">ACTIVE</option>
-          <option value="INACTIVE">INACTIVE</option>
-          <option value="MAINTENANCE">MAINTENANCE</option>
-          <option value="DISABLED">DISABLED</option>
+          <option value="">{{ $t('devices.allAdminStatuses') }}</option>
+          <option value="ACTIVE">{{ $t('status.active') }}</option>
+          <option value="INACTIVE">{{ $t('status.inactive') }}</option>
+          <option value="MAINTENANCE">{{ $t('status.maintenance') }}</option>
+          <option value="DISABLED">{{ $t('status.disabled') }}</option>
         </select>
 
         <!-- Connection Status Filter (Communication) -->
@@ -91,12 +91,12 @@
           @change="onFilterChange"
           class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-blue-500"
         >
-          <option value="">All Comm Status</option>
-          <option value="ONLINE">ONLINE</option>
-          <option value="OFFLINE">OFFLINE</option>
-          <option value="CONNECTING">CONNECTING</option>
-          <option value="ERROR">ERROR</option>
-          <option value="UNKNOWN">UNKNOWN</option>
+          <option value="">{{ $t('devices.allCommStatuses') }}</option>
+          <option value="ONLINE">{{ $t('status.online') }}</option>
+          <option value="OFFLINE">{{ $t('status.offline') }}</option>
+          <option value="CONNECTING">{{ $t('status.connecting') }}</option>
+          <option value="ERROR">{{ $t('status.error') }}</option>
+          <option value="UNKNOWN">{{ $t('status.unknown') }}</option>
         </select>
 
         <!-- Protocol Filter -->
@@ -105,7 +105,7 @@
           @change="onFilterChange"
           class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-blue-500"
         >
-          <option value="">All Protocols</option>
+          <option value="">{{ $t('devices.allProtocols') }}</option>
           <option value="MODBUS_TCP">MODBUS_TCP</option>
           <option value="MODBUS_RTU">MODBUS_RTU</option>
           <option value="MQTT">MQTT</option>
@@ -123,7 +123,7 @@
           @click="viewMode = 'table'"
           :class="viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
           class="p-1.5 rounded-lg transition"
-          title="Table View"
+          :title="$t('devices.tableView')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
@@ -133,7 +133,7 @@
           @click="viewMode = 'grid'"
           :class="viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
           class="p-1.5 rounded-lg transition"
-          title="Grid View"
+          :title="$t('devices.gridView')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
@@ -142,7 +142,7 @@
         <button
           @click="loadDevices"
           class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
-          title="Refresh"
+          :title="$t('common.refresh')"
         >
           <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -154,7 +154,7 @@
     <!-- Loading State -->
     <div v-if="loading && devices.length === 0" class="py-16 text-center text-slate-400">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-      <p class="text-xs">Loading device registry from MariaDB...</p>
+      <p class="text-xs">{{ $t('devices.loadingDevices') }}</p>
     </div>
 
     <!-- TABLE VIEW -->
@@ -164,24 +164,24 @@
           <thead>
             <tr class="border-b border-slate-800/80 bg-[#0B0F19]/40 text-3xs uppercase font-semibold text-slate-400 tracking-wider">
               <th @click="sortBy('device_code')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
-                Code <span v-if="sortColumn === 'device_code'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                {{ $t('devices.code') }} <span v-if="sortColumn === 'device_code'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
               </th>
               <th @click="sortBy('device_name')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
-                Device Name <span v-if="sortColumn === 'device_name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                {{ $t('devices.deviceName') }} <span v-if="sortColumn === 'device_name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="py-3 px-4">Protocol / Type</th>
-              <th class="py-3 px-4">Manufacturer / Model</th>
-              <th class="py-3 px-4">Location</th>
+              <th class="py-3 px-4">{{ $t('devices.protocol') }}</th>
+              <th class="py-3 px-4">{{ $t('devices.manufacturerModel') }}</th>
+              <th class="py-3 px-4">{{ $t('devices.location') }}</th>
               <th @click="sortBy('status')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
-                Admin Status
+                {{ $t('devices.adminStatus') }}
               </th>
               <th @click="sortBy('connection_status')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
-                Comm Status
+                {{ $t('devices.commStatus') }}
               </th>
-              <th class="py-3 px-4">Last Seen</th>
-              <th class="py-3 px-4">Last Data</th>
-              <th class="py-3 px-4">Enabled</th>
-              <th class="py-3 px-4 text-right">Actions</th>
+              <th class="py-3 px-4">{{ $t('devices.lastSeen') }}</th>
+              <th class="py-3 px-4">{{ $t('devices.lastData') }}</th>
+              <th class="py-3 px-4">{{ $t('devices.enabled') }}</th>
+              <th class="py-3 px-4 text-right">{{ $t('devices.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60">
@@ -261,23 +261,23 @@
               <td class="py-3 px-4 text-right space-x-2">
                 <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-2xs bg-emerald-950/50 hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800/60 transition">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Live Data</span>
+                  <span>{{ $t('devices.liveData') }}</span>
                 </router-link>
                 <router-link :to="'/monitoring/devices/' + dev.id" class="text-blue-400 hover:text-blue-300 font-semibold text-2xs transition">
-                  View
+                  {{ $t('common.view') }}
                 </router-link>
                 <button @click="openEditModal(dev)" class="text-slate-300 hover:text-white font-semibold text-2xs transition">
-                  Edit
+                  {{ $t('common.edit') }}
                 </button>
                 <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 font-semibold text-2xs transition">
-                  Delete
+                  {{ $t('common.delete') }}
                 </button>
               </td>
             </tr>
 
             <tr v-if="devices.length === 0">
               <td colspan="11" class="py-12 text-center text-slate-400">
-                No industrial devices found matching the filter criteria.
+                {{ $t('devices.noDevices') }}
               </td>
             </tr>
           </tbody>
@@ -287,7 +287,7 @@
       <!-- Pagination Footer -->
       <div class="px-4 py-3 border-t border-slate-800/80 bg-[#0B0F19]/40 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-400">
         <div>
-          Showing <span class="font-mono text-slate-200">{{ devices.length }}</span> of <span class="font-mono text-slate-200">{{ totalDevices }}</span> registered devices
+          {{ $t('devices.showingCount', { count: devices.length, total: totalDevices }) }}
         </div>
 
         <div class="flex items-center space-x-2">
@@ -296,15 +296,15 @@
             :disabled="currentPage <= 1"
             class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
-            Previous
+            {{ $t('common.previous') }}
           </button>
-          <span class="px-2 font-mono text-slate-300">Page {{ currentPage }} / {{ totalPages }}</span>
+          <span class="px-2 font-mono text-slate-300">{{ $t('common.page') }} {{ currentPage }} / {{ totalPages }}</span>
           <button
             @click="changePage(currentPage + 1)"
             :disabled="currentPage >= totalPages"
             class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
-            Next
+            {{ $t('common.next') }}
           </button>
         </div>
       </div>
@@ -328,7 +328,7 @@
             <router-link :to="'/monitoring/devices/' + dev.id" class="text-sm font-bold text-white mt-1.5 block hover:text-blue-300">
               {{ dev.device_name || dev.name }}
             </router-link>
-            <div class="text-2xs text-slate-400 mt-0.5">{{ dev.location || 'No location set' }}</div>
+            <div class="text-2xs text-slate-400 mt-0.5">{{ dev.location || $t('devices.noLocation') }}</div>
           </div>
 
           <span class="px-2 py-0.5 rounded text-3xs font-bold font-mono" :class="statusBadgeClass(dev.status)">
@@ -339,26 +339,26 @@
         <!-- Connection Details -->
         <div class="bg-[#0B0F19]/80 p-3 rounded-xl border border-slate-800/80 text-xs font-sans space-y-1.5">
           <div class="flex justify-between">
-            <span class="text-slate-400">Protocol:</span>
+            <span class="text-slate-400">{{ $t('devices.protocol') }}:</span>
             <span class="text-blue-300 font-semibold font-mono text-2xs">
               {{ (dev.connection && dev.connection.protocol) || dev.device_type || 'MODBUS_TCP' }}
             </span>
           </div>
           <div class="flex justify-between" v-if="dev.connection">
-            <span class="text-slate-400">Target:</span>
+            <span class="text-slate-400">{{ $t('devices.target') }}:</span>
             <span class="font-mono text-slate-200 text-2xs">
               {{ dev.connection.host || dev.connection.serial_port || dev.connection.address || '--' }}
             </span>
           </div>
           <div class="flex justify-between">
-            <span class="text-slate-400">Latency:</span>
+            <span class="text-slate-400">{{ $t('devices.latency') }}:</span>
             <span class="font-mono text-emerald-400 font-semibold text-2xs">{{ dev.latency_ms || 0 }} ms</span>
           </div>
         </div>
 
         <!-- Parameters Preview -->
         <div v-if="dev.parameters && dev.parameters.length > 0" class="space-y-1.5">
-          <div class="text-3xs uppercase tracking-wider text-slate-400 font-semibold">Active Channels ({{ dev.parameters.length }})</div>
+          <div class="text-3xs uppercase tracking-wider text-slate-400 font-semibold">{{ $t('devices.activeChannels') }} ({{ dev.parameters.length }})</div>
           <div v-for="param in dev.parameters.slice(0, 3)" :key="param.id"
                class="p-2 rounded-lg bg-[#0B0F19]/60 border border-slate-800/80 flex items-center justify-between text-xs">
             <span class="text-slate-200 text-2xs font-medium">{{ param.parameter_name || param.name }}</span>
@@ -373,16 +373,16 @@
         <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <router-link :to="'/monitoring/devices/' + dev.id" class="text-xs font-bold text-blue-400 hover:text-blue-300">
-              Details →
+              {{ $t('devices.details') }} →
             </router-link>
             <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-2xs bg-emerald-950/50 hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800/60 transition">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Live</span>
+              <span>{{ $t('devices.live') }}</span>
             </router-link>
           </div>
           <div class="space-x-2">
-            <button @click="openEditModal(dev)" class="text-slate-400 hover:text-white text-2xs">Edit</button>
-            <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 text-2xs">Delete</button>
+            <button @click="openEditModal(dev)" class="text-slate-400 hover:text-white text-2xs">{{ $t('common.edit') }}</button>
+            <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 text-2xs">{{ $t('common.delete') }}</button>
           </div>
         </div>
       </div>
@@ -508,7 +508,7 @@ export default {
       }
     },
     async confirmDelete(device) {
-      if (!confirm(`Delete device ${device.device_code || device.code}? Historical data will be preserved.`)) {
+      if (!confirm(this.$t('devices.deleteConfirm', { name: device.device_code || device.code }))) {
         return;
       }
       try {

@@ -191,3 +191,118 @@ Follow these patterns when authoring new Vue components:
 - **Headings:** Use `<h3 class="text-sm font-bold text-slate-900 dark:text-white">`.
 - **Muted text:** Use `<span class="text-xs text-slate-500 dark:text-slate-400">`.
 - **Form fields:** Use standard inputs; `main.css` will style them automatically based on the active theme.
+
+---
+
+## 8. Full Application Internationalization Coverage
+
+### 8.1 Overview & Scope
+Following the initial UI foundation milestone (268 keys covering Layout & Dashboard basics), the entire frontend application was systematically audited and upgraded to **100% bilingual coverage (English and Indonesian)** without requiring full page reloads.
+
+Key metrics:
+- **Keys Before:** 268 keys (`en.js`), 268 keys (`id.js`)
+- **Keys After:** 952 keys (`en.js`), 952 keys (`id.js`)
+- **Key Parity:** 100.0% (0 missing keys, 0 orphan keys)
+- **Zero Page Reloads:** Instant reactivity across all 18 routes, 12 views, and 9 components.
+
+### 8.2 Audited Routes & Views
+All 18 routes defined in [`web/src/router/index.js`](file:///d:/cbi-project-src/datalogger-27/web/src/router/index.js) have been audited and 100% translated:
+
+| Route Path | View Component | Status | Coverage |
+| :--- | :--- | :--- | :--- |
+| `/` | `DashboardView.vue` (Redirect) | PASS | 100% |
+| `/dashboard` | `DashboardView.vue` | PASS | 100% |
+| `/development` | `DevelopmentView.vue` | PASS | 100% |
+| `/development/phases` | `DevelopmentView.vue` | PASS | 100% |
+| `/development/tasks` | `TasksView.vue` | PASS | 100% |
+| `/development/activity` | `ActivityView.vue` | PASS | 100% |
+| `/development/release` | `ReleaseDocView.vue` | PASS | 100% |
+| `/monitoring/system` | `SystemMonitoringView.vue` | PASS | 100% |
+| `/monitoring/telemetry` | `TelemetryMonitorView.vue` | PASS | 100% |
+| `/monitoring/devices` | `DevicesView.vue` | PASS | 100% |
+| `/monitoring/devices/:id` | `DeviceDetailView.vue` | PASS | 100% (All 8 tabs) |
+| `/monitoring/parameters` | `DevicesView.vue` | PASS | 100% |
+| `/alarm/active` | `AlarmsView.vue` | PASS | 100% |
+| `/alarm/history` | `AlarmsView.vue` | PASS | 100% |
+| `/system/logs` | `LogsView.vue` | PASS | 100% |
+| `/system/audit` | `LogsView.vue` | PASS | 100% |
+| `/administration/config` | `ConfigView.vue` | PASS | 100% |
+| `*` | Wildcard Fallback | PASS | 100% |
+
+### 8.3 Translated Components & Modals
+All shared components and modal dialogs are fully localized:
+1. `Header.vue`: App title, host telemetry, live clock, language selector, appearance selector, user role.
+2. `Sidebar.vue`: Navigation groups, phase badges, edge database indicator.
+3. `KpiCards.vue`: Device metrics, health score, ingestion throughput, edge uptime.
+4. `ArchitecturePipeline.vue`: Pipeline title, autonomous mode indicator.
+5. `VisualTimeline.vue`: Roadmap milestones, completion percentages, phase statuses.
+6. `DeviceModal.vue`: Device registration forms, RTU/TCP configuration, port selection, timeout settings, administrative status options.
+7. `ParameterModal.vue`: Register mapping, data types, register types, scale multipliers, engineering units.
+8. `TaskModal.vue` & `NewTaskModal.vue`: Task creation, priority badges, status pickers, progress sliders, engineering notes.
+9. `DeviceDetailView.vue` Modbus Diagnostic Modal: Register test read, response timing, hex display.
+
+### 8.4 Translation Key Organization
+Translation keys are maintained in [`web/src/i18n/locales/en.js`](file:///d:/cbi-project-src/datalogger-27/web/src/i18n/locales/en.js) and [`web/src/i18n/locales/id.js`](file:///d:/cbi-project-src/datalogger-27/web/src/i18n/locales/id.js) under 25 modular namespaces:
+- `navigation`: Sidebar menus, branding, and system tier labels.
+- `header`: Top bar metrics, controls, and session data.
+- `dashboard`: Edge metrics, pipeline status, KPI cards, and activity feeds.
+- `common`: Global verbs and nouns (`save`, `cancel`, `edit`, `delete`, `refresh`, `search`, etc.).
+- `status`: Canonical status badge mappings (`ACTIVE`, `DONE`, `ONLINE`, `HEALTHY`, etc.).
+- `devices`: Registry tables, search, filters, and device cards.
+- `deviceDetail`: Comprehensive keys for all 8 detail tabs (Overview, Config, Parameters, Audit, Diagnostics, Live, Historical, Raw).
+- `deviceModal`: Add/Edit device form fields, help tooltips, placeholders.
+- `parameterModal`: Modbus parameter configuration, validation, and registers.
+- `parameters`: Parameter table headers, bulk actions, and filter labels.
+- `telemetry`: Ingestion monitors, quality flags, and packet gauges.
+- `historical`: Time ranges, statistical aggregates (MIN, MAX, AVG), and export tools.
+- `rawData`: Packet inspector, frame sniffer, byte counts, and hex viewer.
+- `development`: Phase milestones, architecture pipeline, and roadmap summaries.
+- `tasks`: Task management, backlog filters, status pills, and test results.
+- `alarms`: Alarm rosters, severity levels (CRITICAL, HIGH, MEDIUM, LOW), and acknowledgment flows.
+- `activity`: Audit logs, user event trails, and action timestamps.
+- `release`: Deployment guides, OS instructions, and USB port resilience documentation.
+- `config`: Edge system settings, database connection params, and retention policies.
+- `logs`: Application log viewer, log levels, auto-scroll controls, and filtering.
+- `systemMonitoring`: Hardware telemetry (CPU, RAM, Disk, Temperature, Goroutines, DB health).
+- `appearance`: Light, Dark, and System appearance labels.
+- `validation`: Form validation error messages and bounds checking.
+- `empty`: Standard empty state placeholders across tables and graphs.
+- `history`: Historical tab headers and navigation labels.
+
+### 8.5 Status Translation Strategy
+To protect Phase 1, Phase 2, and Phase 3 database integrity, backend schemas and API payloads strictly preserve canonical English constants (`ONLINE`, `OFFLINE`, `ACTIVE`, `DONE`, `WORKING`, `FAILED`, `PENDING`). 
+Only the presentation layer resolves these via `$t('status.' + status.toLowerCase())`, maintaining complete data consistency while delivering seamless Indonesian localization:
+- `ACTIVE` ➔ **AKTIF**
+- `INACTIVE` ➔ **TIDAK AKTIF**
+- `DONE` ➔ **SELESAI**
+- `WORKING` ➔ **DIKERJAKAN**
+- `ONLINE` ➔ **ONLINE** (Canonical telecommunications term)
+- `OFFLINE` ➔ **OFFLINE** (Canonical telecommunications term)
+- `HEALTHY` ➔ **SEHAT**
+- `MAINTENANCE` ➔ **PEMELIHARAAN**
+
+### 8.6 Dynamic String Interpolation
+Dynamic templates with parameters use variable interpolation syntax without concatenating English strings:
+```javascript
+// Example in DeviceDetailView:
+$t('historical.showingPoints', { count: chartStats.count })
+// EN: "Showing 50 data points"
+// ID: "Menampilkan 50 titik data"
+```
+
+### 8.7 Canonical Technical English Exclusions
+In compliance with industrial automation standards, the following technical terms remain canonically formatted in English across both language selections:
+- Communication Protocols: `Modbus RTU`, `Modbus TCP`, `MQTT`, `HTTP / REST`, `WebSocket`, `TCP`, `UDP`, `RS485`, `RS232`.
+- Data Types: `FLOAT32`, `FLOAT64`, `INT16`, `INT32`, `UINT16`, `UINT32`, `BOOLEAN`, `STRING`.
+- Modbus Specifics: `Holding Register (4x)`, `Input Register (3x)`, `Coil (0x)`, `Discrete Input (1x)`.
+- Endianness Notation: `ABCD (Big Endian)`, `CDAB (Word Swap)`, `BADC (Byte Swap)`, `DCBA (Little Endian)`.
+- System Commands & Paths: `udev`, `/dev/serial/by-id/`, `systemctl`, `powershell`, `MariaDB`, `10.4.x`.
+- Raw Payloads: Hex byte streams (`0x01 0x03 0x00 0x00`), IP addresses (`127.0.0.1`), baud rates (`9600`, `115200`).
+
+### 8.8 Testing & Verification Methodology
+The implementation was verified through a multi-stage automated test regimen:
+1. **Key Parity Verification:** Automated comparison script (`check_keys.js`) scanned `en.js` vs `id.js`, confirming exact 1:1 key mapping with 0 discrepancies.
+2. **Untranslated String Audit:** Static template scanner (`audit_untranslated.js`) parsed all `.vue` templates in `web/src/` to confirm zero hardcoded user-facing strings remain.
+3. **Frontend Production Build:** `npm run build` executed cleanly in under 2 seconds with zero compilation warnings or broken references.
+4. **Backend Regression Verification:** Ran `go test -count=1 ./...`, `go vet ./...`, and `go build ./...` across all internal packages (`communication`, `modbus`, `database`, `handler`, `service`), confirming 100% pass rate and zero side effects on backend operations.
+

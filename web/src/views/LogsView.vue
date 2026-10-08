@@ -5,7 +5,7 @@
       <div class="flex items-center space-x-2">
         <span class="w-2 h-2 rounded-sm bg-blue-500"></span>
         <h1 class="text-xs font-bold text-slate-100 uppercase tracking-wider font-mono">
-          System Traces & Audit Trails
+          {{ $t('logs.title') }}
         </h1>
       </div>
 
@@ -14,12 +14,12 @@
         <button @click="activeTab = 'logs'"
                 class="px-2.5 py-1 rounded transition-colors"
                 :class="activeTab === 'logs' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-white'">
-          System Logs
+          {{ $t('logs.systemLogs') }}
         </button>
         <button @click="activeTab = 'audit'"
                 class="px-2.5 py-1 rounded transition-colors"
                 :class="activeTab === 'audit' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-400 hover:text-white'">
-          Audit Trails
+          {{ $t('logs.auditTrails') }}
         </button>
       </div>
     </div>
@@ -27,19 +27,19 @@
     <!-- Logs Table -->
     <div v-if="activeTab === 'logs'" class="bg-slate-900 border border-slate-800 rounded overflow-hidden">
       <div class="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 text-xs font-mono">
-        <span class="text-slate-300 font-bold uppercase tracking-wider">Engine Diagnostic Traces (logs/datalogger.log)</span>
-        <button @click="fetchLogs" class="text-2xs text-blue-400 hover:underline">Refresh</button>
+        <span class="text-slate-300 font-bold uppercase tracking-wider">{{ $t('logs.engineLogsTitle') }}</span>
+        <button @click="fetchLogs" class="text-2xs text-blue-400 hover:underline">{{ $t('common.refresh') }}</button>
       </div>
 
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs border-collapse font-mono">
           <thead>
             <tr class="border-b border-slate-800 bg-slate-950/80 text-2xs text-slate-400 uppercase tracking-wider">
-              <th class="p-2.5 w-36">Timestamp</th>
-              <th class="p-2.5 w-20">Level</th>
-              <th class="p-2.5 w-24">Component</th>
-              <th class="p-2.5 font-sans">Message</th>
-              <th class="p-2.5 font-sans">Details</th>
+              <th class="p-2.5 w-36">{{ $t('common.timestamp') }}</th>
+              <th class="p-2.5 w-20">{{ $t('logs.level') }}</th>
+              <th class="p-2.5 w-24">{{ $t('logs.component') }}</th>
+              <th class="p-2.5 font-sans">{{ $t('logs.message') }}</th>
+              <th class="p-2.5 font-sans">{{ $t('logs.details') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60 text-slate-300">
@@ -63,20 +63,20 @@
     <!-- Audit Trails Table -->
     <div v-else class="bg-slate-900 border border-slate-800 rounded overflow-hidden">
       <div class="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 text-xs font-mono">
-        <span class="text-slate-300 font-bold uppercase tracking-wider">Security & Configuration Change Journal</span>
-        <button @click="fetchAudit" class="text-2xs text-blue-400 hover:underline">Refresh</button>
+        <span class="text-slate-300 font-bold uppercase tracking-wider">{{ $t('logs.auditTrailTitle') }}</span>
+        <button @click="fetchAudit" class="text-2xs text-blue-400 hover:underline">{{ $t('common.refresh') }}</button>
       </div>
 
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs border-collapse font-mono">
           <thead>
             <tr class="border-b border-slate-800 bg-slate-950/80 text-2xs text-slate-400 uppercase tracking-wider">
-              <th class="p-2.5 w-36">Timestamp</th>
-              <th class="p-2.5 w-24">User</th>
-              <th class="p-2.5 w-28">Action</th>
-              <th class="p-2.5 w-36">Resource</th>
-              <th class="p-2.5 font-sans">Details</th>
-              <th class="p-2.5 w-24">IP</th>
+              <th class="p-2.5 w-36">{{ $t('common.timestamp') }}</th>
+              <th class="p-2.5 w-24">{{ $t('common.user') }}</th>
+              <th class="p-2.5 w-28">{{ $t('common.action') }}</th>
+              <th class="p-2.5 w-36">{{ $t('logs.resource') }}</th>
+              <th class="p-2.5 font-sans">{{ $t('logs.details') }}</th>
+              <th class="p-2.5 w-24">{{ $t('logs.ip') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60 text-slate-300">

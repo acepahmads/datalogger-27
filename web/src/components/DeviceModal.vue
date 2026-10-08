@@ -5,10 +5,10 @@
       <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
         <div>
           <h2 class="text-base font-bold text-white tracking-wide">
-            {{ isEditing ? 'Edit Industrial Device' : 'Register New Device' }}
+            {{ isEditing ? $t('deviceModal.titleEdit') : $t('deviceModal.titleAdd') }}
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            {{ isEditing ? 'Update device profile and communication parameters.' : 'Define physical sensor, meter, or gateway specifications and connection foundation.' }}
+            {{ isEditing ? $t('deviceModal.subtitleEdit') : $t('deviceModal.subtitleAdd') }}
           </p>
         </div>
         <button @click="closeModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
@@ -26,7 +26,7 @@
           :class="activeTab === 'basic' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
           class="py-3 px-3 transition-colors flex items-center space-x-1.5"
         >
-          <span>General Info</span>
+          <span>{{ $t('deviceModal.tabGeneral') }}</span>
         </button>
         <button
           type="button"
@@ -34,7 +34,7 @@
           :class="activeTab === 'location' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
           class="py-3 px-3 transition-colors flex items-center space-x-1.5"
         >
-          <span>Location & Timezone</span>
+          <span>{{ $t('deviceModal.tabLocation') }}</span>
         </button>
         <button
           type="button"
@@ -42,7 +42,7 @@
           :class="activeTab === 'connection' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
           class="py-3 px-3 transition-colors flex items-center space-x-1.5"
         >
-          <span>Communication & Protocol</span>
+          <span>{{ $t('deviceModal.tabComm') }}</span>
           <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
         </button>
       </div>
@@ -63,12 +63,12 @@
             <!-- Device Code -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Device Code <span class="text-rose-400">*</span>
+                {{ $t('deviceModal.deviceCode') }}
               </label>
               <input
                 v-model="form.device_code"
                 type="text"
-                placeholder="e.g. PM-01, SHT-02"
+                :placeholder="$t('deviceModal.placeholders.code')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
@@ -76,12 +76,12 @@
             <!-- Device Name -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Device Name <span class="text-rose-400">*</span>
+                {{ $t('deviceModal.deviceName') }}
               </label>
               <input
                 v-model="form.device_name"
                 type="text"
-                placeholder="e.g. Main Power Quality Meter"
+                :placeholder="$t('deviceModal.placeholders.name')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -91,7 +91,7 @@
             <!-- Device Type -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Device Type <span class="text-rose-400">*</span>
+                {{ $t('deviceModal.deviceType') }}
               </label>
               <select
                 v-model="form.device_type"
@@ -112,16 +112,16 @@
             <!-- Administrative Status -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Admin Status
+                {{ $t('deviceModal.adminStatus') }}
               </label>
               <select
                 v-model="form.status"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
               >
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="INACTIVE">INACTIVE</option>
-                <option value="MAINTENANCE">MAINTENANCE</option>
-                <option value="DISABLED">DISABLED</option>
+                <option value="ACTIVE">{{ $t('status.active') }}</option>
+                <option value="INACTIVE">{{ $t('status.inactive') }}</option>
+                <option value="MAINTENANCE">{{ $t('status.maintenance') }}</option>
+                <option value="DISABLED">{{ $t('status.disabled') }}</option>
               </select>
             </div>
 
@@ -134,8 +134,8 @@
                   class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
                 />
                 <div>
-                  <span class="text-xs font-semibold text-slate-200">Device Enabled</span>
-                  <span class="block text-3xs text-slate-400">Include in monitoring cycle</span>
+                  <span class="text-xs font-semibold text-slate-200">{{ $t('deviceModal.deviceEnabled') }}</span>
+                  <span class="block text-3xs text-slate-400">{{ $t('deviceModal.includeInCycle') }}</span>
                 </div>
               </label>
             </div>
@@ -145,12 +145,12 @@
             <!-- Manufacturer -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Manufacturer
+                {{ $t('deviceModal.manufacturer') }}
               </label>
               <input
                 v-model="form.manufacturer"
                 type="text"
-                placeholder="e.g. Schneider Electric, Siemens"
+                :placeholder="$t('deviceModal.placeholders.manufacturer')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -158,12 +158,12 @@
             <!-- Model -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Model Number
+                {{ $t('deviceModal.model') }}
               </label>
               <input
                 v-model="form.model"
                 type="text"
-                placeholder="e.g. PM5560, SHT-35"
+                :placeholder="$t('deviceModal.placeholders.model')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -173,12 +173,12 @@
             <!-- Serial Number -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Serial Number
+                {{ $t('deviceModal.serialNumber') }}
               </label>
               <input
                 v-model="form.serial_number"
                 type="text"
-                placeholder="e.g. SN-9812-441"
+                :placeholder="$t('deviceModal.placeholders.serialNumber')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
@@ -186,12 +186,12 @@
             <!-- Firmware Version -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Firmware Version
+                {{ $t('deviceModal.firmwareVersion') }}
               </label>
               <input
                 v-model="form.firmware_version"
                 type="text"
-                placeholder="e.g. v2.1.0"
+                :placeholder="$t('deviceModal.placeholders.firmware')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
@@ -200,12 +200,12 @@
           <!-- Description -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Description / Notes
+              {{ $t('deviceModal.description') }}
             </label>
             <textarea
               v-model="form.description"
               rows="2"
-              placeholder="Operational context, installation details, maintenance notes..."
+              :placeholder="$t('deviceModal.placeholders.description')"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
             ></textarea>
           </div>
@@ -216,12 +216,12 @@
           <!-- Physical Location -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Physical Location
+              {{ $t('deviceModal.location') }}
             </label>
             <input
               v-model="form.location"
               type="text"
-              placeholder="e.g. Building A - Switchgear Room 02, Rack 4"
+              :placeholder="$t('deviceModal.placeholders.location')"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -230,7 +230,7 @@
             <!-- Latitude -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Latitude (-90 to 90)
+                {{ $t('deviceModal.latitude') }}
               </label>
               <input
                 v-model.number="form.latitude"
@@ -246,7 +246,7 @@
             <!-- Longitude -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Longitude (-180 to 180)
+                {{ $t('deviceModal.longitude') }}
               </label>
               <input
                 v-model.number="form.longitude"
@@ -262,7 +262,7 @@
             <!-- Timezone -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Timezone
+                {{ $t('deviceModal.timezone') }}
               </label>
               <select
                 v-model="form.timezone"
@@ -283,14 +283,14 @@
         <!-- TAB 3: Communication & Protocol -->
         <div v-show="activeTab === 'connection'" class="space-y-4">
           <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-between text-xs text-blue-300">
-            <span class="font-medium">Protocol Adapter Architecture</span>
-            <span class="text-3xs font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">Phase 2.1 Configuration Foundation</span>
+            <span class="font-medium">{{ $t('deviceModal.protocolArchitecture') }}</span>
+            <span class="text-3xs font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">{{ $t('deviceModal.phase21Foundation') }}</span>
           </div>
 
           <!-- Protocol Selector -->
           <div>
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Communication Protocol <span class="text-rose-400">*</span>
+              {{ $t('deviceModal.protocol') }}
             </label>
             <select
               v-model="form.connection.protocol"
@@ -314,18 +314,18 @@
           <div v-if="isNetworkProtocol" class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-2">
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Host / IP / URL <span class="text-rose-400">*</span>
+                {{ $t('deviceModal.hostIp') }}
               </label>
               <input
                 v-model="form.connection.host"
                 type="text"
-                placeholder="e.g. 192.168.1.100 or meter.local"
+                :placeholder="$t('deviceModal.placeholders.host')"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Port
+                {{ $t('deviceModal.port') }}
               </label>
               <input
                 v-model.number="form.connection.port"
@@ -342,7 +342,7 @@
               <div>
                 <div class="flex items-center justify-between mb-1.5">
                   <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Serial Port <span class="text-rose-400">*</span>
+                    {{ $t('deviceModal.hardwareAddress') }}
                   </label>
                   <button
                     type="button"
@@ -354,7 +354,7 @@
                     <svg class="w-3 h-3" :class="{ 'animate-spin': loadingPorts }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    <span>{{ loadingPorts ? 'Scanning...' : 'Scan Ports' }}</span>
+                    <span>{{ loadingPorts ? $t('deviceModal.scanning') : $t('deviceModal.scanPorts') }}</span>
                   </button>
                 </div>
 
@@ -365,28 +365,28 @@
                       class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
                     >
                       <!-- 1. Persistent by-ID (Chip Serial Number: Recommended for field use) -->
-                      <optgroup v-if="byIDPorts.length > 0" label="🔒 Rekomendasi: Persistent by-ID (Anti-Pindah / Anti-Tertukar)">
+                      <optgroup v-if="byIDPorts.length > 0" :label="$t('deviceModal.optgroupById')">
                         <option v-for="port in byIDPorts" :key="'byid-' + port.path" :value="port.path">
                           {{ port.description || port.path }}
                         </option>
                       </optgroup>
 
                       <!-- 2. Persistent by-Path (Physical USB Socket on Pi) -->
-                      <optgroup v-if="byPathPorts.length > 0" label="📍 Rekomendasi: Persistent by-Path (Colokan Fisik USB Pi)">
+                      <optgroup v-if="byPathPorts.length > 0" :label="$t('deviceModal.optgroupByPath')">
                         <option v-for="port in byPathPorts" :key="'bypath-' + port.path" :value="port.path">
                           {{ port.description || port.path }}
                         </option>
                       </optgroup>
 
                       <!-- 3. Standard Direct Ports -->
-                      <optgroup v-if="standardPorts.length > 0" label="⚡ Direct Ports (Bisa berpindah jika terjadi gangguan fisik)">
+                      <optgroup v-if="standardPorts.length > 0" :label="$t('deviceModal.optgroupDirect')">
                         <option v-for="port in standardPorts" :key="'std-' + port.path" :value="port.path">
                           {{ port.path }} — {{ port.description }}
                         </option>
                       </optgroup>
 
                       <!-- Fallback list if nothing detected -->
-                      <optgroup v-if="detailedPorts.length === 0" label="Standar Port Sistem">
+                      <optgroup v-if="detailedPorts.length === 0" :label="$t('deviceModal.optgroupStandard')">
                         <option v-for="port in fallbackPorts" :key="'fb-' + port" :value="port">
                           {{ port }}
                         </option>
@@ -398,7 +398,7 @@
                     v-else
                     v-model="form.connection.serial_port"
                     type="text"
-                    placeholder="e.g. COM1, /dev/ttyUSB0, /dev/serial/by-id/..."
+                    :placeholder="$t('deviceModal.placeholders.hardwareAddress')"
                     class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                   />
 
@@ -408,9 +408,9 @@
                       <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
                     </svg>
                     <div class="space-y-0.5">
-                      <span class="font-semibold text-blue-200">Tips Lapangan Anti-Putus & Anti-Tertukar:</span>
+                      <span class="font-semibold text-blue-200">{{ $t('deviceModal.resilienceTipTitle') }}</span>
                       <p class="text-slate-300">
-                        Pilih port jalur <strong>by-id</strong> atau <strong>by-path</strong> agar sensor tidak terputus dan tidak tertukar saat USB mengalami gangguan tegangan / re-enumeration (misal lompat dari <code class="text-blue-300 font-mono">ttyUSB0</code> ➔ <code class="text-blue-300 font-mono">ttyUSB1</code>).
+                        {{ $t('deviceModal.resilienceTipText') }}
                       </p>
                     </div>
                   </div>
@@ -418,27 +418,27 @@
                   <div class="flex items-center justify-between text-3xs text-slate-400 pt-0.5">
                     <span v-if="systemPorts.length > 0 && !useCustomPort" class="text-emerald-400 font-mono flex items-center space-x-1">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>{{ systemPorts.length }} serial path(s) detected</span>
+                      <span>{{ $t('deviceModal.pathsDetected', { count: systemPorts.length }) }}</span>
                     </span>
                     <span v-else-if="!useCustomPort" class="text-slate-500">
-                      No active COM ports detected
+                      {{ $t('deviceModal.noPortsDetected') }}
                     </span>
                     <span v-else class="text-slate-400">
-                      Custom port manual mode
+                      {{ $t('deviceModal.customPortMode') }}
                     </span>
                     <button
                       type="button"
                       @click="useCustomPort = !useCustomPort"
                       class="text-blue-400 hover:text-blue-300 underline ml-auto text-3xs"
                     >
-                      {{ useCustomPort ? 'Choose from list' : 'Type custom port' }}
+                      {{ useCustomPort ? $t('deviceModal.chooseFromList') : $t('deviceModal.typeCustomPort') }}
                     </button>
                   </div>
                 </div>
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Baud Rate
+                  {{ $t('deviceModal.baudRate') }}
                 </label>
                 <select
                   v-model.number="form.connection.baud_rate"
@@ -458,7 +458,7 @@
             <div class="grid grid-cols-3 gap-4">
               <div>
                 <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Data Bits
+                  {{ $t('deviceModal.dataBits') }}
                 </label>
                 <select
                   v-model.number="form.connection.data_bits"
@@ -470,7 +470,7 @@
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Parity
+                  {{ $t('deviceModal.parity') }}
                 </label>
                 <select
                   v-model="form.connection.parity"
@@ -483,7 +483,7 @@
               </div>
               <div>
                 <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Stop Bits
+                  {{ $t('deviceModal.stopBits') }}
                 </label>
                 <select
                   v-model.number="form.connection.stop_bits"
@@ -500,7 +500,7 @@
           <div v-if="form.connection.protocol === 'MODBUS_TCP' || form.connection.protocol === 'MODBUS_RTU'" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Modbus Slave ID (Unit ID) <span class="text-rose-400">*</span>
+                {{ $t('deviceModal.slaveId') }}
               </label>
               <input
                 v-model.number="form.connection.slave_id"
@@ -510,11 +510,11 @@
                 placeholder="1"
                 class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
-              <span class="text-3xs text-slate-400 mt-1 block">Device slave address (1-247)</span>
+              <span class="text-3xs text-slate-400 mt-1 block">{{ $t('deviceModal.slaveAddressHint') }}</span>
             </div>
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Byte / Word Ordering
+                {{ $t('deviceModal.byteOrder') }}
               </label>
               <select
                 v-model="form.connection.byte_order"
@@ -525,7 +525,7 @@
                 <option value="BADC">BADC — Byte Swap</option>
                 <option value="DCBA">DCBA — Little Endian</option>
               </select>
-              <span class="text-3xs text-slate-400 mt-1 block">Multi-register byte transposition</span>
+              <span class="text-3xs text-slate-400 mt-1 block">{{ $t('deviceModal.byteOrderHint') }}</span>
             </div>
           </div>
 
@@ -533,7 +533,7 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/80">
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Timeout (ms)
+                {{ $t('deviceModal.timeout') }}
               </label>
               <input
                 v-model.number="form.connection.timeout"
@@ -546,7 +546,7 @@
             </div>
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Retry Count
+                {{ $t('deviceModal.retryCount') }}
               </label>
               <input
                 v-model.number="form.connection.retry_count"
@@ -559,7 +559,7 @@
             </div>
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Polling Interval (ms)
+                {{ $t('deviceModal.pollInterval') }}
               </label>
               <input
                 v-model.number="form.connection.polling_interval"
@@ -580,7 +580,7 @@
             @click="closeModal"
             class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
-            Cancel
+            {{ $t('common.cancel') }}
           </button>
           <div class="flex items-center space-x-2">
             <button
@@ -589,7 +589,7 @@
               @click="prevTab"
               class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 transition"
             >
-              Previous
+              {{ $t('common.previous') }}
             </button>
             <button
               v-if="activeTab !== 'connection'"
@@ -597,7 +597,7 @@
               @click="nextTab"
               class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 transition"
             >
-              Next
+              {{ $t('common.next') }}
             </button>
             <button
               v-if="activeTab === 'connection'"
@@ -606,7 +606,7 @@
               class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center space-x-1.5 disabled:opacity-50"
             >
               <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-              <span>{{ isEditing ? 'Save Changes' : 'Register Device' }}</span>
+              <span>{{ isEditing ? $t('common.saveChanges') : $t('deviceModal.registerDevice') }}</span>
             </button>
           </div>
         </div>

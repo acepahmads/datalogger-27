@@ -4,10 +4,10 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-bold tracking-tight text-white font-sans">
-          System Configuration
+          {{ $t('config.title') }}
         </h1>
         <p class="text-xs text-slate-400 mt-0.5 font-sans">
-          Manage production MariaDB database connection, runtime parameters, and edge policies.
+          {{ $t('config.subtitle') }}
         </p>
       </div>
 
@@ -16,17 +16,17 @@
         <button @click="activeTab = 'database'"
                 class="px-3 py-1.5 rounded-md transition-colors"
                 :class="activeTab === 'database' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          Database (MariaDB)
+          {{ $t('config.tabDatabase') }}
         </button>
         <button @click="activeTab = 'general'"
                 class="px-3 py-1.5 rounded-md transition-colors"
                 :class="activeTab === 'general' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          General & Server
+          {{ $t('config.tabGeneral') }}
         </button>
         <button @click="activeTab = 'localfirst'"
                 class="px-3 py-1.5 rounded-md transition-colors"
                 :class="activeTab === 'localfirst' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          Local-First Principle
+          {{ $t('config.tabLocalFirst') }}
         </button>
       </div>
     </div>
@@ -38,7 +38,7 @@
         <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <h2 class="text-sm font-bold text-white font-sans tracking-tight">MariaDB Edge Health Monitor</h2>
+            <h2 class="text-sm font-bold text-white font-sans tracking-tight">{{ $t('config.dbMonitor') }}</h2>
           </div>
           <button @click="fetchDbStatus" :disabled="testing"
                   class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors flex items-center">
@@ -47,54 +47,54 @@
               <polyline points="1 20 1 14 7 14"></polyline>
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
             </svg>
-            Refresh Status
+            {{ $t('common.refresh') }}
           </button>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-sans">
           <div class="p-3 rounded-lg bg-[#0B0F19]/80 border border-slate-800/80">
-            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">Database Type</span>
+            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">{{ $t('config.dbType') }}</span>
             <span class="font-bold text-white text-sm block">MariaDB</span>
-            <span class="text-3xs text-emerald-400 font-mono mt-0.5 block">● {{ dbStatus.status || 'Connected' }}</span>
+            <span class="text-3xs text-emerald-400 font-mono mt-0.5 block">● {{ $t('status.' + (dbStatus.status ? dbStatus.status.toLowerCase() : 'connected')) }}</span>
           </div>
 
           <div class="p-3 rounded-lg bg-[#0B0F19]/80 border border-slate-800/80">
-            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">Host & Port</span>
+            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">{{ $t('config.hostPort') }}</span>
             <span class="font-mono text-slate-200 text-xs font-semibold block">{{ dbStatus.host || '127.0.0.1' }}:{{ dbStatus.port || '3306' }}</span>
-            <span class="text-3xs text-slate-400 font-mono mt-0.5 block">Schema: {{ dbStatus.database || 'datalogger' }}</span>
+            <span class="text-3xs text-slate-400 font-mono mt-0.5 block">{{ $t('config.schema') }}: {{ dbStatus.database || 'datalogger' }}</span>
           </div>
 
           <div class="p-3 rounded-lg bg-[#0B0F19]/80 border border-slate-800/80">
-            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">Latency</span>
+            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">{{ $t('devices.latency') }}</span>
             <span class="font-mono text-emerald-400 text-sm font-bold block">{{ dbStatus.latency_ms ? dbStatus.latency_ms.toFixed(2) : '0.45' }} ms</span>
             <span class="text-3xs text-slate-400 font-mono mt-0.5 block">{{ dbStatus.version || '10.4.32-MariaDB' }}</span>
           </div>
 
           <div class="p-3 rounded-lg bg-[#0B0F19]/80 border border-slate-800/80">
-            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">Active / Max Conns</span>
+            <span class="text-3xs uppercase tracking-wider text-slate-400 block mb-1">{{ $t('config.activeConns') }}</span>
             <span class="font-mono text-blue-400 text-sm font-bold block">{{ dbStatus.active_connections || 1 }} / {{ dbStatus.max_connections || 25 }}</span>
-            <span class="text-3xs text-slate-400 font-mono mt-0.5 block">DB Size: {{ dbStatus.database_size_mb || 1.08 }} MB</span>
+            <span class="text-3xs text-slate-400 font-mono mt-0.5 block">{{ $t('config.dbSize') }}: {{ dbStatus.database_size_mb || 1.08 }} MB</span>
           </div>
         </div>
 
         <div class="pt-2 text-2xs text-slate-400 flex items-center justify-between font-sans">
-          <span>Last successful query: <span class="font-mono text-slate-300">{{ dbStatus.last_query_time ? new Date(dbStatus.last_query_time).toLocaleTimeString('en-GB') : 'Just now' }}</span></span>
-          <span class="text-emerald-400 font-medium">Auto-reconnection & Connection Pool Active</span>
+          <span>{{ $t('config.lastQuery') }} <span class="font-mono text-slate-300">{{ dbStatus.last_query_time ? new Date(dbStatus.last_query_time).toLocaleTimeString('en-GB') : $t('config.justNow') }}</span></span>
+          <span class="text-emerald-400 font-medium">{{ $t('config.poolActive') }}</span>
         </div>
       </div>
 
       <!-- Database Configuration Form (Part 15) -->
       <div class="saas-card p-5 space-y-4">
         <div class="border-b border-slate-800/80 pb-3">
-          <h2 class="text-sm font-bold text-white font-sans tracking-tight">MariaDB Connection Parameters</h2>
-          <p class="text-2xs text-slate-400 font-sans mt-0.5">Configure edge database credentials and network bindings</p>
+          <h2 class="text-sm font-bold text-white font-sans tracking-tight">{{ $t('config.connParams') }}</h2>
+          <p class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('config.connParamsSubtitle') }}</p>
         </div>
 
         <!-- Alert messages -->
         <div v-if="testResult" class="p-3 rounded-lg text-xs font-sans flex items-center justify-between"
              :class="testResult.success ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'">
           <div>
-            <span class="font-semibold">{{ testResult.success ? 'Connection Successful!' : 'Connection Failed' }}</span>
+            <span class="font-semibold">{{ testResult.success ? $t('config.connectionSuccessful') : $t('config.connectionFailed') }}</span>
             <span class="block text-2xs mt-0.5">{{ testResult.message }}</span>
           </div>
           <span v-if="testResult.latency" class="font-mono text-2xs">{{ testResult.latency.toFixed(2) }}ms</span>
@@ -107,32 +107,32 @@
         <form @submit.prevent="saveDbConfig" class="space-y-4 text-xs font-sans">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Database Type</label>
+              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('config.dbType') }}</label>
               <input type="text" value="MariaDB" readonly class="w-full bg-[#0B0F19] border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-sans cursor-not-allowed" />
             </div>
 
             <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Database Name</label>
+              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('config.databaseName') }}</label>
               <input type="text" v-model="form.database" required class="w-full bg-[#0B0F19] border border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-white font-mono" />
             </div>
 
             <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Host IP / Address</label>
+              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('config.hostIpAddress') }}</label>
               <input type="text" v-model="form.host" required class="w-full bg-[#0B0F19] border border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-white font-mono" />
             </div>
 
             <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Port</label>
+              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('config.port') }}</label>
               <input type="text" v-model="form.port" required class="w-full bg-[#0B0F19] border border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-white font-mono" />
             </div>
 
             <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Username</label>
+              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('config.username') }}</label>
               <input type="text" v-model="form.username" required class="w-full bg-[#0B0F19] border border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-white font-sans" />
             </div>
 
             <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">Password</label>
+              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 font-sans">{{ $t('config.password') }}</label>
               <input type="password" v-model="form.password" placeholder="••••••••" class="w-full bg-[#0B0F19] border border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-white font-mono" />
             </div>
           </div>
@@ -141,13 +141,13 @@
             <button type="button" @click="testDbConnection" :disabled="testing"
                     class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-xs font-medium transition-colors flex items-center">
               <span v-if="testing" class="inline-block w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mr-1.5"></span>
-              TEST CONNECTION
+              {{ $t('config.testConnection') }}
             </button>
 
             <button type="submit" :disabled="saving"
                     class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
               <span v-if="saving" class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5"></span>
-              SAVE CONFIGURATION
+              {{ $t('config.saveConfiguration') }}
             </button>
           </div>
         </form>
@@ -157,14 +157,14 @@
     <!-- TAB 2: General & Server -->
     <div v-else-if="activeTab === 'general'" class="space-y-4 max-w-4xl">
       <div class="saas-card p-5 space-y-4">
-        <h2 class="text-sm font-bold text-white font-sans tracking-tight border-b border-slate-800/80 pb-3">HTTP & Service Parameters</h2>
+        <h2 class="text-sm font-bold text-white font-sans tracking-tight border-b border-slate-800/80 pb-3">{{ $t('config.httpServiceParams') }}</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
           <div>
-            <label class="block text-3xs text-slate-400 uppercase tracking-wider mb-1">HTTP Port</label>
+            <label class="block text-3xs text-slate-400 uppercase tracking-wider mb-1">{{ $t('config.httpPort') }}</label>
             <input type="text" value="8080" readonly class="w-full bg-[#0B0F19] border border-slate-800 rounded-lg px-3 py-2 font-mono text-slate-300" />
           </div>
           <div>
-            <label class="block text-3xs text-slate-400 uppercase tracking-wider mb-1">Environment Mode</label>
+            <label class="block text-3xs text-slate-400 uppercase tracking-wider mb-1">{{ $t('config.envMode') }}</label>
             <input type="text" value="production" readonly class="w-full bg-[#0B0F19] border border-slate-800 rounded-lg px-3 py-2 font-mono text-slate-300" />
           </div>
         </div>
@@ -174,11 +174,10 @@
     <!-- TAB 3: Local-First Principle -->
     <div v-else class="saas-card p-5 space-y-3 max-w-4xl font-sans">
       <h2 class="text-sm font-bold text-white tracking-tight border-b border-slate-800/80 pb-3">
-        Local-First Autonomous Principle (Section 14)
+        {{ $t('config.localFirstTitle') }}
       </h2>
       <p class="text-xs text-slate-300 leading-relaxed">
-        The application is architected to operate 100% locally on the industrial edge machine with MariaDB.
-        Data acquisition, calculations, alarming, and UI dashboards require zero Internet connectivity. Cloud transmission is strictly an optional external forwarder.
+        {{ $t('config.localFirstDesc') }}
       </p>
     </div>
   </div>

@@ -204,24 +204,24 @@
               <span class="text-2xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">{{ $t('navigation.edgeDatabase') }}</span>
               <span class="flex items-center text-emerald-600 dark:text-emerald-400 text-3xs font-semibold font-mono tracking-wide">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                MariaDB Edge · HEALTHY
+                MariaDB Edge · {{ $t('status.healthy') }}
               </span>
             </div>
             <div class="grid grid-cols-2 gap-2 text-2xs font-sans pt-1">
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">Host & Port:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.hostPort') }}:</span>
                 <span class="font-mono text-slate-700 dark:text-slate-200">127.0.0.1:3306</span>
               </div>
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">Database:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.database') }}:</span>
                 <span class="font-mono text-slate-700 dark:text-slate-200">datalogger</span>
               </div>
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">Version:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.version') }}:</span>
                 <span class="font-mono text-blue-600 dark:text-blue-400">10.4.32-MariaDB</span>
               </div>
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">Latency:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.latency') }}:</span>
                 <span class="font-mono text-emerald-600 dark:text-emerald-400">&lt; 1 ms</span>
               </div>
             </div>
@@ -231,11 +231,11 @@
           <div class="grid grid-cols-2 gap-2 text-xs pt-1">
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">WebSocket</span>
-              <span class="text-3xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">CONNECTED</span>
+              <span class="text-3xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">{{ $t('status.connected') }}</span>
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">{{ $t('navigation.devicesSensors') }}</span>
-              <span class="text-3xs font-semibold text-blue-600 dark:text-blue-400 font-mono">{{ systemStatus.online_devices }} ONLINE</span>
+              <span class="text-3xs font-semibold text-blue-600 dark:text-blue-400 font-mono">{{ systemStatus.online_devices }} {{ $t('status.online') }}</span>
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">{{ $t('dashboard.throughput') }}</span>
@@ -243,7 +243,7 @@
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">{{ $t('navigation.activeAlarms') }}</span>
-              <span class="text-3xs font-semibold text-slate-500 dark:text-slate-300 font-mono">{{ systemStatus.active_alarms }} ACTIVE</span>
+              <span class="text-3xs font-semibold text-slate-500 dark:text-slate-300 font-mono">{{ systemStatus.active_alarms }} {{ $t('status.active') }}</span>
             </div>
           </div>
         </div>
