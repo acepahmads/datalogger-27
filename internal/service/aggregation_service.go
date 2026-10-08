@@ -815,11 +815,15 @@ func (s *AggregationService) GetResultSamples(ctx context.Context, resultID uint
 
 	samplesDTO := make([]BucketSampleDTO, 0, len(rawSamples))
 	for _, raw := range rawSamples {
+		pVal := raw.ProcessedValue
+		if pVal == 0 && raw.Value != 0 {
+			pVal = raw.Value
+		}
 		samplesDTO = append(samplesDTO, BucketSampleDTO{
 			ID:             raw.ID,
 			ReceivedAt:     raw.ReceivedAt,
 			RawValue:       raw.RawValue,
-			ProcessedValue: raw.ProcessedValue,
+			ProcessedValue: pVal,
 			RawHex:         raw.RawHex,
 			Quality:        string(raw.Quality),
 			QualityReason:  string(raw.QualityReason),

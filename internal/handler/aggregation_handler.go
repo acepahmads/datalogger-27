@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"datalogger/internal/model"
@@ -343,14 +344,10 @@ func (h *AggregationHandler) GetResultSamples(c *gin.Context) {
 
 	var startTime, endTime *time.Time
 	if sStr := c.Query("period_start"); sStr != "" {
-		if t, err := time.Parse(time.RFC3339, sStr); err == nil {
-			startTime = &t
-		}
+		startTime = parseFlexibleTime(sStr)
 	}
 	if eStr := c.Query("period_end"); eStr != "" {
-		if t, err := time.Parse(time.RFC3339, eStr); err == nil {
-			endTime = &t
-		}
+		endTime = parseFlexibleTime(eStr)
 	}
 
 	resp, err := h.aggService.GetResultSamples(c.Request.Context(), id, devID, paramID, startTime, endTime)
@@ -359,5 +356,28 @@ func (h *AggregationHandler) GetResultSamples(c *gin.Context) {
 		return
 	}
 	response.OK(c, resp)
+}
+
+func parseFlexibleTime(str string) *time.Time {
+	if str == "" {
+		return nil
+	}
+	// 1. Standard RFC3339
+	if t, err := time.Parse(time.RFC3339, str); err == nil {
+		return &t
+	}
+	// 2. URL-decoded timezone '+07:00' converted to space ' 07:00'
+	strPlus := strings.Replace(str, " ", "+", 1)
+	if t, err := time.Parse(time.RFC3339, strPlus); err == nil {
+		return &t
+	}
+	// 3. Standard SQL timestamps
+	if t, err := time.ParseInLocation("2006-01-02 15:04:05", str, time.Local); err == nil {
+		return &t
+	}
+	if t, err := time.ParseInLocation("2006-01-02T15:04:05", str, time.Local); err == nil {
+		return &t
+	}
+	return nil
 }
 
