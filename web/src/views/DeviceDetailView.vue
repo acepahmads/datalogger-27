@@ -1743,6 +1743,7 @@
           <!-- Run Buckets -->
           <button
             @click="runAllAggBuckets"
+            :title="$t('aggregation.runBucketsTooltip')"
             class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm"
           >
             <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

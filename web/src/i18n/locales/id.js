@@ -1080,6 +1080,7 @@ export default {
     "subtitle": "Rollup bucket waktu deterministik dengan pemisahan domain ganda: Telemetri Internal Raw vs Telemetri Diproses Pelanggan.",
     "newDefinition": "Definisi Agregasi Baru",
     "runBuckets": "Jalankan Bucket Sekarang",
+    "runBucketsTooltip": "Hitung bucket agregasi yang tertunda/historis sekarang secara manual tanpa menunggu jadwal otomatis.",
     "customerMode": "Mode Tampilan Pelanggan",
     "engineeringMode": "Mode Tampilan Engineering",
     "refresh": "Segarkan",

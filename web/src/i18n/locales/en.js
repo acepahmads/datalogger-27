@@ -1080,6 +1080,7 @@ export default {
     "subtitle": "Deterministic time-bucket rollups with dual domain separation: Internal Raw Telemetry vs Customer Processed Telemetry.",
     "newDefinition": "New Aggregation Definition",
     "runBuckets": "Run Buckets Now",
+    "runBucketsTooltip": "Trigger calculation of pending and historical telemetry buckets now without waiting for the schedule.",
     "customerMode": "Customer View Mode",
     "engineeringMode": "Engineering View Mode",
     "refresh": "Refresh",
