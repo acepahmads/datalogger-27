@@ -1152,6 +1152,10 @@ export default {
     "safeDeliveryVerified": "Pengiriman aman pelanggan terverifikasi: Tidak ada alamat register mentah atau data hex internal yang diekspos.",
     "viewValues": "Nilai Data",
     "bucketSamplesTitle": "Sampel Telemetri & Nilai Data Bucket",
-    "bucketSamplesSubtitle": "Poin data telemetri rinci yang dihitung untuk jendela waktu ini"
+    "bucketSamplesSubtitle": "Poin data telemetri rinci yang dihitung untuk jendela waktu ini",
+    "sampleBreakdown": "Rincian Kualitas Sampel",
+    "tooltipGood": "Baik (Valid): Telemetri normal dalam batas wajar, digunakan dalam kalkulasi rata-rata.",
+    "tooltipUncertain": "Ragu-ragu (Suspect): Batas peringatan, jitter ringan, atau nilai toleransi sementara.",
+    "tooltipBad": "Rusak (Invalid): Error sensor/komunikasi, NaN, atau di luar batas fisik (dibuang dari kalkulasi)."
   }
 };

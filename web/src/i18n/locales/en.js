@@ -1152,6 +1152,10 @@ export default {
     "safeDeliveryVerified": "Customer-safe delivery verified: Zero raw register addresses or internal hex data exposed.",
     "viewValues": "Values",
     "bucketSamplesTitle": "Bucket Telemetry Samples & Data Values",
-    "bucketSamplesSubtitle": "Detailed telemetry points evaluated for this time window"
+    "bucketSamplesSubtitle": "Detailed telemetry points evaluated for this time window",
+    "sampleBreakdown": "Sample Quality Breakdown",
+    "tooltipGood": "Good (Valid): Normal telemetry within physical range, included in average calculation.",
+    "tooltipUncertain": "Uncertain (Suspect): Warning limit, mild jitter, or grace period held value.",
+    "tooltipBad": "Bad (Invalid): Sensor/comm error, NaN, or out-of-hard-range (excluded from calculation)."
   }
 };

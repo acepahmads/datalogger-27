@@ -2096,16 +2096,47 @@
                       :class="res.quality === 'GOOD' 
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
                         : (res.quality === 'UNCERTAIN' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20')"
+                      :title="'Overall Quality: ' + res.quality"
                     >
                       {{ res.quality }}
                     </span>
-                    <button
-                      @click="openBucketSamplesModal(res)"
-                      class="text-3xs font-mono text-cyan-400 hover:text-cyan-300 hover:underline flex items-center space-x-1"
-                      title="Inspect sample values"
-                    >
-                      <span>N={{ res.sample_count }} (✓{{ res.good_count }} / ?{{ res.uncertain_count }} / ✗{{ res.bad_count }})</span>
-                    </button>
+                    <div class="relative group inline-block">
+                      <button
+                        @click="openBucketSamplesModal(res)"
+                        class="text-3xs font-mono text-cyan-400 hover:text-cyan-300 hover:underline flex items-center space-x-1 cursor-pointer"
+                        :title="$t('aggregation.sampleBreakdown') || 'Sample Quality Breakdown'"
+                      >
+                        <span>N={{ res.sample_count }} (✓{{ res.good_count }} / ?{{ res.uncertain_count }} / ✗{{ res.bad_count }})</span>
+                      </button>
+
+                      <!-- Interactive Hover Tooltip Popover -->
+                      <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-[#0B0F19] border border-slate-700/80 rounded-xl shadow-2xl text-left pointer-events-none font-sans">
+                        <div class="text-3xs font-bold uppercase text-slate-300 border-b border-slate-800 pb-1.5 mb-2 flex items-center justify-between">
+                          <span class="flex items-center space-x-1">
+                            <span>📊</span>
+                            <span>{{ $t('aggregation.sampleBreakdown') || 'Sample Quality Breakdown' }}</span>
+                          </span>
+                          <span class="text-cyan-400 font-mono font-bold">Total N={{ res.sample_count }}</span>
+                        </div>
+                        <div class="space-y-1.5 text-3xs font-sans leading-tight">
+                          <div class="flex items-start space-x-2">
+                            <span class="font-bold font-mono text-emerald-400 shrink-0">✓ {{ res.good_count }}</span>
+                            <span class="text-slate-300">{{ $t('aggregation.tooltipGood') }}</span>
+                          </div>
+                          <div class="flex items-start space-x-2">
+                            <span class="font-bold font-mono text-amber-400 shrink-0">? {{ res.uncertain_count }}</span>
+                            <span class="text-slate-300">{{ $t('aggregation.tooltipUncertain') }}</span>
+                          </div>
+                          <div class="flex items-start space-x-2">
+                            <span class="font-bold font-mono text-rose-400 shrink-0">✗ {{ res.bad_count }}</span>
+                            <span class="text-slate-300">{{ $t('aggregation.tooltipBad') }}</span>
+                          </div>
+                        </div>
+                        <div class="mt-2 pt-1 border-t border-slate-800/80 text-[10px] text-slate-400 italic">
+                          Click to view individual telemetry values
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </td>
                 <!-- Actions -->
@@ -2415,9 +2446,14 @@
           <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 flex items-center justify-between">
             <div>
               <span class="text-3xs text-slate-400 uppercase font-mono block">Quality</span>
-              <span class="text-xs font-bold font-mono text-emerald-400">
-                {{ selectedBucketResult.quality || 'GOOD' }}
-              </span>
+              <div class="flex items-center space-x-1.5 mt-0.5">
+                <span class="text-xs font-bold font-mono text-emerald-400">
+                  {{ selectedBucketResult.quality || 'GOOD' }}
+                </span>
+                <span class="text-3xs font-mono text-slate-400">
+                  (✓{{ selectedBucketResult.good_count || 0 }} / ?{{ selectedBucketResult.uncertain_count || 0 }} / ✗{{ selectedBucketResult.bad_count || 0 }})
+                </span>
+              </div>
             </div>
             <button
               @click="fetchBucketSamples"
