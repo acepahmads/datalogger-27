@@ -318,3 +318,46 @@ func (h *AggregationHandler) GetDownsampledHistory(c *gin.Context) {
 	}
 	response.OK(c, data)
 }
+
+// GetResultSamples handles GET /api/aggregations/results/:id/samples and GET /api/aggregations/samples
+func (h *AggregationHandler) GetResultSamples(c *gin.Context) {
+	idStr := c.Param("id")
+	var id uint
+	if idStr != "" {
+		if v, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+			id = uint(v)
+		}
+	}
+
+	var devID, paramID uint
+	if dStr := c.Query("device_id"); dStr != "" {
+		if v, err := strconv.ParseUint(dStr, 10, 32); err == nil {
+			devID = uint(v)
+		}
+	}
+	if pStr := c.Query("parameter_id"); pStr != "" {
+		if v, err := strconv.ParseUint(pStr, 10, 32); err == nil {
+			paramID = uint(v)
+		}
+	}
+
+	var startTime, endTime *time.Time
+	if sStr := c.Query("period_start"); sStr != "" {
+		if t, err := time.Parse(time.RFC3339, sStr); err == nil {
+			startTime = &t
+		}
+	}
+	if eStr := c.Query("period_end"); eStr != "" {
+		if t, err := time.Parse(time.RFC3339, eStr); err == nil {
+			endTime = &t
+		}
+	}
+
+	resp, err := h.aggService.GetResultSamples(c.Request.Context(), id, devID, paramID, startTime, endTime)
+	if err != nil {
+		response.InternalError(c, "Failed to fetch bucket samples: "+err.Error())
+		return
+	}
+	response.OK(c, resp)
+}
+

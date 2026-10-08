@@ -1146,6 +1146,9 @@ export default {
     "lookupButton": "Query Customer API",
     "customerEndpoint": "GET /api/customer/aggregated-data/{identifier}",
     "noCustomerDataFound": "No customer aggregated data found for identifier {identifier}.",
-    "safeDeliveryVerified": "Customer-safe delivery verified: Zero raw register addresses or internal hex data exposed."
+    "safeDeliveryVerified": "Customer-safe delivery verified: Zero raw register addresses or internal hex data exposed.",
+    "viewValues": "Values",
+    "bucketSamplesTitle": "Bucket Telemetry Samples & Data Values",
+    "bucketSamplesSubtitle": "Detailed telemetry points evaluated for this time window"
   }
 };

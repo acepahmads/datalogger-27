@@ -2052,7 +2052,7 @@
                 </td>
                 <!-- Period -->
                 <td class="px-4 py-3 font-mono text-3xs text-slate-300">
-                  <div>{{ formatTimeShort(res.period_start) }} → {{ formatTimeShort(res.period_end) }}</div>
+                  <div class="font-bold text-slate-200">{{ formatPeriodWindow(res.period_start, res.period_end) }}</div>
                   <div class="text-slate-500">{{ new Date(res.period_start).toLocaleDateString() }}</div>
                 </td>
                 <!-- Parameter -->
@@ -2099,20 +2099,37 @@
                     >
                       {{ res.quality }}
                     </span>
-                    <span class="text-3xs font-mono text-slate-400">
-                      N={{ res.sample_count }} (✓{{ res.good_count }} / ?{{ res.uncertain_count }} / ✗{{ res.bad_count }})
-                    </span>
+                    <button
+                      @click="openBucketSamplesModal(res)"
+                      class="text-3xs font-mono text-cyan-400 hover:text-cyan-300 hover:underline flex items-center space-x-1"
+                      title="Inspect sample values"
+                    >
+                      <span>N={{ res.sample_count }} (✓{{ res.good_count }} / ?{{ res.uncertain_count }} / ✗{{ res.bad_count }})</span>
+                    </button>
                   </div>
                 </td>
                 <!-- Actions -->
                 <td class="px-4 py-3 text-right">
-                  <button
-                    @click="queryCustomerData(res.identifier)"
-                    class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition text-3xs font-mono px-2 py-1"
-                    title="Query Customer API"
-                  >
-                    API
-                  </button>
+                  <div class="flex items-center justify-end space-x-1.5">
+                    <button
+                      @click="openBucketSamplesModal(res)"
+                      class="p-1 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition text-3xs font-mono px-2 py-1 flex items-center space-x-1"
+                      title="View Raw Telemetry Values & Samples"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      <span>{{ $t('aggregation.viewValues') || 'Values' }}</span>
+                    </button>
+                    <button
+                      @click="queryCustomerData(res.identifier)"
+                      class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition text-3xs font-mono px-2 py-1"
+                      title="Query Customer API"
+                    >
+                      API
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -2318,6 +2335,148 @@
             class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-sm shadow-indigo-500/20"
           >
             {{ $t('common.save') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bucket Samples & Data Values Inspection Modal -->
+    <div v-if="isBucketSamplesModalOpen && selectedBucketResult" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+          <div class="flex items-center space-x-3">
+            <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h2 class="text-sm font-bold text-white tracking-wide">
+                  {{ $t('aggregation.bucketSamplesTitle') || 'Bucket Telemetry Samples & Data Values' }}
+                </h2>
+                <span
+                  v-if="isBucketActive(selectedBucketResult)"
+                  class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-3xs font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>{{ $t('aggregation.liveInProgress') }}</span>
+                </span>
+                <span
+                  v-else
+                  class="inline-block px-1.5 py-0.5 rounded text-3xs font-mono bg-slate-800 text-slate-400 border border-slate-700/80"
+                >
+                  {{ $t('aggregation.finalized') }}
+                </span>
+              </div>
+              <p class="text-3xs text-slate-400 font-mono mt-0.5">
+                Window: <strong class="text-slate-200">{{ formatPeriodWindow(selectedBucketResult.period_start, selectedBucketResult.period_end) }}</strong>
+                • Target: <strong class="text-cyan-400">{{ selectedBucketResult.identifier }}</strong>
+                • Parameter: <strong class="text-indigo-300">{{ selectedBucketResult.parameter ? selectedBucketResult.parameter.parameter_name : getParamName(selectedBucketResult.parameter_id) }}</strong>
+              </p>
+            </div>
+          </div>
+          <button @click="closeBucketSamplesModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="px-6 py-3 bg-[#0B0F19]/40 border-b border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
+            <span class="text-3xs text-slate-400 uppercase font-mono block">Sample Count</span>
+            <span class="text-base font-bold font-mono text-cyan-400">
+              N={{ bucketSamplesData ? bucketSamplesData.sample_count : (selectedBucketResult.sample_count || 0) }}
+            </span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
+            <span class="text-3xs text-slate-400 uppercase font-mono block">Calculated Avg</span>
+            <span class="text-base font-bold font-mono text-white">
+              {{ (bucketSamplesData && bucketSamplesData.avg_value !== null) ? Number(bucketSamplesData.avg_value).toFixed(2) : (selectedBucketResult.value !== null ? Number(selectedBucketResult.value).toFixed(2) : '--') }}
+              <span class="text-3xs font-normal text-slate-400">{{ bucketSamplesData ? bucketSamplesData.unit : '' }}</span>
+            </span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
+            <span class="text-3xs text-slate-400 uppercase font-mono block">Min / Max</span>
+            <span class="text-xs font-mono text-slate-200">
+              {{ selectedBucketResult.min_value !== null ? Number(selectedBucketResult.min_value).toFixed(2) : '--' }} / {{ selectedBucketResult.max_value !== null ? Number(selectedBucketResult.max_value).toFixed(2) : '--' }}
+            </span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 flex items-center justify-between">
+            <div>
+              <span class="text-3xs text-slate-400 uppercase font-mono block">Quality</span>
+              <span class="text-xs font-bold font-mono text-emerald-400">
+                {{ selectedBucketResult.quality || 'GOOD' }}
+              </span>
+            </div>
+            <button
+              @click="fetchBucketSamples"
+              :disabled="bucketSamplesLoading"
+              class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-3xs font-semibold border border-slate-700 transition"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Samples Table -->
+        <div class="flex-1 overflow-y-auto p-6">
+          <div v-if="bucketSamplesLoading && (!bucketSamplesData || !bucketSamplesData.samples)" class="p-12 text-center text-slate-400 text-xs">
+            <span class="animate-pulse">Loading telemetry values...</span>
+          </div>
+          <div v-else-if="!bucketSamplesData || !bucketSamplesData.samples || bucketSamplesData.samples.length === 0" class="p-12 text-center text-slate-400 text-xs">
+            No telemetry records found for this time window.
+          </div>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-sans">
+              <thead class="bg-[#0B0F19]/80 text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-800 sticky top-0">
+                <tr>
+                  <th class="px-3 py-2">#</th>
+                  <th class="px-3 py-2">Received Time</th>
+                  <th class="px-3 py-2">Raw Hex Stream</th>
+                  <th class="px-3 py-2">Raw Float</th>
+                  <th class="px-3 py-2">Scaled Value</th>
+                  <th class="px-3 py-2 text-right">Quality</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-slate-200 font-mono text-xs">
+                <tr v-for="(sample, sIdx) in bucketSamplesData.samples" :key="sample.id || sIdx" class="hover:bg-slate-800/30 transition">
+                  <td class="px-3 py-1.5 text-slate-500 text-3xs">{{ sIdx + 1 }}</td>
+                  <td class="px-3 py-1.5 text-slate-300">
+                    {{ formatTimestampExact(sample.received_at) }}
+                  </td>
+                  <td class="px-3 py-1.5 text-emerald-400 text-3xs">
+                    {{ sample.raw_hex || '--' }}
+                  </td>
+                  <td class="px-3 py-1.5 text-slate-300">
+                    {{ sample.raw_value !== null ? Number(sample.raw_value).toFixed(4) : '--' }}
+                  </td>
+                  <td class="px-3 py-1.5 font-bold text-white">
+                    {{ sample.processed_value !== null ? Number(sample.processed_value).toFixed(2) : '--' }}
+                    <span class="text-3xs font-normal text-slate-400 font-sans">{{ bucketSamplesData.unit }}</span>
+                  </td>
+                  <td class="px-3 py-1.5 text-right">
+                    <span
+                      class="px-2 py-0.5 rounded text-3xs font-bold"
+                      :class="sample.quality === 'GOOD' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
+                    >
+                      {{ sample.quality || 'GOOD' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-3 border-t border-slate-800/80 bg-[#0B0F19]/80 flex items-center justify-between text-xs font-mono text-slate-400">
+          <span>Total records: <strong class="text-white">{{ bucketSamplesData ? bucketSamplesData.samples.length : 0 }}</strong></span>
+          <button @click="closeBucketSamplesModal" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">
+            Close
           </button>
         </div>
       </div>
@@ -2614,10 +2773,16 @@ export default {
       },
       customerPreviewIdentifier: '',
       customerPreviewResult: null,
-      customerPreviewLoading: false,
       historyDownsampleResolution: 'raw',
       autoRefreshAgg: true,
       aggPollTimer: null,
+
+      // Bucket Samples Inspection Modal
+      isBucketSamplesModalOpen: false,
+      selectedBucketResult: null,
+      bucketSamplesLoading: false,
+      bucketSamplesData: null,
+      bucketSamplesTimer: null,
     };
   },
   computed: {
@@ -4030,6 +4195,72 @@ export default {
       } else {
         this.aggregationResults.unshift(res);
         this.aggregationTotal++;
+      }
+    },
+    formatPeriodWindow(start, end) {
+      if (!start || !end) return '';
+      const s = new Date(start);
+      // Samples in bucket [start, end) end at end - 1s (e.g. 26:00 to 27:59)
+      const e = new Date(new Date(end).getTime() - 1000);
+      const sStr = s.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const eStr = e.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `${sStr} → ${eStr}`;
+    },
+    formatTimestampExact(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    async openBucketSamplesModal(res) {
+      this.selectedBucketResult = res;
+      this.isBucketSamplesModalOpen = true;
+      await this.fetchBucketSamples();
+      if (this.isBucketActive(res)) {
+        this.startBucketSamplesPolling();
+      }
+    },
+    closeBucketSamplesModal() {
+      this.isBucketSamplesModalOpen = false;
+      this.selectedBucketResult = null;
+      this.bucketSamplesData = null;
+      this.stopBucketSamplesPolling();
+    },
+    async fetchBucketSamples() {
+      if (!this.selectedBucketResult) return;
+      this.bucketSamplesLoading = true;
+      try {
+        const params = {
+          device_id: this.device.id,
+          parameter_id: this.selectedBucketResult.parameter_id,
+          period_start: this.selectedBucketResult.period_start,
+          period_end: this.selectedBucketResult.period_end,
+        };
+        let url = '/api/aggregations/samples';
+        if (this.selectedBucketResult.id) {
+          url = `/api/aggregations/results/${this.selectedBucketResult.id}/samples`;
+        }
+        const res = await axios.get(url, { params });
+        if (res.data && res.data.data) {
+          this.bucketSamplesData = res.data.data;
+        }
+      } catch (err) {
+        console.error('Failed to fetch bucket samples:', err);
+      } finally {
+        this.bucketSamplesLoading = false;
+      }
+    },
+    startBucketSamplesPolling() {
+      this.stopBucketSamplesPolling();
+      this.bucketSamplesTimer = setInterval(() => {
+        if (this.isBucketSamplesModalOpen && this.selectedBucketResult && this.isBucketActive(this.selectedBucketResult)) {
+          this.fetchBucketSamples();
+        }
+      }, 2000);
+    },
+    stopBucketSamplesPolling() {
+      if (this.bucketSamplesTimer) {
+        clearInterval(this.bucketSamplesTimer);
+        this.bucketSamplesTimer = null;
       }
     },
   },

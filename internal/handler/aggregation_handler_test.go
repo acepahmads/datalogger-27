@@ -127,6 +127,8 @@ func setupAggregationTestRouter(t *testing.T) *AggregationTestEnv {
 			aggregationsGroup.POST("/definitions/:id/run", middleware.RequirePermission("device.manage"), aggHandler.TriggerBucket)
 			aggregationsGroup.POST("/run", middleware.RequirePermission("device.manage"), aggHandler.RunBuckets)
 			aggregationsGroup.GET("/results", middleware.RequirePermission("device.view"), aggHandler.GetResults)
+			aggregationsGroup.GET("/results/:id/samples", middleware.RequirePermission("device.view"), aggHandler.GetResultSamples)
+			aggregationsGroup.GET("/samples", middleware.RequirePermission("device.view"), aggHandler.GetResultSamples)
 		}
 
 		customerGroup := api.Group("/customer")
@@ -237,7 +239,7 @@ func TestAggregationAPIEndpoints(t *testing.T) {
 	}
 
 	// 6. Customer API (GET /api/customer/aggregated-data/:identifier)
-	identifier := "20261008140000"
+	identifier := "20261008140500"
 	reqCust, _ := http.NewRequest("GET", "/api/customer/aggregated-data/"+identifier, nil)
 	reqCust.Header.Set("Authorization", "Bearer "+env.OperatorToken)
 	wCust := httptest.NewRecorder()
@@ -278,5 +280,15 @@ func TestAggregationAPIEndpoints(t *testing.T) {
 
 	if wRunAll.Code != http.StatusOK {
 		t.Fatalf("Expected 200 OK for run all buckets, got %d: %s", wRunAll.Code, wRunAll.Body.String())
+	}
+
+	// 9. Inspect Bucket Samples API (GET /api/aggregations/samples)
+	reqSamples, _ := http.NewRequest("GET", "/api/aggregations/samples?device_id=1&parameter_id=10", nil)
+	reqSamples.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wSamples := httptest.NewRecorder()
+	env.Router.ServeHTTP(wSamples, reqSamples)
+
+	if wSamples.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for get bucket samples, got %d: %s", wSamples.Code, wSamples.Body.String())
 	}
 }

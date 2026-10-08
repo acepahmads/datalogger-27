@@ -25,13 +25,13 @@ func ResolveLocation(tz string) *time.Location {
 	return loc
 }
 
-// FormatIdentifier generates the deterministic identifier YYYYMMDDHHmmss from periodStart in given location
-func FormatIdentifier(periodStart time.Time, loc *time.Location) string {
+// FormatIdentifier generates the deterministic identifier YYYYMMDDHHmmss from periodEnd in given location
+func FormatIdentifier(periodEnd time.Time, loc *time.Location) string {
 	if loc == nil {
 		loc = time.UTC
 	}
-	localStart := periodStart.In(loc)
-	return localStart.Format("20060102150405")
+	localEnd := periodEnd.In(loc)
+	return localEnd.Format("20060102150405")
 }
 
 // ParseIdentifier parses an identifier in format YYYYMMDDHHmmss back into time.Time for the given timezone
@@ -74,7 +74,8 @@ func CalculateBucket(t time.Time, intervalSeconds int, tz string) TimeBucket {
 	}
 
 	endLocal := startLocal.Add(time.Duration(intervalSeconds) * time.Second)
-	identifier := startLocal.Format("20060102150405")
+	// Identifier represents the target completion timestamp (PeriodEnd) of the interval (e.g., minute 26 for 24:00-26:00)
+	identifier := endLocal.Format("20060102150405")
 
 	return TimeBucket{
 		PeriodStart: startLocal.UTC(),

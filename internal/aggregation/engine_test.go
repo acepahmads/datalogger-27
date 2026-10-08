@@ -144,35 +144,35 @@ func TestConfigurableIntervalsAndTimeBuckets(t *testing.T) {
 
 	// 13. 2-minute interval (120s) => 14:16:00 to 14:18:00
 	b2m := aggregation.CalculateBucket(testTime, 120, "UTC")
-	if b2m.Identifier != "20261008141600" {
-		t.Errorf("Expected 2m bucket identifier 20261008141600, got %s", b2m.Identifier)
+	if b2m.Identifier != "20261008141800" {
+		t.Errorf("Expected 2m bucket identifier 20261008141800, got %s", b2m.Identifier)
 	}
 	if b2m.PeriodEnd.Sub(b2m.PeriodStart) != 2*time.Minute {
 		t.Errorf("Expected 2m duration, got %v", b2m.PeriodEnd.Sub(b2m.PeriodStart))
 	}
 
-	// 14. 5-minute interval (300s) => 14:15:00 to 14:20:00
+	// 14. 5-minute interval (300s) => 14:15:00 to 14:20:00 (Target: 14:20:00)
 	b5m := aggregation.CalculateBucket(testTime, 300, "UTC")
-	if b5m.Identifier != "20261008141500" {
-		t.Errorf("Expected 5m bucket identifier 20261008141500, got %s", b5m.Identifier)
+	if b5m.Identifier != "20261008142000" {
+		t.Errorf("Expected 5m bucket identifier 20261008142000, got %s", b5m.Identifier)
 	}
 
-	// 15. 30-minute interval (1800s) => 14:00:00 to 14:30:00
+	// 15. 30-minute interval (1800s) => 14:00:00 to 14:30:00 (Target: 14:30:00)
 	b30m := aggregation.CalculateBucket(testTime, 1800, "UTC")
-	if b30m.Identifier != "20261008140000" {
-		t.Errorf("Expected 30m bucket identifier 20261008140000, got %s", b30m.Identifier)
+	if b30m.Identifier != "20261008143000" {
+		t.Errorf("Expected 30m bucket identifier 20261008143000, got %s", b30m.Identifier)
 	}
 
-	// 16. 60-minute interval (3600s) => 14:00:00 to 15:00:00
+	// 16. 60-minute interval (3600s) => 14:00:00 to 15:00:00 (Target: 15:00:00)
 	b60m := aggregation.CalculateBucket(testTime, 3600, "UTC")
-	if b60m.Identifier != "20261008140000" {
-		t.Errorf("Expected 60m bucket identifier 20261008140000, got %s", b60m.Identifier)
+	if b60m.Identifier != "20261008150000" {
+		t.Errorf("Expected 60m bucket identifier 20261008150000, got %s", b60m.Identifier)
 	}
 
-	// 17. Custom interval (15m = 900s) => 14:15:00 to 14:30:00
+	// 17. Custom interval (15m = 900s) => 14:15:00 to 14:30:00 (Target: 14:30:00)
 	b15m := aggregation.CalculateBucket(testTime, 900, "UTC")
-	if b15m.Identifier != "20261008141500" {
-		t.Errorf("Expected 15m bucket identifier 20261008141500, got %s", b15m.Identifier)
+	if b15m.Identifier != "20261008143000" {
+		t.Errorf("Expected 15m bucket identifier 20261008143000, got %s", b15m.Identifier)
 	}
 }
 
@@ -181,17 +181,18 @@ func TestTimezoneAndIdentifierParsing(t *testing.T) {
 	utcTime := time.Date(2026, 10, 8, 7, 0, 0, 0, time.UTC) // 07:00 UTC = 14:00 Asia/Jakarta (WIB)
 
 	bWIB := aggregation.CalculateBucket(utcTime, 1800, "Asia/Jakarta")
-	if bWIB.Identifier != "20261008140000" {
-		t.Errorf("Expected Jakarta identifier 20261008140000, got %s", bWIB.Identifier)
+	if bWIB.Identifier != "20261008143000" {
+		t.Errorf("Expected Jakarta identifier 20261008143000, got %s", bWIB.Identifier)
 	}
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
-	parsed, err := aggregation.ParseIdentifier("20261008140000", loc)
+	parsed, err := aggregation.ParseIdentifier("20261008143000", loc)
 	if err != nil {
 		t.Fatalf("Failed to parse identifier: %v", err)
 	}
-	if parsed.UTC() != utcTime {
-		t.Errorf("Expected parsed time in UTC %v, got %v", utcTime, parsed.UTC())
+	expectedEnd := time.Date(2026, 10, 8, 7, 30, 0, 0, time.UTC)
+	if parsed.UTC() != expectedEnd {
+		t.Errorf("Expected parsed time in UTC %v, got %v", expectedEnd, parsed.UTC())
 	}
 }
 

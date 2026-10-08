@@ -1146,6 +1146,9 @@ export default {
     "lookupButton": "Kueri API Pelanggan",
     "customerEndpoint": "GET /api/customer/aggregated-data/{identifier}",
     "noCustomerDataFound": "Tidak ada data agregasi pelanggan yang ditemukan untuk pengidentifikasi {identifier}.",
-    "safeDeliveryVerified": "Pengiriman aman pelanggan terverifikasi: Tidak ada alamat register mentah atau data hex internal yang diekspos."
+    "safeDeliveryVerified": "Pengiriman aman pelanggan terverifikasi: Tidak ada alamat register mentah atau data hex internal yang diekspos.",
+    "viewValues": "Nilai Data",
+    "bucketSamplesTitle": "Sampel Telemetri & Nilai Data Bucket",
+    "bucketSamplesSubtitle": "Poin data telemetri rinci yang dihitung untuk jendela waktu ini"
   }
 };

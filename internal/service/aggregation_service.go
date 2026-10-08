@@ -457,6 +457,27 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 		_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, lastProcessedEnd)
 	}
 
+	// Real-Time Active (In-Progress) Bucket Evaluation:
+	// Tracks the ongoing interval (e.g. 26:00 to 27:59 for Menit 28)
+	activeBucket := aggregation.GetCurrentActiveBucket(now, def.IntervalSeconds, def.Timezone)
+	if activeBucket.PeriodEnd.After(now) {
+		activeSamples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, activeBucket.PeriodStart, now)
+		if err == nil && len(activeSamples) > 0 {
+			activeResult := s.engine.Calculate(def, activeBucket.PeriodStart, activeBucket.PeriodEnd, activeSamples)
+			activeResult.Identifier = activeBucket.Identifier
+			if err := s.repo.SaveResult(ctx, activeResult); err == nil {
+				if s.hub != nil {
+					s.hub.Broadcast(websocket.WSMessage{
+						Type:      "aggregation.result.updated",
+						Timestamp: time.Now().UTC(),
+						Data:      activeResult,
+					})
+				}
+				processedCount++
+			}
+		}
+	}
+
 	return processedCount, nil
 }
 
@@ -705,3 +726,129 @@ func (s *AggregationService) GetDownsampledHistory(
 		Points:      points,
 	}, nil
 }
+
+// BucketSampleDTO represents an individual telemetry reading inside an aggregation bucket
+type BucketSampleDTO struct {
+	ID             uint64    `json:"id"`
+	ReceivedAt     time.Time `json:"received_at"`
+	RawValue       float64   `json:"raw_value"`
+	ProcessedValue float64   `json:"processed_value"`
+	RawHex         string    `json:"raw_hex"`
+	Quality        string    `json:"quality"`
+	QualityReason  string    `json:"quality_reason"`
+}
+
+// BucketSamplesResponse contains detailed telemetry points that contributed to an aggregation bucket
+type BucketSamplesResponse struct {
+	ResultID       uint              `json:"result_id"`
+	DeviceID       uint              `json:"device_id"`
+	ParameterID    uint              `json:"parameter_id"`
+	ParameterCode  string            `json:"parameter_code"`
+	ParameterName  string            `json:"parameter_name"`
+	Unit           string            `json:"unit"`
+	Identifier     string            `json:"identifier"`
+	PeriodStart    time.Time         `json:"period_start"`
+	PeriodEnd      time.Time         `json:"period_end"`
+	SampleCount    int               `json:"sample_count"`
+	AvgValue       *float64          `json:"avg_value"`
+	MinValue       *float64          `json:"min_value"`
+	MaxValue       *float64          `json:"max_value"`
+	Quality        string            `json:"quality"`
+	IsActive       bool              `json:"is_active"`
+	Samples        []BucketSampleDTO `json:"samples"`
+}
+
+// GetResultSamples retrieves all raw telemetry samples associated with an aggregation result or time window
+func (s *AggregationService) GetResultSamples(ctx context.Context, resultID uint, deviceID, paramID uint, start, end *time.Time) (*BucketSamplesResponse, error) {
+	var res *model.AggregationResult
+	var err error
+
+	if resultID > 0 {
+		res, err = s.repo.GetResultByID(ctx, resultID)
+		if err != nil {
+			return nil, fmt.Errorf("aggregation result %d not found: %w", resultID, err)
+		}
+	}
+
+	var dID, pID uint
+	var pStart, pEnd time.Time
+	var identifier string
+	var avgVal, minVal, maxVal *float64
+	var quality string
+	var sampleCount int
+
+	if res != nil {
+		dID = res.DeviceID
+		pID = res.ParameterID
+		pStart = res.PeriodStart
+		pEnd = res.PeriodEnd
+		identifier = res.Identifier
+		avgVal = res.AvgValue
+		minVal = res.MinValue
+		maxVal = res.MaxValue
+		quality = string(res.Quality)
+		sampleCount = res.SampleCount
+	} else {
+		dID = deviceID
+		pID = paramID
+		if start != nil {
+			pStart = *start
+		}
+		if end != nil {
+			pEnd = *end
+		}
+	}
+
+	rawSamples, err := s.repo.GetRawTelemetryForBucket(ctx, dID, pID, pStart, pEnd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch raw telemetry samples: %w", err)
+	}
+
+	pCode := fmt.Sprintf("PARAM_%d", pID)
+	pName := pCode
+	unit := ""
+	if param, err := s.devRepo.GetParameterByID(dID, pID); err == nil && param != nil {
+		pCode = param.ParameterCode
+		pName = param.ParameterName
+		unit = param.Unit
+	}
+
+	samplesDTO := make([]BucketSampleDTO, 0, len(rawSamples))
+	for _, raw := range rawSamples {
+		samplesDTO = append(samplesDTO, BucketSampleDTO{
+			ID:             raw.ID,
+			ReceivedAt:     raw.ReceivedAt,
+			RawValue:       raw.RawValue,
+			ProcessedValue: raw.ProcessedValue,
+			RawHex:         raw.RawHex,
+			Quality:        string(raw.Quality),
+			QualityReason:  string(raw.QualityReason),
+		})
+	}
+
+	if sampleCount == 0 {
+		sampleCount = len(rawSamples)
+	}
+
+	resp := &BucketSamplesResponse{
+		ResultID:      resultID,
+		DeviceID:      dID,
+		ParameterID:   pID,
+		ParameterCode: pCode,
+		ParameterName: pName,
+		Unit:          unit,
+		Identifier:    identifier,
+		PeriodStart:   pStart,
+		PeriodEnd:     pEnd,
+		SampleCount:   sampleCount,
+		AvgValue:      avgVal,
+		MinValue:      minVal,
+		MaxValue:      maxVal,
+		Quality:       quality,
+		IsActive:      pEnd.After(time.Now().UTC()),
+		Samples:       samplesDTO,
+	}
+
+	return resp, nil
+}
+

@@ -33,7 +33,7 @@ func (e *Engine) Calculate(
 	samples []model.RawData,
 ) *model.AggregationResult {
 	loc := ResolveLocation(def.Timezone)
-	identifier := FormatIdentifier(bucketStart, loc)
+	identifier := FormatIdentifier(bucketEnd, loc)
 
 	res := &model.AggregationResult{
 		AggregationDefinitionID: def.ID,

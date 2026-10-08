@@ -222,6 +222,8 @@ func main() {
 			aggregationsGroup.POST("/definitions/:id/run", middleware.RequirePermission("device.manage"), aggHandler.TriggerBucket)
 			aggregationsGroup.POST("/run", middleware.RequirePermission("device.manage"), aggHandler.RunBuckets)
 			aggregationsGroup.GET("/results", middleware.RequirePermission("device.view"), aggHandler.GetResults)
+			aggregationsGroup.GET("/results/:id/samples", middleware.RequirePermission("device.view"), aggHandler.GetResultSamples)
+			aggregationsGroup.GET("/samples", middleware.RequirePermission("device.view"), aggHandler.GetResultSamples)
 		}
 
 		// Phase 3.3 — Customer Aggregated Data API (Customer-Facing & Identifier Query)

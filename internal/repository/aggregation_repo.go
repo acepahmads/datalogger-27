@@ -88,6 +88,8 @@ func (r *AggregationRepository) SaveResult(ctx context.Context, result *model.Ag
 			{Name: "period_start"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
+			"identifier",
+			"period_end",
 			"value",
 			"min_value",
 			"max_value",
@@ -106,6 +108,19 @@ func (r *AggregationRepository) SaveResult(ctx context.Context, result *model.Ag
 			"updated_at",
 		}),
 	}).Create(result).Error
+}
+
+// GetResultByID retrieves an aggregation result by primary key ID
+func (r *AggregationRepository) GetResultByID(ctx context.Context, id uint) (*model.AggregationResult, error) {
+	var result model.AggregationResult
+	err := r.db.WithContext(ctx).
+		Preload("Device").
+		Preload("Parameter").
+		First(&result, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // GetResultByIdentifier retrieves results by deterministic identifier (e.g. 20261008140000)
