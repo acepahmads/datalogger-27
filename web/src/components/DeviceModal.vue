@@ -48,13 +48,17 @@
       </div>
 
       <!-- Modal Body -->
-      <form novalidate @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-5">
+      <form ref="deviceFormBody" novalidate @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-5">
         <!-- Error Alert -->
-        <div v-if="error" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center space-x-2">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-start space-x-2.5 shadow-lg shadow-rose-950/20 animate-fade-in">
+          <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
           </svg>
-          <span>{{ error }}</span>
+          <div class="flex-1">
+            <span class="font-bold text-rose-200 block text-2xs">{{ $t('deviceModal.cannotSaveTitle') }}</span>
+            <span class="text-3xs text-rose-300 mt-0.5 block leading-relaxed whitespace-pre-wrap">{{ error }}</span>
+          </div>
+          <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs font-mono ml-2">✕</button>
         </div>
 
         <!-- TAB 1: General Info -->
@@ -573,6 +577,20 @@
           </div>
         </div>
 
+        <!-- Sticky Warning Alert Above Buttons -->
+        <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/50 rounded-xl text-xs text-rose-200 flex items-start space-x-2.5 shadow-lg shadow-rose-950/40 animate-fade-in">
+          <svg class="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="flex-1">
+            <div class="font-bold flex items-center justify-between text-rose-100">
+              <span class="text-xs">{{ $t('deviceModal.cannotSaveTitle') }}</span>
+              <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs underline ml-2">{{ $t('common.cancel') }}</button>
+            </div>
+            <p class="mt-1 text-2xs text-rose-300 leading-relaxed font-sans whitespace-pre-wrap">{{ error }}</p>
+          </div>
+        </div>
+
         <!-- Modal Footer -->
         <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
           <button
@@ -864,30 +882,41 @@ export default {
         },
       };
     },
+    scrollToError() {
+      this.$nextTick(() => {
+        if (this.$refs.deviceFormBody) {
+          this.$refs.deviceFormBody.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    },
     async submitForm() {
       this.error = null;
 
       // Validate Basic Info
       if (!this.form.device_code || !this.form.device_code.trim()) {
         this.activeTab = 'basic';
-        this.error = 'Device Code is required.';
+        this.error = this.$t('deviceModal.codeRequired');
+        this.scrollToError();
         return;
       }
       if (!this.form.device_name || !this.form.device_name.trim()) {
         this.activeTab = 'basic';
-        this.error = 'Device Name is required.';
+        this.error = this.$t('deviceModal.nameRequired');
+        this.scrollToError();
         return;
       }
 
       // Validate Connection Info
       if (this.isNetworkProtocol && (!this.form.connection.host || !this.form.connection.host.trim())) {
         this.activeTab = 'connection';
-        this.error = 'Host / IP Address is required for network protocols.';
+        this.error = this.$t('deviceModal.hostRequired');
+        this.scrollToError();
         return;
       }
       if (this.isSerialProtocol && (!this.form.connection.serial_port || !this.form.connection.serial_port.trim())) {
         this.activeTab = 'connection';
-        this.error = 'Serial Port (e.g. COM1, COM3, or /dev/ttyUSB0) is required.';
+        this.error = this.$t('deviceModal.portRequired');
+        this.scrollToError();
         return;
       }
 
@@ -906,6 +935,7 @@ export default {
         this.closeModal();
       } catch (err) {
         this.error = (err.response && err.response.data && err.response.data.error) || err.message || 'Operation failed';
+        this.scrollToError();
       } finally {
         this.loading = false;
       }

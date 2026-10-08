@@ -593,7 +593,13 @@ export default {
     "slaveAddressHint": "Device slave address (1-247)",
     "byteOrder": "Byte / Word Ordering",
     "byteOrderHint": "Multi-register byte transposition",
-    "registerDevice": "Register Device"
+    "registerDevice": "Register Device",
+    "cannotSaveTitle": "Cannot Save Device",
+    "hostRequired": "Host / IP Address is required for network protocols.",
+    "portRequired": "Serial Port is required.",
+    "codeRequired": "Device code is required.",
+    "nameRequired": "Device name is required.",
+    "savedSuccess": "Device saved successfully!"
   },
   "parameterModal": {
     "titleAdd": "Add Measurement Parameter",
@@ -653,7 +659,20 @@ export default {
     "holdLastValueTitle": "Hold Last Good Value on Anomaly / Timeout",
     "holdLastValueDesc": "Shield database from sensor glitch spikes, timeouts, or out-of-bounds readings by holding last valid data before committing real sensor state.",
     "holdDurationSeconds": "Hold Duration (Seconds)",
-    "holdDurationHelp": "If the sensor remains anomalous for longer than this duration (default 120s / 2m), the real sensor value will be committed to the database."
+    "holdDurationHelp": "If the sensor remains anomalous for longer than this duration (default 120s / 2m), the real sensor value will be committed to the database.",
+    "cannotSaveTitle": "Cannot Save Parameter",
+    "validationErrorsTitle": "Form Validation Warnings",
+    "warningLowGreaterThanHigh": "Warning Min ({low}) cannot be greater than Warning Max ({high}). Please adjust the warning limits.",
+    "minGreaterThanMax": "Minimum Value Limit ({min}) cannot be greater than Maximum Value Limit ({max}). Please adjust the limits.",
+    "scaleZero": "Scale factor cannot be zero (0).",
+    "codeRequired": "Parameter code is required.",
+    "nameRequired": "Parameter name is required.",
+    "warnLowBelowMin": "Notice: Warning Min ({low}) is lower than Minimum Value ({min}). Out-of-bounds anomaly will trigger before warning.",
+    "warnHighAboveMax": "Notice: Warning Max ({high}) is higher than Maximum Value ({max}). Out-of-bounds anomaly will trigger before warning.",
+    "closeWarning": "Dismiss",
+    "checkFormNotice": "Please correct the highlighted issues before saving.",
+    "fixLimitsBeforeSave": "Fix boundary limits before saving",
+    "savedSuccess": "Parameter saved successfully!"
   },
   "parameters": {
     "title": "Device Parameters",

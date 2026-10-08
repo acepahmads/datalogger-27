@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -402,4 +403,121 @@ func TestParameterFormulaAndHoldConfig(t *testing.T) {
 		t.Errorf("Expected updated HoldLastValueSeconds 60, got %d", updated.HoldLastValueSeconds)
 	}
 }
+
+func TestParameterJSONFlexibleUnmarshal(t *testing.T) {
+	// Test unmarshaling empty strings and stringified numbers
+	rawJSON := []byte(`{
+		"min_value": "",
+		"max_value": "150.5",
+		"warning_low": "20",
+		"warning_high": null,
+		"scale": "1.25",
+		"offset": "0.5"
+	}`)
+
+	var req service.UpdateParameterRequest
+	if err := json.Unmarshal(rawJSON, &req); err != nil {
+		t.Fatalf("Failed to unmarshal flexible JSON: %v", err)
+	}
+
+	if !req.ClearMinValue || req.MinValue != nil {
+		t.Errorf("Expected ClearMinValue true and MinValue nil, got Clear=%v, MinValue=%v", req.ClearMinValue, req.MinValue)
+	}
+	if req.MaxValue == nil || *req.MaxValue != 150.5 {
+		t.Errorf("Expected MaxValue 150.5, got %v", req.MaxValue)
+	}
+	if req.WarningLow == nil || *req.WarningLow != 20.0 {
+		t.Errorf("Expected WarningLow 20.0, got %v", req.WarningLow)
+	}
+	if !req.ClearWarningHigh || req.WarningHigh != nil {
+		t.Errorf("Expected ClearWarningHigh true and WarningHigh nil, got Clear=%v, WarningHigh=%v", req.ClearWarningHigh, req.WarningHigh)
+	}
+	if req.Scale == nil || *req.Scale != 1.25 {
+		t.Errorf("Expected Scale 1.25, got %v", req.Scale)
+	}
+	if req.Offset == nil || *req.Offset != 0.5 {
+		t.Errorf("Expected Offset 0.5, got %v", req.Offset)
+	}
+}
+
+func TestUpdateParameterLimitsAndClear(t *testing.T) {
+	_, devService, _ := setupDeviceTestDB(t)
+
+	dev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "DEV-LIMITS-01",
+		DeviceName: "Limit Validation Test Device",
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	minVal := 0.0
+	maxVal := 100.0
+	warnLow := 10.0
+	warnHigh := 50.0
+	param, err := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode:   "TEMP_CH1",
+		ParameterName:   "Chamber 1 Temperature",
+		DataType:        model.DataTypeFloat32,
+		MinValue:        &minVal,
+		MaxValue:        &maxVal,
+		WarningLow:      &warnLow,
+		WarningHigh:     &warnHigh,
+		Scale:           1.0,
+		RegisterAddress: 4,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("CreateParameter failed: %v", err)
+	}
+
+	// 1. Validation check: warning_low > warning_high should fail
+	invalidWarnLow := 60.0
+	_, err = devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		WarningLow: &invalidWarnLow,
+	}, "admin", "127.0.0.1", "")
+	if err == nil {
+		t.Fatalf("Expected error when warning_low (60) > existing warning_high (50), got nil")
+	}
+
+	// 2. Validation check: min_value > max_value should fail
+	invalidMinVal := 120.0
+	_, err = devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		MinValue: &invalidMinVal,
+	}, "admin", "127.0.0.1", "")
+	if err == nil {
+		t.Fatalf("Expected error when min_value (120) > existing max_value (100), got nil")
+	}
+
+	// 3. Clear warning_high and update warning_low to 60.0 -> should succeed because warning_high is cleared!
+	newWarnLow := 60.0
+	updated, err := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		WarningLow:       &newWarnLow,
+		ClearWarningHigh: true,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("UpdateParameter with ClearWarningHigh failed: %v", err)
+	}
+	if updated.WarningHigh != nil {
+		t.Errorf("Expected WarningHigh to be nil after clear, got %v", *updated.WarningHigh)
+	}
+	if updated.WarningLow == nil || *updated.WarningLow != 60.0 {
+		t.Errorf("Expected WarningLow to be 60.0, got %v", updated.WarningLow)
+	}
+
+	// 4. Clear all limits
+	updated2, err := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		ClearMinValue:    true,
+		ClearMaxValue:    true,
+		ClearWarningLow:  true,
+		ClearWarningHigh: true,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("UpdateParameter clearing all limits failed: %v", err)
+	}
+	if updated2.MinValue != nil || updated2.MaxValue != nil || updated2.WarningLow != nil || updated2.WarningHigh != nil {
+		t.Errorf("Expected all limits to be nil, got: min=%v, max=%v, wlow=%v, whigh=%v",
+			updated2.MinValue, updated2.MaxValue, updated2.WarningLow, updated2.WarningHigh)
+	}
+}
+
 

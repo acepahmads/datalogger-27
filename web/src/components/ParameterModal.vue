@@ -19,13 +19,17 @@
       </div>
 
       <!-- Modal Body -->
-      <form @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-4">
-        <!-- Error Alert -->
-        <div v-if="error" class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center space-x-2">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      <form ref="formBody" @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-4">
+        <!-- Top Error Alert -->
+        <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-start space-x-2.5 shadow-lg shadow-rose-950/20 animate-fade-in">
+          <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
           </svg>
-          <span>{{ error }}</span>
+          <div class="flex-1">
+            <span class="font-bold text-rose-200 block text-2xs">{{ $t('parameterModal.cannotSaveTitle') }}</span>
+            <span class="text-3xs text-rose-300 mt-0.5 block leading-relaxed whitespace-pre-wrap">{{ error }}</span>
+          </div>
+          <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs font-mono ml-2">✕</button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -167,8 +171,10 @@
               type="number"
               step="0.001"
               placeholder="1.0"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+              :class="scaleZeroWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-slate-700/80 focus:border-blue-500'"
+              class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
             />
+            <span v-if="scaleZeroWarning" class="text-3xs text-rose-400 mt-1 block">⚠️ {{ scaleZeroWarning }}</span>
           </div>
 
           <!-- Offset -->
@@ -186,64 +192,94 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Min Value -->
-          <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.minLimit') }}
-            </label>
-            <input
-              v-model.number="form.min_value"
-              type="number"
-              step="any"
-              placeholder="e.g. 0.0"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
-            />
-          </div>
+        <!-- Minimum & Maximum Value Limit (Hard Bounds) -->
+        <div class="space-y-2">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Min Value -->
+            <div>
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                {{ $t('parameterModal.minLimit') }}
+              </label>
+              <input
+                v-model.number="form.min_value"
+                type="number"
+                step="any"
+                placeholder="e.g. 0.0"
+                :class="hardLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-slate-700/80 focus:border-blue-500'"
+                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+              />
+            </div>
 
-          <!-- Max Value -->
-          <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.maxLimit') }}
-            </label>
-            <input
-              v-model.number="form.max_value"
-              type="number"
-              step="any"
-              placeholder="e.g. 500.0"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
-            />
+            <!-- Max Value -->
+            <div>
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                {{ $t('parameterModal.maxLimit') }}
+              </label>
+              <input
+                v-model.number="form.max_value"
+                type="number"
+                step="any"
+                placeholder="e.g. 500.0"
+                :class="hardLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-slate-700/80 focus:border-blue-500'"
+                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+              />
+            </div>
+          </div>
+          <!-- Hard Limit Validation Warning -->
+          <div v-if="hardLimitWarning" class="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-2xs text-rose-300 flex items-start space-x-2 animate-fade-in">
+            <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span class="leading-relaxed">{{ hardLimitWarning }}</span>
           </div>
         </div>
 
         <!-- Warning Limits (Soft Limits: Phase 3.2 UNCERTAIN Quality) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-              <span>{{ $t('parameterModal.warningLow') }}</span>
-              <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
-            </label>
-            <input
-              v-model.number="form.warning_low"
-              type="number"
-              step="any"
-              :placeholder="$t('parameterModal.placeholders.warningLow')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-amber-500/30 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
-            />
+        <div class="space-y-2">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>{{ $t('parameterModal.warningLow') }}</span>
+                <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
+              </label>
+              <input
+                v-model.number="form.warning_low"
+                type="number"
+                step="any"
+                :placeholder="$t('parameterModal.placeholders.warningLow')"
+                :class="warningLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-amber-500/30 focus:border-amber-400'"
+                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+              />
+            </div>
+
+            <div>
+              <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>{{ $t('parameterModal.warningHigh') }}</span>
+                <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
+              </label>
+              <input
+                v-model.number="form.warning_high"
+                type="number"
+                step="any"
+                :placeholder="$t('parameterModal.placeholders.warningHigh')"
+                :class="warningLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-amber-500/30 focus:border-amber-400'"
+                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+              />
+            </div>
           </div>
 
-          <div>
-            <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-              <span>{{ $t('parameterModal.warningHigh') }}</span>
-              <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
-            </label>
-            <input
-              v-model.number="form.warning_high"
-              type="number"
-              step="any"
-              :placeholder="$t('parameterModal.placeholders.warningHigh')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-amber-500/30 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
-            />
+          <!-- Warning Limits Validation Callout -->
+          <div v-if="warningLimitWarning" class="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-2xs text-rose-300 flex items-start space-x-2 animate-fade-in">
+            <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span class="leading-relaxed">{{ warningLimitWarning }}</span>
+          </div>
+          <div v-else-if="softBeyondHardNotice" class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-2xs text-amber-300 flex items-start space-x-2 animate-fade-in">
+            <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="leading-relaxed">{{ softBeyondHardNotice }}</span>
           </div>
         </div>
 
@@ -467,6 +503,20 @@
           </label>
         </div>
 
+        <!-- Sticky Warning Alert Above Buttons -->
+        <div v-if="activeErrorMessage" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/50 rounded-xl text-xs text-rose-200 flex items-start space-x-2.5 shadow-lg shadow-rose-950/40 animate-fade-in">
+          <svg class="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="flex-1">
+            <div class="font-bold flex items-center justify-between text-rose-100">
+              <span class="text-xs">{{ $t('parameterModal.cannotSaveTitle') }}</span>
+              <button v-if="error" type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs underline ml-2">{{ $t('parameterModal.closeWarning') }}</button>
+            </div>
+            <p class="mt-1 text-2xs text-rose-300 leading-relaxed font-sans whitespace-pre-wrap">{{ activeErrorMessage }}</p>
+          </div>
+        </div>
+
         <!-- Modal Footer -->
         <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
           <button
@@ -478,11 +528,14 @@
           </button>
           <button
             type="submit"
-            :disabled="loading"
-            class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition flex items-center space-x-1.5 disabled:opacity-50"
+            :disabled="loading || !!clientValidationError"
+            :class="clientValidationError ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-75' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30'"
+            class="px-5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+            :title="clientValidationError || ''"
           >
             <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            <span>{{ isEditing ? $t('parameterModal.updateParam') : $t('parameterModal.addParam') }}</span>
+            <span v-if="clientValidationError" class="text-2xs text-amber-300">⚠️ {{ $t('parameterModal.fixLimitsBeforeSave') }}</span>
+            <span v-else>{{ isEditing ? $t('parameterModal.updateParam') : $t('parameterModal.addParam') }}</span>
           </button>
         </div>
       </form>
@@ -588,6 +641,57 @@ export default {
         return { valid: false, error: e.message };
       }
     },
+    hardLimitWarning() {
+      const min = this.cleanNum(this.form.min_value);
+      const max = this.cleanNum(this.form.max_value);
+      if (min !== null && max !== null && min > max) {
+        return this.$t('parameterModal.minGreaterThanMax', { min, max });
+      }
+      return null;
+    },
+    warningLimitWarning() {
+      const low = this.cleanNum(this.form.warning_low);
+      const high = this.cleanNum(this.form.warning_high);
+      if (low !== null && high !== null && low > high) {
+        return this.$t('parameterModal.warningLowGreaterThanHigh', { low, high });
+      }
+      return null;
+    },
+    softBeyondHardNotice() {
+      const wLow = this.cleanNum(this.form.warning_low);
+      const min = this.cleanNum(this.form.min_value);
+      if (wLow !== null && min !== null && wLow < min) {
+        return this.$t('parameterModal.warnLowBelowMin', { low: wLow, min });
+      }
+      const wHigh = this.cleanNum(this.form.warning_high);
+      const max = this.cleanNum(this.form.max_value);
+      if (wHigh !== null && max !== null && wHigh > max) {
+        return this.$t('parameterModal.warnHighAboveMax', { high: wHigh, max });
+      }
+      return null;
+    },
+    scaleZeroWarning() {
+      const s = this.cleanNum(this.form.scale);
+      if (s !== null && s === 0) {
+        return this.$t('parameterModal.scaleZero');
+      }
+      return null;
+    },
+    clientValidationError() {
+      if (!this.form.parameter_code || !this.form.parameter_code.trim()) {
+        return this.$t('parameterModal.codeRequired');
+      }
+      if (!this.form.parameter_name || !this.form.parameter_name.trim()) {
+        return this.$t('parameterModal.nameRequired');
+      }
+      if (this.hardLimitWarning) return this.hardLimitWarning;
+      if (this.warningLimitWarning) return this.warningLimitWarning;
+      if (this.scaleZeroWarning) return this.scaleZeroWarning;
+      return null;
+    },
+    activeErrorMessage() {
+      return this.error || this.clientValidationError || null;
+    },
   },
   watch: {
     paramToEdit: {
@@ -628,6 +732,44 @@ export default {
     },
   },
   methods: {
+    cleanNum(val) {
+      if (val === null || val === undefined || val === '') return null;
+      const n = Number(val);
+      return isNaN(n) ? null : n;
+    },
+    formatErrorMessage(rawErr) {
+      if (!rawErr) return 'Operation failed';
+      const str = String(rawErr);
+      if (str.includes('warning_low cannot be greater than warning_high')) {
+        return this.$t('parameterModal.warningLowGreaterThanHigh', {
+          low: this.cleanNum(this.form.warning_low) ?? 'Min',
+          high: this.cleanNum(this.form.warning_high) ?? 'Max',
+        });
+      }
+      if (str.includes('min_value cannot be greater than max_value')) {
+        return this.$t('parameterModal.minGreaterThanMax', {
+          min: this.cleanNum(this.form.min_value) ?? 'Min',
+          max: this.cleanNum(this.form.max_value) ?? 'Max',
+        });
+      }
+      if (str.includes('scale factor cannot be zero')) {
+        return this.$t('parameterModal.scaleZero');
+      }
+      if (str.includes('parameter_code cannot be empty')) {
+        return this.$t('parameterModal.codeRequired');
+      }
+      if (str.includes('parameter_name cannot be empty')) {
+        return this.$t('parameterModal.nameRequired');
+      }
+      return str;
+    },
+    scrollToError() {
+      this.$nextTick(() => {
+        if (this.$refs.formBody) {
+          this.$refs.formBody.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    },
     closeModal() {
       this.error = null;
       this.$emit('close');
@@ -662,26 +804,71 @@ export default {
       };
     },
     async submitForm() {
+      if (this.clientValidationError) {
+        this.error = this.clientValidationError;
+        this.scrollToError();
+        return;
+      }
+
       this.loading = true;
       this.error = null;
+
+      const minVal = this.cleanNum(this.form.min_value);
+      const maxVal = this.cleanNum(this.form.max_value);
+      const warnLow = this.cleanNum(this.form.warning_low);
+      const warnHigh = this.cleanNum(this.form.warning_high);
+
+      const payload = {
+        parameter_code: this.form.parameter_code ? this.form.parameter_code.trim() : '',
+        parameter_name: this.form.parameter_name ? this.form.parameter_name.trim() : '',
+        data_type: this.form.data_type,
+        unit: this.form.unit ? this.form.unit.trim() : '',
+        description: this.form.description ? this.form.description.trim() : '',
+        register_address: this.cleanNum(this.form.register_address) || 0,
+        register_type: this.form.register_type,
+        byte_order: this.form.byte_order || '',
+        min_value: minVal,
+        max_value: maxVal,
+        warning_low: warnLow,
+        warning_high: warnHigh,
+        clear_min_value: minVal === null,
+        clear_max_value: maxVal === null,
+        clear_warning_low: warnLow === null,
+        clear_warning_high: warnHigh === null,
+        quality_validation_enabled: !!this.form.quality_validation_enabled,
+        processing_enabled: !!this.form.processing_enabled,
+        stale_timeout_seconds: this.cleanNum(this.form.stale_timeout_seconds) || 120,
+        spike_detection_enabled: !!this.form.spike_detection_enabled,
+        spike_threshold: this.cleanNum(this.form.spike_threshold) || 0.0,
+        spike_window_size: this.cleanNum(this.form.spike_window_size) || 3,
+        precision: this.cleanNum(this.form.precision) !== null ? this.cleanNum(this.form.precision) : 2,
+        scale: this.cleanNum(this.form.scale) !== null ? this.cleanNum(this.form.scale) : 1.0,
+        offset: this.cleanNum(this.form.offset) !== null ? this.cleanNum(this.form.offset) : 0.0,
+        enabled: !!this.form.enabled,
+        formula: this.form.formula ? this.form.formula.trim() : '',
+        hold_last_value_enabled: !!this.form.hold_last_value_enabled,
+        hold_last_value_seconds: this.cleanNum(this.form.hold_last_value_seconds) || 120,
+      };
 
       try {
         if (this.isEditing) {
           await this.$store.dispatch('updateParameter', {
             deviceId: this.deviceId,
             paramId: this.paramToEdit.id,
-            updates: this.form,
+            updates: payload,
           });
         } else {
           await this.$store.dispatch('createParameter', {
             deviceId: this.deviceId,
-            paramData: this.form,
+            paramData: payload,
           });
         }
         this.$emit('saved');
         this.closeModal();
       } catch (err) {
-        this.error = (err.response && err.response.data && err.response.data.error) || err.message || 'Operation failed';
+        const rawMsg = (err.response && err.response.data && err.response.data.error) || err.message || 'Operation failed';
+        this.error = this.formatErrorMessage(rawMsg);
+        this.scrollToError();
       } finally {
         this.loading = false;
       }

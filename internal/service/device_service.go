@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +99,57 @@ type CreateParameterRequest struct {
 	HoldLastValueSeconds     int                     `json:"hold_last_value_seconds"`
 }
 
+func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
+	type Alias CreateParameterRequest
+	aux := struct {
+		RawMin         interface{} `json:"min_value"`
+		RawMax         interface{} `json:"max_value"`
+		RawWarnLow     interface{} `json:"warning_low"`
+		RawWarnHigh    interface{} `json:"warning_high"`
+		RawScale       interface{} `json:"scale"`
+		RawOffset      interface{} `json:"offset"`
+		RawSpikeThresh interface{} `json:"spike_threshold"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var rawMap map[string]interface{}
+	_ = json.Unmarshal(data, &rawMap)
+
+	if val, ok := rawMap["min_value"]; ok {
+		r.MinValue = parseNullableFloat(val, nil)
+	}
+	if val, ok := rawMap["max_value"]; ok {
+		r.MaxValue = parseNullableFloat(val, nil)
+	}
+	if val, ok := rawMap["warning_low"]; ok {
+		r.WarningLow = parseNullableFloat(val, nil)
+	}
+	if val, ok := rawMap["warning_high"]; ok {
+		r.WarningHigh = parseNullableFloat(val, nil)
+	}
+	if val, ok := rawMap["scale"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.Scale = *f
+		}
+	}
+	if val, ok := rawMap["offset"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.Offset = *f
+		}
+	}
+	if val, ok := rawMap["spike_threshold"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.SpikeThreshold = f
+		}
+	}
+	return nil
+}
+
 type UpdateParameterRequest struct {
 	ParameterCode            *string                  `json:"parameter_code"`
 	ParameterName            *string                  `json:"parameter_name"`
@@ -108,6 +160,10 @@ type UpdateParameterRequest struct {
 	MaxValue                 *float64                 `json:"max_value"`
 	WarningLow               *float64                 `json:"warning_low"`
 	WarningHigh              *float64                 `json:"warning_high"`
+	ClearMinValue            bool                     `json:"clear_min_value"`
+	ClearMaxValue            bool                     `json:"clear_max_value"`
+	ClearWarningLow          bool                     `json:"clear_warning_low"`
+	ClearWarningHigh         bool                     `json:"clear_warning_high"`
 	QualityValidationEnabled *bool                    `json:"quality_validation_enabled"`
 	ProcessingEnabled        *bool                    `json:"processing_enabled"`
 	StaleTimeoutSeconds      *int                     `json:"stale_timeout_seconds"`
@@ -124,6 +180,57 @@ type UpdateParameterRequest struct {
 	Formula                  *string                  `json:"formula"`
 	HoldLastValueEnabled     *bool                    `json:"hold_last_value_enabled"`
 	HoldLastValueSeconds     *int                     `json:"hold_last_value_seconds"`
+}
+
+func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
+	type Alias UpdateParameterRequest
+	aux := struct {
+		RawMin         interface{} `json:"min_value"`
+		RawMax         interface{} `json:"max_value"`
+		RawWarnLow     interface{} `json:"warning_low"`
+		RawWarnHigh    interface{} `json:"warning_high"`
+		RawScale       interface{} `json:"scale"`
+		RawOffset      interface{} `json:"offset"`
+		RawSpikeThresh interface{} `json:"spike_threshold"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var rawMap map[string]interface{}
+	_ = json.Unmarshal(data, &rawMap)
+
+	if val, ok := rawMap["min_value"]; ok {
+		r.MinValue = parseNullableFloat(val, &r.ClearMinValue)
+	}
+	if val, ok := rawMap["max_value"]; ok {
+		r.MaxValue = parseNullableFloat(val, &r.ClearMaxValue)
+	}
+	if val, ok := rawMap["warning_low"]; ok {
+		r.WarningLow = parseNullableFloat(val, &r.ClearWarningLow)
+	}
+	if val, ok := rawMap["warning_high"]; ok {
+		r.WarningHigh = parseNullableFloat(val, &r.ClearWarningHigh)
+	}
+	if val, ok := rawMap["scale"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.Scale = f
+		}
+	}
+	if val, ok := rawMap["offset"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.Offset = f
+		}
+	}
+	if val, ok := rawMap["spike_threshold"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.SpikeThreshold = f
+		}
+	}
+	return nil
 }
 
 // ParameterQualityDTO encapsulates Phase 3.2 data quality configuration for a parameter
@@ -151,10 +258,91 @@ type UpdateParameterQualityRequest struct {
 	MaxValue                 *float64 `json:"max_value"`
 	WarningLow               *float64 `json:"warning_low"`
 	WarningHigh              *float64 `json:"warning_high"`
+	ClearMinValue            bool     `json:"clear_min_value"`
+	ClearMaxValue            bool     `json:"clear_max_value"`
+	ClearWarningLow          bool     `json:"clear_warning_low"`
+	ClearWarningHigh         bool     `json:"clear_warning_high"`
 	StaleTimeoutSeconds      *int     `json:"stale_timeout_seconds"`
 	SpikeDetectionEnabled    *bool    `json:"spike_detection_enabled"`
 	SpikeThreshold           *float64 `json:"spike_threshold"`
 	SpikeWindowSize          *int     `json:"spike_window_size"`
+}
+
+func (r *UpdateParameterQualityRequest) UnmarshalJSON(data []byte) error {
+	type Alias UpdateParameterQualityRequest
+	aux := struct {
+		RawMin         interface{} `json:"min_value"`
+		RawMax         interface{} `json:"max_value"`
+		RawWarnLow     interface{} `json:"warning_low"`
+		RawWarnHigh    interface{} `json:"warning_high"`
+		RawSpikeThresh interface{} `json:"spike_threshold"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var rawMap map[string]interface{}
+	_ = json.Unmarshal(data, &rawMap)
+
+	if val, ok := rawMap["min_value"]; ok {
+		r.MinValue = parseNullableFloat(val, &r.ClearMinValue)
+	}
+	if val, ok := rawMap["max_value"]; ok {
+		r.MaxValue = parseNullableFloat(val, &r.ClearMaxValue)
+	}
+	if val, ok := rawMap["warning_low"]; ok {
+		r.WarningLow = parseNullableFloat(val, &r.ClearWarningLow)
+	}
+	if val, ok := rawMap["warning_high"]; ok {
+		r.WarningHigh = parseNullableFloat(val, &r.ClearWarningHigh)
+	}
+	if val, ok := rawMap["spike_threshold"]; ok && val != nil {
+		if f := parseNullableFloat(val, nil); f != nil {
+			r.SpikeThreshold = f
+		}
+	}
+	return nil
+}
+
+func parseNullableFloat(val interface{}, clear *bool) *float64 {
+	if val == nil {
+		if clear != nil {
+			*clear = true
+		}
+		return nil
+	}
+	switch v := val.(type) {
+	case float64:
+		return &v
+	case float32:
+		f := float64(v)
+		return &f
+	case int:
+		f := float64(v)
+		return &f
+	case int64:
+		f := float64(v)
+		return &f
+	case json.Number:
+		if f, err := v.Float64(); err == nil {
+			return &f
+		}
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		if parsed, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return &parsed
+		}
+	}
+	return nil
 }
 
 type DeviceService struct {
@@ -825,11 +1013,17 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	if req.Description != nil {
 		param.Description = strings.TrimSpace(*req.Description)
 	}
-	if req.MinValue != nil {
+	if req.ClearMinValue {
+		param.MinValue = nil
+		param.LowLimit = nil
+	} else if req.MinValue != nil {
 		param.MinValue = req.MinValue
 		param.LowLimit = req.MinValue
 	}
-	if req.MaxValue != nil {
+	if req.ClearMaxValue {
+		param.MaxValue = nil
+		param.HighLimit = nil
+	} else if req.MaxValue != nil {
 		param.MaxValue = req.MaxValue
 		param.HighLimit = req.MaxValue
 	}
@@ -889,10 +1083,14 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		}
 		param.HoldLastValueSeconds = sec
 	}
-	if req.WarningLow != nil {
+	if req.ClearWarningLow {
+		param.WarningLow = nil
+	} else if req.WarningLow != nil {
 		param.WarningLow = req.WarningLow
 	}
-	if req.WarningHigh != nil {
+	if req.ClearWarningHigh {
+		param.WarningHigh = nil
+	} else if req.WarningHigh != nil {
 		param.WarningHigh = req.WarningHigh
 	}
 	if param.WarningLow != nil && param.WarningHigh != nil && *param.WarningLow > *param.WarningHigh {
@@ -1002,21 +1200,31 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 	if req.ProcessingEnabled != nil {
 		param.ProcessingEnabled = *req.ProcessingEnabled
 	}
-	if req.MinValue != nil {
+	if req.ClearMinValue {
+		param.MinValue = nil
+		param.LowLimit = nil
+	} else if req.MinValue != nil {
 		param.MinValue = req.MinValue
 		param.LowLimit = req.MinValue
 	}
-	if req.MaxValue != nil {
+	if req.ClearMaxValue {
+		param.MaxValue = nil
+		param.HighLimit = nil
+	} else if req.MaxValue != nil {
 		param.MaxValue = req.MaxValue
 		param.HighLimit = req.MaxValue
 	}
 	if param.MinValue != nil && param.MaxValue != nil && *param.MinValue > *param.MaxValue {
 		return nil, errors.New("min_value cannot be greater than max_value")
 	}
-	if req.WarningLow != nil {
+	if req.ClearWarningLow {
+		param.WarningLow = nil
+	} else if req.WarningLow != nil {
 		param.WarningLow = req.WarningLow
 	}
-	if req.WarningHigh != nil {
+	if req.ClearWarningHigh {
+		param.WarningHigh = nil
+	} else if req.WarningHigh != nil {
 		param.WarningHigh = req.WarningHigh
 	}
 	if param.WarningLow != nil && param.WarningHigh != nil && *param.WarningLow > *param.WarningHigh {

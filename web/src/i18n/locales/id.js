@@ -593,7 +593,13 @@ export default {
     "slaveAddressHint": "Alamat slave perangkat (1-247)",
     "byteOrder": "Urutan Byte / Word",
     "byteOrderHint": "Transposisi byte multi-register",
-    "registerDevice": "Daftarkan Perangkat"
+    "registerDevice": "Daftarkan Perangkat",
+    "cannotSaveTitle": "Tidak Dapat Menyimpan Perangkat",
+    "hostRequired": "Alamat Host / IP wajib diisi untuk protokol jaringan.",
+    "portRequired": "Port Serial wajib dipilih atau diisi.",
+    "codeRequired": "Kode perangkat wajib diisi.",
+    "nameRequired": "Nama perangkat wajib diisi.",
+    "savedSuccess": "Perangkat berhasil disimpan!"
   },
   "parameterModal": {
     "titleAdd": "Tambah Parameter Pengukuran",
@@ -653,7 +659,20 @@ export default {
     "holdLastValueTitle": "Tahan Data Terakhir Saat Anomali / Timeout",
     "holdLastValueDesc": "Lindungi database dari spike glitch, timeout, atau nilai di luar rentang dengan menahan data valid terakhir sebelum menyimpan nilai real sensor.",
     "holdDurationSeconds": "Durasi Penahanan (Detik)",
-    "holdDurationHelp": "Jika sensor tetap anomali lebih lama dari durasi ini (default 120 detik / 2 menit), nilai real dari sensor akan disimpan ke database."
+    "holdDurationHelp": "Jika sensor tetap anomali lebih lama dari durasi ini (default 120 detik / 2 menit), nilai real dari sensor akan disimpan ke database.",
+    "cannotSaveTitle": "Tidak Dapat Menyimpan Parameter",
+    "validationErrorsTitle": "Peringatan Validasi Formulir",
+    "warningLowGreaterThanHigh": "Batas Warning Min ({low}) tidak boleh lebih besar dari Warning Max ({high}). Silakan sesuaikan nilai batas peringatan.",
+    "minGreaterThanMax": "Batas Nilai Minimum ({min}) tidak boleh lebih besar dari Batas Nilai Maksimum ({max}). Silakan sesuaikan batas nilai.",
+    "scaleZero": "Faktor skala (Scale Factor) tidak boleh bernilai 0.",
+    "codeRequired": "Kode parameter wajib diisi.",
+    "nameRequired": "Nama parameter wajib diisi.",
+    "warnLowBelowMin": "Perhatian: Warning Min ({low}) lebih rendah dari Batas Minimum ({min}). Anomali out-of-bounds akan terpicu sebelum batas warning.",
+    "warnHighAboveMax": "Perhatian: Warning Max ({high}) lebih tinggi dari Batas Maksimum ({max}). Anomali out-of-bounds akan terpicu sebelum batas warning.",
+    "closeWarning": "Tutup",
+    "checkFormNotice": "Harap periksa dan perbaiki peringatan di atas sebelum menyimpan.",
+    "fixLimitsBeforeSave": "Perbaiki batas limit sebelum menyimpan",
+    "savedSuccess": "Parameter berhasil disimpan!"
   },
   "parameters": {
     "title": "Parameter Perangkat",

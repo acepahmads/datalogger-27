@@ -1669,7 +1669,7 @@
       :is-open="isEditModalOpen"
       :device-to-edit="device"
       @close="isEditModalOpen = false"
-      @saved="loadDevice"
+      @saved="handleDeviceSaved"
     />
 
     <ParameterModal
@@ -1678,7 +1678,7 @@
       :device-id="device.id"
       :param-to-edit="paramToEdit"
       @close="isParamModalOpen = false"
-      @saved="loadDevice"
+      @saved="handleParamSaved"
     />
 
     <!-- Modbus Parameter Test Read Diagnostic Modal -->
@@ -1839,6 +1839,22 @@
         </div>
       </div>
     </div>
+
+    <!-- Global Floating Toast Notification -->
+    <div
+      v-if="toastMessage"
+      class="fixed bottom-6 right-6 z-50 flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-semibold backdrop-blur-md transition-all animate-fade-in"
+      :class="toastType === 'error' ? 'bg-rose-950/90 border-rose-500/50 text-rose-200 shadow-rose-950/40' : 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200 shadow-emerald-950/40'"
+    >
+      <svg v-if="toastType === 'error'" class="w-5 h-5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <svg v-else class="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+      <span>{{ toastMessage }}</span>
+      <button type="button" @click="toastMessage = null" class="ml-2 hover:opacity-80 text-3xs font-mono">✕</button>
+    </div>
   </div>
 </template>
 
@@ -1855,6 +1871,9 @@ export default {
   },
   data() {
     return {
+      toastMessage: null,
+      toastType: 'success',
+      toastTimer: null,
       device: null,
       activities: [],
       activityLoading: false,
@@ -2313,6 +2332,22 @@ export default {
         clearInterval(this.activityPollTimer);
         this.activityPollTimer = null;
       }
+    },
+    showToast(msg, type = 'success') {
+      this.toastMessage = msg;
+      this.toastType = type;
+      if (this.toastTimer) clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => {
+        this.toastMessage = null;
+      }, 4000);
+    },
+    handleDeviceSaved() {
+      this.showToast(this.$t('deviceModal.savedSuccess') || 'Device saved successfully!', 'success');
+      this.loadDevice();
+    },
+    handleParamSaved() {
+      this.showToast(this.$t('parameterModal.savedSuccess') || 'Parameter saved successfully!', 'success');
+      this.loadDevice();
     },
     openEditModal() {
       this.isEditModalOpen = true;
