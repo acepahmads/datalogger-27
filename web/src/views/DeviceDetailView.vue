@@ -465,6 +465,10 @@
               <td class="py-2.5 px-3 font-medium text-slate-200">{{ param.parameter_name || param.name }}</td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">{{ param.data_type }}</td>
               <td class="py-2.5 px-3 font-medium text-slate-400">{{ param.unit || '--' }}</td>
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">
+                <span class="font-bold text-slate-200">#{{ param.register_address !== undefined ? param.register_address : 0 }}</span>
+                <span class="block text-4xs text-slate-500 font-sans uppercase">{{ param.register_type || 'HOLDING' }}</span>
+              </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
                 <div>×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</div>
                 <div v-if="param.formula" class="text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
@@ -483,7 +487,7 @@
               </td>
               <td class="py-2.5 px-3 font-mono text-slate-200">
                 <div class="font-bold flex items-center space-x-1.5">
-                  <span>{{ param.current_value !== null && param.current_value !== undefined ? param.current_value.toFixed(param.precision || 2) : '--' }}</span>
+                  <span>{{ formatParamValue(param) }}</span>
                   <span
                     class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold uppercase"
                     :class="qualityBadgeClass(getParamQuality(param))"
@@ -494,7 +498,7 @@
                     {{ $t('parameters.heldBadge') }}
                   </span>
                 </div>
-                <div v-if="getParamQualityReason(param)" class="text-4xs font-mono text-amber-400/90 truncate max-w-[140px]" :title="getParamQualityReason(param)">
+                <div v-if="getParamQuality(param) !== 'GOOD' && getParamQualityReason(param)" class="text-4xs font-mono text-amber-400/90 truncate max-w-[140px]" :title="getParamQualityReason(param)">
                   {{ getParamQualityReason(param) }}
                 </div>
                 <div v-if="getParamFormulaValue(param) !== null" class="text-3xs text-blue-400 font-mono font-medium">
@@ -2959,8 +2963,15 @@ export default {
       }
     },
     getParamQualityReason(param) {
+      const q = this.getParamQuality(param);
+      if (q === 'GOOD') {
+        return '';
+      }
       if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].quality_reason && this.liveTelemetry[param.id].quality_reason !== 'NONE') {
         return this.liveTelemetry[param.id].quality_reason;
+      }
+      if (param.current_quality === 'GOOD') {
+        return '';
       }
       if (param.current_quality_reason && param.current_quality_reason !== 'NONE') {
         return param.current_quality_reason;

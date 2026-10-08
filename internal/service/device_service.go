@@ -1123,6 +1123,21 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		param.SpikeWindowSize = win
 	}
 
+	// Re-evaluate quality limits against current value if present
+	if param.CurrentValue != nil {
+		val := *param.CurrentValue
+		if (param.MinValue != nil && val < *param.MinValue) || (param.MaxValue != nil && val > *param.MaxValue) {
+			param.CurrentQuality = model.QualityBad
+			param.CurrentQualityReason = model.ReasonOutOfHardRange
+		} else if (param.WarningLow != nil && val < *param.WarningLow) || (param.WarningHigh != nil && val > *param.WarningHigh) {
+			param.CurrentQuality = model.QualityUncertain
+			param.CurrentQualityReason = model.ReasonOutOfWarningRange
+		} else {
+			param.CurrentQuality = model.QualityGood
+			param.CurrentQualityReason = model.ReasonNone
+		}
+	}
+
 	if err := s.repo.UpdateParameter(param); err != nil {
 		return nil, fmt.Errorf("failed to update parameter: %w", err)
 	}
@@ -1249,6 +1264,21 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 			win = 3
 		}
 		param.SpikeWindowSize = win
+	}
+
+	// Re-evaluate quality limits against current value if present
+	if param.CurrentValue != nil {
+		val := *param.CurrentValue
+		if (param.MinValue != nil && val < *param.MinValue) || (param.MaxValue != nil && val > *param.MaxValue) {
+			param.CurrentQuality = model.QualityBad
+			param.CurrentQualityReason = model.ReasonOutOfHardRange
+		} else if (param.WarningLow != nil && val < *param.WarningLow) || (param.WarningHigh != nil && val > *param.WarningHigh) {
+			param.CurrentQuality = model.QualityUncertain
+			param.CurrentQualityReason = model.ReasonOutOfWarningRange
+		} else {
+			param.CurrentQuality = model.QualityGood
+			param.CurrentQualityReason = model.ReasonNone
+		}
 	}
 
 	if err := s.repo.UpdateParameter(param); err != nil {
