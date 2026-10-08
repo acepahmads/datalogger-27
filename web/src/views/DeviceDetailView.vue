@@ -1012,7 +1012,28 @@
           </div>
 
           <!-- Chart Visual Controls Toolbar -->
-          <div class="flex items-center space-x-2 text-2xs font-sans">
+          <div class="flex items-center space-x-2 text-2xs font-sans flex-wrap gap-y-1.5">
+            <!-- Mode Switch: Scaled / Formula vs Raw Value -->
+            <div class="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex items-center shadow-sm">
+              <button
+                @click="chartValueMode = 'scaled'"
+                class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans flex items-center space-x-1"
+                :class="chartValueMode === 'scaled' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                :title="$t('deviceDetail.modeScaledTitle')"
+              >
+                <span>{{ $t('deviceDetail.modeScaled') }}</span>
+              </button>
+              <button
+                @click="chartValueMode = 'raw'"
+                class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans flex items-center space-x-1"
+                :class="chartValueMode === 'raw' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                :title="$t('deviceDetail.modeRawTitle')"
+              >
+                <span class="w-1.5 h-1.5 rounded-full" :class="chartValueMode === 'raw' ? 'bg-emerald-300' : 'bg-slate-500'"></span>
+                <span>{{ $t('deviceDetail.modeRaw') }}</span>
+              </button>
+            </div>
+
             <!-- Curve Type Toggle -->
             <div class="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex items-center">
               <button
@@ -1162,8 +1183,12 @@
         >
           <!-- Top Left Unit Watermark -->
           <div class="absolute top-2.5 left-4 z-10 flex items-center space-x-1.5 text-3xs font-sans text-slate-400 pointer-events-none">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-            <span>{{ $t('deviceDetail.yScale') }} <b class="text-slate-300 font-medium">{{ chartActiveUnit || $t('common.value') }}</b></span>
+            <span class="w-1.5 h-1.5 rounded-full" :class="chartValueMode === 'raw' ? 'bg-emerald-400' : 'bg-blue-500'"></span>
+            <span>
+              {{ $t('deviceDetail.yScale') }}
+              <b class="text-slate-300 font-medium">{{ chartActiveUnit || $t('common.value') }}</b>
+              <span class="ml-1 text-slate-500 font-mono text-4xs">[{{ chartValueMode === 'raw' ? $t('deviceDetail.modeRaw') : $t('deviceDetail.modeScaled') }}]</span>
+            </span>
           </div>
 
           <!-- Empty State if no records -->
@@ -1343,7 +1368,7 @@
                 font-family="'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
                 font-weight="500"
               >
-                MAX {{ chartMaxPoint.value.toFixed(2) }}
+                MAX {{ chartValueMode === 'raw' && Number.isInteger(chartMaxPoint.value) ? chartMaxPoint.value : chartMaxPoint.value.toFixed(2) }}
               </text>
             </g>
 
@@ -1377,7 +1402,7 @@
                 font-family="'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
                 font-weight="500"
               >
-                MIN {{ chartMinPoint.value.toFixed(2) }}
+                MIN {{ chartValueMode === 'raw' && Number.isInteger(chartMinPoint.value) ? chartMinPoint.value : chartMinPoint.value.toFixed(2) }}
               </text>
             </g>
 
@@ -1467,17 +1492,28 @@
               </div>
               <div class="flex items-baseline space-x-1 pt-0.5">
                 <span class="text-2xl font-sans font-bold text-white tracking-tight tabular-nums">
-                  {{ hoveredPoint.value !== undefined ? hoveredPoint.value.toFixed(2) : '--' }}
+                  {{ hoveredPoint.value !== undefined ? (chartValueMode === 'raw' && Number.isInteger(hoveredPoint.value) ? hoveredPoint.value : hoveredPoint.value.toFixed(2)) : '--' }}
                 </span>
                 <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+                <span
+                  class="text-4xs font-sans font-bold px-1.5 py-0.5 rounded ml-1.5 uppercase"
+                  :class="chartValueMode === 'raw' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'"
+                >
+                  {{ chartValueMode === 'raw' ? 'RAW' : 'SCALED' }}
+                </span>
               </div>
               <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-3xs text-slate-400 font-sans">
                 <span>{{ formatTimestamp(hoveredPoint.timestamp) }}</span>
                 <span class="text-slate-500 font-sans">#{{ hoveredPoint.index + 1 }}/{{ chartPoints.length }}</span>
               </div>
-              <div v-if="hoveredPoint.rawRecord.raw_value !== undefined" class="text-4xs text-slate-500 font-sans flex items-center justify-between">
-                <span>Raw: {{ hoveredPoint.rawRecord.raw_value }}</span>
-                <span>{{ hoveredPoint.rawRecord.source || 'MODBUS' }}</span>
+              <div class="text-4xs text-slate-400 font-sans flex items-center justify-between pt-1 border-t border-slate-800/60">
+                <span v-if="chartValueMode === 'raw'">
+                  {{ $t('deviceDetail.modeScaled') }}: <b class="text-blue-300">{{ hoveredPoint.scaledValue !== null ? hoveredPoint.scaledValue.toFixed(2) : '--' }} {{ chartActiveParam ? chartActiveParam.unit : '' }}</b>
+                </span>
+                <span v-else>
+                  {{ $t('deviceDetail.modeRaw') }}: <b class="text-emerald-300">{{ hoveredPoint.rawValue !== null ? hoveredPoint.rawValue : '--' }}</b>
+                </span>
+                <span class="text-slate-500">{{ hoveredPoint.rawRecord ? (hoveredPoint.rawRecord.source || 'MODBUS') : 'MODBUS' }}</span>
               </div>
             </div>
           </div>
@@ -2768,6 +2804,7 @@ export default {
       historyLoading: false,
 
       // Historical Chart Enhancements
+      chartValueMode: 'scaled', // 'scaled' (formula) or 'raw' (register data)
       chartCurveType: 'smooth',
       chartShowPoints: true,
       chartShowAvgLine: true,
@@ -2888,6 +2925,9 @@ export default {
       return this.device.parameters.find(p => p.id === this.activeChartParamId) || null;
     },
     chartActiveUnit() {
+      if (this.chartValueMode === 'raw') {
+        return 'RAW';
+      }
       return this.chartActiveParam ? (this.chartActiveParam.unit || '') : '';
     },
     chartActiveName() {
@@ -2912,7 +2952,7 @@ export default {
 
       // Telemetry is fetched newest first (DESC); reverse for chronological left-to-right plotting
       const chronological = [...records].reverse();
-      const vals = chronological.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      const vals = chronological.map(r => this.getTelemetryVal(r));
       let min = Math.min(...vals);
       let max = Math.max(...vals);
 
@@ -2935,7 +2975,7 @@ export default {
       const minVal = Math.min(...vals);
 
       return chronological.map((rec, idx) => {
-        const val = (rec.value !== undefined && rec.value !== null) ? Number(rec.value) : 0;
+        const val = this.getTelemetryVal(rec);
         const x = count === 1 ? (left + plotWidth / 2) : (left + (idx / (count - 1)) * plotWidth);
         const normalizedY = (val - min) / range;
         const y = bottom - (normalizedY * plotHeight);
@@ -2944,6 +2984,8 @@ export default {
           x: Number(x.toFixed(1)),
           y: Number(y.toFixed(1)),
           value: val,
+          rawValue: (rec.raw_value !== undefined && rec.raw_value !== null) ? Number(rec.raw_value) : null,
+          scaledValue: (rec.value !== undefined && rec.value !== null) ? Number(rec.value) : null,
           rawRecord: rec,
           timestamp: rec.received_at || rec.timestamp,
           quality: rec.quality || 'GOOD',
@@ -3000,7 +3042,7 @@ export default {
           { y: bottom, label: '0.00' },
         ];
       }
-      const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      const vals = records.map(r => this.getTelemetryVal(r));
       let min = Math.min(...vals);
       let max = Math.max(...vals);
       if (min === max) {
@@ -3013,10 +3055,11 @@ export default {
       return ratios.map(r => {
         const val = min + range * r;
         const y = Number((bottom - r * plotHeight).toFixed(1));
+        const label = (this.chartValueMode === 'raw' && Number.isInteger(val)) ? val.toString() : val.toFixed(2);
         return {
           y,
           value: val,
-          label: val.toFixed(2),
+          label,
         };
       });
     },
@@ -3061,24 +3104,32 @@ export default {
 
       // records[0] is the newest telemetry record
       const latestRec = records[0];
-      const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      const vals = records.map(r => this.getTelemetryVal(r));
       const minVal = Math.min(...vals);
       const maxVal = Math.max(...vals);
       const sum = vals.reduce((a, b) => a + b, 0);
       const avgVal = sum / vals.length;
       const deltaVal = maxVal - minVal;
 
-      const minRec = records.find(r => r.value === minVal);
-      const maxRec = records.find(r => r.value === maxVal);
+      const minRec = records.find(r => this.getTelemetryVal(r) === minVal);
+      const maxRec = records.find(r => this.getTelemetryVal(r) === maxVal);
+      const latestVal = this.getTelemetryVal(latestRec);
+
+      const fmtVal = (val) => {
+        if (this.chartValueMode === 'raw' && Number.isInteger(val)) {
+          return val.toString();
+        }
+        return val.toFixed(2);
+      };
 
       return {
-        latest: (latestRec.value !== undefined && latestRec.value !== null) ? Number(latestRec.value).toFixed(2) : '--',
+        latest: latestRec ? fmtVal(latestVal) : '--',
         latestQuality: latestRec.quality || 'GOOD',
         latestTime: this.formatTimeShort(latestRec.received_at || latestRec.timestamp),
-        min: minVal.toFixed(2),
-        max: maxVal.toFixed(2),
+        min: fmtVal(minVal),
+        max: fmtVal(maxVal),
         avg: avgVal.toFixed(2),
-        delta: deltaVal.toFixed(2),
+        delta: fmtVal(deltaVal),
         count: vals.length,
         minTime: minRec ? this.formatTimeShort(minRec.received_at || minRec.timestamp) : '--',
         maxTime: maxRec ? this.formatTimeShort(maxRec.received_at || maxRec.timestamp) : '--',
@@ -3101,7 +3152,7 @@ export default {
       const bottom = Math.max(top + 80, (this.containerHeight || 320) - 48);
       const plotHeight = bottom - top;
       if (!records || records.length === 0) return Math.round(top + plotHeight / 2);
-      const vals = records.map(r => (r.value !== undefined && r.value !== null ? Number(r.value) : 0));
+      const vals = records.map(r => this.getTelemetryVal(r));
       let min = Math.min(...vals);
       let max = Math.max(...vals);
       if (min === max) {
@@ -3172,6 +3223,15 @@ export default {
     }
   },
   methods: {
+    getTelemetryVal(rec) {
+      if (!rec) return 0;
+      if (this.chartValueMode === 'raw') {
+        if (rec.raw_value !== undefined && rec.raw_value !== null) {
+          return Number(rec.raw_value);
+        }
+      }
+      return (rec.value !== undefined && rec.value !== null) ? Number(rec.value) : 0;
+    },
     initChartResizeObserver() {
       this.$nextTick(() => {
         this.updateChartDimensions();
