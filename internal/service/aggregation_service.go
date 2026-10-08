@@ -109,7 +109,7 @@ func NewAggregationService(
 		systemRepo:   systemRepo,
 		hub:          hub,
 		engine:       aggregation.NewEngine(),
-		pollInterval: 3 * time.Second,
+		pollInterval: 1 * time.Second,
 		stopCh:       make(chan struct{}),
 	}
 }
@@ -405,18 +405,22 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 	return result, nil
 }
 
-// ProcessPendingBucketsForDefinition calculates completed missing buckets as well as updating active in-progress bucket in real-time
+// ProcessPendingBucketsForDefinition calculates completed missing buckets in real-time
 func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration) (int, error) {
 	now := time.Now().UTC()
 	startWindow := now.Add(-lookback)
 
-	if def.LastCalculatedAt != nil && def.LastCalculatedAt.After(startWindow) {
-		startWindow = *def.LastCalculatedAt
+	grace := def.GracePeriodSeconds
+	if grace < 0 {
+		grace = 0
 	}
 
-	grace := def.GracePeriodSeconds
-	if grace > 30 {
-		grace = 5 // Cap excessive grace period to keep updates fast & real-time
+	if def.LastCalculatedAt != nil && def.LastCalculatedAt.After(startWindow) {
+		startWindow = *def.LastCalculatedAt
+		// Allow re-checking recent bucket within grace window to absorb any telemetry flush jitter
+		if grace > 0 && time.Since(*def.LastCalculatedAt) < time.Duration(grace)*time.Second {
+			startWindow = startWindow.Add(-time.Duration(def.IntervalSeconds) * time.Second)
+		}
 	}
 
 	buckets := aggregation.GetCompletedBuckets(startWindow, now, def.IntervalSeconds, grace, def.Timezone)
@@ -444,30 +448,13 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 			})
 		}
 		processedCount++
-		lastProcessedEnd = b.PeriodEnd
+		if b.PeriodEnd.After(lastProcessedEnd) {
+			lastProcessedEnd = b.PeriodEnd
+		}
 	}
 
 	if !lastProcessedEnd.IsZero() {
 		_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, lastProcessedEnd)
-	}
-
-	// Real-Time Active (In-Progress) Bucket Evaluation
-	activeBucket := aggregation.GetCurrentActiveBucket(now, def.IntervalSeconds, def.Timezone)
-	if activeBucket.PeriodEnd.After(now) {
-		activeSamples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, activeBucket.PeriodStart, now)
-		if err == nil && len(activeSamples) > 0 {
-			activeResult := s.engine.Calculate(def, activeBucket.PeriodStart, activeBucket.PeriodEnd, activeSamples)
-			if err := s.repo.SaveResult(ctx, activeResult); err == nil {
-				if s.hub != nil {
-					s.hub.Broadcast(websocket.WSMessage{
-						Type:      "aggregation.result.updated",
-						Timestamp: time.Now().UTC(),
-						Data:      activeResult,
-					})
-				}
-				processedCount++
-			}
-		}
 	}
 
 	return processedCount, nil

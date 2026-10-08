@@ -150,6 +150,52 @@ func (h *AggregationHandler) TriggerBucket(c *gin.Context) {
 	response.OK(c, result)
 }
 
+// RunBuckets handles POST /api/aggregations/run for manual recalculation of definitions
+func (h *AggregationHandler) RunBuckets(c *gin.Context) {
+	var body struct {
+		DeviceID     uint `json:"device_id"`
+		DefinitionID uint `json:"definition_id"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	if body.DefinitionID > 0 {
+		def, err := h.aggService.GetDefinition(c.Request.Context(), body.DefinitionID)
+		if err != nil {
+			response.BadRequest(c, "Aggregation definition not found")
+			return
+		}
+		count, err := h.aggService.ProcessPendingBucketsForDefinition(c.Request.Context(), def, 24*time.Hour)
+		if err != nil {
+			response.InternalError(c, "Failed to calculate aggregation bucket: "+err.Error())
+			return
+		}
+		response.OK(c, gin.H{"processed_buckets": count, "definition_id": body.DefinitionID})
+		return
+	}
+
+	if body.DeviceID > 0 {
+		defs, err := h.aggService.ListDefinitions(c.Request.Context(), body.DeviceID, true)
+		if err != nil {
+			response.InternalError(c, "Failed to list definitions: "+err.Error())
+			return
+		}
+		totalProcessed := 0
+		for _, def := range defs {
+			count, _ := h.aggService.ProcessPendingBucketsForDefinition(c.Request.Context(), &def, 24*time.Hour)
+			totalProcessed += count
+		}
+		response.OK(c, gin.H{"processed_buckets": totalProcessed, "device_id": body.DeviceID})
+		return
+	}
+
+	total, err := h.aggService.RunAllActiveDefinitions(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "Failed to run aggregations: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{"processed_buckets": total})
+}
+
 // GetResults handles GET /api/aggregations/results
 func (h *AggregationHandler) GetResults(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))

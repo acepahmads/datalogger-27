@@ -84,7 +84,7 @@ func CalculateBucket(t time.Time, intervalSeconds int, tz string) TimeBucket {
 	}
 }
 
-// GetCompletedBuckets returns all contiguous buckets between startTime and (upTo - gracePeriod)
+// GetCompletedBuckets returns all contiguous buckets between startTime and upTo whose PeriodEnd <= upTo
 func GetCompletedBuckets(startTime, upTo time.Time, intervalSeconds, gracePeriodSeconds int, tz string) []TimeBucket {
 	if intervalSeconds <= 0 {
 		intervalSeconds = 300
@@ -93,7 +93,9 @@ func GetCompletedBuckets(startTime, upTo time.Time, intervalSeconds, gracePeriod
 		gracePeriodSeconds = 0
 	}
 
-	maxAllowedTime := upTo.Add(-time.Duration(gracePeriodSeconds) * time.Second)
+	// In real-time aggregation, any bucket whose period has elapsed (PeriodEnd <= upTo)
+	// is immediately completed and eligible for rollup evaluation.
+	maxAllowedTime := upTo
 	if startTime.After(maxAllowedTime) {
 		return nil
 	}

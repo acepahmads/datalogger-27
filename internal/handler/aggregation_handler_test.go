@@ -125,6 +125,7 @@ func setupAggregationTestRouter(t *testing.T) *AggregationTestEnv {
 			aggregationsGroup.PUT("/definitions/:id", middleware.RequirePermission("device.manage"), aggHandler.UpdateDefinition)
 			aggregationsGroup.DELETE("/definitions/:id", middleware.RequirePermission("device.manage"), aggHandler.DeleteDefinition)
 			aggregationsGroup.POST("/definitions/:id/run", middleware.RequirePermission("device.manage"), aggHandler.TriggerBucket)
+			aggregationsGroup.POST("/run", middleware.RequirePermission("device.manage"), aggHandler.RunBuckets)
 			aggregationsGroup.GET("/results", middleware.RequirePermission("device.view"), aggHandler.GetResults)
 		}
 
@@ -265,5 +266,17 @@ func TestAggregationAPIEndpoints(t *testing.T) {
 
 	if wDown.Code != http.StatusOK {
 		t.Fatalf("Expected 200 OK for downsampled telemetry, got %d: %s", wDown.Code, wDown.Body.String())
+	}
+
+	// 8. Run Buckets API (POST /api/aggregations/run)
+	runBody, _ := json.Marshal(map[string]interface{}{"device_id": 1})
+	reqRunAll, _ := http.NewRequest("POST", "/api/aggregations/run", bytes.NewReader(runBody))
+	reqRunAll.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	reqRunAll.Header.Set("Content-Type", "application/json")
+	wRunAll := httptest.NewRecorder()
+	env.Router.ServeHTTP(wRunAll, reqRunAll)
+
+	if wRunAll.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for run all buckets, got %d: %s", wRunAll.Code, wRunAll.Body.String())
 	}
 }

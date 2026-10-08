@@ -220,6 +220,7 @@ func main() {
 			aggregationsGroup.PUT("/definitions/:id", middleware.RequirePermission("device.manage"), aggHandler.UpdateDefinition)
 			aggregationsGroup.DELETE("/definitions/:id", middleware.RequirePermission("device.manage"), aggHandler.DeleteDefinition)
 			aggregationsGroup.POST("/definitions/:id/run", middleware.RequirePermission("device.manage"), aggHandler.TriggerBucket)
+			aggregationsGroup.POST("/run", middleware.RequirePermission("device.manage"), aggHandler.RunBuckets)
 			aggregationsGroup.GET("/results", middleware.RequirePermission("device.view"), aggHandler.GetResults)
 		}
 
