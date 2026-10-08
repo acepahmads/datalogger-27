@@ -639,7 +639,7 @@ export default {
       detailedPorts: [],
       loadingPorts: false,
       useCustomPort: false,
-      fallbackPorts: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyS0'],
+      fallbackPorts: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyS0'],
       form: {
         device_code: '',
         device_name: '',
