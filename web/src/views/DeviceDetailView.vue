@@ -2217,10 +2217,17 @@
               class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="" disabled>{{ $t('aggregation.selectParameter') }}</option>
+              <option v-if="!isEditingAggDef && device && device.parameters && device.parameters.length > 0" value="ALL" class="text-cyan-400 font-bold bg-[#0F172A]">
+                {{ $t('aggregation.allParameters') }}
+              </option>
               <option v-for="p in device.parameters" :key="p.id" :value="p.id">
                 {{ p.parameter_code }} — {{ p.parameter_name }} ({{ p.unit || 'no unit' }})
               </option>
             </select>
+            <p v-if="aggDefForm.parameter_id === 'ALL'" class="text-3xs text-cyan-400 mt-1 font-sans flex items-center space-x-1">
+              <span>⚡</span>
+              <span>{{ $t('aggregation.allParametersNotice', { count: device.parameters.length }) }}</span>
+            </p>
           </div>
 
           <!-- Source Domain -->
@@ -4060,28 +4067,61 @@ export default {
         return;
       }
       try {
-        const payload = {
-          device_id: this.device.id,
-          parameter_id: Number(this.aggDefForm.parameter_id),
-          name: this.aggDefForm.name.trim(),
-          code: this.aggDefForm.code.trim(),
-          source_type: this.aggDefForm.source_type,
-          function: this.aggDefForm.function,
-          interval_seconds: Number(this.aggDefForm.interval_seconds),
-          timezone: this.aggDefForm.timezone,
-          quality_policy: this.aggDefForm.quality_policy,
-          enabled: this.aggDefForm.enabled,
-        };
+        if (this.aggDefForm.parameter_id === 'ALL') {
+          const baseName = this.aggDefForm.name.trim();
+          const baseCode = this.aggDefForm.code.trim();
+          const paramsList = this.device.parameters || [];
+          if (paramsList.length === 0) {
+            alert('No parameters found on this device');
+            return;
+          }
 
-        if (this.isEditingAggDef && this.aggDefForm.id) {
-          await axios.put(`/api/aggregations/definitions/${this.aggDefForm.id}`, payload);
-          this.showToast(this.$t('deviceModal.savedSuccess') || 'Saved successfully!');
+          let createdCount = 0;
+          for (const p of paramsList) {
+            const pSuffix = p.parameter_code.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            const itemCode = `${baseCode}_${pSuffix}`;
+            const itemName = `${baseName} - ${p.parameter_name}`;
+            const payload = {
+              device_id: this.device.id,
+              parameter_id: Number(p.id),
+              name: itemName,
+              code: itemCode,
+              source_type: this.aggDefForm.source_type,
+              function: this.aggDefForm.function,
+              interval_seconds: Number(this.aggDefForm.interval_seconds),
+              timezone: this.aggDefForm.timezone,
+              quality_policy: this.aggDefForm.quality_policy,
+              enabled: this.aggDefForm.enabled,
+            };
+            await axios.post('/api/aggregations/definitions', payload);
+            createdCount++;
+          }
+          this.showToast(this.$t('aggregation.allParametersSuccess', { count: createdCount }) || `Created ${createdCount} aggregation definitions!`);
         } else {
-          await axios.post('/api/aggregations/definitions', payload);
-          this.showToast(this.$t('deviceModal.savedSuccess') || 'Created successfully!');
+          const payload = {
+            device_id: this.device.id,
+            parameter_id: Number(this.aggDefForm.parameter_id),
+            name: this.aggDefForm.name.trim(),
+            code: this.aggDefForm.code.trim(),
+            source_type: this.aggDefForm.source_type,
+            function: this.aggDefForm.function,
+            interval_seconds: Number(this.aggDefForm.interval_seconds),
+            timezone: this.aggDefForm.timezone,
+            quality_policy: this.aggDefForm.quality_policy,
+            enabled: this.aggDefForm.enabled,
+          };
+
+          if (this.isEditingAggDef && this.aggDefForm.id) {
+            await axios.put(`/api/aggregations/definitions/${this.aggDefForm.id}`, payload);
+            this.showToast(this.$t('deviceModal.savedSuccess') || 'Saved successfully!');
+          } else {
+            await axios.post('/api/aggregations/definitions', payload);
+            this.showToast(this.$t('deviceModal.savedSuccess') || 'Created successfully!');
+          }
         }
         this.isAggDefModalOpen = false;
         await this.fetchAggregationDefinitions();
+        await this.fetchAggregationResults();
       } catch (err) {
         alert((err.response && err.response.data && err.response.data.error) || err.message);
       }

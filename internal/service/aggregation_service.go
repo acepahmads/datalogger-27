@@ -23,6 +23,7 @@ type CreateAggregationDefinitionRequest struct {
 	SourceType         model.AggregationSourceType `json:"source_type"`
 	DeviceID           uint                        `json:"device_id"`
 	ParameterID        uint                        `json:"parameter_id"`
+	AllParameters      bool                        `json:"all_parameters"`
 	Function           model.AggregationFunction   `json:"function"`
 	IntervalSeconds    int                         `json:"interval_seconds"`
 	Timezone           string                      `json:"timezone"`
@@ -200,9 +201,50 @@ func (s *AggregationService) CreateDefinition(ctx context.Context, req *CreateAg
 	if req.DeviceID == 0 {
 		return nil, errors.New("device_id is required")
 	}
-	if req.ParameterID == 0 {
-		return nil, errors.New("parameter_id is required")
+
+	// Handle batch creation for All Parameters
+	if req.AllParameters || req.ParameterID == 0 {
+		if s.devRepo == nil {
+			return nil, errors.New("device repository not initialized for parameter lookup")
+		}
+		params, err := s.devRepo.ListParameters(req.DeviceID)
+		if err != nil || len(params) == 0 {
+			return nil, errors.New("no parameters found on this device to batch create definitions")
+		}
+
+		baseName := strings.TrimSpace(req.Name)
+		baseCode := strings.TrimSpace(req.Code)
+		if baseCode == "" {
+			baseCode = fmt.Sprintf("AGG_%d", req.DeviceID)
+		}
+
+		var firstDef *model.AggregationDefinition
+		for _, p := range params {
+			pCode := fmt.Sprintf("%s_%s", baseCode, strings.ToLower(p.ParameterCode))
+			pName := fmt.Sprintf("%s - %s", baseName, p.ParameterName)
+
+			singleReq := *req
+			singleReq.ParameterID = p.ID
+			singleReq.Name = pName
+			singleReq.Code = pCode
+			singleReq.AllParameters = false
+
+			created, err := s.CreateDefinition(ctx, &singleReq, username, ip, ua)
+			if err != nil {
+				logger.Warn("Failed creating batch aggregation definition for param %d: %v", p.ID, err)
+				continue
+			}
+			if firstDef == nil {
+				firstDef = created
+			}
+		}
+
+		if firstDef == nil {
+			return nil, errors.New("failed to create any aggregation definitions for parameters")
+		}
+		return firstDef, nil
 	}
+
 	if req.IntervalSeconds <= 0 {
 		req.IntervalSeconds = 300 // Default 5 minutes
 	}
