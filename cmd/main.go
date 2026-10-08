@@ -88,7 +88,7 @@ func main() {
 
 	// 7c. Initialize Aggregation & Rollup Engine (Phase 3.3)
 	aggRepo := repository.NewAggregationRepository(db)
-	aggService := service.NewAggregationService(aggRepo, deviceRepo, systemRepo)
+	aggService := service.NewAggregationService(aggRepo, deviceRepo, systemRepo, hub)
 	aggService.StartWorker()
 	defer aggService.StopWorker()
 

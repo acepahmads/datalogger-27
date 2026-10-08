@@ -93,7 +93,7 @@ func setupAggregationTestRouter(t *testing.T) *AggregationTestEnv {
 	aggRepo := repository.NewAggregationRepository(db)
 
 	authService := service.NewAuthService(sysRepo, cfg)
-	aggService := service.NewAggregationService(aggRepo, devRepo, sysRepo)
+	aggService := service.NewAggregationService(aggRepo, devRepo, sysRepo, nil)
 	aggHandler := handler.NewAggregationHandler(aggService)
 
 	adminToken, _, err1 := authService.Login("admin_agg", "password123", "127.0.0.1", "")

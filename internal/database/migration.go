@@ -925,4 +925,9 @@ func preMigrateEdgeSchema(db *gorm.DB) {
 		_ = db.Exec("UPDATE parameters SET stale_timeout_seconds = 120 WHERE stale_timeout_seconds IS NULL OR stale_timeout_seconds <= 0;").Error
 		_ = db.Exec("UPDATE parameters SET spike_window_size = 3 WHERE spike_window_size IS NULL OR spike_window_size <= 0;").Error
 	}
+
+	// 3. Aggregation definitions pre-migration / optimization
+	if db.Migrator().HasTable("aggregation_definitions") {
+		_ = db.Exec("UPDATE aggregation_definitions SET grace_period_seconds = 5 WHERE grace_period_seconds IS NULL OR grace_period_seconds = 120 OR grace_period_seconds > 60;").Error
+	}
 }

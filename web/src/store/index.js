@@ -489,6 +489,8 @@ export default new Vuex.Store({
             window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
           } else if (msg.type === 'device.telemetry.received' && msg.data) {
             window.dispatchEvent(new CustomEvent('device-telemetry-event', { detail: msg.data }));
+          } else if (msg.type === 'aggregation.result.updated' && msg.data) {
+            window.dispatchEvent(new CustomEvent('aggregation-result-event', { detail: msg.data }));
           }
         } catch (e) {
           // ignore parse errors

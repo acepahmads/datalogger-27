@@ -49,7 +49,7 @@ func TestPhase33ComprehensiveAcceptance(t *testing.T) {
 	aggRepo := repository.NewAggregationRepository(db)
 	devRepo := repository.NewDeviceRepository(db)
 	sysRepo := repository.NewSystemRepository(db)
-	svc := service.NewAggregationService(aggRepo, devRepo, sysRepo)
+	svc := service.NewAggregationService(aggRepo, devRepo, sysRepo, nil)
 
 	// Create test device & parameters
 	dev := model.Device{

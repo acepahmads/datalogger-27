@@ -13,6 +13,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/internal/websocket"
 )
 
 // Request and Response DTOs
@@ -86,6 +87,7 @@ type AggregationService struct {
 	repo         *repository.AggregationRepository
 	devRepo      *repository.DeviceRepository
 	systemRepo   *repository.SystemRepository
+	hub          *websocket.Hub
 	engine       *aggregation.Engine
 	pollInterval time.Duration
 	stopCh       chan struct{}
@@ -99,15 +101,22 @@ func NewAggregationService(
 	repo *repository.AggregationRepository,
 	devRepo *repository.DeviceRepository,
 	systemRepo *repository.SystemRepository,
+	hub *websocket.Hub,
 ) *AggregationService {
 	return &AggregationService{
 		repo:         repo,
 		devRepo:      devRepo,
 		systemRepo:   systemRepo,
+		hub:          hub,
 		engine:       aggregation.NewEngine(),
-		pollInterval: 15 * time.Second,
+		pollInterval: 3 * time.Second,
 		stopCh:       make(chan struct{}),
 	}
+}
+
+// SetHub updates or sets the websocket hub
+func (s *AggregationService) SetHub(hub *websocket.Hub) {
+	s.hub = hub
 }
 
 // StartWorker initiates the background aggregation scheduler and recovery worker
@@ -210,7 +219,7 @@ func (s *AggregationService) CreateDefinition(ctx context.Context, req *CreateAg
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	grace := 120
+	grace := 5
 	if req.GracePeriodSeconds != nil && *req.GracePeriodSeconds >= 0 {
 		grace = *req.GracePeriodSeconds
 	}
@@ -383,12 +392,20 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 		return nil, fmt.Errorf("failed to save idempotent aggregation result: %w", err)
 	}
 
+	if s.hub != nil {
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "aggregation.result.updated",
+			Timestamp: time.Now().UTC(),
+			Data:      result,
+		})
+	}
+
 	_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, time.Now().UTC())
 
 	return result, nil
 }
 
-// ProcessPendingBucketsForDefinition calculates completed missing buckets for a definition within lookback
+// ProcessPendingBucketsForDefinition calculates completed missing buckets as well as updating active in-progress bucket in real-time
 func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration) (int, error) {
 	now := time.Now().UTC()
 	startWindow := now.Add(-lookback)
@@ -397,10 +414,12 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 		startWindow = *def.LastCalculatedAt
 	}
 
-	buckets := aggregation.GetCompletedBuckets(startWindow, now, def.IntervalSeconds, def.GracePeriodSeconds, def.Timezone)
-	if len(buckets) == 0 {
-		return 0, nil
+	grace := def.GracePeriodSeconds
+	if grace > 30 {
+		grace = 5 // Cap excessive grace period to keep updates fast & real-time
 	}
+
+	buckets := aggregation.GetCompletedBuckets(startWindow, now, def.IntervalSeconds, grace, def.Timezone)
 
 	processedCount := 0
 	var lastProcessedEnd time.Time
@@ -417,12 +436,38 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 			logger.Warn("Failed to persist aggregation result for bucket %s: %v", b.Identifier, err)
 			continue
 		}
+		if s.hub != nil {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "aggregation.result.updated",
+				Timestamp: time.Now().UTC(),
+				Data:      result,
+			})
+		}
 		processedCount++
 		lastProcessedEnd = b.PeriodEnd
 	}
 
 	if !lastProcessedEnd.IsZero() {
 		_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, lastProcessedEnd)
+	}
+
+	// Real-Time Active (In-Progress) Bucket Evaluation
+	activeBucket := aggregation.GetCurrentActiveBucket(now, def.IntervalSeconds, def.Timezone)
+	if activeBucket.PeriodEnd.After(now) {
+		activeSamples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, activeBucket.PeriodStart, now)
+		if err == nil && len(activeSamples) > 0 {
+			activeResult := s.engine.Calculate(def, activeBucket.PeriodStart, activeBucket.PeriodEnd, activeSamples)
+			if err := s.repo.SaveResult(ctx, activeResult); err == nil {
+				if s.hub != nil {
+					s.hub.Broadcast(websocket.WSMessage{
+						Type:      "aggregation.result.updated",
+						Timestamp: time.Now().UTC(),
+						Data:      activeResult,
+					})
+				}
+				processedCount++
+			}
+		}
 	}
 
 	return processedCount, nil
@@ -448,8 +493,16 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 	return totalBuckets, nil
 }
 
-// GetResults retrieves paginated aggregation results
+// GetResults retrieves paginated aggregation results with fast on-demand refresh
 func (s *AggregationService) GetResults(ctx context.Context, filter repository.AggregationResultFilter) ([]model.AggregationResult, int64, error) {
+	if filter.DeviceID > 0 {
+		defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
+		if err == nil {
+			for _, def := range defs {
+				_, _ = s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
+			}
+		}
+	}
 	return s.repo.GetResultsByFilter(ctx, filter)
 }
 

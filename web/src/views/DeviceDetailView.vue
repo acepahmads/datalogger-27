@@ -1728,6 +1728,18 @@
             <span>{{ customerViewMode ? $t('aggregation.customerMode') : $t('aggregation.engineeringMode') }}</span>
           </button>
 
+          <!-- Auto Refresh Toggle (3s Real-Time) -->
+          <button
+            @click="toggleAutoRefreshAgg"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 border"
+            :class="autoRefreshAgg 
+              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10' 
+              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'"
+          >
+            <span class="w-2 h-2 rounded-full" :class="autoRefreshAgg ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
+            <span>{{ $t('aggregation.autoRefresh') }} (3s)</span>
+          </button>
+
           <!-- Run Buckets -->
           <button
             @click="runAllAggBuckets"
@@ -2019,9 +2031,24 @@
             </thead>
             <tbody class="divide-y divide-slate-800/60 text-slate-200">
               <tr v-for="res in aggregationResults" :key="res.id" class="hover:bg-slate-800/40 transition">
-                <!-- Identifier -->
-                <td class="px-4 py-3 font-mono font-bold text-cyan-400 tracking-wider">
-                  {{ res.identifier }}
+                <!-- Identifier & Status -->
+                <td class="px-4 py-3 font-mono font-bold tracking-wider">
+                  <div class="text-cyan-400 text-xs">{{ res.identifier }}</div>
+                  <div class="mt-1">
+                    <span
+                      v-if="isBucketActive(res)"
+                      class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      <span>{{ $t('aggregation.liveInProgress') }}</span>
+                    </span>
+                    <span
+                      v-else
+                      class="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700/80"
+                    >
+                      {{ $t('aggregation.finalized') }}
+                    </span>
+                  </div>
                 </td>
                 <!-- Period -->
                 <td class="px-4 py-3 font-mono text-3xs text-slate-300">
@@ -2589,6 +2616,8 @@ export default {
       customerPreviewResult: null,
       customerPreviewLoading: false,
       historyDownsampleResolution: 'raw',
+      autoRefreshAgg: true,
+      aggPollTimer: null,
     };
   },
   computed: {
@@ -2919,12 +2948,15 @@ export default {
     }
     window.addEventListener('device-comm-event', this.onCommEvent);
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
+    window.addEventListener('aggregation-result-event', this.onAggregationResultEvent);
     this.initChartResizeObserver();
   },
   beforeDestroy() {
     this.stopActivityPolling();
+    this.stopAggregationPolling();
     window.removeEventListener('device-comm-event', this.onCommEvent);
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
+    window.removeEventListener('aggregation-result-event', this.onAggregationResultEvent);
     if (this.chartResizeObserver) {
       this.chartResizeObserver.disconnect();
       this.chartResizeObserver = null;
@@ -2965,6 +2997,7 @@ export default {
         } else if (this.activeTab === 'aggregation') {
           this.fetchAggregationDefinitions();
           this.fetchAggregationResults();
+          this.startAggregationPolling();
         }
       } catch (err) {
         console.error('Failed to load device:', err);
@@ -3262,9 +3295,13 @@ export default {
         });
       } else if (tab === 'raw') {
         this.fetchRawTelemetry();
+        this.stopAggregationPolling();
       } else if (tab === 'aggregation') {
         this.fetchAggregationDefinitions();
         this.fetchAggregationResults();
+        this.startAggregationPolling();
+      } else {
+        this.stopAggregationPolling();
       }
     },
     async fetchLatestTelemetry() {
@@ -3776,9 +3813,9 @@ export default {
         this.aggregationDefinitionsLoading = false;
       }
     },
-    async fetchAggregationResults() {
+    async fetchAggregationResults(silent = false) {
       if (!this.device) return;
-      this.aggregationResultsLoading = true;
+      if (!silent) this.aggregationResultsLoading = true;
       try {
         const params = {
           device_id: this.device.id,
@@ -3796,9 +3833,9 @@ export default {
           this.aggregationTotal = res.data.data.total || 0;
         }
       } catch (err) {
-        console.error('Failed to fetch aggregation results:', err);
+        if (!silent) console.error('Failed to fetch aggregation results:', err);
       } finally {
-        this.aggregationResultsLoading = false;
+        if (!silent) this.aggregationResultsLoading = false;
       }
     },
     openCreateAggDefModal() {
@@ -3951,6 +3988,48 @@ export default {
       if (this.aggregationPage * this.aggregationPageSize < this.aggregationTotal) {
         this.aggregationPage++;
         this.fetchAggregationResults();
+      }
+    },
+    startAggregationPolling() {
+      this.stopAggregationPolling();
+      if (!this.autoRefreshAgg) return;
+      this.aggPollTimer = setInterval(() => {
+        if (this.activeTab === 'aggregation' && !this.aggregationResultsLoading) {
+          this.fetchAggregationResults(true);
+        }
+      }, 3000);
+    },
+    stopAggregationPolling() {
+      if (this.aggPollTimer) {
+        clearInterval(this.aggPollTimer);
+        this.aggPollTimer = null;
+      }
+    },
+    toggleAutoRefreshAgg() {
+      this.autoRefreshAgg = !this.autoRefreshAgg;
+      if (this.autoRefreshAgg) {
+        this.startAggregationPolling();
+        this.showToast((this.$t('aggregation.autoRefresh') || 'Auto Refresh') + ' Enabled (3s)');
+      } else {
+        this.stopAggregationPolling();
+        this.showToast((this.$t('aggregation.autoRefresh') || 'Auto Refresh') + ' Disabled');
+      }
+    },
+    isBucketActive(res) {
+      if (!res || !res.period_end) return false;
+      return new Date(res.period_end) > new Date();
+    },
+    onAggregationResultEvent(e) {
+      if (!this.device || !e.detail) return;
+      const res = e.detail;
+      if (res.device_id !== this.device.id) return;
+
+      const idx = this.aggregationResults.findIndex(r => r.identifier === res.identifier && r.parameter_id === res.parameter_id);
+      if (idx !== -1) {
+        this.$set(this.aggregationResults, idx, res);
+      } else {
+        this.aggregationResults.unshift(res);
+        this.aggregationTotal++;
       }
     },
   },

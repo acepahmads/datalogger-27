@@ -358,9 +358,9 @@ func TestTelemetryBoundedBufferBackpressure(t *testing.T) {
 	})
 	defer svc.Stop()
 
-	// Rapidly ingest 20 items to overflow the buffer
+	// Rapidly ingest 50 items to overflow the tiny buffer of 5
 	dropped := 0
-	for i := 1; i <= 20; i++ {
+	for i := 1; i <= 50; i++ {
 		err := svc.Ingest(&service.TelemetryIngestPayload{
 			DeviceID:      1,
 			ParameterID:   uint(i),
@@ -374,8 +374,8 @@ func TestTelemetryBoundedBufferBackpressure(t *testing.T) {
 	}
 
 	metrics := svc.GetMetrics()
-	if metrics.IngestedCount != 20 {
-		t.Errorf("Expected IngestedCount 20, got %d", metrics.IngestedCount)
+	if metrics.IngestedCount != 50 {
+		t.Errorf("Expected IngestedCount 50, got %d", metrics.IngestedCount)
 	}
 	if metrics.DroppedCount == 0 {
 		t.Errorf("Expected dropped count > 0 under backpressure")

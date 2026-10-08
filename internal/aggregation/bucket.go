@@ -117,3 +117,8 @@ func GetCompletedBuckets(startTime, upTo time.Time, intervalSeconds, gracePeriod
 
 	return buckets
 }
+
+// GetCurrentActiveBucket returns the currently active in-progress bucket for the given timestamp
+func GetCurrentActiveBucket(now time.Time, intervalSeconds int, tz string) TimeBucket {
+	return CalculateBucket(now, intervalSeconds, tz)
+}
