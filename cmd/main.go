@@ -86,6 +86,12 @@ func main() {
 	telemetryService := service.NewTelemetryService(telemetryRepo, hub, service.DefaultTelemetryConfig())
 	defer telemetryService.Stop()
 
+	// 7c. Initialize Aggregation & Rollup Engine (Phase 3.3)
+	aggRepo := repository.NewAggregationRepository(db)
+	aggService := service.NewAggregationService(aggRepo, deviceRepo, systemRepo)
+	aggService.StartWorker()
+	defer aggService.StopWorker()
+
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)
 	sched.Start()
@@ -117,6 +123,7 @@ func main() {
 	deviceHandler := handler.NewDeviceHandler(deviceService, pollingEngine)
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
+	aggHandler := handler.NewAggregationHandler(aggService)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -198,6 +205,29 @@ func main() {
 			devicesGroup.GET("/:id/telemetry/history", middleware.RequirePermission("device.view"), telemetryHandler.GetHistorical)
 			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetRawTelemetry)
 			devicesGroup.GET("/:id/telemetry/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetDeviceQualitySummary)
+
+			// Phase 3.3 — Historical Downsampling
+			devicesGroup.GET("/:id/telemetry/downsampled", middleware.RequirePermission("device.view"), aggHandler.GetDownsampledHistory)
+		}
+
+		// Phase 3.3 — Aggregations & Rollups (Internal & Management)
+		aggregationsGroup := api.Group("/aggregations")
+		aggregationsGroup.Use(middleware.JWTAuth(authService))
+		{
+			aggregationsGroup.GET("/definitions", middleware.RequirePermission("device.view"), aggHandler.ListDefinitions)
+			aggregationsGroup.GET("/definitions/:id", middleware.RequirePermission("device.view"), aggHandler.GetDefinition)
+			aggregationsGroup.POST("/definitions", middleware.RequirePermission("device.manage"), aggHandler.CreateDefinition)
+			aggregationsGroup.PUT("/definitions/:id", middleware.RequirePermission("device.manage"), aggHandler.UpdateDefinition)
+			aggregationsGroup.DELETE("/definitions/:id", middleware.RequirePermission("device.manage"), aggHandler.DeleteDefinition)
+			aggregationsGroup.POST("/definitions/:id/run", middleware.RequirePermission("device.manage"), aggHandler.TriggerBucket)
+			aggregationsGroup.GET("/results", middleware.RequirePermission("device.view"), aggHandler.GetResults)
+		}
+
+		// Phase 3.3 — Customer Aggregated Data API (Customer-Facing & Identifier Query)
+		customerGroup := api.Group("/customer")
+		customerGroup.Use(middleware.JWTAuth(authService))
+		{
+			customerGroup.GET("/aggregated-data/:identifier", middleware.RequirePermission("device.view"), aggHandler.GetCustomerAggregatedData)
 		}
 
 		// Telemetry Pipeline Diagnostics & Quality Summary (Phase 3.1 & 3.2)

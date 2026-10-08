@@ -153,6 +153,14 @@
         <span>{{ $t('deviceDetail.rawTelemetry') }}</span>
       </button>
       <button
+        @click="switchTab('aggregation')"
+        :class="activeTab === 'aggregation' ? 'border-b-2 border-indigo-500 text-indigo-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        class="transition-colors flex items-center space-x-1.5"
+      >
+        <span>{{ $t('deviceDetail.aggregation') }}</span>
+        <span v-if="aggregationDefinitions && aggregationDefinitions.length" class="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded-full font-mono">{{ aggregationDefinitions.length }}</span>
+      </button>
+      <button
         @click="activeTab = 'activity'"
         :class="activeTab === 'activity' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -930,6 +938,23 @@
               <option :value="250">{{ $t('deviceDetail.samplesOption', { count: 250 }) }}</option>
             </select>
           </div>
+
+          <!-- Downsampling Resolution (Phase 3.3) -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.downsamplingResolution') }}</label>
+            <select
+              v-model="historyDownsampleResolution"
+              @change="fetchHistory"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500 font-mono"
+            >
+              <option value="raw">{{ $t('deviceDetail.resolutionRaw') }}</option>
+              <option value="auto">{{ $t('deviceDetail.resolutionAuto') }}</option>
+              <option value="5m">5 {{ $t('aggregation.minutes') }}</option>
+              <option value="30m">30 {{ $t('aggregation.minutes') }}</option>
+              <option value="1h">1 {{ $t('aggregation.hours') }}</option>
+              <option value="1d">1 {{ $t('aggregation.day') }}</option>
+            </select>
+          </div>
         </div>
 
         <div class="flex items-center space-x-2 pt-2 lg:pt-0">
@@ -1668,7 +1693,608 @@
       </div>
     </div>
 
+    <!-- TAB 9: AGGREGATION & ROLLUPS (PHASE 3.3) -->
+    <div v-if="device && activeTab === 'aggregation'" class="space-y-6 animate-fade-in">
+      <!-- Header Banner & Control Bar -->
+      <div class="saas-card p-5 bg-[#0F172A]/90 border border-slate-800 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+          <div class="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h2 class="text-base font-bold text-white tracking-wide">{{ $t('aggregation.title') }}</h2>
+              <span class="text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Phase 3.3 Reusable Engine
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">{{ $t('aggregation.subtitle') }}</p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Customer View Mode Switch -->
+          <button
+            @click="customerViewMode = !customerViewMode"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-2 border"
+            :class="customerViewMode 
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-sm shadow-emerald-500/10' 
+              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'"
+          >
+            <span class="w-2 h-2 rounded-full" :class="customerViewMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
+            <span>{{ customerViewMode ? $t('aggregation.customerMode') : $t('aggregation.engineeringMode') }}</span>
+          </button>
+
+          <!-- Run Buckets -->
+          <button
+            @click="runAllAggBuckets"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm"
+          >
+            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>{{ $t('aggregation.runBuckets') }}</span>
+          </button>
+
+          <!-- New Definition Button -->
+          <button
+            @click="openCreateAggDefModal"
+            class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm shadow-indigo-500/20"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            <span>{{ $t('aggregation.newDefinition') }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CUSTOMER DATA PREVIEW CARD (When customerViewMode is active) -->
+      <div v-if="customerViewMode" class="saas-card p-5 bg-[#0B132B]/90 border border-emerald-500/30 rounded-2xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-500/20 pb-3">
+          <div class="flex items-center space-x-2.5">
+            <span class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+              </svg>
+            </span>
+            <div>
+              <h3 class="text-sm font-bold text-emerald-300">{{ $t('aggregation.customerPreviewTitle') }}</h3>
+              <p class="text-3xs text-slate-300 font-mono">{{ $t('aggregation.customerPreviewSubtitle') }}</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <input
+              type="text"
+              v-model="customerPreviewIdentifier"
+              :placeholder="$t('aggregation.lookupPlaceholder')"
+              class="px-3 py-1 bg-[#0F172A] border border-slate-700 rounded-lg text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44"
+            />
+            <button
+              @click="queryCustomerData(customerPreviewIdentifier)"
+              :disabled="customerPreviewLoading"
+              class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition"
+            >
+              {{ customerPreviewLoading ? '...' : $t('aggregation.lookupButton') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="customerPreviewResult" class="space-y-3">
+          <div v-if="customerPreviewResult.error" class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
+            {{ customerPreviewResult.error }}
+          </div>
+          <div v-else class="space-y-3">
+            <div class="flex items-center space-x-4 text-xs font-mono">
+              <span class="text-slate-400">Identifier: <strong class="text-cyan-400">{{ customerPreviewResult.identifier }}</strong></span>
+              <span class="text-slate-400">Window: <strong class="text-slate-200">{{ customerPreviewResult.period_start }} → {{ customerPreviewResult.period_end }}</strong></span>
+              <span class="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-3xs border border-emerald-500/20">
+                ✓ {{ $t('aggregation.safeDeliveryVerified') }}
+              </span>
+            </div>
+
+            <!-- Customer Data Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div
+                v-for="(item, idx) in customerPreviewResult.data"
+                :key="idx"
+                class="p-4 rounded-xl bg-[#0F172A] border border-slate-800 space-y-2"
+              >
+                <div class="flex items-center justify-between">
+                  <span class="text-3xs uppercase font-bold text-slate-400 tracking-wider">{{ item.parameter }}</span>
+                  <span class="px-2 py-0.5 rounded text-3xs font-bold" :class="item.quality === 'GOOD' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
+                    {{ item.quality }}
+                  </span>
+                </div>
+                <div class="text-2xl font-bold font-mono text-white">
+                  {{ item.value !== null ? item.value : '--' }} <span class="text-sm font-normal text-slate-400 font-sans">{{ item.unit }}</span>
+                </div>
+                <div class="text-3xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-1.5 font-mono">
+                  <span>Samples: {{ item.sample_count }}</span>
+                  <span>Formula Processed</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- JSON Payload Preview -->
+            <div class="p-3 rounded-xl bg-black/60 border border-slate-800 text-3xs font-mono text-slate-300 max-h-40 overflow-y-auto">
+              <pre>{{ JSON.stringify(customerPreviewResult, null, 2) }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 1: AGGREGATION DEFINITIONS -->
+      <div class="saas-card bg-[#0F172A]/90 border border-slate-800 rounded-2xl overflow-hidden">
+        <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('aggregation.definitionsTitle') }}</h3>
+            <span class="text-2xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+              {{ aggregationDefinitions.length }}
+            </span>
+          </div>
+          <button @click="fetchAggregationDefinitions" class="text-slate-400 hover:text-white text-xs transition">
+            {{ $t('aggregation.refresh') }}
+          </button>
+        </div>
+
+        <div v-if="aggregationDefinitionsLoading" class="p-8 text-center text-slate-400 text-xs">
+          Loading aggregation definitions...
+        </div>
+        <div v-else-if="aggregationDefinitions.length === 0" class="p-8 text-center text-slate-400 text-xs">
+          {{ $t('aggregation.noDefinitions') }}
+        </div>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-sans">
+            <thead class="bg-[#0B0F19]/60 text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="px-4 py-3">{{ $t('aggregation.name') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.parameter') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.sourceType') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.function') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.interval') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.timezone') }}</th>
+                <th class="px-4 py-3">{{ $t('deviceDetail.status') }}</th>
+                <th class="px-4 py-3 text-right">{{ $t('aggregation.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-slate-200">
+              <tr v-for="def in aggregationDefinitions" :key="def.id" class="hover:bg-slate-800/40 transition">
+                <td class="px-4 py-3 font-medium text-white">
+                  <div>{{ def.name }}</div>
+                  <div class="text-3xs font-mono text-slate-400">{{ def.code }}</div>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="font-medium text-slate-200">{{ def.parameter ? def.parameter.parameter_name : getParamName(def.parameter_id) }}</div>
+                  <div class="text-3xs font-mono text-slate-400">{{ def.parameter ? def.parameter.parameter_code : getParamCode(def.parameter_id) }}</div>
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    class="px-2 py-0.5 rounded text-3xs font-bold font-mono tracking-wide"
+                    :class="def.source_type === 'CUSTOMER_PROCESSED' 
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                      : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'"
+                  >
+                    {{ def.source_type }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    {{ def.function }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 font-mono text-slate-300">
+                  {{ def.interval_seconds >= 60 ? (def.interval_seconds / 60) + 'm' : def.interval_seconds + 's' }}
+                  <span class="text-3xs text-slate-500 font-sans">({{ def.interval_seconds }}s)</span>
+                </td>
+                <td class="px-4 py-3 font-mono text-3xs text-slate-400">
+                  {{ def.timezone || 'Asia/Jakarta' }}
+                </td>
+                <td class="px-4 py-3">
+                  <button
+                    @click="toggleAggDefStatus(def)"
+                    class="px-2 py-0.5 rounded-full text-3xs font-bold transition flex items-center space-x-1"
+                    :class="def.enabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" :class="def.enabled ? 'bg-emerald-400' : 'bg-slate-500'"></span>
+                    <span>{{ def.enabled ? $t('aggregation.statusActive') : $t('aggregation.statusDisabled') }}</span>
+                  </button>
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <div class="flex items-center justify-end space-x-2">
+                    <button
+                      @click="runAggBucket(def.id)"
+                      :title="$t('aggregation.recalculate')"
+                      class="p-1 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 transition"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                      </svg>
+                    </button>
+                    <button
+                      @click="openEditAggDefModal(def)"
+                      class="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                      </svg>
+                    </button>
+                    <button
+                      @click="deleteAggregationDefinition(def)"
+                      class="p-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 2: AGGREGATION RESULTS BROWSER -->
+      <div class="saas-card bg-[#0F172A]/90 border border-slate-800 rounded-2xl overflow-hidden space-y-4">
+        <!-- Filter Bar -->
+        <div class="p-4 border-b border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <!-- Filter by Source -->
+            <div>
+              <select
+                v-model="aggregationFilterSource"
+                @change="fetchAggregationResults"
+                class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-indigo-500 font-mono"
+              >
+                <option value="">{{ $t('deviceDetail.allDomains') || 'All Domains' }}</option>
+                <option value="CUSTOMER_PROCESSED">CUSTOMER_PROCESSED</option>
+                <option value="INTERNAL_RAW">INTERNAL_RAW</option>
+              </select>
+            </div>
+
+            <!-- Filter by Parameter -->
+            <div>
+              <select
+                v-model="aggregationFilterParamId"
+                @change="fetchAggregationResults"
+                class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
+                <option v-for="p in device.parameters" :key="p.id" :value="p.id">
+                  {{ p.parameter_code }} ({{ p.parameter_name }})
+                </option>
+              </select>
+            </div>
+
+            <!-- Search by Identifier -->
+            <div>
+              <input
+                type="text"
+                v-model="aggregationIdentifierSearch"
+                @keyup.enter="fetchAggregationResults"
+                :placeholder="$t('aggregation.lookupPlaceholder')"
+                class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-48"
+              />
+            </div>
+
+            <button
+              @click="fetchAggregationResults"
+              class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition"
+            >
+              {{ $t('common.filter') || 'Filter' }}
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-2 text-xs font-mono text-slate-400">
+            <span>{{ $t('aggregation.resultsTitle') }}: <strong class="text-white">{{ aggregationTotal }}</strong></span>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div v-if="aggregationResultsLoading" class="p-8 text-center text-slate-400 text-xs">
+          Loading aggregation rollups...
+        </div>
+        <div v-else-if="aggregationResults.length === 0" class="p-8 text-center text-slate-400 text-xs">
+          {{ $t('aggregation.noResults') }}
+        </div>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-sans">
+            <thead class="bg-[#0B0F19]/60 text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="px-4 py-3">{{ $t('aggregation.identifier') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.period') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.parameter') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.sourceType') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.function') }}</th>
+                <th class="px-4 py-3">{{ $t('aggregation.aggregatedValue') }}</th>
+                <th class="px-4 py-3">Min / Max / Avg</th>
+                <th class="px-4 py-3">{{ $t('aggregation.samples') }} & {{ $t('aggregation.quality') }}</th>
+                <th class="px-4 py-3 text-right">{{ $t('aggregation.actions') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 text-slate-200">
+              <tr v-for="res in aggregationResults" :key="res.id" class="hover:bg-slate-800/40 transition">
+                <!-- Identifier -->
+                <td class="px-4 py-3 font-mono font-bold text-cyan-400 tracking-wider">
+                  {{ res.identifier }}
+                </td>
+                <!-- Period -->
+                <td class="px-4 py-3 font-mono text-3xs text-slate-300">
+                  <div>{{ formatTimeShort(res.period_start) }} → {{ formatTimeShort(res.period_end) }}</div>
+                  <div class="text-slate-500">{{ new Date(res.period_start).toLocaleDateString() }}</div>
+                </td>
+                <!-- Parameter -->
+                <td class="px-4 py-3">
+                  <div class="font-medium text-slate-200">{{ res.parameter ? res.parameter.parameter_name : getParamName(res.parameter_id) }}</div>
+                  <div class="text-3xs font-mono text-slate-400">{{ res.parameter ? res.parameter.parameter_code : getParamCode(res.parameter_id) }}</div>
+                </td>
+                <!-- Domain Source -->
+                <td class="px-4 py-3">
+                  <span
+                    class="px-2 py-0.5 rounded text-3xs font-bold font-mono tracking-wide"
+                    :class="res.source_type === 'CUSTOMER_PROCESSED' 
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                      : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'"
+                  >
+                    {{ res.source_type }}
+                  </span>
+                </td>
+                <!-- Function -->
+                <td class="px-4 py-3">
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    {{ res.aggregation_definition ? res.aggregation_definition.function : 'AVG' }}
+                  </span>
+                </td>
+                <!-- Value -->
+                <td class="px-4 py-3 font-mono font-bold text-sm text-white">
+                  {{ res.value !== null ? Number(res.value).toFixed(2) : '--' }}
+                  <span class="text-3xs text-slate-400 font-sans font-normal">{{ getParamUnit(res.parameter_id) }}</span>
+                </td>
+                <!-- Min / Max / Avg -->
+                <td class="px-4 py-3 font-mono text-3xs text-slate-300">
+                  <div>Min: <strong class="text-slate-100">{{ res.min_value !== null ? Number(res.min_value).toFixed(2) : '--' }}</strong></div>
+                  <div>Max: <strong class="text-slate-100">{{ res.max_value !== null ? Number(res.max_value).toFixed(2) : '--' }}</strong></div>
+                  <div>Avg: <strong class="text-slate-100">{{ res.avg_value !== null ? Number(res.avg_value).toFixed(2) : '--' }}</strong></div>
+                </td>
+                <!-- Samples & Quality -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center space-x-2">
+                    <span
+                      class="px-2 py-0.5 rounded text-3xs font-bold tracking-wide"
+                      :class="res.quality === 'GOOD' 
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                        : (res.quality === 'UNCERTAIN' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20')"
+                    >
+                      {{ res.quality }}
+                    </span>
+                    <span class="text-3xs font-mono text-slate-400">
+                      N={{ res.sample_count }} (✓{{ res.good_count }} / ?{{ res.uncertain_count }} / ✗{{ res.bad_count }})
+                    </span>
+                  </div>
+                </td>
+                <!-- Actions -->
+                <td class="px-4 py-3 text-right">
+                  <button
+                    @click="queryCustomerData(res.identifier)"
+                    class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition text-3xs font-mono px-2 py-1"
+                    title="Query Customer API"
+                  >
+                    API
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="p-4 border-t border-slate-800/80 flex items-center justify-between">
+          <button
+            @click="prevAggPage"
+            :disabled="aggregationPage <= 1 || aggregationResultsLoading"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold text-xs"
+          >
+            {{ $t('common.previous') }}
+          </button>
+          <span class="text-slate-400 text-2xs font-mono">
+            {{ $t('deviceDetail.pageOfWithRecords', { page: aggregationPage, totalPages: Math.ceil(aggregationTotal / aggregationPageSize) || 1, total: aggregationTotal }) }}
+          </span>
+          <button
+            @click="nextAggPage"
+            :disabled="aggregationPage * aggregationPageSize >= aggregationTotal || aggregationResultsLoading"
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold text-xs"
+          >
+            {{ $t('common.next') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modals -->
+    <!-- Aggregation Definition Modal (Phase 3.3) -->
+    <div v-if="isAggDefModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+          <div class="flex items-center space-x-2.5">
+            <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white tracking-wide">
+                {{ isEditingAggDef ? $t('aggregation.modalEditTitle') : $t('aggregation.modalCreateTitle') }}
+              </h2>
+              <p class="text-3xs text-slate-400 font-mono">{{ $t('aggregation.modalDesc') }}</p>
+            </div>
+          </div>
+          <button @click="isAggDefModalOpen = false" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Body Form -->
+        <div class="p-6 space-y-4 text-xs font-sans">
+          <!-- Name & Code -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.name') }} *</label>
+              <input
+                type="text"
+                v-model="aggDefForm.name"
+                placeholder="e.g. Temperature 30m Average"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.code') }} *</label>
+              <input
+                type="text"
+                v-model="aggDefForm.code"
+                placeholder="e.g. temp_avg_30m"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <!-- Parameter Selection -->
+          <div>
+            <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.parameter') }} *</label>
+            <select
+              v-model="aggDefForm.parameter_id"
+              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="" disabled>{{ $t('aggregation.selectParameter') }}</option>
+              <option v-for="p in device.parameters" :key="p.id" :value="p.id">
+                {{ p.parameter_code }} — {{ p.parameter_name }} ({{ p.unit || 'no unit' }})
+              </option>
+            </select>
+          </div>
+
+          <!-- Source Domain -->
+          <div>
+            <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.sourceType') }} *</label>
+            <select
+              v-model="aggDefForm.source_type"
+              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+            >
+              <option value="CUSTOMER_PROCESSED">{{ $t('aggregation.sourceCustomerProcessed') }}</option>
+              <option value="INTERNAL_RAW">{{ $t('aggregation.sourceInternalRaw') }}</option>
+            </select>
+            <p class="text-3xs text-slate-400 mt-1">
+              {{ aggDefForm.source_type === 'CUSTOMER_PROCESSED' ? $t('aggregation.customerProcessedDesc') : $t('aggregation.internalRawDesc') }}
+            </p>
+          </div>
+
+          <!-- Function & Interval Preset -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.function') }} *</label>
+              <select
+                v-model="aggDefForm.function"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              >
+                <option value="AVG">AVG (Average)</option>
+                <option value="MIN">MIN (Minimum)</option>
+                <option value="MAX">MAX (Maximum)</option>
+                <option value="SUM">SUM (Total Sum)</option>
+                <option value="COUNT">COUNT (Sample Count)</option>
+                <option value="FIRST">FIRST (First Valid)</option>
+                <option value="LAST">LAST (Last Valid)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.interval') }} *</label>
+              <select
+                v-model="aggDefForm.interval_preset"
+                @change="onIntervalPresetChange"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="2m">{{ $t('aggregation.interval2m') }}</option>
+                <option value="5m">{{ $t('aggregation.interval5m') }}</option>
+                <option value="10m">{{ $t('aggregation.interval10m') }}</option>
+                <option value="15m">{{ $t('aggregation.interval15m') }}</option>
+                <option value="30m">{{ $t('aggregation.interval30m') }}</option>
+                <option value="60m">{{ $t('aggregation.interval60m') }}</option>
+                <option value="custom">{{ $t('aggregation.intervalCustom') }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Custom Interval Seconds (if custom) -->
+          <div v-if="aggDefForm.interval_preset === 'custom'">
+            <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.customInterval') }}</label>
+            <input
+              type="number"
+              v-model="aggDefForm.interval_seconds"
+              min="10"
+              step="10"
+              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <!-- Timezone & Quality Policy -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.timezone') }}</label>
+              <input
+                type="text"
+                v-model="aggDefForm.timezone"
+                placeholder="Asia/Jakarta"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.qualityPolicy') }}</label>
+              <select
+                v-model="aggDefForm.quality_policy"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              >
+                <option value="STRICT">STRICT (Requires Good Samples)</option>
+                <option value="BEST_EFFORT">BEST_EFFORT (Include Uncertain)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Enabled Toggle -->
+          <div class="flex items-center space-x-2 pt-1">
+            <input
+              type="checkbox"
+              id="aggDefEnabled"
+              v-model="aggDefForm.enabled"
+              class="rounded bg-[#0B0F19] border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+            />
+            <label for="aggDefEnabled" class="text-xs text-slate-300 cursor-pointer select-none">
+              {{ $t('aggregation.statusActive') }}
+            </label>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-slate-800 flex items-center justify-end space-x-3 bg-[#0B0F19]/50">
+          <button
+            @click="isAggDefModalOpen = false"
+            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+          >
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            @click="saveAggregationDefinition"
+            class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-sm shadow-indigo-500/20"
+          >
+            {{ $t('common.save') }}
+          </button>
+        </div>
+      </div>
+    </div>
     <DeviceModal
       :is-open="isEditModalOpen"
       :device-to-edit="device"
@@ -1930,6 +2556,39 @@ export default {
       rawPageSize: 20,
       rawParamId: '',
       rawLoading: false,
+
+      // Phase 3.3 Aggregation & Rollups
+      aggregationDefinitions: [],
+      aggregationDefinitionsLoading: false,
+      aggregationResults: [],
+      aggregationResultsLoading: false,
+      aggregationTotal: 0,
+      aggregationPage: 1,
+      aggregationPageSize: 20,
+      aggregationFilterDefId: '',
+      aggregationFilterSource: '',
+      aggregationFilterParamId: '',
+      aggregationIdentifierSearch: '',
+      customerViewMode: false,
+      isAggDefModalOpen: false,
+      isEditingAggDef: false,
+      aggDefForm: {
+        id: null,
+        name: '',
+        code: '',
+        parameter_id: '',
+        source_type: 'CUSTOMER_PROCESSED',
+        function: 'AVG',
+        interval_preset: '30m',
+        interval_seconds: 1800,
+        timezone: 'Asia/Jakarta',
+        quality_policy: 'STRICT',
+        enabled: true,
+      },
+      customerPreviewIdentifier: '',
+      customerPreviewResult: null,
+      customerPreviewLoading: false,
+      historyDownsampleResolution: 'raw',
     };
   },
   computed: {
@@ -2303,6 +2962,9 @@ export default {
           this.fetchHistory();
         } else if (this.activeTab === 'raw') {
           this.fetchRawTelemetry();
+        } else if (this.activeTab === 'aggregation') {
+          this.fetchAggregationDefinitions();
+          this.fetchAggregationResults();
         }
       } catch (err) {
         console.error('Failed to load device:', err);
@@ -2600,6 +3262,9 @@ export default {
         });
       } else if (tab === 'raw') {
         this.fetchRawTelemetry();
+      } else if (tab === 'aggregation') {
+        this.fetchAggregationDefinitions();
+        this.fetchAggregationResults();
       }
     },
     async fetchLatestTelemetry() {
@@ -2702,7 +3367,13 @@ export default {
         if (this.historyQuality) params.quality = this.historyQuality;
         if (startTimeStr) params.start_time = startTimeStr;
 
-        const res = await axios.get(`/api/devices/${this.device.id}/telemetry/history`, { params });
+        let url = `/api/devices/${this.device.id}/telemetry/history`;
+        if (this.historyDownsampleResolution && this.historyDownsampleResolution !== 'raw') {
+          url = `/api/devices/${this.device.id}/telemetry/downsampled`;
+          params.resolution = this.historyDownsampleResolution;
+        }
+
+        const res = await axios.get(url, { params });
         if (res.data && res.data.data) {
           this.historyRecords = res.data.data.items || [];
           this.historyTotal = res.data.data.total || 0;
@@ -3084,6 +3755,203 @@ export default {
     },
     toggleRawAudit(id) {
       this.$set(this.showRawAudit, id, !this.showRawAudit[id]);
+    },
+
+    // ==========================================
+    // Phase 3.3 Aggregation & Rollups Methods
+    // ==========================================
+    async fetchAggregationDefinitions() {
+      if (!this.device) return;
+      this.aggregationDefinitionsLoading = true;
+      try {
+        const res = await axios.get('/api/aggregations/definitions', {
+          params: { device_id: this.device.id },
+        });
+        if (res.data && res.data.data) {
+          this.aggregationDefinitions = res.data.data;
+        }
+      } catch (err) {
+        console.error('Failed to fetch aggregation definitions:', err);
+      } finally {
+        this.aggregationDefinitionsLoading = false;
+      }
+    },
+    async fetchAggregationResults() {
+      if (!this.device) return;
+      this.aggregationResultsLoading = true;
+      try {
+        const params = {
+          device_id: this.device.id,
+          page: this.aggregationPage,
+          page_size: this.aggregationPageSize,
+        };
+        if (this.aggregationFilterDefId) params.definition_id = this.aggregationFilterDefId;
+        if (this.aggregationFilterSource) params.source_type = this.aggregationFilterSource;
+        if (this.aggregationFilterParamId) params.parameter_id = this.aggregationFilterParamId;
+        if (this.aggregationIdentifierSearch) params.identifier = this.aggregationIdentifierSearch.trim();
+
+        const res = await axios.get('/api/aggregations/results', { params });
+        if (res.data && res.data.data) {
+          this.aggregationResults = res.data.data.items || [];
+          this.aggregationTotal = res.data.data.total || 0;
+        }
+      } catch (err) {
+        console.error('Failed to fetch aggregation results:', err);
+      } finally {
+        this.aggregationResultsLoading = false;
+      }
+    },
+    openCreateAggDefModal() {
+      this.isEditingAggDef = false;
+      this.aggDefForm = {
+        id: null,
+        name: '',
+        code: '',
+        parameter_id: this.device.parameters && this.device.parameters.length ? this.device.parameters[0].id : '',
+        source_type: 'CUSTOMER_PROCESSED',
+        function: 'AVG',
+        interval_preset: '30m',
+        interval_seconds: 1800,
+        timezone: 'Asia/Jakarta',
+        quality_policy: 'STRICT',
+        enabled: true,
+      };
+      this.isAggDefModalOpen = true;
+    },
+    openEditAggDefModal(def) {
+      this.isEditingAggDef = true;
+      let preset = 'custom';
+      if (def.interval_seconds === 120) preset = '2m';
+      else if (def.interval_seconds === 300) preset = '5m';
+      else if (def.interval_seconds === 600) preset = '10m';
+      else if (def.interval_seconds === 900) preset = '15m';
+      else if (def.interval_seconds === 1800) preset = '30m';
+      else if (def.interval_seconds === 3600) preset = '60m';
+
+      this.aggDefForm = {
+        id: def.id,
+        name: def.name,
+        code: def.code,
+        parameter_id: def.parameter_id,
+        source_type: def.source_type,
+        function: def.function,
+        interval_preset: preset,
+        interval_seconds: def.interval_seconds,
+        timezone: def.timezone || 'Asia/Jakarta',
+        quality_policy: def.quality_policy || 'STRICT',
+        enabled: def.enabled !== false,
+      };
+      this.isAggDefModalOpen = true;
+    },
+    onIntervalPresetChange() {
+      const p = this.aggDefForm.interval_preset;
+      if (p === '2m') this.aggDefForm.interval_seconds = 120;
+      else if (p === '5m') this.aggDefForm.interval_seconds = 300;
+      else if (p === '10m') this.aggDefForm.interval_seconds = 600;
+      else if (p === '15m') this.aggDefForm.interval_seconds = 900;
+      else if (p === '30m') this.aggDefForm.interval_seconds = 1800;
+      else if (p === '60m') this.aggDefForm.interval_seconds = 3600;
+    },
+    async saveAggregationDefinition() {
+      if (!this.aggDefForm.name || !this.aggDefForm.code || !this.aggDefForm.parameter_id) {
+        alert(this.$t('validation.required') || 'Required field missing');
+        return;
+      }
+      try {
+        const payload = {
+          device_id: this.device.id,
+          parameter_id: Number(this.aggDefForm.parameter_id),
+          name: this.aggDefForm.name.trim(),
+          code: this.aggDefForm.code.trim(),
+          source_type: this.aggDefForm.source_type,
+          function: this.aggDefForm.function,
+          interval_seconds: Number(this.aggDefForm.interval_seconds),
+          timezone: this.aggDefForm.timezone,
+          quality_policy: this.aggDefForm.quality_policy,
+          enabled: this.aggDefForm.enabled,
+        };
+
+        if (this.isEditingAggDef && this.aggDefForm.id) {
+          await axios.put(`/api/aggregations/definitions/${this.aggDefForm.id}`, payload);
+          this.showToast(this.$t('deviceModal.savedSuccess') || 'Saved successfully!');
+        } else {
+          await axios.post('/api/aggregations/definitions', payload);
+          this.showToast(this.$t('deviceModal.savedSuccess') || 'Created successfully!');
+        }
+        this.isAggDefModalOpen = false;
+        await this.fetchAggregationDefinitions();
+      } catch (err) {
+        alert((err.response && err.response.data && err.response.data.error) || err.message);
+      }
+    },
+    async toggleAggDefStatus(def) {
+      try {
+        await axios.put(`/api/aggregations/definitions/${def.id}`, {
+          enabled: !def.enabled,
+        });
+        def.enabled = !def.enabled;
+        this.showToast(this.$t('deviceModal.savedSuccess') || 'Status updated!');
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    async deleteAggregationDefinition(def) {
+      if (!confirm(this.$t('aggregation.deleteDefConfirm', { name: def.name }))) return;
+      try {
+        await axios.delete(`/api/aggregations/definitions/${def.id}`);
+        this.showToast(this.$t('deviceModal.savedSuccess') || 'Deleted successfully!');
+        await this.fetchAggregationDefinitions();
+        await this.fetchAggregationResults();
+      } catch (err) {
+        alert(err.message);
+      }
+    },
+    async runAggBucket(defId) {
+      try {
+        await axios.post('/api/aggregations/run', { definition_id: defId });
+        this.showToast(this.$t('aggregation.recalculatedSuccess') || 'Bucket calculated successfully!');
+        await this.fetchAggregationResults();
+      } catch (err) {
+        alert((err.response && err.response.data && err.response.data.error) || err.message);
+      }
+    },
+    async runAllAggBuckets() {
+      try {
+        await axios.post('/api/aggregations/run', { device_id: this.device.id });
+        this.showToast(this.$t('aggregation.runningAllSuccess') || 'Aggregation job completed!');
+        await this.fetchAggregationResults();
+      } catch (err) {
+        alert((err.response && err.response.data && err.response.data.error) || err.message);
+      }
+    },
+    async queryCustomerData(identifier) {
+      const idToLookup = identifier || this.customerPreviewIdentifier || (this.aggregationResults[0] && this.aggregationResults[0].identifier);
+      if (!idToLookup) return;
+      this.customerPreviewIdentifier = idToLookup;
+      this.customerPreviewLoading = true;
+      try {
+        const res = await axios.get(`/api/customer/aggregated-data/${idToLookup}`);
+        this.customerPreviewResult = res.data;
+      } catch (err) {
+        this.customerPreviewResult = {
+          error: (err.response && err.response.data && err.response.data.error) || err.message,
+          status: err.response ? err.response.status : 500,
+        };
+      } finally {
+        this.customerPreviewLoading = false;
+      }
+    },
+    prevAggPage() {
+      if (this.aggregationPage > 1) {
+        this.aggregationPage--;
+        this.fetchAggregationResults();
+      }
+    },
+    nextAggPage() {
+      if (this.aggregationPage * this.aggregationPageSize < this.aggregationTotal) {
+        this.aggregationPage++;
+        this.fetchAggregationResults();
+      }
     },
   },
 };
