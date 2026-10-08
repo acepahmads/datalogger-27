@@ -465,14 +465,30 @@
               <td class="py-2.5 px-3 font-medium text-slate-200">{{ param.parameter_name || param.name }}</td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">{{ param.data_type }}</td>
               <td class="py-2.5 px-3 font-medium text-slate-400">{{ param.unit || '--' }}</td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">#{{ param.register_address }}</td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</td>
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
+                <div>×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</div>
+                <div v-if="param.formula" class="text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
+                  ƒ: {{ param.formula }}
+                </div>
+                <div v-if="param.hold_last_value_enabled" class="text-amber-400/90 text-3xs flex items-center space-x-1" :title="$t('parameters.heldTooltip')">
+                  <span>🛡️</span>
+                  <span>{{ param.hold_last_value_seconds || 120 }}s</span>
+                </div>
+              </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
                 {{ param.min_value !== null && param.min_value !== undefined ? param.min_value : (param.low_limit || '-∞') }} ..
                 {{ param.max_value !== null && param.max_value !== undefined ? param.max_value : (param.high_limit || '+∞') }}
               </td>
-              <td class="py-2.5 px-3 font-mono font-bold text-slate-200">
-                {{ param.current_value !== null && param.current_value !== undefined ? param.current_value.toFixed(param.precision || 2) : '--' }}
+              <td class="py-2.5 px-3 font-mono text-slate-200">
+                <div class="font-bold flex items-center space-x-1.5">
+                  <span>{{ param.current_value !== null && param.current_value !== undefined ? param.current_value.toFixed(param.precision || 2) : '--' }}</span>
+                  <span v-if="isParamHeld(param)" class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse" :title="$t('parameters.heldTooltip')">
+                    {{ $t('parameters.heldBadge') }}
+                  </span>
+                </div>
+                <div v-if="getParamFormulaValue(param) !== null" class="text-3xs text-blue-400 font-mono font-medium">
+                  ƒ(x): {{ getParamFormulaValue(param) }}
+                </div>
               </td>
               <td class="py-2.5 px-3">
                 <button
@@ -730,12 +746,27 @@
           </div>
 
           <!-- Primary Metric Value -->
-          <div class="py-2">
+          <div class="py-2 space-y-1">
             <div class="flex items-baseline space-x-2">
               <span class="text-3xl font-mono font-bold text-white tracking-tight">
                 {{ formatParamValue(param) }}
               </span>
               <span class="text-sm font-medium text-slate-400 font-mono">{{ param.unit }}</span>
+              <span
+                v-if="isParamHeld(param)"
+                class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse ml-2"
+                :title="$t('parameters.heldTooltip')"
+              >
+                {{ $t('parameters.heldBadge') }}
+              </span>
+            </div>
+            <!-- Formula Result if defined -->
+            <div v-if="getParamFormulaValue(param) !== null" class="flex items-center space-x-2 text-xs font-mono text-blue-400">
+              <span class="font-bold">ƒ(x):</span>
+              <span class="font-bold text-white bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                {{ getParamFormulaValue(param) }} {{ param.unit }}
+              </span>
+              <span v-if="param.formula" class="text-3xs text-slate-400 truncate max-w-[150px]">({{ param.formula }})</span>
             </div>
           </div>
 
@@ -2651,6 +2682,23 @@ export default {
       if (!this.device || !this.device.parameters) return '';
       const p = this.device.parameters.find(x => x.id === paramId);
       return p ? p.unit : '';
+    },
+    isParamHeld(param) {
+      if (!param) return false;
+      if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].is_held_value) {
+        return true;
+      }
+      return !!param.is_current_held;
+    },
+    getParamFormulaValue(param) {
+      if (!param) return null;
+      if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].formula_value !== undefined && this.liveTelemetry[param.id].formula_value !== null) {
+        return Number(this.liveTelemetry[param.id].formula_value).toFixed(param.precision || 2);
+      }
+      if (param.current_formula_value !== undefined && param.current_formula_value !== null) {
+        return Number(param.current_formula_value).toFixed(param.precision || 2);
+      }
+      return null;
     },
     formatParamValue(param) {
       if (this.liveTelemetry[param.id] !== undefined) {

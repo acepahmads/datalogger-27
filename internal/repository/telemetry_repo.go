@@ -67,6 +67,8 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 			updates := map[string]interface{}{
 				"current_value":            &item.Value,
 				"current_value_numeric":    item.ValueNumeric,
+				"current_formula_value":    item.FormulaValue,
+				"is_current_held":          item.IsHeldValue,
 				"current_value_text":       item.ValueText,
 				"current_value_bool":       item.ValueBool,
 				"current_quality":          item.Quality,

@@ -216,6 +216,108 @@
           </div>
         </div>
 
+        <!-- Mathematical Formula Evaluation (Python-style eval) -->
+        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('parameterModal.formula') }}
+            </label>
+            <span class="text-3xs text-blue-400 font-mono">eval(x, raw)</span>
+          </div>
+          <input
+            v-model="form.formula"
+            type="text"
+            :placeholder="$t('parameterModal.formulaPlaceholder')"
+            class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+          />
+          <p class="text-3xs text-slate-400 leading-relaxed">
+            {{ $t('parameterModal.formulaDesc') }}
+          </p>
+
+          <!-- Quick Presets -->
+          <div class="flex items-center space-x-1.5 flex-wrap gap-y-1.5 pt-1">
+            <span class="text-3xs text-slate-400 mr-1">{{ $t('parameterModal.presets') }}:</span>
+            <button
+              type="button"
+              @click="form.formula = 'x * 1.8 + 32'"
+              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              °C➔°F (x*1.8+32)
+            </button>
+            <button
+              type="button"
+              @click="form.formula = '(raw - 4.0) * (100.0 / 16.0)'"
+              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              4-20mA➔%
+            </button>
+            <button
+              type="button"
+              @click="form.formula = 'round(x, 2)'"
+              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              round(x, 2)
+            </button>
+            <button
+              type="button"
+              @click="form.formula = 'x / 1000'"
+              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              W➔kW (x/1000)
+            </button>
+          </div>
+
+          <!-- Live Preview Banner -->
+          <div v-if="form.formula && form.formula.trim()" class="p-2 rounded-lg bg-[#0B0F19] border border-slate-800 flex items-center justify-between text-2xs font-mono">
+            <span class="text-slate-400">{{ $t('parameterModal.formulaPreview') }} (x={{ previewSampleX }}):</span>
+            <span v-if="formulaPreview && formulaPreview.valid" class="font-bold text-emerald-400">
+              ➔ {{ formulaPreview.value }} {{ form.unit }}
+            </span>
+            <span v-else class="text-rose-400 font-semibold">
+              ⚠️ {{ (formulaPreview && formulaPreview.error) || 'Invalid expression' }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Anomaly & Timeout Hold-Last-Good-Value Protection -->
+        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-3">
+          <label class="flex items-center space-x-3 cursor-pointer">
+            <input
+              v-model="form.hold_last_value_enabled"
+              type="checkbox"
+              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+            />
+            <div>
+              <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.holdLastValueTitle') }}</span>
+              <span class="block text-3xs text-slate-400 mt-0.5">{{ $t('parameterModal.holdLastValueDesc') }}</span>
+            </div>
+          </label>
+
+          <!-- Duration Input (Conditional when enabled) -->
+          <div v-if="form.hold_last_value_enabled" class="pl-7 pt-2 border-t border-slate-800/80 space-y-1.5">
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('parameterModal.holdDurationSeconds') }}
+            </label>
+            <div class="flex items-center space-x-3">
+              <input
+                v-model.number="form.hold_last_value_seconds"
+                type="number"
+                min="10"
+                max="86400"
+                step="10"
+                placeholder="120"
+                class="w-32 px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              />
+              <span class="text-3xs text-slate-400 font-mono">
+                ({{ Math.round((form.hold_last_value_seconds || 120) / 60 * 10) / 10 }} min)
+              </span>
+            </div>
+            <p class="text-3xs text-amber-400/90 leading-relaxed">
+              {{ $t('parameterModal.holdDurationHelp') }}
+            </p>
+          </div>
+        </div>
+
         <!-- Description -->
         <div>
           <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -303,12 +405,59 @@ export default {
         scale: 1.0,
         offset: 0.0,
         enabled: true,
+        formula: '',
+        hold_last_value_enabled: false,
+        hold_last_value_seconds: 120,
       },
     };
   },
   computed: {
     isEditing() {
       return !!this.paramToEdit;
+    },
+    previewSampleX() {
+      if (this.paramToEdit && this.paramToEdit.current_value !== null && this.paramToEdit.current_value !== undefined) {
+        return this.paramToEdit.current_value;
+      }
+      return this.form.min_value !== null && this.form.min_value !== undefined ? this.form.min_value + 10 : 25.0;
+    },
+    formulaPreview() {
+      if (!this.form.formula || !this.form.formula.trim()) return null;
+      try {
+        const formStr = this.form.formula.trim();
+        const x = this.previewSampleX;
+        const raw = 100.0;
+        const expr = formStr
+          .replace(/\b(pi)\b/gi, 'Math.PI')
+          .replace(/\b(e)\b/gi, 'Math.E')
+          .replace(/\b(abs)\b/gi, 'Math.abs')
+          .replace(/\b(round)\b/gi, 'Math.round')
+          .replace(/\b(floor)\b/gi, 'Math.floor')
+          .replace(/\b(ceil)\b/gi, 'Math.ceil')
+          .replace(/\b(sqrt)\b/gi, 'Math.sqrt')
+          .replace(/\b(min)\b/gi, 'Math.min')
+          .replace(/\b(max)\b/gi, 'Math.max')
+          .replace(/\b(log|ln)\b/gi, 'Math.log')
+          .replace(/\b(exp)\b/gi, 'Math.exp')
+          .replace(/\b(sin)\b/gi, 'Math.sin')
+          .replace(/\b(cos)\b/gi, 'Math.cos')
+          .replace(/\b(tan)\b/gi, 'Math.tan')
+          .replace(/\^/g, '**')
+          .replace(/\b(x|val|value)\b/gi, `(${x})`)
+          .replace(/\b(raw)\b/gi, `(${raw})`);
+
+        if (/[^0-9\.\+\-\*\/\(\)\,\sMathPIEabseroundfloceilsqrtminxlgexpstnc]/.test(expr)) {
+          return { valid: false, error: 'Invalid syntax or unsupported characters' };
+        }
+        const fn = new Function(`return (${expr})`);
+        const res = fn();
+        if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
+          return { valid: true, value: Number(res.toFixed(4)) };
+        }
+        return { valid: false, error: 'Result is NaN or infinite' };
+      } catch (e) {
+        return { valid: false, error: e.message };
+      }
     },
   },
   watch: {
@@ -331,6 +480,9 @@ export default {
             scale: newVal.scale !== undefined ? newVal.scale : (newVal.scale_factor || 1.0),
             offset: newVal.offset !== undefined ? newVal.offset : 0.0,
             enabled: newVal.enabled !== undefined ? newVal.enabled : true,
+            formula: newVal.formula || '',
+            hold_last_value_enabled: newVal.hold_last_value_enabled !== undefined ? newVal.hold_last_value_enabled : false,
+            hold_last_value_seconds: newVal.hold_last_value_seconds || 120,
           };
         } else {
           this.resetForm();
@@ -359,6 +511,9 @@ export default {
         scale: 1.0,
         offset: 0.0,
         enabled: true,
+        formula: '',
+        hold_last_value_enabled: false,
+        hold_last_value_seconds: 120,
       };
     },
     async submitForm() {

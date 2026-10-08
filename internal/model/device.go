@@ -283,6 +283,13 @@ type Parameter struct {
 	ByteOrder     string            `gorm:"size:32;default:'ABCD'" json:"byte_order"`
 	Enabled       bool              `gorm:"index;default:true" json:"enabled"`
 
+	// Custom Formula & Anomaly Hold-Last-Value Protection
+	Formula              string   `gorm:"size:255" json:"formula"`
+	HoldLastValueEnabled bool     `gorm:"default:false" json:"hold_last_value_enabled"`
+	HoldLastValueSeconds int      `gorm:"default:120" json:"hold_last_value_seconds"`
+	CurrentFormulaValue  *float64 `gorm:"type:double" json:"current_formula_value,omitempty"`
+	IsCurrentHeld        bool     `gorm:"default:false" json:"is_current_held"`
+
 	// Phase 1 Compatibility
 	Code            string     `gorm:"size:64" json:"code,omitempty"`
 	Name            string     `gorm:"size:128" json:"name,omitempty"`
@@ -345,6 +352,9 @@ func (p *Parameter) BeforeSave(tx *gorm.DB) error {
 	}
 	if p.HighLimit == nil && p.MaxValue != nil {
 		p.HighLimit = p.MaxValue
+	}
+	if p.HoldLastValueSeconds <= 0 {
+		p.HoldLastValueSeconds = 120
 	}
 	if p.DataType == "" {
 		p.DataType = DataTypeFloat32

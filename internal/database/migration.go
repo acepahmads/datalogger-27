@@ -98,6 +98,9 @@ func RunMigrations(db *gorm.DB) error {
 			if param.Scale == 0 && param.ScaleFactor != 0 {
 				updates["scale"] = param.ScaleFactor
 			}
+			if param.HoldLastValueSeconds <= 0 {
+				updates["hold_last_value_seconds"] = 120
+			}
 			if len(updates) > 0 {
 				_ = db.Model(&model.Parameter{}).Unscoped().Where("id = ?", param.ID).Updates(updates).Error
 			}

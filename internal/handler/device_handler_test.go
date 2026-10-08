@@ -101,6 +101,7 @@ func setupDeviceTestRouter(t *testing.T) *TestEnv {
 			devicesGroup.PUT("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameter)
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
+			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 		}
 	}
 
@@ -379,3 +380,50 @@ func TestDeviceParameterAPI(t *testing.T) {
 		t.Fatalf("Expected 200 on delete parameter, got %d", delW.Code)
 	}
 }
+
+func TestValidateFormulaEndpoint(t *testing.T) {
+	env := setupDeviceTestRouter(t)
+
+	// 1. Valid formula evaluation
+	body, _ := json.Marshal(map[string]interface{}{
+		"formula":      "x * 1.8 + 32",
+		"sample_value": 25.0,
+	})
+	req, _ := http.NewRequest("POST", "/api/devices/parameters/validate-formula", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on valid formula, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var res struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Valid   bool    `json:"valid"`
+			Formula string  `json:"formula"`
+			Result  float64 `json:"result"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &res)
+	if !res.Data.Valid || res.Data.Result != 77.0 {
+		t.Errorf("Expected result 77.0, got %v", res.Data.Result)
+	}
+
+	// 2. Invalid syntax formula
+	badBody, _ := json.Marshal(map[string]interface{}{
+		"formula": "x +* 2",
+	})
+	badReq, _ := http.NewRequest("POST", "/api/devices/parameters/validate-formula", bytes.NewBuffer(badBody))
+	badReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	badReq.Header.Set("Content-Type", "application/json")
+	badW := httptest.NewRecorder()
+	env.Router.ServeHTTP(badW, badReq)
+
+	if badW.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 on bad formula, got %d", badW.Code)
+	}
+}
+

@@ -179,6 +179,8 @@ func main() {
 			devicesGroup.PUT("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameter)
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
+			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
+			devicesGroup.POST("/:id/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 
 			// Phase 2.2 — Communication Controls & Diagnostics
 			devicesGroup.POST("/:id/communication/connect", middleware.RequirePermission("device.communication.manage"), commHandler.Connect)

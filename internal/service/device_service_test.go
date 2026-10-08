@@ -340,3 +340,66 @@ func TestDeviceAuditTrail(t *testing.T) {
 		t.Errorf("Expected DELETE_DEVICE in audit trail")
 	}
 }
+
+func TestParameterFormulaAndHoldConfig(t *testing.T) {
+	_, devService, _ := setupDeviceTestDB(t)
+
+	dev, _ := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "DEV-FORMULA-01",
+		DeviceName: "Formula Node",
+	}, "admin", "127.0.0.1", "")
+
+	// 1. Invalid formula should fail validation
+	_, errInvalid := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode: "BAD_PARAM",
+		ParameterName: "Bad Formula Param",
+		Formula:       "x +* 2",
+	}, "admin", "127.0.0.1", "")
+	if errInvalid == nil {
+		t.Errorf("Expected invalid formula syntax to be rejected, but succeeded")
+	}
+
+	// 2. Valid formula and hold configuration
+	holdEnabled := true
+	pReq := &service.CreateParameterRequest{
+		ParameterCode:        "TEMP_F",
+		ParameterName:        "Temperature Fahrenheit",
+		DataType:             model.DataTypeFloat32,
+		Unit:                 "°F",
+		Formula:              "x * 1.8 + 32",
+		HoldLastValueEnabled: &holdEnabled,
+		HoldLastValueSeconds: 120,
+	}
+
+	param, err := devService.CreateParameter(dev.ID, pReq, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("Failed to create parameter with formula: %v", err)
+	}
+	if param.Formula != "x * 1.8 + 32" {
+		t.Errorf("Expected formula 'x * 1.8 + 32', got '%s'", param.Formula)
+	}
+	if !param.HoldLastValueEnabled {
+		t.Errorf("Expected HoldLastValueEnabled true")
+	}
+	if param.HoldLastValueSeconds != 120 {
+		t.Errorf("Expected HoldLastValueSeconds 120, got %d", param.HoldLastValueSeconds)
+	}
+
+	// 3. Update formula to another expression
+	newFormula := "(x - 4) * 6.25"
+	newSeconds := 60
+	updated, err := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		Formula:              &newFormula,
+		HoldLastValueSeconds: &newSeconds,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("Failed to update parameter formula: %v", err)
+	}
+	if updated.Formula != newFormula {
+		t.Errorf("Expected updated formula '%s', got '%s'", newFormula, updated.Formula)
+	}
+	if updated.HoldLastValueSeconds != 60 {
+		t.Errorf("Expected updated HoldLastValueSeconds 60, got %d", updated.HoldLastValueSeconds)
+	}
+}
+

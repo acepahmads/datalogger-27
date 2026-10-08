@@ -357,6 +357,9 @@ export default {
     "retriesWithBackoff": "{count} kali percobaan dengan backoff eksponensial",
     "adapterStatus": "Status Adaptor",
     "noConnConfig": "Konfigurasi koneksi tidak ditemukan untuk perangkat ini.",
+    "colFormula": "Formula",
+    "heldBadge": "DITAHAN (ANOMALI)",
+    "formulaVal": "Nilai Formula",
     "telemetryParamsCount": "Parameter Telemetri ({count})",
     "paramDefSubtitle": "Definisi parameter teknik, faktor skala, dan register",
     "addParam": "Tambah Parameter",
@@ -627,10 +630,23 @@ export default {
     "paramActive": "Parameter Aktif",
     "collectChannel": "Kumpulkan dan catat kanal telemetri ini",
     "updateParam": "Perbarui Parameter",
-    "addParam": "Tambah Parameter"
+    "addParam": "Tambah Parameter",
+    "formula": "Formula / Ekspresi Matematika",
+    "formulaDesc": "Evaluasi nilai sensor dengan formula matematika (+, -, *, /, ^, sqrt, round, min, max). Variabel: 'x' atau 'val', 'raw'",
+    "formulaPlaceholder": "contoh: x * 1.8 + 32, (raw - 4) * 6.25, round(x, 2)",
+    "formulaPreview": "Pratinjau Hasil",
+    "presets": "Preset Cepat",
+    "holdLastValueTitle": "Tahan Data Terakhir Saat Anomali / Timeout",
+    "holdLastValueDesc": "Lindungi database dari spike glitch, timeout, atau nilai di luar rentang dengan menahan data valid terakhir sebelum menyimpan nilai real sensor.",
+    "holdDurationSeconds": "Durasi Penahanan (Detik)",
+    "holdDurationHelp": "Jika sensor tetap anomali lebih lama dari durasi ini (default 120 detik / 2 menit), nilai real dari sensor akan disimpan ke database."
   },
   "parameters": {
     "title": "Parameter Perangkat",
+    "formula": "Formula",
+    "formulaValue": "Nilai Formula",
+    "heldBadge": "DITAHAN (ANOMALI)",
+    "heldTooltip": "Menahan nilai valid terakhir akibat anomali/timeout sensor (masa tenggang 2 menit aktif)",
     "addParameter": "Tambah Parameter",
     "name": "Nama Parameter",
     "identifier": "Pengenal (ID)",
@@ -645,6 +661,8 @@ export default {
     "noParameters": "Belum ada parameter yang dikonfigurasi untuk perangkat ini."
   },
   "telemetry": {
+    "heldWarning": "DITAHAN (MASA TENGGANG)",
+    "formulaVal": "Formula",
     "incomingTitle": "Telemetri Sensor Masuk",
     "incomingSubtitle": "Aliran telemetri waktu-nyata terpadu di seluruh perangkat Modbus RTU/TCP dan sensor lapangan.",
     "totalSensors": "Total Sensor Dipantau",

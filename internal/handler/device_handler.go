@@ -8,6 +8,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
+	"datalogger/pkg/formula"
 	"datalogger/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -499,3 +500,56 @@ func (h *DeviceHandler) getUsername(c *gin.Context) string {
 	}
 	return "admin"
 }
+
+type ValidateFormulaRequest struct {
+	Formula     string   `json:"formula"`
+	SampleValue *float64 `json:"sample_value"`
+	SampleRaw   *float64 `json:"sample_raw"`
+}
+
+func (h *DeviceHandler) ValidateFormula(c *gin.Context) {
+	var req ValidateFormulaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	trimmed := strings.TrimSpace(req.Formula)
+	if trimmed == "" {
+		response.OK(c, gin.H{
+			"valid":   true,
+			"formula": "",
+			"result":  nil,
+		})
+		return
+	}
+
+	val := 25.0
+	if req.SampleValue != nil {
+		val = *req.SampleValue
+	}
+	raw := 100.0
+	if req.SampleRaw != nil {
+		raw = *req.SampleRaw
+	}
+
+	vars := map[string]float64{
+		"x":     val,
+		"val":   val,
+		"value": val,
+		"raw":   raw,
+	}
+
+	res, err := formula.Evaluate(trimmed, vars)
+	if err != nil {
+		response.BadRequest(c, "Invalid formula: "+err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"valid":   true,
+		"formula": trimmed,
+		"result":  res,
+	})
+}
+

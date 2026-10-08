@@ -21,6 +21,7 @@ type PollingEngine struct {
 	deviceService    *service.DeviceService
 	telemetryService *service.TelemetryService
 	hub              *websocket.Hub
+	holdTracker      *AnomalyHoldTracker
 	workersMu        sync.Mutex
 	workers          map[uint]context.CancelFunc
 	ctx              context.Context
@@ -35,10 +36,16 @@ func NewPollingEngine(connManager *ConnectionManager, deviceService *service.Dev
 		connManager:   connManager,
 		deviceService: deviceService,
 		hub:           hub,
+		holdTracker:   NewAnomalyHoldTracker(),
 		workers:       make(map[uint]context.CancelFunc),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
+}
+
+// GetHoldTracker returns the AnomalyHoldTracker instance
+func (p *PollingEngine) GetHoldTracker() *AnomalyHoldTracker {
+	return p.holdTracker
 }
 
 // SetTelemetryService injects the Phase 3.1 Telemetry Ingestion Pipeline
@@ -340,6 +347,65 @@ func (p *PollingEngine) ReadParameter(
 	elapsed := time.Since(start)
 
 	if err != nil {
+		source := ""
+		if device.Connection != nil {
+			source = string(device.Connection.Protocol)
+		}
+
+		// Evaluate anomaly hold tracker
+		var effVal float64
+		var formulaVal *float64
+		var isHeld bool
+		var quality model.TelemetryQuality = model.QualityBad
+		var pErr error = err
+
+		if p.holdTracker != nil {
+			effVal, formulaVal, isHeld, quality, pErr = p.holdTracker.ProcessReading(param, 0, 0, err)
+		}
+
+		if isHeld {
+			// Sensor anomaly/timeout suppressed by hold-last-good-value grace period!
+			if p.deviceService != nil {
+				_ = p.deviceService.UpdateParameterCurrentValue(param.ID, effVal)
+				_ = p.deviceService.UpdateLastData(device.ID)
+			}
+
+			if p.telemetryService != nil {
+				_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+					DeviceID:      device.ID,
+					DeviceCode:    device.DeviceCode,
+					DeviceName:    device.DeviceName,
+					ParameterID:   param.ID,
+					ParameterCode: param.ParameterCode,
+					ParameterName: param.ParameterName,
+					Unit:          param.Unit,
+					DataType:      param.DataType,
+					RawValue:      effVal,
+					Value:         effVal,
+					FormulaValue:  formulaVal,
+					Formula:       param.Formula,
+					IsHeldValue:   true,
+					Quality:       quality,
+					Source:        source,
+					ReceivedAt:    time.Now().UTC(),
+				})
+			}
+
+			return NewSuccessResult(
+				device.ID,
+				device.Connection.ID,
+				param.ID,
+				param.ParameterCode,
+				res.FunctionCode,
+				res.PDUAddress,
+				qty,
+				nil,
+				effVal,
+				effVal,
+				elapsed,
+			), nil
+		}
+
 		errRes := NewErrorResult(
 			device.ID,
 			device.Connection.ID,
@@ -354,10 +420,6 @@ func (p *PollingEngine) ReadParameter(
 		)
 
 		if p.telemetryService != nil {
-			source := ""
-			if device.Connection != nil {
-				source = string(device.Connection.Protocol)
-			}
 			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
 				DeviceID:      device.ID,
 				DeviceCode:    device.DeviceCode,
@@ -369,14 +431,15 @@ func (p *PollingEngine) ReadParameter(
 				DataType:      param.DataType,
 				RawValue:      0,
 				Value:         0,
-				Quality:       model.QualityBad,
+				Quality:       quality,
+				IsHeldValue:   false,
 				Source:        source,
 				ErrorMessage:  err.Error(),
 				ReceivedAt:    errRes.Timestamp,
 			})
 		}
 
-		return errRes, err
+		return errRes, pErr
 	}
 
 	// 4. Decode Register Values
@@ -396,9 +459,19 @@ func (p *PollingEngine) ReadParameter(
 	// 5. Apply Scale & Offset
 	engVal := modbus.ApplyScaleAndOffset(decoded.RawValue, param.Scale, param.Offset, param.Precision)
 
+	// 5b. Evaluate Anomaly Hold Tracker & Custom Formula
+	effVal := engVal
+	var formulaVal *float64
+	var isHeld bool
+	quality := model.QualityGood
+
+	if p.holdTracker != nil {
+		effVal, formulaVal, isHeld, quality, _ = p.holdTracker.ProcessReading(param, decoded.RawValue, engVal, nil)
+	}
+
 	// 6. Update Device and Parameter State
 	if p.deviceService != nil {
-		_ = p.deviceService.UpdateParameterCurrentValue(param.ID, engVal)
+		_ = p.deviceService.UpdateParameterCurrentValue(param.ID, effVal)
 		_ = p.deviceService.UpdateLastData(device.ID)
 	}
 
@@ -412,7 +485,7 @@ func (p *PollingEngine) ReadParameter(
 		qty,
 		resp.Data,
 		decoded.RawValue,
-		engVal,
+		effVal,
 		resp.ResponseTime,
 	)
 
@@ -434,8 +507,11 @@ func (p *PollingEngine) ReadParameter(
 			RawBytes:      resp.Data,
 			RawHex:        result.RawHex,
 			RawValue:      decoded.RawValue,
-			Value:         engVal,
-			Quality:       model.QualityGood,
+			Value:         effVal,
+			FormulaValue:  formulaVal,
+			Formula:       param.Formula,
+			IsHeldValue:   isHeld,
+			Quality:       quality,
 			Source:        source,
 			ReceivedAt:    result.Timestamp,
 		})

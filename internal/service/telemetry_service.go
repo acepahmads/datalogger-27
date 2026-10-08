@@ -29,6 +29,9 @@ type TelemetryIngestPayload struct {
 	RawHex          string
 	RawValue        float64
 	Value           float64
+	FormulaValue    *float64
+	Formula         string
+	IsHeldValue     bool
 	Quality         model.TelemetryQuality
 	Source          string
 	Sequence        uint64
@@ -49,6 +52,9 @@ type LatestTelemetry struct {
 	DataType        model.ParameterDataType `json:"data_type"`
 	Value           float64                 `json:"value"`
 	ValueNumeric    *float64                `json:"value_numeric,omitempty"`
+	FormulaValue    *float64                `json:"formula_value,omitempty"`
+	Formula         string                  `json:"formula,omitempty"`
+	IsHeldValue     bool                    `json:"is_held_value"`
 	ValueText       string                  `json:"value_text,omitempty"`
 	ValueBool       *bool                   `json:"value_bool,omitempty"`
 	RawValue        float64                 `json:"raw_value"`
@@ -268,6 +274,8 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		ParameterID:     p.ParameterID,
 		Value:           val,
 		ValueNumeric:    &valNum,
+		FormulaValue:    p.FormulaValue,
+		IsHeldValue:     p.IsHeldValue,
 		ValueText:       valText,
 		ValueBool:       valBool,
 		RawValue:        rawVal,
@@ -293,6 +301,9 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		DataType:        p.DataType,
 		Value:           val,
 		ValueNumeric:    &valNum,
+		FormulaValue:    p.FormulaValue,
+		Formula:         p.Formula,
+		IsHeldValue:     p.IsHeldValue,
 		ValueText:       valText,
 		ValueBool:       valBool,
 		RawValue:        rawVal,

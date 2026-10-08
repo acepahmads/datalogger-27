@@ -214,14 +214,24 @@
               </h3>
             </div>
 
-            <!-- Quality Badge -->
-            <span
-              :class="qualityBadgeClass(item.quality)"
-              class="px-2 py-0.5 rounded text-3xs font-mono font-bold uppercase flex items-center space-x-1 flex-shrink-0"
-            >
-              <span class="w-1 h-1 rounded-full" :class="item.quality === 'GOOD' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
-              <span>{{ item.quality || 'WAITING' }}</span>
-            </span>
+            <!-- Status & Quality Badges -->
+            <div class="flex items-center space-x-1.5 flex-shrink-0">
+              <span
+                v-if="item.is_held_value"
+                class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse flex items-center space-x-1"
+                :title="$t('parameters.heldTooltip')"
+              >
+                <span>🛡️</span>
+                <span>{{ $t('parameters.heldBadge') }}</span>
+              </span>
+              <span
+                :class="qualityBadgeClass(item.quality)"
+                class="px-2 py-0.5 rounded text-3xs font-mono font-bold uppercase flex items-center space-x-1"
+              >
+                <span class="w-1 h-1 rounded-full" :class="item.quality === 'GOOD' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
+                <span>{{ item.quality || 'WAITING' }}</span>
+              </span>
+            </div>
           </div>
 
           <!-- Parameter Code Tag -->
@@ -235,12 +245,24 @@
           </div>
 
           <!-- Primary Metric Value -->
-          <div class="mt-4 p-3 bg-[#0B0F19] rounded-xl border border-slate-800/80 flex items-baseline justify-between">
-            <div class="text-2xl font-mono font-extrabold tracking-tight" :class="valueColorClass(item)">
-              {{ formatValue(item) }}
+          <div class="mt-4 p-3 bg-[#0B0F19] rounded-xl border border-slate-800/80 space-y-2">
+            <div class="flex items-baseline justify-between">
+              <div class="text-2xl font-mono font-extrabold tracking-tight" :class="valueColorClass(item)">
+                {{ formatValue(item) }}
+              </div>
+              <div class="text-xs font-bold text-slate-400 font-mono">
+                {{ item.unit || '--' }}
+              </div>
             </div>
-            <div class="text-xs font-bold text-slate-400 font-mono">
-              {{ item.unit || '--' }}
+            <!-- Formula Display if configured -->
+            <div v-if="item.formula_value !== undefined && item.formula_value !== null" class="pt-2 border-t border-slate-800/70 flex items-center justify-between text-3xs font-mono">
+              <div class="flex items-center space-x-1 text-blue-400 min-w-0">
+                <span class="font-bold">ƒ(x):</span>
+                <span class="text-slate-400 truncate max-w-[110px]" :title="'Formula: ' + item.formula">{{ item.formula }}</span>
+              </div>
+              <div class="font-bold text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20 whitespace-nowrap">
+                {{ formatFormula(item) }} {{ item.unit || '' }}
+              </div>
             </div>
           </div>
         </div>
@@ -289,6 +311,7 @@
               <th class="py-3 px-4">{{ $t('telemetry.parameterName') }}</th>
               <th class="py-3 px-4">{{ $t('common.code') }}</th>
               <th class="py-3 px-4 text-right">{{ $t('telemetry.currentValue') }}</th>
+              <th class="py-3 px-4 text-right">{{ $t('parameters.formula') }}</th>
               <th class="py-3 px-4">{{ $t('common.unit') }}</th>
               <th class="py-3 px-4 text-center">{{ $t('common.quality') }}</th>
               <th class="py-3 px-4">{{ $t('telemetry.lastTimestamp') }}</th>
@@ -324,7 +347,27 @@
 
               <!-- Value -->
               <td class="py-3 px-4 text-right font-mono font-bold text-sm" :class="valueColorClass(item)">
-                {{ formatValue(item) }}
+                <div class="flex items-center justify-end space-x-1.5">
+                  <span
+                    v-if="item.is_held_value"
+                    class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse"
+                    :title="$t('parameters.heldTooltip')"
+                  >
+                    {{ $t('parameters.heldBadge') }}
+                  </span>
+                  <span>{{ formatValue(item) }}</span>
+                </div>
+              </td>
+
+              <!-- Formula Result -->
+              <td class="py-3 px-4 text-right font-mono text-3xs">
+                <div v-if="item.formula_value !== undefined && item.formula_value !== null" class="text-blue-400 font-bold">
+                  <span>{{ formatFormula(item) }}</span>
+                  <div v-if="item.formula" class="text-slate-400 text-3xs truncate max-w-[110px] ml-auto font-normal" :title="'Formula: ' + item.formula">
+                    {{ item.formula }}
+                  </div>
+                </div>
+                <div v-else class="text-slate-600">--</div>
               </td>
 
               <!-- Unit -->
@@ -397,6 +440,8 @@ export default {
         if (!dev.parameters) continue;
         for (const p of dev.parameters) {
           const live = this.liveMap[p.id] || {};
+          const isHeld = live.is_held_value !== undefined ? live.is_held_value : !!p.is_current_held;
+          const formulaVal = live.formula_value !== undefined && live.formula_value !== null ? live.formula_value : p.current_formula_value;
           list.push({
             device_id: dev.id,
             device_code: dev.device_code || dev.code,
@@ -410,6 +455,10 @@ export default {
             precision: p.precision !== undefined ? p.precision : 2,
             value: live.value !== undefined ? live.value : p.current_value,
             value_text: live.value_text,
+            formula: p.formula || live.formula || '',
+            formula_value: formulaVal,
+            is_held_value: isHeld,
+            hold_enabled: p.hold_last_value_enabled,
             quality: live.quality || p.current_quality || 'UNKNOWN',
             received_at: live.received_at || p.current_received_at || p.last_updated,
           });
@@ -431,7 +480,8 @@ export default {
           const matchCode = item.param_code && item.param_code.toLowerCase().includes(q);
           const matchDevice = item.device_code && item.device_code.toLowerCase().includes(q);
           const matchUnit = item.unit && item.unit.toLowerCase().includes(q);
-          if (!matchName && !matchCode && !matchDevice && !matchUnit) return false;
+          const matchFormula = item.formula && item.formula.toLowerCase().includes(q);
+          if (!matchName && !matchCode && !matchDevice && !matchUnit && !matchFormula) return false;
         }
         return true;
       });
@@ -499,6 +549,12 @@ export default {
       if (item.value_text) return item.value_text;
       if (item.value !== null && item.value !== undefined) {
         return Number(item.value).toFixed(item.precision || 2);
+      }
+      return '--';
+    },
+    formatFormula(item) {
+      if (item.formula_value !== null && item.formula_value !== undefined) {
+        return Number(item.formula_value).toFixed(item.precision || 2);
       }
       return '--';
     },

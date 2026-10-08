@@ -25,6 +25,8 @@ type RawData struct {
 	// Engineering Scaled Values
 	Value        float64          `gorm:"type:double" json:"value"`
 	ValueNumeric *float64         `gorm:"type:double" json:"value_numeric,omitempty"`
+	FormulaValue *float64         `gorm:"type:double" json:"formula_value,omitempty"`
+	IsHeldValue  bool             `gorm:"default:false;index" json:"is_held_value"`
 	ValueText    string           `gorm:"size:255" json:"value_text,omitempty"`
 	ValueBool    *bool            `json:"value_bool,omitempty"`
 	RawValue     float64          `gorm:"type:double" json:"raw_value"`

@@ -357,6 +357,9 @@ export default {
     "retriesWithBackoff": "{count} retries with exponential backoff",
     "adapterStatus": "Adapter Status",
     "noConnConfig": "No connection configuration found for this device.",
+    "colFormula": "Formula",
+    "heldBadge": "HELD (ANOMALY)",
+    "formulaVal": "Formula Val",
     "telemetryParamsCount": "Telemetry Parameters ({count})",
     "paramDefSubtitle": "Engineering parameter definitions, scaling factor, and registers",
     "addParam": "Add Parameter",
@@ -627,10 +630,23 @@ export default {
     "paramActive": "Parameter Active",
     "collectChannel": "Collect and log this telemetry channel",
     "updateParam": "Update Parameter",
-    "addParam": "Add Parameter"
+    "addParam": "Add Parameter",
+    "formula": "Custom Formula Expression",
+    "formulaDesc": "Evaluate raw/scaled sensor value with Python-style math eval (+, -, *, /, ^, sqrt, round, min, max). Variable: 'x' or 'val', 'raw'",
+    "formulaPlaceholder": "e.g. x * 1.8 + 32, (raw - 4) * 6.25, round(x, 2)",
+    "formulaPreview": "Preview Output",
+    "presets": "Quick Presets",
+    "holdLastValueTitle": "Hold Last Good Value on Anomaly / Timeout",
+    "holdLastValueDesc": "Shield database from sensor glitch spikes, timeouts, or out-of-bounds readings by holding last valid data before committing real sensor state.",
+    "holdDurationSeconds": "Hold Duration (Seconds)",
+    "holdDurationHelp": "If the sensor remains anomalous for longer than this duration (default 120s / 2m), the real sensor value will be committed to the database."
   },
   "parameters": {
     "title": "Device Parameters",
+    "formula": "Formula",
+    "formulaValue": "Formula Value",
+    "heldBadge": "HELD (ANOMALY)",
+    "heldTooltip": "Holding last valid value due to sensor anomaly/timeout (2m grace window active)",
     "addParameter": "Add Parameter",
     "name": "Parameter Name",
     "identifier": "Identifier",
@@ -645,6 +661,8 @@ export default {
     "noParameters": "No parameters configured for this device."
   },
   "telemetry": {
+    "heldWarning": "HELD (ANOMALY GRACE)",
+    "formulaVal": "Formula",
     "incomingTitle": "Incoming Sensor Telemetry",
     "incomingSubtitle": "Unified real-time telemetry stream across all connected Modbus RTU/TCP devices and field sensors.",
     "totalSensors": "Total Monitored Sensors",

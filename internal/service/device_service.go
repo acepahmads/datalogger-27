@@ -11,6 +11,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/pkg/formula"
 )
 
 // Request DTOs
@@ -84,6 +85,9 @@ type CreateParameterRequest struct {
 	RegisterType    string                  `json:"register_type"`
 	ByteOrder       string                  `json:"byte_order"`
 	Enabled         *bool                   `json:"enabled"`
+	Formula         string                  `json:"formula"`
+	HoldLastValueEnabled *bool              `json:"hold_last_value_enabled"`
+	HoldLastValueSeconds int                `json:"hold_last_value_seconds"`
 }
 
 type UpdateParameterRequest struct {
@@ -101,6 +105,9 @@ type UpdateParameterRequest struct {
 	RegisterType    *string                  `json:"register_type"`
 	ByteOrder       *string                  `json:"byte_order"`
 	Enabled         *bool                    `json:"enabled"`
+	Formula         *string                  `json:"formula"`
+	HoldLastValueEnabled *bool               `json:"hold_last_value_enabled"`
+	HoldLastValueSeconds *int                `json:"hold_last_value_seconds"`
 }
 
 type DeviceService struct {
@@ -638,22 +645,42 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		byteOrder = "ABCD"
 	}
 
+	cleanFormula := strings.TrimSpace(req.Formula)
+	if cleanFormula != "" {
+		if err := formula.Validate(cleanFormula); err != nil {
+			return nil, fmt.Errorf("invalid formula syntax: %w", err)
+		}
+	}
+
+	holdLastVal := false
+	if req.HoldLastValueEnabled != nil {
+		holdLastVal = *req.HoldLastValueEnabled
+	}
+
+	holdSeconds := req.HoldLastValueSeconds
+	if holdSeconds <= 0 {
+		holdSeconds = 120
+	}
+
 	param := &model.Parameter{
-		DeviceID:        deviceID,
-		ParameterCode:   code,
-		ParameterName:   name,
-		DataType:        dataType,
-		Unit:            strings.TrimSpace(req.Unit),
-		Description:     strings.TrimSpace(req.Description),
-		MinValue:        req.MinValue,
-		MaxValue:        req.MaxValue,
-		Precision:       precision,
-		Scale:           scale,
-		Offset:          req.Offset,
-		RegisterAddress: req.RegisterAddress,
-		RegisterType:    strings.TrimSpace(req.RegisterType),
-		ByteOrder:       byteOrder,
-		Enabled:         enabled,
+		DeviceID:             deviceID,
+		ParameterCode:        code,
+		ParameterName:        name,
+		DataType:             dataType,
+		Unit:                 strings.TrimSpace(req.Unit),
+		Description:          strings.TrimSpace(req.Description),
+		MinValue:             req.MinValue,
+		MaxValue:             req.MaxValue,
+		Precision:            precision,
+		Scale:                scale,
+		Offset:               req.Offset,
+		RegisterAddress:      req.RegisterAddress,
+		RegisterType:         strings.TrimSpace(req.RegisterType),
+		ByteOrder:            byteOrder,
+		Enabled:              enabled,
+		Formula:              cleanFormula,
+		HoldLastValueEnabled: holdLastVal,
+		HoldLastValueSeconds: holdSeconds,
 	}
 
 	if err := s.repo.CreateParameter(param); err != nil {
@@ -753,6 +780,25 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.Enabled != nil {
 		param.Enabled = *req.Enabled
+	}
+	if req.Formula != nil {
+		cleanFormula := strings.TrimSpace(*req.Formula)
+		if cleanFormula != "" {
+			if err := formula.Validate(cleanFormula); err != nil {
+				return nil, fmt.Errorf("invalid formula syntax: %w", err)
+			}
+		}
+		param.Formula = cleanFormula
+	}
+	if req.HoldLastValueEnabled != nil {
+		param.HoldLastValueEnabled = *req.HoldLastValueEnabled
+	}
+	if req.HoldLastValueSeconds != nil {
+		sec := *req.HoldLastValueSeconds
+		if sec <= 0 {
+			sec = 120
+		}
+		param.HoldLastValueSeconds = sec
 	}
 
 	if err := s.repo.UpdateParameter(param); err != nil {
