@@ -116,3 +116,6 @@ go test -v ./...
 
 - [System Architecture Specification](docs/architecture.md)
 - [Phase 1 Milestone Completion Report](docs/phase1_foundation_report.md)
+- [Industrial USB Serial Resilience & Multiple Devices Guide (Solusi 3 Pilar)](docs/usb_serial_resilience_and_multiple_devices_guide.md)
+- [Phase 2.3 — Communication Hardening & Field Validation](docs/phase2_3_communication_hardening.md)
+- [Phase 3.1 — Telemetry Data Pipeline & High-Throughput Ingestion](docs/phase3_1_data_pipeline_ingestion.md)

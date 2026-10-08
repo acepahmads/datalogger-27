@@ -37,6 +37,72 @@
       </div>
     </div>
 
+    <!-- Industrial Hardware Standards: 3-Pillar USB Serial Resilience -->
+    <div class="saas-card p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            <h2 class="text-sm font-bold text-white tracking-tight">Standar Ketahanan USB Serial Lapangan (Solusi 3 Pilar)</h2>
+          </div>
+          <p class="text-2xs text-slate-400 mt-0.5">Penanggulangan port melompat (ttyUSB0 ➔ ttyUSB1) dan urutan tertukar saat banyak sensor USB terhubung</p>
+        </div>
+        <span class="px-2.5 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-3xs font-mono font-semibold">
+          INDUSTRIAL RESILIENCE
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+        <!-- Pilar 1 -->
+        <div class="p-3.5 rounded-xl bg-[#0B0F19]/80 border border-slate-800/90 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-emerald-400 font-sans">Pilar 1: Jalur Linux Permanen</span>
+            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300">by-id / by-path</span>
+          </div>
+          <p class="text-2xs text-slate-300 leading-relaxed">
+            Gunakan symlink bawaan kernel Linux di <code class="text-emerald-300 font-mono">/dev/serial/by-id/</code> (kunci nomor seri chip) atau <code class="text-emerald-300 font-mono">/dev/serial/by-path/</code> (kunci colokan fisik USB Raspberry Pi).
+          </p>
+          <div class="text-3xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded border border-slate-800">
+            • /dev/serial/by-id/usb-FTDI...<br/>
+            • /dev/serial/by-path/platform...
+          </div>
+          <span class="text-3xs text-emerald-400 font-semibold block">✓ 100% Anti-Tertukar antar banyak USB</span>
+        </div>
+
+        <!-- Pilar 2 -->
+        <div class="p-3.5 rounded-xl bg-[#0B0F19]/80 border border-slate-800/90 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-blue-400 font-sans">Pilar 2: Self-Healing Rebind</span>
+            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">Go Backend</span>
+          </div>
+          <p class="text-2xs text-slate-300 leading-relaxed">
+            Jika port terdaftar adalah <code class="text-blue-300 font-mono">ttyUSB0</code> dan tiba-tiba hilang akibat micro-disconnect/glitch, backend Go otomatis mendeteksi re-enumerasi ke <code class="text-blue-300 font-mono">ttyUSB1</code> dan memindahkan transport secara mandiri.
+          </p>
+          <div class="text-3xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded border border-slate-800">
+            ResolvePortAddress():<br/>
+            ttyUSB0 (offline) ➔ ttyUSB1 (active)
+          </div>
+          <span class="text-3xs text-blue-400 font-semibold block">✓ Auto-recover tanpa restart server</span>
+        </div>
+
+        <!-- Pilar 3 -->
+        <div class="p-3.5 rounded-xl bg-[#0B0F19]/80 border border-slate-800/90 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-indigo-400 font-sans">Pilar 3: udev Alias Rules</span>
+            <span class="text-3xs font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300">Tool Otomatis</span>
+          </div>
+          <p class="text-2xs text-slate-300 leading-relaxed">
+            Untuk instalasi panel boks permanen di pabrik, jalankan script generator udev untuk membuat alias tetap yang deskriptif dan permanen selamanya.
+          </p>
+          <div class="text-3xs text-slate-400 font-mono bg-slate-900/80 p-2 rounded border border-slate-800">
+            sudo bash scripts/setup-usb-udev.sh<br/>
+            ➔ /dev/datalogger_rs485_1
+          </div>
+          <span class="text-3xs text-indigo-400 font-semibold block">✓ Standar industri substation & pabrik</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Quick Run & Installation Instructions -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Windows Setup -->
