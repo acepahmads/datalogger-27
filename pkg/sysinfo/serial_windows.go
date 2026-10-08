@@ -3,6 +3,7 @@
 package sysinfo
 
 import (
+	"fmt"
 	"sort"
 
 	"golang.org/x/sys/windows/registry"
@@ -30,4 +31,20 @@ func GetAvailableSerialPorts() []string {
 	}
 	sort.Strings(ports)
 	return ports
+}
+
+// GetDetailedSerialPorts returns serial ports with metadata on Windows
+func GetDetailedSerialPorts() []SerialPortDetail {
+	ports := GetAvailableSerialPorts()
+	results := make([]SerialPortDetail, 0, len(ports))
+	for _, p := range ports {
+		results = append(results, SerialPortDetail{
+			Path:        p,
+			RealDev:     p,
+			Type:        "STANDARD",
+			Description: fmt.Sprintf("Windows Serial Port (%s)", p),
+			Recommended: true,
+		})
+	}
+	return results
 }

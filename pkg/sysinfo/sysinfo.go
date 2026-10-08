@@ -47,6 +47,15 @@ type SystemInfo struct {
 	GoVersion         string    `json:"go_version"`
 }
 
+// SerialPortDetail holds rich metadata about a discovered serial port
+type SerialPortDetail struct {
+	Path        string `json:"path"`        // e.g. "/dev/serial/by-id/usb-..." or "COM3"
+	RealDev     string `json:"real_dev"`    // e.g. "/dev/ttyUSB0" (canonical device node)
+	Type        string `json:"type"`        // "BY_ID", "BY_PATH", "STANDARD"
+	Description string `json:"description"` // User-friendly label
+	Recommended bool   `json:"recommended"` // True if persistent across glitches/reboots
+}
+
 func init() {
 	if p, err := process.NewProcess(int32(os.Getpid())); err == nil {
 		currentProc = p

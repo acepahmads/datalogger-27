@@ -364,12 +364,29 @@
                       v-model="form.connection.serial_port"
                       class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
                     >
-                      <optgroup v-if="systemPorts.length > 0" label="✨ Detected Hardware Ports">
-                        <option v-for="port in systemPorts" :key="'sys-' + port" :value="port">
-                          {{ port }} (Active on System)
+                      <!-- 1. Persistent by-ID (Chip Serial Number: Recommended for field use) -->
+                      <optgroup v-if="byIDPorts.length > 0" label="🔒 Rekomendasi: Persistent by-ID (Anti-Pindah / Anti-Tertukar)">
+                        <option v-for="port in byIDPorts" :key="'byid-' + port.path" :value="port.path">
+                          {{ port.description || port.path }}
                         </option>
                       </optgroup>
-                      <optgroup label="Standard / Virtual Ports">
+
+                      <!-- 2. Persistent by-Path (Physical USB Socket on Pi) -->
+                      <optgroup v-if="byPathPorts.length > 0" label="📍 Rekomendasi: Persistent by-Path (Colokan Fisik USB Pi)">
+                        <option v-for="port in byPathPorts" :key="'bypath-' + port.path" :value="port.path">
+                          {{ port.description || port.path }}
+                        </option>
+                      </optgroup>
+
+                      <!-- 3. Standard Direct Ports -->
+                      <optgroup v-if="standardPorts.length > 0" label="⚡ Direct Ports (Bisa berpindah jika terjadi gangguan fisik)">
+                        <option v-for="port in standardPorts" :key="'std-' + port.path" :value="port.path">
+                          {{ port.path }} — {{ port.description }}
+                        </option>
+                      </optgroup>
+
+                      <!-- Fallback list if nothing detected -->
+                      <optgroup v-if="detailedPorts.length === 0" label="Standar Port Sistem">
                         <option v-for="port in fallbackPorts" :key="'fb-' + port" :value="port">
                           {{ port }}
                         </option>
@@ -381,14 +398,27 @@
                     v-else
                     v-model="form.connection.serial_port"
                     type="text"
-                    placeholder="e.g. COM1, COM3, /dev/ttyUSB0"
+                    placeholder="e.g. COM1, /dev/ttyUSB0, /dev/serial/by-id/..."
                     class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                   />
 
-                  <div class="flex items-center justify-between text-3xs text-slate-400">
+                  <!-- Field stability alert / recommendation tip -->
+                  <div class="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-sans flex items-start space-x-2 mt-1.5">
+                    <svg class="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                    </svg>
+                    <div class="space-y-0.5">
+                      <span class="font-semibold text-blue-200">Tips Lapangan Anti-Putus & Anti-Tertukar:</span>
+                      <p class="text-slate-300">
+                        Pilih port jalur <strong>by-id</strong> atau <strong>by-path</strong> agar sensor tidak terputus dan tidak tertukar saat USB mengalami gangguan tegangan / re-enumeration (misal lompat dari <code class="text-blue-300 font-mono">ttyUSB0</code> ➔ <code class="text-blue-300 font-mono">ttyUSB1</code>).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between text-3xs text-slate-400 pt-0.5">
                     <span v-if="systemPorts.length > 0 && !useCustomPort" class="text-emerald-400 font-mono flex items-center space-x-1">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>{{ systemPorts.length }} port(s) detected: {{ systemPorts.join(', ') }}</span>
+                      <span>{{ systemPorts.length }} serial path(s) detected</span>
                     </span>
                     <span v-else-if="!useCustomPort" class="text-slate-500">
                       No active COM ports detected
@@ -606,6 +636,7 @@ export default {
       loading: false,
       error: null,
       systemPorts: [],
+      detailedPorts: [],
       loadingPorts: false,
       useCustomPort: false,
       fallbackPorts: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyS0'],
@@ -655,6 +686,15 @@ export default {
     isSerialProtocol() {
       const p = this.form.connection.protocol;
       return ['MODBUS_RTU', 'SERIAL'].includes(p);
+    },
+    byIDPorts() {
+      return this.detailedPorts.filter(p => p.type === 'BY_ID');
+    },
+    byPathPorts() {
+      return this.detailedPorts.filter(p => p.type === 'BY_PATH');
+    },
+    standardPorts() {
+      return this.detailedPorts.filter(p => p.type === 'STANDARD');
     },
   },
   watch: {
@@ -716,18 +756,29 @@ export default {
     async fetchAvailableSerialPorts() {
       this.loadingPorts = true;
       try {
-        const res = await axios.get('/api/system/serial-ports');
+        const res = await axios.get('/api/system/serial-ports/details');
         if (res.data && res.data.data) {
-          this.systemPorts = res.data.data || [];
+          this.detailedPorts = res.data.data || [];
+          this.systemPorts = this.detailedPorts.map((p) => p.path);
           if (this.systemPorts.length > 0) {
-            // If current port is empty or default COM1 and COM1 is not detected, use first detected port
+            // If current port is empty or default COM1 and COM1 is not detected:
             if (!this.form.connection.serial_port || (this.form.connection.serial_port === 'COM1' && !this.systemPorts.includes('COM1'))) {
-              this.form.connection.serial_port = this.systemPorts[0];
+              // Prefer recommended persistent by-id or by-path port if available
+              const rec = this.detailedPorts.find((p) => p.recommended);
+              this.form.connection.serial_port = rec ? rec.path : this.systemPorts[0];
             }
           }
         }
       } catch (err) {
-        console.warn('Failed to fetch system serial ports:', err);
+        console.warn('Failed to fetch detailed serial ports, trying basic endpoint:', err);
+        try {
+          const fallbackRes = await axios.get('/api/system/serial-ports');
+          if (fallbackRes.data && fallbackRes.data.data) {
+            this.systemPorts = fallbackRes.data.data || [];
+          }
+        } catch (fbErr) {
+          console.warn('Failed to fetch fallback serial ports:', fbErr);
+        }
       } finally {
         this.loadingPorts = false;
       }

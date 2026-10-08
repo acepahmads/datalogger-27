@@ -5,11 +5,16 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
+	"datalogger/pkg/sysinfo"
 
 	"github.com/goburrow/serial"
 )
@@ -44,6 +49,56 @@ func (w *defaultSerialWrapper) SetDeadline(t time.Time) error {
 // SerialOpenerFunc is a factory function for opening serial transports
 type SerialOpenerFunc func(cfg *model.DeviceConnection) (SerialTransport, error)
 
+// ResolvePortAddress evaluates symlinks and performs self-healing port migration
+// when USB serial hardware glitches cause ttyUSB0 -> ttyUSB1 re-enumeration
+func ResolvePortAddress(configuredPort string) string {
+	if configuredPort == "" {
+		return ""
+	}
+
+	// 1. If it's a Linux symlink (e.g. /dev/serial/by-id/* or /dev/serial/by-path/*),
+	// evaluating the symlink automatically tracks wherever udev re-pointed the device!
+	if realPath, err := filepath.EvalSymlinks(configuredPort); err == nil {
+		if _, statErr := os.Stat(realPath); statErr == nil {
+			return realPath
+		}
+	}
+
+	// 2. If configured port already exists directly as-is, use it
+	if _, err := os.Stat(configuredPort); err == nil {
+		return configuredPort
+	}
+
+	// 3. Self-healing migration for Linux /dev/ttyUSB* /dev/ttyACM*
+	// If configured as /dev/ttyUSB0 and it does not exist:
+	if runtime.GOOS != "windows" && strings.HasPrefix(configuredPort, "/dev/tty") {
+		// Scan all currently available serial ports
+		availablePorts := sysinfo.GetAvailableSerialPorts()
+		var usbPorts []string
+		for _, p := range availablePorts {
+			if strings.HasPrefix(p, "/dev/ttyUSB") || strings.HasPrefix(p, "/dev/ttyACM") {
+				usbPorts = append(usbPorts, p)
+			}
+		}
+
+		// If exactly 1 active USB serial adapter is found on the system (e.g. ttyUSB1):
+		// This is the classic ttyUSB0 -> ttyUSB1 re-enumeration jump!
+		if len(usbPorts) == 1 && usbPorts[0] != configuredPort {
+			logger.Warn("USB serial port migration detected! Configured '%s' is missing, but active '%s' was found. Auto-rebinding transport to '%s'",
+				configuredPort, usbPorts[0], usbPorts[0])
+			return usbPorts[0]
+		}
+
+		// If multiple USB ports exist, try to check if any /dev/serial/by-id or by-path matches
+		if len(usbPorts) > 1 {
+			logger.Warn("Configured port '%s' is offline. Multiple USB serial ports detected (%v). Please consider using '/dev/serial/by-id/' or '/dev/serial/by-path/' to lock device identity.",
+				configuredPort, usbPorts)
+		}
+	}
+
+	return configuredPort
+}
+
 // DefaultSerialOpener opens a physical or virtual OS serial port (COMx or /dev/ttyUSBx)
 func DefaultSerialOpener(cfg *model.DeviceConnection) (SerialTransport, error) {
 	parity := cfg.Parity
@@ -67,8 +122,14 @@ func DefaultSerialOpener(cfg *model.DeviceConnection) (SerialTransport, error) {
 		timeout = 1000 * time.Millisecond
 	}
 
+	// Resolve target port with self-healing migration
+	targetPort := ResolvePortAddress(cfg.SerialPort)
+	if targetPort == "" {
+		targetPort = cfg.SerialPort
+	}
+
 	sc := &serial.Config{
-		Address:  cfg.SerialPort,
+		Address:  targetPort,
 		BaudRate: baud,
 		DataBits: dataBits,
 		StopBits: stopBits,
@@ -323,6 +384,16 @@ func (a *ModbusRTUAdapter) handleSerialError(err error) {
 	if a.transport != nil {
 		_ = a.transport.Close()
 		a.transport = nil
+	}
+
+	// Dynamic Self-Healing Port Migration Check:
+	// If current port failed due to missing device file, check if hardware re-enumerated (e.g. ttyUSB0 -> ttyUSB1)
+	if runtime.GOOS != "windows" && a.config != nil && strings.HasPrefix(a.config.SerialPort, "/dev/tty") {
+		resolved := ResolvePortAddress(a.config.SerialPort)
+		if resolved != "" && resolved != a.config.SerialPort {
+			logger.Warn("Dynamic port migration applied to active adapter: %s ➔ %s", a.config.SerialPort, resolved)
+			a.config.SerialPort = resolved
+		}
 	}
 }
 

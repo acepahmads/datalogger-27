@@ -56,6 +56,12 @@ func (h *SystemHandler) GetSerialPorts(c *gin.Context) {
 	response.OK(c, ports)
 }
 
+// GetDetailedSerialPorts lists available serial ports with persistent metadata and recommendations
+func (h *SystemHandler) GetDetailedSerialPorts(c *gin.Context) {
+	ports := sysinfo.GetDetailedSerialPorts()
+	response.OK(c, ports)
+}
+
 // Devices
 func (h *SystemHandler) GetDevices(c *gin.Context) {
 	devices, err := h.systemService.GetDevices()
