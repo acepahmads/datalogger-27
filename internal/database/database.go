@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -83,28 +84,31 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 	for _, rdsn := range rootCandidates {
 		rawDB, err := sql.Open("mysql", rdsn)
 		if err == nil {
-			if pingErr := rawDB.Ping(); pingErr == nil {
-				_, _ = rawDB.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;", dbName))
+			pingCtx, pingCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if pingErr := rawDB.PingContext(pingCtx); pingErr == nil {
+				_, _ = rawDB.ExecContext(pingCtx, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;", dbName))
+				pingCancel()
 				rawDB.Close()
 				break
 			}
+			pingCancel()
 			rawDB.Close()
 		}
 	}
 
 	// 2. Open connection to the target database with fallback candidate DSNs
 	candidateDSNs := []string{
-		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=10s&writeTimeout=10s",
+		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s&readTimeout=5s&writeTimeout=5s",
 			dbUser, cfg.DBPassword, dbHost, dbPort, dbName),
 	}
 	if dbHost == "127.0.0.1" || dbHost == "localhost" {
 		for _, sock := range []string{"/var/run/mysqld/mysqld.sock", "/run/mysqld/mysqld.sock", "/tmp/mysql.sock"} {
 			if _, statErr := os.Stat(sock); statErr == nil {
-				candidateDSNs = append(candidateDSNs, fmt.Sprintf("%s:%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s", dbUser, cfg.DBPassword, sock, dbName))
+				candidateDSNs = append(candidateDSNs, fmt.Sprintf("%s:%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s", dbUser, cfg.DBPassword, sock, dbName))
 			}
 		}
 		if dbUser != "datalogger" {
-			candidateDSNs = append(candidateDSNs, fmt.Sprintf("datalogger:datalogger@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s", dbHost, dbPort, dbName))
+			candidateDSNs = append(candidateDSNs, fmt.Sprintf("datalogger:datalogger@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s", dbHost, dbPort, dbName))
 		}
 	}
 
@@ -119,13 +123,16 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 		})
 		if err == nil {
 			if sqlD, sErr := db.DB(); sErr == nil {
-				if pingErr := sqlD.Ping(); pingErr == nil {
+				pingCtx, pingCancel := context.WithTimeout(context.Background(), 3*time.Second)
+				if pingErr := sqlD.PingContext(pingCtx); pingErr == nil {
+					pingCancel()
 					gormDB = db
 					lastErr = nil
 					break
 				} else {
 					lastErr = pingErr
 				}
+				pingCancel()
 			}
 		} else {
 			lastErr = err

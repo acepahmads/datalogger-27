@@ -44,6 +44,7 @@ func main() {
 	logger.Info("Environment: %s | Target Host: %s:%s", cfg.Environment, cfg.Host, cfg.Port)
 
 	// 3. Initialize MariaDB Database (with retry loop for edge cold-boot resilience)
+	logger.Info("Connecting to MariaDB database (%s:%s/%s)...", cfg.DBHost, cfg.DBPort, cfg.DBName)
 	var db *gorm.DB
 	for attempt := 1; attempt <= 10; attempt++ {
 		db, err = database.Init(cfg)
@@ -59,6 +60,7 @@ func main() {
 	}
 
 	// 4. Seed Database (10 phases, tasks, admin user, sample devices)
+	logger.Info("Verifying schemas and seeding initial database records...")
 	if err := database.Seed(db); err != nil {
 		logger.Error("Database seed error: %v", err)
 	}
