@@ -67,11 +67,14 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 			updates := map[string]interface{}{
 				"current_value":            &item.Value,
 				"current_value_numeric":    item.ValueNumeric,
+				"current_processed_value":  &item.ProcessedValue,
 				"current_formula_value":    item.FormulaValue,
 				"is_current_held":          item.IsHeldValue,
 				"current_value_text":       item.ValueText,
 				"current_value_bool":       item.ValueBool,
 				"current_quality":          item.Quality,
+				"current_quality_reason":   item.QualityReason,
+				"current_quality_flags":    item.QualityFlags,
 				"current_raw_hex":          item.RawHex,
 				"current_received_at":      &item.ReceivedAt,
 				"current_device_timestamp": item.DeviceTimestamp,
@@ -91,13 +94,14 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 	})
 }
 
-// GetLatestForDevice returns all enabled parameters for a device with current values
+// GetLatestForDevice returns all enabled parameters for a device with current values (or all if deviceID == 0)
 func (r *TelemetryRepository) GetLatestForDevice(ctx context.Context, deviceID uint) ([]model.Parameter, error) {
 	var params []model.Parameter
-	err := r.db.WithContext(ctx).
-		Where("device_id = ? AND deleted_at IS NULL", deviceID).
-		Order("id ASC").
-		Find(&params).Error
+	query := r.db.WithContext(ctx).Where("deleted_at IS NULL")
+	if deviceID > 0 {
+		query = query.Where("device_id = ?", deviceID)
+	}
+	err := query.Order("id ASC").Find(&params).Error
 	return params, err
 }
 

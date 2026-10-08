@@ -188,3 +188,40 @@ func (h *TelemetryHandler) GetMetrics(c *gin.Context) {
 	metrics := h.telemetryService.GetMetrics()
 	response.OK(c, metrics)
 }
+
+// GetQualitySummary handles GET /api/telemetry/quality-summary
+func (h *TelemetryHandler) GetQualitySummary(c *gin.Context) {
+	var devID *uint
+	if dStr := c.Query("device_id"); dStr != "" {
+		if idVal, err := strconv.ParseUint(dStr, 10, 32); err == nil {
+			uID := uint(idVal)
+			devID = &uID
+		}
+	}
+
+	summary, err := h.telemetryService.GetQualitySummary(c.Request.Context(), devID)
+	if err != nil {
+		response.InternalError(c, "Failed to retrieve quality summary: "+err.Error())
+		return
+	}
+
+	response.OK(c, summary)
+}
+
+// GetDeviceQualitySummary handles GET /api/devices/:id/telemetry/quality-summary
+func (h *TelemetryHandler) GetDeviceQualitySummary(c *gin.Context) {
+	idVal, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID format")
+		return
+	}
+	uID := uint(idVal)
+
+	summary, err := h.telemetryService.GetQualitySummary(c.Request.Context(), &uID)
+	if err != nil {
+		response.InternalError(c, "Failed to retrieve device quality summary: "+err.Error())
+		return
+	}
+
+	response.OK(c, summary)
+}

@@ -492,6 +492,66 @@ func (h *DeviceHandler) ToggleParameterEnabled(c *gin.Context) {
 	response.OK(c, gin.H{"device_id": id, "parameter_id": paramID, "enabled": req.Enabled})
 }
 
+// GetParameterQuality handles GET /api/devices/:id/parameters/:paramId/quality
+func (h *DeviceHandler) GetParameterQuality(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid parameter ID")
+		return
+	}
+
+	dto, err := h.deviceService.GetParameterQualityConfig(uint(id), uint(paramID))
+	if err != nil {
+		response.NotFound(c, err.Error())
+		return
+	}
+
+	response.OK(c, dto)
+}
+
+// UpdateParameterQuality handles PUT /api/devices/:id/parameters/:paramId/quality
+func (h *DeviceHandler) UpdateParameterQuality(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid parameter ID")
+		return
+	}
+
+	var req service.UpdateParameterQualityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid quality configuration payload: "+err.Error())
+		return
+	}
+
+	username := h.getUsername(c)
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+
+	dto, err := h.deviceService.UpdateParameterQualityConfig(uint(id), uint(paramID), &req, username, ip, ua)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	if h.pollingEngine != nil {
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
+	}
+
+	response.OK(c, dto)
+}
+
 func (h *DeviceHandler) getUsername(c *gin.Context) string {
 	if u, exists := c.Get("username"); exists {
 		if uStr, ok := u.(string); ok && strings.TrimSpace(uStr) != "" {

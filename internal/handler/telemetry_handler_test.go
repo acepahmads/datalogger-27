@@ -91,8 +91,10 @@ func setupTelemetryTestRouter(t *testing.T) *TelemetryTestEnv {
 			devicesGroup.GET("/:id/parameters/:paramId/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForParameter)
 			devicesGroup.GET("/:id/telemetry/history", middleware.RequirePermission("device.view"), telemetryHandler.GetHistorical)
 			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetRawTelemetry)
+			devicesGroup.GET("/:id/telemetry/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetDeviceQualitySummary)
 		}
 		api.GET("/telemetry/metrics", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
+		api.GET("/telemetry/quality-summary", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)
 	}
 
 	return &TelemetryTestEnv{
@@ -231,7 +233,34 @@ func TestTelemetryAPIEndpoints(t *testing.T) {
 		t.Fatalf("Expected 200 OK for metrics, got %d: %s", wMetrics.Code, wMetrics.Body.String())
 	}
 
-	// 7. Test Unauthorized Rejection (no token)
+	// 7. Test GET /api/telemetry/quality-summary (Phase 3.2)
+	reqQS, _ := http.NewRequest("GET", "/api/telemetry/quality-summary", nil)
+	reqQS.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wQS := httptest.NewRecorder()
+	env.Router.ServeHTTP(wQS, reqQS)
+	if wQS.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for quality summary, got %d: %s", wQS.Code, wQS.Body.String())
+	}
+	var qsResp struct {
+		Data service.QualitySummaryDTO `json:"data"`
+	}
+	if err := json.Unmarshal(wQS.Body.Bytes(), &qsResp); err != nil {
+		t.Fatalf("Failed to parse quality summary response: %v", err)
+	}
+	if qsResp.Data.TotalCount == 0 {
+		t.Errorf("Expected active parameters in quality summary, got %d", qsResp.Data.TotalCount)
+	}
+
+	// 8. Test GET /api/devices/:id/telemetry/quality-summary (Phase 3.2)
+	reqDevQS, _ := http.NewRequest("GET", "/api/devices/1/telemetry/quality-summary", nil)
+	reqDevQS.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wDevQS := httptest.NewRecorder()
+	env.Router.ServeHTTP(wDevQS, reqDevQS)
+	if wDevQS.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for device quality summary, got %d: %s", wDevQS.Code, wDevQS.Body.String())
+	}
+
+	// 9. Test Unauthorized Rejection (no token)
 	reqUnauth, _ := http.NewRequest("GET", "/api/devices/1/telemetry/latest", nil)
 	wUnauth := httptest.NewRecorder()
 	env.Router.ServeHTTP(wUnauth, reqUnauth)

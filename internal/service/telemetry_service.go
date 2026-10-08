@@ -11,6 +11,7 @@ import (
 
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
+	"datalogger/internal/quality"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
 )
@@ -33,11 +34,16 @@ type TelemetryIngestPayload struct {
 	Formula         string
 	IsHeldValue     bool
 	Quality         model.TelemetryQuality
+	QualityReason   model.QualityReason
+	QualityFlags    string
+	ProcessedValue  float64
 	Source          string
 	Sequence        uint64
 	DeviceTimestamp *time.Time
 	ReceivedAt      time.Time
 	ErrorMessage    string
+	Parameter       *model.Parameter
+	ReadError       error
 }
 
 // LatestTelemetry holds instantaneous cached values for fast lookup
@@ -51,6 +57,7 @@ type LatestTelemetry struct {
 	Unit            string                  `json:"unit"`
 	DataType        model.ParameterDataType `json:"data_type"`
 	Value           float64                 `json:"value"`
+	ProcessedValue  float64                 `json:"processed_value"`
 	ValueNumeric    *float64                `json:"value_numeric,omitempty"`
 	FormulaValue    *float64                `json:"formula_value,omitempty"`
 	Formula         string                  `json:"formula,omitempty"`
@@ -60,9 +67,12 @@ type LatestTelemetry struct {
 	RawValue        float64                 `json:"raw_value"`
 	RawHex          string                  `json:"raw_hex,omitempty"`
 	Quality         model.TelemetryQuality  `json:"quality"`
+	QualityReason   model.QualityReason     `json:"quality_reason"`
+	QualityFlags    string                  `json:"quality_flags,omitempty"`
 	Source          string                  `json:"source"`
 	DeviceTimestamp *time.Time              `json:"device_timestamp,omitempty"`
 	ReceivedAt      time.Time               `json:"received_at"`
+	ProcessedAt     *time.Time              `json:"processed_at,omitempty"`
 	UpdatedAt       time.Time               `json:"updated_at"`
 }
 
@@ -76,6 +86,17 @@ type TelemetryMetrics struct {
 	QueueCapacity       int       `json:"queue_capacity"`
 	LastFlushDurationMs int64     `json:"last_flush_duration_ms"`
 	LastFlushAt         time.Time `json:"last_flush_at"`
+}
+
+// QualitySummaryDTO captures health metrics across current parameters (Phase 3.2)
+type QualitySummaryDTO struct {
+	DeviceID       *uint   `json:"device_id,omitempty"`
+	TotalCount     int     `json:"total_count"`
+	GoodCount      int     `json:"good_count"`
+	UncertainCount int     `json:"uncertain_count"`
+	BadCount       int     `json:"bad_count"`
+	StaleCount     int     `json:"stale_count"`
+	HealthPercent  float64 `json:"health_percent"`
 }
 
 // TelemetryConfig defines runtime options for the ingestion pipeline
@@ -98,17 +119,18 @@ func DefaultTelemetryConfig() TelemetryConfig {
 
 // TelemetryService manages asynchronous ingestion, validation, buffering, and persistence
 type TelemetryService struct {
-	repo          *repository.TelemetryRepository
-	hub           *websocket.Hub
-	cfg           TelemetryConfig
-	buffer        chan *model.RawData
-	latestMu      sync.RWMutex
-	latestCache   map[uint]*LatestTelemetry // Key: parameter_id
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
-	stopped       int32
-	seqCounter    uint64
+	repo             *repository.TelemetryRepository
+	hub              *websocket.Hub
+	cfg              TelemetryConfig
+	qualityProcessor *quality.QualityProcessor
+	buffer           chan *model.RawData
+	latestMu         sync.RWMutex
+	latestCache      map[uint]*LatestTelemetry // Key: parameter_id
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
+	stopped          int32
+	seqCounter       uint64
 
 	// Metrics
 	ingestedCount  uint64
@@ -141,22 +163,29 @@ func NewTelemetryService(
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &TelemetryService{
-		repo:        repo,
-		hub:         hub,
-		cfg:         cfg,
-		buffer:      make(chan *model.RawData, cfg.BufferSize),
-		latestCache: make(map[uint]*LatestTelemetry),
-		ctx:         ctx,
-		cancel:      cancel,
+		repo:             repo,
+		hub:              hub,
+		cfg:              cfg,
+		qualityProcessor: quality.NewQualityProcessor(),
+		buffer:           make(chan *model.RawData, cfg.BufferSize),
+		latestCache:      make(map[uint]*LatestTelemetry),
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 
-	s.wg.Add(1)
+	s.wg.Add(2)
 	go s.batchPersistenceWorker()
+	go s.staleDetectionWorker()
 
-	logger.Info("TelemetryService initialized (Buffer: %d, Batch: %d, FlushInterval: %v)",
+	logger.Info("TelemetryService initialized with QualityProcessor (Buffer: %d, Batch: %d, FlushInterval: %v)",
 		cfg.BufferSize, cfg.BatchSize, cfg.FlushInterval)
 
 	return s
+}
+
+// QualityProcessor exposes the data quality evaluation engine
+func (s *TelemetryService) QualityProcessor() *quality.QualityProcessor {
+	return s.qualityProcessor
 }
 
 // Ingest receives a telemetry measurement, validates, updates cache, broadcasts, and enqueues
@@ -168,7 +197,7 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 		return fmt.Errorf("telemetry service is stopped")
 	}
 
-	// 1. Validation & Normalization
+	// 1. Validation & Quality Processing (Phase 3.2)
 	rawData, latest, err := s.normalizeAndValidate(payload)
 	if err != nil {
 		atomic.AddUint64(&s.errorCount, 1)
@@ -222,18 +251,45 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		recAt = recAt.UTC()
 	}
 
-	quality := p.Quality
-	if quality == "" {
-		quality = model.QualityGood
+	// Phase 3.2: Deterministic Data Quality & Processing Engine
+	valInput := &quality.ValidationInput{
+		DeviceID:        p.DeviceID,
+		ParameterID:     p.ParameterID,
+		RawValue:        p.RawValue,
+		Value:           p.Value,
+		DataType:        p.DataType,
+		DeviceTimestamp: p.DeviceTimestamp,
+		ReceivedAt:      recAt,
+		Source:          p.Source,
+		IsHeldValue:     p.IsHeldValue,
+		ReadError:       p.ReadError,
 	}
 
-	// Sanitize NaN / Inf
-	val := p.Value
-	if math.IsNaN(val) || math.IsInf(val, 0) {
-		val = 0
-		quality = model.QualityBad
+	var valResult *quality.ValidationResult
+	if s.qualityProcessor != nil {
+		valResult = s.qualityProcessor.Validate(p.Parameter, valInput)
+	} else {
+		valResult = &quality.ValidationResult{
+			Quality:        model.QualityGood,
+			QualityReason:  model.ReasonNone,
+			ProcessedValue: p.Value,
+			ProcessedAt:    now,
+		}
 	}
 
+	// Backward compatibility: If caller explicitly flagged BAD / UNCERTAIN / STALE, preserve it
+	if p.Quality != "" && p.Quality != model.QualityGood && valResult.Quality == model.QualityGood {
+		valResult.Quality = p.Quality
+		if p.QualityReason != "" {
+			valResult.QualityReason = p.QualityReason
+		} else if p.Quality == model.QualityBad {
+			valResult.QualityReason = model.ReasonDecodingError
+		} else if p.Quality == model.QualityStale {
+			valResult.QualityReason = model.ReasonStaleData
+		}
+	}
+
+	val := valResult.ProcessedValue
 	rawVal := p.RawValue
 	if math.IsNaN(rawVal) || math.IsInf(rawVal, 0) {
 		rawVal = 0
@@ -273,6 +329,7 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		DeviceID:        p.DeviceID,
 		ParameterID:     p.ParameterID,
 		Value:           val,
+		ProcessedValue:  val,
 		ValueNumeric:    &valNum,
 		FormulaValue:    p.FormulaValue,
 		IsHeldValue:     p.IsHeldValue,
@@ -281,11 +338,14 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		RawValue:        rawVal,
 		RawHex:          p.RawHex,
 		RawBytes:        p.RawBytes,
-		Quality:         quality,
+		Quality:         valResult.Quality,
+		QualityReason:   valResult.QualityReason,
+		QualityFlags:    valResult.QualityFlags,
 		Source:          source,
 		Sequence:        seq,
 		DeviceTimestamp: p.DeviceTimestamp,
 		ReceivedAt:      recAt,
+		ProcessedAt:     &valResult.ProcessedAt,
 		StoredAt:        now,
 		Timestamp:       recAt,
 	}
@@ -300,6 +360,7 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		Unit:            p.Unit,
 		DataType:        p.DataType,
 		Value:           val,
+		ProcessedValue:  val,
 		ValueNumeric:    &valNum,
 		FormulaValue:    p.FormulaValue,
 		Formula:         p.Formula,
@@ -308,14 +369,60 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		ValueBool:       valBool,
 		RawValue:        rawVal,
 		RawHex:          p.RawHex,
-		Quality:         quality,
+		Quality:         valResult.Quality,
+		QualityReason:   valResult.QualityReason,
+		QualityFlags:    valResult.QualityFlags,
 		Source:          source,
 		DeviceTimestamp: p.DeviceTimestamp,
 		ReceivedAt:      recAt,
+		ProcessedAt:     &valResult.ProcessedAt,
 		UpdatedAt:       now,
 	}
 
 	return rawData, latest, nil
+}
+
+// staleDetectionWorker checks cached parameters for staleness without incurring periodic DB writes
+func (s *TelemetryService) staleDetectionWorker() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.evaluateStaleParameters()
+		}
+	}
+}
+
+func (s *TelemetryService) evaluateStaleParameters() {
+	s.latestMu.Lock()
+	defer s.latestMu.Unlock()
+
+	for _, item := range s.latestCache {
+		if item == nil {
+			continue
+		}
+		staleTimeout := 120 // Default 2 minutes
+		isStale, staleQ, staleReason := s.qualityProcessor.CheckStale(item.ParameterID, staleTimeout, item.ReceivedAt)
+		if isStale && item.Quality != model.QualityStale {
+			item.Quality = staleQ
+			item.QualityReason = staleReason
+			item.UpdatedAt = time.Now().UTC()
+
+			if s.hub != nil {
+				s.hub.Broadcast(websocket.WSMessage{
+					Type:      "device.telemetry.received",
+					Timestamp: item.UpdatedAt,
+					Data:      item,
+				})
+			}
+		}
+	}
 }
 
 // batchPersistenceWorker continuously drains buffer and executes batch writes to MariaDB
@@ -430,6 +537,10 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 		if p.CurrentValue != nil {
 			val = *p.CurrentValue
 		}
+		procVal := val
+		if p.CurrentProcessedValue != nil {
+			procVal = *p.CurrentProcessedValue
+		}
 		rawHex := p.CurrentRawHex
 		quality := p.CurrentQuality
 		if quality == "" {
@@ -451,13 +562,20 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 			Unit:            p.Unit,
 			DataType:        p.DataType,
 			Value:           val,
+			ProcessedValue:  procVal,
 			ValueNumeric:    p.CurrentValueNumeric,
+			FormulaValue:    p.CurrentFormulaValue,
+			Formula:         p.Formula,
+			IsHeldValue:     p.IsCurrentHeld,
 			ValueText:       p.CurrentValueText,
 			ValueBool:       p.CurrentValueBool,
 			RawHex:          rawHex,
 			Quality:         quality,
+			QualityReason:   p.CurrentQualityReason,
+			QualityFlags:    p.CurrentQualityFlags,
 			DeviceTimestamp: p.CurrentDeviceTimestamp,
 			ReceivedAt:      recAt,
+			ProcessedAt:     p.LastUpdated,
 			UpdatedAt:       recAt,
 		}
 	}
@@ -484,6 +602,10 @@ func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, 
 	if param.CurrentValue != nil {
 		val = *param.CurrentValue
 	}
+	procVal := val
+	if param.CurrentProcessedValue != nil {
+		procVal = *param.CurrentProcessedValue
+	}
 
 	recAt := time.Now()
 	if param.CurrentReceivedAt != nil {
@@ -505,15 +627,86 @@ func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, 
 		Unit:            param.Unit,
 		DataType:        param.DataType,
 		Value:           val,
+		ProcessedValue:  procVal,
 		ValueNumeric:    param.CurrentValueNumeric,
+		FormulaValue:    param.CurrentFormulaValue,
+		Formula:         param.Formula,
+		IsHeldValue:     param.IsCurrentHeld,
 		ValueText:       param.CurrentValueText,
 		ValueBool:       param.CurrentValueBool,
 		RawHex:          param.CurrentRawHex,
 		Quality:         quality,
+		QualityReason:   param.CurrentQualityReason,
+		QualityFlags:    param.CurrentQualityFlags,
 		DeviceTimestamp: param.CurrentDeviceTimestamp,
 		ReceivedAt:      recAt,
+		ProcessedAt:     param.LastUpdated,
 		UpdatedAt:       recAt,
 	}, nil
+}
+
+// GetQualitySummary computes health and state counts across active parameters (Phase 3.2)
+func (s *TelemetryService) GetQualitySummary(ctx context.Context, deviceID *uint) (*QualitySummaryDTO, error) {
+	s.latestMu.RLock()
+	var items []*LatestTelemetry
+	for _, item := range s.latestCache {
+		if deviceID == nil || item.DeviceID == *deviceID {
+			items = append(items, item)
+		}
+	}
+	s.latestMu.RUnlock()
+
+	summary := &QualitySummaryDTO{
+		DeviceID: deviceID,
+	}
+
+	if len(items) > 0 {
+		for _, item := range items {
+			summary.TotalCount++
+			switch item.Quality {
+			case model.QualityGood:
+				summary.GoodCount++
+			case model.QualityUncertain:
+				summary.UncertainCount++
+			case model.QualityBad:
+				summary.BadCount++
+			case model.QualityStale:
+				summary.StaleCount++
+			default:
+				summary.UncertainCount++
+			}
+		}
+	} else {
+		// Fallback to repository parameter list if cache hasn't received data yet
+		var targetDevID uint
+		if deviceID != nil {
+			targetDevID = *deviceID
+		}
+		params, err := s.repo.GetLatestForDevice(ctx, targetDevID)
+		if err == nil {
+			for _, p := range params {
+				summary.TotalCount++
+				switch p.CurrentQuality {
+				case model.QualityGood:
+					summary.GoodCount++
+				case model.QualityUncertain:
+					summary.UncertainCount++
+				case model.QualityBad:
+					summary.BadCount++
+				case model.QualityStale:
+					summary.StaleCount++
+				default:
+					summary.UncertainCount++
+				}
+			}
+		}
+	}
+
+	if summary.TotalCount > 0 {
+		summary.HealthPercent = math.Round((float64(summary.GoodCount)/float64(summary.TotalCount)*100.0)*10) / 10
+	}
+
+	return summary, nil
 }
 
 // GetHistorical returns paginated historical telemetry records

@@ -476,15 +476,26 @@
                 </div>
               </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
-                {{ param.min_value !== null && param.min_value !== undefined ? param.min_value : (param.low_limit || '-∞') }} ..
-                {{ param.max_value !== null && param.max_value !== undefined ? param.max_value : (param.high_limit || '+∞') }}
+                <div>Hard: {{ param.min_value !== null && param.min_value !== undefined ? param.min_value : (param.low_limit || '-∞') }} .. {{ param.max_value !== null && param.max_value !== undefined ? param.max_value : (param.high_limit || '+∞') }}</div>
+                <div v-if="param.warning_low !== null && param.warning_low !== undefined || param.warning_high !== null && param.warning_high !== undefined" class="text-amber-400/80">
+                  Warn: {{ param.warning_low !== null && param.warning_low !== undefined ? param.warning_low : '-∞' }} .. {{ param.warning_high !== null && param.warning_high !== undefined ? param.warning_high : '+∞' }}
+                </div>
               </td>
               <td class="py-2.5 px-3 font-mono text-slate-200">
                 <div class="font-bold flex items-center space-x-1.5">
                   <span>{{ param.current_value !== null && param.current_value !== undefined ? param.current_value.toFixed(param.precision || 2) : '--' }}</span>
+                  <span
+                    class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold uppercase"
+                    :class="qualityBadgeClass(getParamQuality(param))"
+                  >
+                    {{ getParamQuality(param) }}
+                  </span>
                   <span v-if="isParamHeld(param)" class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse" :title="$t('parameters.heldTooltip')">
                     {{ $t('parameters.heldBadge') }}
                   </span>
+                </div>
+                <div v-if="getParamQualityReason(param)" class="text-4xs font-mono text-amber-400/90 truncate max-w-[140px]" :title="getParamQualityReason(param)">
+                  {{ getParamQualityReason(param) }}
                 </div>
                 <div v-if="getParamFormulaValue(param) !== null" class="text-3xs text-blue-400 font-mono font-medium">
                   ƒ(x): {{ getParamFormulaValue(param) }}
@@ -716,6 +727,42 @@
         </div>
       </div>
 
+      <!-- Device Quality Summary Bar (Phase 3.2) -->
+      <div v-if="device && device.parameters && device.parameters.length > 0" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="saas-card p-3 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('telemetry.qualityGood') }}</div>
+          <div class="flex items-baseline space-x-2">
+            <span class="text-xl font-mono font-bold text-emerald-400">{{ deviceQualitySummary.good }}</span>
+            <span class="text-2xs text-slate-400">/ {{ device.parameters.length }}</span>
+          </div>
+          <div class="text-3xs text-emerald-400/80">{{ deviceQualitySummary.healthPercent }}% {{ $t('telemetry.healthySensors') }}</div>
+        </div>
+
+        <div class="saas-card p-3 space-y-1 bg-[#0F172A]/70 border border-amber-500/20">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('telemetry.qualityUncertain') }}</div>
+          <div class="flex items-baseline space-x-2">
+            <span class="text-xl font-mono font-bold text-amber-400">{{ deviceQualitySummary.uncertain }}</span>
+          </div>
+          <div class="text-3xs text-amber-400/80">{{ $t('telemetry.warningLimits') }}</div>
+        </div>
+
+        <div class="saas-card p-3 space-y-1 bg-[#0F172A]/70 border border-rose-500/20">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-rose-400">{{ $t('telemetry.qualityBad') }}</div>
+          <div class="flex items-baseline space-x-2">
+            <span class="text-xl font-mono font-bold text-rose-400">{{ deviceQualitySummary.bad }}</span>
+          </div>
+          <div class="text-3xs text-rose-400/80">{{ $t('telemetry.hardViolations') }}</div>
+        </div>
+
+        <div class="saas-card p-3 space-y-1 bg-[#0F172A]/70 border border-purple-500/20">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('telemetry.qualityStale') }}</div>
+          <div class="flex items-baseline space-x-2">
+            <span class="text-xl font-mono font-bold text-purple-400">{{ deviceQualitySummary.stale }}</span>
+          </div>
+          <div class="text-3xs text-purple-400/80">{{ $t('telemetry.timedOutSensors') }}</div>
+        </div>
+      </div>
+
       <!-- Live Parameter Cards Grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
@@ -737,12 +784,17 @@
               </div>
               <h4 class="text-sm font-semibold text-white mt-1.5 truncate">{{ param.parameter_name }}</h4>
             </div>
-            <span
-              class="px-2 py-0.5 rounded text-3xs font-mono font-bold"
-              :class="qualityBadgeClass(getParamQuality(param))"
-            >
-              {{ getParamQuality(param) }}
-            </span>
+            <div class="flex flex-col items-end space-y-0.5">
+              <span
+                class="px-2 py-0.5 rounded text-3xs font-mono font-bold uppercase"
+                :class="qualityBadgeClass(getParamQuality(param))"
+              >
+                {{ getParamQuality(param) }}
+              </span>
+              <span v-if="getParamQualityReason(param)" class="text-4xs font-mono text-amber-400/90 truncate max-w-[120px]" :title="getParamQualityReason(param)">
+                {{ getParamQualityReason(param) }}
+              </span>
+            </div>
           </div>
 
           <!-- Primary Metric Value -->
@@ -1308,7 +1360,7 @@
                 :cx="p.x"
                 :cy="p.y"
                 :r="chartPoints.length > 50 ? 2 : 3"
-                fill="#3B82F6"
+                :fill="chartDotColor(p.quality)"
                 stroke="#0B0F19"
                 stroke-width="1.5"
                 class="hover:opacity-100"
@@ -1369,12 +1421,17 @@
                 <span class="text-3xs font-sans font-semibold text-blue-400 uppercase tracking-wider">
                   {{ getParamCode(hoveredPoint.rawRecord.parameter_id) }}
                 </span>
-                <span
-                  class="px-1.5 py-0.5 rounded text-4xs font-sans font-semibold"
-                  :class="qualityBadgeClass(hoveredPoint.quality)"
-                >
-                  {{ hoveredPoint.quality }}
-                </span>
+                <div class="flex flex-col items-end">
+                  <span
+                    class="px-1.5 py-0.5 rounded text-4xs font-sans font-semibold"
+                    :class="qualityBadgeClass(hoveredPoint.quality)"
+                  >
+                    {{ hoveredPoint.quality }}
+                  </span>
+                  <span v-if="hoveredPoint.rawRecord && hoveredPoint.rawRecord.quality_reason && hoveredPoint.rawRecord.quality_reason !== 'NONE'" class="text-4xs font-mono text-amber-400 mt-0.5">
+                    {{ hoveredPoint.rawRecord.quality_reason }}
+                  </span>
+                </div>
               </div>
               <div class="text-3xs text-slate-300 font-medium truncate font-sans">
                 {{ getParamName(hoveredPoint.rawRecord.parameter_id) }}
@@ -1464,6 +1521,9 @@
                   <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(rec.quality)">
                     {{ rec.quality || 'GOOD' }}
                   </span>
+                  <div v-if="rec.quality_reason && rec.quality_reason !== 'NONE'" class="text-4xs font-mono text-amber-400/90 mt-0.5" :title="rec.quality_reason">
+                    {{ rec.quality_reason }}
+                  </div>
                 </td>
                 <td class="py-2.5 px-4 text-slate-400">
                   {{ rec.source || 'MODBUS_TCP' }}
@@ -1862,6 +1922,26 @@ export default {
     displayParameters() {
       if (!this.device || !this.device.parameters) return [];
       return this.device.parameters;
+    },
+    deviceQualitySummary() {
+      if (!this.device || !this.device.parameters || this.device.parameters.length === 0) {
+        return { good: 0, uncertain: 0, bad: 0, stale: 0, healthPercent: 100 };
+      }
+      let good = 0;
+      let uncertain = 0;
+      let bad = 0;
+      let stale = 0;
+      for (const p of this.device.parameters) {
+        const q = this.getParamQuality(p);
+        if (q === 'GOOD') good++;
+        else if (q === 'UNCERTAIN') uncertain++;
+        else if (q === 'BAD') bad++;
+        else if (q === 'STALE') stale++;
+        else good++;
+      }
+      const total = this.device.parameters.length;
+      const healthPercent = total > 0 ? Math.round((good / total) * 100) : 100;
+      return { good, uncertain, bad, stale, healthPercent };
     },
     historyTimeRangeLabel() {
       switch (this.historyTimeRange) {
@@ -2524,6 +2604,9 @@ export default {
             raw_value: data.raw_value,
             raw_hex: data.raw_hex,
             quality: data.quality || 'GOOD',
+            quality_reason: data.quality_reason,
+            quality_flags: data.quality_flags,
+            processed_value: data.processed_value,
             source: data.source || 'MODBUS_RTU',
             received_at: data.received_at,
           };
@@ -2543,6 +2626,9 @@ export default {
             value: data.value,
             raw_value: data.raw_value,
             quality: data.quality || 'GOOD',
+            quality_reason: data.quality_reason,
+            quality_flags: data.quality_flags,
+            processed_value: data.processed_value,
             source: data.source || 'MODBUS_RTU',
             received_at: data.received_at,
           };
@@ -2825,8 +2911,26 @@ export default {
         case 'GOOD': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
         case 'BAD': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
         case 'UNCERTAIN': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+        case 'STALE': return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
         default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
       }
+    },
+    chartDotColor(quality) {
+      switch (quality) {
+        case 'BAD': return '#F43F5E';
+        case 'UNCERTAIN': return '#F59E0B';
+        case 'STALE': return '#A855F7';
+        case 'GOOD': default: return '#3B82F6';
+      }
+    },
+    getParamQualityReason(param) {
+      if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].quality_reason && this.liveTelemetry[param.id].quality_reason !== 'NONE') {
+        return this.liveTelemetry[param.id].quality_reason;
+      }
+      if (param.current_quality_reason && param.current_quality_reason !== 'NONE') {
+        return param.current_quality_reason;
+      }
+      return '';
     },
     formatAuditActionName(action) {
       if (!action) return this.$t('deviceDetail.auditActionDefault');

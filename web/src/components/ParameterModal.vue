@@ -216,6 +216,37 @@
           </div>
         </div>
 
+        <!-- Warning Limits (Soft Limits: Phase 3.2 UNCERTAIN Quality) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>{{ $t('parameterModal.warningLow') }}</span>
+              <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
+            </label>
+            <input
+              v-model.number="form.warning_low"
+              type="number"
+              step="any"
+              :placeholder="$t('parameterModal.placeholders.warningLow')"
+              class="w-full px-3 py-2 bg-[#0B0F19] border border-amber-500/30 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+            />
+          </div>
+
+          <div>
+            <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>{{ $t('parameterModal.warningHigh') }}</span>
+              <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
+            </label>
+            <input
+              v-model.number="form.warning_high"
+              type="number"
+              step="any"
+              :placeholder="$t('parameterModal.placeholders.warningHigh')"
+              class="w-full px-3 py-2 bg-[#0B0F19] border border-amber-500/30 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+            />
+          </div>
+        </div>
+
         <!-- Mathematical Formula Evaluation (Python-style eval) -->
         <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2.5">
           <div class="flex items-center justify-between">
@@ -318,6 +349,96 @@
           </div>
         </div>
 
+        <!-- Phase 3.2 Data Quality & Processing Settings -->
+        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-2xs font-bold text-slate-300 uppercase tracking-wider">
+              {{ $t('parameterModal.qualitySettingsTitle') }}
+            </span>
+            <span class="text-3xs text-blue-400 font-mono">Phase 3.2</span>
+          </div>
+
+          <!-- Quality Validation Toggle -->
+          <label class="flex items-center space-x-3 cursor-pointer">
+            <input
+              v-model="form.quality_validation_enabled"
+              type="checkbox"
+              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+            />
+            <div>
+              <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.qualityValidationEnabled') }}</span>
+              <span class="block text-3xs text-slate-400">{{ $t('parameterModal.qualityValidationDesc') }}</span>
+            </div>
+          </label>
+
+          <!-- Stale Timeout Input -->
+          <div class="pt-2 border-t border-slate-800/80 space-y-1.5">
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('parameterModal.staleTimeoutSeconds') }}
+            </label>
+            <div class="flex items-center space-x-3">
+              <input
+                v-model.number="form.stale_timeout_seconds"
+                type="number"
+                min="10"
+                max="86400"
+                step="10"
+                placeholder="120"
+                class="w-32 px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              />
+              <span class="text-3xs text-slate-400 font-mono">
+                ({{ Math.round((form.stale_timeout_seconds || 120) / 60 * 10) / 10 }} min)
+              </span>
+            </div>
+            <p class="text-3xs text-slate-400 leading-relaxed">
+              {{ $t('parameterModal.staleTimeoutHelp') }}
+            </p>
+          </div>
+
+          <!-- Spike Detection Toggle & Config -->
+          <div class="pt-2 border-t border-slate-800/80 space-y-2">
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input
+                v-model="form.spike_detection_enabled"
+                type="checkbox"
+                class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+              />
+              <div>
+                <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.spikeDetectionEnabled') }}</span>
+                <span class="block text-3xs text-slate-400">{{ $t('parameterModal.spikeDetectionDesc') }}</span>
+              </div>
+            </label>
+
+            <div v-if="form.spike_detection_enabled" class="pl-7 grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  {{ $t('parameterModal.spikeThreshold') }}
+                </label>
+                <input
+                  v-model.number="form.spike_threshold"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 20.0"
+                  class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  {{ $t('parameterModal.spikeWindowSize') }}
+                </label>
+                <input
+                  v-model.number="form.spike_window_size"
+                  type="number"
+                  min="2"
+                  max="10"
+                  placeholder="3"
+                  class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Description -->
         <div>
           <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -401,6 +522,14 @@ export default {
         byte_order: '',
         min_value: null,
         max_value: null,
+        warning_low: null,
+        warning_high: null,
+        quality_validation_enabled: true,
+        processing_enabled: true,
+        stale_timeout_seconds: 120,
+        spike_detection_enabled: false,
+        spike_threshold: 0.0,
+        spike_window_size: 3,
         precision: 2,
         scale: 1.0,
         offset: 0.0,
@@ -476,6 +605,14 @@ export default {
             byte_order: newVal.byte_order || '',
             min_value: newVal.min_value !== undefined ? newVal.min_value : (newVal.low_limit || null),
             max_value: newVal.max_value !== undefined ? newVal.max_value : (newVal.high_limit || null),
+            warning_low: newVal.warning_low !== undefined ? newVal.warning_low : null,
+            warning_high: newVal.warning_high !== undefined ? newVal.warning_high : null,
+            quality_validation_enabled: newVal.quality_validation_enabled !== undefined ? newVal.quality_validation_enabled : true,
+            processing_enabled: newVal.processing_enabled !== undefined ? newVal.processing_enabled : true,
+            stale_timeout_seconds: newVal.stale_timeout_seconds || 120,
+            spike_detection_enabled: newVal.spike_detection_enabled !== undefined ? newVal.spike_detection_enabled : false,
+            spike_threshold: newVal.spike_threshold || 0.0,
+            spike_window_size: newVal.spike_window_size || 3,
             precision: newVal.precision !== undefined ? newVal.precision : 2,
             scale: newVal.scale !== undefined ? newVal.scale : (newVal.scale_factor || 1.0),
             offset: newVal.offset !== undefined ? newVal.offset : 0.0,
@@ -507,6 +644,14 @@ export default {
         byte_order: '',
         min_value: null,
         max_value: null,
+        warning_low: null,
+        warning_high: null,
+        quality_validation_enabled: true,
+        processing_enabled: true,
+        stale_timeout_seconds: 120,
+        spike_detection_enabled: false,
+        spike_threshold: 0.0,
+        spike_window_size: 3,
         precision: 2,
         scale: 1.0,
         offset: 0.0,

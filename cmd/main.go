@@ -181,6 +181,8 @@ func main() {
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
 			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 			devicesGroup.POST("/:id/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
+			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
+			devicesGroup.PUT("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameterQuality)
 
 			// Phase 2.2 — Communication Controls & Diagnostics
 			devicesGroup.POST("/:id/communication/connect", middleware.RequirePermission("device.communication.manage"), commHandler.Connect)
@@ -190,15 +192,17 @@ func main() {
 			devicesGroup.GET("/:id/communication/status", middleware.RequirePermission("device.communication.view"), commHandler.GetStatus)
 			devicesGroup.POST("/:id/parameters/:paramId/test-read", middleware.RequirePermission("device.communication.test"), commHandler.TestReadParameter)
 
-			// Phase 3.1 — Telemetry Data Pipeline (Authenticated & Authorized)
+			// Phase 3.1 & 3.2 — Telemetry Data Pipeline (Authenticated & Authorized)
 			devicesGroup.GET("/:id/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForDevice)
 			devicesGroup.GET("/:id/parameters/:paramId/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForParameter)
 			devicesGroup.GET("/:id/telemetry/history", middleware.RequirePermission("device.view"), telemetryHandler.GetHistorical)
 			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetRawTelemetry)
+			devicesGroup.GET("/:id/telemetry/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetDeviceQualitySummary)
 		}
 
-		// Telemetry Pipeline Diagnostics
+		// Telemetry Pipeline Diagnostics & Quality Summary (Phase 3.1 & 3.2)
 		api.GET("/telemetry/metrics", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
+		api.GET("/telemetry/quality-summary", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)
 
 		// Operational Telemetry Data
 		api.GET("/data", systemHandler.GetData)

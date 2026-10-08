@@ -56,41 +56,51 @@
       </div>
     </div>
 
-    <!-- Summary KPI Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+    <!-- Summary KPI Cards (Phase 3.2) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
         <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.connectedDevices') }}</div>
         <div class="flex items-baseline space-x-2">
           <span class="text-2xl font-mono font-bold text-white">{{ stats.activeDevices }}</span>
-          <span class="text-2xs text-slate-400">/ {{ stats.totalDevices }} {{ $t('telemetry.configured') }}</span>
+          <span class="text-2xs text-slate-400">/ {{ stats.totalDevices }}</span>
         </div>
         <div class="text-3xs text-emerald-400 font-mono">{{ $t('telemetry.enginesRunning') }}</div>
       </div>
 
-      <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.totalSensors') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.healthIndex') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-2xl font-mono font-bold text-blue-400">{{ parametersList.length }}</span>
-          <span class="text-2xs text-slate-400">{{ $t('telemetry.parametersCount') }}</span>
+          <span class="text-2xl font-mono font-bold" :class="stats.healthPercent >= 90 ? 'text-emerald-400' : (stats.healthPercent >= 70 ? 'text-amber-400' : 'text-rose-400')">{{ stats.healthPercent }}%</span>
+          <span class="text-2xs text-slate-400">{{ $t('telemetry.overallHealth') }}</span>
         </div>
-        <div class="text-3xs text-slate-400">{{ $t('telemetry.autoPolled') }}</div>
+        <div class="text-3xs text-slate-400 font-mono">{{ stats.goodSensors }} / {{ parametersList.length }} {{ $t('telemetry.qualityGood') }}</div>
       </div>
 
-      <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.goodQuality') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('telemetry.qualityGood') }}</div>
         <div class="flex items-baseline space-x-2">
           <span class="text-2xl font-mono font-bold text-emerald-400">{{ stats.goodSensors }}</span>
           <span class="text-2xs text-slate-400">{{ $t('telemetry.healthySensors') }}</span>
         </div>
-        <div class="text-3xs text-emerald-400">{{ $t('telemetry.goodQualityDesc') }}</div>
+        <div class="text-3xs text-emerald-400/80">{{ $t('telemetry.goodQualityDesc') }}</div>
       </div>
 
-      <div class="saas-card p-4 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.lastPacket') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-amber-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('telemetry.uncertainBad') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-lg font-mono font-bold text-slate-200">{{ lastPacketTime ? formatRelative(lastPacketTime) : $t('common.listening') }}</span>
+          <span class="text-2xl font-mono font-bold text-amber-400">{{ stats.uncertainSensors }}</span>
+          <span class="text-2xs text-rose-400 font-mono">/ {{ stats.badSensors }} {{ $t('telemetry.qualityBad') }}</span>
         </div>
-        <div class="text-3xs text-slate-400 font-mono truncate">{{ lastPacketTime || $t('telemetry.awaitingPacket') }}</div>
+        <div class="text-3xs text-amber-400/80">{{ $t('telemetry.attentionRequired') }}</div>
+      </div>
+
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-purple-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('telemetry.qualityStale') }}</div>
+        <div class="flex items-baseline space-x-2">
+          <span class="text-2xl font-mono font-bold text-purple-400">{{ stats.staleSensors }}</span>
+          <span class="text-2xs text-slate-400">{{ $t('telemetry.timedOutSensors') }}</span>
+        </div>
+        <div class="text-3xs text-purple-400/80">{{ $t('telemetry.noDataReceived') }}</div>
       </div>
     </div>
 
@@ -133,6 +143,7 @@
             <option value="GOOD">{{ $t('telemetry.goodQualityOnly') }}</option>
             <option value="BAD">{{ $t('telemetry.badQualityOnly') }}</option>
             <option value="UNCERTAIN">{{ $t('telemetry.uncertainOnly') }}</option>
+            <option value="STALE">{{ $t('telemetry.staleOnly') }}</option>
           </select>
         </div>
       </div>
@@ -224,13 +235,18 @@
                 <span>🛡️</span>
                 <span>{{ $t('parameters.heldBadge') }}</span>
               </span>
-              <span
-                :class="qualityBadgeClass(item.quality)"
-                class="px-2 py-0.5 rounded text-3xs font-mono font-bold uppercase flex items-center space-x-1"
-              >
-                <span class="w-1 h-1 rounded-full" :class="item.quality === 'GOOD' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
-                <span>{{ item.quality || 'WAITING' }}</span>
-              </span>
+              <div class="flex flex-col items-end space-y-0.5">
+                <span
+                  :class="qualityBadgeClass(item.quality)"
+                  class="px-2 py-0.5 rounded text-3xs font-mono font-bold uppercase flex items-center space-x-1"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="qualityDotClass(item.quality)"></span>
+                  <span>{{ item.quality || 'WAITING' }}</span>
+                </span>
+                <span v-if="item.quality_reason" class="text-4xs font-mono text-amber-400/90 truncate max-w-[120px]" :title="item.quality_reason">
+                  {{ item.quality_reason }}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -383,6 +399,9 @@
                 >
                   {{ item.quality || 'WAITING' }}
                 </span>
+                <div v-if="item.quality_reason" class="text-4xs font-mono text-amber-400/90 mt-0.5" :title="item.quality_reason">
+                  {{ item.quality_reason }}
+                </div>
               </td>
 
               <!-- Timestamp -->
@@ -460,6 +479,9 @@ export default {
             is_held_value: isHeld,
             hold_enabled: p.hold_last_value_enabled,
             quality: live.quality || p.current_quality || 'UNKNOWN',
+            quality_reason: (live.quality_reason && live.quality_reason !== 'NONE') ? live.quality_reason : (p.current_quality_reason && p.current_quality_reason !== 'NONE' ? p.current_quality_reason : ''),
+            quality_flags: live.quality_flags || p.current_quality_flags || '',
+            processed_value: live.processed_value !== undefined ? live.processed_value : p.current_processed_value,
             received_at: live.received_at || p.current_received_at || p.last_updated,
           });
         }
@@ -481,7 +503,8 @@ export default {
           const matchDevice = item.device_code && item.device_code.toLowerCase().includes(q);
           const matchUnit = item.unit && item.unit.toLowerCase().includes(q);
           const matchFormula = item.formula && item.formula.toLowerCase().includes(q);
-          if (!matchName && !matchCode && !matchDevice && !matchUnit && !matchFormula) return false;
+          const matchReason = item.quality_reason && item.quality_reason.toLowerCase().includes(q);
+          if (!matchName && !matchCode && !matchDevice && !matchUnit && !matchFormula && !matchReason) return false;
         }
         return true;
       });
@@ -489,10 +512,19 @@ export default {
     stats() {
       const activeDevices = this.devices.filter(d => d.connection_status === 'CONNECTED').length;
       const goodSensors = this.parametersList.filter(p => p.quality === 'GOOD').length;
+      const uncertainSensors = this.parametersList.filter(p => p.quality === 'UNCERTAIN').length;
+      const badSensors = this.parametersList.filter(p => p.quality === 'BAD').length;
+      const staleSensors = this.parametersList.filter(p => p.quality === 'STALE').length;
+      const total = this.parametersList.length;
+      const healthPercent = total > 0 ? Math.round((goodSensors / total) * 1000) / 10 : 0;
       return {
         totalDevices: this.devices.length,
         activeDevices,
         goodSensors,
+        uncertainSensors,
+        badSensors,
+        staleSensors,
+        healthPercent,
       };
     },
   },
@@ -566,10 +598,20 @@ export default {
     },
     qualityBadgeClass(quality) {
       switch (quality) {
-        case 'GOOD': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-        case 'BAD': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
-        case 'UNCERTAIN': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-        default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+        case 'GOOD': return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+        case 'BAD': return 'bg-rose-500/15 text-rose-400 border border-rose-500/30';
+        case 'UNCERTAIN': return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+        case 'STALE': return 'bg-purple-500/15 text-purple-300 border border-purple-500/30';
+        default: return 'bg-slate-500/15 text-slate-400 border border-slate-500/30';
+      }
+    },
+    qualityDotClass(quality) {
+      switch (quality) {
+        case 'GOOD': return 'bg-emerald-400';
+        case 'BAD': return 'bg-rose-400';
+        case 'UNCERTAIN': return 'bg-amber-400';
+        case 'STALE': return 'bg-purple-400';
+        default: return 'bg-slate-400';
       }
     },
     formatTimestamp(ts) {

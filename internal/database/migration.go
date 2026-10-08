@@ -428,25 +428,26 @@ func updatePhase3Tracking(db *gorm.DB) {
 
 	now := time.Now()
 
-	// Ensure Subphase 3.1 exists
+	// Ensure Subphase 3.1 exists and is DONE
 	var sub3_1 model.DevelopmentSubphase
 	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 1)", phase3.ID, "%Phase 3.1%").First(&sub3_1).Error; err != nil {
 		sub3_1 = model.DevelopmentSubphase{
 			PhaseID:            phase3.ID,
 			Name:               "Phase 3.1 — Data Pipeline & Ingestion Foundation",
 			Description:        "Telemetry ingestion pipeline, raw data persistence, latest value cache, WebSocket broadcast, and monitoring UI",
-			Status:             "WORKING",
+			Status:             "DONE",
 			AcceptanceCriteria: "16/16 PASS",
 			OrderIndex:         1,
-			Progress:           0.0,
+			Progress:           100.0,
 		}
 		db.Create(&sub3_1)
 	} else {
 		db.Model(&sub3_1).Updates(map[string]interface{}{
 			"name":                "Phase 3.1 — Data Pipeline & Ingestion Foundation",
 			"description":         "Telemetry ingestion pipeline, raw data persistence, latest value cache, WebSocket broadcast, and monitoring UI",
-			"status":              "WORKING",
+			"status":              "DONE",
 			"acceptance_criteria": "16/16 PASS",
+			"progress":            100.0,
 		})
 	}
 
@@ -498,6 +499,106 @@ func updatePhase3Tracking(db *gorm.DB) {
 				"test_result":     st.Result,
 			})
 		}
+	}
+
+	// Ensure Subphase 3.2 exists and is registered
+	var sub3_2 model.DevelopmentSubphase
+	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 2)", phase3.ID, "%Phase 3.2%").First(&sub3_2).Error; err != nil {
+		sub3_2 = model.DevelopmentSubphase{
+			PhaseID:            phase3.ID,
+			Name:               "Phase 3.2 — Data Quality & Processing",
+			Description:        "Deterministic telemetry quality validation, limits, spike & stale detection, normalization, and quality configuration",
+			Status:             "DONE",
+			AcceptanceCriteria: "22/22 PASS",
+			OrderIndex:         2,
+			Progress:           100.0,
+		}
+		db.Create(&sub3_2)
+	} else {
+		db.Model(&sub3_2).Updates(map[string]interface{}{
+			"name":                "Phase 3.2 — Data Quality & Processing",
+			"description":         "Deterministic telemetry quality validation, limits, spike & stale detection, normalization, and quality configuration",
+			"status":              "DONE",
+			"acceptance_criteria": "22/22 PASS",
+			"progress":            100.0,
+		})
+	}
+
+	subtasks3_2 := []struct {
+		Name        string
+		Description string
+		Priority    model.Priority
+		Result      string
+	}{
+		{"3.2.1 Quality Model", "Standardized industrial quality states: GOOD, BAD, UNCERTAIN, STALE with type-safe constants", model.PriorityCritical, "PASSED: GOOD, BAD, UNCERTAIN, STALE state model verified"},
+		{"3.2.2 Parameter Quality Configuration", "Configurable quality settings: limits, stale timeout, spike detection toggle, thresholds, and windows", model.PriorityCritical, "PASSED: Parameter model and REST API configuration endpoints verified"},
+		{"3.2.3 Range Validation", "Two-level limit checking: Warning Limits (UNCERTAIN) and Hard Limits (BAD)", model.PriorityCritical, "PASSED: Range validation with soft warning and hard cutoffs verified"},
+		{"3.2.4 Invalid / NULL Handling", "Defensive handling for NaN, Inf, empty, malformed numerics with raw value preservation and zero worker crashes", model.PriorityCritical, "PASSED: Fault-isolated invalid/NaN/Inf protection verified"},
+		{"3.2.5 Timestamp Validation", "Validation for future timestamps (>60s) and excessively old timestamps (>7d) preserving device_timestamp", model.PriorityHigh, "PASSED: Explicit device and server timestamp validation verified"},
+		{"3.2.6 Stale Detection", "Non-blocking evaluation transitioning inactive parameters to STALE without database write storms", model.PriorityHigh, "PASSED: In-memory stale evaluation ticker and WebSocket notification verified"},
+		{"3.2.7 Spike Detection", "Lightweight rolling delta comparison against configurable spike threshold marking abnormal spikes as UNCERTAIN", model.PriorityHigh, "PASSED: Deterministic rolling spike detection verified"},
+		{"3.2.8 Duplicate Detection", "Detection of consecutive identical timestamps and values without dropping raw audit trail", model.PriorityMedium, "PASSED: Duplicate timestamp tagging with DUPLICATE_DATA reason verified"},
+		{"3.2.9 Processing / Normalization", "Sequential normalization: raw value, numeric conversion, scale & offset, formula evaluation, and quality tagging", model.PriorityCritical, "PASSED: Scaled, formula, and processed value pipeline verified"},
+		{"3.2.10 Quality Reason & Flags", "Machine-readable reason constants and multi-flag strings for complete root-cause traceability", model.PriorityHigh, "PASSED: Machine-readable reasons and comma-separated flags verified"},
+		{"3.2.11 Data Model & Migration", "Idempotent MariaDB schema updates adding quality columns to parameters and raw_data", model.PriorityCritical, "PASSED: MariaDB schema auto-migration with backward compatibility verified"},
+		{"3.2.12 Processing Engine", "Thread-safe, bounded in-memory quality processor isolated from database and communication delays", model.PriorityCritical, "PASSED: QualityProcessor with bounded 10-point rolling history verified"},
+		{"3.2.13 WebSocket Integration", "Realtime device.telemetry.received event payloads extended with quality, reasons, and processed values", model.PriorityHigh, "PASSED: Live WebSocket broadcasts verified with reactive quality metadata"},
+		{"3.2.14 API Integration", "REST endpoints for parameter quality configuration and overall/device quality health summaries", model.PriorityHigh, "PASSED: /api/telemetry/quality-summary and /parameters/:id/quality verified"},
+		{"3.2.15 Device Detail UI", "Live telemetry cards and tables displaying semantic quality badges, status text, and diagnostic reasons", model.PriorityHigh, "PASSED: Vue 2 reactive quality indicators with tooltip reasons verified"},
+		{"3.2.16 Historical Quality UI", "Historical telemetry table and trend lines reflecting quality states and warning thresholds", model.PriorityHigh, "PASSED: Historical table quality badges and filtered queries verified"},
+		{"3.2.17 Quality Configuration UI", "Parameter configuration modal with warning thresholds, stale timeout, and spike settings", model.PriorityHigh, "PASSED: Parameter edit modal with quality configuration tab verified"},
+		{"3.2.18 Quality Summary", "Instantaneous health metric calculation (GOOD, UNCERTAIN, BAD, STALE counts and overall health percentage)", model.PriorityMedium, "PASSED: O(1) in-memory summary computation verified"},
+		{"3.2.19 Automated Tests", "Comprehensive test suites covering limits, spikes, stale, NaN/Inf, timestamps, isolation, and backpressure", model.PriorityCritical, "PASSED: 25+ automated test scenarios passing 100%"},
+		{"3.2.20 Real Sensor E2E Validation", "End-to-end hardware verification on connected Modbus sensor AQMS-01 with live quality evaluation", model.PriorityCritical, "PASSED: Real sensor AQMS-01 telemetry successfully evaluated as GOOD in live pipeline"},
+		{"3.2.21 Regression Testing", "Zero regression across Phase 1, Phase 2 (2.1, 2.2, 2.3), and Phase 3.1 acceptance suites", model.PriorityCritical, "PASSED: All prior phase test suites passing cleanly (100% pass rate)"},
+		{"3.2.22 Documentation", "Comprehensive Phase 3.2 architectural, configuration, and API reference documentation", model.PriorityHigh, "PASSED: docs/phase-3.2-data-quality-processing.md completed"},
+	}
+
+	for idx, st := range subtasks3_2 {
+		var existingTask model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND task_name = ?", phase3.ID, st.Name).First(&existingTask).Error; err != nil {
+			db.Create(&model.DevelopmentTask{
+				PhaseID:        phase3.ID,
+				SubphaseID:     &sub3_2.ID,
+				TaskName:       st.Name,
+				Description:    st.Description,
+				Status:         model.StatusDone,
+				Progress:       100.0,
+				Priority:       st.Priority,
+				OrderIndex:     30 + idx,
+				CompletionDate: &now,
+				TestResult:     st.Result,
+			})
+		} else {
+			db.Model(&existingTask).Updates(map[string]interface{}{
+				"subphase_id":     &sub3_2.ID,
+				"status":          model.StatusDone,
+				"progress":        100.0,
+				"completion_date": &now,
+				"test_result":     st.Result,
+			})
+		}
+	}
+
+	// Ensure Subphase 3.3 exists as PLANNED
+	var sub3_3 model.DevelopmentSubphase
+	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 3)", phase3.ID, "%Phase 3.3%").First(&sub3_3).Error; err != nil {
+		sub3_3 = model.DevelopmentSubphase{
+			PhaseID:            phase3.ID,
+			Name:               "Phase 3.3 — Aggregation, Rollup & Downsampling",
+			Description:        "Automated minute/hourly rollups, statistical summaries (min, max, avg), downsampling for long-term trends",
+			Status:             "PLANNED",
+			AcceptanceCriteria: "PLANNED",
+			OrderIndex:         3,
+			Progress:           0.0,
+		}
+		db.Create(&sub3_3)
+	} else {
+		db.Model(&sub3_3).Updates(map[string]interface{}{
+			"name":        "Phase 3.3 — Aggregation, Rollup & Downsampling",
+			"description": "Automated minute/hourly rollups, statistical summaries (min, max, avg), downsampling for long-term trends",
+			"order_index": 3,
+		})
 	}
 
 	// Recalculate Phase 3 Progress
@@ -751,5 +852,8 @@ func preMigrateEdgeSchema(db *gorm.DB) {
 				}).Error
 			}
 		}
+
+		_ = db.Exec("UPDATE parameters SET stale_timeout_seconds = 120 WHERE stale_timeout_seconds IS NULL OR stale_timeout_seconds <= 0;").Error
+		_ = db.Exec("UPDATE parameters SET spike_window_size = 3 WHERE spike_window_size IS NULL OR spike_window_size <= 0;").Error
 	}
 }

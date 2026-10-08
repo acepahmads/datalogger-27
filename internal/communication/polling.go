@@ -391,8 +391,12 @@ func (p *PollingEngine) ReadParameter(
 					Formula:       param.Formula,
 					IsHeldValue:   true,
 					Quality:       quality,
+					QualityReason: model.ReasonHoldAnomalyGrace,
+					QualityFlags:  model.FlagHeldAnomaly,
 					Source:        source,
 					ReceivedAt:    time.Now().UTC(),
+					Parameter:     param,
+					ReadError:     pErr,
 				})
 			}
 
@@ -413,6 +417,10 @@ func (p *PollingEngine) ReadParameter(
 			heldRes.Formula = param.Formula
 			heldRes.FormulaValue = formulaVal
 			heldRes.IsHeld = true
+			heldRes.Quality = quality
+			heldRes.QualityReason = model.ReasonHoldAnomalyGrace
+			heldRes.QualityFlags = model.FlagHeldAnomaly
+			heldRes.ProcessedValue = finalHeldVal
 			return heldRes, nil
 		}
 
@@ -428,6 +436,10 @@ func (p *PollingEngine) ReadParameter(
 			err.Error(),
 			elapsed,
 		)
+		errRes.Quality = quality
+		errRes.QualityReason = model.ReasonCommunicationError
+		errRes.QualityFlags = model.FlagCommError
+		errRes.ProcessedValue = 0
 
 		if p.telemetryService != nil {
 			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
@@ -442,10 +454,14 @@ func (p *PollingEngine) ReadParameter(
 				RawValue:      0,
 				Value:         0,
 				Quality:       quality,
+				QualityReason: model.ReasonCommunicationError,
+				QualityFlags:  model.FlagCommError,
 				IsHeldValue:   false,
 				Source:        source,
 				ErrorMessage:  err.Error(),
 				ReceivedAt:    errRes.Timestamp,
+				Parameter:     param,
+				ReadError:     err,
 			})
 		}
 
@@ -507,8 +523,10 @@ func (p *PollingEngine) ReadParameter(
 	result.Formula = param.Formula
 	result.FormulaValue = formulaVal
 	result.IsHeld = isHeld
+	result.Quality = quality
+	result.ProcessedValue = finalVal
 
-	// 7. Pipeline Telemetry Ingestion (Phase 3.1)
+	// 7. Pipeline Telemetry Ingestion (Phase 3.1 & 3.2)
 	if p.telemetryService != nil {
 		source := ""
 		if device.Connection != nil {
@@ -533,6 +551,8 @@ func (p *PollingEngine) ReadParameter(
 			Quality:       quality,
 			Source:        source,
 			ReceivedAt:    result.Timestamp,
+			Parameter:     param,
+			ReadError:     nil,
 		})
 	}
 

@@ -13,38 +13,77 @@ const (
 	QualityGood      TelemetryQuality = "GOOD"
 	QualityBad       TelemetryQuality = "BAD"
 	QualityUncertain TelemetryQuality = "UNCERTAIN"
+	QualityStale     TelemetryQuality = "STALE"
 	QualityUnknown   TelemetryQuality = "UNKNOWN"
+)
+
+// QualityReason defines standardized machine-readable diagnostic reasons
+type QualityReason string
+
+const (
+	ReasonNone                  QualityReason = "NONE"
+	ReasonOutOfHardRange        QualityReason = "OUT_OF_HARD_RANGE"
+	ReasonOutOfWarningRange     QualityReason = "OUT_OF_WARNING_RANGE"
+	ReasonNullValue             QualityReason = "NULL_VALUE"
+	ReasonNaNValue              QualityReason = "NAN_VALUE"
+	ReasonInfiniteValue         QualityReason = "INFINITE_VALUE"
+	ReasonInvalidTimestamp      QualityReason = "INVALID_TIMESTAMP"
+	ReasonFutureTimestamp       QualityReason = "FUTURE_TIMESTAMP"
+	ReasonExcessiveOldTimestamp QualityReason = "EXCESSIVELY_OLD_TIMESTAMP"
+	ReasonStaleData             QualityReason = "STALE_DATA"
+	ReasonSpikeDetected         QualityReason = "SPIKE_DETECTED"
+	ReasonDuplicateData         QualityReason = "DUPLICATE_DATA"
+	ReasonDecodingError         QualityReason = "DECODING_ERROR"
+	ReasonCommunicationError    QualityReason = "COMMUNICATION_ERROR"
+	ReasonHoldAnomalyGrace      QualityReason = "HOLD_ANOMALY_GRACE"
+)
+
+// QualityFlag constants for multi-flag tagging
+const (
+	FlagRangeViolation = "range_violation"
+	FlagRangeWarning   = "range_warning"
+	FlagSpike          = "spike"
+	FlagStale          = "stale"
+	FlagTimestampWarn  = "timestamp_warning"
+	FlagDuplicate      = "duplicate"
+	FlagDecodeError    = "decode_error"
+	FlagCommError      = "comm_error"
+	FlagHeldAnomaly    = "held_anomaly"
 )
 
 // RawData represents persisted raw and normalized telemetry from industrial sensors (Section 4 & 6)
 type RawData struct {
-	ID          uint64           `gorm:"primaryKey;autoIncrement" json:"id"`
-	DeviceID    uint             `gorm:"index:idx_raw_dev_param_rec,priority:1;index:idx_raw_dev_rec,priority:1;not null" json:"device_id"`
-	ParameterID uint             `gorm:"index:idx_raw_dev_param_rec,priority:2;index:idx_raw_param;not null" json:"parameter_id"`
+	ID          uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	DeviceID    uint   `gorm:"index:idx_raw_dev_param_rec,priority:1;index:idx_raw_dev_rec,priority:1;not null" json:"device_id"`
+	ParameterID uint   `gorm:"index:idx_raw_dev_param_rec,priority:2;index:idx_raw_param;not null" json:"parameter_id"`
 
-	// Engineering Scaled Values
-	Value        float64          `gorm:"type:double" json:"value"`
-	ValueNumeric *float64         `gorm:"type:double" json:"value_numeric,omitempty"`
-	FormulaValue *float64         `gorm:"type:double" json:"formula_value,omitempty"`
-	IsHeldValue  bool             `gorm:"default:false;index" json:"is_held_value"`
-	ValueText    string           `gorm:"size:255" json:"value_text,omitempty"`
-	ValueBool    *bool            `json:"value_bool,omitempty"`
-	RawValue     float64          `gorm:"type:double" json:"raw_value"`
-	RawHex       string           `gorm:"size:255" json:"raw_hex,omitempty"`
-	RawBytes     []byte           `gorm:"type:blob" json:"raw_bytes,omitempty"`
+	// Engineering Scaled & Processed Values
+	Value          float64  `gorm:"type:double" json:"value"`
+	ProcessedValue float64  `gorm:"type:double" json:"processed_value"`
+	ValueNumeric   *float64 `gorm:"type:double" json:"value_numeric,omitempty"`
+	FormulaValue   *float64 `gorm:"type:double" json:"formula_value,omitempty"`
+	IsHeldValue    bool     `gorm:"default:false;index" json:"is_held_value"`
+	ValueText      string   `gorm:"size:255" json:"value_text,omitempty"`
+	ValueBool      *bool    `json:"value_bool,omitempty"`
+	RawValue       float64  `gorm:"type:double" json:"raw_value"`
+	RawHex         string   `gorm:"size:255" json:"raw_hex,omitempty"`
+	RawBytes       []byte   `gorm:"type:blob" json:"raw_bytes,omitempty"`
 
-	// Industrial Quality & Protocol Source
-	Quality      TelemetryQuality `gorm:"size:32;index;default:'GOOD'" json:"quality"`
-	Source       string           `gorm:"size:32;default:'MODBUS_TCP'" json:"source"`
-	Sequence     uint64           `gorm:"index" json:"sequence"`
+	// Industrial Quality & Protocol Source (Phase 3.2)
+	Quality       TelemetryQuality `gorm:"size:32;index;default:'GOOD'" json:"quality"`
+	QualityReason QualityReason    `gorm:"size:64;index;default:'NONE'" json:"quality_reason"`
+	QualityFlags  string           `gorm:"size:255;default:''" json:"quality_flags,omitempty"`
+	Source        string           `gorm:"size:32;default:'MODBUS_TCP'" json:"source"`
+	Sequence      uint64           `gorm:"index" json:"sequence"`
 
-	// Explicit Timestamps (Section 6)
-	DeviceTimestamp *time.Time   `gorm:"index" json:"device_timestamp,omitempty"`
-	ReceivedAt      time.Time    `gorm:"index:idx_raw_dev_param_rec,priority:3;index:idx_raw_dev_rec,priority:2;index:idx_raw_rec;not null" json:"received_at"`
-	StoredAt        time.Time    `gorm:"not null" json:"stored_at"`
-	Timestamp       time.Time    `gorm:"index" json:"timestamp"` // Backward compatibility alias
+	// Explicit Timestamps (Section 6 & Phase 3.2)
+	DeviceTimestamp *time.Time `gorm:"index" json:"device_timestamp,omitempty"`
+	ReceivedAt      time.Time  `gorm:"index:idx_raw_dev_param_rec,priority:3;index:idx_raw_dev_rec,priority:2;index:idx_raw_rec;not null" json:"received_at"`
+	ProcessedAt     *time.Time `gorm:"index" json:"processed_at,omitempty"`
+	StoredAt        time.Time  `gorm:"not null" json:"stored_at"`
+	Timestamp       time.Time  `gorm:"index" json:"timestamp"` // Backward compatibility alias
 
-	CreatedAt       time.Time    `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (r *RawData) BeforeCreate(tx *gorm.DB) error {

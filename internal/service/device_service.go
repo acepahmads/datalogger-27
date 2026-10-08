@@ -71,43 +71,90 @@ type UpdateDeviceRequest struct {
 }
 
 type CreateParameterRequest struct {
-	ParameterCode   string                  `json:"parameter_code"`
-	ParameterName   string                  `json:"parameter_name"`
-	DataType        model.ParameterDataType `json:"data_type"`
-	Unit            string                  `json:"unit"`
-	Description     string                  `json:"description"`
-	MinValue        *float64                `json:"min_value"`
-	MaxValue        *float64                `json:"max_value"`
-	Precision       int                     `json:"precision"`
-	Scale           float64                 `json:"scale"`
-	Offset          float64                 `json:"offset"`
-	RegisterAddress int                     `json:"register_address"`
-	RegisterType    string                  `json:"register_type"`
-	ByteOrder       string                  `json:"byte_order"`
-	Enabled         *bool                   `json:"enabled"`
-	Formula         string                  `json:"formula"`
-	HoldLastValueEnabled *bool              `json:"hold_last_value_enabled"`
-	HoldLastValueSeconds int                `json:"hold_last_value_seconds"`
+	ParameterCode            string                  `json:"parameter_code"`
+	ParameterName            string                  `json:"parameter_name"`
+	DataType                 model.ParameterDataType `json:"data_type"`
+	Unit                     string                  `json:"unit"`
+	Description              string                  `json:"description"`
+	MinValue                 *float64                `json:"min_value"`
+	MaxValue                 *float64                `json:"max_value"`
+	WarningLow               *float64                `json:"warning_low"`
+	WarningHigh              *float64                `json:"warning_high"`
+	QualityValidationEnabled *bool                   `json:"quality_validation_enabled"`
+	ProcessingEnabled        *bool                   `json:"processing_enabled"`
+	StaleTimeoutSeconds      *int                    `json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    *bool                   `json:"spike_detection_enabled"`
+	SpikeThreshold           *float64                `json:"spike_threshold"`
+	SpikeWindowSize          *int                    `json:"spike_window_size"`
+	Precision                int                     `json:"precision"`
+	Scale                    float64                 `json:"scale"`
+	Offset                   float64                 `json:"offset"`
+	RegisterAddress          int                     `json:"register_address"`
+	RegisterType             string                  `json:"register_type"`
+	ByteOrder                string                  `json:"byte_order"`
+	Enabled                  *bool                   `json:"enabled"`
+	Formula                  string                  `json:"formula"`
+	HoldLastValueEnabled     *bool                   `json:"hold_last_value_enabled"`
+	HoldLastValueSeconds     int                     `json:"hold_last_value_seconds"`
 }
 
 type UpdateParameterRequest struct {
-	ParameterCode   *string                  `json:"parameter_code"`
-	ParameterName   *string                  `json:"parameter_name"`
-	DataType        *model.ParameterDataType `json:"data_type"`
-	Unit            *string                  `json:"unit"`
-	Description     *string                  `json:"description"`
-	MinValue        *float64                 `json:"min_value"`
-	MaxValue        *float64                 `json:"max_value"`
-	Precision       *int                     `json:"precision"`
-	Scale           *float64                 `json:"scale"`
-	Offset          *float64                 `json:"offset"`
-	RegisterAddress *int                     `json:"register_address"`
-	RegisterType    *string                  `json:"register_type"`
-	ByteOrder       *string                  `json:"byte_order"`
-	Enabled         *bool                    `json:"enabled"`
-	Formula         *string                  `json:"formula"`
-	HoldLastValueEnabled *bool               `json:"hold_last_value_enabled"`
-	HoldLastValueSeconds *int                `json:"hold_last_value_seconds"`
+	ParameterCode            *string                  `json:"parameter_code"`
+	ParameterName            *string                  `json:"parameter_name"`
+	DataType                 *model.ParameterDataType `json:"data_type"`
+	Unit                     *string                  `json:"unit"`
+	Description              *string                  `json:"description"`
+	MinValue                 *float64                 `json:"min_value"`
+	MaxValue                 *float64                 `json:"max_value"`
+	WarningLow               *float64                 `json:"warning_low"`
+	WarningHigh              *float64                 `json:"warning_high"`
+	QualityValidationEnabled *bool                    `json:"quality_validation_enabled"`
+	ProcessingEnabled        *bool                    `json:"processing_enabled"`
+	StaleTimeoutSeconds      *int                     `json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    *bool                    `json:"spike_detection_enabled"`
+	SpikeThreshold           *float64                 `json:"spike_threshold"`
+	SpikeWindowSize          *int                     `json:"spike_window_size"`
+	Precision                *int                     `json:"precision"`
+	Scale                    *float64                 `json:"scale"`
+	Offset                   *float64                 `json:"offset"`
+	RegisterAddress          *int                     `json:"register_address"`
+	RegisterType             *string                  `json:"register_type"`
+	ByteOrder                *string                  `json:"byte_order"`
+	Enabled                  *bool                    `json:"enabled"`
+	Formula                  *string                  `json:"formula"`
+	HoldLastValueEnabled     *bool                    `json:"hold_last_value_enabled"`
+	HoldLastValueSeconds     *int                     `json:"hold_last_value_seconds"`
+}
+
+// ParameterQualityDTO encapsulates Phase 3.2 data quality configuration for a parameter
+type ParameterQualityDTO struct {
+	ParameterID              uint     `json:"parameter_id"`
+	ParameterCode            string   `json:"parameter_code"`
+	ParameterName            string   `json:"parameter_name"`
+	QualityValidationEnabled bool     `json:"quality_validation_enabled"`
+	ProcessingEnabled        bool     `json:"processing_enabled"`
+	MinValue                 *float64 `json:"min_value"`
+	MaxValue                 *float64 `json:"max_value"`
+	WarningLow               *float64 `json:"warning_low"`
+	WarningHigh              *float64 `json:"warning_high"`
+	StaleTimeoutSeconds      int      `json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    bool     `json:"spike_detection_enabled"`
+	SpikeThreshold           float64  `json:"spike_threshold"`
+	SpikeWindowSize          int      `json:"spike_window_size"`
+}
+
+// UpdateParameterQualityRequest allows updating only quality & processing parameters
+type UpdateParameterQualityRequest struct {
+	QualityValidationEnabled *bool    `json:"quality_validation_enabled"`
+	ProcessingEnabled        *bool    `json:"processing_enabled"`
+	MinValue                 *float64 `json:"min_value"`
+	MaxValue                 *float64 `json:"max_value"`
+	WarningLow               *float64 `json:"warning_low"`
+	WarningHigh              *float64 `json:"warning_high"`
+	StaleTimeoutSeconds      *int     `json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    *bool    `json:"spike_detection_enabled"`
+	SpikeThreshold           *float64 `json:"spike_threshold"`
+	SpikeWindowSize          *int     `json:"spike_window_size"`
 }
 
 type DeviceService struct {
@@ -662,25 +709,58 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		holdSeconds = 120
 	}
 
+	qualEnabled := true
+	if req.QualityValidationEnabled != nil {
+		qualEnabled = *req.QualityValidationEnabled
+	}
+	procEnabled := true
+	if req.ProcessingEnabled != nil {
+		procEnabled = *req.ProcessingEnabled
+	}
+	staleTimeout := 120
+	if req.StaleTimeoutSeconds != nil && *req.StaleTimeoutSeconds > 0 {
+		staleTimeout = *req.StaleTimeoutSeconds
+	}
+	spikeEnabled := false
+	if req.SpikeDetectionEnabled != nil {
+		spikeEnabled = *req.SpikeDetectionEnabled
+	}
+	spikeThresh := 0.0
+	if req.SpikeThreshold != nil && *req.SpikeThreshold > 0 {
+		spikeThresh = *req.SpikeThreshold
+	}
+	spikeWindow := 3
+	if req.SpikeWindowSize != nil && *req.SpikeWindowSize > 0 {
+		spikeWindow = *req.SpikeWindowSize
+	}
+
 	param := &model.Parameter{
-		DeviceID:             deviceID,
-		ParameterCode:        code,
-		ParameterName:        name,
-		DataType:             dataType,
-		Unit:                 strings.TrimSpace(req.Unit),
-		Description:          strings.TrimSpace(req.Description),
-		MinValue:             req.MinValue,
-		MaxValue:             req.MaxValue,
-		Precision:            precision,
-		Scale:                scale,
-		Offset:               req.Offset,
-		RegisterAddress:      req.RegisterAddress,
-		RegisterType:         strings.TrimSpace(req.RegisterType),
-		ByteOrder:            byteOrder,
-		Enabled:              enabled,
-		Formula:              cleanFormula,
-		HoldLastValueEnabled: holdLastVal,
-		HoldLastValueSeconds: holdSeconds,
+		DeviceID:                 deviceID,
+		ParameterCode:            code,
+		ParameterName:            name,
+		DataType:                 dataType,
+		Unit:                     strings.TrimSpace(req.Unit),
+		Description:              strings.TrimSpace(req.Description),
+		MinValue:                 req.MinValue,
+		MaxValue:                 req.MaxValue,
+		WarningLow:               req.WarningLow,
+		WarningHigh:              req.WarningHigh,
+		QualityValidationEnabled: qualEnabled,
+		ProcessingEnabled:        procEnabled,
+		StaleTimeoutSeconds:      staleTimeout,
+		SpikeDetectionEnabled:    spikeEnabled,
+		SpikeThreshold:           spikeThresh,
+		SpikeWindowSize:          spikeWindow,
+		Precision:                precision,
+		Scale:                    scale,
+		Offset:                   req.Offset,
+		RegisterAddress:          req.RegisterAddress,
+		RegisterType:             strings.TrimSpace(req.RegisterType),
+		ByteOrder:                byteOrder,
+		Enabled:                  enabled,
+		Formula:                  cleanFormula,
+		HoldLastValueEnabled:     holdLastVal,
+		HoldLastValueSeconds:     holdSeconds,
 	}
 
 	if err := s.repo.CreateParameter(param); err != nil {
@@ -809,17 +889,56 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		}
 		param.HoldLastValueSeconds = sec
 	}
+	if req.WarningLow != nil {
+		param.WarningLow = req.WarningLow
+	}
+	if req.WarningHigh != nil {
+		param.WarningHigh = req.WarningHigh
+	}
+	if param.WarningLow != nil && param.WarningHigh != nil && *param.WarningLow > *param.WarningHigh {
+		return nil, errors.New("warning_low cannot be greater than warning_high")
+	}
+	if req.QualityValidationEnabled != nil {
+		param.QualityValidationEnabled = *req.QualityValidationEnabled
+	}
+	if req.ProcessingEnabled != nil {
+		param.ProcessingEnabled = *req.ProcessingEnabled
+	}
+	if req.StaleTimeoutSeconds != nil {
+		sec := *req.StaleTimeoutSeconds
+		if sec <= 0 {
+			sec = 120
+		}
+		param.StaleTimeoutSeconds = sec
+	}
+	if req.SpikeDetectionEnabled != nil {
+		param.SpikeDetectionEnabled = *req.SpikeDetectionEnabled
+	}
+	if req.SpikeThreshold != nil {
+		param.SpikeThreshold = *req.SpikeThreshold
+	}
+	if req.SpikeWindowSize != nil {
+		win := *req.SpikeWindowSize
+		if win <= 0 {
+			win = 3
+		}
+		param.SpikeWindowSize = win
+	}
 
 	if err := s.repo.UpdateParameter(param); err != nil {
 		return nil, fmt.Errorf("failed to update parameter: %w", err)
 	}
 
 	afterState, _ := json.Marshal(map[string]interface{}{
-		"parameter_code": param.ParameterCode,
-		"parameter_name": param.ParameterName,
-		"scale":          param.Scale,
-		"offset":         param.Offset,
-		"enabled":        param.Enabled,
+		"parameter_code":             param.ParameterCode,
+		"parameter_name":             param.ParameterName,
+		"scale":                      param.Scale,
+		"offset":                     param.Offset,
+		"enabled":                    param.Enabled,
+		"warning_low":                param.WarningLow,
+		"warning_high":               param.WarningHigh,
+		"quality_validation_enabled": param.QualityValidationEnabled,
+		"stale_timeout_seconds":      param.StaleTimeoutSeconds,
 	})
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
@@ -831,6 +950,139 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	s.recordAudit(username, "UPDATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
 
 	return param, nil
+}
+
+// GetParameterQualityConfig retrieves Phase 3.2 quality configuration for a parameter
+func (s *DeviceService) GetParameterQualityConfig(deviceID, paramID uint) (*ParameterQualityDTO, error) {
+	param, err := s.repo.GetParameterByID(deviceID, paramID)
+	if err != nil {
+		return nil, errors.New("parameter not found")
+	}
+
+	return &ParameterQualityDTO{
+		ParameterID:              param.ID,
+		ParameterCode:            param.ParameterCode,
+		ParameterName:            param.ParameterName,
+		QualityValidationEnabled: param.QualityValidationEnabled,
+		ProcessingEnabled:        param.ProcessingEnabled,
+		MinValue:                 param.MinValue,
+		MaxValue:                 param.MaxValue,
+		WarningLow:               param.WarningLow,
+		WarningHigh:              param.WarningHigh,
+		StaleTimeoutSeconds:      param.StaleTimeoutSeconds,
+		SpikeDetectionEnabled:    param.SpikeDetectionEnabled,
+		SpikeThreshold:           param.SpikeThreshold,
+		SpikeWindowSize:          param.SpikeWindowSize,
+	}, nil
+}
+
+// UpdateParameterQualityConfig updates parameter quality validation settings and records audit trail
+func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req *UpdateParameterQualityRequest, username, ipAddress, userAgent string) (*ParameterQualityDTO, error) {
+	param, err := s.repo.GetParameterByID(deviceID, paramID)
+	if err != nil {
+		return nil, errors.New("parameter not found")
+	}
+
+	beforeState, _ := json.Marshal(map[string]interface{}{
+		"quality_validation_enabled": param.QualityValidationEnabled,
+		"processing_enabled":        param.ProcessingEnabled,
+		"min_value":                 param.MinValue,
+		"max_value":                 param.MaxValue,
+		"warning_low":               param.WarningLow,
+		"warning_high":              param.WarningHigh,
+		"stale_timeout_seconds":      param.StaleTimeoutSeconds,
+		"spike_detection_enabled":    param.SpikeDetectionEnabled,
+		"spike_threshold":           param.SpikeThreshold,
+		"spike_window_size":          param.SpikeWindowSize,
+	})
+
+	if req.QualityValidationEnabled != nil {
+		param.QualityValidationEnabled = *req.QualityValidationEnabled
+	}
+	if req.ProcessingEnabled != nil {
+		param.ProcessingEnabled = *req.ProcessingEnabled
+	}
+	if req.MinValue != nil {
+		param.MinValue = req.MinValue
+		param.LowLimit = req.MinValue
+	}
+	if req.MaxValue != nil {
+		param.MaxValue = req.MaxValue
+		param.HighLimit = req.MaxValue
+	}
+	if param.MinValue != nil && param.MaxValue != nil && *param.MinValue > *param.MaxValue {
+		return nil, errors.New("min_value cannot be greater than max_value")
+	}
+	if req.WarningLow != nil {
+		param.WarningLow = req.WarningLow
+	}
+	if req.WarningHigh != nil {
+		param.WarningHigh = req.WarningHigh
+	}
+	if param.WarningLow != nil && param.WarningHigh != nil && *param.WarningLow > *param.WarningHigh {
+		return nil, errors.New("warning_low cannot be greater than warning_high")
+	}
+	if req.StaleTimeoutSeconds != nil {
+		sec := *req.StaleTimeoutSeconds
+		if sec <= 0 {
+			sec = 120
+		}
+		param.StaleTimeoutSeconds = sec
+	}
+	if req.SpikeDetectionEnabled != nil {
+		param.SpikeDetectionEnabled = *req.SpikeDetectionEnabled
+	}
+	if req.SpikeThreshold != nil {
+		param.SpikeThreshold = *req.SpikeThreshold
+	}
+	if req.SpikeWindowSize != nil {
+		win := *req.SpikeWindowSize
+		if win <= 0 {
+			win = 3
+		}
+		param.SpikeWindowSize = win
+	}
+
+	if err := s.repo.UpdateParameter(param); err != nil {
+		return nil, fmt.Errorf("failed to update parameter quality: %w", err)
+	}
+
+	afterState, _ := json.Marshal(map[string]interface{}{
+		"quality_validation_enabled": param.QualityValidationEnabled,
+		"processing_enabled":        param.ProcessingEnabled,
+		"min_value":                 param.MinValue,
+		"max_value":                 param.MaxValue,
+		"warning_low":               param.WarningLow,
+		"warning_high":              param.WarningHigh,
+		"stale_timeout_seconds":      param.StaleTimeoutSeconds,
+		"spike_detection_enabled":    param.SpikeDetectionEnabled,
+		"spike_threshold":           param.SpikeThreshold,
+		"spike_window_size":          param.SpikeWindowSize,
+	})
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":    deviceID,
+		"parameter_id": param.ID,
+		"before":       string(beforeState),
+		"after":        string(afterState),
+	})
+	s.recordAudit(username, "UPDATE_PARAMETER_QUALITY", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return &ParameterQualityDTO{
+		ParameterID:              param.ID,
+		ParameterCode:            param.ParameterCode,
+		ParameterName:            param.ParameterName,
+		QualityValidationEnabled: param.QualityValidationEnabled,
+		ProcessingEnabled:        param.ProcessingEnabled,
+		MinValue:                 param.MinValue,
+		MaxValue:                 param.MaxValue,
+		WarningLow:               param.WarningLow,
+		WarningHigh:              param.WarningHigh,
+		StaleTimeoutSeconds:      param.StaleTimeoutSeconds,
+		SpikeDetectionEnabled:    param.SpikeDetectionEnabled,
+		SpikeThreshold:           param.SpikeThreshold,
+		SpikeWindowSize:          param.SpikeWindowSize,
+	}, nil
 }
 
 func (s *DeviceService) DeleteParameter(deviceID, paramID uint, username, ipAddress, userAgent string) error {

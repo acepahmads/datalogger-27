@@ -102,6 +102,8 @@ func setupDeviceTestRouter(t *testing.T) *TestEnv {
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
 			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
+			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
+			devicesGroup.PUT("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameterQuality)
 		}
 	}
 
@@ -424,6 +426,117 @@ func TestValidateFormulaEndpoint(t *testing.T) {
 
 	if badW.Code != http.StatusBadRequest {
 		t.Fatalf("Expected 400 on bad formula, got %d", badW.Code)
+	}
+}
+
+func TestParameterQualityEndpoints(t *testing.T) {
+	env := setupDeviceTestRouter(t)
+
+	// Create test device & parameter
+	dev := model.Device{
+		DeviceCode: "DEV-QUAL-01",
+		DeviceName: "Quality Test Device",
+		DeviceType: "MODBUS_TCP",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+	}
+	env.DB.Create(&dev)
+
+	param := model.Parameter{
+		DeviceID:                 dev.ID,
+		ParameterCode:            "TEMP_TEST",
+		ParameterName:            "Test Temperature",
+		DataType:                 model.DataTypeFloat32,
+		Unit:                     "°C",
+		QualityValidationEnabled: true,
+		ProcessingEnabled:        true,
+		StaleTimeoutSeconds:      120,
+	}
+	env.DB.Create(&param)
+
+	// 1. GET quality config (Authorized)
+	getReq, _ := http.NewRequest("GET", fmt.Sprintf("/api/devices/%d/parameters/%d/quality", dev.ID, param.ID), nil)
+	getReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	getW := httptest.NewRecorder()
+	env.Router.ServeHTTP(getW, getReq)
+
+	if getW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on get quality config, got %d: %s", getW.Code, getW.Body.String())
+	}
+	var getResp struct {
+		Success bool                        `json:"success"`
+		Data    service.ParameterQualityDTO `json:"data"`
+	}
+	if err := json.Unmarshal(getW.Body.Bytes(), &getResp); err != nil {
+		t.Fatalf("Failed to parse quality config response: %v", err)
+	}
+	if getResp.Data.StaleTimeoutSeconds != 120 {
+		t.Errorf("Expected stale timeout 120, got %d", getResp.Data.StaleTimeoutSeconds)
+	}
+
+	// 2. PUT quality config (Authorized Admin)
+	minVal := 0.0
+	maxVal := 100.0
+	warnLow := 10.0
+	warnHigh := 85.0
+	staleSec := 60
+	spikeEn := true
+	spikeTh := 15.5
+	spikeWin := 4
+
+	putBody, _ := json.Marshal(service.UpdateParameterQualityRequest{
+		MinValue:              &minVal,
+		MaxValue:              &maxVal,
+		WarningLow:            &warnLow,
+		WarningHigh:           &warnHigh,
+		StaleTimeoutSeconds:   &staleSec,
+		SpikeDetectionEnabled: &spikeEn,
+		SpikeThreshold:        &spikeTh,
+		SpikeWindowSize:       &spikeWin,
+	})
+	putReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d/parameters/%d/quality", dev.ID, param.ID), bytes.NewBuffer(putBody))
+	putReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	putReq.Header.Set("Content-Type", "application/json")
+	putW := httptest.NewRecorder()
+	env.Router.ServeHTTP(putW, putReq)
+
+	if putW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on update quality config, got %d: %s", putW.Code, putW.Body.String())
+	}
+
+	// Verify persistence in DB
+	var reloaded model.Parameter
+	env.DB.First(&reloaded, param.ID)
+	if reloaded.StaleTimeoutSeconds != 60 || !reloaded.SpikeDetectionEnabled || reloaded.SpikeThreshold != 15.5 {
+		t.Errorf("Database did not persist quality config: %+v", reloaded)
+	}
+
+	// 3. Reject invalid limits (warning_low > warning_high)
+	invalidLow := 95.0
+	invalidHigh := 50.0
+	badPutBody, _ := json.Marshal(service.UpdateParameterQualityRequest{
+		WarningLow:  &invalidLow,
+		WarningHigh: &invalidHigh,
+	})
+	badPutReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d/parameters/%d/quality", dev.ID, param.ID), bytes.NewBuffer(badPutBody))
+	badPutReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	badPutReq.Header.Set("Content-Type", "application/json")
+	badPutW := httptest.NewRecorder()
+	env.Router.ServeHTTP(badPutW, badPutReq)
+
+	if badPutW.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request on invalid warning limits, got %d", badPutW.Code)
+	}
+
+	// 4. RBAC Permission check: Operator token cannot modify quality configuration (requires device.manage)
+	opPutReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d/parameters/%d/quality", dev.ID, param.ID), bytes.NewBuffer(putBody))
+	opPutReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+	opPutReq.Header.Set("Content-Type", "application/json")
+	opPutW := httptest.NewRecorder()
+	env.Router.ServeHTTP(opPutW, opPutReq)
+
+	if opPutW.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for operator modifying quality, got %d", opPutW.Code)
 	}
 }
 

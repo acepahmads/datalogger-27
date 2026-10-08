@@ -305,11 +305,22 @@ type Parameter struct {
 	CurrentValue    *float64   `json:"current_value,omitempty"`
 	LastUpdated     *time.Time `json:"last_updated,omitempty"`
 
-	// Phase 3.1 Latest Telemetry State
+	// Phase 3.2 Data Quality & Processing Configuration
+	QualityValidationEnabled bool     `gorm:"default:true" json:"quality_validation_enabled"`
+	ProcessingEnabled        bool     `gorm:"default:true" json:"processing_enabled"`
+	StaleTimeoutSeconds      int      `gorm:"default:120" json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    bool     `gorm:"default:false" json:"spike_detection_enabled"`
+	SpikeThreshold           float64  `gorm:"default:0.0" json:"spike_threshold"`
+	SpikeWindowSize          int      `gorm:"default:3" json:"spike_window_size"`
+
+	// Phase 3.1 & 3.2 Latest Telemetry State
 	CurrentValueNumeric    *float64         `gorm:"type:double" json:"current_value_numeric,omitempty"`
+	CurrentProcessedValue  *float64         `gorm:"type:double" json:"current_processed_value,omitempty"`
 	CurrentValueText       string           `gorm:"size:255" json:"current_value_text,omitempty"`
 	CurrentValueBool       *bool            `json:"current_value_bool,omitempty"`
 	CurrentQuality         TelemetryQuality `gorm:"size:32;default:'UNKNOWN'" json:"current_quality,omitempty"`
+	CurrentQualityReason   QualityReason    `gorm:"size:64;default:'NONE'" json:"current_quality_reason,omitempty"`
+	CurrentQualityFlags    string           `gorm:"size:255;default:''" json:"current_quality_flags,omitempty"`
 	CurrentRawHex          string           `gorm:"size:255" json:"current_raw_hex,omitempty"`
 	CurrentReceivedAt      *time.Time       `json:"current_received_at,omitempty"`
 	CurrentDeviceTimestamp *time.Time       `json:"current_device_timestamp,omitempty"`
