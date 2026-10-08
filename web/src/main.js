@@ -2,10 +2,13 @@ import Vue from 'vue';
 import App from './App.vue';
 import router from './router';
 import store from './store';
+import i18n from './i18n';
+import { initSystemThemeWatcher } from './utils/theme';
 import axios from 'axios';
 import './assets/main.css';
 
 Vue.config.productionTip = false;
+Vue.use(i18n);
 
 // Setup Axios authorization header
 axios.interceptors.request.use((config) => {
@@ -97,13 +100,11 @@ new Vue({
   router,
   store,
   created() {
-    // Apply initial theme
-    const theme = this.$store.state.theme;
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    // Initialize preferences and theme watcher
+    this.$store.dispatch('initializePreferences');
+    initSystemThemeWatcher((effective) => {
+      this.$store.commit('SET_EFFECTIVE_THEME', effective);
+    });
 
     // Initialize initial telemetry & WebSocket
     this.$store.dispatch('fetchSystemStatus');

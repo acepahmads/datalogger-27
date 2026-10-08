@@ -9,7 +9,7 @@
 
 @layer base {
   body {
-    @apply bg-[#0B0F19] text-slate-200 antialiased font-sans text-xs selection:bg-blue-600 selection:text-white;
+    @apply bg-slate-50 text-slate-800 dark:bg-[#0B0F19] dark:text-slate-200 antialiased font-sans text-xs selection:bg-blue-600 selection:text-white transition-colors duration-150;
     font-family: var(--font-family-ui);
   }
 
@@ -41,7 +41,6 @@ svg.chart-svg text {
   letter-spacing: normal !important;
 }
 
-
 /* Modern Sleek Scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
@@ -51,19 +50,42 @@ svg.chart-svg text {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1E293B;
+  background: #cbd5e1;
   border-radius: 9999px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: #1E293B;
+}
 ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
 
 /* Modern Card Utilities */
 .saas-card {
-  @apply bg-[#111827]/90 border border-slate-800/70 rounded-xl shadow-sm transition-all duration-200;
+  @apply bg-white dark:bg-[#111827]/90 border border-slate-200 dark:border-slate-800/70 rounded-xl shadow-sm transition-all duration-200;
 }
 .saas-card-hover {
-  @apply hover:border-slate-700/80 hover:shadow-soft;
+  @apply hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-soft;
+}
+
+/* Semantic Badges */
+.badge-success {
+  @apply bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 px-2 py-0.5 rounded text-2xs font-semibold font-mono;
+}
+.badge-warning {
+  @apply bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 px-2 py-0.5 rounded text-2xs font-semibold font-mono;
+}
+.badge-danger {
+  @apply bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 px-2 py-0.5 rounded text-2xs font-semibold font-mono;
+}
+.badge-info {
+  @apply bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 px-2 py-0.5 rounded text-2xs font-semibold font-mono;
+}
+.badge-neutral {
+  @apply bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 px-2 py-0.5 rounded text-2xs font-semibold font-mono;
 }
 
 /* Tabular numbers for clean data alignment */
@@ -75,3 +97,139 @@ svg.chart-svg text {
 .transition-smooth {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ========================================================
+   LIGHT THEME SYSTEM ARCHITECTURE
+   Industrial SaaS Light Mode (High Contrast & Clear Readability)
+   ======================================================== */
+
+html:not(.dark) {
+  color-scheme: light;
+}
+
+/* Light Mode Backgrounds for Subcards, Canvas & Inner Panels */
+html:not(.dark) .bg-\[\#0B0F19\],
+html:not(.dark) .bg-\[\#0B0F19\]\/40,
+html:not(.dark) .bg-\[\#0B0F19\]\/60,
+html:not(.dark) .bg-\[\#0B0F19\]\/70,
+html:not(.dark) .bg-\[\#0B0F19\]\/80,
+html:not(.dark) .bg-\[\#0B0F19\]\/90,
+html:not(.dark) .bg-\[\#0F172A\],
+html:not(.dark) .bg-\[\#0F172A\]\/50,
+html:not(.dark) .bg-\[\#0F172A\]\/70,
+html:not(.dark) .bg-\[\#0F172A\]\/80,
+html:not(.dark) .bg-\[\#0F172A\]\/90,
+html:not(.dark) .bg-\[\#111827\],
+html:not(.dark) .bg-\[\#111827\]\/80,
+html:not(.dark) .bg-\[\#111827\]\/90,
+html:not(.dark) .bg-\[\#131B2E\],
+html:not(.dark) .bg-\[\#17223B\],
+html:not(.dark) .bg-\[\#060910\],
+html:not(.dark) .bg-\[\#0A0E18\]\/60,
+html:not(.dark) .bg-slate-900,
+html:not(.dark) .bg-slate-900\/50,
+html:not(.dark) .bg-slate-900\/60,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-950 {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .bg-slate-50,
+html:not(.dark) .bg-slate-100 {
+  background-color: #f8fafc !important;
+}
+
+/* Form inputs & dropdowns in Light Mode */
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Borders in Light Mode */
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-slate-800\/40,
+html:not(.dark) .border-slate-800\/50,
+html:not(.dark) .border-slate-800\/60,
+html:not(.dark) .border-slate-800\/80,
+html:not(.dark) .border-slate-800\/90,
+html:not(.dark) .border-slate-700,
+html:not(.dark) .border-slate-700\/60,
+html:not(.dark) .border-slate-700\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+html:not(.dark) .divide-slate-800,
+html:not(.dark) .divide-slate-800\/40,
+html:not(.dark) .divide-slate-800\/50,
+html:not(.dark) .divide-slate-800\/60,
+html:not(.dark) .divide-slate-800\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text Hierarchy in Light Mode */
+html:not(.dark) .text-white:not(.btn-text):not(.badge-text) {
+  color: #0f172a !important;
+}
+
+html:not(.dark) .text-slate-100 {
+  color: #1e293b !important;
+}
+
+html:not(.dark) .text-slate-200 {
+  color: #334155 !important;
+}
+
+html:not(.dark) .text-slate-300 {
+  color: #475569 !important;
+}
+
+html:not(.dark) .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Explicit button text preservation */
+html:not(.dark) button.bg-blue-600,
+html:not(.dark) button.bg-blue-500,
+html:not(.dark) .bg-blue-600 .text-white,
+html:not(.dark) .bg-blue-500 .text-white,
+html:not(.dark) a.bg-blue-600,
+html:not(.dark) button.bg-emerald-600,
+html:not(.dark) button.bg-emerald-500,
+html:not(.dark) button.bg-rose-600,
+html:not(.dark) button.bg-rose-500 {
+  color: #ffffff !important;
+}
+
+/* Secondary & Ghost Buttons in Light Mode */
+html:not(.dark) .bg-slate-800\/60,
+html:not(.dark) .bg-slate-800\/40,
+html:not(.dark) .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #e2e8f0 !important;
+}
+html:not(.dark) .bg-slate-800:hover,
+html:not(.dark) .bg-slate-800\/60:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* SVG Chart in Light Mode */
+html:not(.dark) .chart-svg text {
+  fill: #64748b !important;
+}
+html:not(.dark) .chart-svg .grid-lines line {
+  stroke: #e2e8f0 !important;
+}
+html:not(.dark) .chart-svg .time-ticks line {
+  stroke: #cbd5e1 !important;
+}
+

@@ -1,6 +1,8 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import axios from 'axios';
+import { getStoredTheme, resolveEffectiveTheme, applyTheme } from '../utils/theme';
+import { i18nState, setLocale } from '../i18n';
 
 Vue.use(Vuex);
 
@@ -14,8 +16,13 @@ export default new Vuex.Store({
       role: 'Administrator',
       full_name: 'Lead System Engineer',
     },
-    theme: localStorage.getItem('datalogger_theme') || 'dark',
-    language: localStorage.getItem('datalogger_lang') || 'en',
+    uiPreferences: {
+      theme: getStoredTheme(), // 'light' | 'dark' | 'system'
+      effectiveTheme: resolveEffectiveTheme(getStoredTheme()), // 'light' | 'dark'
+      language: i18nState.locale, // 'en' | 'id'
+    },
+    theme: resolveEffectiveTheme(getStoredTheme()),
+    language: i18nState.locale,
     wsConnected: false,
     systemStatus: {
       cpu_percent: 0,
@@ -79,18 +86,20 @@ export default new Vuex.Store({
     SET_USER(state, user) {
       state.user = user;
     },
-    SET_THEME(state, theme) {
-      state.theme = theme;
-      localStorage.setItem('datalogger_theme', theme);
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+    SET_THEME(state, themeSetting) {
+      const effective = applyTheme(themeSetting);
+      state.uiPreferences.theme = themeSetting;
+      state.uiPreferences.effectiveTheme = effective;
+      state.theme = effective;
+    },
+    SET_EFFECTIVE_THEME(state, effective) {
+      state.uiPreferences.effectiveTheme = effective;
+      state.theme = effective;
     },
     SET_LANGUAGE(state, lang) {
+      setLocale(lang);
+      state.uiPreferences.language = lang;
       state.language = lang;
-      localStorage.setItem('datalogger_lang', lang);
     },
     SET_WS_CONNECTED(state, connected) {
       state.wsConnected = connected;
@@ -127,6 +136,17 @@ export default new Vuex.Store({
     },
   },
   actions: {
+    setTheme({ commit }, themeSetting) {
+      commit('SET_THEME', themeSetting);
+    },
+    setLanguage({ commit }, lang) {
+      commit('SET_LANGUAGE', lang);
+    },
+    initializePreferences({ commit }) {
+      const currentTheme = getStoredTheme();
+      commit('SET_THEME', currentTheme);
+      commit('SET_LANGUAGE', i18nState.locale);
+    },
     async fetchSystemStatus({ commit }) {
       try {
         const res = await axios.get(`${API_BASE}/system/status`);
