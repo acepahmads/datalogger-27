@@ -422,6 +422,7 @@ export default {
     "transactionSuccess": "Transaksi Berhasil",
     "transactionFailed": "Transaksi Gagal",
     "decodedValue": "Nilai Terdekode",
+    "modbusScaledValue": "Nilai Skala Modbus",
     "rawPduValue": "Nilai PDU Mentah",
     "bytes": "Byte:",
     "functionCode": "Kode Fungsi",

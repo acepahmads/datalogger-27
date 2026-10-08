@@ -365,8 +365,13 @@ func (p *PollingEngine) ReadParameter(
 
 		if isHeld {
 			// Sensor anomaly/timeout suppressed by hold-last-good-value grace period!
+			finalHeldVal := effVal
+			if formulaVal != nil {
+				finalHeldVal = *formulaVal
+			}
+
 			if p.deviceService != nil {
-				_ = p.deviceService.UpdateParameterCurrentValue(param.ID, effVal)
+				_ = p.deviceService.UpdateParameterCurrentValue(param.ID, finalHeldVal, formulaVal, isHeld)
 				_ = p.deviceService.UpdateLastData(device.ID)
 			}
 
@@ -381,7 +386,7 @@ func (p *PollingEngine) ReadParameter(
 					Unit:          param.Unit,
 					DataType:      param.DataType,
 					RawValue:      effVal,
-					Value:         effVal,
+					Value:         finalHeldVal,
 					FormulaValue:  formulaVal,
 					Formula:       param.Formula,
 					IsHeldValue:   true,
@@ -391,7 +396,7 @@ func (p *PollingEngine) ReadParameter(
 				})
 			}
 
-			return NewSuccessResult(
+			heldRes := NewSuccessResult(
 				device.ID,
 				device.Connection.ID,
 				param.ID,
@@ -401,9 +406,14 @@ func (p *PollingEngine) ReadParameter(
 				qty,
 				nil,
 				effVal,
-				effVal,
+				finalHeldVal,
 				elapsed,
-			), nil
+			)
+			heldRes.ScaledValue = effVal
+			heldRes.Formula = param.Formula
+			heldRes.FormulaValue = formulaVal
+			heldRes.IsHeld = true
+			return heldRes, nil
 		}
 
 		errRes := NewErrorResult(
@@ -470,8 +480,13 @@ func (p *PollingEngine) ReadParameter(
 	}
 
 	// 6. Update Device and Parameter State
+	finalVal := effVal
+	if formulaVal != nil {
+		finalVal = *formulaVal
+	}
+
 	if p.deviceService != nil {
-		_ = p.deviceService.UpdateParameterCurrentValue(param.ID, effVal)
+		_ = p.deviceService.UpdateParameterCurrentValue(param.ID, finalVal, formulaVal, isHeld)
 		_ = p.deviceService.UpdateLastData(device.ID)
 	}
 
@@ -485,9 +500,13 @@ func (p *PollingEngine) ReadParameter(
 		qty,
 		resp.Data,
 		decoded.RawValue,
-		effVal,
+		finalVal,
 		resp.ResponseTime,
 	)
+	result.ScaledValue = engVal
+	result.Formula = param.Formula
+	result.FormulaValue = formulaVal
+	result.IsHeld = isHeld
 
 	// 7. Pipeline Telemetry Ingestion (Phase 3.1)
 	if p.telemetryService != nil {
@@ -507,7 +526,7 @@ func (p *PollingEngine) ReadParameter(
 			RawBytes:      resp.Data,
 			RawHex:        result.RawHex,
 			RawValue:      decoded.RawValue,
-			Value:         effVal,
+			Value:         finalVal,
 			FormulaValue:  formulaVal,
 			Formula:       param.Formula,
 			IsHeldValue:   isHeld,

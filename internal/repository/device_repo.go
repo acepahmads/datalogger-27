@@ -307,9 +307,14 @@ func (r *DeviceRepository) RecordCommunicationResult(deviceID uint, success bool
 }
 
 // UpdateParameterCurrentValue persists the latest decoded parameter engineering value
-func (r *DeviceRepository) UpdateParameterCurrentValue(paramID uint, value float64, t time.Time) error {
-	return r.db.Model(&model.Parameter{}).Where("id = ?", paramID).Updates(map[string]interface{}{
-		"current_value": &value,
-		"last_updated":  &t,
-	}).Error
+func (r *DeviceRepository) UpdateParameterCurrentValue(paramID uint, value float64, formulaVal *float64, isHeld bool, t time.Time) error {
+	updates := map[string]interface{}{
+		"current_value":   &value,
+		"is_current_held": isHeld,
+		"last_updated":    &t,
+	}
+	if formulaVal != nil {
+		updates["current_formula_value"] = formulaVal
+	}
+	return r.db.Model(&model.Parameter{}).Where("id = ?", paramID).Updates(updates).Error
 }

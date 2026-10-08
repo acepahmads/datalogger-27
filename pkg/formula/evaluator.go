@@ -468,3 +468,13 @@ func Validate(expr string) error {
 	_, err := Evaluate(expr, dummyVars)
 	return err
 }
+
+// EvalWithXRaw evaluates an expression given x and raw numeric inputs.
+func EvalWithXRaw(expr string, x, raw float64) (float64, error) {
+	return Evaluate(expr, map[string]float64{
+		"x":     x,
+		"val":   x,
+		"value": x,
+		"raw":   raw,
+	})
+}

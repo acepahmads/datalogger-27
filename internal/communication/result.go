@@ -19,7 +19,11 @@ type CommunicationResult struct {
 	RawBytes        []byte    `json:"-"`
 	RawHex          string    `json:"raw_hex"`
 	RawValue        float64   `json:"raw_value"`
+	ScaledValue     float64   `json:"scaled_value"`
 	DecodedValue    float64   `json:"decoded_value"`
+	Formula         string    `json:"formula,omitempty"`
+	FormulaValue    *float64  `json:"formula_value,omitempty"`
+	IsHeld          bool      `json:"is_held"`
 	Success         bool      `json:"success"`
 	ErrorCode       string    `json:"error_code,omitempty"`
 	ErrorMessage    string    `json:"error_message,omitempty"`

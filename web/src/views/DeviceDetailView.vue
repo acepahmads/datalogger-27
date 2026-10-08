@@ -1695,21 +1695,44 @@
               </div>
 
               <!-- Values display if success -->
-              <div v-else class="grid grid-cols-2 gap-3 pt-1">
-                <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
-                  <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.decodedValue') }}</div>
-                  <div class="text-base font-mono font-bold text-emerald-400 mt-1">
-                    {{ testReadResult.decoded_value !== undefined && testReadResult.decoded_value !== null ? testReadResult.decoded_value : '--' }}
-                    <span class="text-xs font-normal text-slate-300 ml-1">{{ testParam.unit }}</span>
+              <div v-else class="space-y-3 pt-1">
+                <!-- Prominent Formula Result Card if formula is configured -->
+                <div v-if="getTestReadFormulaVal() !== null" class="p-3 bg-blue-950/30 rounded-xl border border-blue-500/30 space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-3xs text-blue-300 font-semibold uppercase tracking-wider flex items-center space-x-1.5">
+                      <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                      <span>{{ $t('parameters.formulaValue') }} (ƒ(x))</span>
+                    </span>
+                    <span class="text-3xs font-mono text-blue-300 bg-blue-900/50 px-2 py-0.5 rounded border border-blue-700/50">
+                      {{ testReadResult.formula || (testParam && testParam.formula) }}
+                    </span>
+                  </div>
+                  <div class="flex items-baseline space-x-2 pt-1">
+                    <span class="text-2xl font-mono font-extrabold text-blue-400">
+                      {{ getTestReadFormulaVal() }}
+                    </span>
+                    <span class="text-xs font-bold text-slate-300 font-mono">{{ testParam.unit }}</span>
                   </div>
                 </div>
-                <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
-                  <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.rawPduValue') }}</div>
-                  <div class="text-xs font-mono text-slate-200 mt-1">
-                    {{ testReadResult.raw_value !== undefined ? testReadResult.raw_value : '--' }}
-                    <span v-if="testReadResult.raw_bytes_hex" class="block text-3xs text-slate-400 font-mono mt-0.5">
-                      {{ $t('deviceDetail.bytes') }} {{ testReadResult.raw_bytes_hex }}
-                    </span>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
+                    <div class="text-3xs text-slate-400 font-semibold uppercase">
+                      {{ getTestReadFormulaVal() !== null ? $t('deviceDetail.modbusScaledValue') : $t('deviceDetail.decodedValue') }}
+                    </div>
+                    <div class="text-base font-mono font-bold text-emerald-400 mt-1">
+                      {{ getTestReadModbusVal() }}
+                      <span class="text-xs font-normal text-slate-300 ml-1">{{ testParam.unit }}</span>
+                    </div>
+                  </div>
+                  <div class="p-2.5 bg-[#0B0F19]/80 rounded-lg border border-slate-800">
+                    <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.rawPduValue') }}</div>
+                    <div class="text-xs font-mono text-slate-200 mt-1">
+                      {{ testReadResult.raw_value !== undefined ? testReadResult.raw_value : '--' }}
+                      <span v-if="testReadResult.raw_bytes_hex" class="block text-3xs text-slate-400 font-mono mt-0.5">
+                        {{ $t('deviceDetail.bytes') }} {{ testReadResult.raw_bytes_hex }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2399,8 +2422,14 @@ export default {
           parameterId: this.testParam.id,
         });
         this.testReadResult = (res && res.data && typeof res.data === 'object' && res.data.success !== undefined) ? res.data : res;
-        if (this.testReadResult && this.testReadResult.success && this.testReadResult.decoded_value !== undefined) {
-          this.testParam.current_value = this.testReadResult.decoded_value;
+        if (this.testReadResult && this.testReadResult.success) {
+          const formulaVal = this.getTestReadFormulaValNum();
+          if (formulaVal !== null) {
+            this.testParam.current_value = formulaVal;
+            this.testParam.current_formula_value = formulaVal;
+          } else if (this.testReadResult.decoded_value !== undefined) {
+            this.testParam.current_value = this.testReadResult.decoded_value;
+          }
         }
       } catch (err) {
         this.testReadResult = {
@@ -2699,6 +2728,66 @@ export default {
         return Number(param.current_formula_value).toFixed(param.precision || 2);
       }
       return null;
+    },
+    getTestReadFormulaValNum() {
+      if (!this.testReadResult) return null;
+      if (this.testReadResult.formula_value !== undefined && this.testReadResult.formula_value !== null) {
+        return Number(this.testReadResult.formula_value);
+      }
+      const formulaStr = (this.testReadResult.formula || (this.testParam && this.testParam.formula) || '').trim();
+      if (!formulaStr) return null;
+      try {
+        const x = this.getTestReadModbusValNum();
+        const raw = this.testReadResult.raw_value !== undefined ? this.testReadResult.raw_value : x;
+        const expr = formulaStr
+          .replace(/\b(pi)\b/gi, 'Math.PI')
+          .replace(/\b(e)\b/gi, 'Math.E')
+          .replace(/\b(abs)\b/gi, 'Math.abs')
+          .replace(/\b(round)\b/gi, 'Math.round')
+          .replace(/\b(floor)\b/gi, 'Math.floor')
+          .replace(/\b(ceil)\b/gi, 'Math.ceil')
+          .replace(/\b(sqrt)\b/gi, 'Math.sqrt')
+          .replace(/\b(min)\b/gi, 'Math.min')
+          .replace(/\b(max)\b/gi, 'Math.max')
+          .replace(/\b(log|ln)\b/gi, 'Math.log')
+          .replace(/\b(exp)\b/gi, 'Math.exp')
+          .replace(/\b(sin)\b/gi, 'Math.sin')
+          .replace(/\b(cos)\b/gi, 'Math.cos')
+          .replace(/\b(tan)\b/gi, 'Math.tan')
+          .replace(/\^/g, '**')
+          .replace(/\b(x|val|value)\b/gi, `(${x})`)
+          .replace(/\b(raw)\b/gi, `(${raw})`);
+        const res = Function(`"use strict"; return (${expr});`)();
+        if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
+          return res;
+        }
+      } catch (e) {}
+      return null;
+    },
+    getTestReadFormulaVal() {
+      const num = this.getTestReadFormulaValNum();
+      if (num === null) return null;
+      return num.toFixed(this.testParam ? this.testParam.precision : 2);
+    },
+    getTestReadModbusValNum() {
+      if (!this.testReadResult) return 0;
+      if (this.testReadResult.scaled_value !== undefined && this.testReadResult.scaled_value !== null) {
+        return Number(this.testReadResult.scaled_value);
+      }
+      if (this.testReadResult.decoded_value !== undefined && this.testReadResult.decoded_value !== null) {
+        return Number(this.testReadResult.decoded_value);
+      }
+      return 0;
+    },
+    getTestReadModbusVal() {
+      if (!this.testReadResult) return '--';
+      if (this.testReadResult.scaled_value !== undefined && this.testReadResult.scaled_value !== null) {
+        return Number(this.testReadResult.scaled_value).toFixed(this.testParam ? this.testParam.precision : 2);
+      }
+      if (this.testReadResult.decoded_value !== undefined && this.testReadResult.decoded_value !== null) {
+        return Number(this.testReadResult.decoded_value).toFixed(this.testParam ? this.testParam.precision : 2);
+      }
+      return '--';
     },
     formatParamValue(param) {
       if (this.liveTelemetry[param.id] !== undefined) {

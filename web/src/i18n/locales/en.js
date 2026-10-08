@@ -422,6 +422,7 @@ export default {
     "transactionSuccess": "Transaction Succeeded",
     "transactionFailed": "Transaction Failed",
     "decodedValue": "Decoded Value",
+    "modbusScaledValue": "Modbus Scaled Value",
     "rawPduValue": "Raw PDU Value",
     "bytes": "Bytes:",
     "functionCode": "Function Code",

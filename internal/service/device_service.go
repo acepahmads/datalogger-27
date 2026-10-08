@@ -573,8 +573,8 @@ func (s *DeviceService) RecordCommunicationResult(deviceID uint, success bool, l
 	return s.repo.RecordCommunicationResult(deviceID, success, latencyMs)
 }
 
-func (s *DeviceService) UpdateParameterCurrentValue(paramID uint, value float64) error {
-	return s.repo.UpdateParameterCurrentValue(paramID, value, time.Now())
+func (s *DeviceService) UpdateParameterCurrentValue(paramID uint, value float64, formulaVal *float64, isHeld bool) error {
+	return s.repo.UpdateParameterCurrentValue(paramID, value, formulaVal, isHeld, time.Now())
 }
 
 // Parameters Management (Section 8 & 16)
@@ -787,8 +787,17 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 			if err := formula.Validate(cleanFormula); err != nil {
 				return nil, fmt.Errorf("invalid formula syntax: %w", err)
 			}
+			param.Formula = cleanFormula
+			if param.CurrentValue != nil {
+				if res, err := formula.EvalWithXRaw(cleanFormula, *param.CurrentValue, *param.CurrentValue); err == nil {
+					param.CurrentFormulaValue = &res
+					param.CurrentValue = &res
+				}
+			}
+		} else {
+			param.Formula = ""
+			param.CurrentFormulaValue = nil
 		}
-		param.Formula = cleanFormula
 	}
 	if req.HoldLastValueEnabled != nil {
 		param.HoldLastValueEnabled = *req.HoldLastValueEnabled
