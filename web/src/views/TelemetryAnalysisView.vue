@@ -1114,8 +1114,8 @@ export default {
         const key = fn ? `${devId}_${paramId}_${fn}` : `${devId}_${paramId}`;
 
         if (!groups.has(key)) {
-          const devCode = r.device?.device_code || this.getDeviceCode(devId);
-          const devName = r.device?.device_name || this.getDeviceName(devId);
+          const deviceCode = r.device?.device_code || this.getDeviceCode(devId);
+          const deviceName = r.device?.device_name || this.getDeviceName(devId);
           const paramCode = r.parameter?.parameter_code || this.getParamCode(paramId);
           const paramName = r.parameter?.parameter_name || this.getParamName(paramId);
           const unit = r.parameter?.unit !== undefined ? r.parameter.unit : this.getParamUnit(paramId);
@@ -1243,7 +1243,8 @@ export default {
 
       let latestMeasurement = null;
       if (latestRec) {
-        const devCode = latestRec.device?.device_code || this.getDeviceCode(latestRec.device_id);
+        const deviceCode = latestRec.device?.device_code || this.getDeviceCode(latestRec.device_id);
+        const deviceName = latestRec.device?.device_name || this.getDeviceName(latestRec.device_id);
         const paramCode = latestRec.parameter?.parameter_code || this.getParamCode(latestRec.parameter_id);
         const paramName = latestRec.parameter?.parameter_name || this.getParamName(latestRec.parameter_id);
         const unit = latestRec.parameter?.unit !== undefined ? latestRec.parameter.unit : this.getParamUnit(latestRec.parameter_id);
@@ -1253,6 +1254,7 @@ export default {
           value: val,
           unit,
           deviceCode,
+          deviceName,
           paramCode,
           paramName,
           timestamp: latestRec.received_at || latestRec.timestamp || latestRec.period_end || latestRec.period_start,
