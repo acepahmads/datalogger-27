@@ -2,7 +2,9 @@ package queue
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -663,4 +665,198 @@ func (q *WALQueue) updateMetrics() {
 	}
 
 	q.currentSpoolSize = totalSize
+}
+
+// Snapshot creates a consistent, validated copy of uncommitted WAL segments and checkpoint in destDir
+func (q *WALQueue) Snapshot(destDir string) (*model.WALManifestInfo, error) {
+	if atomic.LoadInt32(&q.closed) == 1 {
+		return nil, errors.New("WAL queue is closed")
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.readMu.Lock()
+	defer q.readMu.Unlock()
+
+	// 1. Flush active file buffer to disk
+	if q.activeFile != nil {
+		_ = q.activeFile.Sync()
+	}
+
+	// 2. Ensure destDir exists
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed creating WAL snapshot destination: %w", err)
+	}
+
+	// 3. Copy checkpoint.json
+	cpSrc := q.checkpointPath()
+	cpDst := filepath.Join(destDir, "checkpoint.json")
+	if err := copyFile(cpSrc, cpDst); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed copying checkpoint file: %w", err)
+	}
+
+	// 4. Identify segments from checkpoint.SegmentIndex up to activeIndex
+	segments, err := q.listSegments()
+	if err != nil {
+		return nil, fmt.Errorf("failed listing segments for snapshot: %w", err)
+	}
+
+	var artifacts []model.ArtifactInfo
+	var totalSize int64
+
+	for _, segIdx := range segments {
+		if segIdx < q.checkpoint.SegmentIndex && segIdx != q.activeIndex {
+			continue
+		}
+
+		srcPath := q.segmentPath(segIdx)
+		dstPath := filepath.Join(destDir, filepath.Base(srcPath))
+
+		fi, err := os.Stat(srcPath)
+		if err != nil {
+			continue
+		}
+
+		sha256Hex, crc, err := copyAndChecksum(srcPath, dstPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed copying segment %d: %w", segIdx, err)
+		}
+
+		artifacts = append(artifacts, model.ArtifactInfo{
+			Path:        filepath.Base(srcPath),
+			SizeBytes:   fi.Size(),
+			SHA256:      sha256Hex,
+			CRC32:       crc,
+			Description: fmt.Sprintf("WAL Segment %06d", segIdx),
+		})
+		totalSize += fi.Size()
+	}
+
+	pendingCount := q.PendingCount()
+
+	info := &model.WALManifestInfo{
+		PendingRecords:    pendingCount,
+		SpoolSizeBytes:    totalSize,
+		CheckpointSegment: q.checkpoint.SegmentIndex,
+		CheckpointOffset:  q.checkpoint.Offset,
+		ActiveSegment:     q.activeIndex,
+		ActiveOffset:      q.activeOffset,
+		SegmentFiles:      artifacts,
+	}
+
+	return info, nil
+}
+
+// RestoreSnapshot restores the WAL queue directory from a verified snapshot directory
+func (q *WALQueue) RestoreSnapshot(snapshotDir string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.readMu.Lock()
+	defer q.readMu.Unlock()
+
+	// 1. Close current active file
+	if q.activeFile != nil {
+		_ = q.activeFile.Close()
+		q.activeFile = nil
+	}
+
+	// 2. Remove all existing segment files and checkpoint in q.cfg.Dir
+	entries, err := os.ReadDir(q.cfg.Dir)
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			if strings.HasSuffix(e.Name(), ".wal") || e.Name() == "checkpoint.json" {
+				_ = os.Remove(filepath.Join(q.cfg.Dir, e.Name()))
+			}
+		}
+	}
+
+	// 3. Copy all files from snapshotDir into q.cfg.Dir
+	snapEntries, err := os.ReadDir(snapshotDir)
+	if err != nil {
+		return fmt.Errorf("failed reading snapshot directory: %w", err)
+	}
+
+	for _, e := range snapEntries {
+		if e.IsDir() {
+			continue
+		}
+		src := filepath.Join(snapshotDir, e.Name())
+		dst := filepath.Join(q.cfg.Dir, e.Name())
+		if err := copyFile(src, dst); err != nil {
+			return fmt.Errorf("failed restoring WAL file %s: %w", e.Name(), err)
+		}
+	}
+
+	// 4. Re-open checkpoint and active segment
+	if err := q.loadCheckpoint(); err != nil {
+		q.checkpoint = Checkpoint{
+			SegmentIndex: 1,
+			Offset:       0,
+			LastAckedAt:  time.Now().UTC(),
+		}
+	}
+	segments, err := q.listSegments()
+	if err == nil && len(segments) > 0 {
+		q.activeIndex = segments[len(segments)-1]
+	} else {
+		q.activeIndex = 1
+	}
+
+	if err := q.openActiveSegmentForAppend(); err != nil {
+		return fmt.Errorf("failed opening active segment after restore: %w", err)
+	}
+
+	q.updateMetrics()
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
+}
+
+func copyAndChecksum(src, dst string) (string, uint32, error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return "", 0, err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return "", 0, err
+	}
+	defer out.Close()
+
+	shaWriter := sha256.New()
+	crcWriter := crc32.NewIEEE()
+	multiWriter := io.MultiWriter(out, shaWriter, crcWriter)
+
+	if _, err := io.Copy(multiWriter, in); err != nil {
+		return "", 0, err
+	}
+	if err := out.Sync(); err != nil {
+		return "", 0, err
+	}
+
+	shaHex := hex.EncodeToString(shaWriter.Sum(nil))
+	crcVal := crcWriter.Sum32()
+	return shaHex, crcVal, nil
 }

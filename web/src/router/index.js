@@ -13,6 +13,7 @@ import AlarmsView from '../views/AlarmsView.vue';
 import LogsView from '../views/LogsView.vue';
 import ReleaseDocView from '../views/ReleaseDocView.vue';
 import ConfigView from '../views/ConfigView.vue';
+import BackupRestoreView from '../views/BackupRestoreView.vue';
 
 Vue.use(VueRouter);
 
@@ -34,6 +35,7 @@ const routes = [
   { path: '/system/logs', name: 'SystemLogs', component: LogsView },
   { path: '/system/audit', name: 'AuditTrails', component: LogsView },
   { path: '/administration/config', name: 'Configuration', component: ConfigView },
+  { path: '/administration/backup', name: 'BackupRestore', component: BackupRestoreView },
   { path: '*', redirect: '/dashboard' },
 ];
 

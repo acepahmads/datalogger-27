@@ -67,6 +67,14 @@ type SystemStatusOverview struct {
 	QueueChecksumErrors uint64  `json:"queue_checksum_errors"`
 	QueueDiskPercent    float64 `json:"queue_disk_percent"`
 
+	// Backup & Restore Diagnostics (Phase 4.3)
+	BackupStatus        string  `json:"backup_status"`
+	LastBackupTime      string  `json:"last_backup_time"`
+	LastBackupStatus    string  `json:"last_backup_status"`
+	TotalBackupsCount   int     `json:"total_backups_count"`
+	BackupStorageUsedMB float64 `json:"backup_storage_used_mb"`
+	ActiveBackupJob     string  `json:"active_backup_job"`
+
 	// Data
 	DataReceivedCount int64   `json:"data_received_count"`
 	DataPerSec        float64 `json:"data_per_sec"`

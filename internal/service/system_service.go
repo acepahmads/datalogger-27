@@ -16,6 +16,7 @@ type SystemService struct {
 	phaseRepo        *repository.PhaseRepository
 	cfg              *config.Config
 	telemetryService *TelemetryService
+	backupService    *BackupService
 }
 
 func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *repository.PhaseRepository, cfg *config.Config) *SystemService {
@@ -28,6 +29,10 @@ func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *reposi
 
 func (s *SystemService) SetTelemetryService(ts *TelemetryService) {
 	s.telemetryService = ts
+}
+
+func (s *SystemService) SetBackupService(bs *BackupService) {
+	s.backupService = bs
 }
 
 func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, error) {
@@ -167,6 +172,32 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		} else {
 			overview.QueueStatus = "HEALTHY"
 		}
+	}
+
+	if s.backupService != nil {
+		bStats := s.backupService.GetStatus()
+		if st, ok := bStats["status"].(string); ok {
+			overview.BackupStatus = st
+		}
+		if t, ok := bStats["last_backup_time"].(string); ok {
+			overview.LastBackupTime = t
+		}
+		if st, ok := bStats["last_backup_status"].(model.BackupStatus); ok {
+			overview.LastBackupStatus = string(st)
+		} else if st, ok := bStats["last_backup_status"].(string); ok {
+			overview.LastBackupStatus = st
+		}
+		if cnt, ok := bStats["total_valid_backups"].(int64); ok {
+			overview.TotalBackupsCount = int(cnt)
+		}
+		if mb, ok := bStats["storage_used_mb"].(float64); ok {
+			overview.BackupStorageUsedMB = mb
+		}
+		if act, ok := bStats["active_operation"].(string); ok {
+			overview.ActiveBackupJob = act
+		}
+	} else {
+		overview.BackupStatus = "READY"
 	}
 
 	return overview, nil

@@ -161,5 +161,50 @@ func TestMigrationPhase4Tracking(t *testing.T) {
 			t.Errorf("Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
 		}
 	}
+
+	// 7. Check Subphase 4.3
+	var sub4_3 model.DevelopmentSubphase
+	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 3)", phase4.ID, "%Phase 4.3%").First(&sub4_3).Error; err != nil {
+		t.Fatalf("Subphase 4.3 not found: %v", err)
+	}
+	if sub4_3.Progress < 100.0 {
+		t.Errorf("Subphase 4.3 progress should be 100%%, got %.2f%%", sub4_3.Progress)
+	}
+	if sub4_3.Status != "DONE" {
+		t.Errorf("Subphase 4.3 status should be DONE, got %s", sub4_3.Status)
+	}
+
+	// 8. Check all 13 subtasks in Subphase 4.3
+	var tasks43 []model.DevelopmentTask
+	if err := db.Where("subphase_id = ? AND status = ?", sub4_3.ID, model.StatusDone).Order("order_index ASC").Find(&tasks43).Error; err != nil {
+		t.Fatalf("Failed to fetch subtasks for 4.3: %v", err)
+	}
+	if len(tasks43) != 13 {
+		t.Fatalf("Expected 13 subtasks for Phase 4.3, got %d", len(tasks43))
+	}
+
+	for _, task := range tasks43 {
+		if task.Status != model.StatusDone {
+			t.Errorf("Task '%s' status should be DONE, got %s", task.TaskName, task.Status)
+		}
+		if task.Progress < 100.0 {
+			t.Errorf("Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
+		}
+	}
+
+	// 9. Check legacy tasks 45 & 46 are SUPERSEDED
+	var legacyBackup model.DevelopmentTask
+	if err := db.Where("phase_id = ? AND (task_name = ? OR id = 45)", phase4.ID, "Backup").First(&legacyBackup).Error; err == nil {
+		if legacyBackup.Status != model.StatusSuperseded {
+			t.Errorf("Legacy task 45 should be SUPERSEDED, got %s", legacyBackup.Status)
+		}
+	}
+
+	// 10. Check backup permissions exist
+	var backupPermCount int64
+	db.Model(&model.Permission{}).Where("category = ?", "BACKUP").Count(&backupPermCount)
+	if backupPermCount != 5 {
+		t.Errorf("Expected 5 BACKUP permissions, got %d", backupPermCount)
+	}
 }
 

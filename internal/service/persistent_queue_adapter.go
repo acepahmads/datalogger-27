@@ -293,3 +293,24 @@ func (a *PersistentQueueAdapter) GetHealth() (string, int) {
 	defer a.mu.RUnlock()
 	return a.persistenceStatus, a.consecutiveDBFailures
 }
+
+// Snapshot delegates WAL snapshot creation to underlying WAL queue
+func (a *PersistentQueueAdapter) Snapshot(destDir string) (*model.WALManifestInfo, error) {
+	if a.wal == nil {
+		return &model.WALManifestInfo{}, nil
+	}
+	return a.wal.Snapshot(destDir)
+}
+
+// RestoreSnapshot restores WAL queue files from a snapshot directory and resets replayer
+func (a *PersistentQueueAdapter) RestoreSnapshot(snapshotDir string) error {
+	if a.wal == nil {
+		return nil
+	}
+	return a.wal.RestoreSnapshot(snapshotDir)
+}
+
+// GetWAL returns the underlying WAL queue instance
+func (a *PersistentQueueAdapter) GetWAL() *queue.WALQueue {
+	return a.wal
+}

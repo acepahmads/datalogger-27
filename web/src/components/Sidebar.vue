@@ -170,6 +170,14 @@
             <span>{{ $t('navigation.configuration') }}</span>
           </router-link>
 
+          <router-link to="/administration/backup" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/backup' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16m-8 4v6m0 0l-3-3m3 3l3-3"></path>
+            </svg>
+            <span>{{ $t('navigation.backupRestore') }}</span>
+          </router-link>
+
           <router-link to="/administration/config" class="nav-item">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">

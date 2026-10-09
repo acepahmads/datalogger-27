@@ -101,6 +101,16 @@ func main() {
 	aggService.StartWorker()
 	defer aggService.StopWorker()
 
+	// 7d. Initialize Backup & Restore Subsystem (Phase 4.3)
+	backupRepo := repository.NewBackupRepository(db)
+	dbBackupAdapter := service.NewDatabaseBackupAdapter(db, cfg)
+	backupService := service.NewBackupService(db, cfg, backupRepo, dbBackupAdapter, telemetryService.GetWALAdapter(), telemetryService, systemRepo)
+	systemService.SetBackupService(backupService)
+
+	backupScheduler := service.NewBackupScheduler(backupService, cfg)
+	backupScheduler.Start()
+	defer backupScheduler.Stop()
+
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)
 	sched.Start()
@@ -133,6 +143,7 @@ func main() {
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
 	aggHandler := handler.NewAggregationHandler(aggService)
+	backupHandler := handler.NewBackupHandler(backupService, backupScheduler)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -265,6 +276,24 @@ func main() {
 		api.GET("/system/database/status", systemHandler.GetDatabaseStatus)
 		api.POST("/system/database/test", systemHandler.TestDatabaseConnection)
 		api.POST("/system/database/config", systemHandler.SaveDatabaseConfig)
+
+		// Phase 4.3 — Backup & Restore Management (Authenticated & Authorized)
+		backupGroup := api.Group("/backups")
+		backupGroup.Use(middleware.JWTAuth(authService))
+		{
+			backupGroup.GET("", middleware.RequirePermission("backup.view"), backupHandler.ListBackups)
+			backupGroup.GET("/status", middleware.RequirePermission("backup.view"), backupHandler.GetStatus)
+			backupGroup.GET("/schedule", middleware.RequirePermission("backup.view"), backupHandler.GetSchedule)
+			backupGroup.PUT("/schedule", middleware.RequirePermission("backup.manage"), backupHandler.UpdateSchedule)
+			backupGroup.GET("/jobs/:jobId", middleware.RequirePermission("backup.view"), backupHandler.GetJob)
+			backupGroup.GET("/:id", middleware.RequirePermission("backup.view"), backupHandler.GetBackup)
+			backupGroup.GET("/:id/restore-preview", middleware.RequirePermission("backup.view"), backupHandler.GetRestorePreview)
+			backupGroup.GET("/:id/download", middleware.RequirePermission("backup.view"), backupHandler.DownloadBackup)
+			backupGroup.POST("", middleware.RequirePermission("backup.create"), backupHandler.CreateBackup)
+			backupGroup.POST("/:id/validate", middleware.RequirePermission("backup.validate"), backupHandler.ValidateBackup)
+			backupGroup.POST("/:id/restore", middleware.RequirePermission("backup.restore"), backupHandler.RestoreBackup)
+			backupGroup.DELETE("/:id", middleware.RequirePermission("backup.manage"), backupHandler.DeleteBackup)
+		}
 	}
 
 	// 11. Serve Web UI Static Assets (if web/dist exists)

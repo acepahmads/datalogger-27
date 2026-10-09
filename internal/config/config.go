@@ -37,6 +37,15 @@ type Config struct {
 	QueueSyncMode        string  `json:"queue_sync_mode"` // "batch", "always", "none"
 	QueueFlushIntervalMs int     `json:"queue_flush_interval_ms"`
 	QueueDiskWarnPercent float64 `json:"queue_disk_warn_percent"`
+
+	// Phase 4.3: Backup & Restore Configuration
+	BackupDir                   string `json:"backup_dir"`
+	BackupScheduleEnabled       bool   `json:"backup_schedule_enabled"`
+	BackupScheduleIntervalHours int    `json:"backup_schedule_interval_hours"`
+	BackupScheduleTime          string `json:"backup_schedule_time"`
+	BackupCompression           string `json:"backup_compression"` // "gzip", "none"
+	BackupMinFreeSpaceMB        int64  `json:"backup_min_free_space_mb"`
+	BackupMaxKeepCount          int    `json:"backup_max_keep_count"`
 }
 
 var (
@@ -47,32 +56,39 @@ var (
 // DefaultConfig returns the default configuration with MariaDB as production database.
 func DefaultConfig() *Config {
 	return &Config{
-		AppName:              "Datalogger Analysis Application",
-		Version:              "1.0.0-phase1",
-		Environment:          "development",
-		Port:                 "8080",
-		Host:                 "0.0.0.0",
-		DBType:               "mariadb",
-		DBHost:               "127.0.0.1",
-		DBPort:               "3306",
-		DBUser:               "root",
-		DBPassword:           "",
-		DBName:               "datalogger",
-		DBPath:               filepath.Join("data", "datalogger.db"),
-		JWTSecret:            "datalogger-local-secret-key-prod-2026",
-		JWTExpirationHours:   24,
-		LogLevel:             "info",
-		LogDir:               "logs",
-		DataDir:              "data",
-		EnableCloudSync:      false,
-		CloudEndpoint:        "",
-		QueueEnabled:         true,
-		QueueDir:             filepath.Join("data", "queue"),
-		QueueMaxSizeBytes:    100 * 1024 * 1024, // 100 MB
-		QueueBatchSize:       50,
-		QueueSyncMode:        "batch",
-		QueueFlushIntervalMs: 250,
-		QueueDiskWarnPercent: 80.0,
+		AppName:                     "Datalogger Analysis Application",
+		Version:                     "1.0.0-phase1",
+		Environment:                 "development",
+		Port:                        "8080",
+		Host:                        "0.0.0.0",
+		DBType:                      "mariadb",
+		DBHost:                      "127.0.0.1",
+		DBPort:                      "3306",
+		DBUser:                      "root",
+		DBPassword:                  "",
+		DBName:                      "datalogger",
+		DBPath:                      filepath.Join("data", "datalogger.db"),
+		JWTSecret:                   "datalogger-local-secret-key-prod-2026",
+		JWTExpirationHours:          24,
+		LogLevel:                    "info",
+		LogDir:                      "logs",
+		DataDir:                     "data",
+		EnableCloudSync:             false,
+		CloudEndpoint:               "",
+		QueueEnabled:                true,
+		QueueDir:                    filepath.Join("data", "queue"),
+		QueueMaxSizeBytes:           100 * 1024 * 1024, // 100 MB
+		QueueBatchSize:              50,
+		QueueSyncMode:               "batch",
+		QueueFlushIntervalMs:        250,
+		QueueDiskWarnPercent:        80.0,
+		BackupDir:                   filepath.Join("data", "backups"),
+		BackupScheduleEnabled:       true,
+		BackupScheduleIntervalHours: 24,
+		BackupScheduleTime:          "02:00",
+		BackupCompression:           "gzip",
+		BackupMinFreeSpaceMB:        500,
+		BackupMaxKeepCount:          10,
 	}
 }
 
@@ -155,10 +171,23 @@ func Load(configPath string) (*Config, error) {
 	if qSync := os.Getenv("DATALOGGER_QUEUE_SYNC_MODE"); qSync != "" {
 		cfg.QueueSyncMode = qSync
 	}
+	if bDir := os.Getenv("DATALOGGER_BACKUP_DIR"); bDir != "" {
+		cfg.BackupDir = bDir
+	}
+	if bSched := os.Getenv("DATALOGGER_BACKUP_SCHEDULE_ENABLED"); bSched != "" {
+		cfg.BackupScheduleEnabled = bSched == "true" || bSched == "1"
+	}
+	if bComp := os.Getenv("DATALOGGER_BACKUP_COMPRESSION"); bComp != "" {
+		cfg.BackupCompression = bComp
+	}
+	if bTime := os.Getenv("DATALOGGER_BACKUP_TIME"); bTime != "" {
+		cfg.BackupScheduleTime = bTime
+	}
 
-	// Ensure data, log, and queue directories exist
+	// Ensure data, log, queue, and backup directories exist
 	_ = os.MkdirAll(cfg.DataDir, 0755)
 	_ = os.MkdirAll(cfg.LogDir, 0755)
+	_ = os.MkdirAll(cfg.BackupDir, 0755)
 	_ = os.MkdirAll(filepath.Dir(cfg.DBPath), 0755)
 	if cfg.QueueEnabled {
 		_ = os.MkdirAll(cfg.QueueDir, 0755)
