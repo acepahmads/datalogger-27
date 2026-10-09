@@ -186,6 +186,14 @@ func (s *PhaseService) UpdateTask(id uint, updates map[string]interface{}, usern
 	if testResult, ok := updates["test_result"].(string); ok {
 		task.TestResult = testResult
 	}
+	if spID, ok := updates["subphase_id"]; ok {
+		if spID == nil {
+			task.SubphaseID = nil
+		} else if spIDNum, ok := spID.(float64); ok && spIDNum > 0 {
+			uVal := uint(spIDNum)
+			task.SubphaseID = &uVal
+		}
+	}
 
 	if err := s.phaseRepo.UpdateTask(task); err != nil {
 		return nil, err

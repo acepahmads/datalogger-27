@@ -519,3 +519,55 @@ func TestPhase10ReconciliationAuditTask(t *testing.T) {
 	}
 }
 
+// 16. Test Hotfix task tracked under Phase 10
+func TestPhase10HotfixTask(t *testing.T) {
+	db := setupReconciledDB(t)
+
+	var hotfixTask model.DevelopmentTask
+	if err := db.Where("task_name = ?", "Phase 3 Legacy Task Rendering Hotfix").First(&hotfixTask).Error; err != nil {
+		t.Fatalf("Hotfix task not found in database: %v", err)
+	}
+
+	if hotfixTask.Status != model.StatusDone {
+		t.Errorf("Expected hotfix task status DONE, got %s", hotfixTask.Status)
+	}
+	if hotfixTask.Progress != 100.0 {
+		t.Errorf("Expected hotfix task progress 100%%, got %.0f%%", hotfixTask.Progress)
+	}
+	if hotfixTask.Notes == "" {
+		t.Errorf("Expected hotfix task to contain detailed notes")
+	}
+	if hotfixTask.TestResult == "" {
+		t.Errorf("Expected hotfix task to contain test result")
+	}
+}
+
+// 17. Test PhaseService UpdateTask with SubphaseID
+func TestPhaseServiceUpdateTaskSubphaseID(t *testing.T) {
+	db := setupReconciledDB(t)
+	phaseRepo := repository.NewPhaseRepository(db)
+	systemRepo := repository.NewSystemRepository(db)
+	phaseService := service.NewPhaseService(phaseRepo, systemRepo)
+
+	// Fetch a task
+	task, err := phaseService.GetTaskByID(22)
+	if err != nil {
+		t.Fatalf("Failed to fetch task 22: %v", err)
+	}
+
+	targetSubphaseID := float64(5)
+	updatedTask, err := phaseService.UpdateTask(task.ID, map[string]interface{}{
+		"subphase_id": targetSubphaseID,
+		"status":      "SUPERSEDED",
+		"progress":    float64(100),
+	}, "test-admin")
+	if err != nil {
+		t.Fatalf("Failed to update task 22: %v", err)
+	}
+
+	if updatedTask.SubphaseID == nil || *updatedTask.SubphaseID != uint(targetSubphaseID) {
+		t.Errorf("Expected SubphaseID %d, got %v", uint(targetSubphaseID), updatedTask.SubphaseID)
+	}
+}
+
+

@@ -276,3 +276,47 @@ All verification suites were executed against the code changes:
 1. **Phase 1, Phase 2, and Phase 3:** Fully accepted, verified, and reconciled at **100%**.
 2. **Hardware Validation Note (Phase 2.3):** Physical RS485 transceiver testing remains marked as `DEFERRED (Hardware Not Available)`. Simulator verification passed with 100% coverage.
 3. **Next Active Milestone:** The system is primed for **Phase 4 — Reliability & Storage** (Auto-recovery, local queues, data integrity checks, database backup/restore, and automated retention policies).
+
+---
+
+## 9. Hotfix — Runtime MariaDB Database & Deployment Synchronization
+
+### A. Root Cause of Inconsistency in Live Dashboard
+Following the initial reconciliation commit, users observed that the actual browser dashboard still showed tasks #22–#39 as `PENDING 0%`. A complete multi-tier data path investigation identified:
+
+1. **Environment Mismatch (SQLite Test Memory vs. Runtime MariaDB):**  
+   The Go migration `updatePhase3Tracking` was validated against in-memory SQLite in `go test`. However, the live system operates on a remote edge host (`cbi`, Linux ARM64, `192.168.1.53`) running a dedicated MariaDB database (`11.8.6-MariaDB-0+deb13u1 from Debian`).
+2. **Stale Running Daemon:**  
+   The systemd service `/opt/datalogger/datalogger` on `192.168.1.53` was executing a previous binary build from 2026-10-08. Because the service had not restarted with new migration code, the runtime MariaDB database still retained the seeded state from 2026-10-05 for tasks #22–#39 (`PENDING`, `progress: 0%`, `subphase_id: NULL`).
+3. **Cross-Platform Binary Staleness:**  
+   The pre-compiled Linux binaries in `bin/` (`datalogger-linux-arm64`, `datalogger-linux-amd64`, etc.) used by `scripts/update-linux.sh` had not been rebuilt, meaning any pull/restart would re-execute the pre-reconciliation binary.
+4. **Service DTO Field Gap:**  
+   In `internal/service/phase_service.go`, `UpdateTask()` did not extract `subphase_id` from the update payload map, preventing dynamic reassignment of subphase foreign keys through REST API calls.
+
+### B. Corrections Implemented
+1. **Live Runtime MariaDB Synchronization:**  
+   Executed automated HTTP REST updates (`PUT /api/tasks/:id`) directly against `http://192.168.1.53:8080/api/tasks/{22..39}`. All 18 tasks were updated to `status: "SUPERSEDED"`, `progress: 100`, with traceability notes and test verification strings.
+2. **Service Layer Extension:**  
+   Updated `phase_service.go` `UpdateTask()` to parse and persist `subphase_id`, allowing future administrative updates to reassign tasks cleanly.
+3. **Cross-Platform Binary Compilation:**  
+   Recompiled all 4 architecture targets via `scripts/build-cross-platform.bat`:
+   - `bin/datalogger-linux-arm64` (Raspberry Pi 4/5)
+   - `bin/datalogger-linux-amd64` (Linux x64)
+   - `bin/datalogger-linux-armv7` (Raspberry Pi 3/Zero)
+   - `bin/datalogger-windows-amd64.exe` (Windows x64)
+4. **Frontend Asset Rebuild:**  
+   Rebuilt the Vue 2 production bundle via `npm run build` (`dist/assets/index-*.js`, `dist/assets/index-*.css`).
+5. **Phase 10 Progress Tracking:**  
+   Created and completed Task #213 ("Phase 3 Legacy Task Rendering Hotfix") under Phase 10 with status `DONE`, progress `100%`.
+
+### C. Live Runtime Confirmation (192.168.1.53:8080)
+- **Phase 3 Status:** `COMPLETED`
+- **Phase 3 Progress:** `100%`
+- **Active Deliverables in Phase 3:** `65 / 65` (`100% DONE`)
+- **Superseded Tasks in Phase 3:** `18` (`100% SUPERSEDED`)
+- **Tasks #22–#39 PENDING Count:** `0` (Zero stale PENDING badges)
+- **Subphase 3.1 Progress:** `100% DONE` (16 active deliverables)
+- **Subphase 3.2 Progress:** `100% DONE` (22 active deliverables)
+- **Subphase 3.3 Progress:** `100% DONE` (27 active deliverables)
+- **Overall Project Progress:** `40.37%`
+
