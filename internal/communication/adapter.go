@@ -12,6 +12,37 @@ type ModbusReadRequest = modbus.ModbusReadRequest
 type ModbusReadResponse = modbus.ModbusReadResponse
 type DiagnosticCode = modbus.DiagnosticCode
 type DiagnosticResult = modbus.DiagnosticResult
+type DiagnosticStageStatus = modbus.DiagnosticStageStatus
+type FailureCategory = modbus.FailureCategory
+type EngineeringDiagnosticReport = modbus.EngineeringDiagnosticReport
+type PortEvidence = modbus.PortEvidence
+type SerialConfigEvidence = modbus.SerialConfigEvidence
+type ModbusTransactionEvidence = modbus.ModbusTransactionEvidence
+type DataInterpretationEvidence = modbus.DataInterpretationEvidence
+type DiagnosticStageEvidence = modbus.DiagnosticStageEvidence
+
+const (
+	StagePass                 = modbus.StagePass
+	StageFail                 = modbus.StageFail
+	StageInsufficientEvidence = modbus.StageInsufficientEvidence
+	StageNotTested            = modbus.StageNotTested
+
+	FailCategoryNone             = modbus.FailCategoryNone
+	FailCategoryPortNotFound     = modbus.FailCategoryPortNotFound
+	FailCategoryBrokenSymlink    = modbus.FailCategoryBrokenSymlink
+	FailCategoryPermissionDenied = modbus.FailCategoryPermissionDenied
+	FailCategoryPortBusy         = modbus.FailCategoryPortBusy
+	FailCategoryPortOpenFailed   = modbus.FailCategoryPortOpenFailed
+	FailCategoryTransmitFailed   = modbus.FailCategoryTransmitFailed
+	FailCategoryTimeout          = modbus.FailCategoryTimeout
+	FailCategoryInvalidCRC       = modbus.FailCategoryInvalidCRC
+	FailCategoryModbusException  = modbus.FailCategoryModbusException
+	FailCategoryFrameCorrupted   = modbus.FailCategoryFrameCorrupted
+	FailCategoryRegisterConfig   = modbus.FailCategoryRegisterConfig
+	FailCategoryDecodeError      = modbus.FailCategoryDecodeError
+)
+
+var InspectSerialPort = modbus.InspectSerialPort
 
 const (
 	StateDisconnected ConnectionState = modbus.StateDisconnected

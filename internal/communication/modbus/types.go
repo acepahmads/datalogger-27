@@ -83,13 +83,50 @@ type ModbusReadRequest struct {
 	Quantity        uint16
 }
 
-// ModbusReadResponse contains the raw response payload and latency
+// ModbusReadResponse contains the raw response payload, latency, and captured frame traces
 type ModbusReadResponse struct {
-	SlaveID      byte
-	FunctionCode byte
-	ByteCount    byte
-	Data         []byte
-	ResponseTime time.Duration
+	SlaveID          byte
+	FunctionCode     byte
+	ByteCount        byte
+	Data             []byte
+	ResponseTime     time.Duration
+	RequestADU       []byte
+	ResponseADU      []byte
+	CRCExpected      uint16
+	CRCReceived      uint16
+	CRCPassed        bool
+	ExceptionCode    byte
+	ExceptionMessage string
+}
+
+// ModbusTransactionError carries structured frame information when a Modbus transaction fails
+type ModbusTransactionError struct {
+	Category         FailureCategory
+	Message          string
+	RequestADU       []byte
+	ResponseADU      []byte
+	RequestSent      bool
+	ResponseReceived bool
+	CRCExpected      uint16
+	CRCReceived      uint16
+	CRCPassed        bool
+	ExceptionCode    byte
+	ExceptionMessage string
+	Err              error
+}
+
+func (e *ModbusTransactionError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return "modbus transaction error"
+}
+
+func (e *ModbusTransactionError) Unwrap() error {
+	return e.Err
 }
 
 // AdapterStatus captures the real-time operational state and metrics of a protocol adapter

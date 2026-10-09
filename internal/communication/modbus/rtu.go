@@ -189,6 +189,19 @@ func ResetSharedBuses() {
 	sharedBuses = make(map[string]*SharedSerialBus)
 }
 
+// IsPortOwnedByBus checks if a physical serial port currently has an active transport open in SharedSerialBus
+func IsPortOwnedByBus(portPath string) bool {
+	sharedBusesMu.Lock()
+	defer sharedBusesMu.Unlock()
+	b, exists := sharedBuses[portPath]
+	if !exists || b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.transport != nil
+}
+
 // ModbusRTUAdapter implements ProtocolAdapter for RS485/RS232 Modbus RTU devices
 type ModbusRTUAdapter struct {
 	config    *model.DeviceConnection
@@ -357,24 +370,6 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 
 	start := time.Now()
 
-	// Ensure port is open
-	if (bus != nil && bus.transport == nil) || a.transport == nil || a.status.State != StateConnected {
-		tr, err := a.opener(a.config)
-		if err != nil {
-			a.status.State = StateError
-			a.status.LastError = err.Error()
-			a.status.FailedCount++
-			return nil, fmt.Errorf("serial port offline: %w", err)
-		}
-		if bus != nil {
-			bus.transport = tr
-		}
-		a.transport = tr
-		now := time.Now()
-		a.status.State = StateConnected
-		a.status.ConnectedSince = &now
-	}
-
 	slaveID := req.SlaveID
 	if slaveID == 0 {
 		slaveID = byte(a.config.SlaveID)
@@ -392,6 +387,30 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 
 	reqADU := AppendCRC16(reqPDU)
 
+	// Ensure port is open
+	if (bus != nil && bus.transport == nil) || a.transport == nil || a.status.State != StateConnected {
+		tr, err := a.opener(a.config)
+		if err != nil {
+			a.status.State = StateError
+			a.status.LastError = err.Error()
+			a.status.FailedCount++
+			return nil, &ModbusTransactionError{
+				Category:    FailCategoryPortOpenFailed,
+				Message:     fmt.Sprintf("serial port offline: %v", err),
+				RequestADU:  reqADU,
+				RequestSent: false,
+				Err:         err,
+			}
+		}
+		if bus != nil {
+			bus.transport = tr
+		}
+		a.transport = tr
+		now := time.Now()
+		a.status.State = StateConnected
+		a.status.ConnectedSince = &now
+	}
+
 	// Set deadline
 	timeout := time.Duration(a.config.Timeout) * time.Millisecond
 	if timeout <= 0 {
@@ -402,14 +421,31 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	// Write Request
 	if _, err := a.transport.Write(reqADU); err != nil {
 		a.handleSerialError(err)
-		return nil, fmt.Errorf("Modbus RTU serial write failed: %w", err)
+		return nil, &ModbusTransactionError{
+			Category:    FailCategoryTransmitFailed,
+			Message:     fmt.Sprintf("Modbus RTU serial write failed: %v", err),
+			RequestADU:  reqADU,
+			RequestSent: false,
+			Err:         err,
+		}
 	}
 
 	// 2. Read Response Header (2 bytes: SlaveID and FunctionCode)
 	hdr := make([]byte, 2)
 	if _, err := io.ReadFull(a.transport, hdr); err != nil {
 		a.handleSerialError(err)
-		return nil, fmt.Errorf("Modbus RTU read header failed: %w", err)
+		cat := FailCategoryTimeout
+		if !isTimeoutError(err) && isFatalSerialError(err) {
+			cat = FailCategoryTransmitFailed
+		}
+		return nil, &ModbusTransactionError{
+			Category:         cat,
+			Message:          fmt.Sprintf("Modbus RTU read header failed: %v", err),
+			RequestADU:       reqADU,
+			RequestSent:      true,
+			ResponseReceived: false,
+			Err:              err,
+		}
 	}
 
 	respSlaveID := hdr[0]
@@ -417,7 +453,15 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 
 	// Validate Slave ID
 	if respSlaveID != slaveID {
-		return nil, fmt.Errorf("unexpected slave ID in response: expected %d, got %d", slaveID, respSlaveID)
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("unexpected slave ID in response: expected %d, got %d", slaveID, respSlaveID),
+			RequestADU:       reqADU,
+			ResponseADU:      hdr,
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              fmt.Errorf("unexpected slave ID in response: expected %d, got %d", slaveID, respSlaveID),
+		}
 	}
 
 	// Check for Exception Response (FC | 0x80)
@@ -425,30 +469,74 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 		exBuf := make([]byte, 3) // exCode + 2 CRC bytes
 		if _, err := io.ReadFull(a.transport, exBuf); err != nil {
 			a.handleSerialError(err)
-			return nil, fmt.Errorf("failed reading exception payload: %w", err)
+			return nil, &ModbusTransactionError{
+				Category:         FailCategoryFrameCorrupted,
+				Message:          fmt.Sprintf("failed reading exception payload: %v", err),
+				RequestADU:       reqADU,
+				ResponseADU:      hdr,
+				RequestSent:      true,
+				ResponseReceived: true,
+				Err:              err,
+			}
 		}
 
 		fullExFrame := append(hdr, exBuf...)
 		if !ValidateCRC16(fullExFrame) {
-			return nil, fmt.Errorf("invalid CRC16 on Modbus exception response")
+			return nil, &ModbusTransactionError{
+				Category:         FailCategoryInvalidCRC,
+				Message:          "invalid CRC16 on Modbus exception response",
+				RequestADU:       reqADU,
+				ResponseADU:      fullExFrame,
+				RequestSent:      true,
+				ResponseReceived: true,
+				CRCPassed:        false,
+				Err:              fmt.Errorf("invalid CRC16 on Modbus exception response"),
+			}
 		}
 
 		exCode := exBuf[0]
 		a.status.FailedCount++
 		a.status.LastError = fmt.Sprintf("Modbus Exception: %s", ModbusExceptionName(exCode))
-		return nil, fmt.Errorf("Modbus exception response: %s", ModbusExceptionName(exCode))
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryModbusException,
+			Message:          fmt.Sprintf("Modbus exception response: %s", ModbusExceptionName(exCode)),
+			RequestADU:       reqADU,
+			ResponseADU:      fullExFrame,
+			RequestSent:      true,
+			ResponseReceived: true,
+			ExceptionCode:    exCode,
+			ExceptionMessage: ModbusExceptionName(exCode),
+			CRCPassed:        true,
+			Err:              fmt.Errorf("Modbus exception response: %s", ModbusExceptionName(exCode)),
+		}
 	}
 
 	// Validate Function Code
 	if respFC != req.FunctionCode {
-		return nil, fmt.Errorf("unexpected function code: expected %02X, got %02X", req.FunctionCode, respFC)
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("unexpected function code: expected %02X, got %02X", req.FunctionCode, respFC),
+			RequestADU:       reqADU,
+			ResponseADU:      hdr,
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              fmt.Errorf("unexpected function code: expected %02X, got %02X", req.FunctionCode, respFC),
+		}
 	}
 
 	// Read Byte Count (1 byte)
 	bcBuf := make([]byte, 1)
 	if _, err := io.ReadFull(a.transport, bcBuf); err != nil {
 		a.handleSerialError(err)
-		return nil, fmt.Errorf("failed reading byte count: %w", err)
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("failed reading byte count: %v", err),
+			RequestADU:       reqADU,
+			ResponseADU:      hdr,
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              err,
+		}
 	}
 	byteCount := bcBuf[0]
 
@@ -456,15 +544,37 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	dataWithCRC := make([]byte, int(byteCount)+2)
 	if _, err := io.ReadFull(a.transport, dataWithCRC); err != nil {
 		a.handleSerialError(err)
-		return nil, fmt.Errorf("failed reading register data: %w", err)
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("failed reading register data: %v", err),
+			RequestADU:       reqADU,
+			ResponseADU:      append(hdr, byteCount),
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              err,
+		}
 	}
 
 	// Assemble full frame for CRC verification
 	fullFrame := append([]byte{respSlaveID, respFC, byteCount}, dataWithCRC...)
+	expCRC := CalculateCRC16(fullFrame[:len(fullFrame)-2])
+	recCRC := binary.LittleEndian.Uint16(fullFrame[len(fullFrame)-2:])
+
 	if !ValidateCRC16(fullFrame) {
 		a.status.FailedCount++
 		a.status.LastError = "CRC16 validation failed on received frame"
-		return nil, fmt.Errorf("CRC16 validation failed: frame corrupted or noise on serial line")
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryInvalidCRC,
+			Message:          fmt.Sprintf("CRC16 validation failed: expected %04X, received %04X", expCRC, recCRC),
+			RequestADU:       reqADU,
+			ResponseADU:      fullFrame,
+			RequestSent:      true,
+			ResponseReceived: true,
+			CRCExpected:      expCRC,
+			CRCReceived:      recCRC,
+			CRCPassed:        false,
+			Err:              fmt.Errorf("CRC16 validation failed: frame corrupted or noise on serial line"),
+		}
 	}
 
 	data := dataWithCRC[:byteCount]
@@ -476,11 +586,16 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	a.status.LastError = ""
 
 	return &ModbusReadResponse{
-		SlaveID:      respSlaveID,
-		FunctionCode: respFC,
-		ByteCount:    byteCount,
-		Data:         data,
-		ResponseTime: elapsed,
+		SlaveID:          respSlaveID,
+		FunctionCode:     respFC,
+		ByteCount:        byteCount,
+		Data:             data,
+		ResponseTime:     elapsed,
+		RequestADU:       reqADU,
+		ResponseADU:      fullFrame,
+		CRCExpected:      expCRC,
+		CRCReceived:      recCRC,
+		CRCPassed:        true,
 	}, nil
 }
 

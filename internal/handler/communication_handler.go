@@ -214,15 +214,27 @@ func (h *CommunicationHandler) TestReadParameter(c *gin.Context) {
 		return
 	}
 
-	result, err := h.pollingEngine.ReadParameterOnDemand(c.Request.Context(), uint(deviceID), uint(paramID))
+	dev, err := h.deviceService.GetDeviceByID(uint(deviceID))
 	if err != nil {
-		if result != nil {
-			response.OK(c, result)
+		response.NotFound(c, "Device not found")
+		return
+	}
+
+	param, err := h.deviceService.GetParameter(uint(deviceID), uint(paramID))
+	if err != nil {
+		response.NotFound(c, "Parameter not found")
+		return
+	}
+
+	report, err := h.connManager.DiagnosticParameterRead(c.Request.Context(), dev, param)
+	if err != nil {
+		if report != nil {
+			response.OK(c, report)
 			return
 		}
 		response.InternalError(c, "Diagnostic read failed: "+err.Error())
 		return
 	}
 
-	response.OK(c, result)
+	response.OK(c, report)
 }
