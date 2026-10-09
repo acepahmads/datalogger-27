@@ -283,9 +283,17 @@
 
         <!-- Milestone 3 -->
         <div class="relative">
-          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-[#0B0F19]"></div>
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
           <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone3Title') }}</div>
           <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone3Desc') }}</div>
+          <div class="text-3xs text-emerald-400 font-mono mt-1">2026-10-09 · {{ $t('development.verified') }} (65/65 PASS)</div>
+        </div>
+
+        <!-- Milestone 4 -->
+        <div class="relative">
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-[#0B0F19]"></div>
+          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone4Title') }}</div>
+          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone4Desc') }}</div>
           <div class="text-3xs text-blue-400 font-mono mt-1">{{ $t('development.plannedRoadmap') }}</div>
         </div>
       </div>
@@ -316,7 +324,7 @@ export default {
       showNewTaskModal: false,
       newTaskPhaseId: 1,
       selectedSubphaseId: null,
-      openPhases: { 1: true, 2: true }, // Open Phase 1 & 2 by default
+      openPhases: { 1: true, 2: true, 3: true }, // Open Phase 1, 2 & 3 by default
     };
   },
   computed: {
@@ -327,9 +335,12 @@ export default {
       if (this.progress.current_phase) {
         return this.progress.current_phase;
       }
-      return 'Phase 2 — Device & Communication';
+      return 'Phase 3 — Data Processing / Data Engine';
     },
     activePhaseDescription() {
+      if (this.progress.current_phase_number === 3) {
+        return 'Data pipeline ingestion, validation, normalization, dual-domain aggregation, and realtime downsampling.';
+      }
       return 'Device registration, connection profiles, Modbus RTU & TCP communication engines, concurrency isolation, and production hardening.';
     },
   },

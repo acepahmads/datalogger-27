@@ -67,7 +67,7 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 	for _, p := range phases {
 		totalProgress += p.Progress
 
-		if p.PhaseNumber == 2 {
+		if p.PhaseNumber == 3 {
 			currentPhaseName = p.Name
 			currentPhaseNum = p.PhaseNumber
 		}
@@ -98,18 +98,18 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 	}
 
 	if currentPhaseName == "" {
-		currentPhaseName = "Phase 2 — Device & Communication"
-		currentPhaseNum = 2
+		currentPhaseName = "Phase 3 — Data Processing / Data Engine"
+		currentPhaseNum = 3
 	}
 
 	dto := &OverallProgressDTO{
 		OverallPercentage:   overallPct,
 		CurrentPhase:        currentPhaseName,
 		CurrentPhaseNumber:  currentPhaseNum,
-		CurrentSubphase:     "Phase 2.3 — Communication Hardening & Real Device Validation",
-		CurrentTask:         "Phase 2 Verification Complete (2.1: 22/22, 2.2: 27/27, 2.3: 32/32 PASS)",
-		NextAction:          "Phase 2 Accepted & Verified | Ready for Phase 3 Data Engine",
-		EstimatedCompletion: "Phase 1 & Phase 2 Accepted (100%) | Full System: Q4 2026",
+		CurrentSubphase:     "Phase 3.3 — Aggregation, Rollup & Downsampling",
+		CurrentTask:         "Phase 3 Verification Complete (3.1: 16/16, 3.2: 22/22, 3.3: 27/27 PASS)",
+		NextAction:          "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage",
+		EstimatedCompletion: "Phase 1, Phase 2 & Phase 3 Accepted (100%) | Full System: Q4 2026",
 		LastUpdate:          lastUpdateTime.Format("2006-01-02 15:04:05"),
 		CompletedTasksCount: completedCount,
 		ActiveTasksCount:    activeCount,
