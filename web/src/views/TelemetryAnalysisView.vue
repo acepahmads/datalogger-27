@@ -545,7 +545,7 @@
         >
           <div class="text-3xs text-slate-400 font-mono">{{ formatTimestamp(activePoint.timestamp) }}</div>
           <div class="flex items-baseline space-x-1.5 mt-0.5">
-            <span class="text-sm font-bold text-white font-mono">{{ activePoint.value.toFixed(2) }}</span>
+            <span class="text-sm font-bold text-white font-mono">{{ formatVal(activePoint.value) }}</span>
             <span class="text-3xs text-slate-400 font-mono">{{ activeUnit }}</span>
             <span class="ml-1 px-1 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(activePoint.quality)">
               {{ activePoint.quality }}
@@ -709,12 +709,12 @@
               </td>
               <td class="py-2.5 px-4 text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
               <td class="py-2.5 px-4 text-right font-bold text-white text-xs">
-                {{ r.value !== null ? r.value.toFixed(2) : '--' }}
+                {{ formatVal(r.value) }}
               </td>
               <td class="py-2.5 px-4 text-indigo-300 font-bold">{{ r.function }}</td>
               <td class="py-2.5 px-4 text-slate-400">{{ formatInterval(r.interval_seconds) }}</td>
               <td class="py-2.5 px-4 text-right text-slate-400 text-3xs">
-                {{ r.min_value !== null ? r.min_value.toFixed(1) : '--' }} / {{ r.max_value !== null ? r.max_value.toFixed(1) : '--' }}
+                {{ formatVal(r.min_value, 1) }} / {{ formatVal(r.max_value, 1) }}
               </td>
               <td class="py-2.5 px-4 text-center text-3xs text-slate-400">
                 <span class="text-white font-bold">{{ r.sample_count }}</span>
@@ -915,11 +915,11 @@ export default {
       }
 
       return {
-        latest: latestVal !== null && latestVal !== undefined ? Number(latestVal.toFixed(2)) : null,
+        latest: latestVal !== null && latestVal !== undefined && !isNaN(latestVal) ? Number(Number(latestVal).toFixed(2)) : null,
         latestTime,
-        min: min !== Infinity ? Number(min.toFixed(2)) : null,
-        max: max !== -Infinity ? Number(max.toFixed(2)) : null,
-        avg: validCount > 0 ? Number((sum / validCount).toFixed(2)) : null,
+        min: min !== Infinity && min !== -Infinity && !isNaN(min) ? Number(min.toFixed(2)) : null,
+        max: max !== -Infinity && max !== Infinity && !isNaN(max) ? Number(max.toFixed(2)) : null,
+        avg: validCount > 0 && !isNaN(sum / validCount) ? Number((sum / validCount).toFixed(2)) : null,
         sampleCount: this.records.length,
         goodCount,
         goodPercent: this.records.length > 0 ? Math.round((goodCount / this.records.length) * 100) : 100,
@@ -951,21 +951,24 @@ export default {
 
       const vals = sorted.map((r) => {
         if (this.activeMode === 'HISTORICAL') {
-          return r.processed_value !== undefined ? r.processed_value : r.value;
+          return r.processed_value !== undefined && r.processed_value !== null ? r.processed_value : (r.value !== undefined && r.value !== null ? r.value : 0);
         }
         if (this.activeMode === 'RAW') {
-          return this.rawChartMode === 'raw' ? r.raw_value : r.value;
+          return this.rawChartMode === 'raw'
+            ? (r.raw_value !== undefined && r.raw_value !== null ? r.raw_value : 0)
+            : (r.value !== undefined && r.value !== null ? r.value : 0);
         }
-        return r.value !== null ? r.value : 0;
+        return r.value !== null && r.value !== undefined ? r.value : 0;
       });
 
-      let minVal = Math.min(...vals);
-      let maxVal = Math.max(...vals);
-      if (minVal === maxVal) {
+      const validVals = vals.filter((v) => v !== null && v !== undefined && !isNaN(v));
+      let minVal = validVals.length > 0 ? Math.min(...validVals) : 0;
+      let maxVal = validVals.length > 0 ? Math.max(...validVals) : 100;
+      if (minVal === maxVal || !isFinite(minVal) || !isFinite(maxVal)) {
         minVal -= 1;
         maxVal += 1;
       }
-      const valSpan = maxVal - minVal;
+      const valSpan = maxVal - minVal || 1;
 
       return sorted.map((r, idx) => {
         const t = times[idx];
@@ -1035,7 +1038,7 @@ export default {
         const y = padTop + plotH - frac * plotH;
         ticks.push({
           y,
-          label: val.toFixed(1),
+          label: isNaN(val) || !isFinite(val) ? '--' : val.toFixed(1),
         });
       }
       return ticks;
@@ -1298,9 +1301,9 @@ export default {
       }
       return '';
     },
-    formatVal(v) {
+    formatVal(v, decimals = 2) {
       if (v === null || v === undefined || isNaN(v)) return '--';
-      return Number(v).toFixed(2);
+      return Number(v).toFixed(decimals);
     },
     formatInterval(seconds) {
       if (!seconds) return '--';
