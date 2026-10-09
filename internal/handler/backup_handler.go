@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -249,22 +250,80 @@ func (h *BackupHandler) DeleteBackup(c *gin.Context) {
 // DownloadBackup streams the backup archive file to authorized client
 func (h *BackupHandler) DownloadBackup(c *gin.Context) {
 	id := c.Param("id")
+	if id == "" || strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\") {
+		response.BadRequest(c, "Invalid backup ID")
+		return
+	}
+
 	record, _, err := h.backupService.GetBackupByID(id)
-	if err != nil || record.FilePath == "" {
+	if err != nil || record == nil || record.FilePath == "" {
 		response.NotFound(c, "Backup file not found")
 		return
 	}
 
-	if _, err := os.Stat(record.FilePath); err != nil {
-		response.NotFound(c, "Backup file missing from storage")
+	// Reject path traversal and verify path is within configured backup directory
+	backupDir := h.backupService.GetBackupDir()
+	cleanBackupDir, err := filepath.Abs(filepath.Clean(backupDir))
+	if err != nil {
+		response.InternalError(c, "Backup storage directory configuration error")
 		return
 	}
 
+	cleanFilePath, err := filepath.Abs(filepath.Clean(record.FilePath))
+	if err != nil {
+		response.BadRequest(c, "Invalid backup file path")
+		return
+	}
+
+	// Verify cleanFilePath is located strictly inside cleanBackupDir
+	rel, err := filepath.Rel(cleanBackupDir, cleanFilePath)
+	if err != nil || strings.HasPrefix(rel, "..") || rel == "." {
+		response.Forbidden(c, "Access denied: file path is outside the authorized backup directory")
+		return
+	}
+
+	// Verify the archive exists and is readable
+	fi, err := os.Stat(cleanFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			response.NotFound(c, "Backup file missing from storage disk")
+		} else {
+			response.InternalError(c, "Backup file inaccessible on storage disk")
+		}
+		return
+	}
+
+	if fi.IsDir() {
+		response.BadRequest(c, "Requested resource is a directory, not an archive file")
+		return
+	}
+
+	f, err := os.Open(cleanFilePath)
+	if err != nil {
+		response.InternalError(c, "Backup archive file is not readable")
+		return
+	}
+	_ = f.Close()
+
+	// Safe filename extraction
+	safeFilename := filepath.Base(record.Filename)
+	if safeFilename == "" || safeFilename == "." || safeFilename == "/" {
+		safeFilename = fmt.Sprintf("%s.tar.gz", id)
+	}
+	// Sanitize filename of any quotes or control chars
+	safeFilename = strings.ReplaceAll(safeFilename, "\"", "")
+	safeFilename = strings.ReplaceAll(safeFilename, "\r", "")
+	safeFilename = strings.ReplaceAll(safeFilename, "\n", "")
+
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Transfer-Encoding", "binary")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", record.Filename))
 	c.Header("Content-Type", "application/gzip")
-	c.File(record.FilePath)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", safeFilename))
+	c.Header("Content-Length", fmt.Sprintf("%d", fi.Size()))
+	c.Header("Access-Control-Expose-Headers", "Content-Disposition, Content-Length")
+
+	// c.File uses http.ServeFile which streams using io.Copy without loading whole file to RAM
+	c.File(cleanFilePath)
 }
 
 // GetSchedule returns current scheduler configuration

@@ -846,6 +846,14 @@ func (s *BackupService) PruneOldBackups(keepMax int) (int, error) {
 	return deleted, nil
 }
 
+// GetBackupDir returns the configured storage directory for backup archives
+func (s *BackupService) GetBackupDir() string {
+	if s.cfg != nil && s.cfg.BackupDir != "" {
+		return s.cfg.BackupDir
+	}
+	return filepath.Join("data", "backups")
+}
+
 // ----------------- Internal Helper Methods -----------------
 
 func (s *BackupService) updateJob(job *model.BackupJob, progress float64, stage string) {

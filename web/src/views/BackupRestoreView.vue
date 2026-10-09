@@ -147,6 +147,32 @@
           </div>
         </div>
 
+        <!-- Download Error Banner -->
+        <div v-if="downloadError" class="p-3 bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>{{ downloadError }}</span>
+          </div>
+          <button @click="downloadError = ''" class="text-rose-400 hover:text-rose-300 text-3xs font-semibold uppercase px-2 py-0.5 rounded hover:bg-rose-500/20">
+            Dismiss
+          </button>
+        </div>
+
+        <!-- Download Success Banner -->
+        <div v-if="downloadSuccessMsg" class="p-3 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-400 text-xs flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>{{ downloadSuccessMsg }}</span>
+          </div>
+          <button @click="downloadSuccessMsg = ''" class="text-emerald-400 hover:text-emerald-300 text-3xs font-semibold uppercase px-2 py-0.5 rounded hover:bg-emerald-500/20">
+            Dismiss
+          </button>
+        </div>
+
         <!-- Table View -->
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs font-sans">
@@ -270,10 +296,14 @@
 
                     <!-- Download Archive -->
                     <button @click="downloadBackup(b.id || b.backup_id)"
-                            class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
-                            title="Download .tar.gz">
-                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            :disabled="downloadingId === (b.id || b.backup_id)"
+                            class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors disabled:opacity-50"
+                            :title="downloadingId === (b.id || b.backup_id) ? 'Downloading...' : 'Download .tar.gz'">
+                       <svg v-if="downloadingId !== (b.id || b.backup_id)" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                       </svg>
+                       <svg v-else class="animate-spin w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
                        </svg>
                     </button>
 
@@ -591,6 +621,9 @@ export default {
       restoring: false,
       savingSchedule: false,
       validatingId: null,
+      downloadingId: null,
+      downloadError: '',
+      downloadSuccessMsg: '',
       page: 1,
       pageSize: 15,
       totalCount: 0,
@@ -876,9 +909,102 @@ export default {
         this.restoring = false;
       }
     },
-    downloadBackup(backupId) {
-      const url = `/api/backups/${backupId}/download`;
-      window.open(url, '_blank');
+    async downloadBackup(backupId) {
+      if (!backupId || this.downloadingId) return;
+
+      this.downloadingId = backupId;
+      this.downloadError = '';
+      this.downloadSuccessMsg = '';
+
+      try {
+        const token = this.$store ? this.$store.state.token : localStorage.getItem('token');
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const res = await axios.get(`/api/backups/${backupId}/download`, {
+          responseType: 'blob',
+          headers,
+        });
+
+        // Verify response is valid non-empty binary data
+        const blob = res.data;
+        if (!blob || blob.size === 0) {
+          throw new Error('Downloaded backup archive is empty.');
+        }
+
+        // Verify that the response is an archive rather than a JSON error payload
+        if (blob.type === 'application/json' || (blob.type && blob.type.includes('json'))) {
+          const text = await blob.text();
+          let serverErr = 'Server returned an error response instead of the archive file.';
+          try {
+            const errObj = JSON.parse(text);
+            if (errObj && errObj.error) {
+              serverErr = errObj.error;
+            }
+          } catch (_) {}
+          throw new Error(serverErr);
+        }
+
+        // Derive filename from Content-Disposition header, falling back to safe ID-based name
+        let filename = `${backupId}.tar.gz`;
+        const disposition = res.headers ? (res.headers['content-disposition'] || res.headers['Content-Disposition']) : null;
+        if (disposition) {
+          const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i);
+          if (match && match[1]) {
+            filename = decodeURIComponent(match[1].trim());
+          }
+        }
+
+        // Create temporary browser download URL and trigger download
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Release temporary object URL after download has been initiated
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+        }, 1000);
+
+        this.downloadSuccessMsg = `Backup archive '${filename}' downloaded successfully (${this.formatBytes(blob.size)}).`;
+      } catch (err) {
+        let errorMsg = 'Failed to download backup archive.';
+        if (err.response) {
+          if (err.response.status === 401) {
+            errorMsg = 'Session expired or authentication missing. Please log in again.';
+          } else if (err.response.status === 403) {
+            errorMsg = 'Access denied: insufficient permission (backup.view required).';
+          } else if (err.response.status === 404) {
+            errorMsg = 'Backup archive not found on storage server.';
+          } else if (err.response.status >= 500) {
+            errorMsg = 'Server encountered an error while streaming the backup archive.';
+          }
+
+          // If response body is a Blob (due to responseType: 'blob'), parse the underlying JSON error
+          if (err.response.data && typeof err.response.data.text === 'function') {
+            try {
+              const text = await err.response.data.text();
+              const json = JSON.parse(text);
+              if (json && json.error) {
+                errorMsg = json.error;
+              }
+            } catch (_) {}
+          } else if (err.response.data && err.response.data.error) {
+            errorMsg = err.response.data.error;
+          }
+        } else if (err.message) {
+          errorMsg = err.message;
+        }
+
+        this.downloadError = errorMsg;
+      } finally {
+        this.downloadingId = null;
+      }
     },
     async deleteBackup(backupId) {
       if (!confirm(`Are you sure you want to permanently delete backup archive ${backupId}?`)) {
