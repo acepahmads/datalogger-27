@@ -73,14 +73,19 @@
         <div class="saas-card p-4 space-y-1">
           <div class="flex items-center justify-between">
             <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans">{{ $t('backup.healthStatus') }}</span>
-            <span class="w-2 h-2 rounded-full" :class="statusData.subsystem_healthy ? 'bg-emerald-400' : 'bg-rose-400'"></span>
+            <span class="w-2 h-2 rounded-full" :class="isSubsystemHealthy ? 'bg-emerald-400' : 'bg-rose-400'"></span>
           </div>
           <div class="text-sm font-bold text-white font-sans flex items-center space-x-1.5">
-            <span :class="statusData.subsystem_healthy ? 'text-emerald-400' : 'text-rose-400'">
-              {{ statusData.subsystem_healthy ? 'HEALTHY' : 'DEGRADED' }}
+            <span :class="isSubsystemHealthy ? 'text-emerald-400' : 'text-rose-400'">
+              {{ isSubsystemHealthy ? 'HEALTHY' : 'DEGRADED' }}
             </span>
           </div>
-          <span class="text-3xs text-slate-400 block font-mono">
+          <span v-if="!isSubsystemHealthy && statusData.degradation_reasons && statusData.degradation_reasons.length"
+                class="text-3xs text-rose-300 block truncate font-mono"
+                :title="statusData.degradation_reasons.join('; ')">
+            {{ statusData.degradation_reasons[0] }}
+          </span>
+          <span v-else class="text-3xs text-slate-400 block font-mono">
             MariaDB + WAL Spool
           </span>
         </div>
@@ -89,7 +94,7 @@
         <div class="saas-card p-4 space-y-1">
           <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">{{ $t('backup.totalBackups') }}</span>
           <div class="text-lg font-bold text-white font-mono">
-            {{ statusData.total_backups || backupsList.length || 0 }}
+            {{ statusData.total_backups !== undefined ? statusData.total_backups : (statusData.total_valid_backups !== undefined ? statusData.total_valid_backups : (backupsList ? backupsList.length : 0)) }}
           </div>
           <span class="text-3xs text-slate-400 block font-sans">
             {{ validCount }} Validated
@@ -100,10 +105,10 @@
         <div class="saas-card p-4 space-y-1">
           <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">{{ $t('backup.storageUsed') }}</span>
           <div class="text-lg font-bold text-blue-400 font-mono">
-            {{ formatBytes(statusData.storage_used_bytes || 0) }}
+            {{ formatBytes(statusData.storage_used_bytes !== undefined ? statusData.storage_used_bytes : statusData.total_storage_bytes) }}
           </div>
           <span class="text-3xs text-slate-400 block font-sans">
-            Free: {{ formatBytes(statusData.free_disk_bytes || 0) }}
+            Free: {{ formatBytes(statusData.free_disk_bytes !== undefined ? statusData.free_disk_bytes : statusData.free_bytes) }}
           </span>
         </div>
 
@@ -111,10 +116,10 @@
         <div class="saas-card p-4 space-y-1">
           <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">{{ $t('backup.lastBackup') }}</span>
           <div class="text-xs font-semibold text-slate-200 font-mono truncate">
-            {{ statusData.last_successful_backup ? formatDate(statusData.last_successful_backup) : 'Never' }}
+            {{ (statusData.last_successful_backup || statusData.last_backup_time) ? formatDate(statusData.last_successful_backup || statusData.last_backup_time) : 'Never' }}
           </div>
           <span class="text-3xs text-slate-400 block font-sans">
-            Next: {{ statusData.next_scheduled_run ? formatDate(statusData.next_scheduled_run) : 'Disabled' }}
+            Next: {{ (statusData.next_scheduled_run || (statusData.schedule && statusData.schedule.next_run_time)) ? formatDate(statusData.next_scheduled_run || statusData.schedule.next_run_time) : 'Disabled' }}
           </span>
         </div>
       </div>
@@ -173,14 +178,16 @@
                   {{ $t('backup.noBackups') }}
                 </td>
               </tr>
-              <tr v-for="b in backupsList" :key="b.backup_id" class="hover:bg-slate-800/30 transition-colors">
+              <tr v-for="b in backupsList" :key="b.id || b.backup_id" class="hover:bg-slate-800/30 transition-colors">
                 <!-- Backup ID -->
                 <td class="py-2.5 px-4 font-mono text-slate-200">
                   <div class="flex items-center space-x-1.5">
                     <span class="w-1.5 h-1.5 rounded-full" :class="getBackupStatusDot(b.status)"></span>
-                    <span class="font-semibold text-xs">{{ b.backup_id }}</span>
+                    <span class="font-semibold text-xs">{{ b.id || b.backup_id }}</span>
                   </div>
-                  <span v-if="b.notes" class="text-3xs text-slate-400 block truncate max-w-xs mt-0.5">{{ b.notes }}</span>
+                  <span v-if="b.notes || b.error_message" class="text-3xs text-slate-400 block truncate max-w-xs mt-0.5">
+                    {{ b.notes || b.error_message }}
+                  </span>
                 </td>
 
                 <!-- Created At -->
@@ -191,14 +198,14 @@
                 <!-- Type Badge -->
                 <td class="py-2.5 px-3 whitespace-nowrap">
                   <span class="px-2 py-0.5 rounded text-3xs font-semibold uppercase tracking-wider"
-                        :class="getBackupTypeBadge(b.backup_type)">
-                    {{ b.backup_type }}
+                        :class="getBackupTypeBadge(b.type || b.backup_type)">
+                    {{ b.type || b.backup_type }}
                   </span>
                 </td>
 
                 <!-- Size -->
                 <td class="py-2.5 px-3 font-mono text-slate-300 text-2xs whitespace-nowrap">
-                  {{ formatBytes(b.total_size_bytes) }}
+                  {{ formatBytes(b.size_bytes !== undefined ? b.size_bytes : b.total_size_bytes) }}
                 </td>
 
                 <!-- Validation Status -->
@@ -213,14 +220,15 @@
                 <td class="py-2.5 px-3 whitespace-nowrap">
                   <span class="px-2 py-0.5 rounded text-3xs font-semibold"
                         :class="b.consistency_status === 'CONSISTENT' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
-                    {{ b.consistency_status || 'CONSISTENT' }}
+                    {{ b.consistency_status || (b.status === 'COMPLETED' ? 'CONSISTENT' : 'INCONSISTENT') }}
                   </span>
                 </td>
 
                 <!-- Restore Compatibility -->
                 <td class="py-2.5 px-3 whitespace-nowrap">
                   <span class="px-2 py-0.5 rounded text-3xs font-semibold"
-                        :class="b.is_compatible ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'">
+                        :class="b.is_compatible ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'"
+                        :title="b.is_compatible ? 'Archive verified and ready for restore' : (b.validation_details || 'Archive incomplete or missing')">
                     {{ b.is_compatible ? 'COMPATIBLE' : 'INCOMPATIBLE' }}
                   </span>
                 </td>
@@ -232,49 +240,51 @@
                     <button @click="openDetails(b)"
                             class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
                             title="View Manifest">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                      </svg>
+                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                       </svg>
                     </button>
 
                     <!-- Validate Integrity -->
-                    <button @click="validateBackup(b.backup_id)" :disabled="validatingId === b.backup_id"
+                    <button @click="validateBackup(b.id || b.backup_id)" :disabled="validatingId === (b.id || b.backup_id)"
                             class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 transition-colors"
                             title="Validate Integrity">
-                      <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': validatingId === b.backup_id }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
+                       <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': validatingId === (b.id || b.backup_id) }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                       </svg>
                     </button>
 
                     <!-- Restore Action -->
-                    <button @click="prepareRestore(b.backup_id)"
-                            class="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-3xs font-semibold transition-colors flex items-center"
-                            title="Restore Database">
-                      <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <polyline points="1 4 1 10 7 10"></polyline>
-                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                      </svg>
-                      {{ $t('backup.restore') }}
+                    <button @click="prepareRestore(b.id || b.backup_id)"
+                            :disabled="!b.is_compatible"
+                            class="px-2 py-1 rounded text-3xs font-semibold transition-colors flex items-center"
+                            :class="b.is_compatible ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 cursor-pointer' : 'bg-slate-800 text-slate-500 border border-slate-700 opacity-60 cursor-not-allowed'"
+                            :title="b.is_compatible ? 'Restore Database' : 'Restore disabled: backup not validated or missing'">
+                       <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                         <polyline points="1 4 1 10 7 10"></polyline>
+                         <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                       </svg>
+                       {{ $t('backup.restore') }}
                     </button>
 
                     <!-- Download Archive -->
-                    <button @click="downloadBackup(b.backup_id)"
+                    <button @click="downloadBackup(b.id || b.backup_id)"
                             class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
                             title="Download .tar.gz">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                      </svg>
+                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                       </svg>
                     </button>
 
                     <!-- Delete Backup -->
-                    <button @click="deleteBackup(b.backup_id)"
+                    <button @click="deleteBackup(b.id || b.backup_id)"
                             class="p-1 rounded hover:bg-rose-950 text-slate-400 hover:text-rose-400 transition-colors"
                             title="Delete Backup">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                      </svg>
+                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                         <polyline points="3 6 5 6 21 6"></polyline>
+                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                       </svg>
                     </button>
                   </div>
                 </td>
@@ -420,7 +430,7 @@
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
-            <span>{{ $t('backup.manifestDetails') }} — {{ selectedBackup.backup_id }}</span>
+            <span>{{ $t('backup.manifestDetails') }} — {{ selectedBackup.id || selectedBackup.backup_id }}</span>
           </h3>
           <button @click="showDetailsModal = false" class="text-slate-400 hover:text-white">&times;</button>
         </div>
@@ -430,7 +440,7 @@
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Backup Version</span>
-              <span class="font-mono text-slate-200 text-xs font-bold">{{ selectedManifest.backup_version }}</span>
+              <span class="font-mono text-slate-200 text-xs font-bold">{{ selectedManifest.format_version || selectedManifest.backup_version || '1.0' }}</span>
             </div>
             <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">App Version</span>
@@ -466,28 +476,28 @@
           </div>
 
           <!-- Artifacts and Checksums -->
-          <div v-if="selectedManifest.database && selectedManifest.database.artifact" class="space-y-2">
+          <div v-if="selectedManifest.database && (selectedManifest.database.artifact || (selectedManifest.artifacts && selectedManifest.artifacts.length))" class="space-y-2">
             <span class="font-semibold text-slate-300 block">Database Dump Artifact</span>
             <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800 text-2xs font-mono space-y-1">
               <div class="flex justify-between">
                 <span class="text-slate-400">File:</span>
-                <span class="text-white">{{ selectedManifest.database.artifact.path }} ({{ formatBytes(selectedManifest.database.artifact.size_bytes) }})</span>
+                <span class="text-white">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.path) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].path) }} ({{ formatBytes((selectedManifest.database.artifact && selectedManifest.database.artifact.size_bytes) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].size_bytes)) }})</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-400">SHA-256:</span>
-                <span class="text-emerald-400 truncate max-w-sm" :title="selectedManifest.database.artifact.sha256">{{ selectedManifest.database.artifact.sha256 }}</span>
+                <span class="text-emerald-400 truncate max-w-sm" :title="(selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256)">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256) }}</span>
               </div>
             </div>
           </div>
 
           <!-- WAL Segments -->
-          <div v-if="selectedManifest.wal && selectedManifest.wal.segments && selectedManifest.wal.segments.length" class="space-y-2">
-            <span class="font-semibold text-slate-300 block">{{ $t('backup.walSegments') }} ({{ selectedManifest.wal.segments.length }})</span>
+          <div v-if="selectedManifest.wal && ((selectedManifest.wal.segments && selectedManifest.wal.segments.length) || (selectedManifest.wal.segment_files && selectedManifest.wal.segment_files.length))" class="space-y-2">
+            <span class="font-semibold text-slate-300 block">{{ $t('backup.walSegments') }} ({{ (selectedManifest.wal.segments || selectedManifest.wal.segment_files).length }})</span>
             <div class="space-y-1 max-h-32 overflow-y-auto">
-              <div v-for="seg in selectedManifest.wal.segments" :key="seg.path"
+              <div v-for="seg in (selectedManifest.wal.segments || selectedManifest.wal.segment_files)" :key="seg.path"
                    class="p-2 rounded bg-[#0B0F19] border border-slate-800 text-3xs font-mono flex items-center justify-between">
                 <span class="text-slate-300">{{ seg.path }} ({{ formatBytes(seg.size_bytes) }})</span>
-                <span class="text-slate-500">CRC-32: 0x{{ seg.crc32.toString(16).toUpperCase() }}</span>
+                <span class="text-slate-500">CRC-32: 0x{{ seg.crc32 ? seg.crc32.toString(16).toUpperCase() : '0' }}</span>
               </div>
             </div>
           </div>
@@ -526,12 +536,12 @@
             <div>
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Backup Source</span>
               <span class="font-mono text-white text-xs font-bold">{{ restorePreview.backup_id }}</span>
-              <span class="text-3xs text-slate-400 font-mono block mt-0.5">Rows: {{ restorePreview.total_rows }}</span>
+              <span class="text-3xs text-slate-400 font-mono block mt-0.5">Rows: {{ restorePreview.total_rows || 0 }}</span>
             </div>
             <div>
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Target Active DB</span>
-              <span class="font-mono text-emerald-400 text-xs font-bold">{{ restorePreview.target_database || 'datalogger' }}</span>
-              <span class="text-3xs text-slate-400 font-mono block mt-0.5">WAL Records: {{ restorePreview.pending_wal_records || 0 }}</span>
+              <span class="font-mono text-emerald-400 text-xs font-bold">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
+              <span class="text-3xs text-slate-400 font-mono block mt-0.5">WAL Records: {{ restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0) }}</span>
             </div>
           </div>
 
@@ -626,6 +636,9 @@ export default {
     },
     validCount() {
       return this.backupsList.filter(b => b.validation_status === 'VALID').length;
+    },
+    isSubsystemHealthy() {
+      return this.statusData.subsystem_healthy === true || this.statusData.status === 'HEALTHY';
     },
   },
   mounted() {
@@ -798,10 +811,14 @@ export default {
       this.selectedBackup = backup;
       this.selectedManifest = null;
       this.showDetailsModal = true;
+      const targetId = backup.id || backup.backup_id;
       try {
-        const res = await axios.get(`/api/backups/${backup.backup_id}`);
+        const res = await axios.get(`/api/backups/${targetId}`);
         if (res.data && res.data.data) {
           this.selectedManifest = res.data.data.manifest;
+          if (res.data.data.record) {
+            this.selectedBackup = res.data.data.record;
+          }
         }
       } catch (err) {
         console.warn('Failed loading manifest details:', err);

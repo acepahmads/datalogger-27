@@ -31,6 +31,7 @@ func (r *BackupRepository) GetByID(id string) (*model.BackupRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	record.PopulateVirtualFields()
 	return &record, nil
 }
 
@@ -59,6 +60,11 @@ func (r *BackupRepository) List(page, pageSize int, status string) ([]model.Back
 	var records []model.BackupRecord
 	offset := (page - 1) * pageSize
 	err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&records).Error
+	if err == nil {
+		for i := range records {
+			records[i].PopulateVirtualFields()
+		}
+	}
 	return records, total, err
 }
 
@@ -74,6 +80,7 @@ func (r *BackupRepository) GetLatestCompleted() (*model.BackupRecord, error) {
 	if err != nil {
 		return nil, err
 	}
+	record.PopulateVirtualFields()
 	return &record, nil
 }
 
@@ -96,5 +103,10 @@ func (r *BackupRepository) CountValid() (int64, error) {
 func (r *BackupRepository) ListOldestCompleted(limit int) ([]model.BackupRecord, error) {
 	var records []model.BackupRecord
 	err := r.db.Where("status = ?", model.BackupStatusCompleted).Order("created_at ASC").Limit(limit).Find(&records).Error
+	if err == nil {
+		for i := range records {
+			records[i].PopulateVirtualFields()
+		}
+	}
 	return records, err
 }

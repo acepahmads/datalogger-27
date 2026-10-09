@@ -640,10 +640,9 @@ func (a *DatabaseBackupAdapter) ValidateDumpFile(dumpFile string) error {
 	}
 	defer f.Close()
 
-	reader := bufio.NewReader(f)
 	// Read first 2KB to check header
 	buf := make([]byte, 2048)
-	n, _ := reader.Read(buf)
+	n, _ := f.Read(buf)
 	headerText := string(buf[:n])
 
 	validHeader := strings.Contains(headerText, "--") ||
@@ -654,6 +653,30 @@ func (a *DatabaseBackupAdapter) ValidateDumpFile(dumpFile string) error {
 
 	if !validHeader {
 		return errors.New("dump file does not contain valid SQL header or syntax markers")
+	}
+
+	// Verify tail of file for valid SQL completion or termination
+	if fi.Size() > 64 {
+		seekOffset := fi.Size() - 2048
+		if seekOffset < 0 {
+			seekOffset = 0
+		}
+		if _, err := f.Seek(seekOffset, io.SeekStart); err == nil {
+			tailBuf := make([]byte, 2048)
+			nTail, _ := f.Read(tailBuf)
+			tailText := string(tailBuf[:nTail])
+			trimmedTail := strings.TrimSpace(tailText)
+			// Must end with a comment or semicolon or recognized footer
+			validTail := strings.HasSuffix(trimmedTail, ";") ||
+				strings.Contains(tailText, "-- Dump completed") ||
+				strings.Contains(tailText, "COMMIT") ||
+				strings.Contains(tailText, "/*!40101") ||
+				strings.Contains(tailText, "/*!40014") ||
+				strings.HasSuffix(trimmedTail, "--")
+			if !validTail {
+				return errors.New("dump file appears incomplete or truncated (missing SQL termination)")
+			}
+		}
 	}
 
 	return nil

@@ -21,6 +21,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 
+	"github.com/shirou/gopsutil/v3/disk"
 	"gorm.io/gorm"
 )
 
@@ -254,6 +255,12 @@ func (s *BackupService) executeBackup(
 		})
 	}
 
+	// Link artifact pointers for direct frontend schema consumption
+	if len(artifacts) > 0 {
+		dbInfo.Artifact = &artifacts[0]
+	}
+	walInfo.Segments = walInfo.SegmentFiles
+
 	manifest := model.BackupManifest{
 		BackupID:      backupID,
 		FormatVersion: "1.0",
@@ -322,6 +329,12 @@ func (s *BackupService) executeBackup(
 		return nil, fmt.Errorf("failed atomically finalizing backup: %w", err)
 	}
 
+	// Immediate verification of finalized archive integrity before marking COMPLETED
+	if _, err := s.readManifestFromArchive(finalArchivePath); err != nil {
+		_ = os.Remove(finalArchivePath)
+		return nil, fmt.Errorf("finalized archive verification failed: %w", err)
+	}
+
 	durationMs := time.Since(start).Milliseconds()
 
 	// 8. Register in database catalog
@@ -333,6 +346,7 @@ func (s *BackupService) executeBackup(
 		Type:               backupType,
 		Status:             model.BackupStatusCompleted,
 		ValidationStatus:   model.ValidationStatusValid,
+		ConsistencyStatus:  "CONSISTENT",
 		SizeBytes:          archiveFi.Size(),
 		SHA256Checksum:     archiveSHA,
 		FormatVersion:      "1.0",
@@ -350,6 +364,7 @@ func (s *BackupService) executeBackup(
 		CreatedAt:          start,
 		UpdatedAt:          time.Now().UTC(),
 	}
+	record.PopulateVirtualFields()
 
 	if s.backupRepo != nil {
 		_ = s.backupRepo.Create(record)
@@ -379,6 +394,14 @@ func (s *BackupService) ValidateBackup(ctx context.Context, backupID string) (*m
 			ID:       backupID,
 			FilePath: filePath,
 		}
+	}
+
+	// Verify physical presence and non-zero size on disk
+	fi, err := os.Stat(record.FilePath)
+	if err != nil || fi.Size() == 0 {
+		errStr := "backup archive file missing or empty on storage disk"
+		s.markValidation(record, model.ValidationStatusInvalid, errStr)
+		return nil, fmt.Errorf("%w: %s", ErrBackupNotFound, errStr)
 	}
 
 	manifest, err := s.readManifestFromArchive(record.FilePath)
@@ -467,6 +490,11 @@ func (s *BackupService) GetRestorePreview(ctx context.Context, backupID string) 
 			manifest.WAL.PendingRecords))
 	}
 
+	targetDB := "datalogger"
+	if s.cfg != nil && s.cfg.DBName != "" {
+		targetDB = s.cfg.DBName
+	}
+
 	preview := &model.RestorePreview{
 		BackupID:             backupID,
 		CreatedAt:            manifest.CreatedAt,
@@ -483,6 +511,7 @@ func (s *BackupService) GetRestorePreview(ctx context.Context, backupID string) 
 		CurrentActiveTables:  len(currentStats),
 		CurrentActiveRows:    currentTotal,
 		EstimatedDurationSec: int(manifest.TotalSizeBytes/(1024*1024) + 2),
+		TargetDatabase:       targetDB,
 		Warnings:             warnings,
 		CanRestore:           true,
 	}
@@ -678,28 +707,64 @@ func (s *BackupService) GetStatus() map[string]interface{} {
 	freeBytes, _ := s.checkFreeDiskSpace(s.cfg.BackupDir)
 
 	subsystemStatus := "HEALTHY"
-	if freeBytes < 100*1024*1024 {
+	var degradationReasons []string
+
+	// 1. Check database connectivity
+	if s.db == nil {
 		subsystemStatus = "DEGRADED"
+		degradationReasons = append(degradationReasons, "Database connection not initialized")
+	} else if sqlDB, err := s.db.DB(); err != nil || sqlDB.Ping() != nil {
+		subsystemStatus = "DEGRADED"
+		degradationReasons = append(degradationReasons, "Database ping failed")
+	}
+
+	// 2. Check disk margin
+	minFreeBytes := int64(s.cfg.BackupMinFreeSpaceMB) * 1024 * 1024
+	if minFreeBytes <= 0 {
+		minFreeBytes = 500 * 1024 * 1024
+	}
+	if freeBytes < minFreeBytes {
+		subsystemStatus = "DEGRADED"
+		degradationReasons = append(degradationReasons, fmt.Sprintf("Free disk space (%d MB) is below minimum threshold (%d MB)", freeBytes/(1024*1024), s.cfg.BackupMinFreeSpaceMB))
+	}
+
+	// 3. Check directory writability
+	if err := os.MkdirAll(s.cfg.BackupDir, 0755); err != nil {
+		subsystemStatus = "DEGRADED"
+		degradationReasons = append(degradationReasons, fmt.Sprintf("Backup directory not writable: %v", err))
+	} else {
+		testFile := filepath.Join(s.cfg.BackupDir, fmt.Sprintf(".health_test_%d", time.Now().UnixNano()))
+		if err := os.WriteFile(testFile, []byte("ok"), 0644); err != nil {
+			subsystemStatus = "DEGRADED"
+			degradationReasons = append(degradationReasons, fmt.Sprintf("Backup directory write test failed: %v", err))
+		} else {
+			_ = os.Remove(testFile)
+		}
 	}
 
 	res := map[string]interface{}{
-		"status":                 subsystemStatus,
-		"backup_dir":             s.cfg.BackupDir,
-		"schedule_enabled":       s.cfg.BackupScheduleEnabled,
-		"schedule_time":          s.cfg.BackupScheduleTime,
+		"status":                  subsystemStatus,
+		"subsystem_healthy":       subsystemStatus == "HEALTHY",
+		"degradation_reasons":     degradationReasons,
+		"backup_dir":              s.cfg.BackupDir,
+		"schedule_enabled":        s.cfg.BackupScheduleEnabled,
+		"schedule_time":           s.cfg.BackupScheduleTime,
 		"schedule_interval_hours": s.cfg.BackupScheduleIntervalHours,
-		"total_valid_backups":    totalBackups,
-		"storage_used_bytes":     totalStorage,
-		"storage_used_mb":        float64(totalStorage) / (1024 * 1024),
-		"free_disk_bytes":        freeBytes,
-		"free_disk_mb":           float64(freeBytes) / (1024 * 1024),
-		"operation_in_progress":  isRunning,
-		"active_operation":       activeOp,
+		"total_valid_backups":     totalBackups,
+		"total_backups":           totalBackups,
+		"storage_used_bytes":      totalStorage,
+		"storage_used_mb":         float64(totalStorage) / (1024 * 1024),
+		"free_disk_bytes":         freeBytes,
+		"free_disk_mb":            float64(freeBytes) / (1024 * 1024),
+		"operation_in_progress":   isRunning,
+		"active_operation":        activeOp,
 	}
 
 	if latestCompleted != nil {
+		latestCompleted.PopulateVirtualFields()
 		res["last_backup_id"] = latestCompleted.ID
 		res["last_backup_time"] = latestCompleted.CreatedAt.Format(time.RFC3339)
+		res["last_successful_backup"] = latestCompleted.CreatedAt.Format(time.RFC3339)
 		res["last_backup_status"] = latestCompleted.Status
 		res["last_backup_size"] = latestCompleted.SizeBytes
 	}
@@ -799,6 +864,12 @@ func (s *BackupService) markValidation(record *model.BackupRecord, status model.
 	}
 	record.ValidationStatus = status
 	record.ValidationDetails = details
+	if status == model.ValidationStatusValid {
+		record.ConsistencyStatus = "CONSISTENT"
+	} else if status == model.ValidationStatusInvalid {
+		record.ConsistencyStatus = "INCONSISTENT"
+	}
+	record.PopulateVirtualFields()
 	_ = s.backupRepo.Update(record)
 }
 
@@ -979,6 +1050,27 @@ func (s *BackupService) calculateFileSHA256(filePath string) (string, error) {
 }
 
 func (s *BackupService) checkFreeDiskSpace(dir string) (int64, error) {
-	// 50GB default safe estimate if OS call not supported
+	absPath, err := filepath.Abs(dir)
+	if err != nil {
+		absPath = dir
+	}
+	checkPath := absPath
+	for {
+		if _, err := os.Stat(checkPath); err == nil {
+			break
+		}
+		parent := filepath.Dir(checkPath)
+		if parent == checkPath {
+			break
+		}
+		checkPath = parent
+	}
+
+	usage, err := disk.Usage(checkPath)
+	if err == nil && usage.Free > 0 {
+		return int64(usage.Free), nil
+	}
+
+	// Safe 50GB default fallback if OS metrics unavailable
 	return 50 * 1024 * 1024 * 1024, nil
 }

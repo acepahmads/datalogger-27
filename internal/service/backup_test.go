@@ -509,3 +509,78 @@ func TestPhase43_DiskSpacePreflightCheck(t *testing.T) {
 		t.Errorf("expected 'insufficient free disk space' error, got %v", err)
 	}
 }
+
+// 9. Hotfix Diagnostics & Integrity Repair Acceptance Test
+func TestPhase43_DiagnosticsAndIntegrityHotfix(t *testing.T) {
+	db, cfg, backupRepo, systemRepo, walAdapter, _, cleanup := setupTestBackupEnvironment(t)
+	defer cleanup()
+
+	dbAdapter := NewDatabaseBackupAdapter(db, cfg)
+	backupService := NewBackupService(db, cfg, backupRepo, dbAdapter, walAdapter, nil, systemRepo)
+	ctx := context.Background()
+
+	// 1. Verify initial status reporting
+	status := backupService.GetStatus()
+	if status["subsystem_healthy"] != true {
+		t.Errorf("expected subsystem_healthy == true, got %v", status["subsystem_healthy"])
+	}
+	if status["status"] != "HEALTHY" {
+		t.Errorf("expected status == 'HEALTHY', got %v", status["status"])
+	}
+
+	// 2. Create backup and verify virtual fields
+	record, err := backupService.CreateBackup(ctx, model.BackupTypeManual, "tester")
+	if err != nil {
+		t.Fatalf("failed creating backup: %v", err)
+	}
+
+	if record.ID == "" || record.BackupID != record.ID {
+		t.Errorf("expected record.BackupID == record.ID (%s), got %s", record.ID, record.BackupID)
+	}
+	if record.SizeBytes <= 0 || record.TotalSizeBytes != record.SizeBytes {
+		t.Errorf("expected record.TotalSizeBytes == record.SizeBytes (>0), got %d vs %d", record.TotalSizeBytes, record.SizeBytes)
+	}
+	if record.ConsistencyStatus != "CONSISTENT" {
+		t.Errorf("expected record.ConsistencyStatus == 'CONSISTENT', got %s", record.ConsistencyStatus)
+	}
+	if !record.IsCompatible {
+		t.Errorf("expected valid existing backup to have IsCompatible == true")
+	}
+
+	// 3. Verify status after backup creation
+	statusAfter := backupService.GetStatus()
+	if statusAfter["total_backups"] != int64(1) {
+		t.Errorf("expected total_backups == 1, got %v", statusAfter["total_backups"])
+	}
+	if statusAfter["last_successful_backup"] == nil || statusAfter["last_successful_backup"] == "" {
+		t.Errorf("expected populated last_successful_backup, got %v", statusAfter["last_successful_backup"])
+	}
+	if statusAfter["storage_used_bytes"].(int64) <= 0 {
+		t.Errorf("expected storage_used_bytes > 0, got %v", statusAfter["storage_used_bytes"])
+	}
+
+	// 4. Verify catalog query restores virtual fields correctly
+	queried, err := backupRepo.GetByID(record.ID)
+	if err != nil {
+		t.Fatalf("failed querying backup by ID: %v", err)
+	}
+	if queried.TotalSizeBytes != record.SizeBytes || queried.BackupID != record.ID || !queried.IsCompatible {
+		t.Errorf("queried backup missing virtual fields: %+v", queried)
+	}
+
+	// 5. Test missing file detection: Delete archive from disk
+	_ = os.Remove(record.FilePath)
+	queried.PopulateVirtualFields()
+	if queried.IsCompatible {
+		t.Errorf("expected IsCompatible == false after file was deleted from storage")
+	}
+	if queried.ValidationStatus != model.ValidationStatusInvalid {
+		t.Errorf("expected ValidationStatus == INVALID after file deleted, got %s", queried.ValidationStatus)
+	}
+
+	// 6. Test ValidateBackup detects missing file
+	_, err = backupService.ValidateBackup(ctx, record.ID)
+	if err == nil {
+		t.Fatalf("expected error validating backup with missing file, got nil")
+	}
+}

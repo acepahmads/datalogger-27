@@ -1,7 +1,10 @@
 package model
 
 import (
+	"os"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type BackupType string
@@ -38,6 +41,7 @@ type BackupRecord struct {
 	Type               BackupType       `gorm:"size:32;not null" json:"type"`
 	Status             BackupStatus     `gorm:"size:32;not null;index" json:"status"`
 	ValidationStatus   ValidationStatus `gorm:"size:32;not null;index" json:"validation_status"`
+	ConsistencyStatus  string           `gorm:"size:32;default:'CONSISTENT'" json:"consistency_status"`
 	SizeBytes          int64            `json:"size_bytes"`
 	SHA256Checksum     string           `gorm:"size:64" json:"sha256_checksum"`
 	FormatVersion      string           `gorm:"size:32" json:"format_version"`
@@ -56,6 +60,58 @@ type BackupRecord struct {
 	ValidationDetails  string           `gorm:"type:text" json:"validation_details,omitempty"`
 	CreatedAt          time.Time        `gorm:"index;not null" json:"created_at"`
 	UpdatedAt          time.Time        `json:"updated_at"`
+
+	// Virtual fields for frontend API contract parity
+	BackupID       string `gorm:"-" json:"backup_id"`
+	TotalSizeBytes int64  `gorm:"-" json:"total_size_bytes"`
+	BackupType     string `gorm:"-" json:"backup_type"`
+	IsCompatible   bool   `gorm:"-" json:"is_compatible"`
+}
+
+// PopulateVirtualFields populates derived and compatibility fields for UI/API consumption
+func (b *BackupRecord) PopulateVirtualFields() {
+	b.BackupID = b.ID
+	b.TotalSizeBytes = b.SizeBytes
+	b.BackupType = string(b.Type)
+
+	if b.ConsistencyStatus == "" {
+		if b.Status == BackupStatusCompleted {
+			b.ConsistencyStatus = "CONSISTENT"
+		} else {
+			b.ConsistencyStatus = "INCONSISTENT"
+		}
+	}
+
+	// Verify physical presence on storage disk
+	fileExists := false
+	if b.FilePath != "" {
+		if fi, err := os.Stat(b.FilePath); err == nil && fi.Size() > 0 {
+			fileExists = true
+			if b.SizeBytes == 0 {
+				b.SizeBytes = fi.Size()
+				b.TotalSizeBytes = fi.Size()
+			}
+		}
+	}
+
+	// Compatible only if status completed, validation valid, supported version, and file exists
+	b.IsCompatible = (b.Status == BackupStatusCompleted &&
+		b.ValidationStatus == ValidationStatusValid &&
+		(b.FormatVersion == "1.0" || b.FormatVersion == "") &&
+		fileExists)
+
+	if !fileExists && b.Status == BackupStatusCompleted && b.ValidationStatus == ValidationStatusValid {
+		b.ValidationStatus = ValidationStatusInvalid
+		b.ValidationDetails = "Backup archive file is missing from storage disk"
+		b.ConsistencyStatus = "INCONSISTENT"
+		b.IsCompatible = false
+	}
+}
+
+// AfterFind GORM hook automatically executes PopulateVirtualFields on database queries
+func (b *BackupRecord) AfterFind(tx *gorm.DB) (err error) {
+	b.PopulateVirtualFields()
+	return nil
 }
 
 // BackupManifest represents the machine-readable manifest.json inside each backup artifact
@@ -86,6 +142,7 @@ type DatabaseManifestInfo struct {
 	TableCount    int              `json:"table_count"`
 	TotalRows     int64            `json:"total_rows"`
 	TableRows     map[string]int64 `json:"table_rows,omitempty"`
+	Artifact      *ArtifactInfo    `json:"artifact,omitempty"`
 }
 
 type WALManifestInfo struct {
@@ -96,6 +153,7 @@ type WALManifestInfo struct {
 	ActiveSegment     uint32         `json:"active_segment"`
 	ActiveOffset      int64          `json:"active_offset"`
 	SegmentFiles      []ArtifactInfo `json:"segment_files"`
+	Segments          []ArtifactInfo `json:"segments,omitempty"`
 }
 
 type SafeConfigExport struct {
@@ -167,6 +225,7 @@ type RestorePreview struct {
 	CurrentActiveTables  int              `json:"current_active_tables"`
 	CurrentActiveRows    int64            `json:"current_active_rows"`
 	EstimatedDurationSec int              `json:"estimated_duration_sec"`
+	TargetDatabase       string           `json:"target_database,omitempty"`
 	Warnings             []string         `json:"warnings"`
 	CanRestore           bool             `json:"can_restore"`
 }

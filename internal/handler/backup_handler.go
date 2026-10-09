@@ -201,6 +201,9 @@ func (h *BackupHandler) GetStatus(c *gin.Context) {
 	if h.scheduler != nil {
 		schedCfg := h.scheduler.GetScheduleConfig()
 		status["schedule"] = schedCfg
+		if schedCfg.NextRunTime != nil {
+			status["next_scheduled_run"] = schedCfg.NextRunTime.Format("2006-01-02T15:04:05Z07:00")
+		}
 	}
 	response.OK(c, status)
 }
