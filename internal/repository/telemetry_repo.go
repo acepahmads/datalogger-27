@@ -125,7 +125,7 @@ func (r *TelemetryRepository) GetHistorical(ctx context.Context, filter Telemetr
 	var records []model.RawData
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&model.RawData{})
+	query := r.db.WithContext(ctx).Model(&model.RawData{}).Preload("Device").Preload("Parameter")
 
 	if len(filter.DeviceIDs) > 0 {
 		query = query.Where("device_id IN (?)", filter.DeviceIDs)

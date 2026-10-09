@@ -290,22 +290,23 @@
     </div>
 
     <!-- Summary KPI Cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <!-- Case 1: Single Parameter Selected -->
+    <div v-if="filters.parameterId" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <!-- Latest Reading -->
       <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
         <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.latestValue') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ stats.latest !== null ? stats.latest : '--' }}</span>
+          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ singleParamStats.latest !== null ? singleParamStats.latest : '--' }}</span>
           <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
         </div>
-        <div class="text-4xs text-slate-500 font-mono truncate">{{ stats.latestTime ? formatRelative(stats.latestTime) : '--' }}</div>
+        <div class="text-4xs text-slate-500 font-mono truncate">{{ singleParamStats.latestTime ? formatRelative(singleParamStats.latestTime) : '--' }}</div>
       </div>
 
       <!-- Minimum -->
       <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
         <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.min') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ stats.min !== null ? stats.min : '--' }}</span>
+          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ singleParamStats.min !== null ? singleParamStats.min : '--' }}</span>
           <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ $t('analysis.min') }} in window</div>
@@ -315,7 +316,7 @@
       <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
         <div class="text-3xs uppercase tracking-wider font-semibold text-rose-400">{{ $t('analysis.max') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-rose-400 tracking-tight">{{ stats.max !== null ? stats.max : '--' }}</span>
+          <span class="text-2xl font-mono font-bold text-rose-400 tracking-tight">{{ singleParamStats.max !== null ? singleParamStats.max : '--' }}</span>
           <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ $t('analysis.max') }} in window</div>
@@ -325,7 +326,7 @@
       <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
         <div class="text-3xs uppercase tracking-wider font-semibold text-blue-400">{{ $t('analysis.avg') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-blue-400 tracking-tight">{{ stats.avg !== null ? stats.avg : '--' }}</span>
+          <span class="text-2xl font-mono font-bold text-blue-400 tracking-tight">{{ singleParamStats.avg !== null ? singleParamStats.avg : '--' }}</span>
           <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">Mean across samples</div>
@@ -345,10 +346,192 @@
       <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
         <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ stats.goodPercent }}%</span>
+          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ singleParamStats.goodPercent }}%</span>
           <span class="text-3xs text-slate-400">Good</span>
         </div>
-        <div class="text-4xs text-slate-500 font-mono">{{ stats.goodCount }} / {{ stats.sampleCount }} valid</div>
+        <div class="text-4xs text-slate-500 font-mono">{{ singleParamStats.goodCount }} / {{ singleParamStats.sampleCount }} valid</div>
+      </div>
+    </div>
+
+    <!-- Case 2: All Parameters Selected (Overview Cards) -->
+    <div v-else class="space-y-4">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <!-- Active Series Count -->
+        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-blue-400">{{ $t('analysis.activeSeries') }}</div>
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ seriesList.length }}</span>
+            <span class="text-3xs font-mono text-slate-400">series</span>
+          </div>
+          <div class="text-4xs text-slate-400 font-mono">{{ allSeriesOverview.distinctUnitsCount }} distinct unit(s)</div>
+        </div>
+
+        <!-- Total Dataset Samples -->
+        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.count') }}</div>
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ totalRecords }}</span>
+            <span class="text-3xs text-slate-400">records</span>
+          </div>
+          <div class="text-4xs text-slate-500 font-mono">Total points across set</div>
+        </div>
+
+        <!-- Overall Quality Health -->
+        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ allSeriesOverview.goodPercent }}%</span>
+            <span class="text-3xs text-slate-400">Good</span>
+          </div>
+          <div class="text-4xs text-slate-500 font-mono">{{ allSeriesOverview.goodCount }} / {{ allSeriesOverview.totalCount }} valid</div>
+        </div>
+
+        <!-- Most Recent Measurement (With explicit device, param, unit) -->
+        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800 col-span-2">
+          <div class="flex items-center justify-between">
+            <span class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('analysis.mostRecentPacket') }}</span>
+            <span v-if="allSeriesOverview.latestMeasurement" class="text-4xs font-mono text-slate-400">
+              {{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }}
+            </span>
+          </div>
+          <div v-if="allSeriesOverview.latestMeasurement" class="flex items-baseline space-x-2">
+            <span class="text-xl font-mono font-bold text-white tracking-tight">
+              {{ formatVal(allSeriesOverview.latestMeasurement.value) }}
+            </span>
+            <span class="text-xs font-mono text-purple-300 font-bold">
+              {{ allSeriesOverview.latestMeasurement.unit || '--' }}
+            </span>
+            <span class="text-3xs text-slate-400 truncate font-mono ml-1">
+              [{{ allSeriesOverview.latestMeasurement.deviceCode }} : {{ allSeriesOverview.latestMeasurement.paramCode }}]
+            </span>
+          </div>
+          <div v-else class="text-xs text-slate-500 font-mono">--</div>
+          <div class="text-4xs text-slate-500 font-mono truncate">
+            {{ allSeriesOverview.latestMeasurement ? allSeriesOverview.latestMeasurement.paramName : 'No recent packet' }}
+          </div>
+        </div>
+
+        <!-- Scale Mode Control Pill -->
+        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+          <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('analysis.scaleMode') }}</div>
+          <div class="flex items-center space-x-1 pt-0.5">
+            <button
+              @click="setChartScaleMode('normalized')"
+              class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
+              :class="chartScaleMode === 'normalized' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
+              title="Scale 0-100% per series to visually compare parameters of different units without distortion"
+            >
+              % Norm
+            </button>
+            <button
+              @click="setChartScaleMode('native')"
+              class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
+              :class="chartScaleMode === 'native' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
+              title="Show actual physical engineering values"
+            >
+              Native
+            </button>
+          </div>
+          <div class="text-4xs text-slate-500 font-mono truncate">
+            {{ chartScaleMode === 'normalized' ? '0–100% relative span' : 'Engineering units' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-Series Metric Breakdown Grid -->
+      <div v-if="seriesList.length > 0" class="space-y-2">
+        <div class="flex items-center justify-between px-1">
+          <div>
+            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+              <span>{{ $t('analysis.perSeriesBreakdown') }}</span>
+              <span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-4xs font-mono">
+                {{ seriesList.length }} {{ $t('analysis.activeSeries').toLowerCase() }}
+              </span>
+            </h4>
+            <p class="text-4xs text-slate-400">
+              {{ $t('analysis.perSeriesBreakdownSubtitle') }}
+            </p>
+          </div>
+          <button
+            v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
+            @click="resetSeriesFilters"
+            class="text-3xs text-blue-400 hover:text-blue-300 hover:underline font-mono flex items-center space-x-1"
+          >
+            <span>↺</span>
+            <span>{{ $t('analysis.showAllSeries') }}</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+          <div
+            v-for="s in seriesList"
+            :key="'card-' + s.id"
+            class="saas-card p-3 rounded-xl bg-[#0F172A]/90 border transition hover:border-slate-700"
+            :class="focusedSeriesId === s.id ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-800'"
+          >
+            <!-- Series Header -->
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
+                <div class="min-w-0">
+                  <div class="text-xs font-bold text-white truncate font-mono">
+                    {{ s.deviceCode }}: {{ s.paramCode }}
+                  </div>
+                  <div class="text-4xs text-slate-400 truncate">
+                    {{ s.paramName }}
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1.5 shrink-0">
+                <span v-if="s.unit" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-4xs font-mono font-bold">
+                  {{ s.unit }}
+                </span>
+                <button
+                  @click="toggleFocusSeries(s.id)"
+                  class="px-1.5 py-0.5 rounded text-4xs font-mono transition"
+                  :class="focusedSeriesId === s.id ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
+                  :title="focusedSeriesId === s.id ? 'Click to show all series' : 'Focus this series alone on the chart'"
+                >
+                  {{ focusedSeriesId === s.id ? $t('analysis.isolatedSeries') : $t('analysis.focusSeries') }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Series Metrics Grid -->
+            <div class="grid grid-cols-4 gap-1.5 pt-2 text-center">
+              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+                <div class="text-4xs text-slate-500 uppercase font-mono">{{ $t('analysis.latestValue') }}</div>
+                <div class="text-xs font-bold font-mono text-white truncate mt-0.5">
+                  {{ s.stats.latest !== null ? s.stats.latest : '--' }}
+                </div>
+              </div>
+              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+                <div class="text-4xs text-emerald-400 uppercase font-mono">{{ $t('analysis.min') }}</div>
+                <div class="text-xs font-bold font-mono text-emerald-400 truncate mt-0.5">
+                  {{ s.stats.min !== null ? s.stats.min : '--' }}
+                </div>
+              </div>
+              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+                <div class="text-4xs text-rose-400 uppercase font-mono">{{ $t('analysis.max') }}</div>
+                <div class="text-xs font-bold font-mono text-rose-400 truncate mt-0.5">
+                  {{ s.stats.max !== null ? s.stats.max : '--' }}
+                </div>
+              </div>
+              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+                <div class="text-4xs text-blue-400 uppercase font-mono">{{ $t('analysis.avg') }}</div>
+                <div class="text-xs font-bold font-mono text-blue-400 truncate mt-0.5">
+                  {{ s.stats.avg !== null ? s.stats.avg : '--' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Card Sub-Footer -->
+            <div class="flex items-center justify-between pt-2 mt-1 border-t border-slate-800/60 text-4xs font-mono text-slate-400">
+              <span>{{ s.stats.sampleCount }} samples</span>
+              <span class="text-emerald-400 font-bold">{{ s.stats.goodPercent }}% Good</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -360,21 +543,80 @@
           <div>
             <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('analysis.trendChart') }}</h3>
             <p class="text-3xs text-slate-400 mt-0.5">
-              {{ activeParameterLabel }} • {{ activeUnit }}
+              <span v-if="filters.parameterId">{{ activeParameterLabel }} • {{ activeUnit }}</span>
+              <span v-else>{{ $t('analysis.allParameters') }} ({{ visibleSeries.length }} / {{ seriesList.length }} series active)</span>
               <span v-if="activeMode === 'RAW'" class="ml-1 text-slate-500">({{ rawChartMode === 'raw' ? 'Unscaled Register' : 'Scaled Engineering' }})</span>
             </p>
           </div>
         </div>
 
-        <div class="flex items-center space-x-2 text-2xs font-mono text-slate-400">
-          <span class="flex items-center space-x-1">
-            <span class="w-3 h-0.5 bg-blue-500 inline-block"></span>
-            <span>Trend Curve</span>
-          </span>
-          <span class="flex items-center space-x-1 ml-2">
-            <span class="w-3 h-0.5 bg-amber-500 border-dashed inline-block"></span>
-            <span>Avg Guide</span>
-          </span>
+        <!-- Scale Mode Switcher & Reset in Chart Header -->
+        <div class="flex items-center space-x-2 text-2xs font-mono">
+          <!-- Scale switcher buttons -->
+          <div class="flex items-center bg-[#0B0F19] rounded-lg p-0.5 border border-slate-800 text-3xs">
+            <button
+              @click="setChartScaleMode('normalized')"
+              class="px-2 py-0.5 rounded transition font-semibold"
+              :class="chartScaleMode === 'normalized' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-slate-200'"
+            >
+              {{ $t('analysis.scaleNormalized') }}
+            </button>
+            <button
+              @click="setChartScaleMode('native')"
+              class="px-2 py-0.5 rounded transition font-semibold"
+              :class="chartScaleMode === 'native' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'text-slate-400 hover:text-slate-200'"
+            >
+              {{ $t('analysis.scaleNative') }}
+            </button>
+          </div>
+
+          <!-- Reset Filter if series hidden or focused -->
+          <button
+            v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
+            @click="resetSeriesFilters"
+            class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-400 text-3xs font-semibold transition"
+          >
+            {{ $t('analysis.showAllSeries') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Interactive Multi-Series Legend Bar -->
+      <div v-if="seriesList.length > 0" class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/80">
+        <div
+          v-for="s in seriesList"
+          :key="'legend-' + s.id"
+          @mouseenter="hoveredSeriesId = s.id"
+          @mouseleave="hoveredSeriesId = null"
+          class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-3xs font-mono transition border cursor-pointer select-none"
+          :class="[
+            hiddenSeriesIds.includes(s.id)
+              ? 'opacity-40 bg-slate-900 border-slate-800 line-through text-slate-500'
+              : focusedSeriesId === s.id
+                ? 'bg-blue-950/40 border-blue-500 text-white shadow-sm'
+                : 'bg-[#0B0F19] border-slate-800 text-slate-300 hover:border-slate-700'
+          ]"
+        >
+          <!-- Visibility Toggle Click -->
+          <div @click="toggleSeriesVisibility(s.id)" class="flex items-center space-x-1.5">
+            <span
+              class="w-2.5 h-2.5 rounded-full inline-block transition-transform"
+              :style="{ backgroundColor: s.color }"
+              :class="{ 'ring-2 ring-white/50 scale-110': hoveredSeriesId === s.id }"
+            ></span>
+            <span class="font-bold">{{ s.deviceCode }}: {{ s.paramCode }}</span>
+            <span v-if="s.unit" class="text-slate-400">({{ s.unit }})</span>
+            <span v-if="s.stats.latest !== null" class="text-white font-bold ml-1">{{ s.stats.latest }}</span>
+          </div>
+
+          <!-- Quick Solo Focus Button -->
+          <button
+            @click.stop="toggleFocusSeries(s.id)"
+            class="ml-1 text-slate-400 hover:text-blue-400 text-4xs uppercase px-1 py-0.2 rounded hover:bg-slate-800"
+            :title="focusedSeriesId === s.id ? 'Exit focus' : 'Focus only this series'"
+          >
+            {{ focusedSeriesId === s.id ? '✕' : '⊙' }}
+          </button>
         </div>
       </div>
 
@@ -384,7 +626,7 @@
         class="w-full h-80 bg-[#0B0F19] rounded-xl border border-slate-800 relative select-none overflow-hidden"
       >
         <!-- Empty State -->
-        <div v-if="chartPoints.length === 0" class="w-full h-full flex flex-col items-center justify-center space-y-2 text-center p-6">
+        <div v-if="seriesList.length === 0 || visibleSeries.length === 0" class="w-full h-full flex flex-col items-center justify-center space-y-2 text-center p-6">
           <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
           </svg>
@@ -392,7 +634,7 @@
           <p class="text-3xs text-slate-500">{{ $t('analysis.noRecordsSubtitle') }}</p>
         </div>
 
-        <!-- SVG Chart -->
+        <!-- SVG Multi-Series Chart -->
         <svg
           v-else
           class="w-full h-full overflow-visible chart-svg"
@@ -401,35 +643,40 @@
           @mouseleave="onChartMouseLeave"
         >
           <defs>
-            <linearGradient id="analysisAreaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" :stop-color="chartColor" stop-opacity="0.25" />
-              <stop offset="60%" :stop-color="chartColor" stop-opacity="0.05" />
-              <stop offset="100%" :stop-color="chartColor" stop-opacity="0.00" />
-            </linearGradient>
-            <linearGradient id="analysisStrokeGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" :stop-color="chartLightColor" />
-              <stop offset="100%" :stop-color="chartColor" />
+            <linearGradient
+              v-for="s in chartPlotData.seriesPlots"
+              :key="'grad-' + s.id"
+              :id="'grad-' + s.id"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0%" :stop-color="s.color" stop-opacity="0.25" />
+              <stop offset="60%" :stop-color="s.color" stop-opacity="0.05" />
+              <stop offset="100%" :stop-color="s.color" stop-opacity="0.00" />
             </linearGradient>
           </defs>
 
           <!-- Horizontal Grid Lines & Y-Axis Labels -->
           <g class="grid-lines">
-            <g v-for="(tick, idx) in chartGridTicks" :key="'grid-' + idx">
+            <g v-for="(tick, idx) in chartPlotData.gridTicks" :key="'grid-' + idx">
               <line
-                :x1="60"
+                :x1="chartPlotData.padLeft"
                 :y1="tick.y"
-                :x2="containerWidth - 30"
+                :x2="containerWidth - chartPlotData.padRight"
                 :y2="tick.y"
                 stroke="#1E293B"
                 stroke-dasharray="4 4"
                 stroke-width="1"
               />
               <text
-                :x="52"
+                :x="chartPlotData.padLeft - 8"
                 :y="tick.y + 4"
                 text-anchor="end"
                 fill="#94A3B8"
                 font-size="11"
+                font-family="monospace"
               >
                 {{ tick.label }}
               </text>
@@ -438,18 +685,18 @@
 
           <!-- Vertical Ticks & Timestamps on X-Axis -->
           <g class="time-ticks">
-            <g v-for="(tick, idx) in chartTimeTicks" :key="'ttick-' + idx">
+            <g v-for="(tick, idx) in chartPlotData.timeTicks" :key="'ttick-' + idx">
               <line
                 :x1="tick.x"
-                :y1="containerHeight - 40"
+                :y1="containerHeight - chartPlotData.padBottom"
                 :x2="tick.x"
-                :y2="containerHeight - 34"
+                :y2="containerHeight - chartPlotData.padBottom + 6"
                 stroke="#334155"
                 stroke-width="1.2"
               />
               <text
                 :x="tick.x"
-                :y="containerHeight - 20"
+                :y="containerHeight - 18"
                 text-anchor="middle"
                 fill="#94A3B8"
                 font-size="10"
@@ -460,65 +707,57 @@
             </g>
           </g>
 
-          <!-- Average Reference Line -->
-          <g v-if="chartAvgY !== null">
-            <line
-              :x1="60"
-              :y1="chartAvgY"
-              :x2="containerWidth - 30"
-              :y2="chartAvgY"
-              stroke="#F59E0B"
-              stroke-dasharray="5 3"
-              stroke-width="1.2"
-              opacity="0.75"
+          <!-- Area Fills (Rendered only when 1 series is visible) -->
+          <g v-if="chartPlotData.seriesPlots.length === 1">
+            <path
+              v-for="s in chartPlotData.seriesPlots"
+              :key="'area-' + s.id"
+              :d="s.areaPath"
+              :fill="`url(#grad-${s.id})`"
             />
-            <text
-              :x="containerWidth - 35"
-              :y="chartAvgY - 4"
-              text-anchor="end"
-              fill="#F59E0B"
-              font-size="10"
-              font-family="monospace"
-            >
-              avg: {{ stats.avg }}
-            </text>
           </g>
 
-          <!-- Area Fill Under Curve -->
-          <path :d="chartAreaPath" fill="url(#analysisAreaGradient)" />
-
-          <!-- Main Trend Line -->
-          <path
-            :d="chartLinePath"
-            fill="none"
-            stroke="url(#analysisStrokeGradient)"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-
-          <!-- Scatter Dots for points if reasonably sized -->
-          <g v-if="chartPoints.length <= 150">
-            <circle
-              v-for="(pt, idx) in chartPoints"
-              :key="'pt-' + idx"
-              :cx="pt.x"
-              :cy="pt.y"
-              :r="activePointIndex === idx ? 5 : 2.5"
-              :fill="activePointIndex === idx ? '#FFFFFF' : chartColor"
-              :stroke="chartLightColor"
-              stroke-width="1.5"
-              class="transition-all duration-75"
+          <!-- Distinct Trend Lines for Each Series (Never interleaved!) -->
+          <g class="series-lines">
+            <path
+              v-for="s in chartPlotData.seriesPlots"
+              :key="'line-' + s.id"
+              :d="s.linePath"
+              fill="none"
+              :stroke="s.color"
+              :stroke-width="hoveredSeriesId === s.id || focusedSeriesId === s.id ? 3.2 : 2.2"
+              :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : hoveredSeriesId && hoveredSeriesId !== s.id ? 0.35 : 1"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="transition-all duration-150"
             />
+          </g>
+
+          <!-- Scatter Dots for points if dataset size is reasonable -->
+          <g v-if="totalRecords <= 160" class="series-dots">
+            <template v-for="s in chartPlotData.seriesPlots">
+              <circle
+                v-for="(pt, idx) in s.points"
+                :key="'pt-' + s.id + '-' + idx"
+                :cx="pt.x"
+                :cy="pt.y"
+                :r="activePoint && activePoint.seriesId === s.id && activePoint.record.id === pt.record.id ? 5 : 2.5"
+                :fill="activePoint && activePoint.seriesId === s.id && activePoint.record.id === pt.record.id ? '#FFFFFF' : s.color"
+                :stroke="s.color"
+                stroke-width="1.5"
+                :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : 1"
+                class="transition-all duration-75"
+              />
+            </template>
           </g>
 
           <!-- Hover Crosshair & Tooltip Indicator -->
           <g v-if="activePoint">
             <line
               :x1="activePoint.x"
-              :y1="25"
+              :y1="chartPlotData.padTop"
               :x2="activePoint.x"
-              :y2="containerHeight - 40"
+              :y2="containerHeight - chartPlotData.padBottom"
               stroke="#94A3B8"
               stroke-width="1"
               stroke-dasharray="3 3"
@@ -528,7 +767,7 @@
               :cy="activePoint.y"
               r="6"
               fill="#FFFFFF"
-              :stroke="chartColor"
+              :stroke="activePoint.color"
               stroke-width="2.5"
             />
           </g>
@@ -537,22 +776,34 @@
         <!-- Interactive Floating Tooltip -->
         <div
           v-if="activePoint"
-          class="absolute z-20 pointer-events-none bg-[#0F172A]/95 border border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-xl text-slate-200 font-sans backdrop-blur-sm"
+          class="absolute z-20 pointer-events-none bg-[#0F172A]/95 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs shadow-2xl text-slate-200 font-sans backdrop-blur-md"
           :style="{
-            left: `${Math.min(Math.max(activePoint.x - 70, 10), containerWidth - 160)}px`,
-            top: `${Math.max(activePoint.y - 75, 10)}px`
+            left: `${Math.min(Math.max(activePoint.x - 80, 10), containerWidth - 210)}px`,
+            top: `${Math.max(activePoint.y - 85, 10)}px`
           }"
         >
-          <div class="text-3xs text-slate-400 font-mono">{{ formatTimestamp(activePoint.timestamp) }}</div>
-          <div class="flex items-baseline space-x-1.5 mt-0.5">
-            <span class="text-sm font-bold text-white font-mono">{{ formatVal(activePoint.value) }}</span>
-            <span class="text-3xs text-slate-400 font-mono">{{ activeUnit }}</span>
-            <span class="ml-1 px-1 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(activePoint.quality)">
+          <div class="flex items-center space-x-2 text-3xs text-slate-400 font-mono">
+            <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: activePoint.color }"></span>
+            <span>{{ formatTimestamp(activePoint.timestamp) }}</span>
+          </div>
+          <div class="flex items-baseline space-x-1.5 mt-1">
+            <span class="text-base font-bold text-white font-mono">{{ formatVal(activePoint.value) }}</span>
+            <span class="text-xs font-mono font-bold text-slate-300">{{ activePoint.unit || '' }}</span>
+            <span class="ml-1 px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(activePoint.quality)">
               {{ activePoint.quality }}
             </span>
           </div>
-          <div class="text-4xs text-slate-400 truncate max-w-[140px] mt-0.5">
-            {{ activePoint.deviceName }} • {{ activePoint.paramCode }}
+          <div class="text-3xs text-slate-300 font-medium truncate max-w-[190px] mt-0.5">
+            {{ activePoint.deviceCode }}: {{ activePoint.paramCode }}
+          </div>
+          <div class="text-4xs text-slate-500 truncate max-w-[190px]">
+            {{ activePoint.paramName }} ({{ activePoint.deviceName }})
+          </div>
+          <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-400 font-mono mt-0.5">
+            Reason: {{ activePoint.qualityReason }}
+          </div>
+          <div v-if="activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-400 font-mono mt-0.5">
+            Hex: {{ activePoint.rawHex }} (Reg: {{ activePoint.rawValue }})
           </div>
         </div>
       </div>
@@ -762,6 +1013,19 @@
 <script>
 import axios from 'axios';
 
+const SERIES_PALETTE = [
+  '#3B82F6', // Blue
+  '#10B981', // Emerald
+  '#F59E0B', // Amber
+  '#EC4899', // Pink
+  '#8B5CF6', // Purple
+  '#06B6D4', // Cyan
+  '#F97316', // Orange
+  '#14B8A6', // Teal
+  '#6366F1', // Indigo
+  '#84CC16', // Lime
+];
+
 export default {
   name: 'TelemetryAnalysisView',
   data() {
@@ -788,7 +1052,11 @@ export default {
       // Chart canvas state
       containerWidth: 800,
       containerHeight: 320,
-      activePointIndex: null,
+      activePoint: null,
+      hoveredSeriesId: null,
+      focusedSeriesId: null,
+      hiddenSeriesIds: [],
+      chartScaleMode: 'normalized', // 'normalized' | 'native'
       resizeObserver: null,
     };
   },
@@ -834,32 +1102,107 @@ export default {
       }
       return '';
     },
-    chartColor() {
-      if (this.activeMode === 'RAW') return '#10B981'; // emerald
-      if (this.activeMode === 'AGGREGATED') return '#6366F1'; // indigo
-      return '#3B82F6'; // blue
-    },
-    chartLightColor() {
-      if (this.activeMode === 'RAW') return '#34D399';
-      if (this.activeMode === 'AGGREGATED') return '#818CF8';
-      return '#60A5FA';
-    },
-    filteredRecords() {
-      if (!this.tableSearch.trim()) return this.records;
-      const q = this.tableSearch.toLowerCase().trim();
-      return this.records.filter((r) => {
-        const dev = this.getDeviceCode(r.device_id).toLowerCase();
-        const param = this.getParamCode(r.parameter_id).toLowerCase();
-        const hex = (r.raw_hex || '').toLowerCase();
-        const ident = (r.identifier || '').toLowerCase();
-        return dev.includes(q) || param.includes(q) || hex.includes(q) || ident.includes(q);
+    seriesList() {
+      if (!this.records || this.records.length === 0) return [];
+
+      const groups = new Map();
+
+      this.records.forEach((r) => {
+        const devId = r.device_id;
+        const paramId = r.parameter_id;
+        const fn = this.activeMode === 'AGGREGATED' ? (r.function || 'VAL') : '';
+        const key = fn ? `${devId}_${paramId}_${fn}` : `${devId}_${paramId}`;
+
+        if (!groups.has(key)) {
+          const devCode = r.device?.device_code || this.getDeviceCode(devId);
+          const devName = r.device?.device_name || this.getDeviceName(devId);
+          const paramCode = r.parameter?.parameter_code || this.getParamCode(paramId);
+          const paramName = r.parameter?.parameter_name || this.getParamName(paramId);
+          const unit = r.parameter?.unit !== undefined ? r.parameter.unit : this.getParamUnit(paramId);
+
+          groups.set(key, {
+            id: key,
+            deviceId: devId,
+            parameterId: paramId,
+            aggFunction: fn,
+            deviceCode,
+            deviceName,
+            paramCode,
+            paramName,
+            unit: unit || '',
+            records: [],
+          });
+        }
+
+        groups.get(key).records.push(r);
       });
+
+      const seriesArr = Array.from(groups.values());
+
+      seriesArr.forEach((series, idx) => {
+        series.color = SERIES_PALETTE[idx % SERIES_PALETTE.length];
+
+        // Sort records strictly by timestamp ascending, tie-breaking by id
+        series.records.sort((a, b) => {
+          const tA = new Date(a.received_at || a.timestamp || a.period_start || 0).getTime();
+          const tB = new Date(b.received_at || b.timestamp || b.period_start || 0).getTime();
+          if (tA !== tB) return tA - tB;
+          return (a.id || 0) - (b.id || 0);
+        });
+
+        // Compute per-series statistics
+        let sum = 0;
+        let min = Infinity;
+        let max = -Infinity;
+        let validCount = 0;
+        let goodCount = 0;
+
+        series.records.forEach((r) => {
+          const v = this.extractValue(r);
+          if (v !== null && v !== undefined && !isNaN(v) && isFinite(v)) {
+            sum += v;
+            validCount++;
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+          if ((r.quality || 'GOOD').toUpperCase() === 'GOOD') {
+            goodCount++;
+          }
+        });
+
+        const lastRec = series.records[series.records.length - 1];
+        let latestVal = null;
+        let latestTime = null;
+        if (lastRec) {
+          latestVal = this.extractValue(lastRec);
+          latestTime = lastRec.received_at || lastRec.timestamp || lastRec.period_end || lastRec.period_start;
+        }
+
+        series.stats = {
+          latest: latestVal !== null && latestVal !== undefined && !isNaN(latestVal) ? Number(Number(latestVal).toFixed(2)) : null,
+          latestTime,
+          min: min !== Infinity && min !== -Infinity && !isNaN(min) ? Number(min.toFixed(2)) : null,
+          max: max !== -Infinity && max !== Infinity && !isNaN(max) ? Number(max.toFixed(2)) : null,
+          avg: validCount > 0 && !isNaN(sum / validCount) ? Number((sum / validCount).toFixed(2)) : null,
+          sampleCount: series.records.length,
+          validCount,
+          goodCount,
+          goodPercent: series.records.length > 0 ? Math.round((goodCount / series.records.length) * 100) : 100,
+        };
+      });
+
+      return seriesArr;
     },
-    paginatedRecords() {
-      return this.filteredRecords;
+    visibleSeries() {
+      let list = this.seriesList.filter((s) => !this.hiddenSeriesIds.includes(s.id));
+      if (this.focusedSeriesId) {
+        const focused = list.find((s) => s.id === this.focusedSeriesId);
+        if (focused) return [focused];
+      }
+      return list;
     },
-    stats() {
-      if (this.records.length === 0) {
+    singleParamStats() {
+      if (this.seriesList.length === 0) {
         return {
           latest: null,
           latestTime: null,
@@ -871,205 +1214,252 @@ export default {
           goodPercent: 100,
         };
       }
-
-      let sum = 0;
-      let min = Infinity;
-      let max = -Infinity;
-      let validCount = 0;
+      if (this.filters.parameterId) {
+        const found = this.seriesList.find((s) => s.parameterId === Number(this.filters.parameterId));
+        if (found) return found.stats;
+      }
+      return this.seriesList[0].stats;
+    },
+    allSeriesOverview() {
+      const totalCount = this.records.length;
       let goodCount = 0;
-
       this.records.forEach((r) => {
-        let val = null;
-        if (this.activeMode === 'HISTORICAL') {
-          val = r.processed_value !== undefined ? r.processed_value : r.value;
-        } else if (this.activeMode === 'RAW') {
-          val = this.rawChartMode === 'raw' ? r.raw_value : r.value;
-        } else {
-          val = r.value;
-        }
-
-        if (val !== null && val !== undefined && !isNaN(val)) {
-          sum += val;
-          validCount++;
-          if (val < min) min = val;
-          if (val > max) max = val;
-        }
-
-        if (r.quality === 'GOOD') {
+        if ((r.quality || 'GOOD').toUpperCase() === 'GOOD') {
           goodCount++;
         }
       });
 
-      const first = this.records[0];
-      let latestVal = null;
-      let latestTime = null;
-      if (first) {
-        latestTime = first.received_at || first.timestamp || first.period_end;
-        if (this.activeMode === 'HISTORICAL') {
-          latestVal = first.processed_value !== undefined ? first.processed_value : first.value;
-        } else if (this.activeMode === 'RAW') {
-          latestVal = this.rawChartMode === 'raw' ? first.raw_value : first.value;
-        } else {
-          latestVal = first.value;
+      const distinctUnits = Array.from(new Set(this.seriesList.map((s) => s.unit).filter(Boolean)));
+
+      let latestRec = null;
+      let latestTime = -Infinity;
+      this.records.forEach((r) => {
+        const t = new Date(r.received_at || r.timestamp || r.period_end || r.period_start || 0).getTime();
+        if (t > latestTime) {
+          latestTime = t;
+          latestRec = r;
         }
+      });
+
+      let latestMeasurement = null;
+      if (latestRec) {
+        const devCode = latestRec.device?.device_code || this.getDeviceCode(latestRec.device_id);
+        const paramCode = latestRec.parameter?.parameter_code || this.getParamCode(latestRec.parameter_id);
+        const paramName = latestRec.parameter?.parameter_name || this.getParamName(latestRec.parameter_id);
+        const unit = latestRec.parameter?.unit !== undefined ? latestRec.parameter.unit : this.getParamUnit(latestRec.parameter_id);
+        const val = this.extractValue(latestRec);
+
+        latestMeasurement = {
+          value: val,
+          unit,
+          deviceCode,
+          paramCode,
+          paramName,
+          timestamp: latestRec.received_at || latestRec.timestamp || latestRec.period_end || latestRec.period_start,
+          quality: latestRec.quality || 'GOOD',
+        };
       }
 
       return {
-        latest: latestVal !== null && latestVal !== undefined && !isNaN(latestVal) ? Number(Number(latestVal).toFixed(2)) : null,
-        latestTime,
-        min: min !== Infinity && min !== -Infinity && !isNaN(min) ? Number(min.toFixed(2)) : null,
-        max: max !== -Infinity && max !== Infinity && !isNaN(max) ? Number(max.toFixed(2)) : null,
-        avg: validCount > 0 && !isNaN(sum / validCount) ? Number((sum / validCount).toFixed(2)) : null,
-        sampleCount: this.records.length,
+        totalCount,
         goodCount,
-        goodPercent: this.records.length > 0 ? Math.round((goodCount / this.records.length) * 100) : 100,
+        goodPercent: totalCount > 0 ? Math.round((goodCount / totalCount) * 100) : 100,
+        distinctUnitsCount: distinctUnits.length,
+        distinctUnits,
+        latestMeasurement,
       };
     },
-    // Chart Calculations
-    chartPoints() {
-      if (this.records.length === 0) return [];
+    chartPlotData() {
+      const visible = this.visibleSeries;
+      const padLeft = 65;
+      const padRight = 35;
+      const padTop = 30;
+      const padBottom = 45;
 
-      // Sort chronological ascending for line plotting
-      const sorted = [...this.records].sort((a, b) => {
-        const tA = new Date(a.received_at || a.timestamp || a.period_start || 0).getTime();
-        const tB = new Date(b.received_at || b.timestamp || b.period_start || 0).getTime();
-        return tA - tB;
-      });
-
-      const padLeft = 60;
-      const padRight = 30;
-      const padTop = 25;
-      const padBottom = 40;
+      if (visible.length === 0) {
+        return {
+          seriesPlots: [],
+          timeTicks: [],
+          gridTicks: [],
+          isNormalized: false,
+          padLeft,
+          padRight,
+          padTop,
+          padBottom,
+        };
+      }
 
       const plotW = Math.max(this.containerWidth - padLeft - padRight, 100);
       const plotH = Math.max(this.containerHeight - padTop - padBottom, 80);
 
-      const times = sorted.map((r) => new Date(r.received_at || r.timestamp || r.period_start || 0).getTime());
-      const minTime = Math.min(...times);
-      const maxTime = Math.max(...times);
+      // Determine Time Bounds across all visible series
+      let minTime = Infinity;
+      let maxTime = -Infinity;
+
+      visible.forEach((s) => {
+        s.records.forEach((r) => {
+          const t = new Date(r.received_at || r.timestamp || r.period_start || 0).getTime();
+          if (!isNaN(t)) {
+            if (t < minTime) minTime = t;
+            if (t > maxTime) maxTime = t;
+          }
+        });
+      });
+
+      if (minTime === Infinity || maxTime === -Infinity) {
+        minTime = Date.now() - 3600000;
+        maxTime = Date.now();
+      }
+      if (minTime === maxTime) {
+        minTime -= 60000;
+        maxTime += 60000;
+      }
       const timeSpan = maxTime - minTime || 1;
 
-      const vals = sorted.map((r) => {
-        if (this.activeMode === 'HISTORICAL') {
-          return r.processed_value !== undefined && r.processed_value !== null ? r.processed_value : (r.value !== undefined && r.value !== null ? r.value : 0);
-        }
-        if (this.activeMode === 'RAW') {
-          return this.rawChartMode === 'raw'
-            ? (r.raw_value !== undefined && r.raw_value !== null ? r.raw_value : 0)
-            : (r.value !== undefined && r.value !== null ? r.value : 0);
-        }
-        return r.value !== null && r.value !== undefined ? r.value : 0;
-      });
+      // Determine Scale Mode (Normalized % vs Native absolute values)
+      const isNormalized = this.chartScaleMode === 'normalized' && (visible.length > 1 || !this.filters.parameterId);
 
-      const validVals = vals.filter((v) => v !== null && v !== undefined && !isNaN(v));
-      let minVal = validVals.length > 0 ? Math.min(...validVals) : 0;
-      let maxVal = validVals.length > 0 ? Math.max(...validVals) : 100;
-      if (minVal === maxVal || !isFinite(minVal) || !isFinite(maxVal)) {
-        minVal -= 1;
-        maxVal += 1;
+      let globalMinVal = Infinity;
+      let globalMaxVal = -Infinity;
+      if (!isNormalized) {
+        visible.forEach((s) => {
+          s.records.forEach((r) => {
+            const v = this.extractValue(r);
+            if (v !== null && v !== undefined && !isNaN(v) && isFinite(v)) {
+              if (v < globalMinVal) globalMinVal = v;
+              if (v > globalMaxVal) globalMaxVal = v;
+            }
+          });
+        });
+        if (globalMinVal === Infinity || globalMaxVal === -Infinity) {
+          globalMinVal = 0;
+          globalMaxVal = 100;
+        }
+        if (globalMinVal === globalMaxVal) {
+          globalMinVal -= 1;
+          globalMaxVal += 1;
+        }
       }
-      const valSpan = maxVal - minVal || 1;
+      const globalValSpan = globalMaxVal - globalMinVal || 1;
 
-      return sorted.map((r, idx) => {
-        const t = times[idx];
-        const v = vals[idx];
-        const x = padLeft + ((t - minTime) / timeSpan) * plotW;
-        const y = padTop + plotH - ((v - minVal) / valSpan) * plotH;
+      // Map Points for Each Series Independently
+      const seriesPlots = visible.map((series) => {
+        let sMin = series.stats.min !== null ? series.stats.min : 0;
+        let sMax = series.stats.max !== null ? series.stats.max : 100;
+        if (sMin === sMax) {
+          sMin -= 1;
+          sMax += 1;
+        }
+        const sSpan = sMax - sMin || 1;
+
+        const points = [];
+        series.records.forEach((r) => {
+          const v = this.extractValue(r);
+          if (v === null || v === undefined || isNaN(v) || !isFinite(v)) return;
+          const t = new Date(r.received_at || r.timestamp || r.period_start || 0).getTime();
+          if (isNaN(t)) return;
+
+          const x = padLeft + ((t - minTime) / timeSpan) * plotW;
+          let y;
+          if (isNormalized) {
+            const normFrac = Math.max(0, Math.min(1, (v - sMin) / sSpan));
+            y = padTop + plotH - normFrac * plotH;
+          } else {
+            const frac = Math.max(0, Math.min(1, (v - globalMinVal) / globalValSpan));
+            y = padTop + plotH - frac * plotH;
+          }
+
+          points.push({
+            x,
+            y,
+            value: v,
+            timestamp: r.received_at || r.timestamp || r.period_start,
+            quality: r.quality || 'GOOD',
+            qualityReason: r.quality_reason,
+            seriesId: series.id,
+            deviceCode: series.deviceCode,
+            deviceName: series.deviceName,
+            paramCode: series.paramCode,
+            paramName: series.paramName,
+            unit: series.unit,
+            rawHex: r.raw_hex,
+            rawValue: r.raw_value,
+            record: r,
+          });
+        });
+
+        // Generate line path: never connect adjacent records from different series!
+        const linePath = points.map((pt, i) => (i === 0 ? `M ${pt.x.toFixed(1)},${pt.y.toFixed(1)}` : `L ${pt.x.toFixed(1)},${pt.y.toFixed(1)}`)).join(' ');
+
+        let areaPath = '';
+        if (points.length > 0 && visible.length === 1) {
+          const baseLineY = padTop + plotH;
+          const first = points[0];
+          const last = points[points.length - 1];
+          areaPath = `${linePath} L ${last.x.toFixed(1)},${baseLineY} L ${first.x.toFixed(1)},${baseLineY} Z`;
+        }
+
         return {
-          x,
-          y,
-          value: v,
-          timestamp: r.received_at || r.timestamp || r.period_start,
-          quality: r.quality || 'GOOD',
-          deviceName: this.getDeviceCode(r.device_id),
-          paramCode: this.getParamCode(r.parameter_id),
-          record: r,
+          ...series,
+          points,
+          linePath,
+          areaPath,
         };
       });
-    },
-    chartLinePath() {
-      if (this.chartPoints.length === 0) return '';
-      return this.chartPoints.reduce((acc, pt, idx) => {
-        return idx === 0 ? `M ${pt.x},${pt.y}` : `${acc} L ${pt.x},${pt.y}`;
-      }, '');
-    },
-    chartAreaPath() {
-      if (this.chartPoints.length === 0) return '';
-      const padBottom = 40;
-      const baseLineY = this.containerHeight - padBottom;
-      const first = this.chartPoints[0];
-      const last = this.chartPoints[this.chartPoints.length - 1];
-      const line = this.chartLinePath;
-      return `${line} L ${last.x},${baseLineY} L ${first.x},${baseLineY} Z`;
-    },
-    chartAvgY() {
-      if (this.stats.avg === null || this.chartPoints.length === 0) return null;
-      const padTop = 25;
-      const padBottom = 40;
-      const plotH = Math.max(this.containerHeight - padTop - padBottom, 80);
-      const vals = this.chartPoints.map((p) => p.value);
-      let minVal = Math.min(...vals);
-      let maxVal = Math.max(...vals);
-      if (minVal === maxVal) {
-        minVal -= 1;
-        maxVal += 1;
-      }
-      const span = maxVal - minVal;
-      return padTop + plotH - ((this.stats.avg - minVal) / span) * plotH;
-    },
-    chartGridTicks() {
-      if (this.chartPoints.length === 0) return [];
-      const padTop = 25;
-      const padBottom = 40;
-      const plotH = Math.max(this.containerHeight - padTop - padBottom, 80);
-      const vals = this.chartPoints.map((p) => p.value);
-      let minVal = Math.min(...vals);
-      let maxVal = Math.max(...vals);
-      if (minVal === maxVal) {
-        minVal -= 1;
-        maxVal += 1;
-      }
 
-      const ticks = [];
+      // Generate Y-axis grid ticks
+      const gridTicks = [];
       const steps = 4;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const val = minVal + frac * (maxVal - minVal);
         const y = padTop + plotH - frac * plotH;
-        ticks.push({
-          y,
-          label: isNaN(val) || !isFinite(val) ? '--' : val.toFixed(1),
-        });
+        let label = '';
+        if (isNormalized) {
+          label = `${Math.round(frac * 100)}%`;
+        } else {
+          const val = globalMinVal + frac * (globalMaxVal - globalMinVal);
+          label = isNaN(val) ? '--' : val.toFixed(1);
+        }
+        gridTicks.push({ y, label });
       }
-      return ticks;
-    },
-    chartTimeTicks() {
-      if (this.chartPoints.length === 0) return [];
-      const padLeft = 60;
-      const padRight = 30;
-      const plotW = Math.max(this.containerWidth - padLeft - padRight, 100);
-      const times = this.chartPoints.map((p) => new Date(p.timestamp).getTime());
-      const minTime = Math.min(...times);
-      const maxTime = Math.max(...times);
 
-      const ticks = [];
-      const steps = Math.min(Math.max(Math.floor(this.containerWidth / 130), 2), 6);
-      for (let i = 0; i <= steps; i++) {
-        const frac = i / steps;
+      // Generate X-axis time ticks
+      const timeTicks = [];
+      const timeSteps = Math.min(Math.max(Math.floor(this.containerWidth / 130), 2), 6);
+      for (let i = 0; i <= timeSteps; i++) {
+        const frac = i / timeSteps;
         const t = new Date(minTime + frac * (maxTime - minTime));
         const x = padLeft + frac * plotW;
         const hours = String(t.getHours()).padStart(2, '0');
         const mins = String(t.getMinutes()).padStart(2, '0');
         const label = `${hours}:${mins}`;
-        ticks.push({ x, label });
+        timeTicks.push({ x, label });
       }
-      return ticks;
+
+      return {
+        seriesPlots,
+        timeTicks,
+        gridTicks,
+        isNormalized,
+        padLeft,
+        padRight,
+        padTop,
+        padBottom,
+      };
     },
-    activePoint() {
-      if (this.activePointIndex === null || !this.chartPoints[this.activePointIndex]) {
-        return null;
-      }
-      return this.chartPoints[this.activePointIndex];
+    filteredRecords() {
+      if (!this.tableSearch.trim()) return this.records;
+      const q = this.tableSearch.toLowerCase().trim();
+      return this.records.filter((r) => {
+        const dev = (r.device?.device_code || this.getDeviceCode(r.device_id)).toLowerCase();
+        const param = (r.parameter?.parameter_code || this.getParamCode(r.parameter_id)).toLowerCase();
+        const hex = (r.raw_hex || '').toLowerCase();
+        const ident = (r.identifier || '').toLowerCase();
+        return dev.includes(q) || param.includes(q) || hex.includes(q) || ident.includes(q);
+      });
+    },
+    paginatedRecords() {
+      return this.filteredRecords;
     },
   },
   watch: {
@@ -1095,6 +1485,45 @@ export default {
     }
   },
   methods: {
+    extractValue(r) {
+      if (this.activeMode === 'HISTORICAL') {
+        return r.processed_value !== undefined && r.processed_value !== null
+          ? r.processed_value
+          : (r.value !== undefined && r.value !== null ? r.value : null);
+      }
+      if (this.activeMode === 'RAW') {
+        return this.rawChartMode === 'raw'
+          ? (r.raw_value !== undefined && r.raw_value !== null ? r.raw_value : null)
+          : (r.value !== undefined && r.value !== null ? r.value : null);
+      }
+      return r.value !== undefined && r.value !== null ? r.value : null;
+    },
+    toggleSeriesVisibility(id) {
+      const idx = this.hiddenSeriesIds.indexOf(id);
+      if (idx >= 0) {
+        this.hiddenSeriesIds.splice(idx, 1);
+      } else {
+        // Prevent hiding every series
+        if (this.hiddenSeriesIds.length < this.seriesList.length - 1) {
+          this.hiddenSeriesIds.push(id);
+        }
+      }
+    },
+    toggleFocusSeries(id) {
+      if (this.focusedSeriesId === id) {
+        this.focusedSeriesId = null;
+      } else {
+        this.focusedSeriesId = id;
+        this.chartScaleMode = 'native'; // Automatically use native scale for single focused series
+      }
+    },
+    resetSeriesFilters() {
+      this.focusedSeriesId = null;
+      this.hiddenSeriesIds = [];
+    },
+    setChartScaleMode(mode) {
+      this.chartScaleMode = mode;
+    },
     initResizeObserver() {
       this.$nextTick(() => {
         if (this.$refs.chartContainer && window.ResizeObserver) {
@@ -1139,6 +1568,8 @@ export default {
       if (this.activeMode === mode) return;
       this.activeMode = mode;
       this.currentPage = 1;
+      this.focusedSeriesId = null;
+      this.hiddenSeriesIds = [];
       this.fetchData();
     },
     onDeviceChange() {
@@ -1152,6 +1583,8 @@ export default {
           }
         }
       }
+      this.focusedSeriesId = null;
+      this.hiddenSeriesIds = [];
       this.fetchData();
     },
     onTimePresetChange() {
@@ -1259,29 +1692,57 @@ export default {
       }
     },
     onChartMouseMove(e) {
-      if (!this.$refs.chartContainer || this.chartPoints.length === 0) return;
+      if (!this.$refs.chartContainer) return;
       const rect = this.$refs.chartContainer.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
 
-      let nearestIdx = 0;
+      const allPoints = [];
+      this.chartPlotData.seriesPlots.forEach((sp) => {
+        sp.points.forEach((pt) => {
+          allPoints.push({
+            ...pt,
+            color: sp.color,
+          });
+        });
+      });
+
+      if (allPoints.length === 0) {
+        this.activePoint = null;
+        return;
+      }
+
+      let closest = null;
       let minDistance = Infinity;
 
-      for (let i = 0; i < this.chartPoints.length; i++) {
-        const d = Math.abs(this.chartPoints[i].x - mouseX);
-        if (d < minDistance) {
-          minDistance = d;
-          nearestIdx = i;
+      for (const pt of allPoints) {
+        const dx = pt.x - mouseX;
+        const dy = pt.y - mouseY;
+        // Weight X distance heavier for natural time scrubbing while distinguishing vertical series
+        const dist = Math.sqrt(dx * dx + (dy * 0.5) * (dy * 0.5));
+        if (dist < minDistance) {
+          minDistance = dist;
+          closest = pt;
         }
       }
 
-      this.activePointIndex = nearestIdx;
+      if (minDistance < 90) {
+        this.activePoint = closest;
+      } else {
+        this.activePoint = null;
+      }
     },
     onChartMouseLeave() {
-      this.activePointIndex = null;
+      this.activePoint = null;
+      this.hoveredSeriesId = null;
     },
     getDeviceCode(devId) {
       const dev = this.devicesList.find((d) => d.id === devId);
       return dev ? dev.device_code : `DEV-${devId}`;
+    },
+    getDeviceName(devId) {
+      const dev = this.devicesList.find((d) => d.id === devId);
+      return dev ? dev.device_name : '';
     },
     getParamCode(paramId) {
       for (const d of this.devicesList) {
@@ -1291,6 +1752,15 @@ export default {
         }
       }
       return `PARAM-${paramId}`;
+    },
+    getParamName(paramId) {
+      for (const d of this.devicesList) {
+        if (d.parameters) {
+          const match = d.parameters.find((p) => p.id === paramId);
+          if (match) return match.parameter_name;
+        }
+      }
+      return '';
     },
     getParamUnit(paramId) {
       for (const d of this.devicesList) {

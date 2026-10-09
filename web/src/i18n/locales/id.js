@@ -1449,6 +1449,21 @@ export default {
     "resolutionRaw": "Titik Mentah",
     "resolutionDownsampled": "Downsampled",
     "viewRawValue": "Plot Register Mentah",
-    "viewScaledValue": "Plot Nilai Terukur"
+    "viewScaledValue": "Plot Nilai Terukur",
+    "activeSeries": "Seri Aktif",
+    "perSeriesBreakdown": "Rincian Ringkasan Per-Parameter",
+    "perSeriesBreakdownSubtitle": "Statistik individual dihitung secara ketat dalam skala fisik dan satuan masing-masing parameter",
+    "scaleMode": "Mode Skala",
+    "scaleNormalized": "Ternormalisasi (0–100%)",
+    "scaleNative": "Skala Asli",
+    "scaleNormalizedDesc": "Skala ternormalisasi 0-100% memungkinkan korelasi visual lintas satuan fisik yang berbeda",
+    "scaleNativeDesc": "Satuan teknik asli dengan penskalaan absolut",
+    "focusSeries": "Fokus",
+    "showAllSeries": "Tampilkan Semua",
+    "isolatedSeries": "Seri Terfokus",
+    "multiParameterNotice": "Tampilan multi-parameter: setiap seri diplot secara independen dengan metrik per-seri.",
+    "mostRecentPacket": "Paket Terakhir",
+    "allSeriesOverview": "Ikhtisar Semua Seri",
+    "units": "Satuan"
   }
 };

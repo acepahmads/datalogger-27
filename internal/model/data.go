@@ -59,6 +59,10 @@ type RawData struct {
 	DeviceID    uint   `gorm:"index:idx_raw_dev_param_rec,priority:1;index:idx_raw_dev_rec,priority:1;not null" json:"device_id"`
 	ParameterID uint   `gorm:"index:idx_raw_dev_param_rec,priority:2;index:idx_raw_param;not null" json:"parameter_id"`
 
+	// Relationships
+	Device    *Device    `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	Parameter *Parameter `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
+
 	// Engineering Scaled & Processed Values
 	Value          float64  `gorm:"type:double" json:"value"`
 	ProcessedValue float64  `gorm:"type:double" json:"processed_value"`

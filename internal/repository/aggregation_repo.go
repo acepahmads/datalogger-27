@@ -137,7 +137,7 @@ func (r *AggregationRepository) GetResultByIdentifier(ctx context.Context, ident
 
 // GetResultsByFilter retrieves paginated aggregation results based on filter criteria
 func (r *AggregationRepository) GetResultsByFilter(ctx context.Context, filter AggregationResultFilter) ([]model.AggregationResult, int64, error) {
-	query := r.db.WithContext(ctx).Model(&model.AggregationResult{})
+	query := r.db.WithContext(ctx).Model(&model.AggregationResult{}).Preload("Device").Preload("Parameter")
 
 	if filter.DefinitionID > 0 {
 		query = query.Where("aggregation_definition_id = ?", filter.DefinitionID)

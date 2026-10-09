@@ -1449,6 +1449,21 @@ export default {
     "resolutionRaw": "Raw Points",
     "resolutionDownsampled": "Downsampled",
     "viewRawValue": "Plot Raw Register",
-    "viewScaledValue": "Plot Scaled Value"
+    "viewScaledValue": "Plot Scaled Value",
+    "activeSeries": "Active Series",
+    "perSeriesBreakdown": "Per-Parameter Summary Breakdown",
+    "perSeriesBreakdownSubtitle": "Individual statistics computed strictly within each parameter's physical scale and unit",
+    "scaleMode": "Scale Mode",
+    "scaleNormalized": "Normalized (0–100%)",
+    "scaleNative": "Native Scale",
+    "scaleNormalizedDesc": "Normalized 0-100% scale enables visual correlation across different physical units",
+    "scaleNativeDesc": "Native engineering units with absolute scaling",
+    "focusSeries": "Focus",
+    "showAllSeries": "Show All",
+    "isolatedSeries": "Focused Series",
+    "multiParameterNotice": "Multi-parameter view: distinct series plotted independently with per-series metrics.",
+    "mostRecentPacket": "Latest Packet",
+    "allSeriesOverview": "All Series Overview",
+    "units": "Units"
   }
 };
