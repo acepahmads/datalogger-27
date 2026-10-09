@@ -354,183 +354,85 @@
     </div>
 
     <!-- Case 2: All Parameters Selected (Overview Cards) -->
-    <div v-else class="space-y-4">
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <!-- Active Series Count -->
-        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-          <div class="text-3xs uppercase tracking-wider font-semibold text-blue-400">{{ $t('analysis.activeSeries') }}</div>
-          <div class="flex items-baseline space-x-1.5">
-            <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ seriesList.length }}</span>
-            <span class="text-3xs font-mono text-slate-400">series</span>
-          </div>
-          <div class="text-4xs text-slate-400 font-mono">{{ allSeriesOverview.distinctUnitsCount }} distinct unit(s)</div>
+    <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <!-- Active Series Count -->
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-400">{{ $t('analysis.activeSeries') }}</div>
+        <div class="flex items-baseline space-x-1.5">
+          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ seriesList.length }}</span>
+          <span class="text-3xs font-mono text-slate-400">series</span>
         </div>
+        <div class="text-4xs text-slate-400 font-mono">{{ allSeriesOverview.distinctUnitsCount }} distinct unit(s)</div>
+      </div>
 
-        <!-- Total Dataset Samples -->
-        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-          <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.count') }}</div>
-          <div class="flex items-baseline space-x-1.5">
-            <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ totalRecords }}</span>
-            <span class="text-3xs text-slate-400">records</span>
-          </div>
-          <div class="text-4xs text-slate-500 font-mono">Total points across set</div>
+      <!-- Total Dataset Samples -->
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.count') }}</div>
+        <div class="flex items-baseline space-x-1.5">
+          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ totalRecords }}</span>
+          <span class="text-3xs text-slate-400">records</span>
         </div>
+        <div class="text-4xs text-slate-500 font-mono">Total points across set</div>
+      </div>
 
-        <!-- Overall Quality Health -->
-        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
-          <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
-          <div class="flex items-baseline space-x-1.5">
-            <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ allSeriesOverview.goodPercent }}%</span>
-            <span class="text-3xs text-slate-400">Good</span>
-          </div>
-          <div class="text-4xs text-slate-500 font-mono">{{ allSeriesOverview.goodCount }} / {{ allSeriesOverview.totalCount }} valid</div>
+      <!-- Overall Quality Health -->
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
+        <div class="flex items-baseline space-x-1.5">
+          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ allSeriesOverview.goodPercent }}%</span>
+          <span class="text-3xs text-slate-400">Good</span>
         </div>
+        <div class="text-4xs text-slate-500 font-mono">{{ allSeriesOverview.goodCount }} / {{ allSeriesOverview.totalCount }} valid</div>
+      </div>
 
-        <!-- Most Recent Measurement (With explicit device, param, unit) -->
-        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800 col-span-2">
-          <div class="flex items-center justify-between">
-            <span class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('analysis.mostRecentPacket') }}</span>
-            <span v-if="allSeriesOverview.latestMeasurement" class="text-4xs font-mono text-slate-400">
-              {{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }}
-            </span>
-          </div>
-          <div v-if="allSeriesOverview.latestMeasurement" class="flex items-baseline space-x-2">
-            <span class="text-xl font-mono font-bold text-white tracking-tight">
-              {{ formatVal(allSeriesOverview.latestMeasurement.value) }}
-            </span>
-            <span class="text-xs font-mono text-purple-300 font-bold">
-              {{ allSeriesOverview.latestMeasurement.unit || '--' }}
-            </span>
-            <span class="text-3xs text-slate-400 truncate font-mono ml-1">
-              [{{ allSeriesOverview.latestMeasurement.deviceCode }} : {{ allSeriesOverview.latestMeasurement.paramCode }}]
-            </span>
-          </div>
-          <div v-else class="text-xs text-slate-500 font-mono">--</div>
-          <div class="text-4xs text-slate-500 font-mono truncate">
-            {{ allSeriesOverview.latestMeasurement ? allSeriesOverview.latestMeasurement.paramName : 'No recent packet' }}
-          </div>
+      <!-- Most Recent Measurement (With explicit device, param, unit) -->
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800 col-span-2">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('analysis.mostRecentPacket') }}</span>
+          <span v-if="allSeriesOverview.latestMeasurement" class="text-4xs font-mono text-slate-400">
+            {{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }}
+          </span>
         </div>
-
-        <!-- Scale Mode Control Pill -->
-        <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-          <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('analysis.scaleMode') }}</div>
-          <div class="flex items-center space-x-1 pt-0.5">
-            <button
-              @click="setChartScaleMode('normalized')"
-              class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
-              :class="chartScaleMode === 'normalized' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
-              title="Scale 0-100% per series to visually compare parameters of different units without distortion"
-            >
-              % Norm
-            </button>
-            <button
-              @click="setChartScaleMode('native')"
-              class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
-              :class="chartScaleMode === 'native' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
-              title="Show actual physical engineering values"
-            >
-              Native
-            </button>
-          </div>
-          <div class="text-4xs text-slate-500 font-mono truncate">
-            {{ chartScaleMode === 'normalized' ? '0–100% relative span' : 'Engineering units' }}
-          </div>
+        <div v-if="allSeriesOverview.latestMeasurement" class="flex items-baseline space-x-2">
+          <span class="text-xl font-mono font-bold text-white tracking-tight">
+            {{ formatVal(allSeriesOverview.latestMeasurement.value) }}
+          </span>
+          <span class="text-xs font-mono text-purple-300 font-bold">
+            {{ allSeriesOverview.latestMeasurement.unit || '--' }}
+          </span>
+          <span class="text-3xs text-slate-400 truncate font-mono ml-1">
+            [{{ allSeriesOverview.latestMeasurement.deviceCode }} : {{ allSeriesOverview.latestMeasurement.paramCode }}]
+          </span>
+        </div>
+        <div v-else class="text-xs text-slate-500 font-mono">--</div>
+        <div class="text-4xs text-slate-500 font-mono truncate">
+          {{ allSeriesOverview.latestMeasurement ? allSeriesOverview.latestMeasurement.paramName : 'No recent packet' }}
         </div>
       </div>
 
-      <!-- Per-Series Metric Breakdown Grid -->
-      <div v-if="seriesList.length > 0" class="space-y-2">
-        <div class="flex items-center justify-between px-1">
-          <div>
-            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <span>{{ $t('analysis.perSeriesBreakdown') }}</span>
-              <span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-4xs font-mono">
-                {{ seriesList.length }} {{ $t('analysis.activeSeries').toLowerCase() }}
-              </span>
-            </h4>
-            <p class="text-4xs text-slate-400">
-              {{ $t('analysis.perSeriesBreakdownSubtitle') }}
-            </p>
-          </div>
+      <!-- Scale Mode Control Pill -->
+      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('analysis.scaleMode') }}</div>
+        <div class="flex items-center space-x-1 pt-0.5">
           <button
-            v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
-            @click="resetSeriesFilters"
-            class="text-3xs text-blue-400 hover:text-blue-300 hover:underline font-mono flex items-center space-x-1"
+            @click="setChartScaleMode('normalized')"
+            class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
+            :class="chartScaleMode === 'normalized' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
+            title="Scale 0-100% per series to visually compare parameters of different units without distortion"
           >
-            <span>↺</span>
-            <span>{{ $t('analysis.showAllSeries') }}</span>
+            % Norm
+          </button>
+          <button
+            @click="setChartScaleMode('native')"
+            class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
+            :class="chartScaleMode === 'native' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
+            title="Show actual physical engineering values"
+          >
+            Native
           </button>
         </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-          <div
-            v-for="s in seriesList"
-            :key="'card-' + s.id"
-            class="saas-card p-3 rounded-xl bg-[#0F172A]/90 border transition hover:border-slate-700"
-            :class="focusedSeriesId === s.id ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-800'"
-          >
-            <!-- Series Header -->
-            <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
-              <div class="flex items-center space-x-2 min-w-0">
-                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
-                <div class="min-w-0">
-                  <div class="text-xs font-bold text-white truncate font-mono">
-                    {{ s.deviceCode }}: {{ s.paramCode }}
-                  </div>
-                  <div class="text-4xs text-slate-400 truncate">
-                    {{ s.paramName }}
-                  </div>
-                </div>
-              </div>
-              <div class="flex items-center space-x-1.5 shrink-0">
-                <span v-if="s.unit" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-4xs font-mono font-bold">
-                  {{ s.unit }}
-                </span>
-                <button
-                  @click="toggleFocusSeries(s.id)"
-                  class="px-1.5 py-0.5 rounded text-4xs font-mono transition"
-                  :class="focusedSeriesId === s.id ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
-                  :title="focusedSeriesId === s.id ? 'Click to show all series' : 'Focus this series alone on the chart'"
-                >
-                  {{ focusedSeriesId === s.id ? $t('analysis.isolatedSeries') : $t('analysis.focusSeries') }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Series Metrics Grid -->
-            <div class="grid grid-cols-4 gap-1.5 pt-2 text-center">
-              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-                <div class="text-4xs text-slate-500 uppercase font-mono">{{ $t('analysis.latestValue') }}</div>
-                <div class="text-xs font-bold font-mono text-white truncate mt-0.5">
-                  {{ s.stats.latest !== null ? s.stats.latest : '--' }}
-                </div>
-              </div>
-              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-                <div class="text-4xs text-emerald-400 uppercase font-mono">{{ $t('analysis.min') }}</div>
-                <div class="text-xs font-bold font-mono text-emerald-400 truncate mt-0.5">
-                  {{ s.stats.min !== null ? s.stats.min : '--' }}
-                </div>
-              </div>
-              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-                <div class="text-4xs text-rose-400 uppercase font-mono">{{ $t('analysis.max') }}</div>
-                <div class="text-xs font-bold font-mono text-rose-400 truncate mt-0.5">
-                  {{ s.stats.max !== null ? s.stats.max : '--' }}
-                </div>
-              </div>
-              <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-                <div class="text-4xs text-blue-400 uppercase font-mono">{{ $t('analysis.avg') }}</div>
-                <div class="text-xs font-bold font-mono text-blue-400 truncate mt-0.5">
-                  {{ s.stats.avg !== null ? s.stats.avg : '--' }}
-                </div>
-              </div>
-            </div>
-
-            <!-- Card Sub-Footer -->
-            <div class="flex items-center justify-between pt-2 mt-1 border-t border-slate-800/60 text-4xs font-mono text-slate-400">
-              <span>{{ s.stats.sampleCount }} samples</span>
-              <span class="text-emerald-400 font-bold">{{ s.stats.goodPercent }}% Good</span>
-            </div>
-          </div>
+        <div class="text-4xs text-slate-500 font-mono truncate">
+          {{ chartScaleMode === 'normalized' ? '0–100% relative span' : 'Engineering units' }}
         </div>
       </div>
     </div>
@@ -1005,6 +907,105 @@
         >
           {{ $t('analysis.next') }}
         </button>
+      </div>
+    </div>
+
+    <!-- 6. Per-Parameter Summary Breakdown Grid (Positioned below Data Records Table) -->
+    <div class="space-y-3">
+      <div class="flex items-center justify-between px-1">
+        <div>
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <span>{{ $t('analysis.perSeriesBreakdown') }}</span>
+            <span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-4xs font-mono">
+              {{ seriesList.length }} {{ $t('analysis.activeSeries').toLowerCase() }}
+            </span>
+          </h4>
+          <p class="text-4xs text-slate-400">
+            {{ $t('analysis.perSeriesBreakdownSubtitle') }}
+          </p>
+        </div>
+        <button
+          v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
+          @click="resetSeriesFilters"
+          class="text-3xs text-blue-400 hover:text-blue-300 hover:underline font-mono flex items-center space-x-1"
+        >
+          <span>↺</span>
+          <span>{{ $t('analysis.showAllSeries') }}</span>
+        </button>
+      </div>
+
+      <div v-if="seriesList.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+        <div
+          v-for="s in seriesList"
+          :key="'card-' + s.id"
+          class="saas-card p-3 rounded-xl bg-[#0F172A]/90 border transition hover:border-slate-700"
+          :class="focusedSeriesId === s.id ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-800'"
+        >
+          <!-- Series Header -->
+          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+            <div class="flex items-center space-x-2 min-w-0">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-white truncate font-mono">
+                  {{ s.deviceCode }}: {{ s.paramCode }}
+                </div>
+                <div class="text-4xs text-slate-400 truncate">
+                  {{ s.paramName }}
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1.5 shrink-0">
+              <span v-if="s.unit" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-4xs font-mono font-bold">
+                {{ s.unit }}
+              </span>
+              <button
+                @click="toggleFocusSeries(s.id)"
+                class="px-1.5 py-0.5 rounded text-4xs font-mono transition"
+                :class="focusedSeriesId === s.id ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
+                :title="focusedSeriesId === s.id ? 'Click to show all series' : 'Focus this series alone on the chart'"
+              >
+                {{ focusedSeriesId === s.id ? $t('analysis.isolatedSeries') : $t('analysis.focusSeries') }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Series Metrics Grid -->
+          <div class="grid grid-cols-4 gap-1.5 pt-2 text-center">
+            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+              <div class="text-4xs text-slate-500 uppercase font-mono">{{ $t('analysis.latestValue') }}</div>
+              <div class="text-xs font-bold font-mono text-white truncate mt-0.5">
+                {{ s.stats.latest !== null ? s.stats.latest : '--' }}
+              </div>
+            </div>
+            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+              <div class="text-4xs text-emerald-400 uppercase font-mono">{{ $t('analysis.min') }}</div>
+              <div class="text-xs font-bold font-mono text-emerald-400 truncate mt-0.5">
+                {{ s.stats.min !== null ? s.stats.min : '--' }}
+              </div>
+            </div>
+            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+              <div class="text-4xs text-rose-400 uppercase font-mono">{{ $t('analysis.max') }}</div>
+              <div class="text-xs font-bold font-mono text-rose-400 truncate mt-0.5">
+                {{ s.stats.max !== null ? s.stats.max : '--' }}
+              </div>
+            </div>
+            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+              <div class="text-4xs text-blue-400 uppercase font-mono">{{ $t('analysis.avg') }}</div>
+              <div class="text-xs font-bold font-mono text-blue-400 truncate mt-0.5">
+                {{ s.stats.avg !== null ? s.stats.avg : '--' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Sub-Footer -->
+          <div class="flex items-center justify-between pt-2 mt-1 border-t border-slate-800/60 text-4xs font-mono text-slate-400">
+            <span>{{ s.stats.sampleCount }} samples</span>
+            <span class="text-emerald-400 font-bold">{{ s.stats.goodPercent }}% Good</span>
+          </div>
+        </div>
+      </div>
+      <div v-else class="p-6 rounded-xl bg-[#0F172A]/50 border border-slate-800/80 text-center text-slate-500 text-3xs font-mono">
+        {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
       </div>
     </div>
   </div>
