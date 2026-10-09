@@ -3388,19 +3388,29 @@ export default {
     },
     commDotClass(status) {
       switch (status) {
-        case 'ONLINE': return 'bg-emerald-400 animate-pulse';
+        case 'ONLINE':
+        case 'CONNECTED': return 'bg-emerald-400 animate-pulse';
         case 'CONNECTING': return 'bg-blue-400 animate-pulse';
+        case 'RECONNECTING': return 'bg-indigo-400 animate-pulse';
+        case 'DEGRADED': return 'bg-amber-400 animate-pulse';
+        case 'DISABLED': return 'bg-rose-400/80';
         case 'ERROR': return 'bg-rose-400';
-        case 'OFFLINE': return 'bg-slate-500';
+        case 'OFFLINE':
+        case 'DISCONNECTED': return 'bg-slate-500';
         default: return 'bg-purple-400';
       }
     },
     commTextClass(status) {
       switch (status) {
-        case 'ONLINE': return 'text-emerald-400';
+        case 'ONLINE':
+        case 'CONNECTED': return 'text-emerald-400';
         case 'CONNECTING': return 'text-blue-400';
+        case 'RECONNECTING': return 'text-indigo-400';
+        case 'DEGRADED': return 'text-amber-400';
+        case 'DISABLED': return 'text-rose-400/80';
         case 'ERROR': return 'text-rose-400';
-        case 'OFFLINE': return 'text-slate-400';
+        case 'OFFLINE':
+        case 'DISCONNECTED': return 'text-slate-400';
         default: return 'text-purple-400';
       }
     },

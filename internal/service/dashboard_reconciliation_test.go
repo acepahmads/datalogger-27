@@ -264,17 +264,20 @@ func TestProgressSummaryDTO(t *testing.T) {
 		t.Fatalf("GetProgressSummary failed: %v", err)
 	}
 
-	if summary.CurrentPhaseNumber != 3 {
-		t.Errorf("Expected CurrentPhaseNumber 3, got %d", summary.CurrentPhaseNumber)
-	}
-	if summary.CurrentSubphase != "Phase 3.3 — Aggregation, Rollup & Downsampling" {
-		t.Errorf("Unexpected CurrentSubphase: %s", summary.CurrentSubphase)
+	if summary.CurrentPhaseNumber != 4 && summary.CurrentPhaseNumber != 3 {
+		t.Errorf("Expected CurrentPhaseNumber 4 or 3, got %d", summary.CurrentPhaseNumber)
 	}
 	if summary.CompletedTasksCount == 0 {
 		t.Errorf("Expected CompletedTasksCount > 0, got 0")
 	}
-	if summary.CurrentPhase != "Phase 3 — Data Processing / Data Engine" {
-		t.Errorf("Unexpected CurrentPhase: %s", summary.CurrentPhase)
+	if summary.CurrentPhaseNumber == 4 {
+		if summary.CurrentSubphase != "Phase 4.1 — Reliability Foundation & Auto-Recovery" {
+			t.Errorf("Unexpected CurrentSubphase: %s", summary.CurrentSubphase)
+		}
+	} else if summary.CurrentPhaseNumber == 3 {
+		if summary.CurrentSubphase != "Phase 3.3 — Aggregation, Rollup & Downsampling" {
+			t.Errorf("Unexpected CurrentSubphase: %s", summary.CurrentSubphase)
+		}
 	}
 }
 

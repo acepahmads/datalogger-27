@@ -33,6 +33,8 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 	onlineDev := 0
 	offlineDev := 0
 	errorDev := 0
+	degradedDev := 0
+	reconnDev := 0
 	var lastComm time.Time
 	var totalSuccess int64
 	var totalFailed int64
@@ -46,6 +48,10 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 			offlineDev++
 		case model.DeviceError:
 			errorDev++
+		case "DEGRADED":
+			degradedDev++
+		case "RECONNECTING":
+			reconnDev++
 		}
 		if d.LastCommunication != nil && d.LastCommunication.After(lastComm) {
 			lastComm = *d.LastCommunication
@@ -116,11 +122,14 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		QueueStatus:     "OPTIMAL",
 		DatabaseStatus:  "MariaDB Edge (Healthy)",
 
-		TotalDevices:   len(devices),
-		OnlineDevices:  onlineDev,
-		OfflineDevices: offlineDev,
-		ErrorDevices:   errorDev,
-		LastDeviceComm: lastCommStr,
+		TotalDevices:        len(devices),
+		OnlineDevices:       onlineDev,
+		OfflineDevices:      offlineDev,
+		DegradedDevices:     degradedDev,
+		ReconnectingDevices: reconnDev,
+		ErrorDevices:        errorDev,
+		LastDeviceComm:      lastCommStr,
+		PersistenceStatus:   "HEALTHY",
 
 		DataReceivedCount: totalSuccess,
 		DataPerSec:        24.5,

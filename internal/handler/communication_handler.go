@@ -162,11 +162,12 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 	}
 
 	adapterStatus, exists := h.connManager.GetAdapterStatus(uint(id))
+	health := h.connManager.GetDeviceHealth(uint(id))
 
 	response.OK(c, gin.H{
 		"device_id":          dev.ID,
 		"device_code":        dev.DeviceCode,
-		"connection_status":  dev.ConnectionStatus,
+		"connection_status":  string(health.State),
 		"protocol":           dev.DeviceType,
 		"adapter_active":     exists,
 		"adapter_state":      adapterStatus.State,
@@ -178,6 +179,7 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 		"last_error":         adapterStatus.LastError,
 		"success_count":      dev.SuccessCount,
 		"failed_count":       dev.FailedCount,
+		"health":             health,
 	})
 }
 

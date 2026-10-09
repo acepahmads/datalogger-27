@@ -67,7 +67,7 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 	for _, p := range phases {
 		totalProgress += p.Progress
 
-		if p.PhaseNumber == 3 {
+		if p.Status == model.PhaseWorking && (currentPhaseNum == 0 || p.PhaseNumber < currentPhaseNum) {
 			currentPhaseName = p.Name
 			currentPhaseNum = p.PhaseNumber
 		}
@@ -97,19 +97,30 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		overallPct = totalProgress / float64(len(phases))
 	}
 
-	if currentPhaseName == "" {
-		currentPhaseName = "Phase 3 — Data Processing / Data Engine"
-		currentPhaseNum = 3
+	currentSubphaseName := "Phase 4.1 — Reliability Foundation & Auto-Recovery"
+	currentTaskName := "Phase 4.1 Complete (17/17 PASS)"
+	nextAction := "Ready for Phase 4.2 Persistent Queue & Data Integrity"
+
+	if currentPhaseNum == 3 {
+		currentSubphaseName = "Phase 3.3 — Aggregation, Rollup & Downsampling"
+		currentTaskName = "Phase 3 Verification Complete (3.1: 16/16, 3.2: 22/22, 3.3: 27/27 PASS)"
+		nextAction = "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage"
+	} else if currentPhaseName == "" || currentPhaseNum == 4 {
+		currentPhaseName = "Phase 4 — Reliability & Storage"
+		currentPhaseNum = 4
+		currentSubphaseName = "Phase 4.1 — Reliability Foundation & Auto-Recovery"
+		currentTaskName = "Phase 4.1 Complete (17/17 PASS)"
+		nextAction = "Ready for Phase 4.2 Persistent Queue & Data Integrity"
 	}
 
 	dto := &OverallProgressDTO{
 		OverallPercentage:   overallPct,
 		CurrentPhase:        currentPhaseName,
 		CurrentPhaseNumber:  currentPhaseNum,
-		CurrentSubphase:     "Phase 3.3 — Aggregation, Rollup & Downsampling",
-		CurrentTask:         "Phase 3 Verification Complete (3.1: 16/16, 3.2: 22/22, 3.3: 27/27 PASS)",
-		NextAction:          "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage",
-		EstimatedCompletion: "Phase 1, Phase 2 & Phase 3 Accepted (100%) | Full System: Q4 2026",
+		CurrentSubphase:     currentSubphaseName,
+		CurrentTask:         currentTaskName,
+		NextAction:          nextAction,
+		EstimatedCompletion: "Phase 1-3 Accepted (100%) | Phase 4.1 Accepted (100%) | Full System: Q4 2026",
 		LastUpdate:          lastUpdateTime.Format("2006-01-02 15:04:05"),
 		CompletedTasksCount: completedCount,
 		ActiveTasksCount:    activeCount,

@@ -313,13 +313,19 @@ func main() {
 
 	logger.Info("Shutting down %s...", cfg.AppName)
 
-	// 1. Stop all active polling workers
+	// 1. Stop all active polling workers and cancel pending reconnects
 	pollingEngine.Stop()
 
-	// 2. Flush pending telemetry buffer to MariaDB (Phase 3.1 Zero Data Loss)
+	// 2. Stop aggregation worker safely
+	aggService.StopWorker()
+
+	// 3. Stop background scheduler
+	sched.Stop()
+
+	// 4. Flush pending telemetry buffer to MariaDB (Phase 3.1 Zero Data Loss)
 	telemetryService.Stop()
 
-	// 3. Gracefully shutdown HTTP server
+	// 5. Gracefully shutdown HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -327,6 +333,14 @@ func main() {
 		logger.Error("Server forced shutdown: %v", err)
 	}
 
+	// 6. Close all communication connections and adapters
+	connManager.CloseAll()
+
+	// 7. Close database connection pool last, after all workers stop
+	if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
+		_ = sqlDB.Close()
+	}
+
 	_ = log
-	logger.Info("Server stopped cleanly. Goodbye.")
+	logger.Info("Server stopped cleanly with all connections closed. Goodbye.")
 }

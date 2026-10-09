@@ -15,8 +15,10 @@ const (
 	StateDisconnected ConnectionState = "DISCONNECTED"
 	StateConnecting   ConnectionState = "CONNECTING"
 	StateConnected    ConnectionState = "CONNECTED"
+	StateDegraded     ConnectionState = "DEGRADED"
 	StateReconnecting ConnectionState = "RECONNECTING"
 	StateError        ConnectionState = "ERROR"
+	StateDisabled     ConnectionState = "DISABLED"
 )
 
 // Modbus Function Codes

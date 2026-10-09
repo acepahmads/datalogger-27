@@ -51,11 +51,14 @@ type SystemStatusOverview struct {
 	DatabaseStatus  string `json:"database_status"`
 
 	// Devices
-	TotalDevices    int    `json:"total_devices"`
-	OnlineDevices   int    `json:"online_devices"`
-	OfflineDevices  int    `json:"offline_devices"`
-	ErrorDevices    int    `json:"error_devices"`
-	LastDeviceComm  string `json:"last_device_comm"`
+	TotalDevices        int    `json:"total_devices"`
+	OnlineDevices       int    `json:"online_devices"`
+	OfflineDevices      int    `json:"offline_devices"`
+	DegradedDevices     int    `json:"degraded_devices"`
+	ReconnectingDevices int    `json:"reconnecting_devices"`
+	ErrorDevices        int    `json:"error_devices"`
+	LastDeviceComm      string `json:"last_device_comm"`
+	PersistenceStatus   string `json:"persistence_status"`
 
 	// Data
 	DataReceivedCount int64   `json:"data_received_count"`

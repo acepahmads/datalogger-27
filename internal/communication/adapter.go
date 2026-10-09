@@ -15,8 +15,10 @@ const (
 	StateDisconnected ConnectionState = modbus.StateDisconnected
 	StateConnecting   ConnectionState = modbus.StateConnecting
 	StateConnected    ConnectionState = modbus.StateConnected
+	StateDegraded     ConnectionState = modbus.StateDegraded
 	StateReconnecting ConnectionState = modbus.StateReconnecting
 	StateError        ConnectionState = modbus.StateError
+	StateDisabled     ConnectionState = modbus.StateDisabled
 
 	FunctionReadCoils              byte = modbus.FunctionReadCoils
 	FunctionReadDiscreteInputs     byte = modbus.FunctionReadDiscreteInputs

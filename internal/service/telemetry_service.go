@@ -76,16 +76,27 @@ type LatestTelemetry struct {
 	UpdatedAt       time.Time               `json:"updated_at"`
 }
 
+// TelemetryPersistenceBoundary defines the persistence interface used by TelemetryService.
+// In Phase 4.1, the default implementation writes to repository.TelemetryRepository with batch retries.
+// In Phase 4.2, a persistent disk queue adapter will plug into this boundary seamlessly.
+type TelemetryPersistenceBoundary interface {
+	SaveBatch(ctx context.Context, batch []*model.RawData) error
+}
+
 // TelemetryMetrics captures pipeline health, buffer utilization, and throughput
 type TelemetryMetrics struct {
-	IngestedCount       uint64    `json:"ingested_count"`
-	PersistedCount      uint64    `json:"persisted_count"`
-	DroppedCount        uint64    `json:"dropped_count"`
-	ErrorCount          uint64    `json:"error_count"`
-	QueueLength         int       `json:"queue_length"`
-	QueueCapacity       int       `json:"queue_capacity"`
-	LastFlushDurationMs int64     `json:"last_flush_duration_ms"`
-	LastFlushAt         time.Time `json:"last_flush_at"`
+	IngestedCount       uint64     `json:"ingested_count"`
+	PersistedCount      uint64     `json:"persisted_count"`
+	DroppedCount        uint64     `json:"dropped_count"`
+	ErrorCount          uint64     `json:"error_count"`
+	QueueLength         int        `json:"queue_length"`
+	QueueCapacity       int        `json:"queue_capacity"`
+	LastFlushDurationMs int64      `json:"last_flush_duration_ms"`
+	LastFlushAt         time.Time  `json:"last_flush_at"`
+	PersistenceStatus   string     `json:"persistence_status"`
+	ConsecutiveDBErrors int        `json:"consecutive_db_errors"`
+	LastDBError         string     `json:"last_db_error,omitempty"`
+	LastDBErrorAt       *time.Time `json:"last_db_error_at,omitempty"`
 }
 
 // QualitySummaryDTO captures health metrics across current parameters (Phase 3.2)
@@ -140,6 +151,14 @@ type TelemetryService struct {
 	lastFlushDur   int64
 	lastFlushAt    time.Time
 	flushMu        sync.RWMutex
+
+	// Phase 4.1: Database Persistence Boundary & Health Tracking
+	persistenceBoundary   TelemetryPersistenceBoundary
+	persistenceMu         sync.RWMutex
+	persistenceStatus     string
+	consecutiveDBFailures int
+	lastDBError           string
+	lastDBErrorAt         *time.Time
 }
 
 // NewTelemetryService constructs and starts the background ingestion worker
@@ -168,9 +187,13 @@ func NewTelemetryService(
 		cfg:              cfg,
 		qualityProcessor: quality.NewQualityProcessor(),
 		buffer:           make(chan *model.RawData, cfg.BufferSize),
-		latestCache:      make(map[uint]*LatestTelemetry),
-		ctx:              ctx,
-		cancel:           cancel,
+		latestCache:       make(map[uint]*LatestTelemetry),
+		ctx:               ctx,
+		cancel:            cancel,
+		persistenceStatus: "HEALTHY",
+	}
+	if repo != nil {
+		s.persistenceBoundary = repo
 	}
 
 	s.wg.Add(2)
@@ -181,6 +204,13 @@ func NewTelemetryService(
 		cfg.BufferSize, cfg.BatchSize, cfg.FlushInterval)
 
 	return s
+}
+
+// SetPersistenceBoundary configures a custom boundary implementation (e.g. for testing or Phase 4.2 disk queue)
+func (s *TelemetryService) SetPersistenceBoundary(boundary TelemetryPersistenceBoundary) {
+	s.persistenceMu.Lock()
+	defer s.persistenceMu.Unlock()
+	s.persistenceBoundary = boundary
 }
 
 // QualityProcessor exposes the data quality evaluation engine
@@ -207,7 +237,20 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	atomic.AddUint64(&s.ingestedCount, 1)
 
 	// 2. Update Instantaneous In-Memory Cache (O(1) lookup for dashboard)
+	// Reliability (Phase 4.1): If read failed, retain previous valid values while flagging BAD quality
 	s.latestMu.Lock()
+	if payload.ReadError != nil {
+		if prev, ok := s.latestCache[latest.ParameterID]; ok {
+			latest.Value = prev.Value
+			latest.ProcessedValue = prev.ProcessedValue
+			latest.ValueNumeric = prev.ValueNumeric
+			latest.FormulaValue = prev.FormulaValue
+			latest.ValueText = prev.ValueText
+			latest.ValueBool = prev.ValueBool
+			latest.RawValue = prev.RawValue
+			latest.RawHex = prev.RawHex
+		}
+	}
 	s.latestCache[latest.ParameterID] = latest
 	s.latestMu.Unlock()
 
@@ -477,7 +520,7 @@ func (s *TelemetryService) batchPersistenceWorker() {
 
 // persistBatch executes batch insert into MariaDB with exponential backoff retry
 func (s *TelemetryService) persistBatch(batch []*model.RawData) {
-	if len(batch) == 0 || s.repo == nil {
+	if len(batch) == 0 {
 		return
 	}
 
@@ -486,12 +529,28 @@ func (s *TelemetryService) persistBatch(batch []*model.RawData) {
 
 	for attempt := 1; attempt <= s.cfg.MaxRetries; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err = s.repo.SaveBatch(ctx, batch)
+		s.persistenceMu.RLock()
+		boundary := s.persistenceBoundary
+		s.persistenceMu.RUnlock()
+
+		if boundary != nil {
+			err = boundary.SaveBatch(ctx, batch)
+		} else if s.repo != nil {
+			err = s.repo.SaveBatch(ctx, batch)
+		} else {
+			cancel()
+			return
+		}
 		cancel()
 
 		if err == nil {
 			dur := time.Since(start)
 			atomic.AddUint64(&s.persistedCount, uint64(len(batch)))
+
+			s.persistenceMu.Lock()
+			s.persistenceStatus = "HEALTHY"
+			s.consecutiveDBFailures = 0
+			s.persistenceMu.Unlock()
 
 			s.flushMu.Lock()
 			s.lastFlushDur = dur.Milliseconds()
@@ -501,6 +560,18 @@ func (s *TelemetryService) persistBatch(batch []*model.RawData) {
 			logger.Debug("Telemetry flushed %d records in %v", len(batch), dur)
 			return
 		}
+
+		s.persistenceMu.Lock()
+		s.consecutiveDBFailures++
+		s.lastDBError = err.Error()
+		now := time.Now().UTC()
+		s.lastDBErrorAt = &now
+		if s.consecutiveDBFailures >= 5 {
+			s.persistenceStatus = "FAILING"
+		} else {
+			s.persistenceStatus = "DEGRADED"
+		}
+		s.persistenceMu.Unlock()
 
 		logger.Warn("Telemetry batch save attempt %d/%d failed: %v", attempt, s.cfg.MaxRetries, err)
 		if attempt < s.cfg.MaxRetries {
@@ -721,6 +792,13 @@ func (s *TelemetryService) GetMetrics() TelemetryMetrics {
 	flushedAt := s.lastFlushAt
 	s.flushMu.RUnlock()
 
+	s.persistenceMu.RLock()
+	pStatus := s.persistenceStatus
+	pConsecutive := s.consecutiveDBFailures
+	pLastError := s.lastDBError
+	pLastErrorAt := s.lastDBErrorAt
+	s.persistenceMu.RUnlock()
+
 	return TelemetryMetrics{
 		IngestedCount:       atomic.LoadUint64(&s.ingestedCount),
 		PersistedCount:      atomic.LoadUint64(&s.persistedCount),
@@ -730,6 +808,10 @@ func (s *TelemetryService) GetMetrics() TelemetryMetrics {
 		QueueCapacity:       s.cfg.BufferSize,
 		LastFlushDurationMs: dur,
 		LastFlushAt:         flushedAt,
+		PersistenceStatus:   pStatus,
+		ConsecutiveDBErrors: pConsecutive,
+		LastDBError:         pLastError,
+		LastDBErrorAt:       pLastErrorAt,
 	}
 }
 

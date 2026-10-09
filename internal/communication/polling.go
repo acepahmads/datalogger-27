@@ -230,6 +230,13 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				}
 			} else {
 				consecutiveFailures++
+				// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection attempt
+				go func(d *model.Device) {
+					reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer reconnCancel()
+					_ = p.connManager.ReconnectDevice(reconnCtx, d)
+				}(cachedDev)
+
 				// Adaptive backoff on consecutive connection failures to preserve edge CPU and reduce log spam
 				var backoffMs int
 				if consecutiveFailures >= 5 {
@@ -424,6 +431,13 @@ func (p *PollingEngine) ReadParameter(
 			return heldRes, nil
 		}
 
+		lastKnownVal := 0.0
+		if param.CurrentProcessedValue != nil {
+			lastKnownVal = *param.CurrentProcessedValue
+		} else if param.CurrentValue != nil {
+			lastKnownVal = *param.CurrentValue
+		}
+
 		errRes := NewErrorResult(
 			device.ID,
 			device.Connection.ID,
@@ -439,7 +453,7 @@ func (p *PollingEngine) ReadParameter(
 		errRes.Quality = quality
 		errRes.QualityReason = model.ReasonCommunicationError
 		errRes.QualityFlags = model.FlagCommError
-		errRes.ProcessedValue = 0
+		errRes.ProcessedValue = lastKnownVal
 
 		if p.telemetryService != nil {
 			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
@@ -451,8 +465,8 @@ func (p *PollingEngine) ReadParameter(
 				ParameterName: param.ParameterName,
 				Unit:          param.Unit,
 				DataType:      param.DataType,
-				RawValue:      0,
-				Value:         0,
+				RawValue:      lastKnownVal,
+				Value:         lastKnownVal,
 				Quality:       quality,
 				QualityReason: model.ReasonCommunicationError,
 				QualityFlags:  model.FlagCommError,

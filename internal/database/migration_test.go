@@ -78,3 +78,58 @@ func TestMigrationPhase3Tracking(t *testing.T) {
 		}
 	}
 }
+
+func TestMigrationPhase4Tracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig4_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// 1. Run migrations
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// 2. Check Phase 4
+	var phase4 model.DevelopmentPhase
+	if err := db.Where("phase_number = 4").First(&phase4).Error; err != nil {
+		t.Fatalf("Phase 4 not found: %v", err)
+	}
+	if phase4.Status != model.PhaseWorking && phase4.Status != model.PhaseCompleted {
+		t.Errorf("Expected Phase 4 WORKING, got %s", phase4.Status)
+	}
+
+	// 3. Check Subphase 4.1
+	var sub4_1 model.DevelopmentSubphase
+	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 1)", phase4.ID, "%Phase 4.1%").First(&sub4_1).Error; err != nil {
+		t.Fatalf("Subphase 4.1 not found: %v", err)
+	}
+	if sub4_1.Progress < 100.0 {
+		t.Errorf("Subphase 4.1 progress should be 100%%, got %.2f%%", sub4_1.Progress)
+	}
+	if sub4_1.Status != "DONE" {
+		t.Errorf("Subphase 4.1 status should be DONE, got %s", sub4_1.Status)
+	}
+
+	// 4. Check all 17 subtasks
+	var tasks []model.DevelopmentTask
+	if err := db.Where("subphase_id = ? AND status = ?", sub4_1.ID, model.StatusDone).Order("order_index ASC").Find(&tasks).Error; err != nil {
+		t.Fatalf("Failed to fetch subtasks: %v", err)
+	}
+	if len(tasks) != 17 {
+		t.Fatalf("Expected 17 subtasks for Phase 4.1, got %d", len(tasks))
+	}
+
+	for _, task := range tasks {
+		if task.Status != model.StatusDone {
+			t.Errorf("Task '%s' status should be DONE, got %s", task.TaskName, task.Status)
+		}
+		if task.Progress < 100.0 {
+			t.Errorf("Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
+		}
+	}
+}
+
