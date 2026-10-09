@@ -398,7 +398,13 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 
 	devType := strings.TrimSpace(req.DeviceType)
 	if devType == "" {
-		devType = "MODBUS_TCP"
+		if req.Connection != nil && req.Connection.Protocol != "" {
+			devType = normalizeProtocol(string(req.Connection.Protocol))
+		} else {
+			devType = "MODBUS_TCP"
+		}
+	} else {
+		devType = normalizeProtocol(devType)
 	}
 
 	// Check unique device_code
@@ -524,8 +530,10 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 		device.Name = cleanName
 	}
 
-	if req.DeviceType != nil {
-		device.DeviceType = strings.TrimSpace(*req.DeviceType)
+	if req.DeviceType != nil && strings.TrimSpace(*req.DeviceType) != "" {
+		device.DeviceType = normalizeProtocol(*req.DeviceType)
+	} else if req.Connection != nil && req.Connection.Protocol != "" {
+		device.DeviceType = normalizeProtocol(string(req.Connection.Protocol))
 	}
 	if req.Manufacturer != nil {
 		device.Manufacturer = strings.TrimSpace(*req.Manufacturer)
@@ -1374,11 +1382,20 @@ func (s *DeviceService) GetDeviceAuditTrail(deviceID uint, limit int) ([]model.A
 	return s.repo.GetDeviceAuditTrail(deviceID, dev.DeviceCode, limit)
 }
 
-func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.DeviceConnection {
-	proto := dto.Protocol
-	if proto == "" {
-		proto = model.ProtocolModbusTCP
+func normalizeProtocol(proto string) string {
+	upper := strings.ToUpper(strings.TrimSpace(proto))
+	if upper == "HTTP/REST" || upper == "REST" {
+		return string(model.ProtocolHTTP)
 	}
+	return upper
+}
+
+func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.DeviceConnection {
+	protoStr := normalizeProtocol(string(dto.Protocol))
+	if protoStr == "" {
+		protoStr = string(model.ProtocolModbusTCP)
+	}
+	proto := model.ProtocolType(protoStr)
 
 	timeout := dto.Timeout
 	if timeout <= 0 {

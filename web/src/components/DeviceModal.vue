@@ -91,28 +91,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Device Type -->
-            <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                {{ $t('deviceModal.deviceType') }}
-              </label>
-              <select
-                v-model="form.device_type"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="MODBUS_TCP">Modbus TCP Meter</option>
-                <option value="MODBUS_RTU">Modbus RTU Sensor</option>
-                <option value="MQTT">MQTT Gateway</option>
-                <option value="HTTP">HTTP/REST Sensor</option>
-                <option value="TCP">Raw TCP Socket</option>
-                <option value="UDP">UDP Broadcast</option>
-                <option value="SERIAL">Serial RS485/RS232</option>
-                <option value="WEBSOCKET">WebSocket Stream</option>
-                <option value="CUSTOM">Custom Device</option>
-              </select>
-            </div>
-
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Administrative Status -->
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -131,7 +110,7 @@
 
             <!-- Enabled Switch -->
             <div class="flex flex-col justify-end">
-              <label class="flex items-center space-x-3 cursor-pointer p-2 rounded-xl bg-[#0B0F19] border border-slate-800">
+              <label class="flex items-center space-x-3 cursor-pointer p-2.5 rounded-xl bg-[#0B0F19] border border-slate-800 hover:border-slate-700 transition">
                 <input
                   v-model="form.enabled"
                   type="checkbox"
@@ -500,8 +479,35 @@
             </div>
           </div>
 
-          <!-- Modbus Specific Settings (for MODBUS_TCP, MODBUS_RTU) -->
-          <div v-if="form.connection.protocol === 'MODBUS_TCP' || form.connection.protocol === 'MODBUS_RTU'" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+          <!-- 3. For Custom Protocol -->
+          <div v-if="isCustomProtocol" class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-3">
+            <div>
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                {{ $t('deviceModal.connectionMedium') || 'Connection Medium' }}
+              </label>
+              <select
+                v-model="form.connection.connection_type"
+                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              >
+                <option value="ETHERNET">Ethernet / IP Socket</option>
+                <option value="SERIAL">Serial / RS485 / UART</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                {{ $t('deviceModal.extraConfig') || 'Custom Configuration (JSON / Framing Options)' }}
+              </label>
+              <textarea
+                v-model="form.connection.extra_config"
+                rows="2"
+                placeholder='e.g. {"delimiter": "\r\n", "header": "0xAA"}'
+                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono resize-none"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Modbus Specific Settings (ONLY for MODBUS_TCP, MODBUS_RTU) -->
+          <div v-if="isModbusProtocol" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
             <div>
               <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.slaveId') }}
@@ -697,13 +703,20 @@ export default {
     isEditing() {
       return !!this.deviceToEdit;
     },
+    isCustomProtocol() {
+      return this.form.connection.protocol === 'CUSTOM';
+    },
     isNetworkProtocol() {
       const p = this.form.connection.protocol;
-      return ['MODBUS_TCP', 'TCP', 'UDP', 'HTTP', 'MQTT', 'WEBSOCKET'].includes(p);
+      return ['MODBUS_TCP', 'TCP', 'UDP', 'HTTP', 'MQTT', 'WEBSOCKET'].includes(p) || (p === 'CUSTOM' && this.form.connection.connection_type === 'ETHERNET');
     },
     isSerialProtocol() {
       const p = this.form.connection.protocol;
-      return ['MODBUS_RTU', 'SERIAL'].includes(p);
+      return ['MODBUS_RTU', 'SERIAL'].includes(p) || (p === 'CUSTOM' && this.form.connection.connection_type === 'SERIAL');
+    },
+    isModbusProtocol() {
+      const p = this.form.connection.protocol;
+      return ['MODBUS_TCP', 'MODBUS_RTU'].includes(p);
     },
     byIDPorts() {
       return this.detailedPorts.filter(p => p.type === 'BY_ID');
@@ -728,10 +741,14 @@ export default {
       immediate: true,
       handler(newVal) {
         if (newVal) {
+          let proto = (newVal.connection && newVal.connection.protocol) || newVal.device_type || 'MODBUS_TCP';
+          if (proto === 'HTTP/REST' || proto === 'REST') {
+            proto = 'HTTP';
+          }
           this.form = {
             device_code: newVal.device_code || newVal.code || '',
             device_name: newVal.device_name || newVal.name || '',
-            device_type: newVal.device_type || 'MODBUS_TCP',
+            device_type: proto,
             manufacturer: newVal.manufacturer || '',
             model: newVal.model || '',
             serial_number: newVal.serial_number || '',
@@ -744,10 +761,10 @@ export default {
             status: newVal.status || 'ACTIVE',
             enabled: newVal.enabled !== undefined ? newVal.enabled : true,
             connection: {
-              protocol: (newVal.connection && newVal.connection.protocol) || 'MODBUS_TCP',
-              connection_type: (newVal.connection && newVal.connection.connection_type) || 'ETHERNET',
+              protocol: proto,
+              connection_type: (newVal.connection && newVal.connection.connection_type) || (proto === 'MODBUS_RTU' || proto === 'SERIAL' ? 'SERIAL' : 'ETHERNET'),
               host: (newVal.connection && (newVal.connection.host || newVal.connection.address)) || '',
-              port: (newVal.connection && newVal.connection.port) || 502,
+              port: (newVal.connection && newVal.connection.port) || (proto === 'MODBUS_TCP' ? 502 : (proto === 'MQTT' ? 1883 : (proto === 'HTTP' ? 80 : 502))),
               slave_id: (newVal.connection && newVal.connection.slave_id) || 1,
               byte_order: (newVal.connection && newVal.connection.byte_order) || 'ABCD',
               serial_port: (newVal.connection && (newVal.connection.serial_port || newVal.connection.address)) || 'COM1',
@@ -759,6 +776,7 @@ export default {
               retry_count: (newVal.connection && newVal.connection.retry_count) || 3,
               polling_interval: (newVal.connection && (newVal.connection.polling_interval || newVal.connection.poll_interval_ms)) || 1000,
               enabled: newVal.connection ? newVal.connection.enabled : true,
+              extra_config: (newVal.connection && newVal.connection.extra_config) || '',
             },
           };
         } else {
@@ -829,22 +847,54 @@ export default {
     },
     onProtocolChange() {
       const p = this.form.connection.protocol;
+      this.form.device_type = p;
       if (p === 'MODBUS_TCP') {
-        this.form.connection.port = 502;
         this.form.connection.connection_type = 'ETHERNET';
+        if (!this.form.connection.port || [1883, 80, 8080, 8000].includes(this.form.connection.port)) {
+          this.form.connection.port = 502;
+        }
+        if (!this.form.connection.slave_id) this.form.connection.slave_id = 1;
+        if (!this.form.connection.byte_order) this.form.connection.byte_order = 'ABCD';
       } else if (p === 'MODBUS_RTU') {
         this.form.connection.connection_type = 'SERIAL';
-        this.form.connection.baud_rate = 9600;
-        this.form.connection.data_bits = 8;
-        this.form.connection.parity = 'N';
-        this.form.connection.stop_bits = 1;
+        if (!this.form.connection.baud_rate) this.form.connection.baud_rate = 9600;
+        if (!this.form.connection.data_bits) this.form.connection.data_bits = 8;
+        if (!this.form.connection.parity) this.form.connection.parity = 'N';
+        if (!this.form.connection.stop_bits) this.form.connection.stop_bits = 1;
+        if (!this.form.connection.slave_id) this.form.connection.slave_id = 1;
+        if (!this.form.connection.byte_order) this.form.connection.byte_order = 'ABCD';
         this.fetchAvailableSerialPorts();
       } else if (p === 'MQTT') {
-        this.form.connection.port = 1883;
         this.form.connection.connection_type = 'ETHERNET';
+        if (!this.form.connection.port || [502, 80, 8080, 8000].includes(this.form.connection.port)) {
+          this.form.connection.port = 1883;
+        }
       } else if (p === 'HTTP') {
-        this.form.connection.port = 80;
         this.form.connection.connection_type = 'ETHERNET';
+        if (!this.form.connection.port || [502, 1883, 8080, 8000].includes(this.form.connection.port)) {
+          this.form.connection.port = 80;
+        }
+      } else if (p === 'TCP' || p === 'UDP') {
+        this.form.connection.connection_type = 'ETHERNET';
+        if (!this.form.connection.port || [502, 1883, 80].includes(this.form.connection.port)) {
+          this.form.connection.port = 8000;
+        }
+      } else if (p === 'WEBSOCKET') {
+        this.form.connection.connection_type = 'ETHERNET';
+        if (!this.form.connection.port || [502, 1883, 80].includes(this.form.connection.port)) {
+          this.form.connection.port = 8080;
+        }
+      } else if (p === 'SERIAL') {
+        this.form.connection.connection_type = 'SERIAL';
+        if (!this.form.connection.baud_rate) this.form.connection.baud_rate = 9600;
+        if (!this.form.connection.data_bits) this.form.connection.data_bits = 8;
+        if (!this.form.connection.parity) this.form.connection.parity = 'N';
+        if (!this.form.connection.stop_bits) this.form.connection.stop_bits = 1;
+        this.fetchAvailableSerialPorts();
+      } else if (p === 'CUSTOM') {
+        if (!this.form.connection.connection_type) {
+          this.form.connection.connection_type = 'ETHERNET';
+        }
       }
     },
     resetForm() {
@@ -879,6 +929,7 @@ export default {
           retry_count: 3,
           polling_interval: 1000,
           enabled: true,
+          extra_config: '',
         },
       };
     },
@@ -919,6 +970,9 @@ export default {
         this.scrollToError();
         return;
       }
+
+      // Synchronize device_type with connection.protocol for backward compatibility
+      this.form.device_type = this.form.connection.protocol;
 
       this.loading = true;
 

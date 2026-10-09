@@ -520,4 +520,102 @@ func TestUpdateParameterLimitsAndClear(t *testing.T) {
 	}
 }
 
+func TestSingleProtocolSelectionAndSync(t *testing.T) {
+	_, devService, _ := setupDeviceTestDB(t)
 
+	// 1. Create device providing only Connection.Protocol = MODBUS_RTU (DeviceType empty)
+	req := &service.CreateDeviceRequest{
+		DeviceCode: "PROTO-DEV-01",
+		DeviceName: "RTU Sensor",
+		DeviceType: "", // UI now sends empty or relies on connection.protocol
+		Connection: &service.ConnectionConfigDTO{
+			Protocol:        model.ProtocolModbusRTU,
+			SerialPort:      "/dev/ttyUSB0",
+			BaudRate:        9600,
+			DataBits:        8,
+			Parity:          "N",
+			StopBits:        1,
+			SlaveID:         1,
+			Timeout:         1000,
+			RetryCount:      3,
+			PollingInterval: 1000,
+		},
+	}
+
+	dev, err := devService.CreateDevice(req, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// Verify DeviceType is automatically synchronized to Connection.Protocol
+	if dev.DeviceType != string(model.ProtocolModbusRTU) {
+		t.Errorf("Expected DeviceType to be synchronized to %s, got %s", model.ProtocolModbusRTU, dev.DeviceType)
+	}
+	if dev.Connection == nil || dev.Connection.Protocol != model.ProtocolModbusRTU {
+		t.Fatalf("Expected Connection.Protocol to be %s", model.ProtocolModbusRTU)
+	}
+	if dev.Connection.SerialPort != "/dev/ttyUSB0" || dev.Connection.BaudRate != 9600 {
+		t.Errorf("Expected serial connection parameters to be preserved, got port=%s baud=%d",
+			dev.Connection.SerialPort, dev.Connection.BaudRate)
+	}
+
+	// 2. Normalization test: HTTP/REST should normalize to HTTP
+	httpReq := &service.CreateDeviceRequest{
+		DeviceCode: "PROTO-DEV-02",
+		DeviceName: "REST Gateway",
+		Connection: &service.ConnectionConfigDTO{
+			Protocol: "HTTP/REST",
+			Host:     "192.168.1.100",
+			Port:     8080,
+		},
+	}
+	httpDev, err := devService.CreateDevice(httpReq, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("CreateDevice with HTTP/REST failed: %v", err)
+	}
+	if httpDev.DeviceType != string(model.ProtocolHTTP) {
+		t.Errorf("Expected DeviceType normalized to %s, got %s", model.ProtocolHTTP, httpDev.DeviceType)
+	}
+	if httpDev.Connection.Protocol != model.ProtocolHTTP {
+		t.Errorf("Expected Connection.Protocol normalized to %s, got %s", model.ProtocolHTTP, httpDev.Connection.Protocol)
+	}
+
+	// 3. Update device changing protocol to MODBUS_TCP
+	updateReq := &service.UpdateDeviceRequest{
+		Connection: &service.ConnectionConfigDTO{
+			Protocol:        model.ProtocolModbusTCP,
+			Host:            "10.0.0.50",
+			Port:            502,
+			SlaveID:         1,
+			Timeout:         500,
+			RetryCount:      2,
+			PollingInterval: 2000,
+		},
+	}
+	updated, err := devService.UpdateDevice(dev.ID, updateReq, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("UpdateDevice failed: %v", err)
+	}
+
+	if updated.DeviceType != string(model.ProtocolModbusTCP) {
+		t.Errorf("Expected updated DeviceType to be %s, got %s", model.ProtocolModbusTCP, updated.DeviceType)
+	}
+	if updated.Connection == nil || updated.Connection.Protocol != model.ProtocolModbusTCP {
+		t.Fatalf("Expected updated Connection.Protocol to be %s", model.ProtocolModbusTCP)
+	}
+	if updated.Connection.Host != "10.0.0.50" || updated.Connection.Port != 502 {
+		t.Errorf("Expected TCP host/port to be updated, got host=%s port=%d", updated.Connection.Host, updated.Connection.Port)
+	}
+
+	// 4. Reopen/get device and verify persistence
+	retrieved, err := devService.GetDeviceByID(dev.ID)
+	if err != nil {
+		t.Fatalf("GetDeviceByID failed: %v", err)
+	}
+	if retrieved.DeviceType != string(model.ProtocolModbusTCP) {
+		t.Errorf("Expected retrieved DeviceType to be %s, got %s", model.ProtocolModbusTCP, retrieved.DeviceType)
+	}
+	if retrieved.Connection == nil || retrieved.Connection.Protocol != model.ProtocolModbusTCP {
+		t.Errorf("Expected retrieved Connection.Protocol to be %s", model.ProtocolModbusTCP)
+	}
+}

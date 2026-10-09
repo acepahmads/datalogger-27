@@ -566,6 +566,8 @@ export default {
     "timeout": "Timeout (ms)",
     "retryCount": "Max Retries",
     "enableDevice": "Enable Device for Polling",
+    "connectionMedium": "Connection Medium",
+    "extraConfig": "Custom Configuration (JSON / Framing Options)",
     "saveDevice": "Save Device",
     "cancel": "Cancel",
     "placeholders": {

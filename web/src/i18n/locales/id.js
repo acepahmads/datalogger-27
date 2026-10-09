@@ -566,6 +566,8 @@ export default {
     "timeout": "Batas Waktu (ms)",
     "retryCount": "Maksimal Percobaan",
     "enableDevice": "Aktifkan Perangkat untuk Polling",
+    "connectionMedium": "Media Koneksi",
+    "extraConfig": "Konfigurasi Kustom (JSON / Opsi Framing)",
     "saveDevice": "Simpan Perangkat",
     "cancel": "Batal",
     "placeholders": {

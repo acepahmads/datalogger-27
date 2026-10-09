@@ -114,6 +114,7 @@
           <option value="UDP">UDP</option>
           <option value="SERIAL">SERIAL</option>
           <option value="WEBSOCKET">WEBSOCKET</option>
+          <option value="CUSTOM">CUSTOM</option>
         </select>
       </div>
 

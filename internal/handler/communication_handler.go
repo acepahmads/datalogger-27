@@ -173,12 +173,17 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 		statusStr = "ONLINE"
 	}
 
+	protoStr := dev.DeviceType
+	if dev.Connection != nil && dev.Connection.Protocol != "" {
+		protoStr = string(dev.Connection.Protocol)
+	}
+
 	response.OK(c, gin.H{
 		"device_id":           dev.ID,
 		"device_code":         dev.DeviceCode,
 		"connection_status":   statusStr,
 		"status":              statusStr,
-		"protocol":            dev.DeviceType,
+		"protocol":            protoStr,
 		"adapter_active":      exists,
 		"adapter_state":       adapterStatus.State,
 		"connected_since":     adapterStatus.ConnectedSince,
