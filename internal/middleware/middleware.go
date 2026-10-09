@@ -78,12 +78,14 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Engineer has permissions for creating, updating, managing, viewing devices and communication testing/management
+		// Engineer has permissions for creating, updating, managing, viewing devices, backup operations, and viewing retention
 		if strings.EqualFold(role, "Engineer") {
 			if permissionCode == "device.view" || permissionCode == "device.create" ||
 				permissionCode == "device.update" || permissionCode == "device.manage" ||
 				permissionCode == "device.communication.view" || permissionCode == "device.communication.manage" ||
-				permissionCode == "device.communication.test" {
+				permissionCode == "device.communication.test" ||
+				permissionCode == "backup.view" || permissionCode == "backup.create" || permissionCode == "backup.validate" ||
+				permissionCode == "retention.view" {
 				c.Next()
 				return
 			}

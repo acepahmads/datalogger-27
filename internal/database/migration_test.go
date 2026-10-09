@@ -192,11 +192,12 @@ func TestMigrationPhase4Tracking(t *testing.T) {
 		}
 	}
 
-	// 9. Check legacy tasks 45 & 46 are SUPERSEDED
-	var legacyBackup model.DevelopmentTask
-	if err := db.Where("phase_id = ? AND (task_name = ? OR id = 45)", phase4.ID, "Backup").First(&legacyBackup).Error; err == nil {
-		if legacyBackup.Status != model.StatusSuperseded {
-			t.Errorf("Legacy task 45 should be SUPERSEDED, got %s", legacyBackup.Status)
+	// 9. Check legacy tasks 45, 46, 47 & 48 are SUPERSEDED
+	var legacyTasks []model.DevelopmentTask
+	db.Where("phase_id = ? AND id IN (45, 46, 47, 48)", phase4.ID).Find(&legacyTasks)
+	for _, lt := range legacyTasks {
+		if lt.Status != model.StatusSuperseded {
+			t.Errorf("Legacy task %d (%s) should be SUPERSEDED, got %s", lt.ID, lt.TaskName, lt.Status)
 		}
 	}
 
@@ -205,6 +206,52 @@ func TestMigrationPhase4Tracking(t *testing.T) {
 	db.Model(&model.Permission{}).Where("category = ?", "BACKUP").Count(&backupPermCount)
 	if backupPermCount != 5 {
 		t.Errorf("Expected 5 BACKUP permissions, got %d", backupPermCount)
+	}
+
+	// 11. Check Subphase 4.4 (Retention & Storage Management)
+	var sub4_4 model.DevelopmentSubphase
+	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 4)", phase4.ID, "%Phase 4.4%").First(&sub4_4).Error; err != nil {
+		t.Fatalf("Subphase 4.4 not found: %v", err)
+	}
+	if sub4_4.Progress < 100.0 {
+		t.Errorf("Subphase 4.4 progress should be 100%%, got %.2f%%", sub4_4.Progress)
+	}
+	if sub4_4.Status != "DONE" {
+		t.Errorf("Subphase 4.4 status should be DONE, got %s", sub4_4.Status)
+	}
+
+	// 12. Check all 11 subtasks in Subphase 4.4
+	var tasks44 []model.DevelopmentTask
+	if err := db.Where("subphase_id = ? AND status = ?", sub4_4.ID, model.StatusDone).Order("order_index ASC").Find(&tasks44).Error; err != nil {
+		t.Fatalf("Failed to fetch subtasks for 4.4: %v", err)
+	}
+	if len(tasks44) != 11 {
+		t.Fatalf("Expected 11 subtasks for Phase 4.4, got %d", len(tasks44))
+	}
+	for _, task := range tasks44 {
+		if task.Status != model.StatusDone {
+			t.Errorf("Task '%s' status should be DONE, got %s", task.TaskName, task.Status)
+		}
+		if task.Progress < 100.0 {
+			t.Errorf("Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
+		}
+	}
+
+	// 13. Check retention permissions exist
+	var retPermCount int64
+	db.Model(&model.Permission{}).Where("category = ?", "RETENTION").Count(&retPermCount)
+	if retPermCount != 3 {
+		t.Errorf("Expected 3 RETENTION permissions, got %d", retPermCount)
+	}
+
+	// 14. Phase 4 overall should now have 100% progress
+	var phase4Final model.DevelopmentPhase
+	db.Where("phase_number = 4").First(&phase4Final)
+	if phase4Final.Progress < 100.0 {
+		t.Errorf("Phase 4 final progress should be 100%%, got %.2f%%", phase4Final.Progress)
+	}
+	if phase4Final.Status != model.PhaseCompleted && phase4Final.Status != model.PhaseWorking {
+		t.Errorf("Phase 4 final status should be COMPLETED or WORKING, got %s", phase4Final.Status)
 	}
 }
 

@@ -111,6 +111,13 @@ func main() {
 	backupScheduler.Start()
 	defer backupScheduler.Stop()
 
+	// 7e. Initialize Retention & Storage Management Subsystem (Phase 4.4)
+	retentionRepo := repository.NewRetentionRepository(db)
+	retentionService := service.NewRetentionService(db, cfg, retentionRepo, backupRepo, systemRepo, telemetryService, backupService)
+	retentionScheduler := service.NewRetentionScheduler(retentionService, cfg)
+	retentionScheduler.Start()
+	defer retentionScheduler.Stop()
+
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)
 	sched.Start()
@@ -144,6 +151,7 @@ func main() {
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
 	aggHandler := handler.NewAggregationHandler(aggService)
 	backupHandler := handler.NewBackupHandler(backupService, backupScheduler)
+	retentionHandler := handler.NewRetentionHandler(retentionService, retentionScheduler)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -294,6 +302,21 @@ func main() {
 			backupGroup.POST("/:id/restore", middleware.RequirePermission("backup.restore"), backupHandler.RestoreBackup)
 			backupGroup.DELETE("/:id", middleware.RequirePermission("backup.manage"), backupHandler.DeleteBackup)
 		}
+
+		// Phase 4.4 — Retention & Storage Management (Authenticated & Authorized)
+		retentionGroup := api.Group("/retention")
+		retentionGroup.Use(middleware.JWTAuth(authService))
+		{
+			retentionGroup.GET("/policies", middleware.RequirePermission("retention.view"), retentionHandler.ListPolicies)
+			retentionGroup.GET("/policies/:id", middleware.RequirePermission("retention.view"), retentionHandler.GetPolicy)
+			retentionGroup.PUT("/policies/:id", middleware.RequirePermission("retention.manage"), retentionHandler.UpdatePolicy)
+			retentionGroup.PUT("/policies/:id/toggle", middleware.RequirePermission("retention.manage"), retentionHandler.TogglePolicy)
+			retentionGroup.POST("/policies/:id/dry-run", middleware.RequirePermission("retention.view"), retentionHandler.DryRun)
+			retentionGroup.POST("/policies/:id/execute", middleware.RequirePermission("retention.execute"), retentionHandler.ExecutePolicy)
+			retentionGroup.POST("/housekeeping/trigger", middleware.RequirePermission("retention.execute"), retentionHandler.TriggerHousekeeping)
+			retentionGroup.GET("/storage", middleware.RequirePermission("retention.view"), retentionHandler.GetStorageOverview)
+			retentionGroup.GET("/history", middleware.RequirePermission("retention.view"), retentionHandler.GetHistory)
+		}
 	}
 
 	// 11. Serve Web UI Static Assets (if web/dist exists)
@@ -357,8 +380,10 @@ func main() {
 	// 2. Stop aggregation worker safely
 	aggService.StopWorker()
 
-	// 3. Stop background scheduler
+	// 3. Stop background scheduler, backup scheduler, and housekeeping scheduler
 	sched.Stop()
+	backupScheduler.Stop()
+	retentionScheduler.Stop()
 
 	// 4. Flush pending telemetry buffer to MariaDB (Phase 3.1 Zero Data Loss)
 	telemetryService.Stop()
