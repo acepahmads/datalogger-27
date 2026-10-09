@@ -255,3 +255,83 @@ func TestMigrationPhase4Tracking(t *testing.T) {
 	}
 }
 
+func TestMigrationRetentionPoliciesSeeded(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_ret_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// 1. Run migrations first time
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// 2. Verify all 8 default categories exist
+	expectedCategories := []model.RetentionCategory{
+		model.CategoryRawTelemetry,
+		model.CategoryInternalAggregations,
+		model.CategoryCustomerAggregations,
+		model.CategoryClearedAlarms,
+		model.CategoryCommunicationLogs,
+		model.CategorySystemLogs,
+		model.CategoryAuditTrails,
+		model.CategoryBackupArchives,
+	}
+
+	var policies []model.RetentionPolicy
+	if err := db.Find(&policies).Error; err != nil {
+		t.Fatalf("Failed to query retention policies: %v", err)
+	}
+
+	if len(policies) != 8 {
+		t.Fatalf("Expected exactly 8 retention policies seeded by migration, got %d", len(policies))
+	}
+
+	catMap := make(map[model.RetentionCategory]*model.RetentionPolicy)
+	for i := range policies {
+		p := &policies[i]
+		catMap[p.Category] = p
+		// Default policies should be disabled initially for safety
+		if p.Enabled {
+			t.Errorf("Default policy %s (%s) should be disabled by default", p.ID, p.Category)
+		}
+	}
+
+	for _, expectedCat := range expectedCategories {
+		if _, ok := catMap[expectedCat]; !ok {
+			t.Errorf("Missing expected retention policy category: %s", expectedCat)
+		}
+	}
+
+	// 3. User modifies one policy
+	customDays := 120
+	if err := db.Model(&model.RetentionPolicy{}).Where("id = ?", "pol_raw_telemetry").Updates(map[string]interface{}{
+		"retention_days": customDays,
+		"enabled":        true,
+	}).Error; err != nil {
+		t.Fatalf("Failed to update test policy: %v", err)
+	}
+
+	// 4. Run migrations second time (idempotency check)
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Second migration run failed: %v", err)
+	}
+
+	var policiesAfter []model.RetentionPolicy
+	db.Find(&policiesAfter)
+	if len(policiesAfter) != 8 {
+		t.Fatalf("Expected still 8 policies after second migration run, got %d", len(policiesAfter))
+	}
+
+	var modifiedPol model.RetentionPolicy
+	if err := db.Where("id = ?", "pol_raw_telemetry").First(&modifiedPol).Error; err != nil {
+		t.Fatalf("Failed to find modified policy: %v", err)
+	}
+	if modifiedPol.RetentionDays != customDays || !modifiedPol.Enabled {
+		t.Errorf("Migration overwrote user policy changes! Got retention_days=%d, enabled=%v", modifiedPol.RetentionDays, modifiedPol.Enabled)
+	}
+}
+

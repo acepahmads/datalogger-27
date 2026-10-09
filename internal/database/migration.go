@@ -116,6 +116,7 @@ func RunMigrations(db *gorm.DB) error {
 	ensureDevicePermissions(db)
 	ensureBackupPermissions(db)
 	ensureRetentionPermissions(db)
+	ensureDefaultRetentionPolicies(db)
 
 	// 5. Update Development Tracking Dashboard for Phase 2
 	updatePhase2Tracking(db)
@@ -1606,6 +1607,162 @@ func ensureRetentionPermissions(db *gorm.DB) {
 			"retention.view",
 		}).Find(&engPerms)
 		_ = db.Model(&engRole).Association("Permissions").Replace(engPerms)
+	}
+}
+
+func ensureDefaultRetentionPolicies(db *gorm.DB) {
+	defaults := []model.RetentionPolicy{
+		{
+			ID:                    "pol_raw_telemetry",
+			Name:                  "Raw Telemetry Retention",
+			Category:              model.CategoryRawTelemetry,
+			Description:           "Retain granular high-frequency raw sensor data; prune records rolled up into aggregations or backed up",
+			Enabled:               false,
+			RetentionDays:         30,
+			MinimumAgeHours:       24,
+			ProtectedPeriodDays:   7,
+			RequireBackup:         true,
+			RequireRollup:         true,
+			BatchSize:             500,
+			MaxDeletePerRun:       50000,
+			Priority:              10,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "03:00",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_internal_agg",
+			Name:                  "Internal Raw Aggregations Retention",
+			Category:              model.CategoryInternalAggregations,
+			Description:           "Retain intermediate engineering rollups; prune old internal buckets once historical trends are established",
+			Enabled:               false,
+			RetentionDays:         60,
+			MinimumAgeHours:       48,
+			ProtectedPeriodDays:   14,
+			RequireBackup:         true,
+			RequireRollup:         false,
+			BatchSize:             500,
+			MaxDeletePerRun:       20000,
+			Priority:              20,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "03:15",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_customer_agg",
+			Name:                  "Customer Processed Aggregations Retention",
+			Category:              model.CategoryCustomerAggregations,
+			Description:           "Long-term customer reporting rollups; strictly separated from internal engineering aggregations",
+			Enabled:               false,
+			RetentionDays:         365,
+			MinimumAgeHours:       168,
+			ProtectedPeriodDays:   30,
+			RequireBackup:         true,
+			RequireRollup:         false,
+			BatchSize:             500,
+			MaxDeletePerRun:       10000,
+			Priority:              30,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "03:30",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_cleared_alarms",
+			Name:                  "Cleared Alarms Retention",
+			Category:              model.CategoryClearedAlarms,
+			Description:           "Prune historical cleared alarms; active and unacknowledged alarms are permanently protected",
+			Enabled:               false,
+			RetentionDays:         90,
+			MinimumAgeHours:       24,
+			ProtectedPeriodDays:   7,
+			RequireBackup:         false,
+			RequireRollup:         false,
+			BatchSize:             250,
+			MaxDeletePerRun:       5000,
+			Priority:              40,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "03:45",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_comm_logs",
+			Name:                  "Communication Frame Logs Retention",
+			Category:              model.CategoryCommunicationLogs,
+			Description:           "Prune high-volume raw Modbus serial and TCP frame logs used for diagnostics",
+			Enabled:               false,
+			RetentionDays:         14,
+			MinimumAgeHours:       12,
+			ProtectedPeriodDays:   3,
+			RequireBackup:         false,
+			RequireRollup:         false,
+			BatchSize:             1000,
+			MaxDeletePerRun:       100000,
+			Priority:              5,
+			ScheduleIntervalHours: 12,
+			ScheduleTime:          "04:00",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_system_logs",
+			Name:                  "System Diagnostics Logs Retention",
+			Category:              model.CategorySystemLogs,
+			Description:           "Prune general application debug and informational diagnostic log entries",
+			Enabled:               false,
+			RetentionDays:         30,
+			MinimumAgeHours:       24,
+			ProtectedPeriodDays:   7,
+			RequireBackup:         false,
+			RequireRollup:         false,
+			BatchSize:             500,
+			MaxDeletePerRun:       20000,
+			Priority:              15,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "04:15",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_audit_trails",
+			Name:                  "Security Audit Trails Retention",
+			Category:              model.CategoryAuditTrails,
+			Description:           "Retain administrative and compliance audit history with extended retention",
+			Enabled:               false,
+			RetentionDays:         180,
+			MinimumAgeHours:       720,
+			ProtectedPeriodDays:   90,
+			RequireBackup:         true,
+			RequireRollup:         false,
+			BatchSize:             250,
+			MaxDeletePerRun:       5000,
+			Priority:              50,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "04:30",
+			CreatedBy:             "system",
+		},
+		{
+			ID:                    "pol_backup_catalog",
+			Name:                  "Backup Archives Catalog Retention",
+			Category:              model.CategoryBackupArchives,
+			Description:           "Prune historical backup archives exceeding retention threshold; catalog and physical files coordinated via BackupService",
+			Enabled:               false,
+			RetentionDays:         90,
+			MinimumAgeHours:       24,
+			ProtectedPeriodDays:   14,
+			RequireBackup:         false,
+			RequireRollup:         false,
+			BatchSize:             50,
+			MaxDeletePerRun:       100,
+			Priority:              60,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "04:45",
+			CreatedBy:             "system",
+		},
+	}
+
+	for _, p := range defaults {
+		var existing model.RetentionPolicy
+		if db.Where("category = ? OR id = ?", p.Category, p.ID).First(&existing).Error != nil {
+			db.Create(&p)
+		}
 	}
 }
 

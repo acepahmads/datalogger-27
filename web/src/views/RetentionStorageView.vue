@@ -82,16 +82,33 @@
       </button>
     </div>
 
+    <!-- Error Alert Banner -->
+    <div v-if="errorStorage || errorPolicies" class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs text-rose-300">
+      <div class="flex items-center space-x-2">
+        <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <span>{{ errorStorage || errorPolicies }}</span>
+      </div>
+      <button @click="refreshAll" class="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-2xs font-semibold transition-colors">
+        {{ $t('common.retry') || 'Retry' }}
+      </button>
+    </div>
+
     <!-- Overview Metric KPI Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
       <!-- Total Database Size -->
       <div class="p-4 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
         <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">{{ $t('retention.totalDatabase') }}</span>
         <div class="text-lg font-bold text-slate-900 dark:text-white font-mono">
-          {{ storage ? storage.total_database_size_mb.toFixed(2) + ' MB' : '...' }}
+          <span v-if="loadingStorage" class="animate-pulse text-slate-400">Loading...</span>
+          <span v-else-if="storage">{{ storage.total_database_size_mb.toFixed(2) }} MB</span>
+          <span v-else class="text-slate-400">N/A</span>
         </div>
         <span class="text-3xs text-slate-500 dark:text-slate-400 block font-sans">
-          {{ storage ? storage.tables.length + ' Monitored Tables' : '...' }}
+          <span v-if="loadingStorage">...</span>
+          <span v-else-if="storage">{{ storage.tables ? storage.tables.length : 0 }} Monitored Tables</span>
+          <span v-else>--</span>
         </span>
       </div>
 
@@ -100,17 +117,21 @@
         <div class="flex items-center justify-between">
           <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">{{ $t('retention.diskCapacity') }}</span>
           <span class="w-2 h-2 rounded-full"
-                :class="storage && storage.capacity_status === 'HEALTHY' ? 'bg-emerald-400' : (storage && storage.capacity_status === 'WARNING' ? 'bg-amber-400' : 'bg-rose-400')"></span>
+                :class="storage && storage.capacity_status === 'HEALTHY' ? 'bg-emerald-400' : (storage && storage.capacity_status === 'WARNING' ? 'bg-amber-400' : (storage && storage.capacity_status === 'CRITICAL' ? 'bg-rose-400' : 'bg-slate-400'))"></span>
         </div>
         <div class="text-sm font-bold font-sans flex items-center space-x-1.5"
-             :class="storage && storage.capacity_status === 'HEALTHY' ? 'text-emerald-500 dark:text-emerald-400' : (storage && storage.capacity_status === 'WARNING' ? 'text-amber-500 dark:text-amber-400' : 'text-rose-500 dark:text-rose-400')">
-          <span>{{ storage ? storage.capacity_status : '...' }}</span>
-          <span class="text-xs text-slate-500 dark:text-slate-400 font-mono font-normal">({{ storage ? storage.filesystem_used_percent.toFixed(1) + '%' : '0%' }})</span>
+             :class="storage && storage.capacity_status === 'HEALTHY' ? 'text-emerald-500 dark:text-emerald-400' : (storage && storage.capacity_status === 'WARNING' ? 'text-amber-500 dark:text-amber-400' : (storage && storage.capacity_status === 'CRITICAL' ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400'))">
+          <span v-if="loadingStorage" class="animate-pulse">Loading...</span>
+          <template v-else-if="storage && storage.filesystem_total_bytes > 0">
+            <span>{{ storage.capacity_status }}</span>
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-mono font-normal">({{ storage.filesystem_used_percent.toFixed(1) }}%)</span>
+          </template>
+          <span v-else>N/A</span>
         </div>
         <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1 mt-1 overflow-hidden">
           <div class="h-1 rounded-full transition-all duration-300"
                :class="storage && storage.capacity_status === 'HEALTHY' ? 'bg-emerald-500' : (storage && storage.capacity_status === 'WARNING' ? 'bg-amber-500' : 'bg-rose-500')"
-               :style="{ width: (storage ? Math.min(100, storage.filesystem_used_percent) : 0) + '%' }"></div>
+               :style="{ width: (storage && storage.filesystem_total_bytes > 0 ? Math.min(100, storage.filesystem_used_percent) : 0) + '%' }"></div>
         </div>
       </div>
 
@@ -118,10 +139,14 @@
       <div class="p-4 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
         <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">{{ $t('retention.walSpool') }}</span>
         <div class="text-lg font-bold text-indigo-500 dark:text-indigo-400 font-mono">
-          {{ storage ? formatBytes(storage.wal_queue_size_bytes) : '0 B' }}
+          <span v-if="loadingStorage" class="animate-pulse text-slate-400">Loading...</span>
+          <span v-else-if="storage">{{ formatBytes(storage.wal_queue_size_bytes) }}</span>
+          <span v-else class="text-slate-400">N/A</span>
         </div>
         <span class="text-3xs text-slate-500 dark:text-slate-400 block font-sans">
-          {{ storage ? storage.wal_queue_pending_records + ' Pending records' : '0 Pending' }}
+          <span v-if="loadingStorage">...</span>
+          <span v-else-if="storage">{{ storage.wal_queue_pending_records }} Pending records</span>
+          <span v-else>--</span>
         </span>
       </div>
 
@@ -129,10 +154,14 @@
       <div class="p-4 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
         <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">{{ $t('retention.backupStorage') }}</span>
         <div class="text-lg font-bold text-blue-500 dark:text-blue-400 font-mono">
-          {{ storage ? formatBytes(storage.backup_storage_size_bytes) : '0 B' }}
+          <span v-if="loadingStorage" class="animate-pulse text-slate-400">Loading...</span>
+          <span v-else-if="storage">{{ formatBytes(storage.backup_storage_size_bytes) }}</span>
+          <span v-else class="text-slate-400">N/A</span>
         </div>
         <span class="text-3xs text-slate-500 dark:text-slate-400 block font-sans">
-          {{ storage ? storage.backup_archives_count + ' Archives' : '0 Archives' }}
+          <span v-if="loadingStorage">...</span>
+          <span v-else-if="storage">{{ storage.backup_archives_count }} Archives</span>
+          <span v-else>--</span>
         </span>
       </div>
     </div>
@@ -149,13 +178,39 @@
               Configured Data Lifecycle Policies
             </h2>
           </div>
-          <span class="text-2xs text-slate-500 dark:text-slate-400 font-sans">
-            {{ policies.length }} Policies Defined • Destructive Actions Require Explicit Authorization
-          </span>
+          <div class="flex items-center space-x-3 text-2xs text-slate-500 dark:text-slate-400 font-sans">
+            <span v-if="loadingPolicies" class="animate-pulse">Loading policies...</span>
+            <span v-else>{{ policies.length }} Policies Defined • Destructive Actions Require Explicit Authorization</span>
+            <button @click="fetchPolicies" class="text-indigo-500 hover:text-indigo-400 font-medium">
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs font-sans">
+          <!-- Loading state -->
+          <div v-if="loadingPolicies" class="py-12 text-center text-slate-400 text-xs font-sans">
+            <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+            </svg>
+            Loading retention policies...
+          </div>
+          <!-- Error state -->
+          <div v-else-if="errorPolicies" class="py-10 text-center text-xs font-sans space-y-2">
+            <div class="text-rose-400 font-medium">{{ errorPolicies }}</div>
+            <button @click="fetchPolicies" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-2xs font-semibold transition-colors">
+              Retry Loading Policies
+            </button>
+          </div>
+          <!-- Empty state -->
+          <div v-else-if="policies.length === 0" class="py-12 text-center text-xs font-sans text-slate-400 space-y-2">
+            <p>No retention policies found in database.</p>
+            <button @click="triggerSweep" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-2xs font-semibold transition-colors">
+              Initialize Default Policies
+            </button>
+          </div>
+          <!-- Table when loaded -->
+          <table v-else class="w-full text-left text-xs font-sans">
             <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-3xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th class="px-5 py-3">Category & Policy</th>
@@ -301,7 +356,27 @@
                 <th class="px-5 py-3 text-center">Measurement</th>
               </tr>
             </thead>
-            <tbody v-if="storage && storage.tables" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200 font-mono">
+            <tbody v-if="loadingStorage">
+              <tr>
+                <td colspan="7" class="px-5 py-8 text-center text-xs text-slate-400">
+                  <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+                  </svg>
+                  Loading table storage metrics...
+                </td>
+              </tr>
+            </tbody>
+            <tbody v-else-if="errorStorage">
+              <tr>
+                <td colspan="7" class="px-5 py-6 text-center text-xs text-rose-400 font-sans space-y-2">
+                  <div>{{ errorStorage }}</div>
+                  <button @click="fetchStorage" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-2xs font-semibold">
+                    Retry Loading Storage
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+            <tbody v-else-if="storage && storage.tables && storage.tables.length" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200 font-mono">
               <tr v-for="tbl in storage.tables" :key="tbl.table_name" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                 <td class="px-5 py-3 font-semibold text-slate-900 dark:text-white font-sans">{{ tbl.table_name }}</td>
                 <td class="px-4 py-3 text-2xs text-slate-500 dark:text-slate-400 font-sans">{{ tbl.category }}</td>
@@ -314,6 +389,13 @@
                         :class="tbl.is_estimated ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'">
                     {{ tbl.is_estimated ? $t('retention.estimated') : $t('retention.measured') }}
                   </span>
+                </td>
+              </tr>
+            </tbody>
+            <tbody v-else>
+              <tr>
+                <td colspan="7" class="px-5 py-8 text-center text-xs text-slate-400 dark:text-slate-500">
+                  No database table storage metrics available.
                 </td>
               </tr>
             </tbody>
@@ -353,7 +435,27 @@
                 <th class="px-5 py-3">Initiated By</th>
               </tr>
             </thead>
-            <tbody v-if="historyLogs && historyLogs.length" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200">
+            <tbody v-if="loadingHistory">
+              <tr>
+                <td colspan="8" class="px-5 py-8 text-center text-xs text-slate-400">
+                  <svg class="animate-spin w-5 h-5 mx-auto mb-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+                  </svg>
+                  Loading audit history...
+                </td>
+              </tr>
+            </tbody>
+            <tbody v-else-if="errorHistory">
+              <tr>
+                <td colspan="8" class="px-5 py-6 text-center text-xs text-rose-400 font-sans space-y-2">
+                  <div>{{ errorHistory }}</div>
+                  <button @click="fetchHistory" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-2xs font-semibold">
+                    Retry Loading History
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+            <tbody v-else-if="historyLogs && historyLogs.length" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200">
               <tr v-for="log in historyLogs" :key="log.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                 <td class="px-5 py-3 font-mono text-2xs whitespace-nowrap">{{ formatDate(log.created_at) }}</td>
                 <td class="px-4 py-3">
@@ -682,6 +784,14 @@ export default {
       isCleaning: false,
       isSaving: false,
 
+      // Loading and Error states
+      loadingPolicies: false,
+      loadingStorage: false,
+      loadingHistory: false,
+      errorPolicies: null,
+      errorStorage: null,
+      errorHistory: null,
+
       // Modals
       showDryRunModal: false,
       dryRunData: null,
@@ -693,49 +803,88 @@ export default {
     };
   },
   mounted() {
-    this.fetchPolicies();
-    this.fetchStorage();
-    this.fetchHistory();
+    this.refreshAll();
   },
   methods: {
+    getAuthHeaders() {
+      const token = (this.$store && this.$store.state.token) ||
+                    localStorage.getItem('datalogger_token') ||
+                    localStorage.getItem('token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
+    refreshAll() {
+      this.fetchPolicies();
+      this.fetchStorage();
+      this.fetchHistory();
+    },
     async fetchPolicies() {
+      this.loadingPolicies = true;
+      this.errorPolicies = null;
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.get('/api/retention/policies', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
-          this.policies = res.data.data;
+          this.policies = res.data.data || [];
+        } else {
+          this.errorPolicies = (res.data && res.data.error) || 'Failed to load retention policies.';
         }
       } catch (err) {
         console.error('Failed fetching retention policies:', err);
+        const errMsg = err.response && err.response.data && err.response.data.error
+          ? err.response.data.error
+          : (err.message || 'Unknown network error');
+        const status = err.response ? `[HTTP ${err.response.status}] ` : '';
+        this.errorPolicies = `${status}${errMsg}`;
+      } finally {
+        this.loadingPolicies = false;
       }
     },
     async fetchStorage() {
+      this.loadingStorage = true;
+      this.errorStorage = null;
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.get('/api/retention/storage', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
           this.storage = res.data.data;
+        } else {
+          this.errorStorage = (res.data && res.data.error) || 'Failed to load storage metrics.';
         }
       } catch (err) {
         console.error('Failed fetching storage overview:', err);
+        const errMsg = err.response && err.response.data && err.response.data.error
+          ? err.response.data.error
+          : (err.message || 'Unknown network error');
+        const status = err.response ? `[HTTP ${err.response.status}] ` : '';
+        this.errorStorage = `${status}${errMsg}`;
+      } finally {
+        this.loadingStorage = false;
       }
     },
     async fetchHistory() {
+      this.loadingHistory = true;
+      this.errorHistory = null;
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.get(`/api/retention/history?page=${this.historyPage}&page_size=${this.historyPageSize}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
           this.historyLogs = res.data.data.items || [];
           this.historyTotal = res.data.data.total || 0;
+        } else {
+          this.errorHistory = (res.data && res.data.error) || 'Failed to load retention history.';
         }
       } catch (err) {
         console.error('Failed fetching retention history:', err);
+        const errMsg = err.response && err.response.data && err.response.data.error
+          ? err.response.data.error
+          : (err.message || 'Unknown network error');
+        const status = err.response ? `[HTTP ${err.response.status}] ` : '';
+        this.errorHistory = `${status}${errMsg}`;
+      } finally {
+        this.loadingHistory = false;
       }
     },
     changeHistoryPage(page) {
@@ -745,49 +894,53 @@ export default {
     },
     async togglePolicy(policy) {
       try {
-        const token = localStorage.getItem('token');
         const nextState = !policy.enabled;
         const res = await axios.put(`/api/retention/policies/${policy.id}/toggle`, { enabled: nextState }, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
           policy.enabled = nextState;
+        } else {
+          alert('Failed to toggle policy: ' + ((res.data && res.data.error) || 'Unknown error'));
         }
       } catch (err) {
-        alert(err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message);
+        const errMsg = err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message;
+        alert(`Error toggling policy: ${errMsg}`);
       }
     },
     async triggerSweep() {
       this.isSweeping = true;
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.post('/api/retention/housekeeping/trigger', {}, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
-          await this.fetchPolicies();
-          await this.fetchStorage();
-          await this.fetchHistory();
+          await this.refreshAll();
+        } else {
+          alert('Trigger failed: ' + ((res.data && res.data.error) || 'Unknown error'));
         }
       } catch (err) {
-        alert(err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message);
+        const errMsg = err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message;
+        alert(`Error triggering housekeeping: ${errMsg}`);
       } finally {
         this.isSweeping = false;
       }
     },
     async openDryRun(policy) {
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.post(`/api/retention/policies/${policy.id}/dry-run`, {}, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
           this.dryRunData = res.data.data;
           this.selectedPolicy = policy;
           this.showDryRunModal = true;
+        } else {
+          alert('Dry run simulation failed: ' + ((res.data && res.data.error) || 'Unknown error'));
         }
       } catch (err) {
-        alert(err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message);
+        const errMsg = err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message;
+        alert(`Dry run error: ${errMsg}`);
       }
     },
     proceedFromDryRunToClean() {
@@ -803,20 +956,18 @@ export default {
       if (!this.confirmExplicitCheck) return;
       this.isCleaning = true;
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.post(`/api/retention/policies/${this.selectedPolicy.id}/execute`, { confirm: true }, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
           this.showConfirmModal = false;
-          await this.fetchPolicies();
-          await this.fetchStorage();
-          await this.fetchHistory();
+          await this.refreshAll();
         } else {
           alert('Execution Blocked: ' + (res.data ? res.data.error : 'Unknown'));
         }
       } catch (err) {
-        alert(err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message);
+        const errMsg = err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message;
+        alert(`Cleanup error: ${errMsg}`);
       } finally {
         this.isCleaning = false;
       }
@@ -828,16 +979,18 @@ export default {
     async savePolicyConfig() {
       this.isSaving = true;
       try {
-        const token = localStorage.getItem('token');
         const res = await axios.put(`/api/retention/policies/${this.editingPolicy.id}`, this.editingPolicy, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: this.getAuthHeaders(),
         });
         if (res.data && res.data.success) {
           this.showEditModal = false;
           await this.fetchPolicies();
+        } else {
+          alert('Failed to save policy: ' + ((res.data && res.data.error) || 'Unknown error'));
         }
       } catch (err) {
-        alert(err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message);
+        const errMsg = err.response && err.response.data && err.response.data.error ? err.response.data.error : err.message;
+        alert(`Save policy error: ${errMsg}`);
       } finally {
         this.isSaving = false;
       }
@@ -857,6 +1010,8 @@ export default {
           return 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800';
         case 'AUDIT_TRAILS':
           return 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-800';
+        case 'BACKUP_ARCHIVES':
+          return 'bg-teal-100 dark:bg-teal-950/80 text-teal-700 dark:text-teal-400 border border-teal-300 dark:border-teal-800';
         default:
           return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
       }

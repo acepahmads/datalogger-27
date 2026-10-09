@@ -149,6 +149,19 @@ func TestRetentionHandlerEndpoints(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200 OK for engineer viewing policies, got %d", w.Code)
 	}
+	var polResp struct {
+		Success bool                    `json:"success"`
+		Data    []model.RetentionPolicy `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &polResp); err != nil {
+		t.Fatalf("failed to parse policies response: %v", err)
+	}
+	if !polResp.Success {
+		t.Errorf("expected policies response success=true")
+	}
+	if len(polResp.Data) != 8 {
+		t.Errorf("expected 8 default policies returned, got %d", len(polResp.Data))
+	}
 
 	// 3. PUT /api/retention/policies/:id with Operator token (lacks retention.manage) -> 403 Forbidden
 	updatePayload := map[string]interface{}{
@@ -234,6 +247,22 @@ func TestRetentionHandlerEndpoints(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200 OK for storage overview, got %d", w.Code)
+	}
+	var storResp struct {
+		Success bool                    `json:"success"`
+		Data    *model.StorageOverview  `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &storResp); err != nil {
+		t.Fatalf("failed to parse storage overview response: %v", err)
+	}
+	if !storResp.Success || storResp.Data == nil {
+		t.Fatalf("expected storage overview success=true and non-nil data")
+	}
+	if storResp.Data.CapacityStatus == "" {
+		t.Errorf("expected non-empty CapacityStatus")
+	}
+	if storResp.Data.DatabaseType == "" {
+		t.Errorf("expected non-empty DatabaseType")
 	}
 
 	// 10. GET /api/retention/history with Engineer token -> 200 OK

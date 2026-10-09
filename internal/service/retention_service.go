@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -756,7 +757,7 @@ func (s *RetentionService) GetStorageOverview() (*model.StorageOverview, error) 
 					IndexLength int64 `gorm:"column:index_length"`
 				}
 				var ts TableSize
-				query := "SELECT IFNULL(data_length, 0) as data_length, IFNULL(index_length, 0) as index_length FROM information_schema.tables WHERE table_schema = ? AND table_name = ?"
+				query := "SELECT IFNULL(data_length, 0) as data_length, IFNULL(index_length, 0) as index_length FROM information_schema.tables WHERE (table_schema = ? OR table_schema = DATABASE()) AND table_name = ?"
 				if err := s.db.Raw(query, cfg.DBName, mt.Name).Scan(&ts).Error; err == nil && (ts.DataLength > 0 || ts.IndexLength > 0) {
 					info.DataSizeBytes = ts.DataLength
 					info.IndexSizeBytes = ts.IndexLength
@@ -793,6 +794,27 @@ func (s *RetentionService) GetStorageOverview() (*model.StorageOverview, error) 
 		overview.WALQueueSizeMB = float64(m.QueueSpoolSizeBytes) / (1024 * 1024)
 		overview.WALQueuePendingRecords = m.QueuePendingRecords
 	}
+	// Fallback: check physical WAL files on disk if telemetryService is nil or returned 0
+	if overview.WALQueueSizeBytes == 0 {
+		qDir := cfg.QueueDir
+		if qDir == "" {
+			qDir = filepath.Join("data", "queue")
+		}
+		if entries, err := os.ReadDir(qDir); err == nil {
+			var spoolOnDisk int64
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".wal") {
+					if fi, fiErr := entry.Info(); fiErr == nil {
+						spoolOnDisk += fi.Size()
+					}
+				}
+			}
+			if spoolOnDisk > 0 {
+				overview.WALQueueSizeBytes = spoolOnDisk
+				overview.WALQueueSizeMB = float64(spoolOnDisk) / (1024 * 1024)
+			}
+		}
+	}
 
 	// 3. Inspect Backup archives storage
 	if s.backupService != nil {
@@ -805,14 +827,73 @@ func (s *RetentionService) GetStorageOverview() (*model.StorageOverview, error) 
 			overview.BackupArchivesCount = int(totalBackups)
 		}
 	}
+	// Fallback to backup repository or physical backup directory if 0
+	if overview.BackupStorageSizeBytes == 0 && s.backupRepo != nil {
+		if bytes, err := s.backupRepo.GetTotalStorageBytes(); err == nil && bytes > 0 {
+			overview.BackupStorageSizeBytes = bytes
+			overview.BackupStorageSizeMB = float64(bytes) / (1024 * 1024)
+		}
+		if count, err := s.backupRepo.CountValid(); err == nil && count > 0 {
+			overview.BackupArchivesCount = int(count)
+		}
+	}
+	if overview.BackupStorageSizeBytes == 0 {
+		bDir := cfg.BackupDir
+		if bDir == "" {
+			bDir = filepath.Join("data", "backups")
+		}
+		if entries, err := os.ReadDir(bDir); err == nil {
+			var bkpBytes int64
+			var bkpCount int
+			for _, entry := range entries {
+				if !entry.IsDir() && (strings.HasSuffix(entry.Name(), ".tar.gz") || strings.HasSuffix(entry.Name(), ".sql")) {
+					if fi, fiErr := entry.Info(); fiErr == nil {
+						bkpBytes += fi.Size()
+						bkpCount++
+					}
+				}
+			}
+			if bkpBytes > 0 {
+				overview.BackupStorageSizeBytes = bkpBytes
+				overview.BackupStorageSizeMB = float64(bkpBytes) / (1024 * 1024)
+				overview.BackupArchivesCount = bkpCount
+			}
+		}
+	}
 
 	// 4. Filesystem capacity measurement (avoiding double-counting shared disks)
 	dataDir := cfg.DataDir
 	if dataDir == "" {
 		dataDir = "data"
 	}
+	_ = os.MkdirAll(dataDir, 0755)
 	absDataDir, _ := filepath.Abs(dataDir)
-	diskUsage, err := disk.Usage(absDataDir)
+
+	diskTarget := absDataDir
+	if runtime.GOOS == "windows" {
+		vol := filepath.VolumeName(absDataDir)
+		if vol != "" {
+			diskTarget = vol + "\\"
+		} else if len(absDataDir) >= 3 && absDataDir[1] == ':' {
+			diskTarget = absDataDir[:3]
+		}
+	}
+
+	diskUsage, err := disk.Usage(diskTarget)
+	if (err != nil || diskUsage == nil) && diskTarget != absDataDir {
+		diskUsage, err = disk.Usage(absDataDir)
+	}
+	if err != nil || diskUsage == nil {
+		fallbackPath := "/"
+		if runtime.GOOS == "windows" {
+			fallbackPath = "C:\\"
+			if pwd, pErr := os.Getwd(); pErr == nil && len(pwd) >= 3 {
+				fallbackPath = pwd[:3]
+			}
+		}
+		diskUsage, err = disk.Usage(fallbackPath)
+	}
+
 	if err == nil && diskUsage != nil {
 		overview.FilesystemTotalBytes = diskUsage.Total
 		overview.FilesystemFreeBytes = diskUsage.Free

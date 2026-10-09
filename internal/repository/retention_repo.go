@@ -154,6 +154,24 @@ func (r *RetentionRepository) SeedDefaultPolicies() error {
 			ScheduleTime:          "04:30",
 			CreatedBy:             "system",
 		},
+		{
+			ID:                    "pol_backup_catalog",
+			Name:                  "Backup Archives Catalog Retention",
+			Category:              model.CategoryBackupArchives,
+			Description:           "Prune historical backup archives exceeding retention threshold; catalog and physical files coordinated via BackupService",
+			Enabled:               false,
+			RetentionDays:         90,
+			MinimumAgeHours:       24,
+			ProtectedPeriodDays:   14,
+			RequireBackup:         false,
+			RequireRollup:         false,
+			BatchSize:             50,
+			MaxDeletePerRun:       100,
+			Priority:              60,
+			ScheduleIntervalHours: 24,
+			ScheduleTime:          "04:45",
+			CreatedBy:             "system",
+		},
 	}
 
 	for _, p := range defaults {
