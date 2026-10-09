@@ -127,6 +127,9 @@ func RunMigrations(db *gorm.DB) error {
 	// 7. Update Development Tracking Dashboard for Phase 4.1
 	updatePhase4Tracking(db)
 
+	// 8. Reconcile all Phase statuses and progress across the database
+	ReconcileAllPhases(db)
+
 	logger.Info("Database schema synchronization and migration completed successfully")
 	return nil
 }
@@ -1376,56 +1379,92 @@ func updatePhase4Tracking(db *gorm.DB) {
 		})
 	}
 
+	// Recalculate Phase 4 progress and status dynamically based on all deliverables
 	RecalculatePhaseProgress(db, phase4.ID)
-
-	db.Model(&model.DevelopmentPhase{}).Where("id = ?", phase4.ID).Updates(map[string]interface{}{
-		"status":         model.PhaseWorking,
-		"completed_date": nil,
-	})
 }
 
 // RecalculatePhaseProgress updates subphase and overall phase progress based on task completion
 func RecalculatePhaseProgress(db *gorm.DB, phaseID uint) {
+	now := time.Now()
+
+	// 1. Recalculate all subphases belonging to this phase
 	var subphases []model.DevelopmentSubphase
-	if err := db.Where("phase_id = ?", phaseID).Find(&subphases).Error; err == nil {
+	allSubphasesDone := true
+	hasSubphases := false
+
+	if err := db.Where("phase_id = ?", phaseID).Find(&subphases).Error; err == nil && len(subphases) > 0 {
+		hasSubphases = true
 		for _, sp := range subphases {
 			var spTasks []model.DevelopmentTask
 			if err := db.Where("subphase_id = ?", sp.ID).Find(&spTasks).Error; err == nil && len(spTasks) > 0 {
 				var sum float64
 				activeCount := 0
+				doneCount := 0
+				hasBlocker := false
+				hasUnfinished := false
+
 				for _, t := range spTasks {
-					if t.Status == model.StatusSuperseded {
+					// PLANNED and SUPERSEDED tasks must not prevent completion or corrupt active denominator
+					if t.Status == model.StatusSuperseded || t.Status == model.StatusPlanned {
 						continue
 					}
 					activeCount++
 					sum += t.Progress
+					if t.Status == model.StatusDone {
+						doneCount++
+					} else if t.Status == model.StatusBlocked || t.Status == model.StatusFailed || t.Status == model.StatusWaitingApproval {
+						hasBlocker = true
+					} else { // WORKING, TESTING, PENDING
+						hasUnfinished = true
+					}
 				}
+
 				spProgress := 0.0
 				if activeCount > 0 {
 					spProgress = sum / float64(activeCount)
 				}
+
 				spStatus := "PENDING"
-				if spProgress >= 100 {
+				if activeCount > 0 && doneCount == activeCount && spProgress >= 100.0 && !hasBlocker && !hasUnfinished {
 					spStatus = "DONE"
-				} else if spProgress > 0 {
+				} else if hasBlocker {
 					spStatus = "WORKING"
-				}
-				if sp.Status == "PLANNED" && spProgress == 0 {
+					allSubphasesDone = false
+				} else if spProgress > 0 || doneCount > 0 || hasUnfinished {
+					spStatus = "WORKING"
+					allSubphasesDone = false
+				} else if sp.Status == "PLANNED" && spProgress == 0 {
 					spStatus = "PLANNED"
+				} else {
+					allSubphasesDone = false
 				}
-				db.Model(&model.DevelopmentSubphase{}).Where("id = ?", sp.ID).Updates(map[string]interface{}{
+
+				if spStatus != "DONE" && spStatus != "PLANNED" {
+					allSubphasesDone = false
+				}
+
+				_ = db.Model(&model.DevelopmentSubphase{}).Where("id = ?", sp.ID).Updates(map[string]interface{}{
 					"progress": spProgress,
 					"status":   spStatus,
-				})
+				}).Error
+			} else {
+				// Subphase has no child tasks directly assigned
+				if sp.Status != "DONE" && sp.Status != "PLANNED" {
+					allSubphasesDone = false
+				}
 			}
 		}
 	}
 
+	// 2. Recalculate Phase progress from valid active deliverables
 	var allTasks []model.DevelopmentTask
-	if err := db.Where("phase_id = ?", phaseID).Find(&allTasks).Error; err == nil && len(allTasks) > 0 {
+	if err := db.Where("phase_id = ?", phaseID).Find(&allTasks).Error; err == nil {
 		var sum float64
 		activeCount := 0
 		doneCount := 0
+		hasBlocker := false
+		hasUnfinished := false
+
 		for _, t := range allTasks {
 			// Superseded and Planned tasks do not corrupt active completion denominator
 			if t.Status == model.StatusSuperseded || t.Status == model.StatusPlanned {
@@ -1435,28 +1474,67 @@ func RecalculatePhaseProgress(db *gorm.DB, phaseID uint) {
 			sum += t.Progress
 			if t.Status == model.StatusDone {
 				doneCount++
+			} else if t.Status == model.StatusBlocked || t.Status == model.StatusFailed || t.Status == model.StatusWaitingApproval {
+				hasBlocker = true
+			} else { // WORKING, TESTING, PENDING
+				hasUnfinished = true
 			}
 		}
+
+		var currentPhase model.DevelopmentPhase
+		_ = db.Where("id = ?", phaseID).First(&currentPhase).Error
+
 		avgProgress := 0.0
 		if activeCount > 0 {
 			avgProgress = sum / float64(activeCount)
+		} else if currentPhase.Progress > 0 {
+			avgProgress = currentPhase.Progress
 		}
 
 		phaseStatus := model.PhasePending
-		now := time.Now()
 		var completedDate *time.Time
-		if avgProgress >= 100 || (activeCount > 0 && doneCount == activeCount) {
+
+		// Phase is COMPLETED if:
+		// 1. All active tasks are DONE and avgProgress is 100%
+		// 2. No BLOCKED, FAILED, WAITING_APPROVAL, or unfinished required tasks
+		// 3. If subphases exist, all active subphases are DONE
+		isComplete := (activeCount > 0 && doneCount == activeCount && avgProgress >= 100.0) &&
+			!hasBlocker && !hasUnfinished &&
+			(!hasSubphases || allSubphasesDone)
+
+		if isComplete {
 			phaseStatus = model.PhaseCompleted
-			completedDate = &now
-		} else if avgProgress > 0 || doneCount > 0 {
+			if currentPhase.CompletedDate != nil {
+				completedDate = currentPhase.CompletedDate
+			} else {
+				completedDate = &now
+			}
+		} else if hasBlocker || hasUnfinished || avgProgress > 0 || doneCount > 0 {
 			phaseStatus = model.PhaseWorking
+			completedDate = nil
 		}
 
-		db.Model(&model.DevelopmentPhase{}).Where("id = ?", phaseID).Updates(map[string]interface{}{
-			"progress":       avgProgress,
-			"status":         phaseStatus,
-			"completed_date": completedDate,
-		})
+		updates := map[string]interface{}{
+			"progress": avgProgress,
+			"status":   phaseStatus,
+		}
+		if phaseStatus == model.PhaseCompleted {
+			updates["completed_date"] = completedDate
+		} else {
+			updates["completed_date"] = nil
+		}
+
+		_ = db.Model(&model.DevelopmentPhase{}).Where("id = ?", phaseID).Updates(updates).Error
+	}
+}
+
+// ReconcileAllPhases dynamically recalculates all phases and subphases across the database
+func ReconcileAllPhases(db *gorm.DB) {
+	var phases []model.DevelopmentPhase
+	if err := db.Order("order_index ASC").Find(&phases).Error; err == nil {
+		for _, p := range phases {
+			RecalculatePhaseProgress(db, p.ID)
+		}
 	}
 }
 

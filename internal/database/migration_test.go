@@ -250,8 +250,8 @@ func TestMigrationPhase4Tracking(t *testing.T) {
 	if phase4Final.Progress < 100.0 {
 		t.Errorf("Phase 4 final progress should be 100%%, got %.2f%%", phase4Final.Progress)
 	}
-	if phase4Final.Status != model.PhaseCompleted && phase4Final.Status != model.PhaseWorking {
-		t.Errorf("Phase 4 final status should be COMPLETED or WORKING, got %s", phase4Final.Status)
+	if phase4Final.Status != model.PhaseCompleted {
+		t.Errorf("Phase 4 final status should be COMPLETED, got %s", phase4Final.Status)
 	}
 }
 

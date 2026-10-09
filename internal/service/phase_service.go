@@ -45,6 +45,7 @@ func NewPhaseService(phaseRepo *repository.PhaseRepository, systemRepo *reposito
 }
 
 func (s *PhaseService) GetAllPhases() ([]model.DevelopmentPhase, error) {
+	_ = s.phaseRepo.ReconcileAllPhases()
 	return s.phaseRepo.GetAllPhases()
 }
 
@@ -53,6 +54,7 @@ func (s *PhaseService) GetPhaseByID(id uint) (*model.DevelopmentPhase, error) {
 }
 
 func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
+	_ = s.phaseRepo.ReconcileAllPhases()
 	phases, err := s.phaseRepo.GetAllPhases()
 	if err != nil {
 		return nil, err
@@ -60,17 +62,10 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 
 	var totalProgress float64
 	var completedCount, activeCount, blockedCount, totalCount int
-	var currentPhaseName string
-	var currentPhaseNum int
 	var lastUpdateTime time.Time
 
 	for _, p := range phases {
 		totalProgress += p.Progress
-
-		if p.Status == model.PhaseWorking && (currentPhaseNum == 0 || p.PhaseNumber < currentPhaseNum) {
-			currentPhaseName = p.Name
-			currentPhaseNum = p.PhaseNumber
-		}
 
 		for _, t := range p.Tasks {
 			if t.Status == model.StatusSuperseded {
@@ -97,20 +92,65 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		overallPct = totalProgress / float64(len(phases))
 	}
 
-	currentSubphaseName := "Phase 4.2 — Persistent Queue & Data Integrity"
-	currentTaskName := "Phase 4.2 Complete (19/19 PASS)"
-	nextAction := "Ready for Phase 4.3 Backup & Restore"
+	// Identify active milestone phase (in sequential roadmap order Phase 1..4)
+	var activePhase *model.DevelopmentPhase
+	for i := range phases {
+		p := &phases[i]
+		if p.PhaseNumber <= 4 && p.Status == model.PhaseWorking {
+			if activePhase == nil || p.PhaseNumber < activePhase.PhaseNumber {
+				activePhase = p
+			}
+		}
+	}
+	// If no phase <= 4 is currently working, use latest completed phase <= 4 (e.g. Phase 4)
+	if activePhase == nil {
+		for i := range phases {
+			p := &phases[i]
+			if p.PhaseNumber <= 4 && p.Status == model.PhaseCompleted {
+				if activePhase == nil || p.PhaseNumber > activePhase.PhaseNumber {
+					activePhase = p
+				}
+			}
+		}
+	}
 
-	if currentPhaseNum == 3 {
-		currentSubphaseName = "Phase 3.3 — Aggregation, Rollup & Downsampling"
-		currentTaskName = "Phase 3 Verification Complete (3.1: 16/16, 3.2: 22/22, 3.3: 27/27 PASS)"
-		nextAction = "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage"
-	} else if currentPhaseName == "" || currentPhaseNum == 4 {
-		currentPhaseName = "Phase 4 — Reliability & Storage"
-		currentPhaseNum = 4
-		currentSubphaseName = "Phase 4.2 — Persistent Queue & Data Integrity"
-		currentTaskName = "Phase 4.2 Complete (19/19 PASS)"
-		nextAction = "Ready for Phase 4.3 Backup & Restore"
+	currentPhaseName := "Phase 4 — Reliability & Storage"
+	currentPhaseNum := 4
+	currentSubphaseName := "Phase 4.4 — Retention & Storage Management"
+	currentTaskName := "Phase 4 Complete (60/60 PASS)"
+	nextAction := "Phase 4 Reliability & Storage Accepted | Ready for Phase 5"
+	estimatedCompletion := "Phase 1-4 Accepted (100%) | Full System: Q4 2026"
+
+	if activePhase != nil {
+		currentPhaseName = activePhase.Name
+		currentPhaseNum = activePhase.PhaseNumber
+
+		if activePhase.PhaseNumber == 3 {
+			currentSubphaseName = "Phase 3.3 — Aggregation, Rollup & Downsampling"
+			currentTaskName = "Phase 3 Verification Complete (3.1: 16/16, 3.2: 22/22, 3.3: 27/27 PASS)"
+			nextAction = "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage"
+			estimatedCompletion = "Phase 1-2 Accepted (100%) | Phase 3 Working | Full System: Q4 2026"
+		} else if activePhase.PhaseNumber == 4 {
+			if activePhase.Status == model.PhaseCompleted {
+				currentSubphaseName = "Phase 4.4 — Retention & Storage Management"
+				currentTaskName = "Phase 4 Complete (60/60 PASS)"
+				nextAction = "Phase 4 Reliability & Storage Accepted | Ready for Phase 5"
+				estimatedCompletion = "Phase 1-4 Accepted (100%) | Full System: Q4 2026"
+			} else {
+				// Find first unfinished subphase in Phase 4 if any
+				currentSubphaseName = "Phase 4.1 — Reliability Foundation & Auto-Recovery"
+				for _, sp := range activePhase.Subphases {
+					if sp.Status != "DONE" {
+						currentSubphaseName = sp.Name
+						break
+					}
+					currentSubphaseName = sp.Name
+				}
+				currentTaskName = "Phase 4 Implementation in Progress"
+				nextAction = "Complete Phase 4 Verification"
+				estimatedCompletion = "Phase 1-3 Accepted (100%) | Phase 4 Working | Full System: Q4 2026"
+			}
+		}
 	}
 
 	dto := &OverallProgressDTO{
@@ -120,7 +160,7 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		CurrentSubphase:     currentSubphaseName,
 		CurrentTask:         currentTaskName,
 		NextAction:          nextAction,
-		EstimatedCompletion: "Phase 1-3 Accepted (100%) | Phase 4.1-4.2 Accepted (100%) | Full System: Q4 2026",
+		EstimatedCompletion: estimatedCompletion,
 		LastUpdate:          lastUpdateTime.Format("2006-01-02 15:04:05"),
 		CompletedTasksCount: completedCount,
 		ActiveTasksCount:    activeCount,

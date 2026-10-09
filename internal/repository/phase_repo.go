@@ -89,38 +89,72 @@ func (r *PhaseRepository) GetRecentTaskLogs(limit int) ([]model.DevelopmentTaskL
 
 // RecalculateProgress recalculates phase and subphase progress and updates status
 func (r *PhaseRepository) RecalculateProgress(phaseID uint) (float64, error) {
+	now := time.Now()
+
 	// 1. Recalculate child subphases if any exist
 	var subphases []model.DevelopmentSubphase
+	allSubphasesDone := true
+	hasSubphases := false
+
 	if err := r.db.Where("phase_id = ?", phaseID).Find(&subphases).Error; err == nil && len(subphases) > 0 {
+		hasSubphases = true
 		for _, sp := range subphases {
 			var spTasks []model.DevelopmentTask
 			if err := r.db.Where("subphase_id = ?", sp.ID).Find(&spTasks).Error; err == nil && len(spTasks) > 0 {
 				var sum float64
 				activeCount := 0
+				doneCount := 0
+				hasBlocker := false
+				hasUnfinished := false
+
 				for _, t := range spTasks {
-					if t.Status == model.StatusSuperseded {
+					// PLANNED and SUPERSEDED tasks must not prevent completion or corrupt active denominator
+					if t.Status == model.StatusSuperseded || t.Status == model.StatusPlanned {
 						continue
 					}
 					activeCount++
 					sum += t.Progress
+					if t.Status == model.StatusDone {
+						doneCount++
+					} else if t.Status == model.StatusBlocked || t.Status == model.StatusFailed || t.Status == model.StatusWaitingApproval {
+						hasBlocker = true
+					} else { // WORKING, TESTING, PENDING
+						hasUnfinished = true
+					}
 				}
+
 				spProgress := 0.0
 				if activeCount > 0 {
 					spProgress = sum / float64(activeCount)
 				}
+
 				spStatus := "PENDING"
-				if spProgress >= 100 {
+				if activeCount > 0 && doneCount == activeCount && spProgress >= 100.0 && !hasBlocker && !hasUnfinished {
 					spStatus = "DONE"
-				} else if spProgress > 0 {
+				} else if hasBlocker {
 					spStatus = "WORKING"
-				}
-				if sp.Status == "PLANNED" && spProgress == 0 {
+					allSubphasesDone = false
+				} else if spProgress > 0 || doneCount > 0 || hasUnfinished {
+					spStatus = "WORKING"
+					allSubphasesDone = false
+				} else if sp.Status == "PLANNED" && spProgress == 0 {
 					spStatus = "PLANNED"
+				} else {
+					allSubphasesDone = false
 				}
+
+				if spStatus != "DONE" && spStatus != "PLANNED" {
+					allSubphasesDone = false
+				}
+
 				_ = r.db.Model(&model.DevelopmentSubphase{}).Where("id = ?", sp.ID).Updates(map[string]interface{}{
 					"progress": spProgress,
 					"status":   spStatus,
 				}).Error
+			} else {
+				if sp.Status != "DONE" && sp.Status != "PLANNED" {
+					allSubphasesDone = false
+				}
 			}
 		}
 	}
@@ -130,45 +164,84 @@ func (r *PhaseRepository) RecalculateProgress(phaseID uint) (float64, error) {
 	if err := r.db.Where("phase_id = ?", phaseID).Find(&tasks).Error; err != nil {
 		return 0, err
 	}
-	if len(tasks) == 0 {
-		return 0, nil
-	}
 
-	var totalProgress float64
-	doneCount := 0
+	var sum float64
 	activeTaskCount := 0
+	doneCount := 0
+	hasBlocker := false
+	hasUnfinished := false
+
 	for _, t := range tasks {
 		// Superseded and Planned tasks do not corrupt active denominator
 		if t.Status == model.StatusSuperseded || t.Status == model.StatusPlanned {
 			continue
 		}
 		activeTaskCount++
-		totalProgress += t.Progress
+		sum += t.Progress
 		if t.Status == model.StatusDone {
 			doneCount++
+		} else if t.Status == model.StatusBlocked || t.Status == model.StatusFailed || t.Status == model.StatusWaitingApproval {
+			hasBlocker = true
+		} else { // WORKING, TESTING, PENDING
+			hasUnfinished = true
 		}
 	}
 
+	var currentPhase model.DevelopmentPhase
+	_ = r.db.Where("id = ?", phaseID).First(&currentPhase).Error
+
 	avgProgress := 0.0
 	if activeTaskCount > 0 {
-		avgProgress = totalProgress / float64(activeTaskCount)
+		avgProgress = sum / float64(activeTaskCount)
+	} else if currentPhase.Progress > 0 {
+		avgProgress = currentPhase.Progress
 	}
 
 	phaseStatus := model.PhasePending
-	now := time.Now()
 	var completedDate *time.Time
-	if avgProgress >= 100 || (activeTaskCount > 0 && doneCount == activeTaskCount) {
+
+	// Phase is COMPLETED if:
+	// 1. All active tasks are DONE and avgProgress is 100%
+	// 2. No BLOCKED, FAILED, WAITING_APPROVAL, or unfinished required tasks
+	// 3. If subphases exist, all active subphases are DONE
+	isComplete := (activeTaskCount > 0 && doneCount == activeTaskCount && avgProgress >= 100.0) &&
+		!hasBlocker && !hasUnfinished &&
+		(!hasSubphases || allSubphasesDone)
+
+	if isComplete {
 		phaseStatus = model.PhaseCompleted
-		completedDate = &now
-	} else if avgProgress > 0 || doneCount > 0 {
+		if currentPhase.CompletedDate != nil {
+			completedDate = currentPhase.CompletedDate
+		} else {
+			completedDate = &now
+		}
+	} else if hasBlocker || hasUnfinished || avgProgress > 0 || doneCount > 0 {
 		phaseStatus = model.PhaseWorking
+		completedDate = nil
 	}
 
-	err := r.db.Model(&model.DevelopmentPhase{}).Where("id = ?", phaseID).Updates(map[string]interface{}{
-		"progress":       avgProgress,
-		"status":         phaseStatus,
-		"completed_date": completedDate,
-	}).Error
+	updates := map[string]interface{}{
+		"progress": avgProgress,
+		"status":   phaseStatus,
+	}
+	if phaseStatus == model.PhaseCompleted {
+		updates["completed_date"] = completedDate
+	} else {
+		updates["completed_date"] = nil
+	}
 
+	err := r.db.Model(&model.DevelopmentPhase{}).Where("id = ?", phaseID).Updates(updates).Error
 	return avgProgress, err
+}
+
+// ReconcileAllPhases dynamically recalculates all phases and subphases across the database
+func (r *PhaseRepository) ReconcileAllPhases() error {
+	var phases []model.DevelopmentPhase
+	if err := r.db.Order("order_index ASC").Find(&phases).Error; err != nil {
+		return err
+	}
+	for _, p := range phases {
+		_, _ = r.RecalculateProgress(p.ID)
+	}
+	return nil
 }
