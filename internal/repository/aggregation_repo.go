@@ -15,7 +15,9 @@ import (
 type AggregationResultFilter struct {
 	DefinitionID uint
 	DeviceID     uint
+	DeviceIDs    []uint
 	ParameterID  uint
+	ParameterIDs []uint
 	SourceType   model.AggregationSourceType
 	Identifier   string
 	StartTime    *time.Time
@@ -140,10 +142,15 @@ func (r *AggregationRepository) GetResultsByFilter(ctx context.Context, filter A
 	if filter.DefinitionID > 0 {
 		query = query.Where("aggregation_definition_id = ?", filter.DefinitionID)
 	}
-	if filter.DeviceID > 0 {
+	if len(filter.DeviceIDs) > 0 {
+		query = query.Where("device_id IN (?)", filter.DeviceIDs)
+	} else if filter.DeviceID > 0 {
 		query = query.Where("device_id = ?", filter.DeviceID)
 	}
-	if filter.ParameterID > 0 {
+
+	if len(filter.ParameterIDs) > 0 {
+		query = query.Where("parameter_id IN (?)", filter.ParameterIDs)
+	} else if filter.ParameterID > 0 {
 		query = query.Where("parameter_id = ?", filter.ParameterID)
 	}
 	if filter.SourceType != "" {

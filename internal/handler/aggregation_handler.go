@@ -203,6 +203,7 @@ func (h *AggregationHandler) GetResults(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
 
 	var defID, devID, paramID uint
+	var devIDs, paramIDs []uint
 	if str := c.Query("definition_id"); str != "" {
 		if v, err := strconv.ParseUint(str, 10, 32); err == nil {
 			defID = uint(v)
@@ -213,9 +214,26 @@ func (h *AggregationHandler) GetResults(c *gin.Context) {
 			devID = uint(v)
 		}
 	}
+	if dIDsStr := c.Query("device_ids"); dIDsStr != "" {
+		parts := strings.Split(dIDsStr, ",")
+		for _, p := range parts {
+			if v, err := strconv.ParseUint(strings.TrimSpace(p), 10, 32); err == nil {
+				devIDs = append(devIDs, uint(v))
+			}
+		}
+	}
+
 	if str := c.Query("parameter_id"); str != "" {
 		if v, err := strconv.ParseUint(str, 10, 32); err == nil {
 			paramID = uint(v)
+		}
+	}
+	if pIDsStr := c.Query("parameter_ids"); pIDsStr != "" {
+		parts := strings.Split(pIDsStr, ",")
+		for _, p := range parts {
+			if v, err := strconv.ParseUint(strings.TrimSpace(p), 10, 32); err == nil {
+				paramIDs = append(paramIDs, uint(v))
+			}
 		}
 	}
 
@@ -238,7 +256,9 @@ func (h *AggregationHandler) GetResults(c *gin.Context) {
 	results, total, err := h.aggService.GetResults(c.Request.Context(), repository.AggregationResultFilter{
 		DefinitionID: defID,
 		DeviceID:     devID,
+		DeviceIDs:    devIDs,
 		ParameterID:  paramID,
+		ParameterIDs: paramIDs,
 		SourceType:   sourceType,
 		Identifier:   identifier,
 		StartTime:    startTime,
@@ -278,9 +298,15 @@ func (h *AggregationHandler) GetCustomerAggregatedData(c *gin.Context) {
 
 // GetDownsampledHistory handles GET /api/devices/:id/telemetry/downsampled
 func (h *AggregationHandler) GetDownsampledHistory(c *gin.Context) {
-	devID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.BadRequest(c, "Invalid device ID format")
+	var devID uint64
+	var err error
+	if c.Param("id") != "" {
+		devID, err = strconv.ParseUint(c.Param("id"), 10, 32)
+	} else if c.Query("device_id") != "" {
+		devID, err = strconv.ParseUint(c.Query("device_id"), 10, 32)
+	}
+	if err != nil || devID == 0 {
+		response.BadRequest(c, "Valid device ID is required")
 		return
 	}
 

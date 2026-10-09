@@ -93,8 +93,14 @@ func setupTelemetryTestRouter(t *testing.T) *TelemetryTestEnv {
 			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetRawTelemetry)
 			devicesGroup.GET("/:id/telemetry/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetDeviceQualitySummary)
 		}
-		api.GET("/telemetry/metrics", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
-		api.GET("/telemetry/quality-summary", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)
+		telemetryGroup := api.Group("/telemetry")
+		telemetryGroup.Use(middleware.JWTAuth(authService))
+		{
+			telemetryGroup.GET("/history", middleware.RequirePermission("device.view"), telemetryHandler.GetAllHistorical)
+			telemetryGroup.GET("/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetAllRawTelemetry)
+			telemetryGroup.GET("/metrics", middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
+			telemetryGroup.GET("/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)
+		}
 	}
 
 	return &TelemetryTestEnv{
@@ -260,7 +266,34 @@ func TestTelemetryAPIEndpoints(t *testing.T) {
 		t.Fatalf("Expected 200 OK for device quality summary, got %d: %s", wDevQS.Code, wDevQS.Body.String())
 	}
 
-	// 9. Test Unauthorized Rejection (no token)
+	// 9. Test GET /api/telemetry/history across all devices (Unified Analysis)
+	reqAllHist, _ := http.NewRequest("GET", "/api/telemetry/history?page=1&page_size=50", nil)
+	reqAllHist.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wAllHist := httptest.NewRecorder()
+	env.Router.ServeHTTP(wAllHist, reqAllHist)
+	if wAllHist.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for /api/telemetry/history, got %d: %s", wAllHist.Code, wAllHist.Body.String())
+	}
+
+	// 10. Test GET /api/telemetry/history with device_ids list
+	reqMultiHist, _ := http.NewRequest("GET", "/api/telemetry/history?device_ids=1,2&quality=GOOD", nil)
+	reqMultiHist.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wMultiHist := httptest.NewRecorder()
+	env.Router.ServeHTTP(wMultiHist, reqMultiHist)
+	if wMultiHist.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for /api/telemetry/history with device_ids, got %d", wMultiHist.Code)
+	}
+
+	// 11. Test GET /api/telemetry/raw across all devices (Unified Analysis)
+	reqAllRaw, _ := http.NewRequest("GET", "/api/telemetry/raw?page=1&page_size=50", nil)
+	reqAllRaw.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wAllRaw := httptest.NewRecorder()
+	env.Router.ServeHTTP(wAllRaw, reqAllRaw)
+	if wAllRaw.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for /api/telemetry/raw, got %d: %s", wAllRaw.Code, wAllRaw.Body.String())
+	}
+
+	// 12. Test Unauthorized Rejection (no token)
 	reqUnauth, _ := http.NewRequest("GET", "/api/devices/1/telemetry/latest", nil)
 	wUnauth := httptest.NewRecorder()
 	env.Router.ServeHTTP(wUnauth, reqUnauth)

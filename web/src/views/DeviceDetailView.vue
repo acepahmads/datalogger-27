@@ -53,6 +53,18 @@
           </svg>
           <span>{{ $t('common.delete') }}</span>
         </button>
+
+        <router-link
+          v-if="device"
+          :to="'/monitoring/analysis?device_id=' + device.id"
+          class="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+          :title="$t('analysis.openInAnalysis')"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span>{{ $t('analysis.breadcrumb') }}</span>
+        </router-link>
       </div>
     </div>
 
@@ -968,6 +980,12 @@
             </svg>
             <span>{{ $t('deviceDetail.refreshChart') }}</span>
           </button>
+          <router-link
+            :to="'/monitoring/analysis?device_id=' + device.id + '&mode=HISTORICAL'"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5"
+          >
+            <span>{{ $t('analysis.openInAnalysis') }}</span>
+          </router-link>
         </div>
       </div>
 
@@ -1653,6 +1671,12 @@
           >
             {{ $t('common.refresh') }}
           </button>
+          <router-link
+            :to="'/monitoring/analysis?device_id=' + device.id + '&mode=RAW'"
+            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5"
+          >
+            <span>{{ $t('analysis.openInAnalysis') }}</span>
+          </router-link>
         </div>
       </div>
 
@@ -1799,6 +1823,13 @@
             </svg>
             <span>{{ $t('aggregation.newDefinition') }}</span>
           </button>
+
+          <router-link
+            :to="'/monitoring/analysis?device_id=' + device.id + '&mode=AGGREGATED'"
+            class="px-3 py-1.5 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-800/40 text-indigo-300 text-xs font-semibold transition flex items-center space-x-1.5"
+          >
+            <span>{{ $t('analysis.openInAnalysis') }}</span>
+          </router-link>
         </div>
       </div>
 

@@ -12,13 +12,15 @@ import (
 
 // TelemetryFilterParams defines criteria for querying historical or raw telemetry
 type TelemetryFilterParams struct {
-	DeviceID    uint
-	ParameterID uint
-	Quality     string
-	StartTime   *time.Time
-	EndTime     *time.Time
-	Page        int
-	PageSize    int
+	DeviceID     uint
+	DeviceIDs    []uint
+	ParameterID  uint
+	ParameterIDs []uint
+	Quality      string
+	StartTime    *time.Time
+	EndTime      *time.Time
+	Page         int
+	PageSize     int
 }
 
 // TelemetryRepository handles telemetry persistence and fast retrieval
@@ -125,12 +127,18 @@ func (r *TelemetryRepository) GetHistorical(ctx context.Context, filter Telemetr
 
 	query := r.db.WithContext(ctx).Model(&model.RawData{})
 
-	if filter.DeviceID > 0 {
+	if len(filter.DeviceIDs) > 0 {
+		query = query.Where("device_id IN (?)", filter.DeviceIDs)
+	} else if filter.DeviceID > 0 {
 		query = query.Where("device_id = ?", filter.DeviceID)
 	}
-	if filter.ParameterID > 0 {
+
+	if len(filter.ParameterIDs) > 0 {
+		query = query.Where("parameter_id IN (?)", filter.ParameterIDs)
+	} else if filter.ParameterID > 0 {
 		query = query.Where("parameter_id = ?", filter.ParameterID)
 	}
+
 	if filter.Quality != "" {
 		query = query.Where("quality = ?", filter.Quality)
 	}

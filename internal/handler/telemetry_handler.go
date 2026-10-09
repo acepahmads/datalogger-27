@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"datalogger/internal/repository"
@@ -61,14 +62,7 @@ func (h *TelemetryHandler) GetLatestForParameter(c *gin.Context) {
 	response.OK(c, result)
 }
 
-// GetHistorical handles GET /api/devices/:id/telemetry/history
-func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
-	devID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.BadRequest(c, "Invalid device ID format")
-		return
-	}
-
+func (h *TelemetryHandler) parseTelemetryFilterParams(c *gin.Context, defaultDevID uint) repository.TelemetryFilterParams {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
 	if lStr := c.Query("limit"); lStr != "" && pageSize == 50 {
@@ -77,38 +71,71 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 		}
 	}
 
-	var paramID uint
+	filter := repository.TelemetryFilterParams{
+		Page:     page,
+		PageSize: pageSize,
+		Quality:  strings.TrimSpace(c.Query("quality")),
+	}
+
+	// Device ID & Device IDs
+	if defaultDevID > 0 {
+		filter.DeviceID = defaultDevID
+	} else {
+		if dStr := c.Query("device_id"); dStr != "" {
+			if dVal, err := strconv.ParseUint(dStr, 10, 32); err == nil {
+				filter.DeviceID = uint(dVal)
+			}
+		}
+		if dIDsStr := c.Query("device_ids"); dIDsStr != "" {
+			parts := strings.Split(dIDsStr, ",")
+			for _, p := range parts {
+				if v, err := strconv.ParseUint(strings.TrimSpace(p), 10, 32); err == nil {
+					filter.DeviceIDs = append(filter.DeviceIDs, uint(v))
+				}
+			}
+		}
+	}
+
+	// Parameter ID & Parameter IDs
 	if pStr := c.Query("parameter_id"); pStr != "" {
 		if pVal, err := strconv.ParseUint(pStr, 10, 32); err == nil {
-			paramID = uint(pVal)
+			filter.ParameterID = uint(pVal)
+		}
+	}
+	if pIDsStr := c.Query("parameter_ids"); pIDsStr != "" {
+		parts := strings.Split(pIDsStr, ",")
+		for _, p := range parts {
+			if v, err := strconv.ParseUint(strings.TrimSpace(p), 10, 32); err == nil {
+				filter.ParameterIDs = append(filter.ParameterIDs, uint(v))
+			}
 		}
 	}
 
-	quality := c.Query("quality")
-
-	var startTime *time.Time
+	// Time range
 	if startStr := c.Query("start_time"); startStr != "" {
 		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
-			startTime = &t
+			filter.StartTime = &t
 		}
 	}
-
-	var endTime *time.Time
 	if endStr := c.Query("end_time"); endStr != "" {
 		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
-			endTime = &t
+			filter.EndTime = &t
 		}
 	}
 
-	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), repository.TelemetryFilterParams{
-		DeviceID:    uint(devID),
-		ParameterID: paramID,
-		Quality:     quality,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Page:        page,
-		PageSize:    pageSize,
-	})
+	return filter
+}
+
+// GetHistorical handles GET /api/devices/:id/telemetry/history
+func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
+	devID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID format")
+		return
+	}
+
+	params := h.parseTelemetryFilterParams(c, uint(devID))
+	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "Failed to retrieve historical telemetry: "+err.Error())
 		return
@@ -116,8 +143,25 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 
 	response.OK(c, response.PaginatedData{
 		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
+		Page:     params.Page,
+		PageSize: params.PageSize,
+		Items:    records,
+	})
+}
+
+// GetAllHistorical handles GET /api/telemetry/history for unified multi-device analysis
+func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
+	params := h.parseTelemetryFilterParams(c, 0)
+	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "Failed to retrieve historical telemetry: "+err.Error())
+		return
+	}
+
+	response.OK(c, response.PaginatedData{
+		Total:    total,
+		Page:     params.Page,
+		PageSize: params.PageSize,
 		Items:    records,
 	})
 }
@@ -130,46 +174,8 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
-	if lStr := c.Query("limit"); lStr != "" && pageSize == 50 {
-		if l, err := strconv.Atoi(lStr); err == nil {
-			pageSize = l
-		}
-	}
-
-	var paramID uint
-	if pStr := c.Query("parameter_id"); pStr != "" {
-		if pVal, err := strconv.ParseUint(pStr, 10, 32); err == nil {
-			paramID = uint(pVal)
-		}
-	}
-
-	quality := c.Query("quality")
-
-	var startTime *time.Time
-	if startStr := c.Query("start_time"); startStr != "" {
-		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
-			startTime = &t
-		}
-	}
-
-	var endTime *time.Time
-	if endStr := c.Query("end_time"); endStr != "" {
-		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
-			endTime = &t
-		}
-	}
-
-	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), repository.TelemetryFilterParams{
-		DeviceID:    uint(devID),
-		ParameterID: paramID,
-		Quality:     quality,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Page:        page,
-		PageSize:    pageSize,
-	})
+	params := h.parseTelemetryFilterParams(c, uint(devID))
+	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())
 		return
@@ -177,8 +183,25 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 
 	response.OK(c, response.PaginatedData{
 		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
+		Page:     params.Page,
+		PageSize: params.PageSize,
+		Items:    records,
+	})
+}
+
+// GetAllRawTelemetry handles GET /api/telemetry/raw for unified multi-device raw telemetry inspection
+func (h *TelemetryHandler) GetAllRawTelemetry(c *gin.Context) {
+	params := h.parseTelemetryFilterParams(c, 0)
+	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())
+		return
+	}
+
+	response.OK(c, response.PaginatedData{
+		Total:    total,
+		Page:     params.Page,
+		PageSize: params.PageSize,
 		Items:    records,
 	})
 }

@@ -261,9 +261,16 @@ func main() {
 			customerGroup.GET("/aggregated-data/:identifier", middleware.RequirePermission("device.view"), aggHandler.GetCustomerAggregatedData)
 		}
 
-		// Telemetry Pipeline Diagnostics & Quality Summary (Phase 3.1 & 3.2)
-		api.GET("/telemetry/metrics", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
-		api.GET("/telemetry/quality-summary", middleware.JWTAuth(authService), middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)
+		// Telemetry Pipeline & Unified Analysis (Phase 3.1, 3.2, UX Refactor)
+		telemetryGroup := api.Group("/telemetry")
+		telemetryGroup.Use(middleware.JWTAuth(authService))
+		{
+			telemetryGroup.GET("/history", middleware.RequirePermission("device.view"), telemetryHandler.GetAllHistorical)
+			telemetryGroup.GET("/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetAllRawTelemetry)
+			telemetryGroup.GET("/downsampled", middleware.RequirePermission("device.view"), aggHandler.GetDownsampledHistory)
+			telemetryGroup.GET("/metrics", middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
+			telemetryGroup.GET("/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)
+		}
 
 		// Operational Telemetry Data
 		api.GET("/data", systemHandler.GetData)
