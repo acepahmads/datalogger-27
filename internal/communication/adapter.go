@@ -10,6 +10,8 @@ type ConnectionState = modbus.ConnectionState
 type AdapterStatus = modbus.AdapterStatus
 type ModbusReadRequest = modbus.ModbusReadRequest
 type ModbusReadResponse = modbus.ModbusReadResponse
+type DiagnosticCode = modbus.DiagnosticCode
+type DiagnosticResult = modbus.DiagnosticResult
 
 const (
 	StateDisconnected ConnectionState = modbus.StateDisconnected
@@ -28,6 +30,15 @@ const (
 	FunctionWriteSingleRegister    byte = modbus.FunctionWriteSingleRegister
 	FunctionWriteMultipleCoils     byte = modbus.FunctionWriteMultipleCoils
 	FunctionWriteMultipleRegisters byte = modbus.FunctionWriteMultipleRegisters
+
+	DiagSuccess            DiagnosticCode = modbus.DiagSuccess
+	DiagTimeout            DiagnosticCode = modbus.DiagTimeout
+	DiagSerialOpenError    DiagnosticCode = modbus.DiagSerialOpenError
+	DiagSerialIOError      DiagnosticCode = modbus.DiagSerialIOError
+	DiagCRCError           DiagnosticCode = modbus.DiagCRCError
+	DiagModbusException    DiagnosticCode = modbus.DiagModbusException
+	DiagConfigurationError DiagnosticCode = modbus.DiagConfigurationError
+	DiagBusy               DiagnosticCode = modbus.DiagBusy
 )
 
 // ModbusExceptionName aliases the modbus helper

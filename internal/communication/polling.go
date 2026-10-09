@@ -379,7 +379,6 @@ func (p *PollingEngine) ReadParameter(
 
 			if p.deviceService != nil {
 				_ = p.deviceService.UpdateParameterCurrentValue(param.ID, finalHeldVal, formulaVal, isHeld)
-				_ = p.deviceService.UpdateLastData(device.ID)
 			}
 
 			if p.telemetryService != nil {

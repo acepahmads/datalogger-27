@@ -3480,11 +3480,14 @@ export default {
       this.commFeedback = null;
       try {
         const res = await this.$store.dispatch('testDeviceConnection', this.device.id);
-        const data = res.data;
-        if (data && data.connected) {
-          this.commFeedback = { type: 'success', message: `Physical link verified: connected in ${data.latency_ms} ms (status: ${data.status})` };
+        const data = (res && res.data !== undefined && typeof res.data === 'object' && res.data !== null) ? res.data : res;
+        if (data && (data.connected || data.code === 'SUCCESS')) {
+          const detail = data.message || `Physical link verified: connected in ${data.latency_ms} ms (status: ${data.code || 'SUCCESS'})`;
+          this.commFeedback = { type: 'success', message: detail };
         } else {
-          this.commFeedback = { type: 'error', message: `Link check failed: ${data ? data.error : 'Connection error'}` };
+          const code = (data && data.code) ? ` [${data.code}]` : '';
+          const detail = (data && (data.error || data.message)) || 'Connection error';
+          this.commFeedback = { type: 'error', message: `Link check failed${code}: ${detail}` };
         }
         await this.fetchCommStatus();
       } catch (err) {

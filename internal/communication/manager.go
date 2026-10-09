@@ -2,10 +2,13 @@ package communication
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"datalogger/internal/communication/modbus"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/service"
@@ -25,6 +28,8 @@ type ConnectionManager struct {
 	backoffPolicy  *BackoffPolicy
 	reconnectingMu sync.Mutex
 	reconnecting   map[uint]bool
+	diagMu         sync.Mutex
+	diagActive     map[uint]bool
 }
 
 // NewConnectionManager initializes the communication connection manager
@@ -41,6 +46,7 @@ func NewConnectionManager(deviceService *service.DeviceService, factory AdapterF
 		healthTracker: ht,
 		backoffPolicy: bp,
 		reconnecting:  make(map[uint]bool),
+		diagActive:    make(map[uint]bool),
 	}
 
 	// Sync state transitions to health tracker
@@ -151,10 +157,6 @@ func (m *ConnectionManager) ConnectDevice(ctx context.Context, device *model.Dev
 
 	m.healthTracker.RecordConnectionSuccess(device.ID)
 	_, _ = m.stateMachine.Transition(device.ID, StateConnected, "connection established")
-
-	if m.deviceService != nil {
-		_ = m.deviceService.SetOnline(device.ID)
-	}
 	return nil
 }
 
@@ -336,33 +338,213 @@ func (m *ConnectionManager) ExecuteWithRetry(
 	return nil, fmt.Errorf("device %s communication failed after %d retries: %w", device.DeviceCode, retryLimit, lastErr)
 }
 
-// TestConnection performs an isolated connection test
-func (m *ConnectionManager) TestConnection(ctx context.Context, device *model.Device) (int, error) {
-	adapter, err := m.GetOrCreateAdapter(device)
-	if err != nil {
-		return 0, err
+// DiagnosticTest performs a non-destructive, serialized diagnostic check of the device link.
+// It returns structured results (SUCCESS, TIMEOUT, SERIAL_OPEN_ERROR, SERIAL_IO_ERROR,
+// CRC_ERROR, MODBUS_EXCEPTION, CONFIGURATION_ERROR, BUSY) without tearing down
+// active polling transports or corrupting device operational status.
+func (m *ConnectionManager) DiagnosticTest(ctx context.Context, device *model.Device) *DiagnosticResult {
+	now := time.Now()
+	res := &DiagnosticResult{
+		Timestamp: now,
 	}
 
-	start := time.Now()
-	timeoutMs := device.Connection.Timeout
+	if device == nil || device.Connection == nil {
+		res.Code = DiagConfigurationError
+		res.Error = "device or connection configuration is missing"
+		res.Message = "Configuration error: missing connection settings"
+		return res
+	}
+
+	cfg := device.Connection
+	res.Port = cfg.SerialPort
+	if res.Port == "" {
+		res.Port = fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	}
+	res.BaudRate = cfg.BaudRate
+
+	slaveID := byte(cfg.SlaveID)
+	if slaveID == 0 {
+		slaveID = 1
+	}
+	res.SlaveID = slaveID
+
+	// 1. Validate settings
+	if cfg.Protocol == model.ProtocolModbusRTU || cfg.Protocol == model.ProtocolSerial {
+		if cfg.SerialPort == "" {
+			res.Code = DiagConfigurationError
+			res.Error = "serial_port cannot be empty for Modbus RTU"
+			res.Message = "Configuration error: serial port not specified"
+			return res
+		}
+	} else if cfg.Protocol == model.ProtocolModbusTCP || cfg.Protocol == model.ProtocolTCP {
+		if cfg.Host == "" || cfg.Port <= 0 {
+			res.Code = DiagConfigurationError
+			res.Error = "host and port must be specified for Modbus TCP"
+			res.Message = "Configuration error: invalid host or port"
+			return res
+		}
+	}
+
+	// 2. Prevent concurrent diagnostic tests on the same device
+	m.diagMu.Lock()
+	if m.diagActive == nil {
+		m.diagActive = make(map[uint]bool)
+	}
+	if m.diagActive[device.ID] {
+		m.diagMu.Unlock()
+		res.Code = DiagBusy
+		res.Error = fmt.Sprintf("device %s is busy with another diagnostic test", device.DeviceCode)
+		res.Message = "Diagnostic busy: another test is currently running"
+		return res
+	}
+	m.diagActive[device.ID] = true
+	m.diagMu.Unlock()
+
+	defer func() {
+		m.diagMu.Lock()
+		delete(m.diagActive, device.ID)
+		m.diagMu.Unlock()
+	}()
+
+	// 3. Resolve target register
+	fc := FunctionReadHoldingRegisters
+	addr := uint16(0)
+	qty := uint16(1)
+
+	// If device has active parameters, test against the first active parameter
+	for _, p := range device.Parameters {
+		if p.Enabled {
+			r, err := modbus.ResolveRegisterAddress(p.RegisterType, p.RegisterAddress)
+			if err != nil {
+				res.Code = DiagConfigurationError
+				res.Error = fmt.Sprintf("invalid register configuration for parameter %s: %v", p.ParameterCode, err)
+				res.Message = "Configuration error: invalid register address or type"
+				return res
+			}
+			fc = r.FunctionCode
+			addr = r.PDUAddress
+			qty = modbus.RequiredRegisterCount(p.DataType)
+			if fc == FunctionReadCoils || fc == FunctionReadDiscreteInputs {
+				qty = 1
+			}
+			break
+		}
+	}
+
+	res.FunctionCode = fc
+	res.StartingAddress = addr
+	res.RegisterCount = qty
+
+	// 4. Get or create adapter
+	adapter, err := m.GetOrCreateAdapter(device)
+	if err != nil {
+		res.Code = DiagSerialOpenError
+		res.Error = err.Error()
+		res.Message = fmt.Sprintf("Failed to initialize adapter: %v", err)
+		return res
+	}
+
+	// 5. Connect if not connected
+	timeoutMs := cfg.Timeout
 	if timeoutMs <= 0 {
 		timeoutMs = 1500
 	}
-	testCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+	diagTimeout := time.Duration(timeoutMs) * time.Millisecond
+	if diagTimeout < 500*time.Millisecond {
+		diagTimeout = 500 * time.Millisecond
+	}
+
+	testCtx, cancel := context.WithTimeout(ctx, diagTimeout)
 	defer cancel()
 
 	if !adapter.IsConnected() {
 		if err := adapter.Connect(testCtx); err != nil {
-			return 0, err
+			res.Code = DiagSerialOpenError
+			res.Error = err.Error()
+			res.Message = fmt.Sprintf("Failed to open connection to %s: %v", res.Port, err)
+			return res
 		}
 	}
 
-	if err := adapter.HealthCheck(testCtx); err != nil {
-		return int(time.Since(start).Milliseconds()), fmt.Errorf("health check failed: %w", err)
+	// 6. Execute Diagnostic Read
+	start := time.Now()
+	readReq := ModbusReadRequest{
+		SlaveID:         slaveID,
+		FunctionCode:    fc,
+		StartingAddress: addr,
+		Quantity:        qty,
 	}
 
+	_, err = adapter.ReadRegisters(testCtx, readReq)
 	elapsed := int(time.Since(start).Milliseconds())
-	return elapsed, nil
+	res.LatencyMs = elapsed
+
+	if err == nil {
+		res.Code = DiagSuccess
+		res.Success = true
+		res.Connected = true
+		res.Message = fmt.Sprintf("Physical link verified: Slave ID %d responded in %d ms (FC %02X, Addr %d)", slaveID, elapsed, fc, addr)
+
+		// Record successful communication
+		m.healthTracker.RecordCommunicationSuccess(device.ID, elapsed)
+		if m.deviceService != nil {
+			_ = m.deviceService.SetOnline(device.ID)
+			_ = m.deviceService.UpdateLastSeen(device.ID)
+			_ = m.deviceService.RecordCommunicationResult(device.ID, true, elapsed)
+		}
+		return res
+	}
+
+	// 7. Parse and categorize error
+	errStr := err.Error()
+	res.Error = errStr
+
+	if strings.Contains(errStr, "Modbus exception") || strings.Contains(errStr, "Illegal") {
+		// Valid Modbus exception response received from slave device!
+		// This proves physical layer, framing, slave address, baud rate, and CRC are 100% WORKING!
+		res.Code = DiagModbusException
+		res.Success = true
+		res.Connected = true
+		res.Message = fmt.Sprintf("Physical link verified: Slave ID %d responded with %s in %d ms (link active)", slaveID, errStr, elapsed)
+
+		m.healthTracker.RecordCommunicationSuccess(device.ID, elapsed)
+		if m.deviceService != nil {
+			_ = m.deviceService.SetOnline(device.ID)
+			_ = m.deviceService.UpdateLastSeen(device.ID)
+		}
+		return res
+	}
+
+	if strings.Contains(errStr, "CRC16") || strings.Contains(errStr, "checksum") {
+		res.Code = DiagCRCError
+		res.Message = fmt.Sprintf("CRC error: corrupted frame received from %s (check baud rate, parity, or wiring noise)", res.Port)
+		return res
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) || strings.Contains(strings.ToLower(errStr), "timeout") {
+		res.Code = DiagTimeout
+		res.Message = fmt.Sprintf("Timeout: no response from Slave ID %d on %s within %d ms", slaveID, res.Port, timeoutMs)
+		return res
+	}
+
+	if strings.Contains(errStr, "serial port offline") || strings.Contains(errStr, "failed to open") {
+		res.Code = DiagSerialOpenError
+		res.Message = fmt.Sprintf("Serial open error on %s: %s", res.Port, errStr)
+		return res
+	}
+
+	res.Code = DiagSerialIOError
+	res.Message = fmt.Sprintf("I/O error during communication on %s: %s", res.Port, errStr)
+	return res
+}
+
+// TestConnection performs an isolated connection test using DiagnosticTest
+func (m *ConnectionManager) TestConnection(ctx context.Context, device *model.Device) (int, error) {
+	diag := m.DiagnosticTest(ctx, device)
+	if !diag.Success && !diag.Connected {
+		return diag.LatencyMs, errors.New(diag.Error)
+	}
+	return diag.LatencyMs, nil
 }
 
 // GetAdapterStatus returns live status of the adapter combined with health metrics

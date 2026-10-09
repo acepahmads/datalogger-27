@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"net/http"
 	"strconv"
 
 	"datalogger/internal/communication"
+	"datalogger/internal/model"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
 
@@ -128,22 +130,15 @@ func (h *CommunicationHandler) TestConnection(c *gin.Context) {
 		return
 	}
 
-	latencyMs, err := h.connManager.TestConnection(c.Request.Context(), dev)
-	if err != nil {
-		c.JSON(200, gin.H{
-			"success":    false,
-			"device_id":  id,
-			"latency_ms": latencyMs,
-			"error":      err.Error(),
-		})
-		return
-	}
+	diag := h.connManager.DiagnosticTest(c.Request.Context(), dev)
 
-	response.OK(c, gin.H{
-		"success":    true,
+	// Return structured diagnostic response with HTTP 200
+	c.JSON(http.StatusOK, gin.H{
+		"code":       http.StatusOK,
+		"success":    diag.Success,
 		"device_id":  id,
-		"latency_ms": latencyMs,
-		"message":    "Communication test successful",
+		"latency_ms": diag.LatencyMs,
+		"data":       diag,
 	})
 }
 
@@ -164,22 +159,39 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 	adapterStatus, exists := h.connManager.GetAdapterStatus(uint(id))
 	health := h.connManager.GetDeviceHealth(uint(id))
 
+	// Communication ONLINE must be based on recent successful communication
+	statusStr := string(health.State)
+	if dev.ConnectionStatus == model.DeviceConnError || health.State == communication.StateError {
+		statusStr = "ERROR"
+	} else if dev.ConnectionStatus == model.DeviceConnOffline || health.State == communication.StateDisconnected {
+		statusStr = "OFFLINE"
+	} else if health.ConsecutiveFailures >= 3 {
+		statusStr = "ERROR"
+	} else if dev.LastSeenAt == nil && health.ConsecutiveSuccesses == 0 {
+		statusStr = "CONNECTING"
+	} else if health.State == communication.StateConnected && (health.ConsecutiveSuccesses > 0 || dev.LastSeenAt != nil) {
+		statusStr = "ONLINE"
+	}
+
 	response.OK(c, gin.H{
-		"device_id":          dev.ID,
-		"device_code":        dev.DeviceCode,
-		"connection_status":  string(health.State),
-		"protocol":           dev.DeviceType,
-		"adapter_active":     exists,
-		"adapter_state":      adapterStatus.State,
-		"connected_since":    adapterStatus.ConnectedSince,
-		"last_communication": dev.LastSeenAt,
-		"last_data":          dev.LastDataAt,
-		"latency_ms":         dev.LatencyMs,
-		"retry_count":        adapterStatus.RetryCount,
-		"last_error":         adapterStatus.LastError,
-		"success_count":      dev.SuccessCount,
-		"failed_count":       dev.FailedCount,
-		"health":             health,
+		"device_id":           dev.ID,
+		"device_code":         dev.DeviceCode,
+		"connection_status":   statusStr,
+		"status":              statusStr,
+		"protocol":            dev.DeviceType,
+		"adapter_active":      exists,
+		"adapter_state":       adapterStatus.State,
+		"connected_since":     adapterStatus.ConnectedSince,
+		"last_communication":  dev.LastSeenAt,
+		"last_data":           dev.LastDataAt,
+		"latency_ms":          dev.LatencyMs,
+		"retry_count":         adapterStatus.RetryCount,
+		"consecutive_errors":  health.ConsecutiveFailures,
+		"consecutive_success": health.ConsecutiveSuccesses,
+		"last_error":          adapterStatus.LastError,
+		"success_count":       dev.SuccessCount,
+		"failed_count":        dev.FailedCount,
+		"health":              health,
 	})
 }
 

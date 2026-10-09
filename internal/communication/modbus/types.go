@@ -127,3 +127,34 @@ type ProtocolAdapter interface {
 	// GetConfig returns the connection configuration
 	GetConfig() *model.DeviceConnection
 }
+
+// DiagnosticCode enumerates standardized communication diagnostic outcomes
+type DiagnosticCode string
+
+const (
+	DiagSuccess            DiagnosticCode = "SUCCESS"
+	DiagTimeout            DiagnosticCode = "TIMEOUT"
+	DiagSerialOpenError    DiagnosticCode = "SERIAL_OPEN_ERROR"
+	DiagSerialIOError      DiagnosticCode = "SERIAL_IO_ERROR"
+	DiagCRCError           DiagnosticCode = "CRC_ERROR"
+	DiagModbusException    DiagnosticCode = "MODBUS_EXCEPTION"
+	DiagConfigurationError DiagnosticCode = "CONFIGURATION_ERROR"
+	DiagBusy               DiagnosticCode = "BUSY"
+)
+
+// DiagnosticResult contains structured diagnostic information returned by Test Link
+type DiagnosticResult struct {
+	Code            DiagnosticCode `json:"code"`
+	Success         bool           `json:"success"`
+	Connected       bool           `json:"connected"`
+	LatencyMs       int            `json:"latency_ms"`
+	Message         string         `json:"message"`
+	Error           string         `json:"error,omitempty"`
+	SlaveID         byte           `json:"slave_id"`
+	FunctionCode    byte           `json:"function_code"`
+	StartingAddress uint16         `json:"starting_address"`
+	RegisterCount   uint16         `json:"register_count"`
+	Port            string         `json:"port,omitempty"`
+	BaudRate        int            `json:"baud_rate,omitempty"`
+	Timestamp       time.Time      `json:"timestamp"`
+}

@@ -301,7 +301,7 @@ func (p *MockSerialPipe) Read(b []byte) (int, error) {
 	}
 
 	if len(p.readBuf) == 0 {
-		return 0, io.EOF
+		return 0, fmt.Errorf("serial: timeout")
 	}
 
 	n := copy(b, p.readBuf)
