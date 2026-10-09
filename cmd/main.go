@@ -82,9 +82,18 @@ func main() {
 	go hub.Run()
 	logger.Info("WebSocket hub initialized for real-time edge telemetry")
 
-	// 7b. Initialize Telemetry Ingestion Pipeline (Phase 3.1)
-	telemetryService := service.NewTelemetryService(telemetryRepo, hub, service.DefaultTelemetryConfig())
+	// 7b. Initialize Telemetry Ingestion Pipeline with Persistent Queue (Phase 4.2)
+	telemetryCfg := service.DefaultTelemetryConfig()
+	telemetryCfg.QueueEnabled = cfg.QueueEnabled
+	telemetryCfg.QueueDir = cfg.QueueDir
+	telemetryCfg.QueueMaxSizeBytes = cfg.QueueMaxSizeBytes
+	telemetryCfg.BatchSize = cfg.QueueBatchSize
+	telemetryCfg.QueueSyncMode = cfg.QueueSyncMode
+	telemetryCfg.QueueDiskWarnPercent = cfg.QueueDiskWarnPercent
+
+	telemetryService := service.NewTelemetryService(telemetryRepo, hub, telemetryCfg)
 	defer telemetryService.Stop()
+	systemService.SetTelemetryService(telemetryService)
 
 	// 7c. Initialize Aggregation & Rollup Engine (Phase 3.3)
 	aggRepo := repository.NewAggregationRepository(db)

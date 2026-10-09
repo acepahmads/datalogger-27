@@ -131,5 +131,35 @@ func TestMigrationPhase4Tracking(t *testing.T) {
 			t.Errorf("Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
 		}
 	}
+
+	// 5. Check Subphase 4.2
+	var sub4_2 model.DevelopmentSubphase
+	if err := db.Where("phase_id = ? AND (name LIKE ? OR order_index = 2)", phase4.ID, "%Phase 4.2%").First(&sub4_2).Error; err != nil {
+		t.Fatalf("Subphase 4.2 not found: %v", err)
+	}
+	if sub4_2.Progress < 100.0 {
+		t.Errorf("Subphase 4.2 progress should be 100%%, got %.2f%%", sub4_2.Progress)
+	}
+	if sub4_2.Status != "DONE" {
+		t.Errorf("Subphase 4.2 status should be DONE, got %s", sub4_2.Status)
+	}
+
+	// 6. Check all 19 subtasks in Subphase 4.2
+	var tasks42 []model.DevelopmentTask
+	if err := db.Where("subphase_id = ? AND status = ?", sub4_2.ID, model.StatusDone).Order("order_index ASC").Find(&tasks42).Error; err != nil {
+		t.Fatalf("Failed to fetch subtasks for 4.2: %v", err)
+	}
+	if len(tasks42) != 19 {
+		t.Fatalf("Expected 19 subtasks for Phase 4.2, got %d", len(tasks42))
+	}
+
+	for _, task := range tasks42 {
+		if task.Status != model.StatusDone {
+			t.Errorf("Task '%s' status should be DONE, got %s", task.TaskName, task.Status)
+		}
+		if task.Progress < 100.0 {
+			t.Errorf("Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
+		}
+	}
 }
 

@@ -28,6 +28,15 @@ type Config struct {
 	DataDir            string `json:"data_dir"`
 	EnableCloudSync    bool   `json:"enable_cloud_sync"`
 	CloudEndpoint      string `json:"cloud_endpoint"`
+
+	// Phase 4.2: Persistent Spool / Write-Ahead Log Queue Configuration
+	QueueEnabled         bool    `json:"queue_enabled"`
+	QueueDir             string  `json:"queue_dir"`
+	QueueMaxSizeBytes    int64   `json:"queue_max_size_bytes"`
+	QueueBatchSize       int     `json:"queue_batch_size"`
+	QueueSyncMode        string  `json:"queue_sync_mode"` // "batch", "always", "none"
+	QueueFlushIntervalMs int     `json:"queue_flush_interval_ms"`
+	QueueDiskWarnPercent float64 `json:"queue_disk_warn_percent"`
 }
 
 var (
@@ -38,25 +47,32 @@ var (
 // DefaultConfig returns the default configuration with MariaDB as production database.
 func DefaultConfig() *Config {
 	return &Config{
-		AppName:            "Datalogger Analysis Application",
-		Version:            "1.0.0-phase1",
-		Environment:        "development",
-		Port:               "8080",
-		Host:               "0.0.0.0",
-		DBType:             "mariadb",
-		DBHost:             "127.0.0.1",
-		DBPort:             "3306",
-		DBUser:             "root",
-		DBPassword:         "",
-		DBName:             "datalogger",
-		DBPath:             filepath.Join("data", "datalogger.db"),
-		JWTSecret:          "datalogger-local-secret-key-prod-2026",
-		JWTExpirationHours: 24,
-		LogLevel:           "info",
-		LogDir:             "logs",
-		DataDir:            "data",
-		EnableCloudSync:    false,
-		CloudEndpoint:      "",
+		AppName:              "Datalogger Analysis Application",
+		Version:              "1.0.0-phase1",
+		Environment:          "development",
+		Port:                 "8080",
+		Host:                 "0.0.0.0",
+		DBType:               "mariadb",
+		DBHost:               "127.0.0.1",
+		DBPort:               "3306",
+		DBUser:               "root",
+		DBPassword:           "",
+		DBName:               "datalogger",
+		DBPath:               filepath.Join("data", "datalogger.db"),
+		JWTSecret:            "datalogger-local-secret-key-prod-2026",
+		JWTExpirationHours:   24,
+		LogLevel:             "info",
+		LogDir:               "logs",
+		DataDir:              "data",
+		EnableCloudSync:      false,
+		CloudEndpoint:        "",
+		QueueEnabled:         true,
+		QueueDir:             filepath.Join("data", "queue"),
+		QueueMaxSizeBytes:    100 * 1024 * 1024, // 100 MB
+		QueueBatchSize:       50,
+		QueueSyncMode:        "batch",
+		QueueFlushIntervalMs: 250,
+		QueueDiskWarnPercent: 80.0,
 	}
 }
 
@@ -133,11 +149,20 @@ func Load(configPath string) (*Config, error) {
 	if env := os.Getenv("DATALOGGER_ENV"); env != "" {
 		cfg.Environment = env
 	}
+	if qDir := os.Getenv("DATALOGGER_QUEUE_DIR"); qDir != "" {
+		cfg.QueueDir = qDir
+	}
+	if qSync := os.Getenv("DATALOGGER_QUEUE_SYNC_MODE"); qSync != "" {
+		cfg.QueueSyncMode = qSync
+	}
 
-	// Ensure data and log directories exist
+	// Ensure data, log, and queue directories exist
 	_ = os.MkdirAll(cfg.DataDir, 0755)
 	_ = os.MkdirAll(cfg.LogDir, 0755)
 	_ = os.MkdirAll(filepath.Dir(cfg.DBPath), 0755)
+	if cfg.QueueEnabled {
+		_ = os.MkdirAll(cfg.QueueDir, 0755)
+	}
 
 	cfgMu.Lock()
 	globalConfig = cfg

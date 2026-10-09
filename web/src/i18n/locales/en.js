@@ -1210,5 +1210,26 @@ export default {
     "persistenceHealthy": "MariaDB Persistent Queue Healthy",
     "persistenceDegraded": "MariaDB Persistent Queue Degraded",
     "persistenceFailing": "MariaDB Persistent Queue Failing"
+  },
+  "persistentQueue": {
+    "title": "Persistent Queue & Data Integrity",
+    "subtitle": "Durable segmented WAL spool, CRC-32 checksums, and outage replay",
+    "status": "Queue Status",
+    "spoolSize": "Spool Size",
+    "pendingRecords": "Pending Records",
+    "totalAppended": "Total Appended",
+    "totalAcked": "Total Acknowledged",
+    "totalReplayed": "Total Replayed",
+    "checksumErrors": "Checksum Failures",
+    "corruptedSegments": "Corrupted Segments",
+    "spoolUtilization": "Spool Utilization",
+    "syncMode": "Durability Sync Mode",
+    "lastAckedAt": "Last Acknowledged At",
+    "replayPending": "Replay Pending",
+    "replaying": "Replaying...",
+    "healthy": "Queue Healthy",
+    "degraded": "Outage Spooling",
+    "failing": "Queue Full / Storage Failure",
+    "empty": "No uncommitted records in persistent spool"
   }
 };

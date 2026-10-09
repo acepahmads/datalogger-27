@@ -60,6 +60,13 @@ type SystemStatusOverview struct {
 	LastDeviceComm      string `json:"last_device_comm"`
 	PersistenceStatus   string `json:"persistence_status"`
 
+	// Persistent Queue & Data Integrity (Phase 4.2)
+	QueuePendingRecords int64   `json:"queue_pending_records"`
+	QueueSpoolSizeBytes int64   `json:"queue_spool_size_bytes"`
+	QueueTotalReplayed  uint64  `json:"queue_total_replayed"`
+	QueueChecksumErrors uint64  `json:"queue_checksum_errors"`
+	QueueDiskPercent    float64 `json:"queue_disk_percent"`
+
 	// Data
 	DataReceivedCount int64   `json:"data_received_count"`
 	DataPerSec        float64 `json:"data_per_sec"`

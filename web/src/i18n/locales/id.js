@@ -1210,5 +1210,26 @@ export default {
     "persistenceHealthy": "Antrean Persisten MariaDB Sehat",
     "persistenceDegraded": "Antrean Persisten MariaDB Terdegradasi",
     "persistenceFailing": "Antrean Persisten MariaDB Gagal"
+  },
+  "persistentQueue": {
+    "title": "Antrean Persisten & Integritas Data",
+    "subtitle": "Spool WAL tersegmentasi tahan uji, checksum CRC-32, dan pemutaran ulang saat pemadaman",
+    "status": "Status Antrean",
+    "spoolSize": "Ukuran Spool",
+    "pendingRecords": "Catatan Tertunda",
+    "totalAppended": "Total Ditambahkan",
+    "totalAcked": "Total Dikonfirmasi",
+    "totalReplayed": "Total Diputar Ulang",
+    "checksumErrors": "Kegagalan Checksum",
+    "corruptedSegments": "Segmen Korup",
+    "spoolUtilization": "Utilisasi Spool",
+    "syncMode": "Mode Sinkronisasi Ketahanan",
+    "lastAckedAt": "Terakhir Dikonfirmasi Pada",
+    "replayPending": "Putar Ulang Tertunda",
+    "replaying": "Memutar Ulang...",
+    "healthy": "Antrean Sehat",
+    "degraded": "Menyimpan Spool Saat Padam",
+    "failing": "Antrean Penuh / Kegagalan Penyimpanan",
+    "empty": "Tidak ada catatan belum tersimpan di spool persisten"
   }
 };

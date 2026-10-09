@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/quality"
+	"datalogger/internal/queue"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
 )
@@ -97,6 +99,14 @@ type TelemetryMetrics struct {
 	ConsecutiveDBErrors int        `json:"consecutive_db_errors"`
 	LastDBError         string     `json:"last_db_error,omitempty"`
 	LastDBErrorAt       *time.Time `json:"last_db_error_at,omitempty"`
+
+	// Phase 4.2: Persistent WAL Queue Metrics
+	QueuePendingRecords int64   `json:"queue_pending_records"`
+	QueueSpoolSizeBytes int64   `json:"queue_spool_size_bytes"`
+	QueueTotalReplayed  uint64  `json:"queue_total_replayed"`
+	QueueChecksumErrors uint64  `json:"queue_checksum_errors"`
+	QueueEnabled        bool    `json:"queue_enabled"`
+	QueueDiskPercent    float64 `json:"queue_disk_percent"`
 }
 
 // QualitySummaryDTO captures health metrics across current parameters (Phase 3.2)
@@ -112,19 +122,29 @@ type QualitySummaryDTO struct {
 
 // TelemetryConfig defines runtime options for the ingestion pipeline
 type TelemetryConfig struct {
-	BufferSize    int           // Channel capacity for non-blocking ingestion
-	BatchSize     int           // Max records per database flush
-	FlushInterval time.Duration // Interval to flush accumulated records
-	MaxRetries    int           // Retry attempts on transient database error
+	BufferSize           int           // Channel capacity for non-blocking ingestion
+	BatchSize            int           // Max records per database flush
+	FlushInterval        time.Duration // Interval to flush accumulated records
+	MaxRetries           int           // Retry attempts on transient database error
+	QueueEnabled         bool          // Enable Phase 4.2 persistent disk queue
+	QueueDir             string        // Directory for WAL files
+	QueueMaxSizeBytes    int64         // Maximum disk spool size
+	QueueSyncMode        string        // "batch", "always", "none"
+	QueueDiskWarnPercent float64       // Disk warning threshold
 }
 
 // DefaultTelemetryConfig returns balanced production settings for edge devices
 func DefaultTelemetryConfig() TelemetryConfig {
 	return TelemetryConfig{
-		BufferSize:    5000,
-		BatchSize:     50,
-		FlushInterval: 250 * time.Millisecond,
-		MaxRetries:    3,
+		BufferSize:           5000,
+		BatchSize:            50,
+		FlushInterval:        250 * time.Millisecond,
+		MaxRetries:           3,
+		QueueEnabled:         true,
+		QueueDir:             filepath.Join("data", "queue"),
+		QueueMaxSizeBytes:    100 * 1024 * 1024,
+		QueueSyncMode:        "batch",
+		QueueDiskWarnPercent: 80.0,
 	}
 }
 
@@ -152,8 +172,9 @@ type TelemetryService struct {
 	lastFlushAt    time.Time
 	flushMu        sync.RWMutex
 
-	// Phase 4.1: Database Persistence Boundary & Health Tracking
+	// Phase 4.1 & 4.2: Database Persistence Boundary & Health Tracking
 	persistenceBoundary   TelemetryPersistenceBoundary
+	walAdapter            *PersistentQueueAdapter
 	persistenceMu         sync.RWMutex
 	persistenceStatus     string
 	consecutiveDBFailures int
@@ -182,17 +203,44 @@ func NewTelemetryService(
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &TelemetryService{
-		repo:             repo,
-		hub:              hub,
-		cfg:              cfg,
-		qualityProcessor: quality.NewQualityProcessor(),
-		buffer:           make(chan *model.RawData, cfg.BufferSize),
+		repo:              repo,
+		hub:               hub,
+		cfg:               cfg,
+		qualityProcessor:  quality.NewQualityProcessor(),
+		buffer:            make(chan *model.RawData, cfg.BufferSize),
 		latestCache:       make(map[uint]*LatestTelemetry),
 		ctx:               ctx,
 		cancel:            cancel,
 		persistenceStatus: "HEALTHY",
 	}
-	if repo != nil {
+
+	if cfg.QueueEnabled {
+		if cfg.QueueDir == "" {
+			cfg.QueueDir = filepath.Join("data", "queue")
+		}
+		if cfg.QueueMaxSizeBytes <= 0 {
+			cfg.QueueMaxSizeBytes = 100 * 1024 * 1024
+		}
+		walCfg := queue.WALConfig{
+			Dir:             cfg.QueueDir,
+			MaxSizeBytes:    cfg.QueueMaxSizeBytes,
+			MaxSegmentSize:  10 * 1024 * 1024,
+			SyncMode:        cfg.QueueSyncMode,
+			DiskWarnPercent: cfg.QueueDiskWarnPercent,
+		}
+		wal, err := queue.OpenWALQueue(walCfg)
+		if err != nil {
+			logger.Error("Failed initializing persistent WAL queue, falling back to direct persistence: %v", err)
+			if repo != nil {
+				s.persistenceBoundary = repo
+			}
+		} else {
+			adapter := NewPersistentQueueAdapter(repo, wal, cfg.BatchSize, cfg.MaxRetries)
+			s.walAdapter = adapter
+			s.persistenceBoundary = adapter
+			logger.Info("Persistent WAL Queue attached to TelemetryService at %s", cfg.QueueDir)
+		}
+	} else if repo != nil {
 		s.persistenceBoundary = repo
 	}
 
@@ -200,10 +248,15 @@ func NewTelemetryService(
 	go s.batchPersistenceWorker()
 	go s.staleDetectionWorker()
 
-	logger.Info("TelemetryService initialized with QualityProcessor (Buffer: %d, Batch: %d, FlushInterval: %v)",
-		cfg.BufferSize, cfg.BatchSize, cfg.FlushInterval)
+	logger.Info("TelemetryService initialized with QualityProcessor (Buffer: %d, Batch: %d, FlushInterval: %v, QueueEnabled: %v)",
+		cfg.BufferSize, cfg.BatchSize, cfg.FlushInterval, cfg.QueueEnabled)
 
 	return s
+}
+
+// GetWALAdapter returns the attached persistent queue adapter if enabled
+func (s *TelemetryService) GetWALAdapter() *PersistentQueueAdapter {
+	return s.walAdapter
 }
 
 // SetPersistenceBoundary configures a custom boundary implementation (e.g. for testing or Phase 4.2 disk queue)
@@ -211,6 +264,11 @@ func (s *TelemetryService) SetPersistenceBoundary(boundary TelemetryPersistenceB
 	s.persistenceMu.Lock()
 	defer s.persistenceMu.Unlock()
 	s.persistenceBoundary = boundary
+	if adapter, ok := boundary.(*PersistentQueueAdapter); ok {
+		s.walAdapter = adapter
+	} else {
+		s.walAdapter = nil
+	}
 }
 
 // QualityProcessor exposes the data quality evaluation engine
@@ -369,6 +427,7 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 	}
 
 	rawData := &model.RawData{
+		RecordUUID:      fmt.Sprintf("REC-%d-%d-%d-%d", p.DeviceID, p.ParameterID, seq, recAt.UnixNano()),
 		DeviceID:        p.DeviceID,
 		ParameterID:     p.ParameterID,
 		Value:           val,
@@ -785,7 +844,7 @@ func (s *TelemetryService) GetHistorical(ctx context.Context, filter repository.
 	return s.repo.GetHistorical(ctx, filter)
 }
 
-// GetMetrics returns real-time diagnostic counters and buffer utilization
+// GetMetrics returns real-time diagnostic counters, buffer utilization, and WAL queue health
 func (s *TelemetryService) GetMetrics() TelemetryMetrics {
 	s.flushMu.RLock()
 	dur := s.lastFlushDur
@@ -798,6 +857,37 @@ func (s *TelemetryService) GetMetrics() TelemetryMetrics {
 	pLastError := s.lastDBError
 	pLastErrorAt := s.lastDBErrorAt
 	s.persistenceMu.RUnlock()
+
+	var pendingRecords int64
+	var spoolSize int64
+	var totalReplayed uint64
+	var checksumFails uint64
+	var diskPercent float64
+
+	if s.walAdapter != nil {
+		stats := s.walAdapter.GetStats()
+		if p, ok := stats["pending_records"].(int64); ok {
+			pendingRecords = p
+		}
+		if sz, ok := stats["wal_spool_size_bytes"].(int64); ok {
+			spoolSize = sz
+		}
+		if r, ok := stats["wal_total_replayed"].(uint64); ok {
+			totalReplayed = r
+		}
+		if c, ok := stats["wal_checksum_failures"].(uint64); ok {
+			checksumFails = c
+		}
+		if u, ok := stats["wal_spool_utilization"].(float64); ok {
+			diskPercent = u
+		}
+		if st, ok := stats["status"].(string); ok && st != "" {
+			pStatus = st
+		}
+		if cerr, ok := stats["consecutive_db_errors"].(int); ok {
+			pConsecutive = cerr
+		}
+	}
 
 	return TelemetryMetrics{
 		IngestedCount:       atomic.LoadUint64(&s.ingestedCount),
@@ -812,15 +902,24 @@ func (s *TelemetryService) GetMetrics() TelemetryMetrics {
 		ConsecutiveDBErrors: pConsecutive,
 		LastDBError:         pLastError,
 		LastDBErrorAt:       pLastErrorAt,
+		QueuePendingRecords: pendingRecords,
+		QueueSpoolSizeBytes: spoolSize,
+		QueueTotalReplayed:  totalReplayed,
+		QueueChecksumErrors: checksumFails,
+		QueueEnabled:        s.cfg.QueueEnabled,
+		QueueDiskPercent:    diskPercent,
 	}
 }
 
-// Stop gracefully stops accepting new telemetry, flushes the queue, and terminates the worker
+// Stop gracefully stops accepting new telemetry, flushes the queue, closes WAL, and terminates worker
 func (s *TelemetryService) Stop() {
 	if atomic.CompareAndSwapInt32(&s.stopped, 0, 1) {
 		logger.Info("Stopping TelemetryService, flushing pending items...")
 		s.cancel()
 		s.wg.Wait()
+		if s.walAdapter != nil {
+			_ = s.walAdapter.Close()
+		}
 		logger.Info("TelemetryService stopped successfully with zero data loss")
 	}
 }

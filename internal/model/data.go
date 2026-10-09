@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -54,6 +55,7 @@ const (
 // RawData represents persisted raw and normalized telemetry from industrial sensors (Section 4 & 6)
 type RawData struct {
 	ID          uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	RecordUUID  string `gorm:"size:64;index:idx_raw_record_uuid;uniqueIndex:idx_raw_record_uuid_uniq" json:"record_uuid,omitempty"`
 	DeviceID    uint   `gorm:"index:idx_raw_dev_param_rec,priority:1;index:idx_raw_dev_rec,priority:1;not null" json:"device_id"`
 	ParameterID uint   `gorm:"index:idx_raw_dev_param_rec,priority:2;index:idx_raw_param;not null" json:"parameter_id"`
 
@@ -103,6 +105,9 @@ func (r *RawData) BeforeCreate(tx *gorm.DB) error {
 	if r.ValueNumeric == nil {
 		v := r.Value
 		r.ValueNumeric = &v
+	}
+	if r.RecordUUID == "" {
+		r.RecordUUID = fmt.Sprintf("REC-%d-%d-%d-%d", r.DeviceID, r.ParameterID, r.Sequence, r.ReceivedAt.UnixNano())
 	}
 	return nil
 }

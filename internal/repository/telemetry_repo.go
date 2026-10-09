@@ -7,6 +7,7 @@ import (
 	"datalogger/internal/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TelemetryFilterParams defines criteria for querying historical or raw telemetry
@@ -37,8 +38,8 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 	}
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. Bulk insert raw telemetry records
-		if err := tx.Create(&batch).Error; err != nil {
+		// 1. Bulk insert raw telemetry records with idempotency
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&batch).Error; err != nil {
 			return err
 		}
 

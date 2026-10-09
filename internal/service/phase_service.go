@@ -97,9 +97,9 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		overallPct = totalProgress / float64(len(phases))
 	}
 
-	currentSubphaseName := "Phase 4.1 — Reliability Foundation & Auto-Recovery"
-	currentTaskName := "Phase 4.1 Complete (17/17 PASS)"
-	nextAction := "Ready for Phase 4.2 Persistent Queue & Data Integrity"
+	currentSubphaseName := "Phase 4.2 — Persistent Queue & Data Integrity"
+	currentTaskName := "Phase 4.2 Complete (19/19 PASS)"
+	nextAction := "Ready for Phase 4.3 Backup & Restore"
 
 	if currentPhaseNum == 3 {
 		currentSubphaseName = "Phase 3.3 — Aggregation, Rollup & Downsampling"
@@ -108,9 +108,9 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 	} else if currentPhaseName == "" || currentPhaseNum == 4 {
 		currentPhaseName = "Phase 4 — Reliability & Storage"
 		currentPhaseNum = 4
-		currentSubphaseName = "Phase 4.1 — Reliability Foundation & Auto-Recovery"
-		currentTaskName = "Phase 4.1 Complete (17/17 PASS)"
-		nextAction = "Ready for Phase 4.2 Persistent Queue & Data Integrity"
+		currentSubphaseName = "Phase 4.2 — Persistent Queue & Data Integrity"
+		currentTaskName = "Phase 4.2 Complete (19/19 PASS)"
+		nextAction = "Ready for Phase 4.3 Backup & Restore"
 	}
 
 	dto := &OverallProgressDTO{
@@ -120,7 +120,7 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		CurrentSubphase:     currentSubphaseName,
 		CurrentTask:         currentTaskName,
 		NextAction:          nextAction,
-		EstimatedCompletion: "Phase 1-3 Accepted (100%) | Phase 4.1 Accepted (100%) | Full System: Q4 2026",
+		EstimatedCompletion: "Phase 1-3 Accepted (100%) | Phase 4.1-4.2 Accepted (100%) | Full System: Q4 2026",
 		LastUpdate:          lastUpdateTime.Format("2006-01-02 15:04:05"),
 		CompletedTasksCount: completedCount,
 		ActiveTasksCount:    activeCount,

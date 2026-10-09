@@ -12,9 +12,10 @@ import (
 )
 
 type SystemService struct {
-	systemRepo *repository.SystemRepository
-	phaseRepo  *repository.PhaseRepository
-	cfg        *config.Config
+	systemRepo       *repository.SystemRepository
+	phaseRepo        *repository.PhaseRepository
+	cfg              *config.Config
+	telemetryService *TelemetryService
 }
 
 func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *repository.PhaseRepository, cfg *config.Config) *SystemService {
@@ -23,6 +24,10 @@ func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *reposi
 		phaseRepo:  phaseRepo,
 		cfg:        cfg,
 	}
+}
+
+func (s *SystemService) SetTelemetryService(ts *TelemetryService) {
+	s.telemetryService = ts
 }
 
 func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, error) {
@@ -147,6 +152,21 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		WarningAlarms:      warningAlarms,
 		CriticalAlarms:     criticalAlarms,
 		AcknowledgedAlarms: ackAlarms,
+	}
+
+	if s.telemetryService != nil {
+		metrics := s.telemetryService.GetMetrics()
+		overview.PersistenceStatus = metrics.PersistenceStatus
+		overview.QueuePendingRecords = metrics.QueuePendingRecords
+		overview.QueueSpoolSizeBytes = metrics.QueueSpoolSizeBytes
+		overview.QueueTotalReplayed = metrics.QueueTotalReplayed
+		overview.QueueChecksumErrors = metrics.QueueChecksumErrors
+		overview.QueueDiskPercent = metrics.QueueDiskPercent
+		if metrics.QueuePendingRecords > 0 {
+			overview.QueueStatus = fmt.Sprintf("REPLAYING (%d pending)", metrics.QueuePendingRecords)
+		} else {
+			overview.QueueStatus = "HEALTHY"
+		}
 	}
 
 	return overview, nil
