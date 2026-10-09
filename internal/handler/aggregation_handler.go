@@ -238,6 +238,7 @@ func (h *AggregationHandler) GetResults(c *gin.Context) {
 	}
 
 	sourceType := model.AggregationSourceType(c.Query("source_type"))
+	function := model.AggregationFunction(strings.ToUpper(strings.TrimSpace(c.Query("function"))))
 	identifier := c.Query("identifier")
 	quality := c.Query("quality")
 
@@ -260,6 +261,7 @@ func (h *AggregationHandler) GetResults(c *gin.Context) {
 		ParameterID:  paramID,
 		ParameterIDs: paramIDs,
 		SourceType:   sourceType,
+		Function:     function,
 		Identifier:   identifier,
 		StartTime:    startTime,
 		EndTime:      endTime,

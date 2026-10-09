@@ -545,12 +545,10 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 
 // GetResults retrieves paginated aggregation results with fast on-demand refresh
 func (s *AggregationService) GetResults(ctx context.Context, filter repository.AggregationResultFilter) ([]model.AggregationResult, int64, error) {
-	if filter.DeviceID > 0 {
-		defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
-		if err == nil {
-			for _, def := range defs {
-				_, _ = s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
-			}
+	defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
+	if err == nil {
+		for _, def := range defs {
+			_, _ = s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
 		}
 	}
 	return s.repo.GetResultsByFilter(ctx, filter)

@@ -19,6 +19,7 @@ type AggregationResultFilter struct {
 	ParameterID  uint
 	ParameterIDs []uint
 	SourceType   model.AggregationSourceType
+	Function     model.AggregationFunction
 	Identifier   string
 	StartTime    *time.Time
 	EndTime      *time.Time
@@ -155,6 +156,9 @@ func (r *AggregationRepository) GetResultsByFilter(ctx context.Context, filter A
 	}
 	if filter.SourceType != "" {
 		query = query.Where("source_type = ?", filter.SourceType)
+	}
+	if filter.Function != "" {
+		query = query.Where("function = ?", filter.Function)
 	}
 	if filter.Identifier != "" {
 		query = query.Where("identifier LIKE ?", "%"+filter.Identifier+"%")

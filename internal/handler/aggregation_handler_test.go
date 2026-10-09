@@ -292,3 +292,180 @@ func TestAggregationAPIEndpoints(t *testing.T) {
 		t.Fatalf("Expected 200 OK for get bucket samples, got %d: %s", wSamples.Code, wSamples.Body.String())
 	}
 }
+
+// TestUnifiedAnalysisVsDeviceAggregationParity verifies end-to-end data parity between:
+// 1. Device Detail -> Aggregation & Rollup query
+// 2. Unified Telemetry Analysis -> Aggregation & Rollup mode
+func TestUnifiedAnalysisVsDeviceAggregationParity(t *testing.T) {
+	env := setupAggregationTestRouter(t)
+
+	// Seed Device & Parameter
+	dev := model.Device{ID: 1, DeviceCode: "AQMS-01", DeviceName: "Air Quality 01"}
+	param := model.Parameter{ID: 10, DeviceID: 1, ParameterCode: "temperature", ParameterName: "Temperature", Unit: "°C"}
+	env.DB.Create(&dev)
+	env.DB.Create(&param)
+
+	// Create an aggregation definition for Device 1, Parameter 10
+	def := model.AggregationDefinition{
+		Name:            "Device 1 Temperature 5m AVG",
+		Code:            "AGG_DEV1_TEMP_5M_AVG",
+		DeviceID:        1,
+		ParameterID:     10,
+		SourceType:      model.SourceCustomerProcessed,
+		Function:        model.FunctionAvg,
+		IntervalSeconds: 300,
+		Timezone:        "UTC",
+		Enabled:         true,
+	}
+	env.DB.Create(&def)
+
+	bucketStart := time.Date(2026, 10, 9, 8, 0, 0, 0, time.UTC)
+
+	// Seed raw telemetry samples in raw_data table
+	env.DB.Create(&model.RawData{
+		DeviceID:       1,
+		ParameterID:    10,
+		Value:          50.0,
+		ProcessedValue: 50.0,
+		RawValue:       5000,
+		Quality:        model.QualityGood,
+		Timestamp:      bucketStart.Add(1 * time.Minute),
+		ReceivedAt:     bucketStart.Add(1 * time.Minute),
+	})
+	env.DB.Create(&model.RawData{
+		DeviceID:       1,
+		ParameterID:    10,
+		Value:          70.0,
+		ProcessedValue: 70.0,
+		RawValue:       7000,
+		Quality:        model.QualityGood,
+		Timestamp:      bucketStart.Add(3 * time.Minute),
+		ReceivedAt:     bucketStart.Add(3 * time.Minute),
+	})
+
+	// Trigger calculation for this bucket via engine / trigger API
+	triggerBody, _ := json.Marshal(map[string]interface{}{"timestamp": bucketStart})
+	reqRun, _ := http.NewRequest("POST", fmt.Sprintf("/api/aggregations/definitions/%d/run", def.ID), bytes.NewReader(triggerBody))
+	reqRun.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	reqRun.Header.Set("Content-Type", "application/json")
+	wRun := httptest.NewRecorder()
+	env.Router.ServeHTTP(wRun, reqRun)
+	if wRun.Code != http.StatusOK {
+		t.Fatalf("Failed to trigger aggregation calculation: %s", wRun.Body.String())
+	}
+
+	// 1. Device Detail Aggregation Tab Query:
+	// GET /api/aggregations/results?device_id=1&page=1&page_size=25
+	reqDevDetail, _ := http.NewRequest("GET", "/api/aggregations/results?device_id=1&page=1&page_size=25", nil)
+	reqDevDetail.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wDevDetail := httptest.NewRecorder()
+	env.Router.ServeHTTP(wDevDetail, reqDevDetail)
+	if wDevDetail.Code != http.StatusOK {
+		t.Fatalf("Device Detail query failed: %s", wDevDetail.Body.String())
+	}
+
+	var devDetailResp struct {
+		Data struct {
+			Total int                      `json:"total"`
+			Items []model.AggregationResult `json:"items"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wDevDetail.Body.Bytes(), &devDetailResp)
+
+	// 2. Unified Telemetry Analysis Aggregation Mode Query:
+	// GET /api/aggregations/results?page=1&page_size=50&function=AVG
+	reqUnified, _ := http.NewRequest("GET", "/api/aggregations/results?page=1&page_size=50&function=AVG", nil)
+	reqUnified.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wUnified := httptest.NewRecorder()
+	env.Router.ServeHTTP(wUnified, reqUnified)
+	if wUnified.Code != http.StatusOK {
+		t.Fatalf("Unified Analysis query failed: %s", wUnified.Body.String())
+	}
+
+	var unifiedResp struct {
+		Data struct {
+			Total int                      `json:"total"`
+			Items []model.AggregationResult `json:"items"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wUnified.Body.Bytes(), &unifiedResp)
+
+	// Assertions:
+	if len(devDetailResp.Data.Items) == 0 {
+		t.Fatalf("Device detail query returned 0 items")
+	}
+	if len(unifiedResp.Data.Items) == 0 {
+		t.Fatalf("Unified analysis query returned 0 items")
+	}
+
+	// Find the 08:00-08:05 bucket in both responses (identifier 20261009080500)
+	var itemDev, itemUnified *model.AggregationResult
+	for i := range devDetailResp.Data.Items {
+		if devDetailResp.Data.Items[i].Identifier == "20261009080500" {
+			itemDev = &devDetailResp.Data.Items[i]
+			break
+		}
+	}
+	for i := range unifiedResp.Data.Items {
+		if unifiedResp.Data.Items[i].Identifier == "20261009080500" {
+			itemUnified = &unifiedResp.Data.Items[i]
+			break
+		}
+	}
+
+	if itemDev == nil {
+		t.Fatalf("Device detail query missing record 20261009080500")
+	}
+	if itemUnified == nil {
+		t.Fatalf("Unified analysis query missing record 20261009080500")
+	}
+
+	// 1. Primary Key ID & Identifier match
+	if itemDev.ID != itemUnified.ID {
+		t.Errorf("Result ID mismatch: DeviceDetail=%d, Unified=%d", itemDev.ID, itemUnified.ID)
+	}
+	if itemDev.Identifier != itemUnified.Identifier {
+		t.Errorf("Identifier mismatch: DeviceDetail=%s, Unified=%s", itemDev.Identifier, itemUnified.Identifier)
+	}
+
+	// 2. Numerical Values match (Average of 50.0 and 70.0 is 60.0)
+	if itemDev.Value == nil || itemUnified.Value == nil {
+		t.Fatalf("Aggregated value is nil")
+	}
+	if *itemDev.Value != *itemUnified.Value {
+		t.Errorf("Value mismatch: DeviceDetail=%v, Unified=%v", *itemDev.Value, *itemUnified.Value)
+	}
+	if *itemUnified.Value != 60.0 {
+		t.Errorf("Expected average 60.0, got %v", *itemUnified.Value)
+	}
+
+	// 3. Metadata matches
+	if itemDev.DeviceID != itemUnified.DeviceID || itemDev.ParameterID != itemUnified.ParameterID {
+		t.Errorf("Device/Param ID mismatch")
+	}
+	if itemDev.Function != itemUnified.Function {
+		t.Errorf("Function mismatch")
+	}
+	if itemDev.SampleCount != 2 || itemUnified.SampleCount != 2 {
+		t.Errorf("Sample count mismatch: expected 2, got dev=%d, unified=%d", itemDev.SampleCount, itemUnified.SampleCount)
+	}
+
+	// 4. Function filter test: Query with function=MAX (none exist) should return 0 items
+	reqMax, _ := http.NewRequest("GET", "/api/aggregations/results?page=1&page_size=50&function=MAX", nil)
+	reqMax.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wMax := httptest.NewRecorder()
+	env.Router.ServeHTTP(wMax, reqMax)
+	var maxResp struct {
+		Data struct {
+			Total int                      `json:"total"`
+			Items []model.AggregationResult `json:"items"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wMax.Body.Bytes(), &maxResp)
+	if len(maxResp.Data.Items) != 0 {
+		t.Errorf("Expected 0 items for function=MAX filter, got %d", len(maxResp.Data.Items))
+	}
+
+	t.Logf("DATA PARITY CONFIRMED: Record ID %d, Identifier '%s', Value %.2f returned identically by both pages",
+		itemDev.ID, itemDev.Identifier, *itemDev.Value)
+}
