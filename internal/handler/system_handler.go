@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"strconv"
+	"strings"
 	"time"
 
+	"datalogger/internal/model"
+	"datalogger/internal/repository"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
 	"datalogger/pkg/sysinfo"
@@ -170,6 +174,52 @@ func (h *SystemHandler) GetDataTrend(c *gin.Context) {
 
 // Alarms
 func (h *SystemHandler) GetAlarms(c *gin.Context) {
+	alarmService := h.systemService.GetAlarmService()
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+
+	// If paginated query is requested and alarmService is available
+	if (pageStr != "" || pageSizeStr != "") && alarmService != nil {
+		page, _ := strconv.Atoi(pageStr)
+		pageSize, _ := strconv.Atoi(pageSizeStr)
+		var devID, paramID uint
+		if dStr := c.Query("device_id"); dStr != "" {
+			if v, err := strconv.ParseUint(dStr, 10, 32); err == nil {
+				devID = uint(v)
+			}
+		}
+		if pStr := c.Query("parameter_id"); pStr != "" {
+			if v, err := strconv.ParseUint(pStr, 10, 32); err == nil {
+				paramID = uint(v)
+			}
+		}
+
+		filter := repository.AlarmFilterParams{
+			Status:      c.Query("status"),
+			Severity:    c.Query("severity"),
+			DeviceID:    devID,
+			ParameterID: paramID,
+			Search:      c.Query("search"),
+			Page:        page,
+			PageSize:    pageSize,
+		}
+
+		alarms, total, err := alarmService.ListAlarms(c.Request.Context(), filter)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+
+		response.OK(c, gin.H{
+			"items":     alarms,
+			"total":     total,
+			"page":      filter.Page,
+			"page_size": filter.PageSize,
+		})
+		return
+	}
+
+	// Default unpaginated query (backward-compatible slice output for web UI)
 	status := c.Query("status")
 	alarms, err := h.systemService.GetAlarms(status)
 	if err != nil {
@@ -188,6 +238,47 @@ func (h *SystemHandler) GetActiveAlarms(c *gin.Context) {
 	response.OK(c, alarms)
 }
 
+func (h *SystemHandler) GetAlarmByID(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid alarm ID")
+		return
+	}
+
+	alarm, err := h.systemService.GetAlarmByID(uint(id))
+	if err != nil {
+		if errors.Is(err, repository.ErrAlarmNotFound) {
+			response.NotFound(c, "Alarm not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.OK(c, alarm)
+}
+
+func (h *SystemHandler) CreateAlarm(c *gin.Context) {
+	var alarm model.Alarm
+	if err := c.ShouldBindJSON(&alarm); err != nil {
+		response.BadRequest(c, "Invalid alarm payload: "+err.Error())
+		return
+	}
+
+	if err := h.systemService.CreateAlarm(&alarm); err != nil {
+		if errors.Is(err, repository.ErrMissingAlarmCode) ||
+			errors.Is(err, repository.ErrMissingAlarmMessage) ||
+			errors.Is(err, repository.ErrInvalidAlarmSeverity) {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Created(c, alarm)
+}
+
 func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -197,17 +288,58 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 
 	username := "admin"
 	if u, exists := c.Get("username"); exists {
-		if uStr, ok := u.(string); ok {
+		if uStr, ok := u.(string); ok && strings.TrimSpace(uStr) != "" {
 			username = uStr
 		}
 	}
 
 	if err := h.systemService.AcknowledgeAlarm(uint(id), username); err != nil {
+		if errors.Is(err, repository.ErrAlarmNotFound) {
+			response.NotFound(c, "Alarm not found")
+			return
+		}
+		if errors.Is(err, repository.ErrCannotAcknowledgeCleared) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
 
-	response.OK(c, gin.H{"acknowledged": true})
+	response.OK(c, gin.H{
+		"acknowledged":    true,
+		"id":              id,
+		"acknowledged_by": username,
+	})
+}
+
+func (h *SystemHandler) ClearAlarm(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid alarm ID")
+		return
+	}
+
+	alarm, err := h.systemService.ClearAlarm(uint(id))
+	if err != nil {
+		if errors.Is(err, repository.ErrAlarmNotFound) {
+			response.NotFound(c, "Alarm not found")
+			return
+		}
+		if errors.Is(err, repository.ErrAlarmAlreadyCleared) {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"cleared":    true,
+		"id":         id,
+		"cleared_at": alarm.ClearedAt,
+		"status":     alarm.Status,
+	})
 }
 
 // Logs

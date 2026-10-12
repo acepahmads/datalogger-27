@@ -335,3 +335,53 @@ func TestMigrationRetentionPoliciesSeeded(t *testing.T) {
 	}
 }
 
+func TestMigrationPhase5Tracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_phase5_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// Run migration to trigger updatePhase5Tracking
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	// 1. Verify Phase 5 status & progress
+	var phase5 model.DevelopmentPhase
+	if err := db.Where("phase_number = 5").First(&phase5).Error; err != nil {
+		t.Fatalf("Phase 5 not found in DB: %v", err)
+	}
+
+	if phase5.Progress < 100.0 {
+		t.Errorf("Phase 5 progress should be 100%%, got %.2f%%", phase5.Progress)
+	}
+	if phase5.Status != model.PhaseCompleted {
+		t.Errorf("Phase 5 status should be COMPLETED, got %s", phase5.Status)
+	}
+
+	// 2. Verify all 8 tasks are DONE
+	var tasks []model.DevelopmentTask
+	if err := db.Where("phase_id = ?", phase5.ID).Order("order_index ASC").Find(&tasks).Error; err != nil {
+		t.Fatalf("Failed to fetch Phase 5 tasks: %v", err)
+	}
+
+	if len(tasks) != 8 {
+		t.Fatalf("Expected 8 tasks in Phase 5, got %d", len(tasks))
+	}
+
+	for _, task := range tasks {
+		if task.Status != model.StatusDone {
+			t.Errorf("Task %d ('%s') status should be DONE, got %s", task.ID, task.TaskName, task.Status)
+		}
+		if task.Progress < 100.0 {
+			t.Errorf("Task %d ('%s') progress should be 100%%, got %.2f%%", task.ID, task.TaskName, task.Progress)
+		}
+		if task.TestResult == "" {
+			t.Errorf("Task %d ('%s') should have verified test results recorded", task.ID, task.TaskName)
+		}
+	}
+}
+

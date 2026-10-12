@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,6 +19,7 @@ type SystemService struct {
 	cfg              *config.Config
 	telemetryService *TelemetryService
 	backupService    *BackupService
+	alarmService     *AlarmService
 }
 
 func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *repository.PhaseRepository, cfg *config.Config) *SystemService {
@@ -33,6 +36,14 @@ func (s *SystemService) SetTelemetryService(ts *TelemetryService) {
 
 func (s *SystemService) SetBackupService(bs *BackupService) {
 	s.backupService = bs
+}
+
+func (s *SystemService) SetAlarmService(as *AlarmService) {
+	s.alarmService = as
+}
+
+func (s *SystemService) GetAlarmService() *AlarmService {
+	return s.alarmService
 }
 
 func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, error) {
@@ -212,11 +223,39 @@ func (s *SystemService) GetDeviceByID(id uint) (*model.Device, error) {
 }
 
 func (s *SystemService) GetAlarms(status string) ([]model.Alarm, error) {
+	if s.alarmService != nil {
+		return s.alarmService.GetAlarmsByStatus(context.Background(), status)
+	}
 	return s.systemRepo.GetAllAlarms(status)
 }
 
+func (s *SystemService) GetAlarmByID(id uint) (*model.Alarm, error) {
+	if s.alarmService != nil {
+		return s.alarmService.GetAlarmByID(context.Background(), id)
+	}
+	return nil, errors.New("alarm service not configured")
+}
+
+func (s *SystemService) CreateAlarm(alarm *model.Alarm) error {
+	if s.alarmService != nil {
+		return s.alarmService.CreateAlarm(context.Background(), alarm)
+	}
+	return errors.New("alarm service not configured")
+}
+
 func (s *SystemService) AcknowledgeAlarm(id uint, username string) error {
+	if s.alarmService != nil {
+		_, err := s.alarmService.AcknowledgeAlarm(context.Background(), id, username)
+		return err
+	}
 	return s.systemRepo.AcknowledgeAlarm(id, username)
+}
+
+func (s *SystemService) ClearAlarm(id uint) (*model.Alarm, error) {
+	if s.alarmService != nil {
+		return s.alarmService.ClearAlarm(context.Background(), id)
+	}
+	return nil, errors.New("alarm service not configured")
 }
 
 func (s *SystemService) GetLogs(limit int) ([]model.SystemLog, error) {

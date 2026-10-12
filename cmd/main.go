@@ -118,6 +118,11 @@ func main() {
 	retentionScheduler.Start()
 	defer retentionScheduler.Stop()
 
+	// 7f. Initialize Alarm Storage Subsystem (Phase 5)
+	alarmRepo := repository.NewAlarmRepository(db)
+	alarmService := service.NewAlarmService(alarmRepo, systemRepo)
+	systemService.SetAlarmService(alarmService)
+
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)
 	sched.Start()
@@ -277,10 +282,13 @@ func main() {
 		api.GET("/data/latest", systemHandler.GetLatestData)
 		api.GET("/data/trend", systemHandler.GetDataTrend)
 
-		// Alarms
+		// Phase 5 — Alarms Storage & Lifecycle
 		api.GET("/alarms", systemHandler.GetAlarms)
 		api.GET("/alarms/active", systemHandler.GetActiveAlarms)
+		api.GET("/alarms/:id", systemHandler.GetAlarmByID)
+		api.POST("/alarms", systemHandler.CreateAlarm)
 		api.PUT("/alarms/:id/acknowledge", systemHandler.AcknowledgeAlarm)
+		api.PUT("/alarms/:id/clear", systemHandler.ClearAlarm)
 
 		// Logs
 		api.GET("/logs", systemHandler.GetLogs)
