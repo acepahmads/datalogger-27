@@ -1142,8 +1142,33 @@ export default {
         this.fetchChannels();
       }
     },
+    '$route.query.tab'(tab) {
+      if (tab && ['alarms', 'history', 'queue', 'channels'].includes(tab)) {
+        this.activeTab = tab;
+      }
+    },
+    '$route.path'(path) {
+      if (path.includes('/queue') || path.includes('/delivery')) {
+        this.activeTab = 'queue';
+      } else if (path.includes('/history')) {
+        this.activeTab = 'history';
+      } else if (path.includes('/channels')) {
+        this.activeTab = 'channels';
+      } else if (path.includes('/active')) {
+        this.activeTab = 'alarms';
+      }
+    },
   },
   mounted() {
+    if (this.$route.query.tab && ['alarms', 'history', 'queue', 'channels'].includes(this.$route.query.tab)) {
+      this.activeTab = this.$route.query.tab;
+    } else if (this.$route.path.includes('/queue') || this.$route.path.includes('/delivery')) {
+      this.activeTab = 'queue';
+    } else if (this.$route.path.includes('/history')) {
+      this.activeTab = 'history';
+    } else if (this.$route.path.includes('/channels')) {
+      this.activeTab = 'channels';
+    }
     this.refreshAlarms();
     this.fetchAlarmHistory();
     this.fetchNotifications();

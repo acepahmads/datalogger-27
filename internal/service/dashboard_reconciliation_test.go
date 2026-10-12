@@ -583,8 +583,8 @@ func TestPhaseServiceUpdateTaskSubphaseID(t *testing.T) {
 	}
 }
 
-// 18. Test Phase 7 Package A Operational Monitoring tasks and recalculated progress
-func TestPhase7PackageAReconciliation(t *testing.T) {
+// 18. Test Phase 7 Package B Alarm & Observability tasks and recalculated progress
+func TestPhase7PackageBReconciliation(t *testing.T) {
 	db := setupReconciledDB(t)
 
 	var phase7 model.DevelopmentPhase
@@ -592,7 +592,30 @@ func TestPhase7PackageAReconciliation(t *testing.T) {
 		t.Fatalf("Phase 7 not found: %v", err)
 	}
 
-	// 1. Verify Package A tasks are DONE (100%)
+	// 1. Verify Package B tasks are DONE (100%)
+	packageBTasks := []string{
+		"Alarm Dashboard",
+		"Audit Trail Viewer",
+		"Log Viewer",
+		"Delivery Status",
+	}
+	for _, taskName := range packageBTasks {
+		var task model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND task_name = ?", phase7.ID, taskName).First(&task).Error; err != nil {
+			t.Fatalf("Expected task %s to exist in Phase 7: %v", taskName, err)
+		}
+		if task.Status != model.StatusDone {
+			t.Errorf("Expected task %s status DONE, got %s", taskName, task.Status)
+		}
+		if task.Progress != 100.0 {
+			t.Errorf("Expected task %s progress 100.0%%, got %.2f%%", taskName, task.Progress)
+		}
+		if task.TestResult == "" {
+			t.Errorf("Expected task %s to contain verified test result", taskName)
+		}
+	}
+
+	// 2. Verify Package A tasks are DONE (100%)
 	packageATasks := []string{
 		"Dashboard",
 		"Device Monitoring",
@@ -610,12 +633,9 @@ func TestPhase7PackageAReconciliation(t *testing.T) {
 		if task.Progress != 100.0 {
 			t.Errorf("Expected task %s progress 100.0%%, got %.2f%%", taskName, task.Progress)
 		}
-		if task.TestResult == "" {
-			t.Errorf("Expected task %s to contain verified test result", taskName)
-		}
 	}
 
-	// 2. Verify previously completed tasks remain preserved and DONE (100%)
+	// 3. Verify previously completed tasks remain preserved and DONE (100%)
 	preservedTasks := []string{
 		"Data Monitoring",
 		"Historical Trend",
@@ -635,7 +655,7 @@ func TestPhase7PackageAReconciliation(t *testing.T) {
 		}
 	}
 
-	// 3. Count total active and done tasks in Phase 7
+	// 4. Count total active and done tasks in Phase 7
 	var allPhase7Tasks []model.DevelopmentTask
 	db.Where("phase_id = ?", phase7.ID).Find(&allPhase7Tasks)
 
@@ -655,13 +675,24 @@ func TestPhase7PackageAReconciliation(t *testing.T) {
 	if activeCount != 17 {
 		t.Errorf("Expected 17 active tasks in Phase 7, got %d", activeCount)
 	}
-	if doneCount != 8 {
-		t.Errorf("Expected 8 DONE tasks in Phase 7 (4 Package A + 4 Preserved), got %d", doneCount)
+	if doneCount != 12 {
+		t.Errorf("Expected 12 DONE tasks in Phase 7 (4 Package B + 4 Package A + 4 Preserved), got %d", doneCount)
 	}
 
 	expectedProgress := sum / float64(activeCount)
 	if phase7.Progress < expectedProgress-0.1 || phase7.Progress > expectedProgress+0.1 {
 		t.Errorf("Expected Phase 7 progress ~%.2f%%, got %.2f%%", expectedProgress, phase7.Progress)
+	}
+
+	// 5. Verify USB serial hotplug remains marked CODE FIXED — HARDWARE VERIFICATION PENDING
+	var hotplugTask model.DevelopmentTask
+	if err := db.Where("task_name LIKE ?", "%Hotplug%").First(&hotplugTask).Error; err == nil {
+		if hotplugTask.Status != model.StatusTesting {
+			t.Errorf("Expected hotplug task status TESTING, got %s", hotplugTask.Status)
+		}
+		if hotplugTask.TestResult != "CODE FIXED — HARDWARE VERIFICATION PENDING" {
+			t.Errorf("Expected hotplug task test_result 'CODE FIXED — HARDWARE VERIFICATION PENDING', got '%s'", hotplugTask.TestResult)
+		}
 	}
 }
 

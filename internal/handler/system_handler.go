@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -508,8 +509,98 @@ func (h *SystemHandler) ClearAlarm(c *gin.Context) {
 	})
 }
 
+// Redaction & Date Helpers
+var sensitiveLogPattern = regexp.MustCompile(`(?i)(password|secret|token|api_key|bot_token|auth_token|bearer)\s*[:=]\s*["']?([^\s"',;]+)["']?`)
+
+func redactSensitiveString(s string) string {
+	if s == "" {
+		return ""
+	}
+	return sensitiveLogPattern.ReplaceAllString(s, `$1: "[REDACTED]"`)
+}
+
+func parseFlexibleDate(str string) *time.Time {
+	if str == "" {
+		return nil
+	}
+	formats := []string{
+		time.RFC3339,
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, fmtStr := range formats {
+		if t, err := time.Parse(fmtStr, str); err == nil {
+			return &t
+		}
+	}
+	return nil
+}
+
 // Logs
 func (h *SystemHandler) GetLogs(c *gin.Context) {
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+	level := c.Query("level")
+	component := c.Query("component")
+	search := c.Query("search")
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	isPaginatedRequest := pageStr != "" || pageSizeStr != "" || level != "" || component != "" || search != "" || startDateStr != "" || endDateStr != ""
+
+	if isPaginatedRequest {
+		page, _ := strconv.Atoi(pageStr)
+		if page < 1 {
+			page = 1
+		}
+		pageSize, _ := strconv.Atoi(pageSizeStr)
+		if pageSize < 1 || pageSize > 500 {
+			pageSize = 50
+		}
+		startTime := parseFlexibleDate(startDateStr)
+		endTime := parseFlexibleDate(endDateStr)
+
+		params := repository.SystemLogFilterParams{
+			Level:     level,
+			Component: component,
+			Search:    search,
+			StartTime: startTime,
+			EndTime:   endTime,
+			Page:      page,
+			PageSize:  pageSize,
+		}
+
+		logs, total, err := h.systemService.GetLogsFiltered(params)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+
+		for i := range logs {
+			logs[i].Message = redactSensitiveString(logs[i].Message)
+			logs[i].Details = redactSensitiveString(logs[i].Details)
+		}
+
+		totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+		if totalPages == 0 && total == 0 {
+			totalPages = 1
+		}
+
+		response.OK(c, gin.H{
+			"items":       logs,
+			"total":       total,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_pages": totalPages,
+			"has_next":    page < totalPages,
+			"has_prev":    page > 1,
+		})
+		return
+	}
+
+	// Legacy unpaginated endpoint
 	limit := 50
 	if lStr := c.Query("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil {
@@ -521,10 +612,76 @@ func (h *SystemHandler) GetLogs(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
+	for i := range logs {
+		logs[i].Message = redactSensitiveString(logs[i].Message)
+		logs[i].Details = redactSensitiveString(logs[i].Details)
+	}
 	response.OK(c, logs)
 }
 
 func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+	username := c.Query("username")
+	action := c.Query("action")
+	resourceName := c.Query("resource")
+	search := c.Query("search")
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	isPaginatedRequest := pageStr != "" || pageSizeStr != "" || username != "" || action != "" || resourceName != "" || search != "" || startDateStr != "" || endDateStr != ""
+
+	if isPaginatedRequest {
+		page, _ := strconv.Atoi(pageStr)
+		if page < 1 {
+			page = 1
+		}
+		pageSize, _ := strconv.Atoi(pageSizeStr)
+		if pageSize < 1 || pageSize > 500 {
+			pageSize = 50
+		}
+		startTime := parseFlexibleDate(startDateStr)
+		endTime := parseFlexibleDate(endDateStr)
+
+		params := repository.AuditTrailFilterParams{
+			Username:  username,
+			Action:    action,
+			Resource:  resourceName,
+			Search:    search,
+			StartTime: startTime,
+			EndTime:   endTime,
+			Page:      page,
+			PageSize:  pageSize,
+		}
+
+		trails, total, err := h.systemService.GetAuditTrailsFiltered(params)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+
+		for i := range trails {
+			trails[i].Details = redactSensitiveString(trails[i].Details)
+		}
+
+		totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+		if totalPages == 0 && total == 0 {
+			totalPages = 1
+		}
+
+		response.OK(c, gin.H{
+			"items":       trails,
+			"total":       total,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_pages": totalPages,
+			"has_next":    page < totalPages,
+			"has_prev":    page > 1,
+		})
+		return
+	}
+
+	// Legacy unpaginated endpoint
 	limit := 50
 	if lStr := c.Query("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil {
@@ -536,10 +693,83 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
+	for i := range trails {
+		trails[i].Details = redactSensitiveString(trails[i].Details)
+	}
 	response.OK(c, trails)
 }
 
 func (h *SystemHandler) GetCommunicationLogs(c *gin.Context) {
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+	deviceIDStr := c.Query("device_id")
+	protocol := c.Query("protocol")
+	direction := c.Query("direction")
+	status := c.Query("status")
+	search := c.Query("search")
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	isPaginatedRequest := pageStr != "" || pageSizeStr != "" || deviceIDStr != "" || protocol != "" || direction != "" || status != "" || search != "" || startDateStr != "" || endDateStr != ""
+
+	if isPaginatedRequest {
+		page, _ := strconv.Atoi(pageStr)
+		if page < 1 {
+			page = 1
+		}
+		pageSize, _ := strconv.Atoi(pageSizeStr)
+		if pageSize < 1 || pageSize > 500 {
+			pageSize = 50
+		}
+		var devID *uint
+		if deviceIDStr != "" {
+			if d, err := strconv.ParseUint(deviceIDStr, 10, 32); err == nil && d > 0 {
+				u := uint(d)
+				devID = &u
+			}
+		}
+		startTime := parseFlexibleDate(startDateStr)
+		endTime := parseFlexibleDate(endDateStr)
+
+		params := repository.CommunicationLogFilterParams{
+			DeviceID:  devID,
+			Protocol:  protocol,
+			Direction: direction,
+			Status:    status,
+			Search:    search,
+			StartTime: startTime,
+			EndTime:   endTime,
+			Page:      page,
+			PageSize:  pageSize,
+		}
+
+		logs, total, err := h.systemService.GetCommunicationLogsFiltered(params)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+
+		for i := range logs {
+			logs[i].ErrorMessage = redactSensitiveString(logs[i].ErrorMessage)
+		}
+
+		totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+		if totalPages == 0 && total == 0 {
+			totalPages = 1
+		}
+
+		response.OK(c, gin.H{
+			"items":       logs,
+			"total":       total,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_pages": totalPages,
+			"has_next":    page < totalPages,
+			"has_prev":    page > 1,
+		})
+		return
+	}
+
 	limit := 50
 	if lStr := c.Query("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil {
@@ -550,6 +780,9 @@ func (h *SystemHandler) GetCommunicationLogs(c *gin.Context) {
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
+	}
+	for i := range logs {
+		logs[i].ErrorMessage = redactSensitiveString(logs[i].ErrorMessage)
 	}
 	response.OK(c, logs)
 }

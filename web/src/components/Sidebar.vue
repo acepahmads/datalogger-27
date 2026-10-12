@@ -151,6 +151,14 @@
             </svg>
             <span>{{ $t('navigation.alarmHistory') }}</span>
           </router-link>
+
+          <router-link to="/alarm/queue" class="nav-item" :class="{ 'nav-active': $route.path === '/alarm/queue' || $route.path === '/alarm/delivery' || ($route.path === '/alarm/active' && $route.query.tab === 'queue') }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+            </svg>
+            <span>{{ $t('navigation.deliveryStatus') || 'Delivery Status' }}</span>
+          </router-link>
         </div>
       </div>
 
@@ -160,7 +168,7 @@
           {{ $t('navigation.systemAdmin') }}
         </div>
         <div class="space-y-1">
-          <router-link to="/system/logs" class="nav-item" :class="{ 'nav-active': $route.path === '/system/logs' || $route.path === '/system/audit' }">
+          <router-link to="/system/logs" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/system/logs') || $route.path.startsWith('/system/audit') || $route.path.startsWith('/system/communication') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <polyline points="4 17 10 11 4 5"></polyline>

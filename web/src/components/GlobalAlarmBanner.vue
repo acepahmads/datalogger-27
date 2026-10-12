@@ -34,7 +34,7 @@
           <!-- Device Identifier Link -->
           <router-link
             v-if="highestAlarm.device_id || (highestAlarm.Device && highestAlarm.Device.id)"
-            :to="`/devices/${highestAlarm.device_id || highestAlarm.Device.id}`"
+            :to="`/monitoring/devices/${highestAlarm.device_id || highestAlarm.Device.id}`"
             class="font-mono font-bold underline hover:opacity-80 transition-opacity flex-shrink-0"
             :title="$t('alarms.viewDevice') || 'View Device'"
           >

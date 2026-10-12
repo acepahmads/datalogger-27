@@ -1858,6 +1858,30 @@ func updatePhase7Tracking(db *gorm.DB) {
 				TestResult: "PASSED: Deterministic client-side CSV and JSON exporter preserving current active filters, timestamps, and parameters verified.",
 				Notes:      "Export dropdown integrated in Unified Telemetry Analysis header.",
 			},
+			{
+				TaskName:   "Alarm Dashboard",
+				TaskID:     74,
+				TestResult: "PASSED: Global Alarm Banner & Audio Alert engine verified. Distinct critical (red) and warning (amber) banners, explicit Web Audio API activation, mute/unmute sound control, dismiss preservation, and authenticated operator acknowledgement with server-side audit trail verified.",
+				Notes:      "Verified in TestPackageB_AlarmAcknowledgementAndAuditTrail and alarm_banner_audio_test.js (12/12 PASS).",
+			},
+			{
+				TaskName:   "Audit Trail Viewer",
+				TaskID:     75,
+				TestResult: "PASSED: Full server-side pagination, date range filtering, actor, action, and resource filtering, sensitive data/credential redaction, and CSV export verified.",
+				Notes:      "Verified in TestPackageB_AuditTrailFilteringPaginationAndRedaction.",
+			},
+			{
+				TaskName:   "Log Viewer",
+				TaskID:     76,
+				TestResult: "PASSED: Multi-tab log viewer with live auto-refresh streaming, log-level filtering (ERROR, WARN, INFO, DEBUG), component and message search, credential redaction, communication logs with raw hex frame inspector, and CSV export verified.",
+				Notes:      "Verified in TestPackageB_SystemLogFilteringSearchAndRedaction.",
+			},
+			{
+				TaskName:   "Delivery Status",
+				TaskID:     77,
+				TestResult: "PASSED: Dedicated notification delivery queue and status panel integrated with Phase 6 Notification Engine. Dispatched, delivered, retrying, failed, cancelled metrics, channel configuration status (configured vs unconfigured), masked recipients, and retry/cancellation RBAC verified.",
+				Notes:      "Verified in TestPackageB_NotificationDeliveryQueueAndRBAC.",
+			},
 		}
 
 		for _, vt := range verifiedTasks {

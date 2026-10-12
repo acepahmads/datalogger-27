@@ -298,6 +298,10 @@ func (s *SystemService) GetLogs(limit int) ([]model.SystemLog, error) {
 	return s.systemRepo.GetSystemLogs(limit)
 }
 
+func (s *SystemService) GetLogsFiltered(params repository.SystemLogFilterParams) ([]model.SystemLog, int64, error) {
+	return s.systemRepo.GetSystemLogsFiltered(params)
+}
+
 func (s *SystemService) GetAuditTrails(limit int) ([]model.AuditTrail, error) {
 	if limit <= 0 {
 		limit = 50
@@ -305,11 +309,23 @@ func (s *SystemService) GetAuditTrails(limit int) ([]model.AuditTrail, error) {
 	return s.systemRepo.GetAuditTrails(limit)
 }
 
+func (s *SystemService) GetAuditTrailsFiltered(params repository.AuditTrailFilterParams) ([]model.AuditTrail, int64, error) {
+	return s.systemRepo.GetAuditTrailsFiltered(params)
+}
+
 func (s *SystemService) GetCommunicationLogs(limit int) ([]model.CommunicationLog, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	return s.systemRepo.GetCommunicationLogs(limit)
+}
+
+func (s *SystemService) GetCommunicationLogsFiltered(params repository.CommunicationLogFilterParams) ([]model.CommunicationLog, int64, error) {
+	return s.systemRepo.GetCommunicationLogsFiltered(params)
+}
+
+func (s *SystemService) AddCommunicationLog(log *model.CommunicationLog) error {
+	return s.systemRepo.AddCommunicationLog(log)
 }
 
 func (s *SystemService) GetDatabaseMetrics() database.DatabaseMetrics {
