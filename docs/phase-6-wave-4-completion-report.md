@@ -221,7 +221,7 @@ id task_name             status  progress priority
 
 ## 6. Build Artifacts & Commit Information
 
-- **Git Commit Hash**: `e8932fc` (Targeting main branch)
+- **Git Commit Hash**: `a396374` (Targeting main branch)
 - **Edge Deployment Binaries**:
   - `bin/datalogger-windows-amd64.exe` (26.3 MB)
   - `bin/datalogger.exe` (37.2 MB)
