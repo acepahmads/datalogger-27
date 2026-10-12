@@ -535,9 +535,9 @@ export default {
         case 'CONNECTING': return 'bg-blue-400 animate-pulse';
         case 'RECONNECTING': return 'bg-indigo-400 animate-pulse';
         case 'DEGRADED': return 'bg-amber-400 animate-pulse';
-        case 'DISABLED': return 'bg-rose-400/80';
-        case 'ERROR': return 'bg-rose-400';
+        case 'DISABLED': return 'bg-slate-500';
         case 'OFFLINE':
+        case 'ERROR': return 'bg-rose-500 animate-pulse';
         case 'DISCONNECTED': return 'bg-slate-500';
         default: return 'bg-purple-400';
       }
@@ -549,9 +549,9 @@ export default {
         case 'CONNECTING': return 'text-blue-400';
         case 'RECONNECTING': return 'text-indigo-400';
         case 'DEGRADED': return 'text-amber-400';
-        case 'DISABLED': return 'text-rose-400/80';
-        case 'ERROR': return 'text-rose-400';
+        case 'DISABLED': return 'text-slate-400';
         case 'OFFLINE':
+        case 'ERROR': return 'text-rose-400 font-bold';
         case 'DISCONNECTED': return 'text-slate-400';
         default: return 'text-purple-400';
       }

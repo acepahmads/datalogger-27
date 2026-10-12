@@ -108,7 +108,7 @@
 
         <!-- View Alarm Console Link -->
         <router-link
-          to="/alarms"
+          to="/alarm/active"
           class="px-2 py-1 rounded-lg bg-black/15 hover:bg-black/25 text-3xs font-medium transition-colors hidden sm:flex items-center space-x-1"
           :title="$t('alarms.viewAlarmConsole') || 'Go to Alarm Console'"
         >
@@ -289,7 +289,7 @@ export default {
     return {
       isExpanded: false,
       isSettingsModalOpen: false,
-      dismissedIds: new Set(),
+      dismissedMap: {},
       isAudioUnlocked: true,
       unsubscribeAudioState: null,
       showQuickAckModal: false,
@@ -315,7 +315,9 @@ export default {
     },
     // Filter out dismissed or cleared alarms for this session
     filteredAlarms() {
-      return this.activeAlarms.filter((a) => a && a.status !== 'CLEARED' && !this.dismissedIds.has(a.id));
+      return this.activeAlarms.filter(
+        (a) => a && a.status !== 'CLEARED' && !this.dismissedMap[Number(a.id)]
+      );
     },
     // Prioritize: CRITICAL (3) > WARNING (2) > INFO (1), then newest triggered_at
     sortedAlarms() {
@@ -494,15 +496,15 @@ export default {
       });
     },
     dismissHighestAlarm() {
-      if (this.highestAlarm) {
+      if (this.highestAlarm && this.highestAlarm.id) {
         this.dismissSpecificAlarm(this.highestAlarm.id);
       }
     },
     dismissSpecificAlarm(alarmId) {
       if (!alarmId) return;
-      this.dismissedIds.add(alarmId);
-      audioAlert.stopCriticalAlarmLoop(alarmId);
-      this.$forceUpdate();
+      const idNum = Number(alarmId);
+      this.$set(this.dismissedMap, idNum, true);
+      audioAlert.stopCriticalAlarmLoop(idNum);
     },
     openAckModal(alarm) {
       this.ackTargetAlarm = alarm;

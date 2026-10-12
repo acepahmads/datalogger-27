@@ -188,12 +188,12 @@ runTest('Test 5: Dismiss hides banner but preserves alarm in store & DB list', (
     { id: 201, severity: 'CRITICAL', message: 'Gas leak high' },
     { id: 202, severity: 'WARNING', message: 'Filter dirty' },
   ];
-  const dismissedIds = new Set();
+  const dismissedMap = {};
 
   // User clicks dismiss on alarm 201
-  dismissedIds.add(201);
+  dismissedMap[201] = true;
 
-  const visibleAlarms = activeAlarms.filter(a => !dismissedIds.has(a.id));
+  const visibleAlarms = activeAlarms.filter(a => !dismissedMap[Number(a.id)]);
   assert.strictEqual(visibleAlarms.length, 1, 'Visible banner alarms must exclude dismissed');
   assert.strictEqual(visibleAlarms[0].id, 202, 'Next highest alarm must show after dismiss');
   assert.strictEqual(activeAlarms.length, 2, 'Underlying activeAlarms store must NOT be deleted');

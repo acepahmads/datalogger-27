@@ -33,6 +33,8 @@ const routes = [
   { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/monitoring/parameters', name: 'Parameters', component: DevicesView },
+  { path: '/alarm', redirect: '/alarm/active' },
+  { path: '/alarms', redirect: '/alarm/active' },
   { path: '/alarm/active', name: 'ActiveAlarms', component: AlarmsView },
   { path: '/alarm/history', name: 'AlarmHistory', component: AlarmsView },
   { path: '/system/logs', name: 'SystemLogs', component: LogsView },
