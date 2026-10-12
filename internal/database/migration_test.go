@@ -494,3 +494,54 @@ func TestMigrationPhase6Wave2Tracking(t *testing.T) {
 	}
 }
 
+func TestMigrationPhase6Wave3Tracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_phase6_w3_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	// 1. Verify Phase 6 is WORKING with 80% progress
+	var phase6 model.DevelopmentPhase
+	if err := db.Where("phase_number = 6").First(&phase6).Error; err != nil {
+		t.Fatalf("Phase 6 not found in DB: %v", err)
+	}
+
+	if phase6.Progress < 80.0 {
+		t.Errorf("Phase 6 progress should be at least 80%% after Wave 3, got %.2f%%", phase6.Progress)
+	}
+	if phase6.Status != model.PhaseWorking {
+		t.Errorf("Phase 6 status should be WORKING (not DONE yet), got %s", phase6.Status)
+	}
+
+	// 2. Verify Task #64 "Notification Engine" is DONE
+	var task64 model.DevelopmentTask
+	if err := db.Where("phase_id = ? AND task_name = ?", phase6.ID, "Notification Engine").First(&task64).Error; err != nil {
+		t.Fatalf("Task 64 'Notification Engine' not found: %v", err)
+	}
+	if task64.Status != model.StatusDone {
+		t.Errorf("Task 64 should be DONE, got %s", task64.Status)
+	}
+	if task64.Progress < 100.0 {
+		t.Errorf("Task 64 progress should be 100%%, got %.2f%%", task64.Progress)
+	}
+	if task64.TestResult == "" {
+		t.Errorf("Task 64 should have test results recorded")
+	}
+
+	// 3. Verify Tasks #65 and #66 remain PENDING (Wave 4)
+	var pendingTasks []model.DevelopmentTask
+	if err := db.Where("phase_id = ? AND status = ?", phase6.ID, model.StatusPending).Find(&pendingTasks).Error; err != nil {
+		t.Fatalf("Failed to query pending tasks: %v", err)
+	}
+	if len(pendingTasks) != 2 {
+		t.Errorf("Expected exactly 2 pending tasks remaining in Phase 6, got %d", len(pendingTasks))
+	}
+}
+

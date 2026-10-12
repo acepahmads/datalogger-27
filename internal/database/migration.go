@@ -1685,7 +1685,55 @@ func updatePhase6Wave1Tracking(db *gorm.DB) {
 		}
 	}
 
-	// Ensure remaining Phase 6 tasks (Waves 3-4) exist as PENDING if not present
+	// Wave 3: Verified Notification Engine Task
+	verifiedTasksWave3 := []struct {
+		TaskName    string
+		TaskID      uint
+		OrderIndex  int
+		Priority    model.Priority
+		Description string
+		TestResult  string
+		Notes       string
+	}{
+		{
+			TaskName:    "Notification Engine",
+			TaskID:      64,
+			OrderIndex:  8,
+			Priority:    model.PriorityCritical,
+			Description: "Multi-channel dispatcher with rate limiting and retry queue",
+			TestResult:  "PASSED: Persistent SQLite/MariaDB queue, exponential backoff retries, per-channel sliding window rate limiting, idempotency key duplicate suppression, secret redaction, provider failure isolation, and RBAC verified.",
+			Notes:       "Verified in TestNotificationEngine_DispatchAlarmAndIdempotency, TestNotificationEngine_QueueSurvivesRestart, TestNotificationEngine_RetryBackoffAndMaxAttempts, TestNotificationEngine_RateLimiting, TestNotificationEngine_AlarmDecouplingAndLifecycleIntegrity, TestNotificationHandler_RBACAndEndpoints, and TestNotificationHandler_ChannelsAndRedaction.",
+		},
+	}
+
+	for _, vt := range verifiedTasksWave3 {
+		var t model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (id = ? OR task_name = ?)", phase6.ID, vt.TaskID, vt.TaskName).First(&t).Error; err == nil {
+			db.Model(&t).Updates(map[string]interface{}{
+				"status":          model.StatusDone,
+				"progress":        100.0,
+				"completion_date": &now,
+				"test_result":     vt.TestResult,
+				"notes":           vt.Notes,
+			})
+		} else {
+			db.Create(&model.DevelopmentTask{
+				PhaseID:        phase6.ID,
+				TaskName:       vt.TaskName,
+				Description:    vt.Description,
+				Status:         model.StatusDone,
+				Progress:       100.0,
+				Priority:       vt.Priority,
+				Owner:          "Lead System Engineer",
+				OrderIndex:     vt.OrderIndex,
+				CompletionDate: &now,
+				TestResult:     vt.TestResult,
+				Notes:          vt.Notes,
+			})
+		}
+	}
+
+	// Ensure remaining Phase 6 tasks (Wave 4) exist as PENDING if not present
 	pendingTasks := []struct {
 		TaskName    string
 		TaskID      uint
@@ -1693,7 +1741,6 @@ func updatePhase6Wave1Tracking(db *gorm.DB) {
 		Priority    model.Priority
 		Description string
 	}{
-		{"Notification Engine", 64, 8, model.PriorityCritical, "Multi-channel dispatcher with rate limiting and retry queue"},
 		{"Alarm Acknowledgement", 65, 9, model.PriorityHigh, "Operator acknowledgement workflow with notes and audit logging"},
 		{"Alarm History", 66, 10, model.PriorityMedium, "Queryable historical alarm log with duration and resolution stats"},
 	}

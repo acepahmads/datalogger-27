@@ -124,6 +124,13 @@ func main() {
 	alarmService := service.NewAlarmService(alarmRepo, systemRepo)
 	systemService.SetAlarmService(alarmService)
 
+	// 7h. Initialize Notification Engine Subsystem (Phase 6 Wave 3)
+	notificationRepo := repository.NewNotificationRepository(db)
+	notificationEngine := service.NewNotificationEngine(notificationRepo, alarmRepo, systemRepo, service.DefaultNotificationEngineConfig())
+	alarmService.SetNotificationEngine(notificationEngine)
+	notificationEngine.Start()
+	defer notificationEngine.Stop()
+
 	// 7g. Initialize Core Alarm Engine & Threshold Evaluator (Phase 6 Wave 1)
 	alarmEvaluator := service.NewAlarmEvaluator(
 		context.Background(),
@@ -171,6 +178,7 @@ func main() {
 	aggHandler := handler.NewAggregationHandler(aggService)
 	backupHandler := handler.NewBackupHandler(backupService, backupScheduler)
 	retentionHandler := handler.NewRetentionHandler(retentionService, retentionScheduler)
+	notificationHandler := handler.NewNotificationHandler(notificationEngine, notificationRepo)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -345,6 +353,21 @@ func main() {
 			retentionGroup.POST("/housekeeping/trigger", middleware.RequirePermission("retention.execute"), retentionHandler.TriggerHousekeeping)
 			retentionGroup.GET("/storage", middleware.RequirePermission("retention.view"), retentionHandler.GetStorageOverview)
 			retentionGroup.GET("/history", middleware.RequirePermission("retention.view"), retentionHandler.GetHistory)
+		}
+
+		// Phase 6 Wave 3 — Notification Engine & Channels (Authenticated & Authorized)
+		notifGroup := api.Group("/notifications")
+		notifGroup.Use(middleware.JWTAuth(authService))
+		{
+			notifGroup.GET("", middleware.RequirePermission("notification.view"), notificationHandler.ListNotifications)
+			notifGroup.GET("/metrics", middleware.RequirePermission("notification.view"), notificationHandler.GetMetrics)
+			notifGroup.GET("/:id", middleware.RequirePermission("notification.view"), notificationHandler.GetNotification)
+			notifGroup.POST("/:id/retry", middleware.RequirePermission("notification.manage"), notificationHandler.RetryNotification)
+			notifGroup.POST("/:id/cancel", middleware.RequirePermission("notification.manage"), notificationHandler.CancelNotification)
+			notifGroup.GET("/channels", middleware.RequirePermission("notification.view"), notificationHandler.ListChannels)
+			notifGroup.GET("/channels/:id", middleware.RequirePermission("notification.view"), notificationHandler.GetChannel)
+			notifGroup.PUT("/channels/:id", middleware.RequirePermission("notification.manage"), notificationHandler.UpdateChannel)
+			notifGroup.POST("/channels/:id/test", middleware.RequirePermission("notification.manage"), notificationHandler.TestSend)
 		}
 	}
 

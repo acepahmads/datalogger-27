@@ -13,8 +13,9 @@ import (
 
 // AlarmService manages alarm persistence and lifecycle state transitions
 type AlarmService struct {
-	alarmRepo  *repository.AlarmRepository
-	systemRepo *repository.SystemRepository
+	alarmRepo          *repository.AlarmRepository
+	systemRepo         *repository.SystemRepository
+	notificationEngine *NotificationEngine
 }
 
 // NewAlarmService creates a new instance of AlarmService
@@ -23,6 +24,11 @@ func NewAlarmService(alarmRepo *repository.AlarmRepository, systemRepo *reposito
 		alarmRepo:  alarmRepo,
 		systemRepo: systemRepo,
 	}
+}
+
+// SetNotificationEngine injects the Phase 6 NotificationEngine
+func (s *AlarmService) SetNotificationEngine(ne *NotificationEngine) {
+	s.notificationEngine = ne
 }
 
 // CreateAlarm validates and persists a new alarm record
@@ -42,6 +48,11 @@ func (s *AlarmService) CreateAlarm(ctx context.Context, alarm *model.Alarm) erro
 			Details:   fmt.Sprintf("Alarm triggered: Code=%s, Severity=%s, Message=%s", alarm.AlarmCode, alarm.Severity, alarm.Message),
 			CreatedAt: time.Now().UTC(),
 		})
+	}
+
+	// Phase 6 Wave 3: Asynchronously dispatch to Notification Engine without blocking alarm evaluation
+	if s.notificationEngine != nil {
+		go s.notificationEngine.DispatchAlarm(context.Background(), alarm)
 	}
 
 	return nil
