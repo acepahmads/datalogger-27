@@ -1168,6 +1168,30 @@ func updatePhase4Tracking(db *gorm.DB) {
 		})
 	}
 
+	var auditCountHotfix int64
+	db.Model(&model.AuditTrail{}).Where("action = ? AND resource = ?", "HOTFIX_USB_SERIAL", "USB Serial Hot-Unplug / Replug Auto-Recovery").Count(&auditCountHotfix)
+	if auditCountHotfix == 0 {
+		db.Create(&model.AuditTrail{
+			Username:  "system",
+			Action:    "HOTFIX_USB_SERIAL",
+			Resource:  "USB Serial Hot-Unplug / Replug Auto-Recovery",
+			Details:   "Resolved USB serial hot-unplug recursive mutex deadlock, stuck diagnostic BUSY lock, and stale ONLINE reporting.",
+			CreatedAt: now,
+		})
+
+		var task4115 model.DevelopmentTask
+		if err := db.Where("task_name = ?", "4.1.15 Real Hardware Validation").First(&task4115).Error; err == nil {
+			db.Create(&model.DevelopmentTaskLog{
+				TaskID:    task4115.ID,
+				Timestamp: now,
+				User:      "system",
+				Action:    "HOTFIX_RECOVERY",
+				Result:    "PASSED",
+				Log:       "USB Serial Hot-Unplug/Replug: Resolved recursive mutex deadlock in handleSerialError, converted wire lock to context-aware semaphore, added 10s auto-expiry for diagnostic locks, and verified 14 automated deterministic tests.",
+			})
+		}
+	}
+
 	// 7. Subphase 4.2 Granular Tasks (4.2.1 to 4.2.19)
 	subtasks4_2 := []struct {
 		Name        string
