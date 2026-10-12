@@ -92,21 +92,21 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		overallPct = totalProgress / float64(len(phases))
 	}
 
-	// Identify active milestone phase (in sequential roadmap order Phase 1..4)
+	// Identify active milestone phase (in sequential roadmap order Phase 1..6)
 	var activePhase *model.DevelopmentPhase
 	for i := range phases {
 		p := &phases[i]
-		if p.PhaseNumber <= 4 && p.Status == model.PhaseWorking {
+		if p.PhaseNumber <= 6 && p.Status == model.PhaseWorking {
 			if activePhase == nil || p.PhaseNumber < activePhase.PhaseNumber {
 				activePhase = p
 			}
 		}
 	}
-	// If no phase <= 4 is currently working, use latest completed phase <= 4 (e.g. Phase 4)
+	// If no phase <= 6 is currently working, use latest completed phase <= 6 (e.g. Phase 6)
 	if activePhase == nil {
 		for i := range phases {
 			p := &phases[i]
-			if p.PhaseNumber <= 4 && p.Status == model.PhaseCompleted {
+			if p.PhaseNumber <= 6 && p.Status == model.PhaseCompleted {
 				if activePhase == nil || p.PhaseNumber > activePhase.PhaseNumber {
 					activePhase = p
 				}
@@ -114,12 +114,12 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		}
 	}
 
-	currentPhaseName := "Phase 4 — Reliability & Storage"
-	currentPhaseNum := 4
-	currentSubphaseName := "Phase 4.4 — Retention & Storage Management"
-	currentTaskName := "Phase 4 Complete (60/60 PASS)"
-	nextAction := "Phase 4 Reliability & Storage Accepted | Ready for Phase 5"
-	estimatedCompletion := "Phase 1-4 Accepted (100%) | Full System: Q4 2026"
+	currentPhaseName := "Phase 6 — Alarm & Notification"
+	currentPhaseNum := 6
+	currentSubphaseName := "Phase 6.4 — Alarm Acknowledgement & History"
+	currentTaskName := "Phase 6 Complete (10/10 PASS — Tasks #57–#66 DONE)"
+	nextAction := "Phase 6 Alarm & Notification Accepted | Ready for Phase 7 Web Application"
+	estimatedCompletion := "Phase 1-6 Accepted (100%) | Full System: Q4 2026"
 
 	if activePhase != nil {
 		currentPhaseName = activePhase.Name
@@ -131,24 +131,26 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 			nextAction = "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage"
 			estimatedCompletion = "Phase 1-2 Accepted (100%) | Phase 3 Working | Full System: Q4 2026"
 		} else if activePhase.PhaseNumber == 4 {
+			currentSubphaseName = "Phase 4.4 — Retention & Storage Management"
+			currentTaskName = "Phase 4 Complete (60/60 PASS)"
+			nextAction = "Phase 4 Reliability & Storage Accepted | Ready for Phase 5 Storage"
+			estimatedCompletion = "Phase 1-4 Accepted (100%) | Full System: Q4 2026"
+		} else if activePhase.PhaseNumber == 5 {
+			currentSubphaseName = "Phase 5 — Storage"
+			currentTaskName = "Phase 5 Storage Complete (Tasks #49–#56 DONE)"
+			nextAction = "Phase 5 Storage Accepted | Ready for Phase 6 Alarm & Notification"
+			estimatedCompletion = "Phase 1-5 Accepted (100%) | Full System: Q4 2026"
+		} else if activePhase.PhaseNumber == 6 {
 			if activePhase.Status == model.PhaseCompleted {
-				currentSubphaseName = "Phase 4.4 — Retention & Storage Management"
-				currentTaskName = "Phase 4 Complete (60/60 PASS)"
-				nextAction = "Phase 4 Reliability & Storage Accepted | Ready for Phase 5"
-				estimatedCompletion = "Phase 1-4 Accepted (100%) | Full System: Q4 2026"
+				currentSubphaseName = "Phase 6.4 — Alarm Acknowledgement & History"
+				currentTaskName = "Phase 6 Complete (10/10 PASS — Tasks #57–#66 DONE)"
+				nextAction = "Phase 6 Alarm & Notification Accepted | Ready for Phase 7 Web Application"
+				estimatedCompletion = "Phase 1-6 Accepted (100%) | Full System: Q4 2026"
 			} else {
-				// Find first unfinished subphase in Phase 4 if any
-				currentSubphaseName = "Phase 4.1 — Reliability Foundation & Auto-Recovery"
-				for _, sp := range activePhase.Subphases {
-					if sp.Status != "DONE" {
-						currentSubphaseName = sp.Name
-						break
-					}
-					currentSubphaseName = sp.Name
-				}
-				currentTaskName = "Phase 4 Implementation in Progress"
-				nextAction = "Complete Phase 4 Verification"
-				estimatedCompletion = "Phase 1-3 Accepted (100%) | Phase 4 Working | Full System: Q4 2026"
+				currentSubphaseName = "Phase 6.4 — Alarm Acknowledgement & History"
+				currentTaskName = "Phase 6 Implementation in Progress"
+				nextAction = "Complete Phase 6 Wave 4 Verification"
+				estimatedCompletion = "Phase 1-5 Accepted (100%) | Phase 6 Working | Full System: Q4 2026"
 			}
 		}
 	}

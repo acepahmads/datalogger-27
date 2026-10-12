@@ -55,6 +55,7 @@ func JWTAuth(authService *service.AuthService) gin.HandlerFunc {
 
 		c.Set("userID", claims.UserID)
 		c.Set("username", claims.Username)
+		c.Set("fullName", claims.FullName)
 		c.Set("role", claims.Role)
 		c.Next()
 	}
@@ -87,7 +88,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				permissionCode == "backup.view" || permissionCode == "backup.create" || permissionCode == "backup.validate" ||
 				permissionCode == "retention.view" ||
 				permissionCode == "notification.view" || permissionCode == "notification.manage" ||
-				permissionCode == "alarm.view" || permissionCode == "alarm.manage" {
+				permissionCode == "alarm.view" || permissionCode == "alarm.manage" || permissionCode == "alarm.acknowledge" {
 				c.Next()
 				return
 			}
@@ -96,7 +97,8 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 		// Operator has operational read/view and alarm acknowledgement permissions
 		if strings.EqualFold(role, "Operator") {
 			if permissionCode == "device.view" || permissionCode == "device.communication.view" ||
-				permissionCode == "notification.view" || permissionCode == "alarm.view" || permissionCode == "alarm.manage" {
+				permissionCode == "notification.view" || permissionCode == "alarm.view" ||
+				permissionCode == "alarm.acknowledge" {
 				c.Next()
 				return
 			}

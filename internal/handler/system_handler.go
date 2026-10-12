@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -195,13 +196,17 @@ func (h *SystemHandler) GetAlarms(c *gin.Context) {
 		}
 
 		filter := repository.AlarmFilterParams{
-			Status:      c.Query("status"),
-			Severity:    c.Query("severity"),
-			DeviceID:    devID,
-			ParameterID: paramID,
-			Search:      c.Query("search"),
-			Page:        page,
-			PageSize:    pageSize,
+			Status:         c.Query("status"),
+			Severity:       c.Query("severity"),
+			DeviceID:       devID,
+			ParameterID:    paramID,
+			AlarmCode:      c.Query("alarm_code"),
+			AcknowledgedBy: c.Query("acknowledged_by"),
+			Search:         c.Query("search"),
+			StartTime:      parseFlexibleTime(c.Query("start_time")),
+			EndTime:        parseFlexibleTime(c.Query("end_time")),
+			Page:           page,
+			PageSize:       pageSize,
 		}
 
 		alarms, total, err := alarmService.ListAlarms(c.Request.Context(), filter)
@@ -286,10 +291,25 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 		return
 	}
 
+	// Server-derived user identity; never trust arbitrary user ID or username from request payload
+	var userID *uint
+	if uidVal, exists := c.Get("userID"); exists {
+		if uid, ok := uidVal.(uint); ok && uid > 0 {
+			userID = &uid
+		}
+	}
+
 	username := "admin"
 	if u, exists := c.Get("username"); exists {
 		if uStr, ok := u.(string); ok && strings.TrimSpace(uStr) != "" {
 			username = uStr
+		}
+	}
+
+	displayName := username
+	if fn, exists := c.Get("fullName"); exists {
+		if fnStr, ok := fn.(string); ok && strings.TrimSpace(fnStr) != "" {
+			displayName = fnStr
 		}
 	}
 
@@ -298,12 +318,13 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&req)
 
-	if err := h.systemService.AcknowledgeAlarm(uint(id), username, req.Notes); err != nil {
+	alarm, err := h.systemService.AcknowledgeAlarmWithUser(c.Request.Context(), uint(id), userID, username, displayName, req.Notes)
+	if err != nil {
 		if errors.Is(err, repository.ErrAlarmNotFound) {
 			response.NotFound(c, "Alarm not found")
 			return
 		}
-		if errors.Is(err, repository.ErrCannotAcknowledgeCleared) {
+		if errors.Is(err, repository.ErrCannotAcknowledgeCleared) || errors.Is(err, repository.ErrAlarmAlreadyAcknowledged) {
 			response.BadRequest(c, err.Error())
 			return
 		}
@@ -312,15 +333,150 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 	}
 
 	respData := gin.H{
-		"acknowledged":    true,
-		"id":              id,
-		"acknowledged_by": username,
-	}
-	if req.Notes != "" {
-		respData["notes"] = req.Notes
+		"acknowledged":            true,
+		"id":                      alarm.ID,
+		"alarm_code":              alarm.AlarmCode,
+		"status":                  alarm.Status,
+		"acknowledged_at":         alarm.AcknowledgedAt,
+		"acknowledged_by":         alarm.AcknowledgedBy,
+		"acknowledged_by_user_id": alarm.AcknowledgedByUserID,
+		"acknowledged_by_name":    alarm.AcknowledgedByName,
+		"notes":                   alarm.Notes,
+		"alarm":                   alarm,
 	}
 
 	response.OK(c, respData)
+}
+
+// GetAlarmHistory provides searchable, paginated historical alarm records with rich context
+func (h *SystemHandler) GetAlarmHistory(c *gin.Context) {
+	alarmService := h.systemService.GetAlarmService()
+	if alarmService == nil {
+		response.InternalError(c, "Alarm service unavailable")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 1000 {
+		pageSize = 1000
+	}
+
+	var devID, paramID uint
+	if dStr := c.Query("device_id"); dStr != "" {
+		if v, err := strconv.ParseUint(dStr, 10, 32); err == nil {
+			devID = uint(v)
+		}
+	}
+	if pStr := c.Query("parameter_id"); pStr != "" {
+		if v, err := strconv.ParseUint(pStr, 10, 32); err == nil {
+			paramID = uint(v)
+		}
+	}
+
+	filter := repository.AlarmFilterParams{
+		Status:         c.Query("status"),
+		Severity:       c.Query("severity"),
+		DeviceID:       devID,
+		ParameterID:    paramID,
+		AlarmCode:      c.Query("alarm_code"),
+		AcknowledgedBy: c.Query("acknowledged_by"),
+		Search:         c.Query("search"),
+		StartTime:      parseFlexibleTime(c.Query("start_time")),
+		EndTime:        parseFlexibleTime(c.Query("end_time")),
+		Page:           page,
+		PageSize:       pageSize,
+	}
+
+	alarms, total, err := alarmService.ListAlarms(c.Request.Context(), filter)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	now := time.Now().UTC()
+	items := make([]gin.H, len(alarms))
+	for i, a := range alarms {
+		isOngoing := a.ClearedAt == nil || a.ClearedAt.IsZero()
+		var durationSecs int64
+		if !isOngoing {
+			durationSecs = int64(a.ClearedAt.Sub(a.TriggeredAt).Seconds())
+		} else {
+			durationSecs = int64(now.Sub(a.TriggeredAt).Seconds())
+		}
+		if durationSecs < 0 {
+			durationSecs = 0
+		}
+
+		devCode := ""
+		devName := ""
+		if a.Device != nil {
+			devCode = a.Device.Code
+			devName = a.Device.Name
+		}
+		paramName := ""
+		if a.Parameter != nil {
+			paramName = a.Parameter.Name
+		}
+
+		recoveryReason := ""
+		if !isOngoing {
+			if a.Notes != "" && strings.Contains(a.Notes, "Recovery:") {
+				recoveryReason = a.Notes
+			} else {
+				recoveryReason = "Condition normalized / auto-cleared"
+			}
+		}
+
+		items[i] = gin.H{
+			"id":                      a.ID,
+			"device_id":               a.DeviceID,
+			"device_code":             devCode,
+			"device_name":             devName,
+			"parameter_id":            a.ParameterID,
+			"parameter_name":          paramName,
+			"alarm_code":              a.AlarmCode,
+			"severity":                a.Severity,
+			"status":                  a.Status,
+			"message":                 a.Message,
+			"notes":                   a.Notes,
+			"recovery_reason":         recoveryReason,
+			"trigger_value":           a.TriggerValue,
+			"threshold_value":         a.ThresholdValue,
+			"triggered_at":            a.TriggeredAt,
+			"acknowledged_at":         a.AcknowledgedAt,
+			"acknowledged_by":         a.AcknowledgedBy,
+			"acknowledged_by_user_id": a.AcknowledgedByUserID,
+			"acknowledged_by_name":    a.AcknowledgedByName,
+			"cleared_at":              a.ClearedAt,
+			"duration_seconds":        durationSecs,
+			"duration_formatted":      formatAlarmDuration(durationSecs),
+			"is_ongoing":              isOngoing,
+			"device":                  a.Device,
+			"parameter":               a.Parameter,
+		}
+	}
+
+	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+	if totalPages == 0 && total == 0 {
+		totalPages = 1
+	}
+
+	response.OK(c, gin.H{
+		"items":       items,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": totalPages,
+		"has_next":    page < totalPages,
+		"has_prev":    page > 1,
+	})
 }
 
 func (h *SystemHandler) ClearAlarm(c *gin.Context) {
@@ -453,5 +609,21 @@ func (h *SystemHandler) SaveDatabaseConfig(c *gin.Context) {
 		"saved":   true,
 		"message": "Database configuration saved successfully. Will apply on application restart.",
 	})
+}
+
+func formatAlarmDuration(seconds int64) string {
+	if seconds < 0 {
+		return "0s"
+	}
+	if seconds < 60 {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	if seconds < 3600 {
+		return fmt.Sprintf("%dm %ds", seconds/60, seconds%60)
+	}
+	if seconds < 86400 {
+		return fmt.Sprintf("%dh %dm", seconds/3600, (seconds%3600)/60)
+	}
+	return fmt.Sprintf("%dd %dh", seconds/86400, (seconds%86400)/3600)
 }
 

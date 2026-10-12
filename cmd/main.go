@@ -304,13 +304,18 @@ func main() {
 		api.GET("/data/latest", systemHandler.GetLatestData)
 		api.GET("/data/trend", systemHandler.GetDataTrend)
 
-		// Phase 5 — Alarms Storage & Lifecycle
-		api.GET("/alarms", systemHandler.GetAlarms)
-		api.GET("/alarms/active", systemHandler.GetActiveAlarms)
-		api.GET("/alarms/:id", systemHandler.GetAlarmByID)
-		api.POST("/alarms", systemHandler.CreateAlarm)
-		api.PUT("/alarms/:id/acknowledge", systemHandler.AcknowledgeAlarm)
-		api.PUT("/alarms/:id/clear", systemHandler.ClearAlarm)
+		// Phase 5 & 6 — Alarms Storage, Lifecycle & History (Authenticated & Authorized)
+		alarmsGroup := api.Group("/alarms")
+		alarmsGroup.Use(middleware.JWTAuth(authService))
+		{
+			alarmsGroup.GET("", middleware.RequirePermission("alarm.view"), systemHandler.GetAlarms)
+			alarmsGroup.GET("/active", middleware.RequirePermission("alarm.view"), systemHandler.GetActiveAlarms)
+			alarmsGroup.GET("/history", middleware.RequirePermission("alarm.view"), systemHandler.GetAlarmHistory)
+			alarmsGroup.GET("/:id", middleware.RequirePermission("alarm.view"), systemHandler.GetAlarmByID)
+			alarmsGroup.POST("", middleware.RequirePermission("alarm.manage"), systemHandler.CreateAlarm)
+			alarmsGroup.PUT("/:id/acknowledge", middleware.RequirePermission("alarm.acknowledge"), systemHandler.AcknowledgeAlarm)
+			alarmsGroup.PUT("/:id/clear", middleware.RequirePermission("alarm.manage"), systemHandler.ClearAlarm)
+		}
 
 		// Logs
 		api.GET("/logs", systemHandler.GetLogs)

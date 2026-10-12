@@ -251,6 +251,13 @@ func (s *SystemService) AcknowledgeAlarm(id uint, username string, notes ...stri
 	return s.systemRepo.AcknowledgeAlarm(id, username)
 }
 
+func (s *SystemService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, userID *uint, username, displayName string, notes ...string) (*model.Alarm, error) {
+	if s.alarmService != nil {
+		return s.alarmService.AcknowledgeAlarmWithUser(ctx, id, userID, username, displayName, notes...)
+	}
+	return nil, errors.New("alarm service not configured")
+}
+
 func (s *SystemService) ClearAlarm(id uint) (*model.Alarm, error) {
 	if s.alarmService != nil {
 		return s.alarmService.ClearAlarm(context.Background(), id)

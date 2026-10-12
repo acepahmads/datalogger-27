@@ -55,7 +55,7 @@ func (r *SystemRepository) AcknowledgeAlarm(id uint, username string) error {
 // Logs & Audit
 func (r *SystemRepository) GetSystemLogs(limit int) ([]model.SystemLog, error) {
 	var logs []model.SystemLog
-	err := r.db.Order("created_at DESC").Limit(limit).Find(&logs).Error
+	err := r.db.Order("created_at DESC, id DESC").Limit(limit).Find(&logs).Error
 	return logs, err
 }
 
@@ -65,7 +65,7 @@ func (r *SystemRepository) AddSystemLog(log *model.SystemLog) error {
 
 func (r *SystemRepository) GetAuditTrails(limit int) ([]model.AuditTrail, error) {
 	var trails []model.AuditTrail
-	err := r.db.Order("created_at DESC").Limit(limit).Find(&trails).Error
+	err := r.db.Order("created_at DESC, id DESC").Limit(limit).Find(&trails).Error
 	return trails, err
 }
 
@@ -75,7 +75,7 @@ func (r *SystemRepository) AddAuditTrail(trail *model.AuditTrail) error {
 
 func (r *SystemRepository) GetCommunicationLogs(limit int) ([]model.CommunicationLog, error) {
 	var logs []model.CommunicationLog
-	err := r.db.Order("created_at DESC").Limit(limit).Find(&logs).Error
+	err := r.db.Order("created_at DESC, id DESC").Limit(limit).Find(&logs).Error
 	return logs, err
 }
 

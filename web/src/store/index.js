@@ -422,13 +422,17 @@ export default new Vuex.Store({
         throw err;
       }
     },
-    async acknowledgeAlarm({ dispatch }, id) {
+    async acknowledgeAlarm({ dispatch }, payload) {
       try {
-        await axios.put(`${API_BASE}/alarms/${id}/acknowledge`);
+        const id = typeof payload === 'object' && payload !== null ? payload.id : payload;
+        const notes = typeof payload === 'object' && payload !== null ? (payload.notes || '') : '';
+        const res = await axios.put(`${API_BASE}/alarms/${id}/acknowledge`, { notes });
         dispatch('fetchAlarms');
         dispatch('fetchSystemStatus');
+        return res.data;
       } catch (err) {
         console.error('Failed to ack alarm:', err);
+        throw err;
       }
     },
     initWebSocket({ commit, dispatch, state }) {

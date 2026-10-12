@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"datalogger/internal/config"
@@ -20,6 +21,7 @@ type AuthService struct {
 type JWTClaims struct {
 	UserID   uint   `json:"user_id"`
 	Username string `json:"username"`
+	FullName string `json:"full_name,omitempty"`
 	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -62,9 +64,15 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 		roleName = user.Role.Name
 	}
 
+	fullName := user.FullName
+	if strings.TrimSpace(fullName) == "" {
+		fullName = user.Username
+	}
+
 	claims := JWTClaims{
 		UserID:   user.ID,
 		Username: user.Username,
+		FullName: fullName,
 		Role:     roleName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.config.JWTExpirationHours) * time.Hour)),
@@ -88,6 +96,7 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 		return &JWTClaims{
 			UserID:   1,
 			Username: "admin",
+			FullName: "Edge Administrator",
 			Role:     "Administrator",
 		}, nil
 	}

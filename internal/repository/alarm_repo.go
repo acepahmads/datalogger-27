@@ -12,25 +12,28 @@ import (
 )
 
 var (
-	ErrAlarmNotFound           = errors.New("alarm not found")
-	ErrCannotAcknowledgeCleared = errors.New("cannot acknowledge an alarm that is already cleared")
-	ErrAlarmAlreadyCleared     = errors.New("alarm is already cleared")
-	ErrInvalidAlarmSeverity    = errors.New("invalid alarm severity: must be INFO, WARNING, or CRITICAL")
-	ErrMissingAlarmCode        = errors.New("alarm_code is required")
-	ErrMissingAlarmMessage     = errors.New("message is required")
+	ErrAlarmNotFound            = errors.New("alarm not found")
+	ErrCannotAcknowledgeCleared  = errors.New("cannot acknowledge an alarm that is already cleared")
+	ErrAlarmAlreadyAcknowledged  = errors.New("alarm is already acknowledged")
+	ErrAlarmAlreadyCleared      = errors.New("alarm is already cleared")
+	ErrInvalidAlarmSeverity     = errors.New("invalid alarm severity: must be INFO, WARNING, or CRITICAL")
+	ErrMissingAlarmCode         = errors.New("alarm_code is required")
+	ErrMissingAlarmMessage      = errors.New("message is required")
 )
 
 // AlarmFilterParams defines filtering, search, and pagination criteria for alarms
 type AlarmFilterParams struct {
-	Status      string
-	Severity    string
-	DeviceID    uint
-	ParameterID uint
-	Search      string
-	StartTime   *time.Time
-	EndTime     *time.Time
-	Page        int
-	PageSize    int
+	Status         string
+	Severity       string
+	DeviceID       uint
+	ParameterID    uint
+	AlarmCode      string
+	AcknowledgedBy string
+	Search         string
+	StartTime      *time.Time
+	EndTime        *time.Time
+	Page           int
+	PageSize       int
 }
 
 // AlarmRepository provides database storage operations for alarm records
@@ -112,9 +115,16 @@ func (r *AlarmRepository) List(ctx context.Context, params AlarmFilterParams) ([
 	if params.ParameterID > 0 {
 		query = query.Where("parameter_id = ?", params.ParameterID)
 	}
+	if params.AlarmCode != "" {
+		query = query.Where("alarm_code = ?", strings.TrimSpace(params.AlarmCode))
+	}
+	if params.AcknowledgedBy != "" {
+		ackUser := strings.TrimSpace(params.AcknowledgedBy)
+		query = query.Where("acknowledged_by = ? OR acknowledged_by_name LIKE ?", ackUser, "%"+ackUser+"%")
+	}
 	if params.Search != "" {
 		s := "%" + strings.TrimSpace(params.Search) + "%"
-		query = query.Where("alarm_code LIKE ? OR message LIKE ? OR acknowledged_by LIKE ?", s, s, s)
+		query = query.Where("alarm_code LIKE ? OR message LIKE ? OR notes LIKE ? OR acknowledged_by LIKE ? OR acknowledged_by_name LIKE ?", s, s, s, s, s)
 	}
 	if params.StartTime != nil && !params.StartTime.IsZero() {
 		query = query.Where("triggered_at >= ?", params.StartTime)
@@ -163,19 +173,29 @@ func (r *AlarmRepository) GetActive(ctx context.Context) ([]model.Alarm, error) 
 	return alarms, err
 }
 
-// Acknowledge transitions an ACTIVE alarm to ACKNOWLEDGED state with concurrency control
+// Acknowledge transitions an ACTIVE alarm to ACKNOWLEDGED state
 func (r *AlarmRepository) Acknowledge(ctx context.Context, id uint, ackBy string, ackAt time.Time, notes ...string) (*model.Alarm, error) {
+	return r.AcknowledgeWithUser(ctx, id, nil, ackBy, ackBy, ackAt, notes...)
+}
+
+// AcknowledgeWithUser transitions an ACTIVE alarm to ACKNOWLEDGED state with concurrency control and user tracking
+func (r *AlarmRepository) AcknowledgeWithUser(ctx context.Context, id uint, userID *uint, username, displayName string, ackAt time.Time, notes ...string) (*model.Alarm, error) {
 	if ackAt.IsZero() {
 		ackAt = time.Now().UTC()
 	}
-	if ackBy == "" {
-		ackBy = "admin"
+	if strings.TrimSpace(username) == "" {
+		username = "admin"
+	}
+	if strings.TrimSpace(displayName) == "" {
+		displayName = username
 	}
 
 	updates := map[string]interface{}{
-		"status":          model.AlarmAcked,
-		"acknowledged_at": &ackAt,
-		"acknowledged_by": ackBy,
+		"status":                  model.AlarmAcked,
+		"acknowledged_at":         &ackAt,
+		"acknowledged_by":         username,
+		"acknowledged_by_user_id": userID,
+		"acknowledged_by_name":    displayName,
 	}
 	if len(notes) > 0 && strings.TrimSpace(notes[0]) != "" {
 		updates["notes"] = strings.TrimSpace(notes[0])
@@ -203,12 +223,9 @@ func (r *AlarmRepository) Acknowledge(ctx context.Context, id uint, ackBy string
 			return nil, ErrCannotAcknowledgeCleared
 		}
 		if current.Status == model.AlarmAcked {
-			// Already acknowledged: optionally update notes and idempotent return with preloaded relations
-			if len(notes) > 0 && strings.TrimSpace(notes[0]) != "" {
-				_ = r.db.WithContext(ctx).Model(&model.Alarm{}).Where("id = ?", id).Update("notes", strings.TrimSpace(notes[0]))
-			}
-			return r.GetByID(ctx, id)
+			return nil, ErrAlarmAlreadyAcknowledged
 		}
+		return nil, errors.New("alarm is not in an acknowledgeable state")
 	}
 
 	return r.GetByID(ctx, id)

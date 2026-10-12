@@ -91,12 +91,20 @@ func (s *AlarmService) GetActiveOrAckedAlarms(ctx context.Context) ([]model.Alar
 
 // AcknowledgeAlarm handles operator acknowledgement of an active alarm with optional operator notes
 func (s *AlarmService) AcknowledgeAlarm(ctx context.Context, id uint, username string, notes ...string) (*model.Alarm, error) {
-	if username == "" {
+	return s.AcknowledgeAlarmWithUser(ctx, id, nil, username, username, notes...)
+}
+
+// AcknowledgeAlarmWithUser handles operator acknowledgement with user ID, username, display name, and optional notes
+func (s *AlarmService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, userID *uint, username, displayName string, notes ...string) (*model.Alarm, error) {
+	if strings.TrimSpace(username) == "" {
 		username = "admin"
+	}
+	if strings.TrimSpace(displayName) == "" {
+		displayName = username
 	}
 	ackAt := time.Now().UTC()
 
-	alarm, err := s.alarmRepo.Acknowledge(ctx, id, username, ackAt, notes...)
+	alarm, err := s.alarmRepo.AcknowledgeWithUser(ctx, id, userID, username, displayName, ackAt, notes...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +114,18 @@ func (s *AlarmService) AcknowledgeAlarm(ctx context.Context, id uint, username s
 		noteStr = fmt.Sprintf(" Notes: '%s'", strings.TrimSpace(notes[0]))
 	}
 
-	logger.Info("Alarm %d (%s) acknowledged by operator '%s'%s", id, alarm.AlarmCode, username, noteStr)
+	logger.Info("Alarm %d (%s) acknowledged by operator '%s' (%s)%s", id, alarm.AlarmCode, username, displayName, noteStr)
 
 	if s.systemRepo != nil {
 		details := fmt.Sprintf("Alarm %d (%s) acknowledged by %s", id, alarm.AlarmCode, username)
+		if displayName != "" && displayName != username {
+			details = fmt.Sprintf("Alarm %d (%s) acknowledged by %s (%s)", id, alarm.AlarmCode, displayName, username)
+		}
 		if noteStr != "" {
 			details += noteStr
 		}
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			UserID:    userID,
 			Username:  username,
 			Action:    "ALARM_ACKNOWLEDGE",
 			Resource:  "ALARM",

@@ -23,20 +23,29 @@
 
         <!-- View Switcher Tabs -->
         <div class="flex items-center space-x-1 bg-white dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-sm">
-          <button @click="activeTab = 'alarms'"
+          <button id="tab-active-incidents"
+                  @click="activeTab = 'alarms'"
                   class="px-3 py-1.5 rounded-md transition-colors"
                   :class="activeTab === 'alarms' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
-            {{ $t('alarms.tabAlarms') }}
+            {{ $t('alarms.tabActive') || 'Active Incidents' }}
           </button>
-          <button @click="activeTab = 'queue'"
+          <button id="tab-alarm-history"
+                  @click="activeTab = 'history'"
+                  class="px-3 py-1.5 rounded-md transition-colors"
+                  :class="activeTab === 'history' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
+            {{ $t('alarms.tabHistory') || 'Alarm History' }}
+          </button>
+          <button id="tab-delivery-queue"
+                  @click="activeTab = 'queue'"
                   class="px-3 py-1.5 rounded-md transition-colors"
                   :class="activeTab === 'queue' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
-            {{ $t('alarms.tabQueue') }}
+            {{ $t('alarms.tabQueue') || 'Delivery Queue' }}
           </button>
-          <button @click="activeTab = 'channels'"
+          <button id="tab-notification-channels"
+                  @click="activeTab = 'channels'"
                   class="px-3 py-1.5 rounded-md transition-colors"
                   :class="activeTab === 'channels' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
-            {{ $t('alarms.tabChannels') }}
+            {{ $t('alarms.tabChannels') || 'Channels' }}
           </button>
         </div>
       </div>
@@ -52,14 +61,20 @@
       <button @click="toastMessage = null" class="text-xs opacity-75 hover:opacity-100 font-bold">&times;</button>
     </div>
 
-    <!-- TAB 1: ALARMS CONSOLE -->
+    <!-- ========================================== -->
+    <!-- TAB 1: ACTIVE INCIDENTS                    -->
+    <!-- ========================================== -->
     <div v-if="activeTab === 'alarms'" class="space-y-4">
       <div class="saas-card overflow-hidden bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
         <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
-          <h2 class="text-sm font-bold text-slate-900 dark:text-white font-sans tracking-tight">
-            {{ $t('alarms.activeAndHistorical') }}
-          </h2>
-          <button @click="refreshAlarms" class="text-2xs text-indigo-600 dark:text-indigo-400 hover:underline font-sans font-medium">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white font-sans tracking-tight">
+              {{ $t('alarms.tabActive') || 'Active Incidents' }}
+            </h2>
+          </div>
+          <button @click="refreshAlarms" class="text-2xs text-indigo-600 dark:text-indigo-400 hover:underline font-sans font-medium flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             {{ $t('common.refresh') }}
           </button>
         </div>
@@ -72,43 +87,66 @@
                 <th class="py-3 px-4 w-32">{{ $t('alarms.alarmCode') }}</th>
                 <th class="py-3 px-4">{{ $t('alarms.message') }}</th>
                 <th class="py-3 px-4 w-28">{{ $t('alarms.device') }}</th>
+                <th class="py-3 px-4 w-32">{{ $t('alarms.triggerValue') || 'Trigger / Limit' }}</th>
                 <th class="py-3 px-4 w-40">{{ $t('alarms.triggeredAt') }}</th>
                 <th class="py-3 px-4 w-28">{{ $t('alarms.status') }}</th>
-                <th class="py-3 px-4 w-28 text-center">{{ $t('alarms.action') }}</th>
+                <th class="py-3 px-4 w-36 text-center">{{ $t('alarms.action') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
-              <tr v-if="alarms.length === 0">
-                <td colspan="7" class="py-8 text-center text-slate-500 font-sans">
-                  {{ $t('alarms.noActiveAlarms') }}
+              <tr v-if="activeAlarmsList.length === 0">
+                <td colspan="8" class="py-12 text-center text-slate-500 font-sans">
+                  <div class="flex flex-col items-center justify-center space-y-2">
+                    <svg class="w-8 h-8 text-emerald-500/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span class="text-xs font-medium">{{ $t('alarms.noActiveAlarms') }}</span>
+                  </div>
                 </td>
               </tr>
-              <tr v-for="alarm in alarms" :key="alarm.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/25 transition-colors">
+              <tr v-for="alarm in activeAlarmsList" :key="alarm.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/25 transition-colors">
                 <td class="py-3 px-4">
                   <span class="px-2 py-0.5 rounded-md text-3xs font-bold font-mono tracking-wider"
-                        :class="alarm.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20'">
-                    {{ $t('alarms.' + alarm.severity.toLowerCase()) }}
+                        :class="getSeverityBadgeClass(alarm.severity)">
+                    {{ $t('alarms.' + (alarm.severity || '').toLowerCase()) || alarm.severity }}
                   </span>
                 </td>
                 <td class="py-3 px-4 text-slate-900 dark:text-slate-200 font-semibold font-mono text-2xs">{{ alarm.alarm_code }}</td>
-                <td class="py-3 px-4 text-xs text-slate-700 dark:text-slate-100 font-sans">{{ alarm.message }}</td>
+                <td class="py-3 px-4 text-xs text-slate-700 dark:text-slate-100 font-sans">
+                  <div class="line-clamp-2">{{ alarm.message }}</div>
+                  <div v-if="alarm.notes" class="text-3xs text-indigo-500 dark:text-indigo-400 mt-0.5 italic">
+                    Note: {{ alarm.notes }}
+                  </div>
+                </td>
                 <td class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">
-                  {{ alarm.device ? (alarm.device.device_code || alarm.device.code) : 'System' }}
+                  {{ alarm.device ? (alarm.device.device_code || alarm.device.code || alarm.device.name) : 'System' }}
+                </td>
+                <td class="py-3 px-4 font-mono text-2xs text-slate-600 dark:text-slate-400">
+                  <span v-if="alarm.trigger_value != null" class="font-bold text-rose-500">{{ Number(alarm.trigger_value).toFixed(2) }}</span>
+                  <span v-else class="text-slate-400">-</span>
+                  <span v-if="alarm.threshold_value != null" class="text-3xs text-slate-400 block">Lim: {{ Number(alarm.threshold_value).toFixed(2) }}</span>
                 </td>
                 <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">{{ alarm.triggered_at | formatDate }}</td>
                 <td class="py-3 px-4">
                   <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono"
-                        :class="alarm.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'">
+                        :class="alarm.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'">
                     {{ alarm.status }}
                   </span>
                 </td>
                 <td class="py-3 px-4 text-center">
-                  <button v-if="alarm.status === 'ACTIVE'"
-                          @click="ackAlarm(alarm.id)"
-                          class="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-2xs font-sans transition-colors">
-                    {{ $t('alarms.acknowledge') }}
-                  </button>
-                  <span v-else class="text-slate-400 text-3xs font-mono">{{ $t('alarms.acked') }}</span>
+                  <div class="flex items-center justify-center space-x-1.5">
+                    <button v-if="alarm.status === 'ACTIVE'"
+                            id="btn-ack-alarm"
+                            @click="openAckModal(alarm)"
+                            class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-2xs font-sans font-medium transition-colors shadow-xs">
+                      {{ $t('alarms.acknowledge') }}
+                    </button>
+                    <span v-else class="text-slate-400 text-3xs font-mono">{{ $t('alarms.acked') }}</span>
+
+                    <button @click="openIncidentModal(alarm)"
+                            class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            :title="$t('alarms.details') || 'Details'">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -117,7 +155,193 @@
       </div>
     </div>
 
-    <!-- TAB 2: NOTIFICATION DELIVERY QUEUE & HISTORY -->
+    <!-- ========================================== -->
+    <!-- TAB 2: ALARM HISTORY (Task #66)            -->
+    <!-- ========================================== -->
+    <div v-if="activeTab === 'history'" class="space-y-4">
+      <!-- Search & Multi-criteria Filters -->
+      <div class="p-4 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2 text-xs font-sans">
+            <!-- Status Filter -->
+            <select v-model="historyStatus" @change="fetchAlarmHistory"
+                    class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs">
+              <option value="">{{ $t('alarms.filterStatus') || 'All Statuses' }}</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="ACKNOWLEDGED">ACKNOWLEDGED</option>
+              <option value="CLEARED">CLEARED</option>
+            </select>
+
+            <!-- Severity Filter -->
+            <select v-model="historySeverity" @change="fetchAlarmHistory"
+                    class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs">
+              <option value="">{{ $t('alarms.filterSeverity') || 'All Severities' }}</option>
+              <option value="CRITICAL">CRITICAL</option>
+              <option value="WARNING">WARNING</option>
+              <option value="INFO">INFO</option>
+            </select>
+
+            <!-- Device Filter -->
+            <select v-model="historyDeviceID" @change="fetchAlarmHistory"
+                    class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs">
+              <option value="">{{ $t('alarms.filterDevice') || 'All Devices' }}</option>
+              <option v-for="d in devices" :key="d.id" :value="d.id">
+                {{ d.code || d.name }}
+              </option>
+            </select>
+
+            <!-- Start Date -->
+            <div class="flex items-center space-x-1">
+              <span class="text-3xs text-slate-400">{{ $t('alarms.startDate') || 'From' }}:</span>
+              <input type="date" v-model="historyStartDate" @change="fetchAlarmHistory"
+                     class="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-mono" />
+            </div>
+
+            <!-- End Date -->
+            <div class="flex items-center space-x-1">
+              <span class="text-3xs text-slate-400">{{ $t('alarms.endDate') || 'To' }}:</span>
+              <input type="date" v-model="historyEndDate" @change="fetchAlarmHistory"
+                     class="px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-mono" />
+            </div>
+          </div>
+
+          <!-- Reset Filter & Refresh -->
+          <div class="flex items-center space-x-2">
+            <button @click="resetHistoryFilters"
+                    class="px-2.5 py-1.5 text-2xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 rounded-lg">
+              {{ $t('common.reset') || 'Reset' }}
+            </button>
+            <button @click="fetchAlarmHistory"
+                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors shadow-xs flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              {{ $t('common.refresh') || 'Refresh' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Input -->
+        <div class="relative">
+          <input type="text"
+                 v-model="historySearch"
+                 @input="debounceHistorySearch"
+                 :placeholder="$t('alarms.searchHistoryPlaceholder') || 'Search code, message, notes, operator...'"
+                 class="w-full px-3 py-2 pl-9 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 font-sans" />
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <div class="saas-card overflow-hidden bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse font-sans">
+            <thead>
+              <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+                <th class="py-3 px-4 w-24">{{ $t('alarms.severity') }}</th>
+                <th class="py-3 px-4 w-28">{{ $t('alarms.status') }}</th>
+                <th class="py-3 px-4 w-32">{{ $t('alarms.alarmCode') }}</th>
+                <th class="py-3 px-4">{{ $t('alarms.message') }}</th>
+                <th class="py-3 px-4 w-28">{{ $t('alarms.device') }}</th>
+                <th class="py-3 px-4 w-28">{{ $t('alarms.duration') || 'Duration' }}</th>
+                <th class="py-3 px-4 w-36">{{ $t('alarms.triggeredAt') }}</th>
+                <th class="py-3 px-4 w-36">{{ $t('alarms.ackedBy') || 'Acknowledged' }}</th>
+                <th class="py-3 px-4 w-36">{{ $t('alarms.clearedAt') || 'Cleared At' }}</th>
+                <th class="py-3 px-4 w-20 text-center">{{ $t('alarms.details') }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
+              <tr v-if="historyLoading">
+                <td colspan="10" class="py-12 text-center text-slate-500 font-sans">
+                  <div class="flex items-center justify-center space-x-2">
+                    <span class="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></span>
+                    <span>Loading history records...</span>
+                  </div>
+                </td>
+              </tr>
+              <tr v-else-if="historyItems.length === 0">
+                <td colspan="10" class="py-12 text-center text-slate-500 font-sans">
+                  {{ $t('alarms.noNotifications') || 'No alarm history records matching current criteria.' }}
+                </td>
+              </tr>
+              <tr v-for="item in historyItems" :key="item.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/25 transition-colors">
+                <td class="py-3 px-4">
+                  <span class="px-2 py-0.5 rounded-md text-3xs font-bold font-mono tracking-wider"
+                        :class="getSeverityBadgeClass(item.severity)">
+                    {{ item.severity }}
+                  </span>
+                </td>
+                <td class="py-3 px-4">
+                  <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono"
+                        :class="getStatusBadgeClass(item.status)">
+                    {{ item.status }}
+                  </span>
+                </td>
+                <td class="py-3 px-4 text-slate-900 dark:text-slate-200 font-semibold font-mono text-2xs">{{ item.alarm_code }}</td>
+                <td class="py-3 px-4 text-xs text-slate-700 dark:text-slate-100 font-sans">
+                  <div class="line-clamp-1">{{ item.message }}</div>
+                  <div v-if="item.notes" class="text-3xs text-indigo-500 dark:text-indigo-400 italic">
+                    Note: {{ item.notes }}
+                  </div>
+                </td>
+                <td class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">
+                  {{ item.device_code || item.device_name || (item.device ? (item.device.code || item.device.name) : 'System') }}
+                </td>
+                <td class="py-3 px-4 font-mono text-2xs font-semibold"
+                    :class="item.is_ongoing ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400'">
+                  {{ item.duration_formatted }}
+                  <span v-if="item.is_ongoing" class="text-3xs block text-amber-500 uppercase">{{ $t('alarms.ongoing') || 'Ongoing' }}</span>
+                </td>
+                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">{{ item.triggered_at | formatDate }}</td>
+                <td class="py-3 px-4 text-3xs font-sans">
+                  <div v-if="item.acknowledged_at">
+                    <span class="font-semibold text-slate-800 dark:text-slate-200 block">{{ item.acknowledged_by_name || item.acknowledged_by }}</span>
+                    <span class="text-slate-400 font-mono text-4xs">{{ item.acknowledged_at | formatDate }}</span>
+                  </div>
+                  <span v-else class="text-slate-400">-</span>
+                </td>
+                <td class="py-3 px-4 text-3xs font-mono">
+                  <span v-if="item.cleared_at" class="text-emerald-500">{{ item.cleared_at | formatDate }}</span>
+                  <span v-else class="text-amber-500 font-sans">{{ $t('alarms.ongoing') || 'Active' }}</span>
+                </td>
+                <td class="py-3 px-4 text-center">
+                  <button @click="openIncidentModal(item)"
+                          class="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                          :title="$t('alarms.details') || 'Inspect Details'">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- History Pagination Footer -->
+        <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-sans">
+          <div>
+            {{ $t('alarms.page') || 'Page' }} <span class="font-bold text-slate-800 dark:text-slate-200">{{ historyPage }}</span> {{ $t('alarms.of') || 'of' }} <span class="font-bold text-slate-800 dark:text-slate-200">{{ historyTotalPages }}</span>
+            <span class="ml-2 font-mono text-3xs">({{ historyTotal }} {{ $t('alarms.totalRecords') || 'total records' }})</span>
+          </div>
+
+          <div class="flex items-center space-x-1">
+            <button @click="changeHistoryPage(historyPage - 1)"
+                    :disabled="historyPage <= 1"
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+              {{ $t('common.prev') || 'Prev' }}
+            </button>
+            <button @click="changeHistoryPage(historyPage + 1)"
+                    :disabled="historyPage >= historyTotalPages"
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+              {{ $t('common.next') || 'Next' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: NOTIFICATION DELIVERY QUEUE         -->
+    <!-- ========================================== -->
     <div v-if="activeTab === 'queue'" class="space-y-4">
       <!-- Metrics Overview KPI Cards -->
       <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -148,121 +372,115 @@
         <div class="flex flex-wrap items-center gap-2">
           <!-- Status Filter -->
           <select v-model="filterStatus" @change="fetchNotifications"
-                  class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-            <option value="">{{ $t('alarms.filterStatus') }}: ALL</option>
-            <option value="PENDING">PENDING</option>
-            <option value="SENDING">SENDING</option>
-            <option value="SENT">SENT</option>
-            <option value="RETRYING">RETRYING</option>
-            <option value="FAILED">FAILED</option>
-            <option value="CANCELLED">CANCELLED</option>
+                  class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs">
+            <option value="">{{ $t('alarms.filterStatus') }}</option>
+            <option value="PENDING">{{ $t('alarms.pending') }}</option>
+            <option value="SENDING">{{ $t('alarms.sending') }}</option>
+            <option value="RETRYING">{{ $t('alarms.retrying') }}</option>
+            <option value="SENT">{{ $t('alarms.delivered') }}</option>
+            <option value="FAILED">{{ $t('alarms.failureReason') }}</option>
+            <option value="CANCELLED">{{ $t('alarms.cancelled') }}</option>
           </select>
 
           <!-- Channel Filter -->
           <select v-model="filterChannel" @change="fetchNotifications"
-                  class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-            <option value="">{{ $t('alarms.filterChannel') }}: ALL</option>
-            <option value="WEB">WEB</option>
-            <option value="EMAIL">EMAIL</option>
-            <option value="TELEGRAM">TELEGRAM</option>
-            <option value="WEBHOOK">WEBHOOK</option>
+                  class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs">
+            <option value="">{{ $t('alarms.filterChannel') }}</option>
+            <option value="EMAIL">Email</option>
+            <option value="TELEGRAM">Telegram</option>
+            <option value="WEBHOOK">Webhook</option>
+            <option value="WEB">In-App (WebSocket)</option>
           </select>
 
-          <!-- Search Input -->
-          <input v-model="searchQuery" @input="debounceSearch"
-                 :placeholder="$t('alarms.searchPlaceholder')"
-                 class="px-3 py-1.5 rounded-lg text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 w-64" />
+          <!-- Search Query -->
+          <div class="relative">
+            <input type="text"
+                   v-model="searchQuery"
+                   @input="debounceSearch"
+                   :placeholder="$t('alarms.searchPlaceholder')"
+                   class="w-64 px-3 py-1.5 pl-8 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 font-sans" />
+            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
         </div>
 
-        <button @click="fetchNotifications"
-                class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
-          <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
+        <button @click="fetchNotifications" class="text-2xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
           {{ $t('common.refresh') }}
         </button>
       </div>
 
-      <!-- Queue & History Table -->
+      <!-- Queue Table -->
       <div class="saas-card overflow-hidden bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse font-sans">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <th class="py-3 px-4 w-20">ID</th>
-                <th class="py-3 px-4 w-24">{{ $t('alarms.channel') }}</th>
-                <th class="py-3 px-4 w-32">{{ $t('alarms.recipient') }}</th>
+                <th class="py-3 px-4 w-28">{{ $t('alarms.channel') }}</th>
+                <th class="py-3 px-4 w-48">{{ $t('alarms.recipient') }}</th>
+                <th class="py-3 px-4 w-28">{{ $t('alarms.severity') }}</th>
                 <th class="py-3 px-4 w-28">{{ $t('alarms.status') }}</th>
-                <th class="py-3 px-4 w-20">{{ $t('alarms.attempts') }}</th>
-                <th class="py-3 px-4">{{ $t('alarms.message') }}</th>
-                <th class="py-3 px-4 w-36">{{ $t('alarms.nextRetry') }} / {{ $t('alarms.sentAt') }}</th>
-                <th class="py-3 px-4 w-28 text-center">{{ $t('alarms.action') }}</th>
+                <th class="py-3 px-4 w-36">{{ $t('alarms.sentAt') }}</th>
+                <th class="py-3 px-4 w-36">{{ $t('alarms.nextRetry') }}</th>
+                <th class="py-3 px-4 w-20 text-center">{{ $t('alarms.attempts') }}</th>
+                <th class="py-3 px-4 w-32 text-center">{{ $t('alarms.action') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
               <tr v-if="notifications.length === 0">
-                <td colspan="8" class="py-8 text-center text-slate-500 font-sans">
+                <td colspan="8" class="py-8 text-center text-slate-500">
                   {{ $t('alarms.noNotifications') }}
                 </td>
               </tr>
               <tr v-for="notif in notifications" :key="notif.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/25 transition-colors">
-                <td class="py-3 px-4 font-mono text-2xs text-slate-500">#{{ notif.id }}</td>
                 <td class="py-3 px-4">
-                  <span class="px-2 py-0.5 rounded text-3xs font-bold font-mono tracking-wider"
+                  <span class="px-2 py-0.5 rounded-md text-3xs font-bold font-mono tracking-wider"
                         :class="getChannelBadgeClass(notif.channel)">
                     {{ notif.channel }}
                   </span>
                 </td>
-                <td class="py-3 px-4 text-xs font-mono text-slate-600 dark:text-slate-300 truncate max-w-xs">{{ notif.recipient }}</td>
+                <td class="py-3 px-4 font-mono text-2xs truncate max-w-xs text-slate-900 dark:text-slate-200">
+                  {{ notif.recipient }}
+                </td>
                 <td class="py-3 px-4">
-                  <span class="px-2 py-0.5 rounded text-3xs font-bold font-mono"
+                  <span class="px-2 py-0.5 rounded-md text-3xs font-bold font-mono tracking-wider"
+                        :class="getSeverityBadgeClass(notif.severity)">
+                    {{ notif.severity }}
+                  </span>
+                </td>
+                <td class="py-3 px-4">
+                  <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono"
                         :class="getStatusBadgeClass(notif.status)">
                     {{ notif.status }}
                   </span>
                 </td>
-                <td class="py-3 px-4 font-mono text-2xs text-slate-600 dark:text-slate-300">
-                  {{ notif.attempts }} / {{ notif.max_attempts }}
+                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">
+                  {{ notif.sent_at ? (notif.sent_at | formatDate) : '-' }}
                 </td>
-                <td class="py-3 px-4">
-                  <div class="font-semibold text-slate-900 dark:text-slate-100 text-xs">{{ notif.subject }}</div>
-                  <div class="text-3xs text-slate-500 dark:text-slate-400 truncate max-w-sm">{{ notif.message }}</div>
-                  <div v-if="notif.error_msg" class="text-3xs text-rose-500 dark:text-rose-400 truncate max-w-sm mt-0.5 font-mono">
-                    {{ notif.error_msg }}
-                  </div>
+                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">
+                  {{ notif.next_retry_at ? (notif.next_retry_at | formatDate) : '-' }}
                 </td>
-                <td class="py-3 px-4 font-mono text-3xs text-slate-500 dark:text-slate-400">
-                  <div v-if="notif.status === 'SENT'">{{ notif.sent_at | formatDate }}</div>
-                  <div v-else-if="notif.status === 'RETRYING'">{{ notif.next_retry_at | formatDate }}</div>
-                  <div v-else>{{ notif.created_at | formatDate }}</div>
+                <td class="py-3 px-4 text-center font-mono text-2xs">
+                  <span class="font-bold" :class="notif.attempts >= notif.max_retries ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'">
+                    {{ notif.attempts }}
+                  </span> / {{ notif.max_retries }}
                 </td>
                 <td class="py-3 px-4 text-center">
-                  <div class="flex items-center justify-center space-x-1">
-                    <!-- Inspect Details -->
-                    <button @click="openDetailsModal(notif)"
-                            class="p-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-white hover:bg-slate-700"
-                            :title="$t('alarms.details')">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    </button>
-                    <!-- Retry Button -->
-                    <button v-if="notif.status === 'FAILED' || notif.status === 'CANCELLED'"
+                  <div class="flex items-center justify-center space-x-1.5">
+                    <button v-if="notif.status === 'FAILED' || notif.status === 'RETRYING'"
                             @click="retryNotification(notif.id)"
-                            class="p-1 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition-colors"
-                            :title="$t('alarms.retry')">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
+                            class="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded text-3xs font-semibold hover:bg-indigo-100 transition-colors">
+                      {{ $t('alarms.retry') }}
                     </button>
-                    <!-- Cancel Button -->
                     <button v-if="notif.status === 'PENDING' || notif.status === 'RETRYING'"
                             @click="cancelNotification(notif.id)"
-                            class="p-1 rounded bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-colors"
-                            :title="$t('alarms.cancelDelivery')">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                            class="px-2 py-0.5 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded text-3xs font-semibold hover:bg-rose-100 transition-colors">
+                      {{ $t('alarms.cancelDelivery') }}
+                    </button>
+                    <button @click="openDetailsModal(notif)"
+                            class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            :title="$t('alarms.details')">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </button>
                   </div>
                 </td>
@@ -271,149 +489,361 @@
           </table>
         </div>
 
-        <!-- Pagination -->
-        <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <button @click="changeQueuePage(queuePage - 1)"
-                  :disabled="queuePage <= 1"
-                  class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-40 text-2xs font-medium">
-            {{ $t('telemetry.prev') || 'Previous' }}
-          </button>
-          <span class="font-mono text-2xs">{{ $t('telemetry.pageOf', { page: queuePage, totalPages: Math.ceil(queueTotal / queuePageSize) || 1 }) }}</span>
-          <button @click="changeQueuePage(queuePage + 1)"
-                  :disabled="queuePage >= Math.ceil(queueTotal / queuePageSize)"
-                  class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-40 text-2xs font-medium">
-            {{ $t('telemetry.next') || 'Next' }}
-          </button>
+        <!-- Pagination Bar -->
+        <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div>
+            {{ $t('alarms.page') || 'Page' }} <span class="font-bold text-slate-800 dark:text-slate-200">{{ queuePage }}</span>
+            ({{ queueTotal }} {{ $t('alarms.totalRecords') || 'total' }})
+          </div>
+          <div class="flex items-center space-x-1">
+            <button @click="changeQueuePage(queuePage - 1)"
+                    :disabled="queuePage <= 1"
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+              {{ $t('common.prev') }}
+            </button>
+            <button @click="changeQueuePage(queuePage + 1)"
+                    :disabled="queuePage * queuePageSize >= queueTotal"
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+              {{ $t('common.next') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- TAB 3: NOTIFICATION CHANNELS & ROUTING -->
+    <!-- ========================================== -->
+    <!-- TAB 4: NOTIFICATION CHANNELS & ROUTING     -->
+    <!-- ========================================== -->
     <div v-if="activeTab === 'channels'" class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div v-for="ch in channels" :key="ch.id"
-             class="p-5 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4">
-          <div class="space-y-3">
-            <div class="flex items-start justify-between">
-              <div class="flex items-center space-x-2.5">
-                <span class="p-2 rounded-xl" :class="getChannelIconBg(ch.type)">
-                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <path v-if="ch.type === 'EMAIL'" stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    <path v-else-if="ch.type === 'TELEGRAM'" stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    <path v-else-if="ch.type === 'WEBHOOK'" stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    <path v-else stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </span>
-                <div>
-                  <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">{{ ch.name }}</h3>
-                  <span class="text-3xs font-mono text-slate-500">{{ ch.type }}</span>
-                </div>
+             class="p-5 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white"
+                   :class="getChannelIconBg(ch.type)">
+                <span class="font-bold font-mono text-xs">{{ ch.type.substring(0, 2) }}</span>
               </div>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">{{ ch.name }}</h3>
+                <span class="text-3xs font-mono text-slate-500 uppercase">{{ ch.type }}</span>
+              </div>
+            </div>
 
-              <!-- Channel Status Pill -->
-              <span class="px-2 py-0.5 rounded-full text-3xs font-bold font-mono uppercase tracking-wider"
-                    :class="ch.enabled ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'">
+            <!-- Enabled Switch / Status Pill -->
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded-full text-3xs font-semibold font-mono"
+                    :class="ch.enabled ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'">
                 {{ ch.enabled ? $t('alarms.enabled') : $t('alarms.disabled') }}
               </span>
             </div>
+          </div>
 
-            <!-- Configuration Summary Badges -->
-            <div class="grid grid-cols-2 gap-2 text-2xs font-mono">
-              <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-                <span class="text-3xs text-slate-500 uppercase block font-sans">{{ $t('alarms.minSeverity') }}</span>
-                <span class="font-bold text-slate-800 dark:text-slate-200">{{ ch.min_severity }}</span>
-              </div>
-              <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-                <span class="text-3xs text-slate-500 uppercase block font-sans">{{ $t('alarms.rateLimit') }}</span>
-                <span class="font-bold text-slate-800 dark:text-slate-200">{{ ch.rate_limit_per_min }} / min</span>
-              </div>
-              <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-                <span class="text-3xs text-slate-500 uppercase block font-sans">{{ $t('alarms.quietHours') }}</span>
-                <span class="font-bold text-slate-800 dark:text-slate-200">
-                  {{ ch.quiet_hours_start ? `${ch.quiet_hours_start} - ${ch.quiet_hours_end}` : 'None' }}
-                </span>
-              </div>
-              <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
-                <span class="text-3xs text-slate-500 uppercase block font-sans">Provider Status</span>
-                <span class="font-bold" :class="ch.is_configured ? 'text-emerald-500' : 'text-amber-500'">
-                  {{ ch.is_configured ? $t('alarms.configured') : $t('alarms.notConfigured') }}
-                </span>
-              </div>
+          <!-- Parameters Summary -->
+          <div class="grid grid-cols-2 gap-2 text-2xs font-sans bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800/60">
+            <div>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.minSeverity') }}</span>
+              <span class="font-bold font-mono" :class="getSeverityTextColor(ch.min_severity)">{{ ch.min_severity }}</span>
             </div>
-
-            <!-- Config Details (Sanitized Secrets) -->
-            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/50 border border-slate-100 dark:border-slate-800 text-3xs font-mono text-slate-500 dark:text-slate-400 space-y-1">
-              <div v-for="(v, k) in ch.config" :key="k" class="flex justify-between">
-                <span class="text-slate-400">{{ k }}:</span>
-                <span class="text-slate-700 dark:text-slate-200 truncate max-w-[200px]">{{ v }}</span>
-              </div>
+            <div>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.rateLimit') }}</span>
+              <span class="font-mono text-slate-700 dark:text-slate-300 font-semibold">{{ ch.rate_limit_per_min }}/min</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.maxRetries') }} / {{ $t('alarms.retryInterval') }}</span>
+              <span class="font-mono text-slate-700 dark:text-slate-300">{{ ch.max_retries }} retries / {{ ch.retry_interval_sec }}s</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.quietHours') }}</span>
+              <span class="font-mono text-slate-700 dark:text-slate-300">
+                {{ ch.quiet_hours_start ? `${ch.quiet_hours_start} - ${ch.quiet_hours_end}` : 'None' }}
+              </span>
             </div>
           </div>
 
-          <!-- Channel Action Buttons -->
-          <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-            <button @click="openTestSendModal(ch)"
-                    class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors flex items-center">
-              <svg class="w-3.5 h-3.5 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              {{ $t('alarms.testSend') }}
-            </button>
-            <button @click="openEditChannelModal(ch)"
-                    class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
-              <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {{ $t('alarms.editChannel') }}
-            </button>
+          <!-- Channel Actions -->
+          <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <span class="text-3xs font-mono" :class="ch.is_configured ? 'text-emerald-500' : 'text-amber-500'">
+              {{ ch.is_configured ? `✓ ${$t('alarms.configured')}` : `⚠ ${$t('alarms.notConfigured')}` }}
+            </span>
+            <div class="flex items-center space-x-2">
+              <button @click="openTestSendModal(ch)"
+                      class="px-2.5 py-1 text-2xs rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition-colors">
+                {{ $t('alarms.testSend') }}
+              </button>
+              <button @click="openEditChannelModal(ch)"
+                      class="px-2.5 py-1 text-2xs rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors shadow-xs">
+                {{ $t('alarms.editChannel') }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL 1: NOTIFICATION DETAILS MODAL -->
+    <!-- ========================================== -->
+    <!-- MODAL 1: OPERATOR ACKNOWLEDGEMENT (Task 65)-->
+    <!-- ========================================== -->
+    <div v-if="showAckModal && selectedAckAlarm"
+         class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+              {{ $t('alarms.ackModalTitle') || 'Acknowledge Alarm Incident' }}
+            </h3>
+          </div>
+          <button @click="showAckModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">&times;</button>
+        </div>
+
+        <p class="text-xs text-slate-600 dark:text-slate-400">
+          {{ $t('alarms.ackModalDesc') || 'Operator acknowledgement records your identity, timestamp, and optional field notes in the system audit trail.' }}
+        </p>
+
+        <!-- Incident Metadata Summary -->
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-bold font-mono text-slate-900 dark:text-slate-100 text-sm">{{ selectedAckAlarm.alarm_code }}</span>
+            <span class="px-2 py-0.5 rounded text-3xs font-bold font-mono" :class="getSeverityBadgeClass(selectedAckAlarm.severity)">
+              {{ selectedAckAlarm.severity }}
+            </span>
+          </div>
+          <p class="text-slate-700 dark:text-slate-300 text-2xs">{{ selectedAckAlarm.message }}</p>
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800 text-3xs text-slate-500 dark:text-slate-400">
+            <div>
+              <span>Device: </span>
+              <strong class="font-mono text-slate-700 dark:text-slate-300">
+                {{ selectedAckAlarm.device ? (selectedAckAlarm.device.code || selectedAckAlarm.device.name) : 'System' }}
+              </strong>
+            </div>
+            <div>
+              <span>Triggered: </span>
+              <span class="font-mono text-slate-700 dark:text-slate-300">{{ selectedAckAlarm.triggered_at | formatDate }}</span>
+            </div>
+            <div v-if="selectedAckAlarm.trigger_value != null">
+              <span>Trigger Value: </span>
+              <strong class="font-mono text-rose-500">{{ Number(selectedAckAlarm.trigger_value).toFixed(2) }}</strong>
+            </div>
+            <div v-if="selectedAckAlarm.threshold_value != null">
+              <span>Threshold: </span>
+              <strong class="font-mono text-slate-600 dark:text-slate-400">{{ Number(selectedAckAlarm.threshold_value).toFixed(2) }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Operator Identity (Server-Derived) -->
+        <div class="flex items-center justify-between p-2.5 rounded-lg bg-indigo-50/60 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/40 text-2xs">
+          <div class="flex items-center space-x-2">
+            <div class="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-3xs">
+              {{ operatorDisplayName.charAt(0).toUpperCase() }}
+            </div>
+            <div>
+              <span class="text-slate-500 dark:text-slate-400 block text-3xs">Operator Identity</span>
+              <strong class="text-slate-900 dark:text-white">{{ operatorDisplayName }}</strong>
+            </div>
+          </div>
+          <span class="text-3xs font-mono text-indigo-600 dark:text-indigo-400">Authenticated (JWT)</span>
+        </div>
+
+        <!-- Operator Notes -->
+        <div>
+          <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            {{ $t('alarms.operatorNotes') || 'Operator Notes (Optional)' }}
+          </label>
+          <textarea id="input-ack-notes"
+                    v-model="ackNotes"
+                    rows="3"
+                    :placeholder="$t('alarms.notesPlaceholder') || 'Describe action taken, root cause, or field observations...'"
+                    class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 font-sans"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <button type="button" @click="showAckModal = false"
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+            {{ $t('common.cancel') }}
+          </button>
+          <button id="btn-confirm-ack"
+                  type="button"
+                  @click="submitAckModal"
+                  :disabled="isAckSubmitting"
+                  class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
+            <span v-if="isAckSubmitting" class="animate-spin w-3 h-3 mr-1.5 border-2 border-white border-t-transparent rounded-full"></span>
+            {{ isAckSubmitting ? 'Acknowledging...' : ($t('alarms.confirmAck') || 'Confirm Acknowledgement') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 2: INCIDENT DETAILS & TIMELINE       -->
+    <!-- ========================================== -->
+    <div v-if="showIncidentModal && selectedIncident"
+         class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+              {{ $t('alarms.incidentDetails') || 'Incident Lifecycle Details' }}
+            </h3>
+            <span class="px-2 py-0.5 rounded text-3xs font-bold font-mono" :class="getSeverityBadgeClass(selectedIncident.severity)">
+              {{ selectedIncident.severity }}
+            </span>
+            <span class="px-2 py-0.5 rounded text-3xs font-semibold font-mono" :class="getStatusBadgeClass(selectedIncident.status)">
+              {{ selectedIncident.status }}
+            </span>
+          </div>
+          <button @click="showIncidentModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">&times;</button>
+        </div>
+
+        <!-- Alarm Summary Header -->
+        <div class="space-y-1">
+          <div class="text-base font-bold font-mono text-slate-900 dark:text-white">{{ selectedIncident.alarm_code }}</div>
+          <div class="text-xs text-slate-700 dark:text-slate-300">{{ selectedIncident.message }}</div>
+        </div>
+
+        <!-- Device & Metric Context -->
+        <div class="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs">
+          <div>
+            <span class="text-3xs text-slate-400 block">{{ $t('alarms.device') }}</span>
+            <strong class="font-mono text-slate-800 dark:text-slate-200">
+              {{ selectedIncident.device_code || selectedIncident.device_name || (selectedIncident.device ? (selectedIncident.device.code || selectedIncident.device.name) : 'System') }}
+            </strong>
+          </div>
+          <div>
+            <span class="text-3xs text-slate-400 block">{{ $t('alarms.duration') || 'Duration' }}</span>
+            <strong class="font-mono" :class="selectedIncident.is_ongoing ? 'text-amber-500' : 'text-slate-700 dark:text-slate-300'">
+              {{ selectedIncident.duration_formatted || '-' }}
+            </strong>
+          </div>
+          <div>
+            <span class="text-3xs text-slate-400 block">{{ $t('alarms.triggerValue') || 'Trigger Value' }}</span>
+            <span v-if="selectedIncident.trigger_value != null" class="font-mono font-bold text-rose-500">
+              {{ Number(selectedIncident.trigger_value).toFixed(2) }}
+            </span>
+            <span v-else class="text-slate-400 font-mono text-3xs">{{ $t('alarms.legacyUnavailable') || 'N/A' }}</span>
+          </div>
+          <div>
+            <span class="text-3xs text-slate-400 block">{{ $t('alarms.threshold') || 'Threshold Limit' }}</span>
+            <span v-if="selectedIncident.threshold_value != null" class="font-mono text-slate-600 dark:text-slate-400">
+              {{ Number(selectedIncident.threshold_value).toFixed(2) }}
+            </span>
+            <span v-else class="text-slate-400 font-mono text-3xs">{{ $t('alarms.legacyUnavailable') || 'N/A' }}</span>
+          </div>
+        </div>
+
+        <!-- Lifecycle Timeline -->
+        <div class="space-y-3">
+          <h4 class="text-2xs font-bold uppercase tracking-wider text-slate-400 font-sans">
+            {{ $t('alarms.timeline') || 'Lifecycle Timeline' }}
+          </h4>
+
+          <div class="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+            <!-- Step 1: Triggered -->
+            <div class="relative">
+              <span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-rose-500 ring-4 ring-white dark:ring-[#111827]"></span>
+              <div class="text-xs font-semibold text-slate-900 dark:text-white">{{ $t('alarms.triggered') || 'Alarm Triggered' }}</div>
+              <div class="text-3xs font-mono text-slate-400">{{ selectedIncident.triggered_at | formatDate }}</div>
+            </div>
+
+            <!-- Step 2: Acknowledged -->
+            <div class="relative">
+              <span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full ring-4 ring-white dark:ring-[#111827]"
+                    :class="selectedIncident.acknowledged_at ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'"></span>
+              <div class="text-xs font-semibold"
+                   :class="selectedIncident.acknowledged_at ? 'text-slate-900 dark:text-white' : 'text-slate-400'">
+                {{ $t('alarms.acknowledgedState') || 'Operator Acknowledgement' }}
+              </div>
+              <div v-if="selectedIncident.acknowledged_at" class="space-y-1">
+                <div class="text-3xs font-mono text-slate-400">{{ selectedIncident.acknowledged_at | formatDate }}</div>
+                <div class="text-2xs text-slate-700 dark:text-slate-300">
+                  By: <strong>{{ selectedIncident.acknowledged_by_name || selectedIncident.acknowledged_by }}</strong>
+                </div>
+                <div v-if="selectedIncident.notes" class="text-2xs italic text-indigo-500 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg">
+                  "{{ selectedIncident.notes }}"
+                </div>
+              </div>
+              <div v-else class="text-3xs text-slate-400 italic">Pending operator acknowledgement</div>
+            </div>
+
+            <!-- Step 3: Cleared -->
+            <div class="relative">
+              <span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full ring-4 ring-white dark:ring-[#111827]"
+                    :class="selectedIncident.cleared_at ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'"></span>
+              <div class="text-xs font-semibold"
+                   :class="selectedIncident.cleared_at ? 'text-slate-900 dark:text-white' : 'text-slate-400'">
+                {{ $t('alarms.clearedState') || 'Cleared / Recovered' }}
+              </div>
+              <div v-if="selectedIncident.cleared_at" class="space-y-1">
+                <div class="text-3xs font-mono text-slate-400">{{ selectedIncident.cleared_at | formatDate }}</div>
+                <div v-if="selectedIncident.recovery_reason" class="text-2xs text-emerald-600 dark:text-emerald-400">
+                  Reason: {{ selectedIncident.recovery_reason }}
+                </div>
+              </div>
+              <div v-else class="text-3xs text-amber-500 font-semibold flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                Incident currently active and awaiting resolution
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <button v-if="selectedIncident.status === 'ACTIVE'"
+                  @click="showIncidentModal = false; openAckModal(selectedIncident)"
+                  class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors">
+            {{ $t('alarms.acknowledge') }}
+          </button>
+          <button @click="showIncidentModal = false" class="px-4 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+            {{ $t('alarms.close') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 3: NOTIFICATION ATTEMPT DETAILS      -->
+    <!-- ========================================== -->
     <div v-if="showDetailsModal && selectedNotif"
          class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl space-y-4 p-6">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
         <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
-            {{ $t('alarms.notificationDetails') }} (#{{ selectedNotif.id }})
+            {{ $t('alarms.notificationDetails') }}
           </h3>
           <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">&times;</button>
         </div>
 
         <div class="space-y-3 text-xs font-sans">
-          <div class="grid grid-cols-2 gap-3 font-mono">
-            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-              <span class="text-3xs text-slate-500 uppercase block font-sans">Status</span>
-              <span class="font-bold" :class="getStatusBadgeClass(selectedNotif.status)">{{ selectedNotif.status }}</span>
-            </div>
-            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-              <span class="text-3xs text-slate-500 uppercase block font-sans">Channel & Recipient</span>
-              <span class="font-bold text-slate-900 dark:text-slate-200">{{ selectedNotif.channel }} : {{ selectedNotif.recipient }}</span>
-            </div>
-          </div>
-
-          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-2">
+          <div class="grid grid-cols-2 gap-2">
             <div>
-              <span class="text-3xs text-slate-500 uppercase block font-sans font-semibold">Subject</span>
-              <span class="font-bold text-slate-900 dark:text-slate-100">{{ selectedNotif.subject }}</span>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.channel') }}</span>
+              <span class="font-bold font-mono">{{ selectedNotif.channel }}</span>
             </div>
             <div>
-              <span class="text-3xs text-slate-500 uppercase block font-sans font-semibold">Message Payload</span>
-              <p class="text-slate-700 dark:text-slate-300 font-sans mt-0.5">{{ selectedNotif.message }}</p>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.recipient') }}</span>
+              <span class="font-mono text-slate-900 dark:text-white">{{ selectedNotif.recipient }}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.status') }}</span>
+              <span class="px-2 py-0.5 rounded text-3xs font-semibold font-mono" :class="getStatusBadgeClass(selectedNotif.status)">
+                {{ selectedNotif.status }}
+              </span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-3xs">{{ $t('alarms.attempts') }}</span>
+              <span class="font-mono">{{ selectedNotif.attempts }} / {{ selectedNotif.max_retries }}</span>
             </div>
           </div>
 
-          <div v-if="selectedNotif.error_msg" class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 space-y-1">
-            <span class="text-3xs uppercase font-bold block">{{ $t('alarms.failureReason') }}</span>
-            <p class="font-mono text-2xs">{{ selectedNotif.error_msg }}</p>
+          <div v-if="selectedNotif.provider_response">
+            <span class="text-slate-400 block text-3xs mb-1">{{ $t('alarms.providerResponse') }}</span>
+            <pre class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-3xs text-slate-700 dark:text-slate-300 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.provider_response }}</pre>
           </div>
 
-          <div v-if="selectedNotif.provider_response" class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-1 font-mono">
-            <span class="text-3xs text-slate-500 uppercase block font-sans font-semibold">{{ $t('alarms.providerResponse') }}</span>
-            <p class="text-2xs text-slate-700 dark:text-slate-300 break-all">{{ selectedNotif.provider_response }}</p>
+          <div v-if="selectedNotif.failure_reason">
+            <span class="text-rose-500 block text-3xs mb-1 font-semibold">{{ $t('alarms.failureReason') }}</span>
+            <pre class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 font-mono text-3xs text-rose-500 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.failure_reason }}</pre>
           </div>
         </div>
 
@@ -425,10 +855,12 @@
       </div>
     </div>
 
-    <!-- MODAL 2: EDIT CHANNEL MODAL -->
+    <!-- ========================================== -->
+    <!-- MODAL 4: CHANNEL CONFIGURATION             -->
+    <!-- ========================================== -->
     <div v-if="showEditModal && editingChannel"
          class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-6">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
         <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
             {{ $t('alarms.editChannel') }}: {{ editingChannel.name }}
@@ -437,18 +869,12 @@
         </div>
 
         <form @submit.prevent="saveChannelConfig" class="space-y-3 text-xs font-sans">
-          <div class="flex items-center justify-between">
-            <label class="text-slate-700 dark:text-slate-300 font-semibold">{{ $t('alarms.enabled') }}</label>
-            <input type="checkbox" v-model="editForm.enabled" class="w-4 h-4 rounded text-indigo-600" />
-          </div>
-
-          <div>
-            <label class="block text-slate-500 dark:text-slate-400 mb-1">Channel Name</label>
-            <input v-model="editForm.name" required
-                   class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white" />
-          </div>
-
           <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-500 dark:text-slate-400 mb-1">Name</label>
+              <input v-model="editForm.name" required
+                     class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white" />
+            </div>
             <div>
               <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.minSeverity') }}</label>
               <select v-model="editForm.min_severity"
@@ -458,42 +884,29 @@
                 <option value="CRITICAL">CRITICAL</option>
               </select>
             </div>
-            <div>
-              <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.rateLimit') }} (msg/min)</label>
-              <input type="number" min="1" max="600" v-model.number="editForm.rate_limit_per_min" required
-                     class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono" />
-            </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.rateLimit') }}</label>
+              <input type="number" v-model.number="editForm.rate_limit_per_min" min="1" max="100"
+                     class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono" />
+            </div>
             <div>
               <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.maxRetries') }}</label>
-              <input type="number" min="0" max="10" v-model.number="editForm.max_retries" required
+              <input type="number" v-model.number="editForm.max_retries" min="0" max="10"
                      class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono" />
             </div>
             <div>
               <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.retryInterval') }}</label>
-              <input type="number" min="5" max="3600" v-model.number="editForm.retry_interval_sec" required
+              <input type="number" v-model.number="editForm.retry_interval_sec" min="5" max="3600"
                      class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono" />
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.quietHours') }} Start</label>
-              <input type="text" placeholder="22:00" v-model="editForm.quiet_hours_start"
-                     class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono" />
-            </div>
-            <div>
-              <label class="block text-slate-500 dark:text-slate-400 mb-1">{{ $t('alarms.quietHours') }} End</label>
-              <input type="text" placeholder="06:00" v-model="editForm.quiet_hours_end"
-                     class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white font-mono" />
-            </div>
-          </div>
-
-          <!-- Dynamic Configuration Fields based on Type -->
-          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
-            <span class="text-3xs uppercase font-bold text-slate-500 block">Channel Provider Settings</span>
+          <!-- Channel-Specific Credentials -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+            <h4 class="text-3xs uppercase font-bold text-slate-400 tracking-wider">Channel Specific Provider Configuration</h4>
 
             <!-- EMAIL CONFIG -->
             <div v-if="editingChannel.type === 'EMAIL'" class="space-y-2">
@@ -569,10 +982,12 @@
       </div>
     </div>
 
-    <!-- MODAL 3: TEST SEND MODAL -->
+    <!-- ========================================== -->
+    <!-- MODAL 5: TEST SEND MODAL                   -->
+    <!-- ========================================== -->
     <div v-if="showTestModal && testingChannel"
          class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-6">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
         <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
             {{ $t('alarms.testSend') }}: {{ testingChannel.name }}
@@ -623,11 +1038,36 @@ export default {
   name: 'AlarmsView',
   data() {
     return {
-      activeTab: 'alarms', // 'alarms', 'queue', 'channels'
+      activeTab: 'alarms', // 'alarms', 'history', 'queue', 'channels'
       toastMessage: null,
       toastType: 'success',
 
-      // Queue state
+      // History state (Task #66)
+      historyItems: [],
+      historyTotal: 0,
+      historyPage: 1,
+      historyPageSize: 20,
+      historyTotalPages: 1,
+      historyStatus: '',
+      historySeverity: '',
+      historyDeviceID: '',
+      historyStartDate: '',
+      historyEndDate: '',
+      historySearch: '',
+      historyLoading: false,
+      historyDebounceTimer: null,
+
+      // Acknowledgement Modal (Task #65)
+      showAckModal: false,
+      selectedAckAlarm: null,
+      ackNotes: '',
+      isAckSubmitting: false,
+
+      // Incident Details Modal
+      showIncidentModal: false,
+      selectedIncident: null,
+
+      // Queue state (Wave 3)
       notifications: [],
       queueTotal: 0,
       queuePage: 1,
@@ -638,13 +1078,14 @@ export default {
       searchDebounceTimer: null,
       metrics: {},
 
-      // Channels state
+      // Channels state (Wave 3)
       channels: [],
 
-      // Modals
+      // Notification Details Modal
       showDetailsModal: false,
       selectedNotif: null,
 
+      // Channel Config Modal
       showEditModal: false,
       editingChannel: null,
       editForm: {
@@ -660,6 +1101,7 @@ export default {
         config: {},
       },
 
+      // Test Send Modal
       showTestModal: false,
       testingChannel: null,
       testRecipient: '',
@@ -671,12 +1113,39 @@ export default {
     alarms() {
       return this.$store.state.alarms || [];
     },
+    activeAlarmsList() {
+      return this.alarms.filter((a) => a.status === 'ACTIVE');
+    },
     activeCount() {
-      return this.alarms.filter((a) => a.status === 'ACTIVE').length;
+      return this.activeAlarmsList.length;
+    },
+    devices() {
+      return this.$store.state.devices || [];
+    },
+    operatorDisplayName() {
+      const user = this.$store.state.user;
+      if (user && user.full_name) return user.full_name;
+      if (user && user.username) return user.username;
+      return 'Lead Operator';
+    },
+  },
+  watch: {
+    activeTab(newTab) {
+      if (newTab === 'history') {
+        this.fetchAlarmHistory();
+      } else if (newTab === 'alarms') {
+        this.refreshAlarms();
+      } else if (newTab === 'queue') {
+        this.fetchNotifications();
+        this.fetchMetrics();
+      } else if (newTab === 'channels') {
+        this.fetchChannels();
+      }
     },
   },
   mounted() {
     this.refreshAlarms();
+    this.fetchAlarmHistory();
     this.fetchNotifications();
     this.fetchChannels();
     this.fetchMetrics();
@@ -700,14 +1169,98 @@ export default {
     refreshAlarms() {
       this.$store.dispatch('fetchAlarms');
     },
-    async ackAlarm(id) {
+
+    // ------------------------------------------
+    // Task #65: Alarm Acknowledgement
+    // ------------------------------------------
+    openAckModal(alarm) {
+      this.selectedAckAlarm = alarm;
+      this.ackNotes = '';
+      this.showAckModal = true;
+    },
+    async submitAckModal() {
+      if (!this.selectedAckAlarm) return;
+      this.isAckSubmitting = true;
       try {
-        await this.$store.dispatch('acknowledgeAlarm', id);
-        this.showToast('Alarm acknowledged successfully');
+        await this.$store.dispatch('acknowledgeAlarm', {
+          id: this.selectedAckAlarm.id,
+          notes: this.ackNotes,
+        });
+        this.showToast(this.$t('alarms.ackSuccess') || 'Alarm acknowledged successfully');
+        this.showAckModal = false;
+        this.refreshAlarms();
+        if (this.activeTab === 'history') {
+          this.fetchAlarmHistory();
+        }
       } catch (err) {
-        this.showToast('Failed acknowledging alarm: ' + err.message, 'error');
+        const errorMsg = (err.response && err.response.data && (err.response.data.error || err.response.data.message)) || err.message;
+        this.showToast('Failed to acknowledge alarm: ' + errorMsg, 'error');
+      } finally {
+        this.isAckSubmitting = false;
       }
     },
+
+    // ------------------------------------------
+    // Task #66: Alarm History
+    // ------------------------------------------
+    async fetchAlarmHistory() {
+      this.historyLoading = true;
+      try {
+        let url = `/api/alarms/history?page=${this.historyPage}&page_size=${this.historyPageSize}`;
+        if (this.historyStatus) url += `&status=${encodeURIComponent(this.historyStatus)}`;
+        if (this.historySeverity) url += `&severity=${encodeURIComponent(this.historySeverity)}`;
+        if (this.historyDeviceID) url += `&device_id=${encodeURIComponent(this.historyDeviceID)}`;
+        if (this.historyStartDate) url += `&start_time=${encodeURIComponent(this.historyStartDate + 'T00:00:00Z')}`;
+        if (this.historyEndDate) url += `&end_time=${encodeURIComponent(this.historyEndDate + 'T23:59:59Z')}`;
+        if (this.historySearch) url += `&search=${encodeURIComponent(this.historySearch)}`;
+
+        const res = await axios.get(url, { headers: this.getAuthHeaders() });
+        if (res.data && res.data.success) {
+          this.historyItems = res.data.data.items || [];
+          this.historyTotal = res.data.data.total || 0;
+          this.historyTotalPages = res.data.data.total_pages || 1;
+        }
+      } catch (err) {
+        console.error('Failed fetching alarm history:', err);
+      } finally {
+        this.historyLoading = false;
+      }
+    },
+    changeHistoryPage(page) {
+      if (page >= 1 && page <= this.historyTotalPages) {
+        this.historyPage = page;
+        this.fetchAlarmHistory();
+      }
+    },
+    debounceHistorySearch() {
+      clearTimeout(this.historyDebounceTimer);
+      this.historyDebounceTimer = setTimeout(() => {
+        this.historyPage = 1;
+        this.fetchAlarmHistory();
+      }, 300);
+    },
+    resetHistoryFilters() {
+      this.historyStatus = '';
+      this.historySeverity = '';
+      this.historyDeviceID = '';
+      this.historyStartDate = '';
+      this.historyEndDate = '';
+      this.historySearch = '';
+      this.historyPage = 1;
+      this.fetchAlarmHistory();
+    },
+
+    // ------------------------------------------
+    // Incident Details Modal
+    // ------------------------------------------
+    openIncidentModal(alarm) {
+      this.selectedIncident = alarm;
+      this.showIncidentModal = true;
+    },
+
+    // ------------------------------------------
+    // Wave 3: Notifications & Channels
+    // ------------------------------------------
     debounceSearch() {
       clearTimeout(this.searchDebounceTimer);
       this.searchDebounceTimer = setTimeout(() => {
@@ -859,8 +1412,38 @@ export default {
         this.isTesting = false;
       }
     },
+
+    // ------------------------------------------
+    // Style & Badge Helpers
+    // ------------------------------------------
+    getSeverityBadgeClass(sev) {
+      switch (sev) {
+        case 'CRITICAL':
+          return 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20';
+        case 'WARNING':
+          return 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20';
+        default:
+          return 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20';
+      }
+    },
+    getSeverityTextColor(sev) {
+      switch (sev) {
+        case 'CRITICAL':
+          return 'text-rose-500';
+        case 'WARNING':
+          return 'text-amber-500';
+        default:
+          return 'text-blue-500';
+      }
+    },
     getStatusBadgeClass(status) {
       switch (status) {
+        case 'ACTIVE':
+          return 'bg-rose-500/10 text-rose-500 border border-rose-500/20';
+        case 'ACKNOWLEDGED':
+          return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
+        case 'CLEARED':
+          return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
         case 'SENT':
           return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
         case 'SENDING':

@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -192,13 +194,10 @@ func TestAlarmService_LifecycleTransitions(t *testing.T) {
 		t.Errorf("expected acknowledged_at timestamp to be set")
 	}
 
-	// 2. Idempotent acknowledge on already ACKNOWLEDGED alarm
-	reAcked, err := svc.AcknowledgeAlarm(ctx, alarm.ID, "operator_john")
-	if err != nil {
-		t.Fatalf("expected idempotent success on re-acknowledgement, got error: %v", err)
-	}
-	if reAcked.Status != model.AlarmAcked {
-		t.Errorf("expected status still ACKNOWLEDGED, got %s", reAcked.Status)
+	// 2. Duplicate acknowledge on already ACKNOWLEDGED alarm returns ErrAlarmAlreadyAcknowledged
+	_, err = svc.AcknowledgeAlarm(ctx, alarm.ID, "operator_john")
+	if !errors.Is(err, repository.ErrAlarmAlreadyAcknowledged) {
+		t.Fatalf("expected ErrAlarmAlreadyAcknowledged on duplicate acknowledgement, got: %v", err)
 	}
 
 	// 3. Transition: ACKNOWLEDGED -> CLEARED
@@ -384,3 +383,166 @@ func TestAlarmService_RetentionProtectionIntegration(t *testing.T) {
 		t.Errorf("CLEARED alarm older than 30 days was not pruned by retention")
 	}
 }
+
+func TestAlarmService_Wave4_AcknowledgeWithUserAndAudit(t *testing.T) {
+	db, svc, _, systemRepo := setupTestAlarmEnvironment(t)
+	ctx := context.Background()
+
+	// 1. Create ACTIVE alarm
+	alarm := &model.Alarm{
+		AlarmCode: "VOLT_SPIKE",
+		Severity:  model.SeverityWarning,
+		Message:   "Bus voltage spike detected at 415V",
+	}
+	if err := svc.CreateAlarm(ctx, alarm); err != nil {
+		t.Fatalf("failed creating alarm: %v", err)
+	}
+
+	// 2. Acknowledge with user ID, username, display name, and notes
+	userID := uint(42)
+	username := "operator_bob"
+	displayName := "Bob Smith"
+	notes := "Investigating high voltage fluctuation on feeder 3"
+
+	acked, err := svc.AcknowledgeAlarmWithUser(ctx, alarm.ID, &userID, username, displayName, notes)
+	if err != nil {
+		t.Fatalf("failed acknowledging alarm with user: %v", err)
+	}
+
+	if acked.Status != model.AlarmAcked {
+		t.Errorf("expected status ACKNOWLEDGED, got %s", acked.Status)
+	}
+	if acked.AcknowledgedBy != username {
+		t.Errorf("expected acknowledged_by %s, got %s", username, acked.AcknowledgedBy)
+	}
+	if acked.AcknowledgedByUserID == nil || *acked.AcknowledgedByUserID != userID {
+		t.Errorf("expected acknowledged_by_user_id %d, got %v", userID, acked.AcknowledgedByUserID)
+	}
+	if acked.AcknowledgedByName != displayName {
+		t.Errorf("expected acknowledged_by_name %s, got %s", displayName, acked.AcknowledgedByName)
+	}
+	if acked.Notes != notes {
+		t.Errorf("expected notes '%s', got '%s'", notes, acked.Notes)
+	}
+	if acked.AcknowledgedAt == nil || acked.AcknowledgedAt.IsZero() {
+		t.Errorf("expected acknowledged_at timestamp to be set")
+	}
+
+	// 3. Verify audit trail record was created with user ID and details
+	trails, err := systemRepo.GetAuditTrails(10)
+	if err != nil {
+		t.Fatalf("failed fetching audit trails: %v", err)
+	}
+	var ackAudit *model.AuditTrail
+	for i := range trails {
+		if trails[i].Action == "ALARM_ACKNOWLEDGE" {
+			ackAudit = &trails[i]
+			break
+		}
+	}
+	if ackAudit == nil {
+		t.Fatalf("expected audit trail with action ALARM_ACKNOWLEDGE")
+	}
+	if ackAudit.Username != username {
+		t.Errorf("expected audit trail username %s, got %s", username, ackAudit.Username)
+	}
+	if ackAudit.UserID == nil || *ackAudit.UserID != userID {
+		t.Errorf("expected audit trail user_id %d, got %v", userID, ackAudit.UserID)
+	}
+
+	// 4. Duplicate acknowledgement on already ACKNOWLEDGED alarm must return ErrAlarmAlreadyAcknowledged
+	_, errDup := svc.AcknowledgeAlarmWithUser(ctx, alarm.ID, &userID, username, displayName, "Attempting second ack")
+	if !errors.Is(errDup, repository.ErrAlarmAlreadyAcknowledged) {
+		t.Errorf("expected ErrAlarmAlreadyAcknowledged, got: %v", errDup)
+	}
+
+	// 5. Nonexistent alarm ID returns ErrAlarmNotFound
+	_, errNon := svc.AcknowledgeAlarmWithUser(ctx, 999999, &userID, username, displayName, "Nonexistent")
+	if !errors.Is(errNon, repository.ErrAlarmNotFound) {
+		t.Errorf("expected ErrAlarmNotFound, got: %v", errNon)
+	}
+
+	// 6. Automatic recovery / clearing after acknowledgement
+	cleared, errClear := svc.ClearAlarm(ctx, alarm.ID)
+	if errClear != nil {
+		t.Fatalf("failed clearing acknowledged alarm: %v", errClear)
+	}
+	if cleared.Status != model.AlarmCleared {
+		t.Errorf("expected status CLEARED, got %s", cleared.Status)
+	}
+	if cleared.ClearedAt == nil || cleared.ClearedAt.IsZero() {
+		t.Errorf("expected cleared_at to be set")
+	}
+
+	// 7. Cannot acknowledge already cleared alarm
+	_, errCleared := svc.AcknowledgeAlarmWithUser(ctx, alarm.ID, &userID, username, displayName, "Ack cleared")
+	if !errors.Is(errCleared, repository.ErrCannotAcknowledgeCleared) {
+		t.Errorf("expected ErrCannotAcknowledgeCleared, got: %v", errCleared)
+	}
+	_ = db
+}
+
+func TestAlarmService_Wave4_ConcurrentAcknowledgement(t *testing.T) {
+	_, svc, _, _ := setupTestAlarmEnvironment(t)
+	ctx := context.Background()
+
+	// Create ACTIVE alarm
+	alarm := &model.Alarm{
+		AlarmCode: "CONCURRENT_TEST",
+		Severity:  model.SeverityCritical,
+		Message:   "Concurrent acknowledgement stress test",
+	}
+	if err := svc.CreateAlarm(ctx, alarm); err != nil {
+		t.Fatalf("failed creating alarm: %v", err)
+	}
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	successCount := 0
+	alreadyAckedCount := 0
+	var countMu sync.Mutex
+
+	for i := 0; i < goroutines; i++ {
+		go func(opIndex int) {
+			defer wg.Done()
+			uid := uint(100 + opIndex)
+			uName := fmt.Sprintf("operator_%d", opIndex)
+			dName := fmt.Sprintf("Operator %d", opIndex)
+			note := fmt.Sprintf("Concurrent acknowledgement attempt from operator %d", opIndex)
+
+			_, err := svc.AcknowledgeAlarmWithUser(ctx, alarm.ID, &uid, uName, dName, note)
+
+			countMu.Lock()
+			defer countMu.Unlock()
+			if err == nil {
+				successCount++
+			} else if errors.Is(err, repository.ErrAlarmAlreadyAcknowledged) {
+				alreadyAckedCount++
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if successCount != 1 {
+		t.Errorf("expected exactly 1 successful acknowledgement, got %d", successCount)
+	}
+	if alreadyAckedCount != goroutines-1 {
+		t.Errorf("expected %d duplicate acknowledgement errors, got %d", goroutines-1, alreadyAckedCount)
+	}
+
+	// Check final state in DB
+	finalAlarm, err := svc.GetAlarmByID(ctx, alarm.ID)
+	if err != nil {
+		t.Fatalf("failed fetching final alarm: %v", err)
+	}
+	if finalAlarm.Status != model.AlarmAcked {
+		t.Errorf("expected final status ACKNOWLEDGED, got %s", finalAlarm.Status)
+	}
+	if finalAlarm.AcknowledgedByUserID == nil || *finalAlarm.AcknowledgedByUserID < 100 {
+		t.Errorf("invalid acknowledged_by_user_id in final alarm: %v", finalAlarm.AcknowledgedByUserID)
+	}
+}
+

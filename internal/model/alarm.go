@@ -21,24 +21,26 @@ const (
 )
 
 type Alarm struct {
-	ID             uint          `gorm:"primaryKey" json:"id"`
-	DeviceID       *uint         `gorm:"index" json:"device_id"`
-	Device         *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
-	ParameterID    *uint         `gorm:"index" json:"parameter_id"`
-	Parameter      *Parameter    `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
-	AlarmCode      string        `gorm:"size:64;not null" json:"alarm_code"`
-	Severity       AlarmSeverity `gorm:"size:32;default:'WARNING'" json:"severity"`
-	Message        string        `gorm:"size:255;not null" json:"message"`
-	TriggerValue   *float64      `json:"trigger_value"`
-	ThresholdValue *float64      `json:"threshold_value"`
-	Status         AlarmStatus   `gorm:"size:32;default:'ACTIVE'" json:"status"`
-	TriggeredAt    time.Time     `gorm:"not null" json:"triggered_at"`
-	AcknowledgedAt *time.Time    `json:"acknowledged_at"`
-	AcknowledgedBy string        `gorm:"size:64" json:"acknowledged_by"`
-	ClearedAt      *time.Time    `json:"cleared_at"`
-	Notes          string        `gorm:"type:text" json:"notes,omitempty"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
+	ID                   uint          `gorm:"primaryKey" json:"id"`
+	DeviceID             *uint         `gorm:"index" json:"device_id"`
+	Device               *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	ParameterID          *uint         `gorm:"index" json:"parameter_id"`
+	Parameter            *Parameter    `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
+	AlarmCode            string        `gorm:"size:64;index;not null" json:"alarm_code"`
+	Severity             AlarmSeverity `gorm:"size:32;index;default:'WARNING'" json:"severity"`
+	Message              string        `gorm:"size:255;not null" json:"message"`
+	TriggerValue         *float64      `json:"trigger_value"`
+	ThresholdValue       *float64      `json:"threshold_value"`
+	Status               AlarmStatus   `gorm:"size:32;index;default:'ACTIVE'" json:"status"`
+	TriggeredAt          time.Time     `gorm:"index;not null" json:"triggered_at"`
+	AcknowledgedAt       *time.Time    `gorm:"index" json:"acknowledged_at"`
+	AcknowledgedBy       string        `gorm:"size:64;index" json:"acknowledged_by"`
+	AcknowledgedByUserID *uint         `gorm:"index" json:"acknowledged_by_user_id,omitempty"`
+	AcknowledgedByName   string        `gorm:"size:128" json:"acknowledged_by_name,omitempty"`
+	ClearedAt            *time.Time    `gorm:"index" json:"cleared_at"`
+	Notes                string        `gorm:"type:text" json:"notes,omitempty"`
+	CreatedAt            time.Time     `gorm:"index" json:"created_at"`
+	UpdatedAt            time.Time     `json:"updated_at"`
 }
 
 type NotificationChannelType string
