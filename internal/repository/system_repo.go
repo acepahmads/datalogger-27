@@ -19,13 +19,13 @@ func NewSystemRepository(db *gorm.DB) *SystemRepository {
 // Devices
 func (r *SystemRepository) GetAllDevices() ([]model.Device, error) {
 	var devices []model.Device
-	err := r.db.Preload("DeviceType").Preload("Connection").Preload("Parameters").Find(&devices).Error
+	err := r.db.Preload("TypeRel").Preload("Connection").Preload("Parameters").Find(&devices).Error
 	return devices, err
 }
 
 func (r *SystemRepository) GetDeviceByID(id uint) (*model.Device, error) {
 	var dev model.Device
-	err := r.db.Preload("DeviceType").Preload("Connection").Preload("Parameters").First(&dev, id).Error
+	err := r.db.Preload("TypeRel").Preload("Connection").Preload("Parameters").First(&dev, id).Error
 	if err != nil {
 		return nil, err
 	}

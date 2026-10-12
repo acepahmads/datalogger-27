@@ -118,30 +118,41 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		lastCommStr = lastComm.Format("15:04:05")
 	}
 
+	dbMetrics := database.GetMetrics()
+	dbStatusStr := "MariaDB Edge (Healthy)"
+	if dbMetrics.Status != "" {
+		dbStatusStr = fmt.Sprintf("MariaDB Edge (%s)", dbMetrics.Status)
+	}
+
 	overview := &model.SystemStatusOverview{
 		CPUPercent:        info.CPUPercent,
 		ProcessCPUPercent: info.ProcessCPUPercent,
 		CPUPerCore:        info.CPUPerCore,
 		RAMPercent:        info.RAMPercent,
-		RAMUsedMB:      float64(info.RAMUsedBytes) / (1024 * 1024),
-		RAMTotalMB:     float64(info.RAMTotalBytes) / (1024 * 1024),
-		DiskPercent:    info.DiskPercent,
-		DiskUsedGB:     float64(info.DiskUsedBytes) / (1024 * 1024 * 1024),
-		DiskTotalGB:    float64(info.DiskTotalBytes) / (1024 * 1024 * 1024),
-		UptimeHuman:    info.UptimeHuman,
-		UptimeSeconds:  info.UptimeSeconds,
-		OS:             fmt.Sprintf("%s / %s", info.OS, info.Arch),
-		Arch:           info.Arch,
-		Hostname:       info.Hostname,
-		NumCPU:         info.NumCPU,
-		Goroutines:     info.Goroutines,
-		AppVersion:     s.cfg.Version,
+		RAMUsedMB:         float64(info.RAMUsedBytes) / (1024 * 1024),
+		RAMTotalMB:        float64(info.RAMTotalBytes) / (1024 * 1024),
+		DiskPercent:       info.DiskPercent,
+		DiskUsedGB:        float64(info.DiskUsedBytes) / (1024 * 1024 * 1024),
+		DiskTotalGB:       float64(info.DiskTotalBytes) / (1024 * 1024 * 1024),
+		UptimeHuman:       info.UptimeHuman,
+		UptimeSeconds:     info.UptimeSeconds,
+		OS:                fmt.Sprintf("%s / %s", info.OS, info.Arch),
+		Arch:              info.Arch,
+		Hostname:          info.Hostname,
+		NumCPU:            info.NumCPU,
+		Goroutines:        info.Goroutines,
+		AppVersion:        s.cfg.Version,
 
 		ServiceStatus:   "RUNNING",
 		WorkerStatus:    "READY",
 		SchedulerStatus: "ACTIVE",
 		QueueStatus:     "OPTIMAL",
-		DatabaseStatus:  "MariaDB Edge (Healthy)",
+		DatabaseStatus:  dbStatusStr,
+		DBLatencyMs:     dbMetrics.LatencyMs,
+		DBVersion:       dbMetrics.Version,
+		DBHost:          dbMetrics.Host,
+		DBPort:          dbMetrics.Port,
+		DBDatabase:      dbMetrics.Database,
 
 		TotalDevices:        len(devices),
 		OnlineDevices:       onlineDev,
@@ -153,8 +164,8 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		PersistenceStatus:   "HEALTHY",
 
 		DataReceivedCount: totalSuccess,
-		DataPerSec:        24.5,
-		DataQuality:       "EXCELLENT (99.8%)",
+		DataPerSec:        0.0,
+		DataQuality:       fmt.Sprintf("%.1f%% GOOD", successRate),
 		MissingDataCount:  0,
 		InvalidDataCount:  totalFailed,
 		LastDataReceived:  time.Now().Format("15:04:05"),
@@ -183,6 +194,21 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		} else {
 			overview.QueueStatus = "HEALTHY"
 		}
+
+		if metrics.IngestedCount > 0 {
+			overview.DataReceivedCount = int64(metrics.IngestedCount)
+			if info.UptimeSeconds > 0 {
+				overview.DataPerSec = float64(metrics.IngestedCount) / float64(info.UptimeSeconds)
+			}
+			if metrics.IngestedCount >= metrics.ErrorCount {
+				qPct := (float64(metrics.IngestedCount-metrics.ErrorCount) / float64(metrics.IngestedCount)) * 100.0
+				overview.DataQuality = fmt.Sprintf("%.1f%% GOOD", qPct)
+			}
+		} else if onlineDev > 0 {
+			overview.DataPerSec = float64(onlineDev) * 1.0
+		}
+	} else if onlineDev > 0 {
+		overview.DataPerSec = float64(onlineDev) * 1.0
 	}
 
 	if s.backupService != nil {

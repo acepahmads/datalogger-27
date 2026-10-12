@@ -48,7 +48,12 @@ type SystemStatusOverview struct {
 	WorkerStatus    string `json:"worker_status"`
 	SchedulerStatus string `json:"scheduler_status"`
 	QueueStatus     string `json:"queue_status"`
-	DatabaseStatus  string `json:"database_status"`
+	DatabaseStatus  string  `json:"database_status"`
+	DBLatencyMs     float64 `json:"db_latency_ms"`
+	DBVersion       string  `json:"db_version"`
+	DBHost          string  `json:"db_host"`
+	DBPort          string  `json:"db_port"`
+	DBDatabase      string  `json:"db_database"`
 
 	// Devices
 	TotalDevices        int    `json:"total_devices"`

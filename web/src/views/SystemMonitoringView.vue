@@ -123,11 +123,11 @@
         <div class="text-xs font-bold text-amber-400 uppercase tracking-wider pb-2 border-b border-slate-800/80">
           {{ $t('systemMonitoring.telemetryData') }}
         </div>
-        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.totalSamples') }}</span><span class="text-slate-200 font-mono">{{ status.data_received_count.toLocaleString() }}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.throughput') }}</span><span class="text-blue-300 font-mono">{{ status.data_per_sec }} /sec</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.quality') }}</span><span class="text-emerald-400 font-semibold font-mono">99.8% GOOD</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.invalid') }}</span><span class="text-slate-400 font-mono">{{ status.invalid_data_count }}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.lastSample') }}</span><span class="text-slate-300 font-mono">{{ status.last_data_received }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.totalSamples') }}</span><span class="text-slate-200 font-mono">{{ (status.data_received_count || 0).toLocaleString() }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.throughput') }}</span><span class="text-blue-300 font-mono">{{ (status.data_per_sec || 0).toFixed(1) }} /sec</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.quality') }}</span><span class="text-emerald-400 font-semibold font-mono">{{ status.data_quality || '100% GOOD' }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.invalid') }}</span><span class="text-slate-400 font-mono">{{ status.invalid_data_count || 0 }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">{{ $t('systemMonitoring.lastSample') }}</span><span class="text-slate-300 font-mono">{{ status.last_data_received || '--' }}</span></div>
       </div>
 
       <!-- 4. Communication Health -->
@@ -148,10 +148,26 @@
 <script>
 export default {
   name: 'SystemMonitoringView',
+  data() {
+    return {
+      timer: null,
+    };
+  },
   computed: {
     status() {
       return this.$store.state.systemStatus;
     },
+  },
+  mounted() {
+    this.$store.dispatch('fetchSystemStatus');
+    this.timer = setInterval(() => {
+      this.$store.dispatch('fetchSystemStatus');
+    }, 5000);
+  },
+  beforeDestroy() {
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
   },
 };
 </script>

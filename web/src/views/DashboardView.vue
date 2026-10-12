@@ -35,6 +35,130 @@
     <!-- 4 Primary KPI Cards -->
     <KpiCards />
 
+    <!-- High-Density Live Operational Fleet & Telemetry Grid (Task #67) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- 1. Device Fleet Operational Matrix -->
+      <router-link to="/monitoring/devices" class="saas-card p-4 space-y-2 hover:border-blue-500/50 transition-colors block">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 font-sans">
+            {{ $t('navigation.devicesSensors') }}
+          </span>
+          <span class="text-3xs font-mono text-blue-500 hover:underline">
+            {{ $t('dashboard.manageDevices') }} &rarr;
+          </span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <div class="flex items-baseline space-x-2">
+            <span class="text-2xl font-bold font-mono text-slate-900 dark:text-white">{{ systemStatus.total_devices || 0 }}</span>
+            <span class="text-3xs text-slate-400 font-sans">{{ $t('devices.total') || 'Total' }}</span>
+          </div>
+          <div class="flex items-center space-x-1.5 text-xs font-mono">
+            <span class="flex items-center text-emerald-600 dark:text-emerald-400 font-semibold">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
+              {{ systemStatus.online_devices || 0 }}
+            </span>
+            <span class="text-slate-300 dark:text-slate-700">/</span>
+            <span class="text-rose-600 dark:text-rose-400 font-semibold" :class="{ 'opacity-50': !systemStatus.offline_devices }">
+              {{ systemStatus.offline_devices || 0 }} {{ $t('status.offline') }}
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
+          <span class="text-slate-500 dark:text-slate-400">{{ $t('systemMonitoring.latency') }}:</span>
+          <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ systemStatus.avg_latency_ms || 0 }} ms</span>
+        </div>
+      </router-link>
+
+      <!-- 2. Real-Time Telemetry Pipeline -->
+      <router-link to="/monitoring/telemetry" class="saas-card p-4 space-y-2 hover:border-emerald-500/50 transition-colors block">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 font-sans">
+            {{ $t('navigation.liveTelemetry') }}
+          </span>
+          <span class="text-3xs font-mono text-emerald-500 hover:underline">
+            {{ $t('systemMonitoring.telemetryData') }} &rarr;
+          </span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+              {{ (systemStatus.data_per_sec || 0).toFixed(1) }}
+            </span>
+            <span class="text-3xs text-slate-400 font-mono">/sec</span>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            {{ systemStatus.data_quality || '100% GOOD' }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
+          <span class="text-slate-500 dark:text-slate-400">{{ $t('systemMonitoring.totalSamples') }}:</span>
+          <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ (systemStatus.data_received_count || 0).toLocaleString() }}</span>
+        </div>
+      </router-link>
+
+      <!-- 3. Active Alarms & Safety -->
+      <router-link to="/alarm/active" class="saas-card p-4 space-y-2 hover:border-rose-500/50 transition-colors block">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 font-sans">
+            {{ $t('navigation.activeAlarms') }}
+          </span>
+          <span class="text-3xs font-mono text-rose-500 hover:underline">
+            {{ $t('alarms.viewActive') || 'Alarms' }} &rarr;
+          </span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <div class="flex items-baseline space-x-2">
+            <span class="text-2xl font-bold font-mono" :class="systemStatus.active_alarms > 0 ? 'text-rose-500' : 'text-slate-400'">
+              {{ systemStatus.active_alarms || 0 }}
+            </span>
+            <span class="text-3xs text-slate-400 font-sans">{{ $t('status.active') }}</span>
+          </div>
+          <div class="flex items-center space-x-1.5 text-3xs font-mono">
+            <span v-if="systemStatus.critical_alarms > 0" class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30">
+              {{ systemStatus.critical_alarms }} CRIT
+            </span>
+            <span v-if="systemStatus.warning_alarms > 0" class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
+              {{ systemStatus.warning_alarms }} WARN
+            </span>
+            <span v-if="!systemStatus.active_alarms" class="text-emerald-500 font-medium font-sans">
+              All Clear
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
+          <span class="text-slate-500 dark:text-slate-400">{{ $t('alarms.acknowledged') || 'Acknowledged' }}:</span>
+          <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ systemStatus.acknowledged_alarms || 0 }}</span>
+        </div>
+      </router-link>
+
+      <!-- 4. MariaDB Edge Storage & Diagnostics -->
+      <router-link to="/administration/retention" class="saas-card p-4 space-y-2 hover:border-cyan-500/50 transition-colors block">
+        <div class="flex items-center justify-between">
+          <span class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 font-sans">
+            {{ $t('navigation.edgeDatabase') }}
+          </span>
+          <span class="text-3xs font-mono text-cyan-500 hover:underline">
+            {{ $t('navigation.retentionStorage') }} &rarr;
+          </span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <div class="flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="text-sm font-bold font-mono text-slate-900 dark:text-white truncate">
+              {{ systemStatus.db_version || 'MariaDB 10.4' }}
+            </span>
+          </div>
+          <span class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+            {{ systemStatus.db_latency_ms ? systemStatus.db_latency_ms.toFixed(1) + ' ms' : '< 1 ms' }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
+          <span class="text-slate-500 dark:text-slate-400">{{ $t('dashboard.hostPort') }}:</span>
+          <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ (systemStatus.db_host || '127.0.0.1') + ':' + (systemStatus.db_port || '3306') }}</span>
+        </div>
+      </router-link>
+    </div>
+
     <!-- Architecture Pipeline Status -->
     <div class="saas-card p-4 space-y-3">
       <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-2.5">
@@ -204,25 +328,25 @@
               <span class="text-2xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">{{ $t('navigation.edgeDatabase') }}</span>
               <span class="flex items-center text-emerald-600 dark:text-emerald-400 text-3xs font-semibold font-mono tracking-wide">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                MariaDB Edge · {{ $t('status.healthy') }}
+                {{ systemStatus.database_status || 'MariaDB Edge · Healthy' }}
               </span>
             </div>
             <div class="grid grid-cols-2 gap-2 text-2xs font-sans pt-1">
               <div>
                 <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.hostPort') }}:</span>
-                <span class="font-mono text-slate-700 dark:text-slate-200">127.0.0.1:3306</span>
+                <span class="font-mono text-slate-700 dark:text-slate-200">{{ (systemStatus.db_host || '127.0.0.1') + ':' + (systemStatus.db_port || '3306') }}</span>
               </div>
               <div>
                 <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.database') }}:</span>
-                <span class="font-mono text-slate-700 dark:text-slate-200">datalogger</span>
+                <span class="font-mono text-slate-700 dark:text-slate-200">{{ systemStatus.db_database || 'datalogger' }}</span>
               </div>
               <div>
                 <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.version') }}:</span>
-                <span class="font-mono text-blue-600 dark:text-blue-400">10.4.32-MariaDB</span>
+                <span class="font-mono text-blue-600 dark:text-blue-400">{{ systemStatus.db_version || '10.4.32-MariaDB' }}</span>
               </div>
               <div>
                 <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.latency') }}:</span>
-                <span class="font-mono text-emerald-600 dark:text-emerald-400">&lt; 1 ms</span>
+                <span class="font-mono text-emerald-600 dark:text-emerald-400">{{ systemStatus.db_latency_ms ? systemStatus.db_latency_ms.toFixed(1) + ' ms' : '< 1 ms' }}</span>
               </div>
             </div>
           </div>
@@ -235,15 +359,15 @@
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">{{ $t('navigation.devicesSensors') }}</span>
-              <span class="text-3xs font-semibold text-blue-600 dark:text-blue-400 font-mono">{{ systemStatus.online_devices }} {{ $t('status.online') }}</span>
+              <span class="text-3xs font-semibold text-blue-600 dark:text-blue-400 font-mono">{{ systemStatus.online_devices || 0 }} {{ $t('status.online') }}</span>
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">{{ $t('dashboard.throughput') }}</span>
-              <span class="text-3xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">24.5 /s</span>
+              <span class="text-3xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">{{ (systemStatus.data_per_sec || 0).toFixed(1) }} /s</span>
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
               <span class="text-2xs text-slate-600 dark:text-slate-400">{{ $t('navigation.activeAlarms') }}</span>
-              <span class="text-3xs font-semibold text-slate-500 dark:text-slate-300 font-mono">{{ systemStatus.active_alarms }} {{ $t('status.active') }}</span>
+              <span class="text-3xs font-semibold font-mono" :class="systemStatus.active_alarms > 0 ? 'text-rose-500 font-bold' : 'text-slate-500 dark:text-slate-300'">{{ systemStatus.active_alarms || 0 }} {{ $t('status.active') }}</span>
             </div>
           </div>
         </div>

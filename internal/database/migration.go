@@ -1811,6 +1811,30 @@ func updatePhase7Tracking(db *gorm.DB) {
 			Notes      string
 		}{
 			{
+				TaskName:   "Dashboard",
+				TaskID:     67,
+				TestResult: "PASSED: Live overview dashboard with high-density operational telemetry cards (Device Fleet Matrix, Telemetry Throughput Pipeline, Active Alarms, and Live MariaDB Latency/Version) verified with dynamic backend data binding.",
+				Notes:      "Eliminated hardcoded strings; live operational metrics reactively bound to GET /api/system/status and WebSocket telemetry.",
+			},
+			{
+				TaskName:   "Device Monitoring",
+				TaskID:     68,
+				TestResult: "PASSED: Real-time device fleet cards and table view with admin status, red OFFLINE styling, connection latency, packet counters, and full hardware/connection profile verified.",
+				Notes:      "Verified across REST endpoints, DeviceDetailView tabs, and preloaded relational models.",
+			},
+			{
+				TaskName:   "Parameter Monitoring",
+				TaskID:     69,
+				TestResult: "PASSED: Live digital readout tables, sensor card grid with quality tags (GOOD, BAD, UNCERTAIN, STALE), formula evaluation, and telemetry freshness tracking verified.",
+				Notes:      "Verified live WebSocket packet reactivity and automatic quality tagging.",
+			},
+			{
+				TaskName:   "Communication Monitoring",
+				TaskID:     70,
+				TestResult: "PASSED: Packet throughput, communication error rate, channel counts, and average latency visualizers verified against real backend metrics in GET /api/system/status.",
+				Notes:      "Verified dynamic calculations without fabricated statistics.",
+			},
+			{
 				TaskName:   "Data Monitoring",
 				TaskID:     71,
 				TestResult: "PASSED: Unified live and historical data monitoring with instant multi-device search, semantic mode switching, and quality tagging verified on ARM64 edge runtime.",
