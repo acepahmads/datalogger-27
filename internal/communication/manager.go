@@ -29,7 +29,7 @@ type ConnectionManager struct {
 	reconnectingMu sync.Mutex
 	reconnecting   map[uint]bool
 	diagMu         sync.Mutex
-	diagActive     map[uint]bool
+	diagActive     map[uint]time.Time
 }
 
 // NewConnectionManager initializes the communication connection manager
@@ -46,7 +46,7 @@ func NewConnectionManager(deviceService *service.DeviceService, factory AdapterF
 		healthTracker: ht,
 		backoffPolicy: bp,
 		reconnecting:  make(map[uint]bool),
-		diagActive:    make(map[uint]bool),
+		diagActive:    make(map[uint]time.Time),
 	}
 
 	// Sync state transitions to health tracker
@@ -388,16 +388,33 @@ func (m *ConnectionManager) DiagnosticTest(ctx context.Context, device *model.De
 	// 2. Prevent concurrent diagnostic tests on the same device
 	m.diagMu.Lock()
 	if m.diagActive == nil {
-		m.diagActive = make(map[uint]bool)
+		m.diagActive = make(map[uint]time.Time)
 	}
-	if m.diagActive[device.ID] {
+	if startedAt, active := m.diagActive[device.ID]; active {
+		if time.Since(startedAt) < 10*time.Second {
+			m.diagMu.Unlock()
+			res.Code = DiagBusy
+			res.Error = fmt.Sprintf("device %s is busy with another diagnostic test", device.DeviceCode)
+			res.Message = "Diagnostic busy: another test is currently running"
+			return res
+		}
+		logger.Warn("Diagnostic test lock for device %d expired after %v; breaking stale lock", device.ID, time.Since(startedAt))
+	}
+
+	// 2b. Prevent diagnostic test while auto-reconnection is currently in-flight
+	m.reconnectingMu.Lock()
+	isReconn := m.reconnecting[device.ID]
+	m.reconnectingMu.Unlock()
+
+	if isReconn {
 		m.diagMu.Unlock()
 		res.Code = DiagBusy
-		res.Error = fmt.Sprintf("device %s is busy with another diagnostic test", device.DeviceCode)
-		res.Message = "Diagnostic busy: another test is currently running"
+		res.Error = fmt.Sprintf("device %s is currently executing an auto-reconnect cycle", device.DeviceCode)
+		res.Message = "Device is currently reconnecting; please wait a moment"
 		return res
 	}
-	m.diagActive[device.ID] = true
+
+	m.diagActive[device.ID] = time.Now()
 	m.diagMu.Unlock()
 
 	defer func() {
@@ -601,3 +618,14 @@ func (m *ConnectionManager) SetBackoffPolicy(p *BackoffPolicy) {
 		m.backoffPolicy = p
 	}
 }
+
+// IsDiagnosticActive returns true if a diagnostic test is currently active for the device
+func (m *ConnectionManager) IsDiagnosticActive(deviceID uint) bool {
+	m.diagMu.Lock()
+	defer m.diagMu.Unlock()
+	if startedAt, active := m.diagActive[deviceID]; active {
+		return time.Since(startedAt) < 10*time.Second
+	}
+	return false
+}
+

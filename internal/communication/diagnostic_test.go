@@ -356,7 +356,7 @@ func TestConcurrentDiagnosticRequests(t *testing.T) {
 
 	// Simulate one diagnostic being held active via diagActive map
 	mgr.diagMu.Lock()
-	mgr.diagActive[dev.ID] = true
+	mgr.diagActive[dev.ID] = time.Now()
 	mgr.diagMu.Unlock()
 
 	// Second concurrent call should immediately return BUSY

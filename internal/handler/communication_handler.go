@@ -159,18 +159,25 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 	adapterStatus, exists := h.connManager.GetAdapterStatus(uint(id))
 	health := h.connManager.GetDeviceHealth(uint(id))
 
-	// Communication ONLINE must be based on recent successful communication
+	// Communication ONLINE must be based on genuine active and recent successful communication
 	statusStr := string(health.State)
-	if dev.ConnectionStatus == model.DeviceConnError || health.State == communication.StateError {
+	if dev.ConnectionStatus == model.DeviceConnError || health.State == communication.StateError || (exists && adapterStatus.State == communication.StateError) {
 		statusStr = "ERROR"
-	} else if dev.ConnectionStatus == model.DeviceConnOffline || health.State == communication.StateDisconnected {
+	} else if dev.ConnectionStatus == model.DeviceConnOffline || health.State == communication.StateDisconnected || (exists && adapterStatus.State == communication.StateDisconnected) {
 		statusStr = "OFFLINE"
 	} else if health.ConsecutiveFailures >= 3 {
 		statusStr = "ERROR"
 	} else if dev.LastSeenAt == nil && health.ConsecutiveSuccesses == 0 {
 		statusStr = "CONNECTING"
-	} else if health.State == communication.StateConnected && (health.ConsecutiveSuccesses > 0 || dev.LastSeenAt != nil) {
+	} else if health.State == communication.StateConnected && adapterStatus.State == communication.StateConnected && health.ConsecutiveFailures == 0 && (health.ConsecutiveSuccesses > 0 || dev.LastSeenAt != nil) {
 		statusStr = "ONLINE"
+	} else if health.ConsecutiveFailures > 0 {
+		statusStr = "DEGRADED"
+	}
+
+	lastErr := adapterStatus.LastError
+	if lastErr == "" {
+		lastErr = health.LastError
 	}
 
 	protoStr := dev.DeviceType
@@ -193,7 +200,7 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 		"retry_count":         adapterStatus.RetryCount,
 		"consecutive_errors":  health.ConsecutiveFailures,
 		"consecutive_success": health.ConsecutiveSuccesses,
-		"last_error":          adapterStatus.LastError,
+		"last_error":          lastErr,
 		"success_count":       dev.SuccessCount,
 		"failed_count":        dev.FailedCount,
 		"health":              health,

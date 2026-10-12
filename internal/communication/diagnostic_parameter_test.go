@@ -151,9 +151,9 @@ func TestDiagnosticParameter_PortBusy(t *testing.T) {
 	// Artificially simulate active diagnostic lock
 	mgr.diagMu.Lock()
 	if mgr.diagActive == nil {
-		mgr.diagActive = make(map[uint]bool)
+		mgr.diagActive = make(map[uint]time.Time)
 	}
-	mgr.diagActive[dev.ID] = true
+	mgr.diagActive[dev.ID] = time.Now()
 	mgr.diagMu.Unlock()
 
 	ctx := context.Background()

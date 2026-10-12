@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"datalogger/internal/communication/modbus"
+	"datalogger/internal/logger"
 	"datalogger/internal/model"
 )
 
@@ -68,28 +69,31 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 	// Prevent concurrent diagnostic tests on the same device
 	m.diagMu.Lock()
 	if m.diagActive == nil {
-		m.diagActive = make(map[uint]bool)
+		m.diagActive = make(map[uint]time.Time)
 	}
-	if m.diagActive[device.ID] {
-		m.diagMu.Unlock()
-		report.FailureCategory = FailCategoryPortBusy
-		report.ErrorMessage = fmt.Sprintf("device %s is currently executing another diagnostic test", device.DeviceCode)
-		report.FirstFailedStage = "PORT_VERIFICATION"
-		report.Stages = append(report.Stages, DiagnosticStageEvidence{
-			Stage:   "PORT_VERIFICATION",
-			Status:  StageFail,
-			Message: report.ErrorMessage,
-		})
-		report.Stages = append(report.Stages,
-			DiagnosticStageEvidence{Stage: "SERIAL_CONFIGURATION", Status: StageNotTested, Message: "Device busy with concurrent test"},
-			DiagnosticStageEvidence{Stage: "MODBUS_TRANSACTION", Status: StageNotTested, Message: "Device busy with concurrent test"},
-			DiagnosticStageEvidence{Stage: "DATA_INTERPRETATION", Status: StageNotTested, Message: "Device busy with concurrent test"},
-		)
-		report.SuggestedAction = "Wait a few seconds for the active test to complete before running another diagnostic."
-		report.SuggestedActionID = "TEST_BUSY"
-		return report, nil
+	if startedAt, active := m.diagActive[device.ID]; active {
+		if time.Since(startedAt) < 10*time.Second {
+			m.diagMu.Unlock()
+			report.FailureCategory = FailCategoryPortBusy
+			report.ErrorMessage = fmt.Sprintf("device %s is currently executing another diagnostic test", device.DeviceCode)
+			report.FirstFailedStage = "PORT_VERIFICATION"
+			report.Stages = append(report.Stages, DiagnosticStageEvidence{
+				Stage:   "PORT_VERIFICATION",
+				Status:  StageFail,
+				Message: report.ErrorMessage,
+			})
+			report.Stages = append(report.Stages,
+				DiagnosticStageEvidence{Stage: "SERIAL_CONFIGURATION", Status: StageNotTested, Message: "Device busy with concurrent test"},
+				DiagnosticStageEvidence{Stage: "MODBUS_TRANSACTION", Status: StageNotTested, Message: "Device busy with concurrent test"},
+				DiagnosticStageEvidence{Stage: "DATA_INTERPRETATION", Status: StageNotTested, Message: "Device busy with concurrent test"},
+			)
+			report.SuggestedAction = "Wait a few seconds for the active test to complete before running another diagnostic."
+			report.SuggestedActionID = "TEST_BUSY"
+			return report, nil
+		}
+		logger.Warn("Diagnostic test lock for device %d expired after %v; breaking stale lock", device.ID, time.Since(startedAt))
 	}
-	m.diagActive[device.ID] = true
+	m.diagActive[device.ID] = time.Now()
 	m.diagMu.Unlock()
 
 	defer func() {

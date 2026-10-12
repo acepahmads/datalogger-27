@@ -148,10 +148,29 @@ func DefaultSerialOpener(cfg *model.DeviceConnection) (SerialTransport, error) {
 // and RS-485 inter-frame silent intervals across all devices sharing a physical serial port.
 type SharedSerialBus struct {
 	mu           sync.Mutex
+	sem          chan struct{}
 	portPath     string
 	transport    SerialTransport
 	refCount     int
 	lastActivity time.Time
+}
+
+// Lock acquires the mutual exclusion lock for RS-485 wire operations with context cancellation support.
+func (b *SharedSerialBus) Lock(ctx context.Context) error {
+	select {
+	case <-b.sem:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("serial bus %s lock timed out or cancelled: %w", b.portPath, ctx.Err())
+	}
+}
+
+// Unlock releases the mutual exclusion lock.
+func (b *SharedSerialBus) Unlock() {
+	select {
+	case b.sem <- struct{}{}:
+	default:
+	}
 }
 
 var (
@@ -168,7 +187,9 @@ func GetOrCreateSharedBus(portPath string) *SharedSerialBus {
 	if !exists {
 		bus = &SharedSerialBus{
 			portPath: portPath,
+			sem:      make(chan struct{}, 1),
 		}
+		bus.sem <- struct{}{} // Initialize with 1 token
 		sharedBuses[portPath] = bus
 	}
 	return bus
@@ -263,6 +284,24 @@ func (a *ModbusRTUAdapter) Connect(ctx context.Context) error {
 		targetPort = a.config.SerialPort
 	}
 
+	// If already attached to a different bus, detach first
+	if a.bus != nil && a.bus.portPath != targetPort {
+		a.bus.mu.Lock()
+		a.bus.refCount--
+		if a.bus.refCount <= 0 {
+			if a.bus.transport != nil {
+				_ = a.bus.transport.Close()
+				a.bus.transport = nil
+			}
+			sharedBusesMu.Lock()
+			delete(sharedBuses, a.bus.portPath)
+			sharedBusesMu.Unlock()
+		}
+		a.bus.mu.Unlock()
+		a.bus = nil
+		a.transport = nil
+	}
+
 	bus := GetOrCreateSharedBus(targetPort)
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
@@ -278,8 +317,10 @@ func (a *ModbusRTUAdapter) Connect(ctx context.Context) error {
 		bus.transport = tr
 	}
 
-	bus.refCount++
-	a.bus = bus
+	if a.bus != bus {
+		bus.refCount++
+		a.bus = bus
+	}
 	a.transport = bus.transport
 
 	now := time.Now()
@@ -342,18 +383,60 @@ func isTimeoutError(err error) bool {
 
 // ReadRegisters executes Modbus FC 01, 02, 03, or 04 over serial RTU framing
 func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequest) (*ModbusReadResponse, error) {
-	// 1. Acquire serial bus lock to guarantee strict serialization on RS-485
-	a.mu.Lock()
-	bus := a.bus
-	a.mu.Unlock()
-
-	var busLock sync.Locker = &a.mu
-	if bus != nil {
-		busLock = &bus.mu
+	// 1. Resolve and verify target port (with self-healing symlink migration)
+	targetPort := ResolvePortAddress(a.config.SerialPort)
+	if targetPort == "" {
+		targetPort = a.config.SerialPort
 	}
 
-	busLock.Lock()
-	defer busLock.Unlock()
+	a.mu.Lock()
+	bus := a.bus
+	// If the resolved target port differs from currently attached bus, re-bind bus
+	if bus != nil && targetPort != "" && bus.portPath != targetPort {
+		logger.Warn("Modbus RTU device %d serial port migrated from %s to %s",
+			a.config.DeviceID, bus.portPath, targetPort)
+		bus.mu.Lock()
+		bus.refCount--
+		if bus.refCount <= 0 {
+			if bus.transport != nil {
+				_ = bus.transport.Close()
+				bus.transport = nil
+			}
+			sharedBusesMu.Lock()
+			delete(sharedBuses, bus.portPath)
+			sharedBusesMu.Unlock()
+		}
+		bus.mu.Unlock()
+		a.bus = nil
+		a.transport = nil
+		bus = nil
+	}
+
+	if a.bus == nil && targetPort != "" {
+		newBus := GetOrCreateSharedBus(targetPort)
+		newBus.mu.Lock()
+		newBus.refCount++
+		a.bus = newBus
+		a.transport = newBus.transport
+		bus = newBus
+		newBus.mu.Unlock()
+	}
+	a.mu.Unlock()
+
+	// 2. Acquire context-aware serial bus lock to guarantee strict serialization on RS-485
+	if bus != nil {
+		if err := bus.Lock(ctx); err != nil {
+			return nil, &ModbusTransactionError{
+				Category: FailCategoryTimeout,
+				Message:  fmt.Sprintf("serial bus %s lock timed out or cancelled: %v", bus.portPath, err),
+				Err:      err,
+			}
+		}
+		defer bus.Unlock()
+	} else {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+	}
 
 	// Ensure Modbus RTU 3.5-character silent interval between serial frames
 	if bus != nil && !bus.lastActivity.IsZero() {
@@ -403,7 +486,9 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 			}
 		}
 		if bus != nil {
+			bus.mu.Lock()
 			bus.transport = tr
+			bus.mu.Unlock()
 		}
 		a.transport = tr
 		now := time.Now()
@@ -614,10 +699,22 @@ func isFatalSerialError(err error) bool {
 	return strings.Contains(s, "bad file descriptor") ||
 		strings.Contains(s, "file already closed") ||
 		strings.Contains(s, "no such file or directory") ||
+		strings.Contains(s, "no such device") ||
 		strings.Contains(s, "device not configured") ||
 		strings.Contains(s, "input/output error") ||
 		strings.Contains(s, "broken pipe") ||
-		strings.Contains(s, "connection reset")
+		strings.Contains(s, "pipe closed") ||
+		strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "eof") ||
+		strings.Contains(s, "not functioning") ||
+		strings.Contains(s, "invalid handle") ||
+		strings.Contains(s, "device does not recognize") ||
+		strings.Contains(s, "not connected") ||
+		strings.Contains(s, "access is denied") ||
+		strings.Contains(s, "permission denied") ||
+		strings.Contains(s, "inappropriate ioctl") ||
+		strings.Contains(s, "interrupted system call") ||
+		strings.Contains(s, "bad state")
 }
 
 func (a *ModbusRTUAdapter) handleSerialError(err error) {
@@ -627,6 +724,7 @@ func (a *ModbusRTUAdapter) handleSerialError(err error) {
 
 	// Only close physical transport on true hardware/OS I/O failures (not slave timeouts)
 	if isFatalSerialError(err) {
+		logger.Warn("Modbus RTU fatal serial error on %s: %v. Releasing physical transport handle.", a.config.SerialPort, err)
 		if a.bus != nil {
 			a.bus.mu.Lock()
 			if a.bus.transport != nil {
@@ -641,7 +739,7 @@ func (a *ModbusRTUAdapter) handleSerialError(err error) {
 		a.transport = nil
 
 		// Dynamic Self-Healing Port Migration Check:
-		if runtime.GOOS != "windows" && a.config != nil && strings.HasPrefix(a.config.SerialPort, "/dev/tty") {
+		if runtime.GOOS != "windows" && a.config != nil && (strings.HasPrefix(a.config.SerialPort, "/dev/tty") || strings.HasPrefix(a.config.SerialPort, "/dev/serial")) {
 			resolved := ResolvePortAddress(a.config.SerialPort)
 			if resolved != "" && resolved != a.config.SerialPort {
 				logger.Warn("Dynamic port migration applied to active adapter: %s ➔ %s", a.config.SerialPort, resolved)
