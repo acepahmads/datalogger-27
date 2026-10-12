@@ -385,3 +385,58 @@ func TestMigrationPhase5Tracking(t *testing.T) {
 	}
 }
 
+func TestMigrationPhase6Wave1Tracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_phase6_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// Run migration to trigger updatePhase6Wave1Tracking
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	// 1. Verify Phase 6 status & progress
+	var phase6 model.DevelopmentPhase
+	if err := db.Where("phase_number = 6").First(&phase6).Error; err != nil {
+		t.Fatalf("Phase 6 not found in DB: %v", err)
+	}
+
+	if phase6.Progress < 40.0 {
+		t.Errorf("Phase 6 progress should be at least 40%%, got %.2f%%", phase6.Progress)
+	}
+	if phase6.Status != model.PhaseWorking {
+		t.Errorf("Phase 6 status should be WORKING, got %s", phase6.Status)
+	}
+
+	// 2. Verify Tasks #57, #58, #59, #63 are DONE
+	wave1TaskNames := map[string]bool{
+		"Threshold":    true,
+		"Warning":      true,
+		"Critical":     true,
+		"Alarm Engine": true,
+	}
+
+	var tasks []model.DevelopmentTask
+	if err := db.Where("phase_id = ?", phase6.ID).Find(&tasks).Error; err != nil {
+		t.Fatalf("Failed to fetch Phase 6 tasks: %v", err)
+	}
+
+	for _, task := range tasks {
+		if wave1TaskNames[task.TaskName] {
+			if task.Status != model.StatusDone {
+				t.Errorf("Wave 1 Task '%s' should be DONE, got %s", task.TaskName, task.Status)
+			}
+			if task.Progress < 100.0 {
+				t.Errorf("Wave 1 Task '%s' progress should be 100%%, got %.2f%%", task.TaskName, task.Progress)
+			}
+			if task.TestResult == "" {
+				t.Errorf("Wave 1 Task '%s' should have verified test results recorded", task.TaskName)
+			}
+		}
+	}
+}
+

@@ -164,7 +164,7 @@ func (r *AlarmRepository) GetActive(ctx context.Context) ([]model.Alarm, error) 
 }
 
 // Acknowledge transitions an ACTIVE alarm to ACKNOWLEDGED state with concurrency control
-func (r *AlarmRepository) Acknowledge(ctx context.Context, id uint, ackBy string, ackAt time.Time) (*model.Alarm, error) {
+func (r *AlarmRepository) Acknowledge(ctx context.Context, id uint, ackBy string, ackAt time.Time, notes ...string) (*model.Alarm, error) {
 	if ackAt.IsZero() {
 		ackAt = time.Now().UTC()
 	}
@@ -172,14 +172,19 @@ func (r *AlarmRepository) Acknowledge(ctx context.Context, id uint, ackBy string
 		ackBy = "admin"
 	}
 
+	updates := map[string]interface{}{
+		"status":          model.AlarmAcked,
+		"acknowledged_at": &ackAt,
+		"acknowledged_by": ackBy,
+	}
+	if len(notes) > 0 && strings.TrimSpace(notes[0]) != "" {
+		updates["notes"] = strings.TrimSpace(notes[0])
+	}
+
 	// Atomic update: only acknowledge if currently ACTIVE
 	res := r.db.WithContext(ctx).Model(&model.Alarm{}).
 		Where("id = ? AND status = ?", id, model.AlarmActive).
-		Updates(map[string]interface{}{
-			"status":          model.AlarmAcked,
-			"acknowledged_at": &ackAt,
-			"acknowledged_by": ackBy,
-		})
+		Updates(updates)
 
 	if res.Error != nil {
 		return nil, res.Error
@@ -198,12 +203,27 @@ func (r *AlarmRepository) Acknowledge(ctx context.Context, id uint, ackBy string
 			return nil, ErrCannotAcknowledgeCleared
 		}
 		if current.Status == model.AlarmAcked {
-			// Already acknowledged: idempotent return with preloaded relations
+			// Already acknowledged: optionally update notes and idempotent return with preloaded relations
+			if len(notes) > 0 && strings.TrimSpace(notes[0]) != "" {
+				_ = r.db.WithContext(ctx).Model(&model.Alarm{}).Where("id = ?", id).Update("notes", strings.TrimSpace(notes[0]))
+			}
 			return r.GetByID(ctx, id)
 		}
 	}
 
 	return r.GetByID(ctx, id)
+}
+
+// GetActiveOrAcked retrieves all alarms currently in ACTIVE or ACKNOWLEDGED state
+func (r *AlarmRepository) GetActiveOrAcked(ctx context.Context) ([]model.Alarm, error) {
+	var alarms []model.Alarm
+	err := r.db.WithContext(ctx).
+		Preload("Device").
+		Preload("Parameter").
+		Where("status IN ?", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Order("triggered_at DESC").
+		Find(&alarms).Error
+	return alarms, err
 }
 
 // Clear transitions an ACTIVE or ACKNOWLEDGED alarm to CLEARED state

@@ -209,8 +209,10 @@ func TestAlarmAPI_LifecycleAcknowledgeAndClear(t *testing.T) {
 	}
 	db.Create(&alarm)
 
-	// 1. Acknowledge alarm PUT /api/alarms/:id/acknowledge
-	reqAck, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/api/alarms/%d/acknowledge", alarm.ID), nil)
+	// 1. Acknowledge alarm PUT /api/alarms/:id/acknowledge with optional notes
+	ackBody := bytes.NewBufferString(`{"notes":"Bearing inspected, lubrication added"}`)
+	reqAck, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/api/alarms/%d/acknowledge", alarm.ID), ackBody)
+	reqAck.Header.Set("Content-Type", "application/json")
 	wAck := httptest.NewRecorder()
 	r.ServeHTTP(wAck, reqAck)
 
@@ -223,11 +225,15 @@ func TestAlarmAPI_LifecycleAcknowledgeAndClear(t *testing.T) {
 		Data    struct {
 			Acknowledged   bool   `json:"acknowledged"`
 			AcknowledgedBy string `json:"acknowledged_by"`
+			Notes          string `json:"notes"`
 		} `json:"data"`
 	}
 	_ = json.Unmarshal(wAck.Body.Bytes(), &ackResp)
 	if !ackResp.Data.Acknowledged || ackResp.Data.AcknowledgedBy != "admin" {
 		t.Errorf("expected acknowledged true by admin, got %v by %s", ackResp.Data.Acknowledged, ackResp.Data.AcknowledgedBy)
+	}
+	if ackResp.Data.Notes != "Bearing inspected, lubrication added" {
+		t.Errorf("expected notes 'Bearing inspected, lubrication added', got '%s'", ackResp.Data.Notes)
 	}
 
 	// 2. Clear alarm PUT /api/alarms/:id/clear

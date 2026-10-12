@@ -293,7 +293,12 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 		}
 	}
 
-	if err := h.systemService.AcknowledgeAlarm(uint(id), username); err != nil {
+	var req struct {
+		Notes string `json:"notes"`
+	}
+	_ = c.ShouldBindJSON(&req)
+
+	if err := h.systemService.AcknowledgeAlarm(uint(id), username, req.Notes); err != nil {
 		if errors.Is(err, repository.ErrAlarmNotFound) {
 			response.NotFound(c, "Alarm not found")
 			return
@@ -306,11 +311,16 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{
+	respData := gin.H{
 		"acknowledged":    true,
 		"id":              id,
 		"acknowledged_by": username,
-	})
+	}
+	if req.Notes != "" {
+		respData["notes"] = req.Notes
+	}
+
+	response.OK(c, respData)
 }
 
 func (h *SystemHandler) ClearAlarm(c *gin.Context) {

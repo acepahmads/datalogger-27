@@ -36,6 +36,7 @@ type Alarm struct {
 	AcknowledgedAt *time.Time    `json:"acknowledged_at"`
 	AcknowledgedBy string        `gorm:"size:64" json:"acknowledged_by"`
 	ClearedAt      *time.Time    `json:"cleared_at"`
+	Notes          string        `gorm:"type:text" json:"notes,omitempty"`
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`
 }

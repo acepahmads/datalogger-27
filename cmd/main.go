@@ -16,6 +16,7 @@ import (
 	"datalogger/internal/handler"
 	"datalogger/internal/logger"
 	"datalogger/internal/middleware"
+	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/scheduler"
 	"datalogger/internal/service"
@@ -122,6 +123,18 @@ func main() {
 	alarmRepo := repository.NewAlarmRepository(db)
 	alarmService := service.NewAlarmService(alarmRepo, systemRepo)
 	systemService.SetAlarmService(alarmService)
+
+	// 7g. Initialize Core Alarm Engine & Threshold Evaluator (Phase 6 Wave 1)
+	alarmEvaluator := service.NewAlarmEvaluator(
+		context.Background(),
+		alarmService,
+		service.DefaultAlarmEvaluatorConfig(),
+		func(ctx context.Context, paramID uint) (*model.Parameter, error) {
+			return deviceRepo.FindParameterByID(paramID)
+		},
+	)
+	telemetryService.SetAlarmEvaluator(alarmEvaluator)
+	logger.Info("AlarmEvaluator initialized with active DB alarm synchronization and attached to TelemetryService")
 
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)

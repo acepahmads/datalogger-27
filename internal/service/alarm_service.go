@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"datalogger/internal/logger"
@@ -72,26 +73,40 @@ func (s *AlarmService) GetAlarmsByStatus(ctx context.Context, status string) ([]
 	return alarms, err
 }
 
-// AcknowledgeAlarm handles operator acknowledgement of an active alarm
-func (s *AlarmService) AcknowledgeAlarm(ctx context.Context, id uint, username string) (*model.Alarm, error) {
+// GetActiveOrAckedAlarms returns all alarms currently in ACTIVE or ACKNOWLEDGED state
+func (s *AlarmService) GetActiveOrAckedAlarms(ctx context.Context) ([]model.Alarm, error) {
+	return s.alarmRepo.GetActiveOrAcked(ctx)
+}
+
+// AcknowledgeAlarm handles operator acknowledgement of an active alarm with optional operator notes
+func (s *AlarmService) AcknowledgeAlarm(ctx context.Context, id uint, username string, notes ...string) (*model.Alarm, error) {
 	if username == "" {
 		username = "admin"
 	}
 	ackAt := time.Now().UTC()
 
-	alarm, err := s.alarmRepo.Acknowledge(ctx, id, username, ackAt)
+	alarm, err := s.alarmRepo.Acknowledge(ctx, id, username, ackAt, notes...)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Info("Alarm %d (%s) acknowledged by operator '%s'", id, alarm.AlarmCode, username)
+	noteStr := ""
+	if len(notes) > 0 && strings.TrimSpace(notes[0]) != "" {
+		noteStr = fmt.Sprintf(" Notes: '%s'", strings.TrimSpace(notes[0]))
+	}
+
+	logger.Info("Alarm %d (%s) acknowledged by operator '%s'%s", id, alarm.AlarmCode, username, noteStr)
 
 	if s.systemRepo != nil {
+		details := fmt.Sprintf("Alarm %d (%s) acknowledged by %s", id, alarm.AlarmCode, username)
+		if noteStr != "" {
+			details += noteStr
+		}
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
 			Username:  username,
 			Action:    "ALARM_ACKNOWLEDGE",
 			Resource:  "ALARM",
-			Details:   fmt.Sprintf("Alarm %d (%s) acknowledged by %s", id, alarm.AlarmCode, username),
+			Details:   details,
 			CreatedAt: ackAt,
 		})
 	}

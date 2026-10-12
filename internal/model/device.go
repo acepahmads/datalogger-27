@@ -302,6 +302,7 @@ type Parameter struct {
 	WarningHigh     *float64   `json:"warning_high,omitempty"`
 	CriticalLow     *float64   `json:"critical_low,omitempty"`
 	CriticalHigh    *float64   `json:"critical_high,omitempty"`
+	Hysteresis      *float64   `json:"hysteresis,omitempty" gorm:"type:double"`
 	CurrentValue    *float64   `json:"current_value,omitempty"`
 	LastUpdated     *time.Time `json:"last_updated,omitempty"`
 

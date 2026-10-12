@@ -180,6 +180,9 @@ type TelemetryService struct {
 	consecutiveDBFailures int
 	lastDBError           string
 	lastDBErrorAt         *time.Time
+
+	// Phase 6 Wave 1: Automated Alarm Threshold Evaluator
+	alarmEvaluator *AlarmEvaluator
 }
 
 // NewTelemetryService constructs and starts the background ingestion worker
@@ -276,6 +279,16 @@ func (s *TelemetryService) QualityProcessor() *quality.QualityProcessor {
 	return s.qualityProcessor
 }
 
+// SetAlarmEvaluator attaches an AlarmEvaluator to automatically evaluate parameter thresholds
+func (s *TelemetryService) SetAlarmEvaluator(evaluator *AlarmEvaluator) {
+	s.alarmEvaluator = evaluator
+}
+
+// GetAlarmEvaluator returns the attached AlarmEvaluator
+func (s *TelemetryService) GetAlarmEvaluator() *AlarmEvaluator {
+	return s.alarmEvaluator
+}
+
 // Ingest receives a telemetry measurement, validates, updates cache, broadcasts, and enqueues
 func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	if payload == nil {
@@ -311,6 +324,11 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	}
 	s.latestCache[latest.ParameterID] = latest
 	s.latestMu.Unlock()
+
+	// Phase 6 Wave 1: Automated Alarm Threshold Evaluation
+	if s.alarmEvaluator != nil {
+		s.alarmEvaluator.EvaluateTelemetry(s.ctx, latest, payload.Parameter)
+	}
 
 	// 3. Realtime WebSocket Broadcast
 	if s.hub != nil {

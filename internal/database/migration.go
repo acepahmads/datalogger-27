@@ -130,6 +130,9 @@ func RunMigrations(db *gorm.DB) error {
 	// 7b. Update Development Tracking Dashboard for Phase 5 (Storage)
 	updatePhase5Tracking(db)
 
+	// 7c. Update Development Tracking Dashboard for Phase 6 Wave 1 (Alarm Engine & Threshold Evaluation)
+	updatePhase6Wave1Tracking(db)
+
 	// 8. Update Development Tracking Dashboard for Phase 7 (Unified Telemetry Analysis)
 	updatePhase7Tracking(db)
 
@@ -1520,6 +1523,135 @@ func updatePhase5Tracking(db *gorm.DB) {
 	}
 
 	RecalculatePhaseProgress(db, phase5.ID)
+}
+
+func updatePhase6Wave1Tracking(db *gorm.DB) {
+	var phase6 model.DevelopmentPhase
+	if err := db.Where("phase_number = 6").First(&phase6).Error; err != nil {
+		phase6 = model.DevelopmentPhase{
+			PhaseNumber: 6,
+			Name:        "Phase 6 — Alarm & Notification",
+			Description: "Threshold monitoring, abnormality detection, multi-channel notification engine (Web, Email, SMS, Telegram, WhatsApp, Push).",
+			Status:      model.PhaseWorking,
+			Progress:    40.0,
+			OrderIndex:  6,
+		}
+		db.Create(&phase6)
+	} else {
+		db.Model(&phase6).Updates(map[string]interface{}{
+			"status":   model.PhaseWorking,
+			"progress": 40.0,
+		})
+	}
+
+	now := time.Now()
+	verifiedTasksWave1 := []struct {
+		TaskName    string
+		TaskID      uint
+		OrderIndex  int
+		Priority    model.Priority
+		Description string
+		TestResult  string
+		Notes       string
+	}{
+		{
+			TaskName:    "Threshold",
+			TaskID:      57,
+			OrderIndex:  1,
+			Priority:    model.PriorityCritical,
+			Description: "Configurable High/Low and Warning/Critical limit evaluation",
+			TestResult:  "PASSED: Automated threshold evaluation for WarningLow, WarningHigh, CriticalLow, and CriticalHigh against processed telemetry verified.",
+			Notes:       "Implemented in internal/service/alarm_evaluator.go, wired to TelemetryService.Ingest, verified in internal/service/alarm_evaluator_test.go.",
+		},
+		{
+			TaskName:    "Warning",
+			TaskID:      58,
+			OrderIndex:  2,
+			Priority:    model.PriorityHigh,
+			Description: "Yellow alert triggers for parameters entering pre-critical operating zones",
+			TestResult:  "PASSED: THRESHOLD_WARNING_HIGH and THRESHOLD_WARNING_LOW triggers, yellow alert state latching, and deadband recovery verified.",
+			Notes:       "Verified in TestAlarmEvaluator_WarningThresholds, TestAlarmEvaluator_HysteresisDeadband, and TestTelemetryService_IngestAlarmIntegration.",
+		},
+		{
+			TaskName:    "Critical",
+			TaskID:      59,
+			OrderIndex:  3,
+			Priority:    model.PriorityCritical,
+			Description: "Red emergency triggers requiring immediate operational intervention",
+			TestResult:  "PASSED: THRESHOLD_CRITICAL_HIGH and THRESHOLD_CRITICAL_LOW triggers, critical precedence over warning, and de-escalation recovery without premature clearing verified.",
+			Notes:       "Verified in TestAlarmEvaluator_CriticalPrecedence, TestAlarmEvaluator_EscalationWarningToCritical, and TestAlarmEvaluator_DeescalationCriticalToWarning.",
+		},
+		{
+			TaskName:    "Alarm Engine",
+			TaskID:      63,
+			OrderIndex:  7,
+			Priority:    model.PriorityCritical,
+			Description: "Centralized evaluation pipeline with alarm state latching and hysteresis",
+			TestResult:  "PASSED: Centralized AlarmEvaluator pipeline, 1.0% deadband hysteresis, anti-flutter latching, concurrent sample protection, and restart database synchronization verified.",
+			Notes:       "Verified in TestAlarmEvaluator_ConcurrentTelemetrySafety (400 concurrent evaluations), TestAlarmEvaluator_StartupReloadFromDB, and TestAlarmEvaluator_RepeatedSamplesAntiDuplication.",
+		},
+	}
+
+	for _, vt := range verifiedTasksWave1 {
+		var t model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (id = ? OR task_name = ?)", phase6.ID, vt.TaskID, vt.TaskName).First(&t).Error; err == nil {
+			db.Model(&t).Updates(map[string]interface{}{
+				"status":          model.StatusDone,
+				"progress":        100.0,
+				"completion_date": &now,
+				"test_result":     vt.TestResult,
+				"notes":           vt.Notes,
+			})
+		} else {
+			db.Create(&model.DevelopmentTask{
+				PhaseID:        phase6.ID,
+				TaskName:       vt.TaskName,
+				Description:    vt.Description,
+				Status:         model.StatusDone,
+				Progress:       100.0,
+				Priority:       vt.Priority,
+				Owner:          "Lead System Engineer",
+				OrderIndex:     vt.OrderIndex,
+				CompletionDate: &now,
+				TestResult:     vt.TestResult,
+				Notes:          vt.Notes,
+			})
+		}
+	}
+
+	// Ensure remaining Phase 6 tasks (Waves 2-4) exist as PENDING if not present
+	pendingTasks := []struct {
+		TaskName    string
+		TaskID      uint
+		OrderIndex  int
+		Priority    model.Priority
+		Description string
+	}{
+		{"Device Offline", 60, 4, model.PriorityHigh, "Heartbeat monitoring alerting when devices stop responding"},
+		{"Communication Error", 61, 5, model.PriorityHigh, "Error rate monitoring alerting on serial parity or CRC failures"},
+		{"Data Abnormality", 62, 6, model.PriorityMedium, "Statistical outlier and stuck-value detection alarm triggers"},
+		{"Notification Engine", 64, 8, model.PriorityCritical, "Multi-channel dispatcher with rate limiting and retry queue"},
+		{"Alarm Acknowledgement", 65, 9, model.PriorityHigh, "Operator acknowledgement workflow with notes and audit logging"},
+		{"Alarm History", 66, 10, model.PriorityMedium, "Queryable historical alarm log with duration and resolution stats"},
+	}
+
+	for _, pt := range pendingTasks {
+		var t model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (id = ? OR task_name = ?)", phase6.ID, pt.TaskID, pt.TaskName).First(&t).Error; err != nil {
+			db.Create(&model.DevelopmentTask{
+				PhaseID:     phase6.ID,
+				TaskName:    pt.TaskName,
+				Description: pt.Description,
+				Status:      model.StatusPending,
+				Progress:    0.0,
+				Priority:    pt.Priority,
+				Owner:       "Lead System Engineer",
+				OrderIndex:  pt.OrderIndex,
+			})
+		}
+	}
+
+	RecalculatePhaseProgress(db, phase6.ID)
 }
 
 func updatePhase7Tracking(db *gorm.DB) {

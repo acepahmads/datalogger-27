@@ -243,6 +243,15 @@ func (r *DeviceRepository) GetParameterByID(deviceID, paramID uint) (*model.Para
 	return &param, nil
 }
 
+func (r *DeviceRepository) FindParameterByID(paramID uint) (*model.Parameter, error) {
+	var param model.Parameter
+	err := r.db.Where("id = ? AND deleted_at IS NULL", paramID).First(&param).Error
+	if err != nil {
+		return nil, err
+	}
+	return &param, nil
+}
+
 func (r *DeviceRepository) GetParameterByCode(deviceID uint, code string) (*model.Parameter, error) {
 	var param model.Parameter
 	cleanCode := strings.TrimSpace(code)

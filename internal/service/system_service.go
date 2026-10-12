@@ -243,9 +243,9 @@ func (s *SystemService) CreateAlarm(alarm *model.Alarm) error {
 	return errors.New("alarm service not configured")
 }
 
-func (s *SystemService) AcknowledgeAlarm(id uint, username string) error {
+func (s *SystemService) AcknowledgeAlarm(id uint, username string, notes ...string) error {
 	if s.alarmService != nil {
-		_, err := s.alarmService.AcknowledgeAlarm(context.Background(), id, username)
+		_, err := s.alarmService.AcknowledgeAlarm(context.Background(), id, username, notes...)
 		return err
 	}
 	return s.systemRepo.AcknowledgeAlarm(id, username)
