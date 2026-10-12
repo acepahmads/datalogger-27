@@ -117,6 +117,7 @@ func RunMigrations(db *gorm.DB) error {
 	ensureBackupPermissions(db)
 	ensureRetentionPermissions(db)
 	ensureDefaultRetentionPolicies(db)
+	ensureAdministrationAndReportPermissions(db)
 
 	// 5. Update Development Tracking Dashboard for Phase 2
 	updatePhase2Tracking(db)
@@ -1882,6 +1883,36 @@ func updatePhase7Tracking(db *gorm.DB) {
 				TestResult: "PASSED: Dedicated notification delivery queue and status panel integrated with Phase 6 Notification Engine. Dispatched, delivered, retrying, failed, cancelled metrics, channel configuration status (configured vs unconfigured), masked recipients, and retry/cancellation RBAC verified.",
 				Notes:      "Verified in TestPackageB_NotificationDeliveryQueueAndRBAC.",
 			},
+			{
+				TaskName:   "Reporting",
+				TaskID:     79,
+				TestResult: "PASSED: Operational reporting engine with real persisted data, device/parameter/date filters, statistical summaries (min/max/average), data quality indicators, fleet availability, alarm/communication summaries, and print-ready HTML, PDF, and CSV output verified.",
+				Notes:      "Verified in TestPackageC1_ReportPreviewJSON and TestPackageC1_ReportGenerateHTMLAndCSV (8/8 PASS).",
+			},
+			{
+				TaskName:   "User Management",
+				TaskID:     80,
+				TestResult: "PASSED: User account administration with server-side pagination, search, status filtering, create/edit workflows, active/inactive toggle, secure bcrypt password reset, audit logging, and last administrator lockout protection verified.",
+				Notes:      "Verified in TestPackageC2_UserListingPaginationAndFilter, TestPackageC2_UserCreateUpdateTogglePasswordAndAudit, and TestPackageC2_LastAdministratorProtection.",
+			},
+			{
+				TaskName:   "Role Management",
+				TaskID:     81,
+				TestResult: "PASSED: Role-based access control role definition interface with system role protection, role creation, update, and deletion validation against active user assignments with audit trail verified.",
+				Notes:      "Verified in TestPackageC3_RoleAndPermissionMatrixManagement.",
+			},
+			{
+				TaskName:   "Permission Management",
+				TaskID:     82,
+				TestResult: "PASSED: Granular capability matrix organized by resource and action, dynamic permission checker hook, server-side RBAC enforcement across all sensitive APIs, and admin role privilege protection verified.",
+				Notes:      "Verified in TestPackageC3_RoleAndPermissionMatrixManagement and TestPackageC3_RBACEnforcementAccessAllowedAndDenied.",
+			},
+			{
+				TaskName:   "System Configuration",
+				TaskID:     83,
+				TestResult: "PASSED: Safe runtime settings and serial communication configuration, restart required detection, live acquisition disruption warnings, secret masking, and audit logging verified.",
+				Notes:      "Verified in TestPackageC4_SystemConfigValidationAndRestartIndicator.",
+			},
 		}
 
 		for _, vt := range verifiedTasks {
@@ -2234,6 +2265,60 @@ func ensureRetentionPermissions(db *gorm.DB) {
 			"retention.view",
 		}).Find(&engPerms)
 		_ = db.Model(&engRole).Association("Permissions").Replace(engPerms)
+	}
+}
+
+func ensureAdministrationAndReportPermissions(db *gorm.DB) {
+	perms := []model.Permission{
+		{Code: "report.view", Name: "View Reports", Category: "REPORT", Description: "View and preview operational telemetry and system reports"},
+		{Code: "report.generate", Name: "Generate Reports", Category: "REPORT", Description: "Export and download reports in HTML, PDF, and CSV formats"},
+		{Code: "user.view", Name: "View Users", Category: "USER", Description: "View system user accounts, roles, and profile statuses"},
+		{Code: "user.manage", Name: "Manage Users", Category: "USER", Description: "Create, update, enable, disable, and reset passwords for user accounts"},
+		{Code: "role.view", Name: "View Roles", Category: "ROLE", Description: "View system roles and permission matrices"},
+		{Code: "role.manage", Name: "Manage Roles", Category: "ROLE", Description: "Create custom roles and modify role-to-permission assignments"},
+		{Code: "config.view", Name: "View System Configuration", Category: "CONFIG", Description: "View runtime configuration parameters, database, and serial settings"},
+		{Code: "config.manage", Name: "Manage System Configuration", Category: "CONFIG", Description: "Edit and save runtime configuration parameters and database settings"},
+	}
+
+	for _, p := range perms {
+		var existing model.Permission
+		if db.Where("code = ?", p.Code).First(&existing).Error != nil {
+			db.Create(&p)
+		}
+	}
+
+	// Administrator role gets all permissions
+	var adminRole model.Role
+	if db.Where("name = ?", "Administrator").First(&adminRole).Error == nil {
+		var allPerms []model.Permission
+		db.Find(&allPerms)
+		_ = db.Model(&adminRole).Association("Permissions").Replace(allPerms)
+	}
+
+	// Engineer gets report.view, report.generate, config.view, user.view, role.view
+	var engRole model.Role
+	if db.Where("name = ?", "Engineer").First(&engRole).Error == nil {
+		var engPerms []model.Permission
+		db.Where("code IN ?", []string{
+			"device.view", "device.create", "device.update", "device.manage",
+			"device.communication.view", "device.communication.manage", "device.communication.test",
+			"backup.view", "backup.create", "backup.validate",
+			"retention.view", "alarm.view", "alarm.manage", "alarm.acknowledge",
+			"notification.view", "notification.manage",
+			"report.view", "report.generate", "config.view", "user.view", "role.view",
+		}).Find(&engPerms)
+		_ = db.Model(&engRole).Association("Permissions").Replace(engPerms)
+	}
+
+	// Operator gets report.view, report.generate
+	var opRole model.Role
+	if db.Where("name = ?", "Operator").First(&opRole).Error == nil {
+		var opPerms []model.Permission
+		db.Where("code IN ?", []string{
+			"device.view", "device.communication.view", "alarm.view", "alarm.acknowledge",
+			"notification.view", "report.view", "report.generate",
+		}).Find(&opPerms)
+		_ = db.Model(&opRole).Association("Permissions").Replace(opPerms)
 	}
 }
 

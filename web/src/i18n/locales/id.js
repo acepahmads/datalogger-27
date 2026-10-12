@@ -23,6 +23,8 @@ export default {
     "backupRestore": "Pencadangan & Pemulihan",
     "retentionStorage": "Retensi & Penyimpanan",
     "integrations": "Integrasi",
+    "reports": "Laporan",
+    "usersRoles": "Pengguna & RBAC",
     "edgeSystem": "Sistem Edge Lokal Mandiri",
     "edgeDatabase": "Database MariaDB Edge"
   },
@@ -1670,5 +1672,41 @@ export default {
     "page": "Halaman",
     "of": "dari",
     "totalRecords": "total catatan"
+  },
+  "reports": {
+    "title": "Pelaporan Operasional",
+    "subtitle": "Telemetri operasional berintegritas tinggi, ketersediaan armada, audit alarm, dan ekspor kepatuhan",
+    "printPdf": "Cetak / Simpan PDF",
+    "exportCsv": "Ekspor CSV",
+    "downloadHtml": "Unduh HTML",
+    "type": "Jenis Laporan",
+    "startTime": "Waktu Mulai",
+    "endTime": "Waktu Selesai",
+    "device": "Filter Perangkat",
+    "allDevices": "Semua Perangkat Armada",
+    "timezone": "Zona Waktu",
+    "preview": "Pratinjau",
+    "period": "Periode Laporan",
+    "generatedAt": "Dihasilkan Pada",
+    "serverAggregation": "Mode Mesin",
+    "kpiAvailability": "Ketersediaan Armada",
+    "kpiDataQuality": "Kualitas Data Baik",
+    "kpiAlarms": "Alarm Aktif / Total",
+    "kpiFleet": "Peralatan Aktif",
+    "deviceAvailabilityTitle": "Ketersediaan Armada Perangkat & Audit Komunikasi",
+    "telemetryStatisticsTitle": "Statistik Telemetri Parameter & Metrik Kualitas",
+    "alarmAuditTitle": "Log Alarm & Pengecualian Operasional",
+    "noAlarmsRecorded": "Tidak ada alarm kritis atau peringatan yang terjadi selama interval pelaporan ini.",
+    "noDataTitle": "Tidak Ada Catatan Telemetri pada Periode Ini",
+    "noDataDesc": "Tidak ada data sensor mentah atau catatan alarm yang tercatat selama interval yang dipilih. Coba sesuaikan rentang tanggal atau pilih semua perangkat.",
+    "resetLast24h": "Lihat 24 Jam Terakhir"
+  },
+  "accessControl": {
+    "title": "Kontrol Akses & Administrasi",
+    "subtitle": "Manajemen kredensial pengguna, definisi peran RBAC, dan matriks kapabilitas terperinci",
+    "usersTab": "Pengguna",
+    "rolesTab": "Peran & Izin",
+    "searchPlaceholder": "Cari nama pengguna, nama lengkap, email...",
+    "createUser": "Buat Pengguna"
   }
 };

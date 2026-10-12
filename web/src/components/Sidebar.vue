@@ -115,6 +115,14 @@
             <span class="font-medium text-slate-200">{{ $t('navigation.telemetryAnalysis') }}</span>
           </router-link>
 
+          <router-link to="/monitoring/reports" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/reports' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <span>{{ $t('navigation.reports') || 'Reports' }}</span>
+          </router-link>
+
           <router-link to="/dashboard" class="nav-item" :class="{ 'nav-active': $route.path === '/dashboard' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
@@ -200,6 +208,17 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
             </svg>
             <span>{{ $t('navigation.retentionStorage') }}</span>
+          </router-link>
+
+          <router-link to="/administration/users" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/users') || $route.path.startsWith('/administration/roles') }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>{{ $t('navigation.usersRoles') || 'Users & RBAC' }}</span>
           </router-link>
 
           <router-link to="/administration/config" class="nav-item">

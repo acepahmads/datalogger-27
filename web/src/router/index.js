@@ -16,6 +16,8 @@ import ReleaseDocView from '../views/ReleaseDocView.vue';
 import ConfigView from '../views/ConfigView.vue';
 import BackupRestoreView from '../views/BackupRestoreView.vue';
 import RetentionStorageView from '../views/RetentionStorageView.vue';
+import ReportsView from '../views/ReportsView.vue';
+import AccessControlView from '../views/AccessControlView.vue';
 
 Vue.use(VueRouter);
 
@@ -34,6 +36,7 @@ const routes = [
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/devices/:id', redirect: to => `/monitoring/devices/${to.params.id}` },
   { path: '/monitoring/parameters', name: 'Parameters', component: DevicesView },
+  { path: '/monitoring/reports', name: 'Reports', component: ReportsView },
   { path: '/alarm', redirect: '/alarm/active' },
   { path: '/alarms', redirect: '/alarm/active' },
   { path: '/alarm/active', name: 'ActiveAlarms', component: AlarmsView },
@@ -48,6 +51,9 @@ const routes = [
   { path: '/administration/config', name: 'Configuration', component: ConfigView },
   { path: '/administration/backup', name: 'BackupRestore', component: BackupRestoreView },
   { path: '/administration/retention', name: 'RetentionStorage', component: RetentionStorageView },
+  { path: '/administration/users', name: 'UserManagement', component: AccessControlView },
+  { path: '/administration/roles', name: 'RoleManagement', component: AccessControlView },
+  { path: '/administration/access-control', redirect: '/administration/users' },
   { path: '*', redirect: '/dashboard' },
 ];
 

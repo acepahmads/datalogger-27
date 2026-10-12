@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"datalogger/internal/config"
@@ -342,11 +344,268 @@ func (s *SystemService) SaveDatabaseConfig(host, port, user, password, dbName st
 	cfg.DBHost = host
 	cfg.DBPort = port
 	cfg.DBUser = user
-	if password != "" {
+	if password != "" && password != "••••••••" && password != "********" {
 		cfg.DBPassword = password
 	}
 	cfg.DBName = dbName
 
 	return config.Save("config.json", cfg)
 }
+
+type SystemConfigDTO struct {
+	AppName                     string `json:"app_name"`
+	Version                     string `json:"version"`
+	Environment                 string `json:"environment"`
+	Port                        string `json:"port"`
+	Host                        string `json:"host"`
+	DBType                      string `json:"db_type"`
+	DBHost                      string `json:"db_host"`
+	DBPort                      string `json:"db_port"`
+	DBUser                      string `json:"db_user"`
+	DBPassword                  string `json:"db_password"` // Masked
+	DBName                      string `json:"db_name"`
+	LogLevel                    string `json:"log_level"`
+	JWTExpirationHours          int    `json:"jwt_expiration_hours"`
+	SerialPort                  string `json:"serial_port"`
+	SerialBaudRate              int    `json:"serial_baud_rate"`
+	SerialDataBits              int    `json:"serial_data_bits"`
+	SerialStopBits              int    `json:"serial_stop_bits"`
+	SerialParity                string `json:"serial_parity"`
+	SerialTimeoutMs             int    `json:"serial_timeout_ms"`
+	QueueEnabled                bool   `json:"queue_enabled"`
+	QueueBatchSize              int    `json:"queue_batch_size"`
+	QueueFlushIntervalMs        int    `json:"queue_flush_interval_ms"`
+	BackupScheduleEnabled       bool   `json:"backup_schedule_enabled"`
+	BackupScheduleIntervalHours int    `json:"backup_schedule_interval_hours"`
+	BackupScheduleTime          string `json:"backup_schedule_time"`
+	BackupCompression           string `json:"backup_compression"`
+}
+
+type SaveSystemConfigRequest struct {
+	Environment        string `json:"environment"`
+	Port               string `json:"port"`
+	Host               string `json:"host"`
+	DBHost             string `json:"db_host"`
+	DBPort             string `json:"db_port"`
+	DBUser             string `json:"db_user"`
+	DBPassword         string `json:"db_password"`
+	DBName             string `json:"db_name"`
+	LogLevel           string `json:"log_level"`
+	JWTExpirationHours int    `json:"jwt_expiration_hours"`
+	SerialPort         string `json:"serial_port"`
+	SerialBaudRate     int    `json:"serial_baud_rate"`
+	SerialDataBits     int    `json:"serial_data_bits"`
+	SerialStopBits     int    `json:"serial_stop_bits"`
+	SerialParity       string `json:"serial_parity"`
+	SerialTimeoutMs    int    `json:"serial_timeout_ms"`
+}
+
+type ConfigSaveResult struct {
+	Saved                 bool     `json:"saved"`
+	RestartRequired       bool     `json:"restart_required"`
+	AcquisitionDisruption bool     `json:"acquisition_disruption"`
+	RestartRequiredFields []string `json:"restart_required_fields"`
+	DisruptedFields       []string `json:"disrupted_fields"`
+	Message               string   `json:"message"`
+}
+
+func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
+	cfg := config.Get()
+	return &SystemConfigDTO{
+		AppName:                     cfg.AppName,
+		Version:                     cfg.Version,
+		Environment:                 cfg.Environment,
+		Port:                        cfg.Port,
+		Host:                        cfg.Host,
+		DBType:                      cfg.DBType,
+		DBHost:                      cfg.DBHost,
+		DBPort:                      cfg.DBPort,
+		DBUser:                      cfg.DBUser,
+		DBPassword:                  "••••••••",
+		DBName:                      cfg.DBName,
+		LogLevel:                    cfg.LogLevel,
+		JWTExpirationHours:          cfg.JWTExpirationHours,
+		SerialPort:                  cfg.SerialPort,
+		SerialBaudRate:              cfg.SerialBaudRate,
+		SerialDataBits:              cfg.SerialDataBits,
+		SerialStopBits:              cfg.SerialStopBits,
+		SerialParity:                cfg.SerialParity,
+		SerialTimeoutMs:             cfg.SerialTimeoutMs,
+		QueueEnabled:                cfg.QueueEnabled,
+		QueueBatchSize:              cfg.QueueBatchSize,
+		QueueFlushIntervalMs:        cfg.QueueFlushIntervalMs,
+		BackupScheduleEnabled:       cfg.BackupScheduleEnabled,
+		BackupScheduleIntervalHours: cfg.BackupScheduleIntervalHours,
+		BackupScheduleTime:          cfg.BackupScheduleTime,
+		BackupCompression:           cfg.BackupCompression,
+	}
+}
+
+func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID uint, actorUsername, ip, ua string) (*ConfigSaveResult, error) {
+	cfg := config.Get()
+
+	// 1. Validation
+	if req.Port != "" {
+		p, err := strconv.Atoi(req.Port)
+		if err != nil || p < 1 || p > 65535 {
+			return nil, errors.New("HTTP Port must be a valid port number between 1 and 65535")
+		}
+	}
+	if req.DBPort != "" {
+		p, err := strconv.Atoi(req.DBPort)
+		if err != nil || p < 1 || p > 65535 {
+			return nil, errors.New("Database Port must be a valid port number between 1 and 65535")
+		}
+	}
+	if req.LogLevel != "" {
+		validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
+		if !validLevels[strings.ToLower(req.LogLevel)] {
+			return nil, errors.New("invalid log level: must be 'debug', 'info', 'warn', or 'error'")
+		}
+	}
+	if req.SerialBaudRate > 0 {
+		validBauds := map[int]bool{1200: true, 2400: true, 4800: true, 9600: true, 19200: true, 38400: true, 57600: true, 115200: true}
+		if !validBauds[req.SerialBaudRate] {
+			return nil, errors.New("invalid serial baud rate: must be standard rate (e.g. 9600, 19200, 115200)")
+		}
+	}
+	if req.SerialDataBits > 0 && req.SerialDataBits != 7 && req.SerialDataBits != 8 {
+		return nil, errors.New("serial data bits must be 7 or 8")
+	}
+	if req.SerialStopBits > 0 && req.SerialStopBits != 1 && req.SerialStopBits != 2 {
+		return nil, errors.New("serial stop bits must be 1 or 2")
+	}
+	if req.SerialParity != "" {
+		p := strings.ToUpper(req.SerialParity)
+		if p != "N" && p != "E" && p != "O" && p != "NONE" && p != "EVEN" && p != "ODD" {
+			return nil, errors.New("serial parity must be 'N' (None), 'E' (Even), or 'O' (Odd)")
+		}
+	}
+
+	var restartFields []string
+	var disruptedFields []string
+	var changedNotes []string
+
+	// Detect changes
+	if req.DBHost != "" && req.DBHost != cfg.DBHost {
+		restartFields = append(restartFields, "db_host")
+		changedNotes = append(changedNotes, fmt.Sprintf("db_host: %s -> %s", cfg.DBHost, req.DBHost))
+		cfg.DBHost = req.DBHost
+	}
+	if req.DBPort != "" && req.DBPort != cfg.DBPort {
+		restartFields = append(restartFields, "db_port")
+		changedNotes = append(changedNotes, fmt.Sprintf("db_port: %s -> %s", cfg.DBPort, req.DBPort))
+		cfg.DBPort = req.DBPort
+	}
+	if req.DBName != "" && req.DBName != cfg.DBName {
+		restartFields = append(restartFields, "db_name")
+		changedNotes = append(changedNotes, fmt.Sprintf("db_name: %s -> %s", cfg.DBName, req.DBName))
+		cfg.DBName = req.DBName
+	}
+	if req.DBUser != "" && req.DBUser != cfg.DBUser {
+		restartFields = append(restartFields, "db_user")
+		changedNotes = append(changedNotes, fmt.Sprintf("db_user: %s -> %s", cfg.DBUser, req.DBUser))
+		cfg.DBUser = req.DBUser
+	}
+	if req.DBPassword != "" && req.DBPassword != "••••••••" && req.DBPassword != "********" {
+		changedNotes = append(changedNotes, "db_password: [REDACTED_CHANGED]")
+		cfg.DBPassword = req.DBPassword
+	}
+	if req.Port != "" && req.Port != cfg.Port {
+		restartFields = append(restartFields, "port")
+		changedNotes = append(changedNotes, fmt.Sprintf("port: %s -> %s", cfg.Port, req.Port))
+		cfg.Port = req.Port
+	}
+	if req.Host != "" && req.Host != cfg.Host {
+		restartFields = append(restartFields, "host")
+		changedNotes = append(changedNotes, fmt.Sprintf("host: %s -> %s", cfg.Host, req.Host))
+		cfg.Host = req.Host
+	}
+	if req.Environment != "" && req.Environment != cfg.Environment {
+		changedNotes = append(changedNotes, fmt.Sprintf("environment: %s -> %s", cfg.Environment, req.Environment))
+		cfg.Environment = req.Environment
+	}
+	if req.LogLevel != "" && req.LogLevel != cfg.LogLevel {
+		changedNotes = append(changedNotes, fmt.Sprintf("log_level: %s -> %s", cfg.LogLevel, req.LogLevel))
+		cfg.LogLevel = req.LogLevel
+	}
+	if req.JWTExpirationHours > 0 && req.JWTExpirationHours != cfg.JWTExpirationHours {
+		changedNotes = append(changedNotes, fmt.Sprintf("jwt_expiration_hours: %d -> %d", cfg.JWTExpirationHours, req.JWTExpirationHours))
+		cfg.JWTExpirationHours = req.JWTExpirationHours
+	}
+
+	// Serial communication settings
+	if req.SerialPort != "" && req.SerialPort != cfg.SerialPort {
+		disruptedFields = append(disruptedFields, "serial_port")
+		changedNotes = append(changedNotes, fmt.Sprintf("serial_port: %s -> %s", cfg.SerialPort, req.SerialPort))
+		cfg.SerialPort = req.SerialPort
+	}
+	if req.SerialBaudRate > 0 && req.SerialBaudRate != cfg.SerialBaudRate {
+		disruptedFields = append(disruptedFields, "serial_baud_rate")
+		changedNotes = append(changedNotes, fmt.Sprintf("serial_baud_rate: %d -> %d", cfg.SerialBaudRate, req.SerialBaudRate))
+		cfg.SerialBaudRate = req.SerialBaudRate
+	}
+	if req.SerialDataBits > 0 && req.SerialDataBits != cfg.SerialDataBits {
+		disruptedFields = append(disruptedFields, "serial_data_bits")
+		changedNotes = append(changedNotes, fmt.Sprintf("serial_data_bits: %d -> %d", cfg.SerialDataBits, req.SerialDataBits))
+		cfg.SerialDataBits = req.SerialDataBits
+	}
+	if req.SerialStopBits > 0 && req.SerialStopBits != cfg.SerialStopBits {
+		disruptedFields = append(disruptedFields, "serial_stop_bits")
+		changedNotes = append(changedNotes, fmt.Sprintf("serial_stop_bits: %d -> %d", cfg.SerialStopBits, req.SerialStopBits))
+		cfg.SerialStopBits = req.SerialStopBits
+	}
+	if req.SerialParity != "" && req.SerialParity != cfg.SerialParity {
+		disruptedFields = append(disruptedFields, "serial_parity")
+		changedNotes = append(changedNotes, fmt.Sprintf("serial_parity: %s -> %s", cfg.SerialParity, req.SerialParity))
+		cfg.SerialParity = req.SerialParity
+	}
+	if req.SerialTimeoutMs > 0 && req.SerialTimeoutMs != cfg.SerialTimeoutMs {
+		disruptedFields = append(disruptedFields, "serial_timeout_ms")
+		changedNotes = append(changedNotes, fmt.Sprintf("serial_timeout_ms: %d -> %d", cfg.SerialTimeoutMs, req.SerialTimeoutMs))
+		cfg.SerialTimeoutMs = req.SerialTimeoutMs
+	}
+
+	if err := config.Save("config.json", cfg); err != nil {
+		return nil, errors.New("failed to save configuration file: " + err.Error())
+	}
+
+	// Audit trail
+	details := "Configuration updated."
+	if len(changedNotes) > 0 {
+		details = "Configuration updated: " + strings.Join(changedNotes, ", ")
+	}
+
+	_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+		UserID:    &actorID,
+		Username:  actorUsername,
+		Action:    "CONFIG_UPDATE",
+		Resource:  "CONFIG",
+		Details:   details,
+		IPAddress: ip,
+		UserAgent: ua,
+		CreatedAt: time.Now(),
+	})
+
+	restartRequired := len(restartFields) > 0
+	acqDisruption := len(disruptedFields) > 0 || restartRequired
+
+	msg := "System configuration saved successfully."
+	if restartRequired {
+		msg += " Note: Some changes (" + strings.Join(restartFields, ", ") + ") require an application restart to take effect."
+	}
+	if len(disruptedFields) > 0 {
+		msg += " Active serial acquisition ports may need to be reconnected."
+	}
+
+	return &ConfigSaveResult{
+		Saved:                 true,
+		RestartRequired:       restartRequired,
+		AcquisitionDisruption: acqDisruption,
+		RestartRequiredFields: restartFields,
+		DisruptedFields:       disruptedFields,
+		Message:               msg,
+	}, nil
+}
+
 

@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"sync"
 
 	"datalogger/internal/logger"
 	"datalogger/internal/service"
@@ -61,6 +62,18 @@ func JWTAuth(authService *service.AuthService) gin.HandlerFunc {
 	}
 }
 
+var (
+	permCheckerMu sync.RWMutex
+	permChecker   func(role string, permission string) bool
+)
+
+// SetPermissionChecker registers a dynamic permission checker function
+func SetPermissionChecker(checker func(role string, permission string) bool) {
+	permCheckerMu.Lock()
+	defer permCheckerMu.Unlock()
+	permChecker = checker
+}
+
 // RequirePermission checks if the authenticated user has the specified permission
 func RequirePermission(permissionCode string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -79,6 +92,15 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
+		// Check dynamic permission checker if registered
+		permCheckerMu.RLock()
+		checker := permChecker
+		permCheckerMu.RUnlock()
+		if checker != nil && checker(role, permissionCode) {
+			c.Next()
+			return
+		}
+
 		// Engineer has permissions for creating, updating, managing, viewing devices, backup operations, viewing retention, and notification/alarm management
 		if strings.EqualFold(role, "Engineer") {
 			if permissionCode == "device.view" || permissionCode == "device.create" ||
@@ -88,17 +110,20 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				permissionCode == "backup.view" || permissionCode == "backup.create" || permissionCode == "backup.validate" ||
 				permissionCode == "retention.view" ||
 				permissionCode == "notification.view" || permissionCode == "notification.manage" ||
-				permissionCode == "alarm.view" || permissionCode == "alarm.manage" || permissionCode == "alarm.acknowledge" {
+				permissionCode == "alarm.view" || permissionCode == "alarm.manage" || permissionCode == "alarm.acknowledge" ||
+				permissionCode == "report.view" || permissionCode == "report.generate" ||
+				permissionCode == "config.view" || permissionCode == "user.view" || permissionCode == "role.view" {
 				c.Next()
 				return
 			}
 		}
 
-		// Operator has operational read/view and alarm acknowledgement permissions
+		// Operator has operational read/view, report preview/generate, and alarm acknowledgement permissions
 		if strings.EqualFold(role, "Operator") {
 			if permissionCode == "device.view" || permissionCode == "device.communication.view" ||
 				permissionCode == "notification.view" || permissionCode == "alarm.view" ||
-				permissionCode == "alarm.acknowledge" {
+				permissionCode == "alarm.acknowledge" ||
+				permissionCode == "report.view" || permissionCode == "report.generate" {
 				c.Next()
 				return
 			}
@@ -108,6 +133,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 		c.Abort()
 	}
 }
+
 
 // RequestLogger logs incoming HTTP requests with latency
 func RequestLogger() gin.HandlerFunc {

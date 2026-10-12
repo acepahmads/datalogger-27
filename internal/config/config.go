@@ -46,6 +46,14 @@ type Config struct {
 	BackupCompression           string `json:"backup_compression"` // "gzip", "none"
 	BackupMinFreeSpaceMB        int64  `json:"backup_min_free_space_mb"`
 	BackupMaxKeepCount          int    `json:"backup_max_keep_count"`
+
+	// Communication / Serial Bus Defaults (Phase 7 #83)
+	SerialPort      string `json:"serial_port"`
+	SerialBaudRate  int    `json:"serial_baud_rate"`
+	SerialDataBits  int    `json:"serial_data_bits"`
+	SerialStopBits  int    `json:"serial_stop_bits"`
+	SerialParity    string `json:"serial_parity"`
+	SerialTimeoutMs int    `json:"serial_timeout_ms"`
 }
 
 var (
@@ -89,6 +97,12 @@ func DefaultConfig() *Config {
 		BackupCompression:           "gzip",
 		BackupMinFreeSpaceMB:        500,
 		BackupMaxKeepCount:          10,
+		SerialPort:                  "COM1",
+		SerialBaudRate:              9600,
+		SerialDataBits:              8,
+		SerialStopBits:              1,
+		SerialParity:                "N",
+		SerialTimeoutMs:             1000,
 	}
 }
 

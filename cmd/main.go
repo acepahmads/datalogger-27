@@ -74,6 +74,7 @@ func main() {
 
 	// 6. Initialize Services
 	authService := service.NewAuthService(systemRepo, cfg)
+	middleware.SetPermissionChecker(authService.HasPermission)
 	deviceService := service.NewDeviceService(deviceRepo, systemRepo)
 	phaseService := service.NewPhaseService(phaseRepo, systemRepo)
 	systemService := service.NewSystemService(systemRepo, phaseRepo, cfg)
@@ -180,6 +181,10 @@ func main() {
 	backupHandler := handler.NewBackupHandler(backupService, backupScheduler)
 	retentionHandler := handler.NewRetentionHandler(retentionService, retentionScheduler)
 	notificationHandler := handler.NewNotificationHandler(notificationEngine, notificationRepo)
+	reportService := service.NewReportService(db, systemRepo)
+	reportHandler := handler.NewReportHandler(reportService)
+	userHandler := handler.NewUserHandler(authService)
+	roleHandler := handler.NewRoleHandler(authService)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -374,6 +379,56 @@ func main() {
 			notifGroup.GET("/channels/:id", middleware.RequirePermission("notification.view"), notificationHandler.GetChannel)
 			notifGroup.PUT("/channels/:id", middleware.RequirePermission("notification.manage"), notificationHandler.UpdateChannel)
 			notifGroup.POST("/channels/:id/test", middleware.RequirePermission("notification.manage"), notificationHandler.TestSend)
+		}
+
+		// Phase 7 Package C1 — Operational Reporting (Task #79)
+		reportsGroup := api.Group("/reports")
+		reportsGroup.Use(middleware.JWTAuth(authService))
+		{
+			reportsGroup.GET("/preview", middleware.RequirePermission("report.view"), reportHandler.PreviewReport)
+			reportsGroup.POST("/preview", middleware.RequirePermission("report.view"), reportHandler.PreviewReport)
+			reportsGroup.GET("/generate", middleware.RequirePermission("report.generate"), reportHandler.GenerateReport)
+			reportsGroup.POST("/generate", middleware.RequirePermission("report.generate"), reportHandler.GenerateReport)
+		}
+
+		// Phase 7 Package C2 — User Management (Task #80)
+		usersGroup := api.Group("/users")
+		usersGroup.Use(middleware.JWTAuth(authService))
+		{
+			usersGroup.GET("", middleware.RequirePermission("user.view"), userHandler.ListUsers)
+			usersGroup.GET("/:id", middleware.RequirePermission("user.view"), userHandler.GetUser)
+			usersGroup.POST("", middleware.RequirePermission("user.manage"), userHandler.CreateUser)
+			usersGroup.PUT("/:id", middleware.RequirePermission("user.manage"), userHandler.UpdateUser)
+			usersGroup.PUT("/:id/enable", middleware.RequirePermission("user.manage"), userHandler.ToggleUserActive)
+			usersGroup.PUT("/:id/password", middleware.RequirePermission("user.manage"), userHandler.ResetPassword)
+			usersGroup.DELETE("/:id", middleware.RequirePermission("user.manage"), userHandler.DeleteUser)
+		}
+
+		// Phase 7 Package C3 — Role & Permission Management (Tasks #81, #82)
+		rolesGroup := api.Group("/roles")
+		rolesGroup.Use(middleware.JWTAuth(authService))
+		{
+			rolesGroup.GET("", middleware.RequirePermission("role.view"), roleHandler.ListRoles)
+			rolesGroup.GET("/:id", middleware.RequirePermission("role.view"), roleHandler.GetRole)
+			rolesGroup.POST("", middleware.RequirePermission("role.manage"), roleHandler.CreateRole)
+			rolesGroup.PUT("/:id", middleware.RequirePermission("role.manage"), roleHandler.UpdateRole)
+			rolesGroup.PUT("/:id/permissions", middleware.RequirePermission("role.manage"), roleHandler.UpdateRolePermissions)
+			rolesGroup.DELETE("/:id", middleware.RequirePermission("role.manage"), roleHandler.DeleteRole)
+		}
+
+		permissionsGroup := api.Group("/permissions")
+		permissionsGroup.Use(middleware.JWTAuth(authService))
+		{
+			permissionsGroup.GET("", middleware.RequirePermission("role.view"), roleHandler.ListPermissions)
+		}
+
+		// Phase 7 Package C4 — System Configuration (Task #83)
+		configGroup := api.Group("/system/config")
+		configGroup.Use(middleware.JWTAuth(authService))
+		{
+			configGroup.GET("", middleware.RequirePermission("config.view"), systemHandler.GetConfig)
+			configGroup.PUT("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
+			configGroup.POST("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
 		}
 	}
 

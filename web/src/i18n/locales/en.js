@@ -23,6 +23,8 @@ export default {
     "backupRestore": "Backup & Restore",
     "retentionStorage": "Retention & Storage",
     "integrations": "Integrations",
+    "reports": "Reports",
+    "usersRoles": "Users & RBAC",
     "edgeSystem": "Local-First Edge System",
     "edgeDatabase": "MariaDB Edge"
   },
@@ -1670,5 +1672,41 @@ export default {
     "page": "Page",
     "of": "of",
     "totalRecords": "total records"
+  },
+  "reports": {
+    "title": "Operational Reporting",
+    "subtitle": "High-integrity operational telemetry, fleet availability, alarm audits, and compliance export",
+    "printPdf": "Print / Save PDF",
+    "exportCsv": "CSV Export",
+    "downloadHtml": "Download HTML",
+    "type": "Report Type",
+    "startTime": "Start Time",
+    "endTime": "End Time",
+    "device": "Device Filter",
+    "allDevices": "All Fleet Devices",
+    "timezone": "Timezone",
+    "preview": "Preview",
+    "period": "Reporting Period",
+    "generatedAt": "Generated At",
+    "serverAggregation": "Engine Mode",
+    "kpiAvailability": "Fleet Availability",
+    "kpiDataQuality": "Good Data Quality",
+    "kpiAlarms": "Active / Total Alarms",
+    "kpiFleet": "Active Equipment",
+    "deviceAvailabilityTitle": "Device Fleet Availability & Communication Audit",
+    "telemetryStatisticsTitle": "Parameter Telemetry & Statistical Quality Metrics",
+    "alarmAuditTitle": "Operational Alarms & Exception Log",
+    "noAlarmsRecorded": "No critical or warning alarms occurred during this reporting interval.",
+    "noDataTitle": "No Telemetry Records in Period",
+    "noDataDesc": "No raw sensor data or alarm records were captured during the selected interval. Try adjusting the date range or select all devices.",
+    "resetLast24h": "View Last 24 Hours"
+  },
+  "accessControl": {
+    "title": "Access Control & Administration",
+    "subtitle": "User credential management, RBAC role definitions, and granular capability matrices",
+    "usersTab": "Users",
+    "rolesTab": "Roles & Permissions",
+    "searchPlaceholder": "Search username, full name, email...",
+    "createUser": "Create User"
   }
 };

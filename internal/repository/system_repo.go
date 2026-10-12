@@ -278,3 +278,171 @@ func (r *SystemRepository) UpdateUserLastLogin(id uint) error {
 	now := time.Now()
 	return r.db.Model(&model.User{}).Where("id = ?", id).Update("last_login", &now).Error
 }
+
+type UserFilterParams struct {
+	Search   string
+	Status   string // "ACTIVE", "INACTIVE", "ALL"
+	RoleID   uint
+	Page     int
+	PageSize int
+}
+
+func (r *SystemRepository) GetUsersFiltered(params UserFilterParams) ([]model.User, int64, error) {
+	query := r.db.Model(&model.User{}).Preload("Role")
+
+	if params.Search != "" {
+		like := "%" + params.Search + "%"
+		query = query.Where("username LIKE ? OR full_name LIKE ? OR email LIKE ?", like, like, like)
+	}
+
+	if strings.EqualFold(params.Status, "ACTIVE") {
+		query = query.Where("is_active = ?", true)
+	} else if strings.EqualFold(params.Status, "INACTIVE") {
+		query = query.Where("is_active = ?", false)
+	}
+
+	if params.RoleID > 0 {
+		query = query.Where("role_id = ?", params.RoleID)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	page := params.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := params.PageSize
+	if pageSize < 1 || pageSize > 500 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	var users []model.User
+	err := query.Order("id ASC").Offset(offset).Limit(pageSize).Find(&users).Error
+	return users, total, err
+}
+
+func (r *SystemRepository) CreateUser(user *model.User) error {
+	return r.db.Create(user).Error
+}
+
+func (r *SystemRepository) UpdateUser(user *model.User) error {
+	return r.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
+		"full_name": user.FullName,
+		"email":     user.Email,
+		"role_id":   user.RoleID,
+		"is_active": user.IsActive,
+	}).Error
+}
+
+func (r *SystemRepository) SetUserActive(id uint, isActive bool) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("is_active", isActive).Error
+}
+
+func (r *SystemRepository) UpdateUserPassword(id uint, hashedPassword string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Update("password", hashedPassword).Error
+}
+
+func (r *SystemRepository) DeleteUser(id uint) error {
+	return r.db.Delete(&model.User{}, id).Error
+}
+
+func (r *SystemRepository) CountActiveAdmins() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.User{}).
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Where("users.is_active = ? AND (roles.name = ? OR roles.name = ?)", true, "Administrator", "admin").
+		Count(&count).Error
+	return count, err
+}
+
+// Role & Permission Management
+func (r *SystemRepository) GetRoles() ([]model.Role, error) {
+	var roles []model.Role
+	err := r.db.Preload("Permissions").Order("id ASC").Find(&roles).Error
+	return roles, err
+}
+
+func (r *SystemRepository) GetRoleByID(id uint) (*model.Role, error) {
+	var role model.Role
+	err := r.db.Preload("Permissions").First(&role, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *SystemRepository) GetRoleByName(name string) (*model.Role, error) {
+	var role model.Role
+	err := r.db.Preload("Permissions").Where("name = ?", name).First(&role).Error
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *SystemRepository) CreateRole(role *model.Role) error {
+	return r.db.Create(role).Error
+}
+
+func (r *SystemRepository) UpdateRole(id uint, name, description string) error {
+	return r.db.Model(&model.Role{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"name":        name,
+		"description": description,
+	}).Error
+}
+
+func (r *SystemRepository) UpdateRolePermissions(roleID uint, permissionIDs []uint) error {
+	var role model.Role
+	if err := r.db.First(&role, roleID).Error; err != nil {
+		return err
+	}
+
+	var perms []model.Permission
+	if len(permissionIDs) > 0 {
+		if err := r.db.Where("id IN ?", permissionIDs).Find(&perms).Error; err != nil {
+			return err
+		}
+	}
+
+	return r.db.Model(&role).Association("Permissions").Replace(perms)
+}
+
+func (r *SystemRepository) DeleteRole(id uint) error {
+	var role model.Role
+	if err := r.db.First(&role, id).Error; err != nil {
+		return err
+	}
+	// Clear permission associations first
+	_ = r.db.Model(&role).Association("Permissions").Clear()
+	return r.db.Delete(&role).Error
+}
+
+func (r *SystemRepository) CountUsersWithRole(roleID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.User{}).Where("role_id = ?", roleID).Count(&count).Error
+	return count, err
+}
+
+func (r *SystemRepository) GetPermissions() ([]model.Permission, error) {
+	var perms []model.Permission
+	err := r.db.Order("category ASC, code ASC").Find(&perms).Error
+	return perms, err
+}
+
+func (r *SystemRepository) GetRolePermissionCodes(roleName string) ([]string, error) {
+	var role model.Role
+	err := r.db.Preload("Permissions").Where("name = ?", roleName).First(&role).Error
+	if err != nil {
+		return nil, err
+	}
+	codes := make([]string, 0, len(role.Permissions))
+	for _, p := range role.Permissions {
+		codes = append(codes, p.Code)
+	}
+	return codes, nil
+}
+

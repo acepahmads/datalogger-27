@@ -844,6 +844,45 @@ func (h *SystemHandler) SaveDatabaseConfig(c *gin.Context) {
 	})
 }
 
+// GetConfig returns the masked runtime system configuration (config.view)
+func (h *SystemHandler) GetConfig(c *gin.Context) {
+	cfg := h.systemService.GetSystemConfig()
+	response.OK(c, cfg)
+}
+
+// SaveConfig safely updates runtime configuration parameters with validation and audit logging (config.manage)
+func (h *SystemHandler) SaveConfig(c *gin.Context) {
+	var req service.SaveSystemConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid configuration payload: "+err.Error())
+		return
+	}
+
+	var actorID uint
+	if uid, exists := c.Get("userID"); exists {
+		if id, ok := uid.(uint); ok {
+			actorID = id
+		}
+	}
+	actorUsername := "system"
+	if u, exists := c.Get("username"); exists {
+		if un, ok := u.(string); ok {
+			actorUsername = un
+		}
+	}
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+
+	result, err := h.systemService.SaveSystemConfig(req, actorID, actorUsername, ip, ua)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	response.OK(c, result)
+}
+
+
 func formatAlarmDuration(seconds int64) string {
 	if seconds < 0 {
 		return "0s"
