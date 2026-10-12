@@ -264,13 +264,17 @@ func TestProgressSummaryDTO(t *testing.T) {
 		t.Fatalf("GetProgressSummary failed: %v", err)
 	}
 
-	if summary.CurrentPhaseNumber != 4 && summary.CurrentPhaseNumber != 3 {
-		t.Errorf("Expected CurrentPhaseNumber 4 or 3, got %d", summary.CurrentPhaseNumber)
+	if summary.CurrentPhaseNumber != 6 && summary.CurrentPhaseNumber != 4 && summary.CurrentPhaseNumber != 3 {
+		t.Errorf("Expected CurrentPhaseNumber 6, 4, or 3, got %d", summary.CurrentPhaseNumber)
 	}
 	if summary.CompletedTasksCount == 0 {
 		t.Errorf("Expected CompletedTasksCount > 0, got 0")
 	}
-	if summary.CurrentPhaseNumber == 4 {
+	if summary.CurrentPhaseNumber == 6 {
+		if summary.CurrentPhase != "Phase 6 — Alarm & Notification" {
+			t.Errorf("Unexpected CurrentPhase: %s", summary.CurrentPhase)
+		}
+	} else if summary.CurrentPhaseNumber == 4 {
 		validSubphases := map[string]bool{
 			"Phase 4.1 — Reliability Foundation & Auto-Recovery": true,
 			"Phase 4.2 — Persistent Queue & Data Integrity":      true,
