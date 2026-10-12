@@ -590,6 +590,682 @@ func TestTelemetryService_IngestAlarmIntegration(t *testing.T) {
 	}
 }
 
+// -------------------------------------------------------------
+// Phase 6 Wave 2 Automated Test Suite
+// Task #60: Device Offline
+// Task #61: Communication Error
+// Task #62: Data Abnormality
+// -------------------------------------------------------------
+
+// 14. Test Device Offline Timeout, Alarm Generation, and Recovery
+func TestAlarmEvaluator_DeviceOfflineTimeoutAndRecovery(t *testing.T) {
+	db, evaluator, alarmService, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, _ := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// A. Device with recent communication -> No alarm
+	recent := time.Now().UTC().Add(-10 * time.Second)
+	healthHealthy := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "CONNECTED",
+		ConsecutiveSuccesses: 5,
+		LastCommSuccess:      &recent,
+	}
+	evaluator.EvaluateDeviceOffline(ctx, dev, healthHealthy)
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Fatalf("expected 0 offline alarms for healthy device, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// B. Device communication timed out (> 60s ago) -> Triggers CRITICAL DEVICE_OFFLINE alarm
+	oldSuccess := time.Now().UTC().Add(-75 * time.Second)
+	healthOffline := &service.DeviceHealthInput{
+		DeviceID:            dev.ID,
+		State:               "ERROR",
+		ConsecutiveFailures: 6,
+		LastCommSuccess:     &oldSuccess,
+		LastErrorCategory:   "TIMEOUT",
+		LastError:           "i/o timeout",
+	}
+	evaluator.EvaluateDeviceOffline(ctx, dev, healthOffline)
+
+	if evaluator.GetActiveDeviceOfflineCount() != 1 {
+		t.Fatalf("expected 1 active offline alarm, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	active, err := alarmRepo.GetActive(ctx)
+	if err != nil || len(active) != 1 {
+		t.Fatalf("expected 1 active alarm in repo, got %d (err: %v)", len(active), err)
+	}
+	alm := active[0]
+	if alm.AlarmCode != service.AlarmCodeDeviceOffline {
+		t.Errorf("expected alarm code %s, got %s", service.AlarmCodeDeviceOffline, alm.AlarmCode)
+	}
+	if alm.Severity != model.SeverityCritical {
+		t.Errorf("expected severity CRITICAL, got %s", alm.Severity)
+	}
+	if !hasSubstr(alm.Message, dev.DeviceCode) || !hasSubstr(alm.Message, "TIMEOUT") {
+		t.Errorf("expected message to contain device code and category, got: %s", alm.Message)
+	}
+
+	// C. Operator acknowledges the offline alarm
+	acked, err := alarmService.AcknowledgeAlarm(ctx, alm.ID, "operator_bob", "Dispatched field technician")
+	if err != nil || acked.Status != model.AlarmAcked {
+		t.Fatalf("failed acknowledging alarm: %v", err)
+	}
+
+	// D. Device recovers: successful communication resolves the alarm while preserving ack history
+	nowSuccess := time.Now().UTC()
+	healthRecovered := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "CONNECTED",
+		ConsecutiveSuccesses: 2,
+		LastCommSuccess:      &nowSuccess,
+	}
+	evaluator.EvaluateDeviceCommSuccess(ctx, dev, healthRecovered)
+
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Errorf("expected active offline count 0 after recovery, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	clearedAlm, err := alarmRepo.GetByID(ctx, alm.ID)
+	if err != nil {
+		t.Fatalf("failed fetching cleared alarm: %v", err)
+	}
+	if clearedAlm.Status != model.AlarmCleared {
+		t.Errorf("expected alarm status CLEARED, got %s", clearedAlm.Status)
+	}
+	if clearedAlm.AcknowledgedBy != "operator_bob" {
+		t.Errorf("expected acknowledged_by preserved as operator_bob, got %s", clearedAlm.AcknowledgedBy)
+	}
+	if clearedAlm.Notes != "Dispatched field technician" {
+		t.Errorf("expected notes preserved, got %s", clearedAlm.Notes)
+	}
+	if clearedAlm.ClearedAt == nil {
+		t.Errorf("expected cleared_at timestamp to be set")
+	}
+}
+
+// 15. Test Administrative Disablement and Maintenance Suppression
+func TestAlarmEvaluator_DeviceOfflineDisabledSuppression(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, _ := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+	dev.Enabled = false // Administratively disabled
+
+	oldSuccess := time.Now().UTC().Add(-300 * time.Second)
+	health := &service.DeviceHealthInput{
+		DeviceID:        dev.ID,
+		State:           "DISABLED",
+		LastCommSuccess: &oldSuccess,
+	}
+
+	evaluator.EvaluateDeviceOffline(ctx, dev, health)
+
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Errorf("disabled device must not trigger offline alarms, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 0 {
+		t.Errorf("expected 0 alarms in DB for disabled device, got %d", len(active))
+	}
+}
+
+// 16. Test Repeated Timeout Checks without Duplicate Alarms
+func TestAlarmEvaluator_DeviceOfflineRepeatedChecksNoDuplicate(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, _ := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	oldSuccess := time.Now().UTC().Add(-120 * time.Second)
+	health := &service.DeviceHealthInput{
+		DeviceID:        dev.ID,
+		State:           "ERROR",
+		LastCommSuccess: &oldSuccess,
+	}
+
+	// Repeatedly evaluate 5 times
+	for i := 0; i < 5; i++ {
+		evaluator.EvaluateDeviceOffline(ctx, dev, health)
+	}
+
+	active, err := alarmRepo.GetActive(ctx)
+	if err != nil || len(active) != 1 {
+		t.Fatalf("expected exactly 1 active alarm across repeated evaluations, got %d (err: %v)", len(active), err)
+	}
+}
+
+// 17. Test Communication Error Threshold, Deduplication, and Cooldown
+func TestAlarmEvaluator_CommErrorThresholdAndCooldown(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, _ := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	errTimeout := fmt.Errorf("read tcp 192.168.1.100:502: i/o timeout")
+
+	// Failures 1 through 4: Below threshold of 5 -> No alarm
+	for i := 1; i <= 4; i++ {
+		health := &service.DeviceHealthInput{
+			DeviceID:            dev.ID,
+			State:               "DEGRADED",
+			ConsecutiveFailures: i,
+			LastErrorCategory:   "TIMEOUT",
+			LastError:           errTimeout.Error(),
+		}
+		evaluator.EvaluateDeviceCommFailure(ctx, dev, health, errTimeout)
+		if evaluator.GetActiveCommErrorsCount() != 0 {
+			t.Fatalf("failure %d should not have triggered comm error alarm", i)
+		}
+	}
+
+	// 5th failure: Meets consecutive limit -> Triggers WARNING COMMUNICATION_ERROR
+	health5 := &service.DeviceHealthInput{
+		DeviceID:            dev.ID,
+		State:               "ERROR",
+		ConsecutiveFailures: 5,
+		LastErrorCategory:   "TIMEOUT",
+		LastError:           errTimeout.Error(),
+	}
+	evaluator.EvaluateDeviceCommFailure(ctx, dev, health5, errTimeout)
+
+	if evaluator.GetActiveCommErrorsCount() != 1 {
+		t.Fatalf("expected 1 active comm error alarm at threshold, got %d", evaluator.GetActiveCommErrorsCount())
+	}
+
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 1 {
+		t.Fatalf("expected 1 active alarm in repo, got %d", len(active))
+	}
+	if active[0].AlarmCode != service.AlarmCodeCommError {
+		t.Errorf("expected alarm code %s, got %s", service.AlarmCodeCommError, active[0].AlarmCode)
+	}
+	if active[0].Severity != model.SeverityWarning {
+		t.Errorf("expected severity WARNING, got %s", active[0].Severity)
+	}
+
+	// 6th and 7th failures: Cooldown / anti-duplication -> No new alarms created
+	for i := 6; i <= 7; i++ {
+		healthN := &service.DeviceHealthInput{
+			DeviceID:            dev.ID,
+			State:               "ERROR",
+			ConsecutiveFailures: i,
+			LastErrorCategory:   "TIMEOUT",
+			LastError:           errTimeout.Error(),
+		}
+		evaluator.EvaluateDeviceCommFailure(ctx, dev, healthN, errTimeout)
+	}
+	activeAfter, _ := alarmRepo.GetActive(ctx)
+	if len(activeAfter) != 1 {
+		t.Errorf("expected still only 1 active alarm after repeated failures, got %d", len(activeAfter))
+	}
+
+	// Recovery: Consecutive successes reach recovery limit -> Alarm automatically cleared
+	healthSuccess := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "CONNECTED",
+		ConsecutiveSuccesses: 2,
+	}
+	evaluator.EvaluateDeviceCommSuccess(ctx, dev, healthSuccess)
+
+	if evaluator.GetActiveCommErrorsCount() != 0 {
+		t.Errorf("expected comm error alarm cleared after recovery, got %d", evaluator.GetActiveCommErrorsCount())
+	}
+	clearedAlm, _ := alarmRepo.GetByID(ctx, active[0].ID)
+	if clearedAlm.Status != model.AlarmCleared {
+		t.Errorf("expected alarm status CLEARED, got %s", clearedAlm.Status)
+	}
+}
+
+// 18. Test Communication Failure Categories
+func TestAlarmEvaluator_CommErrorCategories(t *testing.T) {
+	categories := []struct {
+		errStr   string
+		expected string
+	}{
+		{"connection reset by peer", "CONNECTION_REFUSED"},
+		{"modbus crc exception checksum error", "PROTOCOL_EXCEPTION"},
+		{"request timed out waiting for response", "TIMEOUT"},
+		{"unexpected socket shutdown", "COMMUNICATION_FAILURE"},
+	}
+
+	for _, tc := range categories {
+		db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+		ctx := context.Background()
+
+		dev, _ := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+		errComm := fmt.Errorf("%s", tc.errStr)
+
+		health := &service.DeviceHealthInput{
+			DeviceID:            dev.ID,
+			ConsecutiveFailures: 5,
+			LastErrorCategory:   tc.expected,
+			LastError:           tc.errStr,
+		}
+		evaluator.EvaluateDeviceCommFailure(ctx, dev, health, errComm)
+
+		active, err := alarmRepo.GetActive(ctx)
+		if err != nil || len(active) != 1 {
+			t.Fatalf("[%s] expected 1 active alarm, got %d", tc.expected, len(active))
+		}
+		if !hasSubstr(active[0].Message, tc.expected) {
+			t.Errorf("[%s] expected message to contain category %s, got %s", tc.expected, tc.expected, active[0].Message)
+		}
+	}
+}
+
+// 19. Test Data Abnormality: Stuck Value Count, Duration, and Recovery
+func TestAlarmEvaluator_DataAbnormalityStuckValue(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	startTime := time.Now().UTC().Add(-40 * time.Second)
+
+	// Send 9 identical values -> Under count limit (10) -> No alarm
+	for i := 0; i < 9; i++ {
+		tStep := startTime.Add(time.Duration(i*3) * time.Second)
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 42.50,
+			Quality:        model.QualityGood,
+			ReceivedAt:     tStep,
+		}, param)
+	}
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Fatalf("expected 0 abnormality alarms under count limit, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	// 10th identical reading with duration > 30s -> Triggers DATA_ABNORMALITY_STUCK_VALUE
+	t10 := startTime.Add(35 * time.Second)
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 42.50,
+		Quality:        model.QualityGood,
+		ReceivedAt:     t10,
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 1 {
+		t.Fatalf("expected 1 active stuck value alarm, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 1 || active[0].AlarmCode != service.AlarmCodeAbnormalityStuck {
+		t.Fatalf("expected active alarm code %s, got %+v", service.AlarmCodeAbnormalityStuck, active)
+	}
+
+	// Value changes to 43.10 -> Recovery! Stuck alarm is automatically cleared
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 43.10, // Changed!
+		Quality:        model.QualityGood,
+		ReceivedAt:     t10.Add(1 * time.Second),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Errorf("expected stuck alarm cleared on value change, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	clearedAlm, _ := alarmRepo.GetByID(ctx, active[0].ID)
+	if clearedAlm.Status != model.AlarmCleared {
+		t.Errorf("expected alarm status CLEARED, got %s", clearedAlm.Status)
+	}
+}
+
+// 20. Test Constant Environmental Readings Under Threshold Criteria Do Not False Alarm
+func TestAlarmEvaluator_ConstantReadingSafeThresholds(t *testing.T) {
+	db, evaluator, _, _ := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// 5 identical samples over 10s (e.g. steady room temperature 24.0°C)
+	now := time.Now().UTC()
+	for i := 0; i < 5; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 24.0,
+			Quality:        model.QualityGood,
+			ReceivedAt:     now.Add(time.Duration(i*2) * time.Second),
+		}, param)
+	}
+
+	if evaluator.GetActiveCount() != 0 {
+		t.Errorf("steady valid environmental readings must not trigger false alarms, got %d", evaluator.GetActiveCount())
+	}
+}
+
+// 21. Test Repeated BAD Quality Sample Accumulation and Recovery
+func TestAlarmEvaluator_DataAbnormalityBadQuality(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// Samples 1-4: BAD quality -> Under limit of 5 -> No alarm
+	for i := 1; i <= 4; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 0.0,
+			Quality:        model.QualityBad,
+			QualityReason:  model.ReasonDecodingError,
+			ReceivedAt:     time.Now().UTC(),
+		}, param)
+	}
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Fatalf("expected 0 alarms before 5th bad sample, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	// 5th BAD quality sample -> Triggers DATA_ABNORMALITY_BAD_QUALITY alarm
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 0.0,
+		Quality:        model.QualityBad,
+		QualityReason:  model.ReasonDecodingError,
+		ReceivedAt:     time.Now().UTC(),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 1 {
+		t.Fatalf("expected 1 active bad quality alarm, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 1 || active[0].AlarmCode != service.AlarmCodeAbnormalityBad {
+		t.Fatalf("expected active alarm code %s, got %+v", service.AlarmCodeAbnormalityBad, active)
+	}
+
+	// Healthy GOOD quality sample arrives -> Alarm cleared automatically
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 55.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Errorf("expected bad quality alarm cleared on Good sample, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+	clearedAlm, _ := alarmRepo.GetByID(ctx, active[0].ID)
+	if clearedAlm.Status != model.AlarmCleared {
+		t.Errorf("expected alarm status CLEARED, got %s", clearedAlm.Status)
+	}
+}
+
+// 22. Test Repeated Stale Data Abnormality and Recovery
+func TestAlarmEvaluator_DataAbnormalityStaleData(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// 3 consecutive STALE samples -> Triggers DATA_ABNORMALITY_STALE_DATA
+	for i := 0; i < 3; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 50.0,
+			Quality:        model.QualityStale,
+			QualityFlags:   model.FlagStale,
+			ReceivedAt:     time.Now().UTC(),
+		}, param)
+	}
+
+	if evaluator.GetActiveAbnormalityCount() != 1 {
+		t.Fatalf("expected 1 active stale data alarm, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 1 || active[0].AlarmCode != service.AlarmCodeAbnormalityStale {
+		t.Fatalf("expected active alarm code %s, got %+v", service.AlarmCodeAbnormalityStale, active)
+	}
+
+	// Good quality sample arrives -> Alarm cleared automatically
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 50.5,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Errorf("expected stale data alarm cleared on Good sample, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+}
+
+// 23. Test Spike / Outlier Abnormality and Recovery
+func TestAlarmEvaluator_DataAbnormalitySpike(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// Spike detected sample
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 999.0,
+		Quality:        model.QualityUncertain,
+		QualityReason:  model.ReasonSpikeDetected,
+		QualityFlags:   model.FlagSpike,
+		ReceivedAt:     time.Now().UTC(),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 1 {
+		t.Fatalf("expected 1 active spike alarm, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	// 3 normal samples -> Spike alarm clears
+	for i := 0; i < 3; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 50.0 + float64(i),
+			Quality:        model.QualityGood,
+			ReceivedAt:     time.Now().UTC(),
+		}, param)
+	}
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Errorf("expected spike alarm cleared after 3 normal readings, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 0 {
+		t.Errorf("expected 0 active alarms in DB, got %d", len(active))
+	}
+}
+
+// 24. Test Restart Reconciliation for Wave 2 Alarms
+func TestAlarmEvaluator_RestartReconciliationWave2(t *testing.T) {
+	db, _, alarmService, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// Seed 3 alarms into DB: Device Offline, Comm Error, Data Abnormality Stuck
+	alarmOffline := &model.Alarm{
+		DeviceID:    &dev.ID,
+		AlarmCode:   service.AlarmCodeDeviceOffline,
+		Severity:    model.SeverityCritical,
+		Message:     "Device offline outage",
+		Status:      model.AlarmActive,
+		TriggeredAt: time.Now().UTC(),
+	}
+	_ = alarmService.CreateAlarm(ctx, alarmOffline)
+
+	alarmComm := &model.Alarm{
+		DeviceID:    &dev.ID,
+		AlarmCode:   service.AlarmCodeCommError,
+		Severity:    model.SeverityWarning,
+		Message:     "Comm timeout",
+		Status:      model.AlarmActive,
+		TriggeredAt: time.Now().UTC(),
+	}
+	_ = alarmService.CreateAlarm(ctx, alarmComm)
+
+	alarmStuck := &model.Alarm{
+		DeviceID:    &dev.ID,
+		ParameterID: &param.ID,
+		AlarmCode:   service.AlarmCodeAbnormalityStuck,
+		Severity:    model.SeverityWarning,
+		Message:     "Stuck reading",
+		Status:      model.AlarmActive,
+		TriggeredAt: time.Now().UTC(),
+	}
+	_ = alarmService.CreateAlarm(ctx, alarmStuck)
+
+	// Simulate system restart: instantiate fresh evaluator
+	cfg := service.DefaultAlarmEvaluatorConfig()
+	freshEvaluator := service.NewAlarmEvaluator(ctx, alarmService, cfg, nil)
+
+	if freshEvaluator.GetActiveDeviceOfflineCount() != 1 {
+		t.Errorf("expected 1 offline alarm reconciled from DB, got %d", freshEvaluator.GetActiveDeviceOfflineCount())
+	}
+	if freshEvaluator.GetActiveCommErrorsCount() != 1 {
+		t.Errorf("expected 1 comm error alarm reconciled from DB, got %d", freshEvaluator.GetActiveCommErrorsCount())
+	}
+	if freshEvaluator.GetActiveAbnormalityCount() != 1 {
+		t.Errorf("expected 1 abnormality alarm reconciled from DB, got %d", freshEvaluator.GetActiveAbnormalityCount())
+	}
+
+	// Device reconnects and communicates successfully -> Both offline and comm error alarms resolved
+	now := time.Now().UTC()
+	freshEvaluator.EvaluateDeviceCommSuccess(ctx, dev, &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "CONNECTED",
+		ConsecutiveSuccesses: 3,
+		LastCommSuccess:      &now,
+	})
+
+	if freshEvaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Errorf("expected offline alarm cleared on recovery after restart, got %d", freshEvaluator.GetActiveDeviceOfflineCount())
+	}
+	if freshEvaluator.GetActiveCommErrorsCount() != 0 {
+		t.Errorf("expected comm error alarm cleared on recovery after restart, got %d", freshEvaluator.GetActiveCommErrorsCount())
+	}
+
+	clearedOffline, _ := alarmRepo.GetByID(ctx, alarmOffline.ID)
+	if clearedOffline.Status != model.AlarmCleared {
+		t.Errorf("expected offline alarm status CLEARED, got %s", clearedOffline.Status)
+	}
+}
+
+// 25. Test Concurrent Wave 2 Safety and Race Protection
+func TestAlarmEvaluator_ConcurrentWave2Safety(t *testing.T) {
+	db, evaluator, _, _ := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	var wg sync.WaitGroup
+	iterations := 100
+
+	// Goroutine 1: Rapid telemetry evaluations
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+				DeviceID:       dev.ID,
+				DeviceCode:     dev.DeviceCode,
+				ParameterID:    param.ID,
+				ParameterCode:  param.ParameterCode,
+				ParameterName:  param.ParameterName,
+				ProcessedValue: 50.0 + float64(i%3),
+				Quality:        model.QualityGood,
+				ReceivedAt:     time.Now().UTC(),
+			}, param)
+		}
+	}()
+
+	// Goroutine 2: Communication errors and successes
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			if i%5 == 0 {
+				evaluator.EvaluateDeviceCommSuccess(ctx, dev, &service.DeviceHealthInput{
+					DeviceID:             dev.ID,
+					State:                "CONNECTED",
+					ConsecutiveSuccesses: 2,
+				})
+			} else {
+				evaluator.EvaluateDeviceCommFailure(ctx, dev, &service.DeviceHealthInput{
+					DeviceID:            dev.ID,
+					State:               "ERROR",
+					ConsecutiveFailures: i,
+				}, fmt.Errorf("transient comm error"))
+			}
+		}
+	}()
+
+	// Goroutine 3: Device offline evaluations
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			tRecent := time.Now().UTC().Add(-time.Duration(i) * time.Second)
+			evaluator.EvaluateDeviceOffline(ctx, dev, &service.DeviceHealthInput{
+				DeviceID:        dev.ID,
+				State:           "CONNECTED",
+				LastCommSuccess: &tRecent,
+			})
+		}
+	}()
+
+	wg.Wait()
+
+	// Metrics sanity check
+	evals, _, _, _ := evaluator.GetMetrics()
+	if evals == 0 {
+		t.Errorf("expected >0 evaluations tracked")
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && len(substr) > 0 && hasSubstr(s, substr)))
 }

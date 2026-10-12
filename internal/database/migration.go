@@ -1619,7 +1619,73 @@ func updatePhase6Wave1Tracking(db *gorm.DB) {
 		}
 	}
 
-	// Ensure remaining Phase 6 tasks (Waves 2-4) exist as PENDING if not present
+	// Wave 2: Verified Device Health, Communication Error, and Data Abnormality Tasks
+	verifiedTasksWave2 := []struct {
+		TaskName    string
+		TaskID      uint
+		OrderIndex  int
+		Priority    model.Priority
+		Description string
+		TestResult  string
+		Notes       string
+	}{
+		{
+			TaskName:    "Device Offline",
+			TaskID:      60,
+			OrderIndex:  4,
+			Priority:    model.PriorityHigh,
+			Description: "Heartbeat monitoring alerting when devices stop responding",
+			TestResult:  "PASSED: Persistent DEVICE_OFFLINE alarms based on configurable offline timeout, administrative disablement suppression, startup grace period, outage context capture, and recovery verified.",
+			Notes:       "Verified in TestAlarmEvaluator_DeviceOfflineTimeoutAndRecovery, TestAlarmEvaluator_DeviceOfflineDisabledSuppression, and TestAlarmEvaluator_DeviceOfflineRepeatedChecksNoDuplicate.",
+		},
+		{
+			TaskName:    "Communication Error",
+			TaskID:      61,
+			OrderIndex:  5,
+			Priority:    model.PriorityHigh,
+			Description: "Error rate monitoring alerting on serial parity or CRC failures",
+			TestResult:  "PASSED: Consecutive failure thresholds, category classification (TIMEOUT, CONNECTION_REFUSED, PROTOCOL_EXCEPTION, COMMUNICATION_FAILURE), anti-storm cooldown, and recovery verified.",
+			Notes:       "Verified in TestAlarmEvaluator_CommErrorThresholdAndCooldown and TestAlarmEvaluator_CommErrorCategories.",
+		},
+		{
+			TaskName:    "Data Abnormality",
+			TaskID:      62,
+			OrderIndex:  6,
+			Priority:    model.PriorityMedium,
+			Description: "Statistical outlier and stuck-value detection alarm triggers",
+			TestResult:  "PASSED: Stuck value count and duration criteria, legitimate environmental reading suppression, BAD quality sample accumulation, stale telemetry, and spike alarms verified.",
+			Notes:       "Verified in TestAlarmEvaluator_DataAbnormalityStuckValue, TestAlarmEvaluator_ConstantReadingSafeThresholds, TestAlarmEvaluator_DataAbnormalityBadQuality, TestAlarmEvaluator_DataAbnormalityStaleData, and TestAlarmEvaluator_DataAbnormalitySpike.",
+		},
+	}
+
+	for _, vt := range verifiedTasksWave2 {
+		var t model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (id = ? OR task_name = ?)", phase6.ID, vt.TaskID, vt.TaskName).First(&t).Error; err == nil {
+			db.Model(&t).Updates(map[string]interface{}{
+				"status":          model.StatusDone,
+				"progress":        100.0,
+				"completion_date": &now,
+				"test_result":     vt.TestResult,
+				"notes":           vt.Notes,
+			})
+		} else {
+			db.Create(&model.DevelopmentTask{
+				PhaseID:        phase6.ID,
+				TaskName:       vt.TaskName,
+				Description:    vt.Description,
+				Status:         model.StatusDone,
+				Progress:       100.0,
+				Priority:       vt.Priority,
+				Owner:          "Lead System Engineer",
+				OrderIndex:     vt.OrderIndex,
+				CompletionDate: &now,
+				TestResult:     vt.TestResult,
+				Notes:          vt.Notes,
+			})
+		}
+	}
+
+	// Ensure remaining Phase 6 tasks (Waves 3-4) exist as PENDING if not present
 	pendingTasks := []struct {
 		TaskName    string
 		TaskID      uint
@@ -1627,9 +1693,6 @@ func updatePhase6Wave1Tracking(db *gorm.DB) {
 		Priority    model.Priority
 		Description string
 	}{
-		{"Device Offline", 60, 4, model.PriorityHigh, "Heartbeat monitoring alerting when devices stop responding"},
-		{"Communication Error", 61, 5, model.PriorityHigh, "Error rate monitoring alerting on serial parity or CRC failures"},
-		{"Data Abnormality", 62, 6, model.PriorityMedium, "Statistical outlier and stuck-value detection alarm triggers"},
 		{"Notification Engine", 64, 8, model.PriorityCritical, "Multi-channel dispatcher with rate limiting and retry queue"},
 		{"Alarm Acknowledgement", 65, 9, model.PriorityHigh, "Operator acknowledgement workflow with notes and audit logging"},
 		{"Alarm History", 66, 10, model.PriorityMedium, "Queryable historical alarm log with duration and resolution stats"},

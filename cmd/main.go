@@ -145,6 +145,7 @@ func main() {
 	connManager := communication.NewConnectionManager(deviceService, communication.DefaultAdapterFactory)
 	pollingEngine := communication.NewPollingEngine(connManager, deviceService, hub)
 	pollingEngine.SetTelemetryService(telemetryService)
+	pollingEngine.SetAlarmEvaluator(alarmEvaluator)
 	pollingEngine.Start()
 	defer pollingEngine.Stop()
 

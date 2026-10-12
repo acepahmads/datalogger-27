@@ -20,6 +20,7 @@ type PollingEngine struct {
 	connManager      *ConnectionManager
 	deviceService    *service.DeviceService
 	telemetryService *service.TelemetryService
+	alarmEvaluator   *service.AlarmEvaluator
 	hub              *websocket.Hub
 	holdTracker      *AnomalyHoldTracker
 	workersMu        sync.Mutex
@@ -51,6 +52,25 @@ func (p *PollingEngine) GetHoldTracker() *AnomalyHoldTracker {
 // SetTelemetryService injects the Phase 3.1 Telemetry Ingestion Pipeline
 func (p *PollingEngine) SetTelemetryService(ts *service.TelemetryService) {
 	p.telemetryService = ts
+}
+
+// SetAlarmEvaluator injects the Phase 6 Alarm Evaluator
+func (p *PollingEngine) SetAlarmEvaluator(ae *service.AlarmEvaluator) {
+	p.alarmEvaluator = ae
+}
+
+// toHealthInput converts a ConnectionHealth struct to service.DeviceHealthInput
+func toHealthInput(h ConnectionHealth) *service.DeviceHealthInput {
+	return &service.DeviceHealthInput{
+		DeviceID:             h.DeviceID,
+		State:                string(h.State),
+		ConsecutiveFailures:  h.ConsecutiveFailures,
+		ConsecutiveSuccesses: h.ConsecutiveSuccesses,
+		LastCommSuccess:      h.LastCommSuccess,
+		LastCommFailure:      h.LastCommFailure,
+		LastErrorCategory:    h.LastErrorCategory,
+		LastError:            h.LastError,
+	}
 }
 
 // Start spawns polling workers for all enabled devices
@@ -129,6 +149,9 @@ func (p *PollingEngine) StopDeviceWorker(deviceID uint) {
 		delete(p.workers, deviceID)
 	}
 	_ = p.connManager.DisconnectDevice(deviceID)
+	if p.alarmEvaluator != nil {
+		p.alarmEvaluator.ClearDeviceAlarms(p.ctx, deviceID)
+	}
 }
 
 // ActiveWorkerCount returns the number of active polling workers currently running
@@ -211,6 +234,14 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 			// Device Isolation & Admin Status Check
 			if cachedDev == nil || !cachedDev.Enabled || cachedDev.Status != model.DeviceStatusActive || cachedDev.Connection == nil || !cachedDev.Connection.Enabled {
 				// Standby mode without heavy polling: check every 5s
+				if p.alarmEvaluator != nil && cachedDev != nil {
+					var hIn *service.DeviceHealthInput
+					if p.connManager != nil {
+						h := p.connManager.GetDeviceHealth(cachedDev.ID)
+						hIn = toHealthInput(h)
+					}
+					p.alarmEvaluator.EvaluateDeviceOffline(ctx, cachedDev, hIn)
+				}
 				if currentIntervalMs != 5000 {
 					currentIntervalMs = 5000
 					ticker.Reset(5 * time.Second)
@@ -220,6 +251,14 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 
 			// Execute cached parameter poll cycle
 			cycleSuccess := p.pollDevice(ctx, cachedDev, cachedParams)
+			if p.alarmEvaluator != nil {
+				var hIn *service.DeviceHealthInput
+				if p.connManager != nil {
+					h := p.connManager.GetDeviceHealth(cachedDev.ID)
+					hIn = toHealthInput(h)
+				}
+				p.alarmEvaluator.EvaluateDeviceOffline(ctx, cachedDev, hIn)
+			}
 			if cycleSuccess {
 				if consecutiveFailures > 0 {
 					consecutiveFailures = 0
@@ -273,6 +312,12 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 
 		res, err := p.ReadParameter(ctx, device, &param)
 		if err != nil {
+			// Phase 6 Wave 2: Evaluate communication failure against thresholds
+			if p.alarmEvaluator != nil && p.connManager != nil {
+				h := p.connManager.GetDeviceHealth(device.ID)
+				p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
+			}
+
 			// Broadcast error event
 			if p.hub != nil {
 				p.hub.Broadcast(websocket.WSMessage{
@@ -301,6 +346,12 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 		}
 
 		anySuccess = true
+		// Phase 6 Wave 2: Evaluate communication success and healthy recovery
+		if p.alarmEvaluator != nil && p.connManager != nil {
+			h := p.connManager.GetDeviceHealth(device.ID)
+			p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
+		}
+
 		// Broadcast success event
 		if p.hub != nil {
 			p.hub.Broadcast(websocket.WSMessage{
