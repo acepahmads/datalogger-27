@@ -226,6 +226,7 @@ func (a *ModbusTCPAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 
 	elapsed := time.Since(start)
 	now := time.Now()
+	a.status.State = StateConnected
 	a.status.LastCommunication = &now
 	a.status.LatencyMs = int(elapsed.Milliseconds())
 	a.status.SuccessCount++

@@ -81,8 +81,8 @@ func CanTransition(from, to ConnectionState) bool {
 		return to == StateConnected || to == StateDegraded || to == StateError || to == StateDisconnected || to == StateDisabled
 
 	case StateError:
-		// From ERROR: can retry (RECONNECTING / CONNECTING), disconnect, or disable
-		return to == StateReconnecting || to == StateConnecting || to == StateDisconnected || to == StateDisabled
+		// From ERROR: can recover (CONNECTED), retry (RECONNECTING / CONNECTING), disconnect, or disable
+		return to == StateConnected || to == StateReconnecting || to == StateConnecting || to == StateDisconnected || to == StateDisabled
 
 	case StateDisabled:
 		// From DISABLED: can only transition to DISCONNECTED when re-enabled

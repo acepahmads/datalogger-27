@@ -517,6 +517,16 @@ func TestCommunicationStatusSemantics(t *testing.T) {
 	if healthFailed.State != StateError {
 		t.Fatalf("expected StateError after 10 consecutive failures, got %v", healthFailed.State)
 	}
+
+	// E. Communication subsequently succeeds -> transitions back to StateConnected, error metadata cleared
+	mgr.healthTracker.RecordCommunicationSuccess(dev.ID, 15)
+	healthRecovered := mgr.healthTracker.GetHealth(dev.ID)
+	if healthRecovered.State != StateConnected {
+		t.Fatalf("expected StateConnected after successful read, got %v", healthRecovered.State)
+	}
+	if healthRecovered.LastError != "" || healthRecovered.LastErrorCategory != "" {
+		t.Fatalf("expected cleared error metadata, got err=%q cat=%q", healthRecovered.LastError, healthRecovered.LastErrorCategory)
+	}
 }
 
 // 9. Regression Test: No goroutine or serial-port leaks

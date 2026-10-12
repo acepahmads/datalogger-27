@@ -313,9 +313,9 @@ export default {
     activeAlarms() {
       return this.$store.state.activeAlarms || [];
     },
-    // Filter out dismissed alarms for this session
+    // Filter out dismissed or cleared alarms for this session
     filteredAlarms() {
-      return this.activeAlarms.filter((a) => !this.dismissedIds.has(a.id));
+      return this.activeAlarms.filter((a) => a && a.status !== 'CLEARED' && !this.dismissedIds.has(a.id));
     },
     // Prioritize: CRITICAL (3) > WARNING (2) > INFO (1), then newest triggered_at
     sortedAlarms() {

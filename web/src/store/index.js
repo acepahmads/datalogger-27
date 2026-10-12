@@ -122,17 +122,41 @@ export default new Vuex.Store({
       state.alarms = alarms;
     },
     SET_ACTIVE_ALARMS(state, alarms) {
-      state.activeAlarms = Array.isArray(alarms) ? alarms : [];
+      const list = Array.isArray(alarms) ? alarms : [];
+      state.activeAlarms = list.filter(a => a && a.status !== 'CLEARED');
       if (state.systemStatus) {
         state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
       }
     },
     UPSERT_ACTIVE_ALARM(state, alarm) {
       if (!alarm || !alarm.id) return;
-      const idx = state.activeAlarms.findIndex(a => a.id === alarm.id);
+      const alarmIdNum = Number(alarm.id);
+      if (alarm.status === 'CLEARED') {
+        state.activeAlarms = state.activeAlarms.filter(a => Number(a.id) !== alarmIdNum);
+        if (state.systemStatus) {
+          state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+        }
+        return;
+      }
+      const idx = state.activeAlarms.findIndex(a => Number(a.id) === alarmIdNum);
       if (idx !== -1) {
         Vue.set(state.activeAlarms, idx, { ...state.activeAlarms[idx], ...alarm });
       } else {
+        // Deduplicate: if an active incident for the same device and alarm code already exists, replace it
+        const devId = alarm.device_id || (alarm.device && alarm.device.id);
+        if (devId && alarm.alarm_code) {
+          const sameDevIdx = state.activeAlarms.findIndex(
+            a => (a.device_id === devId || (a.device && a.device.id === devId)) &&
+                 a.alarm_code === alarm.alarm_code
+          );
+          if (sameDevIdx !== -1) {
+            Vue.set(state.activeAlarms, sameDevIdx, { ...state.activeAlarms[sameDevIdx], ...alarm });
+            if (state.systemStatus) {
+              state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+            }
+            return;
+          }
+        }
         state.activeAlarms.unshift(alarm);
       }
       if (state.systemStatus) {
@@ -141,7 +165,15 @@ export default new Vuex.Store({
     },
     UPDATE_ALARM_STATUS(state, updated) {
       if (!updated || !updated.id) return;
-      const idx = state.activeAlarms.findIndex(a => a.id === updated.id);
+      const updatedIdNum = Number(updated.id);
+      if (updated.status === 'CLEARED') {
+        state.activeAlarms = state.activeAlarms.filter(a => Number(a.id) !== updatedIdNum);
+        if (state.systemStatus) {
+          state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+        }
+        return;
+      }
+      const idx = state.activeAlarms.findIndex(a => Number(a.id) === updatedIdNum);
       if (idx !== -1) {
         Vue.set(state.activeAlarms, idx, { ...state.activeAlarms[idx], ...updated });
       }
@@ -150,7 +182,8 @@ export default new Vuex.Store({
       }
     },
     REMOVE_ACTIVE_ALARM(state, alarmId) {
-      state.activeAlarms = state.activeAlarms.filter(a => a.id !== alarmId);
+      const idNum = Number(alarmId);
+      state.activeAlarms = state.activeAlarms.filter(a => Number(a.id) !== idNum);
       if (state.systemStatus) {
         state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
       }

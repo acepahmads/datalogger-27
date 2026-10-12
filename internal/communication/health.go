@@ -138,6 +138,15 @@ func (t *ConnectionHealthTracker) RecordCommunicationSuccess(deviceID uint, late
 	h.LatencyMs = latencyMs
 	h.CurrentBackoffDelayMs = 0
 	h.NextReconnectTime = nil
+	if h.State != StateDisabled {
+		h.State = StateConnected
+		h.LastError = ""
+		h.LastErrorCategory = ""
+		h.LastErrorTime = nil
+	}
+	if h.ConnectedSince == nil {
+		h.ConnectedSince = &now
+	}
 	if h.ConnectedSince != nil {
 		h.UptimeSeconds = uint64(now.Sub(*h.ConnectedSince).Seconds())
 	}

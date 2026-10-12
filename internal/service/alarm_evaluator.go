@@ -536,13 +536,15 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 		}
 	}
 
-	// Explicit state machine check: StateError is offline
-	if health != nil && health.State == "ERROR" {
-		isOffline = true
+	// Explicit state machine check: StateError or OFFLINE indicates outage if timeout exceeded or not communicating
+	if health != nil && (health.State == "ERROR" || health.State == "OFFLINE") {
+		if !hasEverCommunicated || outageDuration >= timeout || health.ConsecutiveSuccesses == 0 {
+			isOffline = true
+		}
 	}
 
-	// If health indicates CONNECTED and not timed out, ensure it's not marked offline
-	if health != nil && health.State == "CONNECTED" && (!hasEverCommunicated || outageDuration < timeout) {
+	// If device is actively communicating or connected and not timed out, ensure it's NOT marked offline
+	if health != nil && (health.State == "CONNECTED" || health.ConsecutiveSuccesses > 0) && (!hasEverCommunicated || outageDuration < timeout) {
 		isOffline = false
 	}
 

@@ -1266,6 +1266,87 @@ func TestAlarmEvaluator_ConcurrentWave2Safety(t *testing.T) {
 	}
 }
 
+// 29. Regression Test: Actively communicating device must never trigger false DEVICE_OFFLINE alarms (0s outage flapping)
+func TestAlarmEvaluator_NoFalseDeviceOfflineOnRecentCommunication(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, _ := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	// Step 1: Device communication just succeeded (0s outage, consecutive successes = 1)
+	now := time.Now().UTC()
+	health := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "CONNECTED",
+		ConsecutiveSuccesses: 1,
+		ConsecutiveFailures:  0,
+		LastCommSuccess:      &now,
+		LastErrorCategory:    "",
+		LastError:            "",
+	}
+
+	evaluator.EvaluateDeviceOffline(ctx, dev, health)
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Fatalf("expected 0 offline alarms on actively communicating device, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// Step 2: Even if an old error state lingers or was just cleared, positive successes + recent comm must not trigger offline
+	healthWithResidualErrorState := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "ERROR",
+		ConsecutiveSuccesses: 1,
+		ConsecutiveFailures:  0,
+		LastCommSuccess:      &now,
+		LastErrorCategory:    "CONNECTION_REFUSED",
+	}
+
+	evaluator.EvaluateDeviceOffline(ctx, dev, healthWithResidualErrorState)
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Fatalf("expected 0 offline alarms when device has positive successes and recent comm, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// Step 3: Simulate recovery cycle: previous offline alarm is cleared by CommSuccess and not re-triggered by Offline evaluation
+	// Force an offline alarm first (> 60s timeout)
+	oldComm := time.Now().UTC().Add(-100 * time.Second)
+	offlineHealth := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "ERROR",
+		ConsecutiveSuccesses: 0,
+		ConsecutiveFailures:  5,
+		LastCommSuccess:      &oldComm,
+		LastErrorCategory:    "TIMEOUT",
+	}
+	evaluator.EvaluateDeviceOffline(ctx, dev, offlineHealth)
+	if evaluator.GetActiveDeviceOfflineCount() != 1 {
+		t.Fatalf("expected 1 offline alarm during genuine timeout, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// Now successful poll occurs:
+	recoveredTime := time.Now().UTC()
+	recoveredHealth := &service.DeviceHealthInput{
+		DeviceID:             dev.ID,
+		State:                "CONNECTED",
+		ConsecutiveSuccesses: 2,
+		ConsecutiveFailures:  0,
+		LastCommSuccess:      &recoveredTime,
+	}
+	evaluator.EvaluateDeviceCommSuccess(ctx, dev, recoveredHealth)
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Fatalf("expected 0 offline alarms after CommSuccess recovery, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// Immediately evaluate offline check at end of poll cycle — must stay cleared, no flapping!
+	evaluator.EvaluateDeviceOffline(ctx, dev, recoveredHealth)
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Fatalf("flapping detected: offline alarm was falsely re-triggered on recovered device! got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	active, err := alarmRepo.GetActive(ctx)
+	if err != nil || len(active) != 0 {
+		t.Fatalf("expected 0 active alarms in repository, got %d (err: %v)", len(active), err)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && len(substr) > 0 && hasSubstr(s, substr)))
 }
@@ -1278,3 +1359,4 @@ func hasSubstr(s, sub string) bool {
 	}
 	return false
 }
+
