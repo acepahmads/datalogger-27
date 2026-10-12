@@ -3,6 +3,9 @@
     <!-- Top System Header -->
     <Header />
 
+    <!-- Global Alarm Banner (Directly beneath header) -->
+    <GlobalAlarmBanner />
+
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Sidebar Navigation -->
@@ -19,12 +22,14 @@
 <script>
 import Header from './components/Header.vue';
 import Sidebar from './components/Sidebar.vue';
+import GlobalAlarmBanner from './components/GlobalAlarmBanner.vue';
 
 export default {
   name: 'App',
   components: {
     Header,
     Sidebar,
+    GlobalAlarmBanner,
   },
 };
 </script>

@@ -1785,6 +1785,18 @@ func updatePhase6Wave1Tracking(db *gorm.DB) {
 		}
 	}
 
+	var auditCountBanner int64
+	db.Model(&model.AuditTrail{}).Where("action = ? AND resource = ?", "FEATURE_ALARM_BANNER", "Global Alarm Banner & Audio Alert").Count(&auditCountBanner)
+	if auditCountBanner == 0 {
+		db.Create(&model.AuditTrail{
+			Username:  "system",
+			Action:    "FEATURE_ALARM_BANNER",
+			Resource:  "Global Alarm Banner & Audio Alert",
+			Details:   "Implemented responsive global alarm banner, Web Audio API synthesis alert engine, volume controls, mute durations, and real-time WebSocket synchronization.",
+			CreatedAt: now,
+		})
+	}
+
 	RecalculatePhaseProgress(db, phase6.ID)
 }
 

@@ -122,6 +122,7 @@ func main() {
 	// 7f. Initialize Alarm Storage Subsystem (Phase 5)
 	alarmRepo := repository.NewAlarmRepository(db)
 	alarmService := service.NewAlarmService(alarmRepo, systemRepo)
+	alarmService.SetHub(hub)
 	systemService.SetAlarmService(alarmService)
 
 	// 7h. Initialize Notification Engine Subsystem (Phase 6 Wave 3)

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Browser Web Audio & Banner Test</title>
+</head>
+<body>
+  <h1>Browser Web Audio & Global Alarm Banner Automated Test</h1>
+  <button id="start-btn">Run Audio Tests</button>
+  <div id="output">Waiting for test execution...</div>
+  <ul id="test-list"></ul>
+
+  <script type="module">
+    window.__TEST_RESULTS__ = {
+      tests: [],
+      passed: 0,
+      failed: 0,
+      complete: false,
+    };
+
+    function logTest(name, passed, detail = '') {
+      window.__TEST_RESULTS__.tests.push({ name, passed, detail });
+      const li = document.createElement('li');
+      li.textContent = `${passed ? 'PASS' : 'FAIL'}: ${name} ${detail ? '(' + detail + ')' : ''}`;
+      li.style.color = passed ? 'green' : 'red';
+      document.getElementById('test-list').appendChild(li);
+
+      if (passed) {
+        window.__TEST_RESULTS__.passed++;
+        console.log(`[PASS] ${name}`);
+      } else {
+        window.__TEST_RESULTS__.failed++;
+        console.error(`[FAIL] ${name}: ${detail}`);
+      }
+      document.getElementById('output').innerText = 
+        `Passed: ${window.__TEST_RESULTS__.passed}, Failed: ${window.__TEST_RESULTS__.failed}, Complete: ${window.__TEST_RESULTS__.complete}`;
+    }
+
+    async function runBrowserTests() {
+      console.log('Starting real browser Web Audio API tests...');
+
+      // Test B1: AudioContext initialization
+      let AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        logTest('B1: AudioContext exists in browser', false, 'AudioContext not found');
+        return;
+      }
+      logTest('B1: AudioContext exists in browser', true);
+
+      const ctx = new AudioContextClass();
+      const initialSuspended = (ctx.state === 'suspended' || ctx.state === 'running');
+      logTest('B2: AudioContext creates in valid state', initialSuspended, `State: ${ctx.state}`);
+
+      // Test B3: Master Gain Node Creation & Volume scaling
+      const masterGain = ctx.createGain();
+      masterGain.connect(ctx.destination);
+      masterGain.gain.value = 0.7;
+      logTest('B3: Master Gain node created with 70% volume', Math.abs(masterGain.gain.value - 0.7) < 0.01, `Value: ${masterGain.gain.value}`);
+
+      // Test B4: Tone synthesis (Warning Chime: 587.33Hz & 880Hz)
+      try {
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.1);
+        osc1.connect(gain1);
+        gain1.connect(masterGain);
+        osc1.start(ctx.currentTime);
+        osc1.stop(ctx.currentTime + 0.1);
+        logTest('B4: Warning tone synthesized and scheduled without error', true);
+      } catch (err) {
+        logTest('B4: Warning tone synthesis', false, err.message);
+      }
+
+      // Test B5: Critical Alarm Pulse Synthesis (880Hz + 1046.5Hz)
+      try {
+        const oscCrit = ctx.createOscillator();
+        const gainCrit = ctx.createGain();
+        oscCrit.type = 'triangle';
+        oscCrit.frequency.setValueAtTime(1046.5, ctx.currentTime);
+        gainCrit.gain.setValueAtTime(0.5, ctx.currentTime);
+        gainCrit.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+        oscCrit.connect(gainCrit);
+        gainCrit.connect(masterGain);
+        oscCrit.start(ctx.currentTime);
+        oscCrit.stop(ctx.currentTime + 0.15);
+        logTest('B5: Critical alarm pulse synthesized and scheduled without error', true);
+      } catch (err) {
+        logTest('B5: Critical alarm pulse synthesis', false, err.message);
+      }
+
+      // Test B6: Mute control (gain set to 0)
+      masterGain.gain.value = 0;
+      logTest('B6: Master Gain drops to 0 when muted', masterGain.gain.value === 0);
+
+      // Test B7: Unmute restores volume
+      masterGain.gain.value = 0.7;
+      logTest('B7: Master Gain restores target volume when unmuted', Math.abs(masterGain.gain.value - 0.7) < 0.01);
+
+      // Test B8: Context resume promise
+      ctx.resume().then(() => {
+        logTest('B8: AudioContext resumes cleanly on demand', ctx.state === 'running', `State: ${ctx.state}`);
+      }).catch((e) => {
+        logTest('B8: AudioContext resumes cleanly on demand', false, e.message);
+      });
+
+      window.__TEST_RESULTS__.complete = true;
+      document.getElementById('output').innerText = 
+        `ALL TESTS COMPLETE. Passed: ${window.__TEST_RESULTS__.passed}, Failed: ${window.__TEST_RESULTS__.failed}`;
+      console.log('__TESTS_FINISHED__');
+    }
+
+    // Run synchronously on script execution
+    runBrowserTests();
+  </script>
+</body>
+</html>

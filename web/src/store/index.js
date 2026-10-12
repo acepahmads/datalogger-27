@@ -75,6 +75,8 @@ export default new Vuex.Store({
     tasks: [],
     devices: [],
     alarms: [],
+    activeAlarms: [],
+    alarmPreferences: null,
     activities: [],
     ws: null,
   },
@@ -118,6 +120,43 @@ export default new Vuex.Store({
     },
     SET_ALARMS(state, alarms) {
       state.alarms = alarms;
+    },
+    SET_ACTIVE_ALARMS(state, alarms) {
+      state.activeAlarms = Array.isArray(alarms) ? alarms : [];
+      if (state.systemStatus) {
+        state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+      }
+    },
+    UPSERT_ACTIVE_ALARM(state, alarm) {
+      if (!alarm || !alarm.id) return;
+      const idx = state.activeAlarms.findIndex(a => a.id === alarm.id);
+      if (idx !== -1) {
+        Vue.set(state.activeAlarms, idx, { ...state.activeAlarms[idx], ...alarm });
+      } else {
+        state.activeAlarms.unshift(alarm);
+      }
+      if (state.systemStatus) {
+        state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+      }
+    },
+    UPDATE_ALARM_STATUS(state, updated) {
+      if (!updated || !updated.id) return;
+      const idx = state.activeAlarms.findIndex(a => a.id === updated.id);
+      if (idx !== -1) {
+        Vue.set(state.activeAlarms, idx, { ...state.activeAlarms[idx], ...updated });
+      }
+      if (state.systemStatus) {
+        state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+      }
+    },
+    REMOVE_ACTIVE_ALARM(state, alarmId) {
+      state.activeAlarms = state.activeAlarms.filter(a => a.id !== alarmId);
+      if (state.systemStatus) {
+        state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+      }
+    },
+    SET_ALARM_PREFERENCES(state, prefs) {
+      state.alarmPreferences = { ...(state.alarmPreferences || {}), ...prefs };
     },
     SET_ACTIVITIES(state, activities) {
       state.activities = activities;
@@ -422,12 +461,34 @@ export default new Vuex.Store({
         throw err;
       }
     },
-    async acknowledgeAlarm({ dispatch }, payload) {
+    async fetchActiveAlarms({ commit }) {
+      try {
+        const res = await axios.get(`${API_BASE}/alarms/active`);
+        if (res.data && res.data.data) {
+          commit('SET_ACTIVE_ALARMS', res.data.data);
+          return res.data.data;
+        }
+      } catch (err) {
+        console.error('Failed to fetch active alarms:', err);
+      }
+      return [];
+    },
+    updateAlarmPreferences({ commit }, prefs) {
+      commit('SET_ALARM_PREFERENCES', prefs);
+    },
+    async acknowledgeAlarm({ commit, dispatch }, payload) {
       try {
         const id = typeof payload === 'object' && payload !== null ? payload.id : payload;
         const notes = typeof payload === 'object' && payload !== null ? (payload.notes || '') : '';
         const res = await axios.put(`${API_BASE}/alarms/${id}/acknowledge`, { notes });
+        commit('UPDATE_ALARM_STATUS', {
+          id: Number(id),
+          status: 'ACKNOWLEDGED',
+          notes,
+          acknowledged_at: new Date().toISOString(),
+        });
         dispatch('fetchAlarms');
+        dispatch('fetchActiveAlarms');
         dispatch('fetchSystemStatus');
         return res.data;
       } catch (err) {
@@ -455,6 +516,9 @@ export default new Vuex.Store({
 
       socket.onopen = () => {
         commit('SET_WS_CONNECTED', true);
+        // Reconcile active alarms and system status after connection or reconnection
+        dispatch('fetchActiveAlarms');
+        dispatch('fetchSystemStatus');
       };
 
       socket.onclose = () => {
@@ -495,6 +559,18 @@ export default new Vuex.Store({
             window.dispatchEvent(new CustomEvent('device-telemetry-event', { detail: msg.data }));
           } else if (msg.type === 'aggregation.result.updated' && msg.data) {
             window.dispatchEvent(new CustomEvent('aggregation-result-event', { detail: msg.data }));
+          } else if (msg.type === 'notification.alert' && msg.data) {
+            dispatch('fetchActiveAlarms');
+            dispatch('fetchSystemStatus');
+          } else if (msg.type === 'alarm.created' && msg.data) {
+            commit('UPSERT_ACTIVE_ALARM', msg.data);
+            dispatch('fetchSystemStatus');
+          } else if (msg.type === 'alarm.acknowledged' && msg.data) {
+            commit('UPDATE_ALARM_STATUS', msg.data);
+            dispatch('fetchSystemStatus');
+          } else if (msg.type === 'alarm.cleared' && msg.data) {
+            commit('REMOVE_ACTIVE_ALARM', msg.data.id || msg.data.ID);
+            dispatch('fetchSystemStatus');
           }
         } catch (e) {
           // ignore parse errors

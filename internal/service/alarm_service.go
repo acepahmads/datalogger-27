@@ -9,6 +9,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/internal/websocket"
 )
 
 // AlarmService manages alarm persistence and lifecycle state transitions
@@ -16,6 +17,7 @@ type AlarmService struct {
 	alarmRepo          *repository.AlarmRepository
 	systemRepo         *repository.SystemRepository
 	notificationEngine *NotificationEngine
+	hub                *websocket.Hub
 }
 
 // NewAlarmService creates a new instance of AlarmService
@@ -24,6 +26,11 @@ func NewAlarmService(alarmRepo *repository.AlarmRepository, systemRepo *reposito
 		alarmRepo:  alarmRepo,
 		systemRepo: systemRepo,
 	}
+}
+
+// SetHub injects the WebSocket hub for real-time alarm broadcasting
+func (s *AlarmService) SetHub(hub *websocket.Hub) {
+	s.hub = hub
 }
 
 // SetNotificationEngine injects the Phase 6 NotificationEngine
@@ -47,6 +54,15 @@ func (s *AlarmService) CreateAlarm(ctx context.Context, alarm *model.Alarm) erro
 			Resource:  "ALARM",
 			Details:   fmt.Sprintf("Alarm triggered: Code=%s, Severity=%s, Message=%s", alarm.AlarmCode, alarm.Severity, alarm.Message),
 			CreatedAt: time.Now().UTC(),
+		})
+	}
+
+	// Broadcast alarm.created over WebSocket for real-time global banners and alerts
+	if s.hub != nil {
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "alarm.created",
+			Timestamp: time.Now().UTC(),
+			Data:      alarm,
 		})
 	}
 
@@ -134,6 +150,14 @@ func (s *AlarmService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, us
 		})
 	}
 
+	if s.hub != nil {
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "alarm.acknowledged",
+			Timestamp: ackAt,
+			Data:      alarm,
+		})
+	}
+
 	return alarm, nil
 }
 
@@ -155,6 +179,14 @@ func (s *AlarmService) ClearAlarm(ctx context.Context, id uint) (*model.Alarm, e
 			Resource:  "ALARM",
 			Details:   fmt.Sprintf("Alarm %d (%s) cleared", id, alarm.AlarmCode),
 			CreatedAt: clearedAt,
+		})
+	}
+
+	if s.hub != nil {
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "alarm.cleared",
+			Timestamp: clearedAt,
+			Data:      alarm,
 		})
 	}
 
