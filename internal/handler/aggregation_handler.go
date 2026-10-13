@@ -340,7 +340,8 @@ func (h *AggregationHandler) GetDownsampledHistory(c *gin.Context) {
 		}
 	}
 
-	data, err := h.aggService.GetDownsampledHistory(c.Request.Context(), uint(devID), uint(paramID), startTime, endTime, resolution)
+	mode := c.DefaultQuery("mode", "processed")
+	data, err := h.aggService.GetDownsampledHistory(c.Request.Context(), uint(devID), uint(paramID), startTime, endTime, resolution, mode)
 	if err != nil {
 		response.InternalError(c, "Downsampling calculation failed: "+err.Error())
 		return

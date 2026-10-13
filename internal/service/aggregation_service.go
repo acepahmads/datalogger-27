@@ -609,6 +609,7 @@ func (s *AggregationService) GetDownsampledHistory(
 	deviceID, paramID uint,
 	startTime, endTime time.Time,
 	requestedResolution string,
+	mode ...string,
 ) (*DownsampledHistoryResponse, error) {
 	if endTime.Before(startTime) {
 		return nil, errors.New("end_time must be after start_time")
@@ -616,6 +617,7 @@ func (s *AggregationService) GetDownsampledHistory(
 
 	duration := endTime.Sub(startTime)
 	resolution := requestedResolution
+	isRawMode := len(mode) > 0 && mode[0] == "raw"
 
 	// Intelligent Resolution Selection (Section 3.3.21)
 	if resolution == "" || resolution == "auto" {
@@ -638,9 +640,25 @@ func (s *AggregationService) GetDownsampledHistory(
 		if err != nil {
 			return nil, err
 		}
+
+		if len(rawSamples) > 1200 {
+			step := len(rawSamples) / 1000
+			if step < 1 {
+				step = 1
+			}
+			sampled := make([]model.RawData, 0, 1000)
+			for i := 0; i < len(rawSamples); i += step {
+				sampled = append(sampled, rawSamples[i])
+			}
+			rawSamples = sampled
+		}
+
 		points := make([]DownsampledPoint, len(rawSamples))
 		for i, r := range rawSamples {
 			val := r.ProcessedValue
+			if isRawMode {
+				val = r.RawValue
+			}
 			points[i] = DownsampledPoint{
 				Timestamp:   r.ReceivedAt,
 				Value:       &val,
@@ -665,10 +683,18 @@ func (s *AggregationService) GetDownsampledHistory(
 	// 2. Query pre-calculated rollups from aggregation_results
 	var intervalSec int
 	switch resolution {
+	case "10s":
+		intervalSec = 10
+	case "30s":
+		intervalSec = 30
+	case "1m":
+		intervalSec = 60
 	case "2m":
 		intervalSec = 120
 	case "5m":
 		intervalSec = 300
+	case "15m":
+		intervalSec = 900
 	case "30m":
 		intervalSec = 1800
 	case "1h":
@@ -731,6 +757,9 @@ func (s *AggregationService) GetDownsampledHistory(
 		Function:        model.FunctionAvg,
 		IntervalSeconds: intervalSec,
 		Timezone:        "UTC",
+	}
+	if isRawMode {
+		mockDef.SourceType = model.SourceInternalRaw
 	}
 
 	for _, b := range buckets {

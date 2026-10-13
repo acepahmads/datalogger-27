@@ -719,18 +719,65 @@
               </h3>
             </div>
 
-            <!-- Timeframe Preset Buttons -->
-            <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
+            <!-- Timeframe Preset Buttons & Actions -->
+            <div class="flex items-center space-x-1.5">
+              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
+                <button
+                  v-for="tf in ['15m', '1h', '6h', '24h', '7d']"
+                  :key="tf"
+                  @click="setTimeframe(tf)"
+                  class="px-2 py-0.5 rounded transition font-semibold"
+                  :class="currentTimeframe === tf
+                    ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+                >
+                  {{ tf }}
+                </button>
+              </div>
+
+              <!-- Download Menu -->
+              <div class="relative">
+                <button
+                  @click="showTrendDownloadMenu = !showTrendDownloadMenu"
+                  class="p-1 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
+                  title="Download Data / Chart"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+                <div
+                  v-if="showTrendDownloadMenu"
+                  class="absolute right-0 mt-1 w-40 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-lg shadow-xl py-1 z-40 text-3xs font-mono"
+                >
+                  <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
+                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <span>CSV Data</span>
+                  </button>
+                  <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
+                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    <span>JSON Data</span>
+                  </button>
+                  <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
+                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span>PNG Graphic</span>
+                  </button>
+                  <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
+                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                    <span>SVG Graphic</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Fullscreen Button -->
               <button
-                v-for="tf in ['15m', '1h', '6h', '24h', '7d']"
-                :key="tf"
-                @click="setTimeframe(tf)"
-                class="px-2 py-0.5 rounded transition font-semibold"
-                :class="currentTimeframe === tf
-                  ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+                @click="openTrendFullscreen"
+                class="p-1 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
+                title="Fullscreen / Expanded View"
               >
-                {{ tf }}
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
               </button>
             </div>
           </div>
@@ -741,13 +788,16 @@
             <div
               v-for="s in activeTrendSeries"
               :key="s.id"
-              class="flex items-center space-x-1 px-2 py-0.5 rounded-md border text-3xs"
+              class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md border text-3xs"
               :style="{ borderColor: s.color, backgroundColor: s.color + '15' }"
             >
               <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: s.color }"></span>
               <span class="font-bold text-slate-900 dark:text-white">{{ s.deviceCode }}:{{ s.paramCode }}</span>
               <span v-if="s.latestVal != null" class="font-bold" :style="{ color: s.color }">
                 {{ s.latestVal }} {{ s.unit }}
+              </span>
+              <span v-if="s.stats && s.stats.min !== '--'" class="text-slate-500 dark:text-slate-400 text-4xs hidden sm:inline">
+                ({{ s.stats.min }} - {{ s.stats.max }})
               </span>
               <button @click="removeTrendSeries(s.id)" class="text-slate-400 hover:text-slate-700 dark:hover:text-white ml-0.5">✕</button>
             </div>
@@ -780,22 +830,52 @@
             </div>
 
             <!-- SVG Multi-Series Trend Line -->
-            <svg v-else class="w-full h-full" viewBox="0 0 460 170" preserveAspectRatio="none">
-              <!-- Grid Lines (dynamic stroke for light / dark contrast) -->
+            <svg v-else ref="trendPanelSvg" class="w-full h-full" viewBox="0 0 460 170" preserveAspectRatio="none">
+              <!-- Y-Axis Grid Lines & Values -->
               <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="1">
-                <line x1="35" y1="20" x2="450" y2="20" />
-                <line x1="35" y1="55" x2="450" y2="55" />
-                <line x1="35" y1="90" x2="450" y2="90" />
-                <line x1="35" y1="125" x2="450" y2="125" />
-                <line x1="35" y1="150" x2="450" y2="150" stroke-dasharray="none" :stroke="axisStroke" />
+                <g v-for="(tick, idx) in trendYTicks" :key="'ytick-' + idx">
+                  <line x1="45" :y1="tick.y" x2="445" :y2="tick.y" />
+                  <text
+                    x="40"
+                    :y="tick.y + 3"
+                    text-anchor="end"
+                    font-size="8"
+                    font-family="monospace"
+                    :fill="isDark ? '#64748b' : '#94a3b8'"
+                  >{{ tick.label }}</text>
+                </g>
+                <!-- Base Axis Line -->
+                <line x1="45" y1="145" x2="445" y2="145" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+              </g>
+
+              <!-- X-Axis Time Ticks & Timestamps -->
+              <g class="time-ticks">
+                <g v-for="(tick, idx) in trendXTicks" :key="'xtick-' + idx">
+                  <line :x1="tick.x" y1="145" :x2="tick.x" y2="149" :stroke="axisStroke" stroke-width="1" />
+                  <text
+                    :x="tick.x"
+                    y="161"
+                    text-anchor="middle"
+                    font-size="8"
+                    font-family="monospace"
+                    :fill="isDark ? '#64748b' : '#94a3b8'"
+                  >{{ tick.label }}</text>
+                </g>
               </g>
 
               <!-- Threshold Reference Lines (e.g. Critical High / Warning High) -->
-              <line x1="35" y1="35" x2="450" y2="35" stroke="#FF4559" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
-              <text x="445" y="32" fill="#FF4559" font-size="8" text-anchor="end" font-family="monospace">CRIT LIMIT</text>
-
-              <line x1="35" y1="65" x2="450" y2="65" stroke="#FFB020" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
-              <text x="445" y="62" fill="#FFB020" font-size="8" text-anchor="end" font-family="monospace">WARN LIMIT</text>
+              <g v-if="trendThresholdLines.crit != null">
+                <line x1="45" :y1="trendThresholdLines.crit.y" x2="445" :y2="trendThresholdLines.crit.y" stroke="#FF4559" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" />
+                <text x="440" :y="trendThresholdLines.crit.y - 3" fill="#FF4559" font-size="7.5" text-anchor="end" font-family="monospace">
+                  CRIT ({{ trendThresholdLines.crit.val }})
+                </text>
+              </g>
+              <g v-if="trendThresholdLines.warn != null">
+                <line x1="45" :y1="trendThresholdLines.warn.y" x2="445" :y2="trendThresholdLines.warn.y" stroke="#FFB020" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" />
+                <text x="440" :y="trendThresholdLines.warn.y - 3" fill="#FFB020" font-size="7.5" text-anchor="end" font-family="monospace">
+                  WARN ({{ trendThresholdLines.warn.val }})
+                </text>
+              </g>
 
               <!-- Series Paths -->
               <g v-for="s in activeTrendSeries" :key="'plot-' + s.id">
@@ -818,7 +898,7 @@
 
               <!-- Scrubbing Hover Crosshair -->
               <g v-if="scrubPoint">
-                <line :x1="scrubPoint.x" y1="15" :x2="scrubPoint.x" y2="150" stroke="#00CFFF" stroke-width="1.2" stroke-dasharray="2 2" />
+                <line :x1="scrubPoint.x" y1="20" :x2="scrubPoint.x" y2="145" stroke="#00CFFF" stroke-width="1.2" stroke-dasharray="2 2" />
                 <circle :cx="scrubPoint.x" :cy="scrubPoint.y" r="3.5" fill="#00CFFF" stroke="#ffffff" stroke-width="1.5" />
               </g>
             </svg>
@@ -826,11 +906,17 @@
             <!-- Floating Hover Tooltip -->
             <div
               v-if="scrubPoint"
-              class="absolute z-30 pointer-events-none bg-white dark:bg-[#0B1422] border border-cyan-500 rounded px-2 py-1 shadow-xl text-4xs font-mono text-slate-900 dark:text-white"
-              :style="{ left: Math.min(Math.max(scrubPoint.x - 40, 10), 340) + 'px', top: '10px' }"
+              class="absolute z-30 pointer-events-none bg-white dark:bg-[#0B1422] border border-cyan-500 rounded px-2.5 py-1.5 shadow-xl text-3xs font-mono text-slate-900 dark:text-white"
+              :style="{ left: Math.min(Math.max(scrubPoint.x - 50, 10), 280) + 'px', top: '10px' }"
             >
-              <div class="text-slate-500 dark:text-slate-400">{{ scrubPoint.time }}</div>
-              <div class="font-bold text-cyan-600 dark:text-cyan-400">{{ scrubPoint.label }}: {{ scrubPoint.val }} {{ scrubPoint.unit }}</div>
+              <div class="text-slate-400 dark:text-slate-500 text-4xs border-b border-slate-200 dark:border-[#20354B] pb-0.5 mb-1">
+                {{ scrubPoint.date }} {{ scrubPoint.time }}
+              </div>
+              <div v-for="sp in (scrubPoint.allSeries || [scrubPoint])" :key="sp.seriesId || sp.label" class="flex items-center space-x-1.5 font-bold">
+                <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: sp.color || '#00CFFF' }"></span>
+                <span class="text-slate-500 dark:text-slate-400">{{ sp.deviceCode }}:{{ sp.paramCode }}:</span>
+                <span :style="{ color: sp.color || '#00CFFF' }">{{ sp.val }} {{ sp.unit }}</span>
+              </div>
             </div>
           </div>
 
@@ -839,22 +925,36 @@
             <div class="flex items-center space-x-2">
               <span>Mode:</span>
               <button
-                @click="chartMode = 'processed'"
+                @click="setChartMode('processed')"
                 :class="chartMode === 'processed' ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
               >
                 PROCESSED
               </button>
               <span>·</span>
               <button
-                @click="chartMode = 'raw'"
+                @click="setChartMode('raw')"
                 :class="chartMode === 'raw' ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
               >
                 RAW
               </button>
+              <span>·</span>
+              <button
+                @click="toggleTrendScaleMode"
+                class="hover:text-cyan-500 transition"
+                :title="'Current Scale: ' + (trendScaleMode === 'auto' ? 'Native units' : 'Normalized 0-100%')"
+              >
+                SCALE: {{ trendScaleMode === 'auto' ? 'NATIVE' : 'NORM %' }}
+              </button>
             </div>
-            <router-link to="/monitoring/analysis" class="text-cyan-600 dark:text-cyan-400 hover:underline">
-              Deep Telemetry Analysis →
-            </router-link>
+            <div class="flex items-center space-x-2">
+              <button @click="openTrendFullscreen" class="text-cyan-600 dark:text-cyan-400 hover:underline">
+                Expand Fullscreen ⛶
+              </button>
+              <span>·</span>
+              <router-link to="/monitoring/analysis" class="text-cyan-600 dark:text-cyan-400 hover:underline">
+                Deep Analysis →
+              </router-link>
+            </div>
           </div>
         </div>
 
@@ -1223,6 +1323,312 @@
         </div>
       </div>
     </div>
+
+    <!-- ======================================================== -->
+    <!-- MODAL 4: FULLSCREEN SCADA TELEMETRY TREND ANALYZER       -->
+    <!-- ======================================================== -->
+    <div
+      v-if="showTrendFullscreen"
+      class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in"
+      @keydown.esc="closeTrendFullscreen"
+    >
+      <div class="w-full max-w-7xl h-[92vh] bg-white dark:bg-[#070D18] border border-slate-200 dark:border-[#20354B] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <!-- Fullscreen Header -->
+        <div class="px-5 py-3 border-b border-slate-200 dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-[#0B1422]">
+          <div class="flex items-center space-x-3">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
+            <div>
+              <h2 class="text-sm sm:text-base font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center space-x-2">
+                <span>SCADA TELEMETRY TREND ANALYZER</span>
+                <span class="text-3xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                  {{ chartMode.toUpperCase() }}
+                </span>
+              </h2>
+              <p class="text-3xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                Window: {{ formatFullscreenWindowStr }} · Active Series: {{ activeTrendSeries.length }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Header Action Buttons -->
+          <div class="flex items-center space-x-2 font-mono text-xs">
+            <!-- CSV Download -->
+            <button
+              @click="downloadTrendCSV"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+            >
+              <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <span>Download CSV</span>
+            </button>
+
+            <!-- PNG Download -->
+            <button
+              @click="downloadTrendChart('png')"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+            >
+              <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>Download PNG</span>
+            </button>
+
+            <!-- SVG Download -->
+            <button
+              @click="downloadTrendChart('svg')"
+              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1"
+            >
+              <span>SVG</span>
+            </button>
+
+            <!-- Close Fullscreen -->
+            <button
+              @click="closeTrendFullscreen"
+              class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-[#1E2E42] text-slate-500 hover:text-slate-900 dark:hover:text-white transition"
+              title="Close Fullscreen (Esc)"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fullscreen Filter & Toolbar Controls -->
+        <div class="px-5 py-2.5 bg-slate-100/60 dark:bg-[#0B1422]/60 border-b border-slate-200 dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-3xs font-mono">
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Timeframe Presets -->
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+              <button
+                v-for="tf in ['15m', '1h', '6h', '24h', '7d']"
+                :key="'fs-' + tf"
+                @click="setTimeframe(tf)"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="!fullscreenIsCustom && currentTimeframe === tf
+                  ? 'bg-cyan-500 text-slate-950 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+              >
+                {{ tf }}
+              </button>
+            </div>
+
+            <!-- Custom Date Range Inputs -->
+            <div class="flex items-center space-x-1 bg-white dark:bg-[#101B2B] p-1 rounded-lg border border-slate-200 dark:border-[#20354B]">
+              <input
+                type="datetime-local"
+                v-model="fullscreenCustomStart"
+                class="bg-transparent text-slate-900 dark:text-white text-3xs px-1.5 py-0.5 border-none focus:outline-none"
+              />
+              <span class="text-slate-400">→</span>
+              <input
+                type="datetime-local"
+                v-model="fullscreenCustomEnd"
+                class="bg-transparent text-slate-900 dark:text-white text-3xs px-1.5 py-0.5 border-none focus:outline-none"
+              />
+              <button
+                @click="setCustomTimeframe"
+                class="px-2 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold transition"
+              >
+                Apply
+              </button>
+            </div>
+
+            <!-- Mode Selector -->
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+              <button
+                @click="setChartMode('processed')"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="chartMode === 'processed' ? 'bg-cyan-500 text-slate-950' : 'text-slate-500 hover:text-slate-300'"
+              >
+                PROCESSED
+              </button>
+              <button
+                @click="setChartMode('raw')"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="chartMode === 'raw' ? 'bg-cyan-500 text-slate-950' : 'text-slate-500 hover:text-slate-300'"
+              >
+                RAW
+              </button>
+            </div>
+
+            <!-- Scale Mode Toggle -->
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+              <button
+                @click="trendScaleMode = 'auto'"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="trendScaleMode === 'auto' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'"
+              >
+                NATIVE UNITS
+              </button>
+              <button
+                @click="trendScaleMode = 'normalized'"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="trendScaleMode === 'normalized' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'"
+              >
+                NORMALIZED (%)
+              </button>
+            </div>
+          </div>
+
+          <!-- Parameter Selector Button / Dropdown -->
+          <div class="relative">
+            <button
+              @click="showTrendParamPicker = !showTrendParamPicker"
+              class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-bold transition flex items-center space-x-1.5"
+            >
+              <span>+ Add / Remove Parameter ({{ activeTrendSeries.length }}/6)</span>
+            </button>
+
+            <!-- Parameter Picker Dropdown -->
+            <div
+              v-if="showTrendParamPicker"
+              class="absolute right-0 mt-1 w-72 max-h-72 overflow-y-auto bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-xl shadow-2xl p-2 z-50 text-3xs font-mono"
+            >
+              <div class="text-slate-400 font-bold px-2 py-1 uppercase border-b border-slate-200 dark:border-[#20354B] mb-1">
+                Toggle Series to Plot:
+              </div>
+              <div
+                v-for="p in allParameters"
+                :key="'fs-picker-' + p.param_id"
+                @click="selectParamForTrend(p)"
+                class="flex items-center justify-between px-2.5 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-[#16253B] cursor-pointer transition"
+                :class="isParamSelectedForTrend(p) ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-bold' : 'text-slate-700 dark:text-slate-300'"
+              >
+                <div class="flex items-center space-x-2">
+                  <span class="w-2 h-2 rounded-full" :class="isParamSelectedForTrend(p) ? 'bg-cyan-500' : 'bg-slate-400'"></span>
+                  <span>{{ p.device_code }}:{{ p.param_code }}</span>
+                </div>
+                <span>{{ p.current_val != null ? p.current_val : '--' }} {{ p.unit }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fullscreen Chart Canvas -->
+        <div
+          ref="fullscreenChartContainer"
+          class="flex-1 min-h-[360px] bg-slate-50 dark:bg-[#070D18] relative select-none p-3"
+          @mousemove="onFullscreenChartScrub"
+          @mouseleave="fullscreenScrubPoint = null"
+        >
+          <!-- Loading Overlay -->
+          <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#070D18]/80 flex items-center justify-center text-cyan-600 dark:text-cyan-400 text-sm font-mono z-20">
+            <span class="animate-spin w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full mr-2.5"></span>
+            Loading Telemetry Trend...
+          </div>
+
+          <!-- Empty State -->
+          <div v-else-if="activeTrendSeries.length === 0" class="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-xs font-mono space-y-2">
+            <span>No series selected for trend graph.</span>
+            <button @click="showTrendParamPicker = true" class="text-cyan-500 underline font-bold">Click here to select parameters</button>
+          </div>
+
+          <!-- SVG Chart -->
+          <svg
+            v-else
+            ref="fullscreenTrendSvg"
+            class="w-full h-full"
+            viewBox="0 0 960 380"
+            preserveAspectRatio="none"
+          >
+            <!-- Y-Axis Grid Lines & Values -->
+            <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="1">
+              <g v-for="(tick, idx) in fullscreenYTicks" :key="'fs-ytick-' + idx">
+                <line x1="60" :y1="tick.y" x2="930" :y2="tick.y" />
+                <text
+                  x="52"
+                  :y="tick.y + 3"
+                  text-anchor="end"
+                  font-size="10"
+                  font-family="monospace"
+                  :fill="isDark ? '#64748b' : '#94a3b8'"
+                >{{ tick.label }}</text>
+              </g>
+              <line x1="60" y1="335" x2="930" y2="335" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+            </g>
+
+            <!-- X-Axis Time Ticks & Timestamps -->
+            <g class="time-ticks">
+              <g v-for="(tick, idx) in fullscreenXTicks" :key="'fs-xtick-' + idx">
+                <line :x1="tick.x" y1="335" :x2="tick.x" y2="340" :stroke="axisStroke" stroke-width="1" />
+                <text
+                  :x="tick.x"
+                  y="355"
+                  text-anchor="middle"
+                  font-size="9"
+                  font-family="monospace"
+                  :fill="isDark ? '#64748b' : '#94a3b8'"
+                >{{ tick.label }}</text>
+              </g>
+            </g>
+
+            <!-- Series Plots -->
+            <g v-for="s in activeTrendSeries" :key="'fs-plot-' + s.id">
+              <polygon
+                :points="generateChartPolygon(s, null, 960, 380, 60, 30, 30, 45)"
+                :fill="s.color"
+                fill-opacity="0.12"
+              />
+              <polyline
+                :points="generateChartPolyline(s, null, 960, 380, 60, 30, 30, 45)"
+                fill="none"
+                :stroke="s.color"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </g>
+
+            <!-- Hover Scrub Crosshair -->
+            <g v-if="fullscreenScrubPoint">
+              <line :x1="fullscreenScrubPoint.x" y1="30" :x2="fullscreenScrubPoint.x" y2="335" stroke="#00CFFF" stroke-width="1.5" stroke-dasharray="3 3" />
+            </g>
+          </svg>
+
+          <!-- Hover Tooltip -->
+          <div
+            v-if="fullscreenScrubPoint"
+            class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#0B1422]/95 backdrop-blur-md border border-cyan-500 rounded-lg p-2.5 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white"
+            :style="{ left: Math.min(Math.max(fullscreenScrubPoint.x - 70, 20), 750) + 'px', top: '20px' }"
+          >
+            <div class="text-slate-400 dark:text-slate-500 text-3xs border-b border-slate-200 dark:border-[#20354B] pb-1 mb-1.5 font-bold">
+              🕒 {{ fullscreenScrubPoint.date }} {{ fullscreenScrubPoint.time }}
+            </div>
+            <div v-for="sp in fullscreenScrubPoint.allSeries" :key="sp.seriesId" class="flex items-center justify-between space-x-3 py-0.5">
+              <div class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: sp.color }"></span>
+                <span class="text-slate-600 dark:text-slate-300 font-bold">{{ sp.deviceCode }}:{{ sp.paramCode }}:</span>
+              </div>
+              <span class="font-black" :style="{ color: sp.color }">{{ sp.val }} {{ sp.unit }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fullscreen Bottom Statistics Cards Row -->
+        <div class="px-5 py-3 border-t border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0B1422] overflow-x-auto">
+          <div class="flex items-center space-x-3 min-w-max">
+            <div
+              v-for="s in activeTrendSeries"
+              :key="'fs-stat-' + s.id"
+              class="flex items-center space-x-3 px-3 py-2 rounded-xl border bg-white dark:bg-[#101B2B] text-3xs font-mono shadow-xs"
+              :style="{ borderColor: s.color + '40' }"
+            >
+              <span class="w-3 h-3 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
+              <div>
+                <div class="font-bold text-slate-900 dark:text-white text-2xs">{{ s.deviceCode }}:{{ s.paramCode }}</div>
+                <div class="text-slate-500 dark:text-slate-400">Current: <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ s.latestVal }} {{ s.unit }}</span></div>
+              </div>
+              <div class="border-l border-slate-200 dark:border-[#20354B] pl-3 flex items-center space-x-3 text-slate-500 dark:text-slate-400">
+                <div>Min: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.min ?? '--' }}</span></div>
+                <div>Max: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.max ?? '--' }}</span></div>
+                <div>Avg: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.avg ?? '--' }}</span></div>
+                <div>Pts: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.count ?? 0 }}</span></div>
+              </div>
+              <button @click="removeTrendSeries(s.id)" class="text-slate-400 hover:text-rose-500 ml-1">✕</button>
+            </div>
+
+            <div v-if="activeTrendSeries.length === 0" class="text-slate-400 font-mono text-3xs py-1">
+              No parameters selected. Click "+ Add / Remove Parameter" above to start analyzing trends.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1275,9 +1681,21 @@ export default {
       // Trend Chart State
       currentTimeframe: '24h',
       chartMode: 'processed', // 'processed' | 'raw'
+      trendScaleMode: 'auto', // 'auto' | 'normalized'
       activeTrendSeries: [],
       isChartLoading: false,
       scrubPoint: null,
+      fullscreenScrubPoint: null,
+      trendTimeBounds: {
+        start: Date.now() - 24 * 3600 * 1000,
+        end: Date.now(),
+      },
+      showTrendDownloadMenu: false,
+      showTrendFullscreen: false,
+      fullscreenCustomStart: '',
+      fullscreenCustomEnd: '',
+      fullscreenIsCustom: false,
+      showTrendParamPicker: false,
 
       // Recent Activity & Queue
       activeRecentTab: 'alarms', // 'alarms' | 'events' | 'notifications'
@@ -1344,6 +1762,128 @@ export default {
     },
     axisStroke() {
       return this.isDark ? '#20354B' : '#cbd5e1';
+    },
+    trendNativeScale() {
+      const allY = [];
+      this.activeTrendSeries.forEach(s => {
+        if (s.dataPoints && s.dataPoints.length > 0) {
+          allY.push(...s.dataPoints.map(p => p.y).filter(v => typeof v === 'number' && !isNaN(v)));
+        }
+      });
+      if (allY.length === 0) return { min: 0, max: 100 };
+      let min = Math.min(...allY);
+      let max = Math.max(...allY);
+      if (min === max) {
+        min = Math.floor(min - 5);
+        max = Math.ceil(max + 5);
+      } else {
+        const padding = (max - min) * 0.05;
+        min = Math.floor(min - padding);
+        max = Math.ceil(max + padding);
+      }
+      return { min, max };
+    },
+    trendYTicks() {
+      const scale = this.trendNativeScale;
+      const ticks = [];
+      const steps = 4;
+      for (let i = 0; i <= steps; i++) {
+        const frac = i / steps;
+        const y = 20 + 125 - frac * 125;
+        let label = '';
+        if (this.trendScaleMode === 'normalized') {
+          label = `${Math.round(frac * 100)}%`;
+        } else {
+          const val = scale.min + frac * (scale.max - scale.min);
+          label = isNaN(val) ? '--' : (Math.abs(val) >= 100 ? val.toFixed(0) : val.toFixed(1));
+        }
+        ticks.push({ y, frac, label });
+      }
+      return ticks;
+    },
+    trendXTicks() {
+      const start = this.trendTimeBounds.start;
+      const end = this.trendTimeBounds.end;
+      const span = Math.max(end - start, 1000);
+      const ticks = [];
+      const steps = 4;
+      for (let i = 0; i <= steps; i++) {
+        const frac = i / steps;
+        const x = 45 + frac * 400;
+        const time = new Date(start + frac * span);
+        let label = '';
+        if (span <= 24 * 3600 * 1000) {
+          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+          label = `${time.getMonth() + 1}/${time.getDate()} ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        }
+        ticks.push({ x, label });
+      }
+      return ticks;
+    },
+    fullscreenYTicks() {
+      const scale = this.trendNativeScale;
+      const ticks = [];
+      const steps = 5;
+      for (let i = 0; i <= steps; i++) {
+        const frac = i / steps;
+        const y = 30 + 305 - frac * 305;
+        let label = '';
+        if (this.trendScaleMode === 'normalized') {
+          label = `${Math.round(frac * 100)}%`;
+        } else {
+          const val = scale.min + frac * (scale.max - scale.min);
+          label = isNaN(val) ? '--' : (Math.abs(val) >= 100 ? val.toFixed(0) : val.toFixed(1));
+        }
+        ticks.push({ y, frac, label });
+      }
+      return ticks;
+    },
+    fullscreenXTicks() {
+      const start = this.trendTimeBounds.start;
+      const end = this.trendTimeBounds.end;
+      const span = Math.max(end - start, 1000);
+      const ticks = [];
+      const steps = 7;
+      for (let i = 0; i <= steps; i++) {
+        const frac = i / steps;
+        const x = 60 + frac * 870;
+        const time = new Date(start + frac * span);
+        let label = '';
+        if (span <= 24 * 3600 * 1000) {
+          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } else {
+          label = `${time.getMonth() + 1}/${time.getDate()} ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        }
+        ticks.push({ x, label });
+      }
+      return ticks;
+    },
+    trendThresholdLines() {
+      if (this.activeTrendSeries.length === 0) return { crit: null, warn: null };
+      const first = this.activeTrendSeries[0];
+      const param = this.allParameters.find(p => p.param_id === first.parameterId);
+      if (!param) return { crit: null, warn: null };
+
+      const scale = this.trendNativeScale;
+      const span = scale.max - scale.min || 1;
+      let crit = null;
+      let warn = null;
+
+      if (param.high_critical != null && this.trendScaleMode !== 'normalized') {
+        const frac = Math.min(Math.max((param.high_critical - scale.min) / span, 0), 1);
+        crit = { y: 20 + 125 - frac * 125, val: param.high_critical };
+      }
+      if (param.high_warning != null && this.trendScaleMode !== 'normalized') {
+        const frac = Math.min(Math.max((param.high_warning - scale.min) / span, 0), 1);
+        warn = { y: 20 + 125 - frac * 125, val: param.high_warning };
+      }
+      return { crit, warn };
+    },
+    formatFullscreenWindowStr() {
+      const s = new Date(this.trendTimeBounds.start);
+      const e = new Date(this.trendTimeBounds.end);
+      return `${s.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} - ${e.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
     },
     systemStatus() {
       return this.$store.state.systemStatus || {};
@@ -2092,7 +2632,7 @@ export default {
       if (existingIdx !== -1) {
         this.activeTrendSeries.splice(existingIdx, 1);
       } else {
-        if (this.activeTrendSeries.length >= 4) {
+        if (this.activeTrendSeries.length >= 6) {
           this.activeTrendSeries.shift();
         }
         const color = TREND_PALETTE[this.activeTrendSeries.length % TREND_PALETTE.length];
@@ -2102,10 +2642,11 @@ export default {
           parameterId: param.param_id,
           deviceCode: param.device_code,
           paramCode: param.param_code,
-          unit: param.unit,
+          unit: param.unit || '',
           latestVal: this.formatParamValue(param),
           color,
           dataPoints: [],
+          stats: { min: '--', max: '--', avg: '--', count: 0 },
         });
         this.fetchTrendData();
       }
@@ -2125,7 +2666,31 @@ export default {
     },
     setTimeframe(tf) {
       this.currentTimeframe = tf;
+      this.fullscreenIsCustom = false;
       this.fetchTrendData();
+    },
+    setCustomTimeframe() {
+      if (!this.fullscreenCustomStart || !this.fullscreenCustomEnd) return;
+      this.fullscreenIsCustom = true;
+      this.fetchTrendData();
+    },
+    setChartMode(mode) {
+      this.chartMode = mode;
+      this.fetchTrendData();
+    },
+    toggleTrendScaleMode() {
+      this.trendScaleMode = this.trendScaleMode === 'auto' ? 'normalized' : 'auto';
+    },
+    openTrendFullscreen() {
+      const now = new Date();
+      const start = new Date(this.trendTimeBounds.start || (now.getTime() - 24 * 3600 * 1000));
+      this.fullscreenCustomStart = this.toLocalISO(start);
+      this.fullscreenCustomEnd = this.toLocalISO(now);
+      this.showTrendFullscreen = true;
+    },
+    closeTrendFullscreen() {
+      this.showTrendFullscreen = false;
+      this.showTrendParamPicker = false;
     },
     async fetchTrendData() {
       if (this.activeTrendSeries.length === 0) return;
@@ -2133,77 +2698,337 @@ export default {
       try {
         const now = new Date();
         let startTime = new Date(now.getTime() - 24 * 3600 * 1000);
-        if (this.currentTimeframe === '15m') startTime = new Date(now.getTime() - 15 * 60 * 1000);
-        else if (this.currentTimeframe === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
-        else if (this.currentTimeframe === '6h') startTime = new Date(now.getTime() - 6 * 3600 * 1000);
-        else if (this.currentTimeframe === '7d') startTime = new Date(now.getTime() - 7 * 86400 * 1000);
+        let endTime = now;
+
+        if (this.fullscreenIsCustom && this.fullscreenCustomStart && this.fullscreenCustomEnd) {
+          startTime = new Date(this.fullscreenCustomStart);
+          endTime = new Date(this.fullscreenCustomEnd);
+        } else {
+          if (this.currentTimeframe === '15m') startTime = new Date(now.getTime() - 15 * 60 * 1000);
+          else if (this.currentTimeframe === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
+          else if (this.currentTimeframe === '6h') startTime = new Date(now.getTime() - 6 * 3600 * 1000);
+          else if (this.currentTimeframe === '24h') startTime = new Date(now.getTime() - 24 * 3600 * 1000);
+          else if (this.currentTimeframe === '7d') startTime = new Date(now.getTime() - 7 * 86400 * 1000);
+        }
+
+        this.trendTimeBounds = {
+          start: startTime.getTime(),
+          end: endTime.getTime(),
+        };
 
         for (const s of this.activeTrendSeries) {
-          const endpoint = this.chartMode === 'raw'
-            ? `/api/devices/${s.deviceId}/telemetry/raw`
-            : `/api/devices/${s.deviceId}/telemetry/history`;
+          let points = [];
+          // 1. Primary: Intelligent Downsampling Engine (guarantees coverage across entire timeframe)
+          try {
+            const downRes = await axios.get(`/api/devices/${s.deviceId}/telemetry/downsampled`, {
+              params: {
+                parameter_id: s.parameterId,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                resolution: 'auto',
+                mode: this.chartMode,
+              },
+            });
+            if (downRes.data && downRes.data.data && Array.isArray(downRes.data.data.points) && downRes.data.data.points.length > 0) {
+              points = downRes.data.data.points.map(p => ({
+                x: new Date(p.timestamp).getTime(),
+                y: p.value !== null && p.value !== undefined ? Number(p.value) : (Number(p.avg_value) || 0),
+                min: p.min_value !== undefined ? p.min_value : null,
+                max: p.max_value !== undefined ? p.max_value : null,
+                avg: p.avg_value !== undefined ? p.avg_value : null,
+                quality: p.quality || 'GOOD',
+              }));
+            }
+          } catch (err) {
+            // silent fallback
+          }
 
-          const res = await axios.get(endpoint, {
-            params: {
-              parameter_id: s.parameterId,
-              start_time: startTime.toISOString(),
-              end_time: now.toISOString(),
-              page_size: 60,
-            },
-          }).catch(() => null);
+          // 2. Secondary fallback: Historical / Raw endpoint
+          if (points.length === 0) {
+            const endpoint = this.chartMode === 'raw'
+              ? `/api/devices/${s.deviceId}/telemetry/raw`
+              : `/api/devices/${s.deviceId}/telemetry/history`;
 
-          if (res && res.data && res.data.data) {
-            const items = res.data.data.items || [];
-            s.dataPoints = items.map(item => ({
-              x: new Date(item.received_at || item.timestamp).getTime(),
-              y: Number(item.value) || 0,
-            })).sort((a, b) => a.x - b.x);
+            const res = await axios.get(endpoint, {
+              params: {
+                parameter_id: s.parameterId,
+                start_time: startTime.toISOString(),
+                end_time: endTime.toISOString(),
+                page_size: 500,
+              },
+            }).catch(() => null);
+
+            if (res && res.data && res.data.data) {
+              const items = res.data.data.items || [];
+              points = items.map(item => ({
+                x: new Date(item.received_at || item.timestamp).getTime(),
+                y: Number(this.chartMode === 'raw' ? (item.raw_value !== undefined ? item.raw_value : item.value) : (item.processed_value !== undefined ? item.processed_value : item.value)) || 0,
+                quality: item.quality || 'GOOD',
+              }));
+            }
+          }
+
+          s.dataPoints = points.sort((a, b) => a.x - b.x);
+
+          // Calculate statistics over window
+          if (s.dataPoints.length > 0) {
+            const yVals = s.dataPoints.map(p => p.y).filter(v => typeof v === 'number' && !isNaN(v));
+            if (yVals.length > 0) {
+              const min = Math.min(...yVals);
+              const max = Math.max(...yVals);
+              const sum = yVals.reduce((acc, v) => acc + v, 0);
+              const avg = sum / yVals.length;
+              s.stats = {
+                min: min.toFixed(Math.abs(min) >= 100 ? 0 : 2),
+                max: max.toFixed(Math.abs(max) >= 100 ? 0 : 2),
+                avg: avg.toFixed(Math.abs(avg) >= 100 ? 0 : 2),
+                count: yVals.length,
+              };
+              const lastVal = yVals[yVals.length - 1];
+              s.latestVal = lastVal.toFixed(Math.abs(lastVal) >= 100 ? 0 : 2);
+            }
+          } else {
+            s.stats = { min: '--', max: '--', avg: '--', count: 0 };
           }
         }
       } finally {
         this.isChartLoading = false;
       }
     },
-    generateChartPolyline(series) {
+    generateChartPolyline(series, bounds = null, width = 460, height = 170, padLeft = 45, padRight = 15, padTop = 20, padBottom = 25) {
       const pts = series.dataPoints;
       if (!pts || pts.length === 0) return '';
-      const minX = pts[0].x;
-      const maxX = pts[pts.length - 1].x;
-      const spanX = maxX - minX || 1;
 
-      const yVals = pts.map(p => p.y);
-      const minY = Math.min(...yVals);
-      const maxY = Math.max(...yVals);
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+
+      const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
+      const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
+      const timeSpan = Math.max(timeEnd - timeStart, 1000);
+
+      let minY = 0;
+      let maxY = 100;
+      if (this.trendScaleMode === 'auto') {
+        const scale = this.trendNativeScale;
+        minY = scale.min;
+        maxY = scale.max;
+      } else {
+        const yVals = pts.map(p => p.y).filter(v => !isNaN(v));
+        minY = yVals.length > 0 ? Math.min(...yVals) : 0;
+        maxY = yVals.length > 0 ? Math.max(...yVals) : 100;
+      }
+      if (minY === maxY) {
+        minY -= 1;
+        maxY += 1;
+      }
       const spanY = maxY - minY || 1;
 
       return pts.map(p => {
-        const px = 35 + ((p.x - minX) / spanX) * (450 - 35);
-        const py = 150 - ((p.y - minY) / spanY) * (150 - 20);
+        const px = padLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
+        const py = (padTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
         return `${px.toFixed(1)},${py.toFixed(1)}`;
       }).join(' ');
     },
-    generateChartPolygon(series) {
-      const polyline = this.generateChartPolyline(series);
+    generateChartPolygon(series, bounds = null, width = 460, height = 170, padLeft = 45, padRight = 15, padTop = 20, padBottom = 25) {
+      const polyline = this.generateChartPolyline(series, bounds, width, height, padLeft, padRight, padTop, padBottom);
       if (!polyline) return '';
-      return `${polyline} 450,150 35,150`;
+      const pts = series.dataPoints;
+      const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
+      const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
+      const timeSpan = Math.max(timeEnd - timeStart, 1000);
+      const plotW = width - padLeft - padRight;
+      const baseY = padTop + (height - padTop - padBottom);
+
+      const firstPt = pts[0];
+      const lastPt = pts[pts.length - 1];
+      const firstX = padLeft + Math.min(Math.max((firstPt.x - timeStart) / timeSpan, 0), 1) * plotW;
+      const lastX = padLeft + Math.min(Math.max((lastPt.x - timeStart) / timeSpan, 0), 1) * plotW;
+
+      return `${polyline} ${lastX.toFixed(1)},${baseY} ${firstX.toFixed(1)},${baseY}`;
     },
     onChartScrub(e) {
       if (!this.$refs.scadaChartContainer || this.activeTrendSeries.length === 0) return;
       const rect = this.$refs.scadaChartContainer.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
-      const firstSeries = this.activeTrendSeries[0];
-      if (!firstSeries || !firstSeries.dataPoints.length) return;
-
       const scaleX = 460 / rect.width;
       const chartX = mouseX * scaleX;
+
+      const padLeft = 45;
+      const plotW = 400;
+      const clampedX = Math.min(Math.max(chartX, padLeft), padLeft + plotW);
+      const frac = (clampedX - padLeft) / plotW;
+
+      const start = this.trendTimeBounds.start;
+      const end = this.trendTimeBounds.end;
+      const hoverTime = start + frac * (end - start);
+
+      const seriesValues = [];
+      for (const s of this.activeTrendSeries) {
+        if (!s.dataPoints || s.dataPoints.length === 0) continue;
+        let closest = s.dataPoints[0];
+        let minDiff = Math.abs(closest.x - hoverTime);
+        for (let i = 1; i < s.dataPoints.length; i++) {
+          const diff = Math.abs(s.dataPoints[i].x - hoverTime);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = s.dataPoints[i];
+          }
+        }
+        seriesValues.push({
+          seriesId: s.id,
+          deviceCode: s.deviceCode,
+          paramCode: s.paramCode,
+          val: closest.y !== null && closest.y !== undefined ? closest.y.toFixed(Math.abs(closest.y) >= 100 ? 0 : 2) : '--',
+          unit: s.unit || '',
+          color: s.color,
+          quality: closest.quality || 'GOOD',
+        });
+      }
+
+      const firstSeries = seriesValues[0] || { deviceCode: 'AQMS', paramCode: 'val', val: '--', unit: '' };
       this.scrubPoint = {
-        x: Math.min(Math.max(chartX, 35), 450),
+        x: clampedX,
         y: 85,
-        time: new Date().toLocaleTimeString('en-GB'),
+        time: new Date(hoverTime).toLocaleTimeString('en-GB'),
+        date: new Date(hoverTime).toLocaleDateString(),
         label: `${firstSeries.deviceCode}:${firstSeries.paramCode}`,
-        val: firstSeries.latestVal || '--',
-        unit: firstSeries.unit || '',
+        val: firstSeries.val,
+        unit: firstSeries.unit,
+        allSeries: seriesValues,
       };
+    },
+    onFullscreenChartScrub(e) {
+      if (!this.$refs.fullscreenChartContainer || this.activeTrendSeries.length === 0) return;
+      const rect = this.$refs.fullscreenChartContainer.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const scaleX = 960 / rect.width;
+      const chartX = mouseX * scaleX;
+
+      const padLeft = 60;
+      const plotW = 870;
+      const clampedX = Math.min(Math.max(chartX, padLeft), padLeft + plotW);
+      const frac = (clampedX - padLeft) / plotW;
+
+      const start = this.trendTimeBounds.start;
+      const end = this.trendTimeBounds.end;
+      const hoverTime = start + frac * (end - start);
+
+      const seriesValues = [];
+      for (const s of this.activeTrendSeries) {
+        if (!s.dataPoints || s.dataPoints.length === 0) continue;
+        let closest = s.dataPoints[0];
+        let minDiff = Math.abs(closest.x - hoverTime);
+        for (let i = 1; i < s.dataPoints.length; i++) {
+          const diff = Math.abs(s.dataPoints[i].x - hoverTime);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = s.dataPoints[i];
+          }
+        }
+        seriesValues.push({
+          seriesId: s.id,
+          deviceCode: s.deviceCode,
+          paramCode: s.paramCode,
+          val: closest.y !== null && closest.y !== undefined ? closest.y.toFixed(Math.abs(closest.y) >= 100 ? 0 : 2) : '--',
+          unit: s.unit || '',
+          color: s.color,
+          quality: closest.quality || 'GOOD',
+        });
+      }
+
+      this.fullscreenScrubPoint = {
+        x: clampedX,
+        time: new Date(hoverTime).toLocaleTimeString('en-GB'),
+        date: new Date(hoverTime).toLocaleDateString(),
+        allSeries: seriesValues,
+      };
+    },
+    downloadTrendCSV() {
+      if (this.activeTrendSeries.length === 0) return;
+      let csv = 'Timestamp,DateTimeISO,DeviceCode,ParamCode,Value,Unit,Quality\n';
+      this.activeTrendSeries.forEach(s => {
+        (s.dataPoints || []).forEach(pt => {
+          const iso = new Date(pt.x).toISOString();
+          csv += `${pt.x},"${iso}","${s.deviceCode}","${s.paramCode}",${pt.y},"${s.unit || ''}","${pt.quality || 'GOOD'}"\n`;
+        });
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `trend_telemetry_${this.currentTimeframe}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    downloadTrendJSON() {
+      if (this.activeTrendSeries.length === 0) return;
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        timeframe: this.currentTimeframe,
+        mode: this.chartMode,
+        series: this.activeTrendSeries.map(s => ({
+          deviceCode: s.deviceCode,
+          paramCode: s.paramCode,
+          unit: s.unit,
+          stats: s.stats,
+          points: s.dataPoints,
+        })),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `trend_telemetry_${this.currentTimeframe}_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    downloadTrendChart(format = 'png') {
+      const svgEl = this.showTrendFullscreen ? this.$refs.fullscreenTrendSvg : this.$refs.trendPanelSvg;
+      if (!svgEl) return;
+
+      const serializer = new XMLSerializer();
+      let svgString = serializer.serializeToString(svgEl);
+
+      if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
+        svgString = svgString.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      if (format === 'svg') {
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `trend_chart_${this.currentTimeframe}_${Date.now()}.svg`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const width = svgEl.clientWidth || 960;
+        const height = svgEl.clientHeight || 380;
+        canvas.width = width * 2;
+        canvas.height = height * 2;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(2, 2);
+
+        ctx.fillStyle = this.isDark ? '#070D18' : '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = pngUrl;
+        a.download = `trend_chart_${this.currentTimeframe}_${Date.now()}.png`;
+        a.click();
+      };
+      img.src = url;
     },
 
     // ----------------------------------------------------
