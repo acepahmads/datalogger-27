@@ -1,10 +1,10 @@
 <template>
   <div id="app" class="flex flex-col h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150">
-    <!-- Top System Header -->
-    <Header />
+    <!-- Top System Header (Hidden in Full-Width SCADA Mode) -->
+    <Header v-show="!isTopPanelHidden" />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
-    <GlobalAlarmBanner />
+    <GlobalAlarmBanner v-show="!isTopPanelHidden" />
 
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden">
@@ -14,9 +14,14 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 overflow-y-auto transition-colors duration-150"
-        :class="isOperatorRoute ? 'p-1.5 sm:p-2.5 bg-[#050B16]' : 'p-4 bg-slate-50 dark:bg-slate-950'"
+        :class="isOperatorRoute ? 'p-1.5 sm:p-2.5 bg-slate-100 dark:bg-[#050B16]' : 'p-4 bg-slate-50 dark:bg-slate-950'"
       >
-        <router-view :is-sidebar-collapsed="isSidebarCollapsed" @toggle-sidebar="toggleSidebar" />
+        <router-view
+          :is-sidebar-collapsed="isSidebarCollapsed"
+          :is-top-panel-hidden="isTopPanelHidden"
+          @toggle-sidebar="toggleSidebar"
+          @toggle-fullwidth="toggleSidebar"
+        />
       </main>
     </div>
   </div>
@@ -37,6 +42,7 @@ export default {
   data() {
     return {
       isSidebarCollapsed: false,
+      isTopPanelHidden: false,
     };
   },
   computed: {
@@ -44,9 +50,21 @@ export default {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
     },
   },
+  watch: {
+    $route(to) {
+      if (to.path !== '/monitoring/operator' && to.path !== '/operator') {
+        this.isTopPanelHidden = false;
+      }
+    },
+  },
   methods: {
     toggleSidebar() {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
+      if (this.isOperatorRoute) {
+        this.isTopPanelHidden = this.isSidebarCollapsed;
+      } else {
+        this.isTopPanelHidden = false;
+      }
     },
   },
 };
