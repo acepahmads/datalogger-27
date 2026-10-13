@@ -1351,6 +1351,7 @@ export default {
       // Telemetry Freshness Ticker & Live Clock
       lastTelemetryTime: new Date(),
       lastTelemetrySecondsAgo: 0,
+      currentTimeMs: Date.now(),
       tickerInterval: null,
       pollingInterval: null,
       clockInterval: null,
@@ -1446,14 +1447,40 @@ export default {
     },
     allParameters() {
       const list = [];
+      const nowMs = this.currentTimeMs || Date.now();
       for (const dev of this.devicesList) {
         if (!dev.parameters) continue;
+        const isDevOffline = dev.connection_status && (
+          dev.connection_status === 'OFFLINE' ||
+          dev.connection_status === 'DISCONNECTED' ||
+          dev.connection_status === 'ERROR' ||
+          dev.connection_status === 'FAILED'
+        );
         for (const p of dev.parameters) {
           const live = this.liveMap[p.id] || {};
           const isHeld = live.is_held_value !== undefined ? live.is_held_value : !!p.is_current_held;
           const val = live.value !== undefined ? live.value : p.current_value;
-          const quality = live.quality || p.current_quality || 'GOOD';
           const alarmState = this.determineAlarmState(p, val);
+
+          const receivedAt = live.received_at || p.current_received_at || p.last_updated;
+          const staleSec = p.stale_timeout_seconds || 120;
+          let isTimeStale = false;
+          if (receivedAt) {
+            const ageSec = (nowMs - new Date(receivedAt).getTime()) / 1000;
+            if (ageSec > staleSec) {
+              isTimeStale = true;
+            }
+          }
+
+          let rawQuality = live.quality || p.current_quality || 'UNKNOWN';
+          let finalQuality = rawQuality;
+          // If the device is offline/disconnected or data timestamp has exceeded stale timeout:
+          // Data cannot be GOOD. It is STALE (or retained BAD if communication failed)
+          if (isDevOffline || isTimeStale) {
+            if (finalQuality !== 'BAD') {
+              finalQuality = 'STALE';
+            }
+          }
 
           list.push({
             device_id: dev.id,
@@ -1469,12 +1496,14 @@ export default {
             value: val,
             is_held_value: isHeld,
             formula: p.formula || '',
-            quality,
-            quality_reason: live.quality_reason || p.current_quality_reason || '',
+            quality: finalQuality,
+            quality_reason: (finalQuality === 'STALE' && (!live.quality_reason && !p.current_quality_reason))
+              ? (isDevOffline ? 'DEVICE_OFFLINE' : 'STALE_TIMEOUT')
+              : (live.quality_reason || p.current_quality_reason || ''),
             low_limit: p.low_critical != null ? p.low_critical : (p.low_warning != null ? p.low_warning : null),
             high_limit: p.high_critical != null ? p.high_critical : (p.high_warning != null ? p.high_warning : null),
             alarm_status: alarmState,
-            received_at: live.received_at || p.current_received_at || p.last_updated,
+            received_at: receivedAt,
           });
         }
       }
@@ -1546,6 +1575,7 @@ export default {
 
     // Telemetry Freshness Ticker
     this.tickerInterval = setInterval(() => {
+      this.currentTimeMs = Date.now();
       if (this.lastTelemetryTime) {
         this.lastTelemetrySecondsAgo = Math.floor((Date.now() - new Date(this.lastTelemetryTime).getTime()) / 1000);
       }
@@ -1591,18 +1621,27 @@ export default {
     },
     isParamAlarmOrStaleBad(param) {
       if (!param) return false;
-      if (param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING') return true;
-      if (param.quality === 'STALE' || param.quality === 'BAD' || param.quality === 'UNCERTAIN') return true;
-      if (param.device_status && (param.device_status === 'OFFLINE' || param.device_status === 'DISCONNECTED' || param.device_status === 'FAILED')) return true;
+      // 1. If parameter is GOOD and has no alarm, it MUST NOT have gray card or red border
+      if (param.quality === 'GOOD' && (!param.alarm_status || param.alarm_status === 'NORMAL')) {
+        return false;
+      }
+      // 2. If parameter itself has an active threshold alarm (CRITICAL / WARNING)
+      if (param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING') {
+        return true;
+      }
+      // 3. If parameter data quality is STALE, BAD, or UNCERTAIN
+      if (param.quality === 'STALE' || param.quality === 'BAD' || param.quality === 'UNCERTAIN') {
+        return true;
+      }
+      // 4. If an active alarm specifically targets this parameter
       if (this.activeAlarmsList && this.activeAlarmsList.length > 0) {
-        const hasMatchingAlarm = this.activeAlarmsList.some(a => {
+        const hasSpecificParamAlarm = this.activeAlarmsList.some(a => {
           if (a.status !== 'ACTIVE') return false;
           if (a.parameter_id && a.parameter_id === param.param_id) return true;
-          if (a.device_id && a.device_id === param.device_id) return true;
-          if (a.device && (a.device.device_code === param.device_code || a.device.code === param.device_code)) return true;
+          if (a.parameter && (a.parameter.parameter_code === param.param_code || a.parameter.code === param.param_code) && (a.device_id === param.device_id)) return true;
           return false;
         });
-        if (hasMatchingAlarm) return true;
+        if (hasSpecificParamAlarm) return true;
       }
       return false;
     },

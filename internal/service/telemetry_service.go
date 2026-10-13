@@ -676,7 +676,15 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 	for i, p := range params {
 		// If in-memory cache has newer instantaneous value, use it
 		if cached, ok := s.latestCache[p.ID]; ok && cached.DeviceID == deviceID {
-			results[i] = *cached
+			item := *cached
+			staleTimeout := p.StaleTimeoutSeconds
+			if staleTimeout <= 0 {
+				staleTimeout = 120
+			}
+			if time.Since(item.ReceivedAt) > time.Duration(staleTimeout)*time.Second && item.Quality != model.QualityBad {
+				item.Quality = model.QualityStale
+			}
+			results[i] = item
 			continue
 		}
 
@@ -700,6 +708,14 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 			recAt = *p.CurrentReceivedAt
 		} else if p.LastUpdated != nil {
 			recAt = *p.LastUpdated
+		}
+
+		staleTimeout := p.StaleTimeoutSeconds
+		if staleTimeout <= 0 {
+			staleTimeout = 120
+		}
+		if time.Since(recAt) > time.Duration(staleTimeout)*time.Second && quality != model.QualityBad {
+			quality = model.QualityStale
 		}
 
 		results[i] = LatestTelemetry{
@@ -765,6 +781,14 @@ func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, 
 	quality := param.CurrentQuality
 	if quality == "" {
 		quality = model.QualityUnknown
+	}
+
+	staleTimeout := param.StaleTimeoutSeconds
+	if staleTimeout <= 0 {
+		staleTimeout = 120
+	}
+	if time.Since(recAt) > time.Duration(staleTimeout)*time.Second && quality != model.QualityBad {
+		quality = model.QualityStale
 	}
 
 	return &LatestTelemetry{
