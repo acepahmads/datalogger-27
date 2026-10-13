@@ -5,10 +5,10 @@
       <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
         <div>
           <h2 class="text-base font-bold text-white tracking-wide">
-            {{ isEditing ? $t('deviceModal.titleEdit') : $t('deviceModal.titleAdd') }}
+            {{ modalTitle }}
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            {{ isEditing ? $t('deviceModal.subtitleEdit') : $t('deviceModal.subtitleAdd') }}
+            {{ modalSubtitle }}
           </p>
         </div>
         <button @click="closeModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
@@ -49,6 +49,20 @@
 
       <!-- Modal Body -->
       <form ref="deviceFormBody" novalidate @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-5">
+        <!-- Copy Source Indicator Banner -->
+        <div v-if="isCopying && sourceDevice" class="p-3.5 bg-cyan-950/40 border border-cyan-700/60 rounded-xl flex items-start space-x-3 text-xs shadow-md animate-fade-in">
+          <span class="text-cyan-400 mt-0.5 text-base leading-none">📋</span>
+          <div class="flex-1">
+            <div class="font-bold text-cyan-200">
+              {{ $t('deviceModal.copyBannerTitle', { code: sourceDevice.device_code || sourceDevice.code }) }}
+              <span class="font-normal text-cyan-400">({{ sourceDevice.device_name || sourceDevice.name }})</span>
+            </div>
+            <div class="text-3xs text-cyan-300/80 mt-1 leading-relaxed">
+              {{ $t('deviceModal.copyBannerDesc') }}
+            </div>
+          </div>
+        </div>
+
         <!-- Error Alert -->
         <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-start space-x-2.5 shadow-lg shadow-rose-950/20 animate-fade-in">
           <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -398,6 +412,14 @@
                     </div>
                   </div>
 
+                  <!-- Serial Port Conflict Warning (Connection safety Rule 3E) -->
+                  <div v-if="serialConflictWarning" class="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-3xs text-amber-200 font-sans flex items-start space-x-2 mt-1.5 shadow-sm">
+                    <svg class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span class="leading-relaxed">{{ serialConflictWarning }}</span>
+                  </div>
+
                   <div class="flex items-center justify-between text-3xs text-slate-400 pt-0.5">
                     <span v-if="systemPorts.length > 0 && !useCustomPort" class="text-emerald-400 font-mono flex items-center space-x-1">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -630,7 +652,7 @@
               class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center space-x-1.5 disabled:opacity-50"
             >
               <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-              <span>{{ isEditing ? $t('common.saveChanges') : $t('deviceModal.registerDevice') }}</span>
+              <span>{{ saveButtonText }}</span>
             </button>
           </div>
         </div>
@@ -650,6 +672,14 @@ export default {
       default: false,
     },
     deviceToEdit: {
+      type: Object,
+      default: null,
+    },
+    isCopying: {
+      type: Boolean,
+      default: false,
+    },
+    sourceDevice: {
       type: Object,
       default: null,
     },
@@ -701,7 +731,41 @@ export default {
   },
   computed: {
     isEditing() {
-      return !!this.deviceToEdit;
+      return !this.isCopying && !!this.deviceToEdit;
+    },
+    modalTitle() {
+      if (this.isCopying) return this.$t('deviceModal.titleCopy') || 'Copy Edge Device Configuration';
+      if (this.isEditing) return this.$t('deviceModal.titleEdit');
+      return this.$t('deviceModal.titleAdd');
+    },
+    modalSubtitle() {
+      if (this.isCopying) return this.$t('deviceModal.subtitleCopy') || 'Clone device configuration to create a new independent device.';
+      if (this.isEditing) return this.$t('deviceModal.subtitleEdit');
+      return this.$t('deviceModal.subtitleAdd');
+    },
+    saveButtonText() {
+      if (this.isCopying) return this.$t('deviceModal.copyButton') || 'Create Copied Device';
+      if (this.isEditing) return this.$t('common.saveChanges');
+      return this.$t('deviceModal.registerDevice');
+    },
+    serialConflictWarning() {
+      if (!this.isSerialProtocol || !this.form.connection || !this.form.connection.serial_port) return null;
+      const port = this.form.connection.serial_port.trim().toLowerCase();
+      if (!port) return null;
+      const devices = this.$store.state.devices || [];
+      const editId = this.isEditing ? this.deviceToEdit?.id : null;
+      const conflict = devices.find(d => {
+        if (editId && d.id === editId) return false;
+        const dPort = (d.connection && d.connection.serial_port) || '';
+        return dPort.trim().toLowerCase() === port;
+      });
+      if (conflict) {
+        return this.$t('deviceModal.serialPortConflictWarning', {
+          port: this.form.connection.serial_port,
+          device: conflict.device_code || conflict.code || conflict.device_name || conflict.name,
+        });
+      }
+      return null;
     },
     isCustomProtocol() {
       return this.form.connection.protocol === 'CUSTOM';
@@ -734,12 +798,32 @@ export default {
       handler(newVal) {
         if (newVal) {
           this.fetchAvailableSerialPorts();
+          if (this.isCopying && this.sourceDevice) {
+            this.populateFromSource(this.sourceDevice);
+          }
+        }
+      },
+    },
+    sourceDevice: {
+      immediate: true,
+      handler(newVal) {
+        if (this.isCopying && newVal) {
+          this.populateFromSource(newVal);
+        }
+      },
+    },
+    isCopying: {
+      immediate: true,
+      handler(newVal) {
+        if (newVal && this.sourceDevice) {
+          this.populateFromSource(this.sourceDevice);
         }
       },
     },
     deviceToEdit: {
       immediate: true,
       handler(newVal) {
+        if (this.isCopying) return;
         if (newVal) {
           let proto = (newVal.connection && newVal.connection.protocol) || newVal.device_type || 'MODBUS_TCP';
           if (proto === 'HTTP/REST' || proto === 'REST') {
@@ -818,6 +902,72 @@ export default {
       } finally {
         this.loadingPorts = false;
       }
+    },
+    generateSuggestedCode(sourceCode) {
+      if (!sourceCode) return 'DEV-01';
+      const existingCodes = (this.$store.state.devices || []).map(d => (d.device_code || d.code || '').toUpperCase());
+      const match = sourceCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const numStr = match[2];
+        const padLen = numStr.length;
+        let nextNum = parseInt(numStr, 10) + 1;
+        let candidate = `${prefix}${String(nextNum).padStart(padLen, '0')}`;
+        while (existingCodes.includes(candidate.toUpperCase())) {
+          nextNum++;
+          candidate = `${prefix}${String(nextNum).padStart(padLen, '0')}`;
+        }
+        return candidate;
+      }
+      let candidate = `${sourceCode}_COPY`;
+      let counter = 2;
+      while (existingCodes.includes(candidate.toUpperCase())) {
+        candidate = `${sourceCode}_COPY_${counter}`;
+        counter++;
+      }
+      return candidate;
+    },
+    populateFromSource(source) {
+      let proto = (source.connection && source.connection.protocol) || source.device_type || 'MODBUS_TCP';
+      if (proto === 'HTTP/REST' || proto === 'REST') proto = 'HTTP';
+      const suggestedCode = this.generateSuggestedCode(source.device_code || source.code);
+      const baseName = source.device_name || source.name || 'Device';
+      const suggestedName = `${baseName} (Copy)`;
+
+      this.form = {
+        device_code: suggestedCode,
+        device_name: suggestedName,
+        device_type: proto,
+        manufacturer: source.manufacturer || '',
+        model: source.model || '',
+        serial_number: '',
+        firmware_version: source.firmware_version || '',
+        description: source.description || '',
+        location: source.location || '',
+        latitude: source.latitude || null,
+        longitude: source.longitude || null,
+        timezone: source.timezone || 'UTC',
+        status: 'ACTIVE',
+        enabled: false, // Rule 3E: disabled by default to prevent polling collision
+        connection: {
+          protocol: proto,
+          connection_type: (source.connection && source.connection.connection_type) || (proto === 'MODBUS_RTU' || proto === 'SERIAL' ? 'SERIAL' : 'ETHERNET'),
+          host: (source.connection && (source.connection.host || source.connection.address)) || '',
+          port: (source.connection && source.connection.port) || (proto === 'MODBUS_TCP' ? 502 : 502),
+          slave_id: (source.connection && source.connection.slave_id) || 1,
+          byte_order: (source.connection && source.connection.byte_order) || 'ABCD',
+          serial_port: (source.connection && (source.connection.serial_port || source.connection.address)) || 'COM1',
+          baud_rate: (source.connection && source.connection.baud_rate) || 9600,
+          data_bits: (source.connection && source.connection.data_bits) || 8,
+          parity: (source.connection && source.connection.parity) || 'N',
+          stop_bits: (source.connection && source.connection.stop_bits) || 1,
+          timeout: (source.connection && (source.connection.timeout || source.connection.timeout_ms)) || 1000,
+          retry_count: (source.connection && source.connection.retry_count) || 3,
+          polling_interval: (source.connection && (source.connection.polling_interval || source.connection.poll_interval_ms)) || 1000,
+          enabled: false,
+          extra_config: (source.connection && source.connection.extra_config) || '',
+        },
+      };
     },
     closeModal() {
       this.error = null;
@@ -982,10 +1132,21 @@ export default {
             id: this.deviceToEdit.id,
             updates: this.form,
           });
+          this.$emit('saved');
         } else {
-          await this.$store.dispatch('createDevice', this.form);
+          const payload = {
+            ...this.form,
+            source_device_id: (this.isCopying && this.sourceDevice) ? this.sourceDevice.id : undefined,
+          };
+          const createdDev = await this.$store.dispatch('createDevice', payload);
+          this.$emit('saved', {
+            ...(createdDev || {}),
+            isCopy: this.isCopying,
+            deviceCode: (createdDev && (createdDev.device_code || createdDev.code)) || this.form.device_code,
+            deviceName: (createdDev && (createdDev.device_name || createdDev.name)) || this.form.device_name,
+            id: createdDev ? createdDev.id : undefined,
+          });
         }
-        this.$emit('saved');
         this.closeModal();
       } catch (err) {
         this.error = (err.response && err.response.data && err.response.data.error) || err.message || 'Operation failed';

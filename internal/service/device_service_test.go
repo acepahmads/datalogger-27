@@ -3,6 +3,7 @@ package service_test
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -622,3 +623,204 @@ func TestSingleProtocolSelectionAndSync(t *testing.T) {
 		t.Errorf("Expected retrieved Connection.Protocol to be %s", model.ProtocolModbusTCP)
 	}
 }
+
+func TestCloneDevice(t *testing.T) {
+	db, devService, _ := setupDeviceTestDB(t)
+
+	// 1. Create source device
+	srcDev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "AQMS-SRC-01",
+		DeviceName: "Source AQMS Station",
+		DeviceType: "MODBUS_RTU",
+		Connection: &service.ConnectionConfigDTO{
+			Protocol:        model.ProtocolModbusRTU,
+			SerialPort:      "COM3",
+			BaudRate:        9600,
+			DataBits:        8,
+			Parity:          "N",
+			StopBits:        1,
+			SlaveID:         1,
+			Timeout:         1000,
+			RetryCount:      3,
+			PollingInterval: 2000,
+		},
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("Failed to create source device: %v", err)
+	}
+
+	// 2. Clone device with new unique code and SourceDeviceID
+	clonedDev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode:     "AQMS-CLONE-02",
+		DeviceName:     "Cloned AQMS Station",
+		DeviceType:     srcDev.DeviceType,
+		SourceDeviceID: &srcDev.ID,
+		Connection: &service.ConnectionConfigDTO{
+			Protocol:        model.ProtocolModbusRTU,
+			SerialPort:      "COM3",
+			BaudRate:        9600,
+			DataBits:        8,
+			Parity:          "N",
+			StopBits:        1,
+			SlaveID:         2, // distinct slave ID
+			Timeout:         1000,
+			RetryCount:      3,
+			PollingInterval: 2000,
+		},
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("Failed to clone device: %v", err)
+	}
+
+	// Verify distinct identity and untouched source
+	if clonedDev.ID == srcDev.ID {
+		t.Fatalf("Expected cloned device to have new ID, got identical ID %d", clonedDev.ID)
+	}
+	if clonedDev.DeviceCode != "AQMS-CLONE-02" {
+		t.Errorf("Expected cloned code AQMS-CLONE-02, got %s", clonedDev.DeviceCode)
+	}
+
+	freshSrc, err := devService.GetDeviceByID(srcDev.ID)
+	if err != nil {
+		t.Fatalf("Failed to fetch fresh source: %v", err)
+	}
+	if freshSrc.DeviceCode != "AQMS-SRC-01" {
+		t.Errorf("Source device code modified! Got %s", freshSrc.DeviceCode)
+	}
+
+	// 3. Verify duplicate code rejection
+	_, err = devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "AQMS-SRC-01",
+		DeviceName: "Duplicate Code Attempt",
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err == nil {
+		t.Fatalf("Expected duplicate device code to be rejected, but succeeded")
+	}
+
+	// 4. Verify audit trail recorded CLONE_DEVICE
+	var audits []model.AuditTrail
+	err = db.Where("action = ?", "CLONE_DEVICE").Find(&audits).Error
+	if err != nil {
+		t.Fatalf("Failed to query audit logs: %v", err)
+	}
+	if len(audits) == 0 {
+		t.Fatalf("Expected CLONE_DEVICE audit log, found 0")
+	}
+	foundCloneAudit := false
+	for _, a := range audits {
+		if a.Action == "CLONE_DEVICE" && strings.Contains(a.Details, fmt.Sprintf(`"device_id":%d`, clonedDev.ID)) {
+			foundCloneAudit = true
+			if !strings.Contains(a.Details, "cloned_from_device_id") {
+				t.Errorf("Expected audit Details to contain cloned_from_device_id, got: %s", a.Details)
+			}
+		}
+	}
+	if !foundCloneAudit {
+		t.Errorf("Did not find expected CLONE_DEVICE audit record for device %d", clonedDev.ID)
+	}
+}
+
+func TestCloneParameter(t *testing.T) {
+	db, devService, _ := setupDeviceTestDB(t)
+
+	dev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "DEV-PARAM-CLONE-01",
+		DeviceName: "Parameter Clone Test Device",
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	minVal := 0.0
+	maxVal := 500.0
+	warnLow := 10.0
+	warnHigh := 150.0
+	scale := 0.1
+	offset := 5.0
+
+	// 1. Create source parameter
+	srcParam, err := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode:   "PM10_SRC",
+		ParameterName:   "Particulate PM10",
+		DataType:        model.DataTypeFloat32,
+		Unit:            "µg/m³",
+		RegisterAddress: 22,
+		RegisterType:    "HOLDING_REGISTER",
+		Scale:           scale,
+		Offset:          offset,
+		MinValue:        &minVal,
+		MaxValue:        &maxVal,
+		WarningLow:      &warnLow,
+		WarningHigh:     &warnHigh,
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("CreateParameter source failed: %v", err)
+	}
+
+	// 2. Clone parameter to PM25 on same device with SourceParameterID
+	clonedParam, err := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode:     "PM25_CLONE",
+		ParameterName:     "Particulate PM2.5",
+		DataType:          srcParam.DataType,
+		Unit:              srcParam.Unit,
+		RegisterAddress:   24, // adjusted register address
+		RegisterType:      srcParam.RegisterType,
+		Scale:             srcParam.Scale,
+		Offset:            srcParam.Offset,
+		MinValue:          srcParam.MinValue,
+		MaxValue:          srcParam.MaxValue,
+		WarningLow:        srcParam.WarningLow,
+		WarningHigh:       srcParam.WarningHigh,
+		SourceParameterID: &srcParam.ID,
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err != nil {
+		t.Fatalf("CreateParameter cloned failed: %v", err)
+	}
+
+	// Verify identity and fields
+	if clonedParam.ID == srcParam.ID {
+		t.Fatalf("Expected new parameter ID, got same as source: %d", clonedParam.ID)
+	}
+	if clonedParam.ParameterCode != "PM25_CLONE" {
+		t.Errorf("Expected parameter code PM25_CLONE, got %s", clonedParam.ParameterCode)
+	}
+	if clonedParam.RegisterAddress != 24 {
+		t.Errorf("Expected register address 24, got %d", clonedParam.RegisterAddress)
+	}
+	if clonedParam.Unit != "µg/m³" {
+		t.Errorf("Expected unit µg/m³, got %s", clonedParam.Unit)
+	}
+
+	// 3. Verify duplicate code rejection on same device
+	_, err = devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode: "PM10_SRC",
+		ParameterName: "Duplicate Param Code",
+		DataType:      model.DataTypeFloat32,
+	}, "admin", "127.0.0.1", "TestAgent")
+	if err == nil {
+		t.Fatalf("Expected duplicate parameter code to fail, but succeeded")
+	}
+
+	// 4. Verify audit trail recorded CLONE_PARAMETER
+	var audits []model.AuditTrail
+	err = db.Where("action = ?", "CLONE_PARAMETER").Find(&audits).Error
+	if err != nil {
+		t.Fatalf("Failed to query audit logs: %v", err)
+	}
+	if len(audits) == 0 {
+		t.Fatalf("Expected CLONE_PARAMETER audit log, found 0")
+	}
+	foundParamCloneAudit := false
+	for _, a := range audits {
+		if a.Action == "CLONE_PARAMETER" && strings.Contains(a.Details, fmt.Sprintf(`"parameter_id":%d`, clonedParam.ID)) {
+			foundParamCloneAudit = true
+			if !strings.Contains(a.Details, "cloned_from_parameter_id") {
+				t.Errorf("Expected audit Details to contain cloned_from_parameter_id, got: %s", a.Details)
+			}
+		}
+	}
+	if !foundParamCloneAudit {
+		t.Errorf("Did not find expected CLONE_PARAMETER audit record for parameter %d", clonedParam.ID)
+	}
+}
+

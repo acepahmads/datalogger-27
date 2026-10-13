@@ -249,9 +249,15 @@ export default {
     "activeChannels": "Kanal Aktif",
     "details": "Detail",
     "live": "Langsung",
-    "code": "Kode"
+    "code": "Kode",
+    "copyDevice": "Salin Perangkat",
+    "copiedSuccess": "Perangkat '{name}' berhasil dibuat dari salinan!",
+    "viewCopiedDevice": "Lihat Perangkat Baru"
   },
   "deviceDetail": {
+    "copyDevice": "Salin Perangkat",
+    "copyParameter": "Salin Parameter",
+    "copiedParamSuccess": "Parameter '{name}' berhasil disalin!",
     "history": "Riwayat",
     "historical": "Data Historis",
     "equipmentProfile": "Profil Peralatan",
@@ -651,7 +657,13 @@ export default {
     "portRequired": "Port Serial wajib dipilih atau diisi.",
     "codeRequired": "Kode perangkat wajib diisi.",
     "nameRequired": "Nama perangkat wajib diisi.",
-    "savedSuccess": "Perangkat berhasil disimpan!"
+    "savedSuccess": "Perangkat berhasil disimpan!",
+    "titleCopy": "Salin Konfigurasi Perangkat Edge",
+    "subtitleCopy": "Kloning konfigurasi perangkat untuk membuat perangkat baru yang independen.",
+    "copyBannerTitle": "Menyalin konfigurasi dari {code}",
+    "copyBannerDesc": "Tinjau dan tentukan kode perangkat unik baru serta sesuaikan pengaturan sebelum aktivasi.",
+    "serialPortConflictWarning": "Peringatan: Port serial '{port}' juga dikonfigurasi pada perangkat '{device}'. Pastikan Slave ID unik pada bus RS-485 bersama, atau pilih port khusus sebelum aktivasi.",
+    "copyButton": "Buat Perangkat Salinan"
   },
   "parameterModal": {
     "titleAdd": "Tambah Parameter Pengukuran",
@@ -728,7 +740,15 @@ export default {
     "closeWarning": "Tutup",
     "checkFormNotice": "Harap periksa dan perbaiki peringatan di atas sebelum menyimpan.",
     "fixLimitsBeforeSave": "Perbaiki batas limit sebelum menyimpan",
-    "savedSuccess": "Parameter berhasil disimpan!"
+    "savedSuccess": "Parameter berhasil disimpan!",
+    "titleCopy": "Salin Parameter Telemetri",
+    "subtitleCopy": "Kloning konfigurasi engineering parameter untuk membuat parameter baru.",
+    "copyBannerTitle": "Menyalin parameter dari {code}",
+    "copyBannerDesc": "Tentukan kode parameter unik baru dan periksa alamat register/skala sebelum menyimpan.",
+    "destinationDevice": "Perangkat Tujuan",
+    "destinationDeviceHelp": "Salin parameter ke perangkat ini atau pilih perangkat kompatibel lainnya.",
+    "destProtocolMismatch": "Perhatian: Protokol perangkat tujuan ({destProto}) berbeda dari sumber ({srcProto}). Harap verifikasi pemetaan alamat register dan tipe data.",
+    "copyButton": "Buat Parameter Salinan"
   },
   "parameters": {
     "title": "Parameter Perangkat",

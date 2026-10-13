@@ -249,9 +249,15 @@ export default {
     "activeChannels": "Active Channels",
     "details": "Details",
     "live": "Live",
-    "code": "Code"
+    "code": "Code",
+    "copyDevice": "Copy Device",
+    "copiedSuccess": "Device '{name}' created from copy successfully!",
+    "viewCopiedDevice": "View New Device"
   },
   "deviceDetail": {
+    "copyDevice": "Copy Device",
+    "copyParameter": "Copy Parameter",
+    "copiedParamSuccess": "Parameter '{name}' copied successfully!",
     "history": "History",
     "historical": "Historical Data",
     "equipmentProfile": "Equipment Profile",
@@ -651,7 +657,13 @@ export default {
     "portRequired": "Serial Port is required.",
     "codeRequired": "Device code is required.",
     "nameRequired": "Device name is required.",
-    "savedSuccess": "Device saved successfully!"
+    "savedSuccess": "Device saved successfully!",
+    "titleCopy": "Copy Edge Device Configuration",
+    "subtitleCopy": "Clone device configuration to create a new independent device.",
+    "copyBannerTitle": "Copying configuration from {code}",
+    "copyBannerDesc": "Review and assign a unique device code and adjust settings before activation.",
+    "serialPortConflictWarning": "Warning: Serial port '{port}' is also configured on device '{device}'. Ensure unique slave IDs on shared RS-485 bus, or select a dedicated port before activation.",
+    "copyButton": "Create Copied Device"
   },
   "parameterModal": {
     "titleAdd": "Add Measurement Parameter",
@@ -728,7 +740,15 @@ export default {
     "closeWarning": "Dismiss",
     "checkFormNotice": "Please correct the highlighted issues before saving.",
     "fixLimitsBeforeSave": "Fix boundary limits before saving",
-    "savedSuccess": "Parameter saved successfully!"
+    "savedSuccess": "Parameter saved successfully!",
+    "titleCopy": "Copy Telemetry Parameter",
+    "subtitleCopy": "Clone parameter engineering configuration to create a new parameter.",
+    "copyBannerTitle": "Copying parameter from {code}",
+    "copyBannerDesc": "Assign a unique parameter code and verify register/scaling parameters before saving.",
+    "destinationDevice": "Destination Device",
+    "destinationDeviceHelp": "Copy parameter to this device or select another compatible device.",
+    "destProtocolMismatch": "Notice: Destination device protocol ({destProto}) differs from source ({srcProto}). Verify register addressing and data types.",
+    "copyButton": "Create Copied Parameter"
   },
   "parameters": {
     "title": "Device Parameters",

@@ -51,6 +51,7 @@ type CreateDeviceRequest struct {
 	Status          model.DeviceAdminStatus `json:"status"`
 	Enabled         *bool                `json:"enabled"`
 	Connection      *ConnectionConfigDTO `json:"connection,omitempty"`
+	SourceDeviceID  *uint                `json:"source_device_id,omitempty"`
 }
 
 type UpdateDeviceRequest struct {
@@ -98,6 +99,7 @@ type CreateParameterRequest struct {
 	Formula                  string                  `json:"formula"`
 	HoldLastValueEnabled     *bool                   `json:"hold_last_value_enabled"`
 	HoldLastValueSeconds     int                     `json:"hold_last_value_seconds"`
+	SourceParameterID        *uint                   `json:"source_parameter_id,omitempty"`
 }
 
 func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
@@ -476,14 +478,20 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 	}
 
 	// Audit Trail
-	auditDetails, _ := json.Marshal(map[string]interface{}{
+	auditPayload := map[string]interface{}{
 		"device_id":   device.ID,
 		"device_code": device.DeviceCode,
 		"device_name": device.DeviceName,
 		"status":      device.Status,
 		"type":        device.DeviceType,
-	})
-	s.recordAudit(username, "CREATE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
+	}
+	action := "CREATE_DEVICE"
+	if req.SourceDeviceID != nil && *req.SourceDeviceID > 0 {
+		action = "CLONE_DEVICE"
+		auditPayload["cloned_from_device_id"] = *req.SourceDeviceID
+	}
+	auditDetails, _ := json.Marshal(auditPayload)
+	s.recordAudit(username, action, "DEVICE", string(auditDetails), ipAddress, userAgent)
 
 	return device, nil
 }
@@ -966,14 +974,20 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		return nil, fmt.Errorf("failed to create parameter: %w", err)
 	}
 
-	auditDetails, _ := json.Marshal(map[string]interface{}{
+	auditPayload := map[string]interface{}{
 		"device_id":      deviceID,
 		"device_code":    dev.DeviceCode,
 		"parameter_id":   param.ID,
 		"parameter_code": param.ParameterCode,
 		"parameter_name": param.ParameterName,
-	})
-	s.recordAudit(username, "CREATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+	}
+	action := "CREATE_PARAMETER"
+	if req.SourceParameterID != nil && *req.SourceParameterID > 0 {
+		action = "CLONE_PARAMETER"
+		auditPayload["cloned_from_parameter_id"] = *req.SourceParameterID
+	}
+	auditDetails, _ := json.Marshal(auditPayload)
+	s.recordAudit(username, action, "PARAMETER", string(auditDetails), ipAddress, userAgent)
 
 	return param, nil
 }

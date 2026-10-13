@@ -45,6 +45,17 @@
         </button>
 
         <button
+          @click="openCopyDeviceModal"
+          class="px-3 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-800/60 text-xs font-semibold transition flex items-center space-x-1.5"
+          :title="$t('deviceDetail.copyDevice')"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>
+          <span>{{ $t('deviceDetail.copyDevice') }}</span>
+        </button>
+
+        <button
           @click="confirmDelete"
           class="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 text-xs font-semibold transition flex items-center space-x-1.5"
         >
@@ -545,6 +556,16 @@
                   class="text-emerald-400 hover:text-emerald-300 transition text-2xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
                 >
                   {{ $t('deviceDetail.testRead') }}
+                </button>
+                <button
+                  @click="openCopyParamModal(param)"
+                  class="text-cyan-400 hover:text-cyan-300 transition text-2xs font-semibold px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 inline-flex items-center space-x-1"
+                  :title="$t('deviceDetail.copyParameter') || 'Copy Parameter'"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                  <span>{{ $t('deviceDetail.copyParameter') || 'Copy' }}</span>
                 </button>
                 <button @click="openEditParamModal(param)" class="text-blue-400 hover:text-blue-300 transition text-2xs font-semibold">
                   {{ $t('common.edit') }}
@@ -2599,8 +2620,10 @@
     </div>
     <DeviceModal
       :is-open="isEditModalOpen"
-      :device-to-edit="device"
-      @close="isEditModalOpen = false"
+      :device-to-edit="isCopyDeviceModal ? null : device"
+      :is-copying="isCopyDeviceModal"
+      :source-device="isCopyDeviceModal ? device : null"
+      @close="isEditModalOpen = false; isCopyDeviceModal = false"
       @saved="handleDeviceSaved"
     />
 
@@ -2609,7 +2632,10 @@
       :is-open="isParamModalOpen"
       :device-id="device.id"
       :param-to-edit="paramToEdit"
-      @close="isParamModalOpen = false"
+      :is-copying="isCopyParamModal"
+      :source-param="paramToCopy"
+      :source-device="device"
+      @close="closeParamModal"
       @saved="handleParamSaved"
     />
 
@@ -3010,8 +3036,11 @@ export default {
       activityPollTimer: null,
       activeTab: 'overview',
       isEditModalOpen: false,
+      isCopyDeviceModal: false,
       isParamModalOpen: false,
+      isCopyParamModal: false,
       paramToEdit: null,
+      paramToCopy: null,
       commStatus: null,
       commFeedback: null,
       commActionLoading: false,
@@ -3542,24 +3571,57 @@ export default {
         this.toastMessage = null;
       }, 4000);
     },
-    handleDeviceSaved() {
-      this.showToast(this.$t('deviceModal.savedSuccess') || 'Device saved successfully!', 'success');
-      this.loadDevice();
+    handleDeviceSaved(savedData) {
+      if (savedData && savedData.isCopy) {
+        this.showToast(this.$t('devices.copiedSuccess', { name: savedData.deviceName || savedData.deviceCode }) || 'Device created from copy successfully!', 'success');
+        this.isCopyDeviceModal = false;
+        this.isEditModalOpen = false;
+        this.$store.dispatch('fetchDevices');
+      } else {
+        this.showToast(this.$t('deviceModal.savedSuccess') || 'Device saved successfully!', 'success');
+        this.loadDevice();
+      }
     },
-    handleParamSaved() {
-      this.showToast(this.$t('parameterModal.savedSuccess') || 'Parameter saved successfully!', 'success');
+    handleParamSaved(savedData) {
+      if (savedData && savedData.isCopy) {
+        this.showToast(this.$t('deviceDetail.copiedParamSuccess', { name: savedData.paramName || savedData.paramCode }) || 'Parameter copied successfully!', 'success');
+      } else {
+        this.showToast(this.$t('parameterModal.savedSuccess') || 'Parameter saved successfully!', 'success');
+      }
+      this.closeParamModal();
       this.loadDevice();
     },
     openEditModal() {
+      this.isCopyDeviceModal = false;
+      this.isEditModalOpen = true;
+    },
+    openCopyDeviceModal() {
+      this.isCopyDeviceModal = true;
       this.isEditModalOpen = true;
     },
     openAddParamModal() {
       this.paramToEdit = null;
+      this.paramToCopy = null;
+      this.isCopyParamModal = false;
       this.isParamModalOpen = true;
     },
     openEditParamModal(param) {
       this.paramToEdit = param;
+      this.paramToCopy = null;
+      this.isCopyParamModal = false;
       this.isParamModalOpen = true;
+    },
+    openCopyParamModal(param) {
+      this.paramToEdit = null;
+      this.paramToCopy = param;
+      this.isCopyParamModal = true;
+      this.isParamModalOpen = true;
+    },
+    closeParamModal() {
+      this.isParamModalOpen = false;
+      this.isCopyParamModal = false;
+      this.paramToEdit = null;
+      this.paramToCopy = null;
     },
     async toggleEnabled() {
       if (!this.device) return;

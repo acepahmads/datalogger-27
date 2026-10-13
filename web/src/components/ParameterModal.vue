@@ -4,11 +4,16 @@
       <!-- Modal Header -->
       <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
         <div>
-          <h2 class="text-base font-bold text-white tracking-wide">
-            {{ isEditing ? $t('parameterModal.titleEdit') : $t('parameterModal.titleAdd') }}
-          </h2>
+          <div class="flex items-center space-x-2">
+            <h2 class="text-base font-bold text-white tracking-wide">
+              {{ modalTitle }}
+            </h2>
+            <span v-if="isCopying" class="px-2 py-0.5 text-3xs font-mono font-bold uppercase rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/80">
+              CLONE
+            </span>
+          </div>
           <p class="text-xs text-slate-400 mt-0.5">
-            {{ isEditing ? $t('parameterModal.subtitleEdit') : $t('parameterModal.subtitleAdd') }}
+            {{ modalSubtitle }}
           </p>
         </div>
         <button @click="closeModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
@@ -32,18 +37,68 @@
           <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs font-mono ml-2">✕</button>
         </div>
 
+        <!-- Copying Parameter Notice Banner -->
+        <div v-if="isCopying" class="p-3.5 bg-cyan-950/40 border border-cyan-800/80 rounded-xl space-y-2.5 animate-fade-in">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 text-cyan-200 text-xs">
+              <svg class="w-4 h-4 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              <span class="font-semibold">{{ $t('parameterModal.copyBannerTitle', { code: sourceParam ? (sourceParam.parameter_name || sourceParam.parameter_code) : '' }) }}</span>
+            </div>
+            <span class="text-3xs uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-300 font-bold border border-cyan-700/50">
+              CONFIG CLONE
+            </span>
+          </div>
+          <p class="text-3xs text-slate-400 leading-relaxed">
+            {{ $t('parameterModal.copyBannerDesc') }}
+          </p>
+
+          <!-- Destination Device Selector -->
+          <div v-if="devicesList && devicesList.length > 0" class="pt-2 border-t border-slate-800/80">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+                  {{ $t('parameterModal.destinationDevice') }}
+                </label>
+                <span class="text-3xs text-slate-400">{{ $t('parameterModal.destinationDeviceHelp') }}</span>
+              </div>
+              <select
+                v-model="targetDeviceId"
+                class="px-2.5 py-1.5 bg-[#0B0F19] border border-cyan-800/80 rounded-lg text-xs text-white focus:outline-none focus:border-cyan-500 font-mono min-w-[200px]"
+              >
+                <option v-for="dev in devicesList" :key="dev.id" :value="dev.id">
+                  {{ dev.device_code || dev.code }} ({{ dev.communication_protocol || dev.protocol }})
+                </option>
+              </select>
+            </div>
+
+            <!-- Protocol Mismatch Warning -->
+            <div v-if="destProtocolMismatch" class="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-3xs text-amber-300 flex items-start space-x-2">
+              <span class="text-amber-400 font-bold">⚠️</span>
+              <span>{{ $t('parameterModal.destProtocolMismatch', { destProto: destProtocolName, srcProto: srcProtocolName }) }}</span>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Parameter Code -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.code') }}
-            </label>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+                {{ $t('parameterModal.code') }}
+              </label>
+              <span v-if="isCopying" class="text-3xs font-mono text-cyan-400 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/60">
+                Must be unique
+              </span>
+            </div>
             <input
               v-model="form.parameter_code"
               type="text"
               required
               :placeholder="$t('parameterModal.placeholders.code')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+              :class="isCopying ? 'border-cyan-500/80 focus:border-cyan-400' : 'border-slate-700/80 focus:border-blue-500'"
+              class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
             />
           </div>
 
@@ -572,7 +627,7 @@
           >
             <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
             <span v-if="clientValidationError" class="text-2xs text-amber-300">⚠️ {{ $t('parameterModal.fixLimitsBeforeSave') }}</span>
-            <span v-else>{{ isEditing ? $t('parameterModal.updateParam') : $t('parameterModal.addParam') }}</span>
+            <span v-else>{{ isCopying ? $t('parameterModal.copyButton') : (isEditing ? $t('parameterModal.updateParam') : $t('parameterModal.addParam')) }}</span>
           </button>
         </div>
       </form>
@@ -602,11 +657,24 @@ export default {
       type: Object,
       default: null,
     },
+    isCopying: {
+      type: Boolean,
+      default: false,
+    },
+    sourceParam: {
+      type: Object,
+      default: null,
+    },
+    sourceDevice: {
+      type: Object,
+      default: null,
+    },
   },
   data() {
     return {
       loading: false,
       error: null,
+      targetDeviceId: null,
       form: {
         parameter_code: '',
         parameter_name: '',
@@ -639,7 +707,42 @@ export default {
   },
   computed: {
     isEditing() {
-      return !!this.paramToEdit;
+      return !this.isCopying && !!this.paramToEdit;
+    },
+    modalTitle() {
+      if (this.isCopying) return this.$t('parameterModal.titleCopy');
+      return this.isEditing ? this.$t('parameterModal.titleEdit') : this.$t('parameterModal.titleAdd');
+    },
+    modalSubtitle() {
+      if (this.isCopying) {
+        const code = this.sourceParam ? (this.sourceParam.parameter_name || this.sourceParam.parameter_code) : '';
+        return this.$t('parameterModal.subtitleCopy', { source: code });
+      }
+      return this.isEditing ? this.$t('parameterModal.subtitleEdit') : this.$t('parameterModal.subtitleAdd');
+    },
+    devicesList() {
+      return this.$store.state.devices || [];
+    },
+    currentDevice() {
+      const devId = Number(this.deviceId);
+      return this.devicesList.find(d => Number(d.id) === devId) || this.sourceDevice || null;
+    },
+    targetDevice() {
+      const tgtId = Number(this.targetDeviceId || this.deviceId);
+      return this.devicesList.find(d => Number(d.id) === tgtId) || null;
+    },
+    srcProtocolName() {
+      const dev = this.currentDevice;
+      return dev ? (dev.communication_protocol || dev.protocol || 'UNKNOWN') : 'UNKNOWN';
+    },
+    destProtocolName() {
+      const dev = this.targetDevice;
+      return dev ? (dev.communication_protocol || dev.protocol || 'UNKNOWN') : 'UNKNOWN';
+    },
+    destProtocolMismatch() {
+      if (!this.isCopying) return false;
+      if (!this.targetDeviceId || Number(this.targetDeviceId) === Number(this.deviceId)) return false;
+      return this.srcProtocolName !== this.destProtocolName;
     },
     iconCatalog() {
       return PARAMETER_ICON_CATALOG;
@@ -744,40 +847,36 @@ export default {
     },
   },
   watch: {
-    paramToEdit: {
+    isOpen: {
       immediate: true,
+      handler(val) {
+        if (val) {
+          if (!this.$store.state.devices || this.$store.state.devices.length === 0) {
+            this.$store.dispatch('fetchDevices');
+          }
+          if (this.isCopying && this.sourceParam) {
+            this.populateFromSource(this.sourceParam);
+          } else if (this.paramToEdit) {
+            this.populateFromParam(this.paramToEdit);
+          } else {
+            this.resetForm();
+          }
+        }
+      },
+    },
+    paramToEdit: {
       handler(newVal) {
-        if (newVal) {
-          this.form = {
-            parameter_code: newVal.parameter_code || newVal.code || '',
-            parameter_name: newVal.parameter_name || newVal.name || '',
-            data_type: newVal.data_type || 'FLOAT32',
-            unit: newVal.unit || '',
-            icon: newVal.icon || '',
-            description: newVal.description || '',
-            register_address: newVal.register_address || 0,
-            register_type: newVal.register_type || 'HOLDING_REGISTER',
-            byte_order: newVal.byte_order || '',
-            min_value: newVal.min_value !== undefined ? newVal.min_value : (newVal.low_limit || null),
-            max_value: newVal.max_value !== undefined ? newVal.max_value : (newVal.high_limit || null),
-            warning_low: newVal.warning_low !== undefined ? newVal.warning_low : null,
-            warning_high: newVal.warning_high !== undefined ? newVal.warning_high : null,
-            quality_validation_enabled: newVal.quality_validation_enabled !== undefined ? newVal.quality_validation_enabled : true,
-            processing_enabled: newVal.processing_enabled !== undefined ? newVal.processing_enabled : true,
-            stale_timeout_seconds: newVal.stale_timeout_seconds || 120,
-            spike_detection_enabled: newVal.spike_detection_enabled !== undefined ? newVal.spike_detection_enabled : false,
-            spike_threshold: newVal.spike_threshold || 0.0,
-            spike_window_size: newVal.spike_window_size || 3,
-            precision: newVal.precision !== undefined ? newVal.precision : 2,
-            scale: newVal.scale !== undefined ? newVal.scale : (newVal.scale_factor || 1.0),
-            offset: newVal.offset !== undefined ? newVal.offset : 0.0,
-            enabled: newVal.enabled !== undefined ? newVal.enabled : true,
-            formula: newVal.formula || '',
-            hold_last_value_enabled: newVal.hold_last_value_enabled !== undefined ? newVal.hold_last_value_enabled : false,
-            hold_last_value_seconds: newVal.hold_last_value_seconds || 120,
-          };
-        } else {
+        if (!this.isCopying && newVal) {
+          this.populateFromParam(newVal);
+        } else if (!this.isCopying && !newVal) {
           this.resetForm();
+        }
+      },
+    },
+    sourceParam: {
+      handler(newVal) {
+        if (this.isCopying && newVal) {
+          this.populateFromSource(newVal);
         }
       },
     },
@@ -855,6 +954,91 @@ export default {
         hold_last_value_seconds: 120,
       };
     },
+    generateSuggestedCode(sourceCode) {
+      if (!sourceCode) return 'param_01';
+      const match = sourceCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const num = parseInt(match[2], 10);
+        const nextNum = String(num + 1).padStart(match[2].length, '0');
+        return `${prefix}${nextNum}`;
+      }
+      return `${sourceCode}_copy`;
+    },
+    generateSuggestedName(sourceName) {
+      if (!sourceName) return '';
+      const match = sourceName.match(/^(.*?)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const num = parseInt(match[2], 10);
+        return `${prefix}${num + 1}`;
+      }
+      return `${sourceName} (Copy)`;
+    },
+    populateFromParam(param) {
+      this.targetDeviceId = Number(this.deviceId);
+      this.form = {
+        parameter_code: param.parameter_code || param.code || '',
+        parameter_name: param.parameter_name || param.name || '',
+        data_type: param.data_type || 'FLOAT32',
+        unit: param.unit || '',
+        icon: param.icon || '',
+        description: param.description || '',
+        register_address: param.register_address !== undefined ? param.register_address : 0,
+        register_type: param.register_type || 'HOLDING_REGISTER',
+        byte_order: param.byte_order || '',
+        min_value: param.min_value !== undefined ? param.min_value : (param.low_limit || null),
+        max_value: param.max_value !== undefined ? param.max_value : (param.high_limit || null),
+        warning_low: param.warning_low !== undefined ? param.warning_low : null,
+        warning_high: param.warning_high !== undefined ? param.warning_high : null,
+        quality_validation_enabled: param.quality_validation_enabled !== undefined ? param.quality_validation_enabled : true,
+        processing_enabled: param.processing_enabled !== undefined ? param.processing_enabled : true,
+        stale_timeout_seconds: param.stale_timeout_seconds || 120,
+        spike_detection_enabled: param.spike_detection_enabled !== undefined ? param.spike_detection_enabled : false,
+        spike_threshold: param.spike_threshold || 0.0,
+        spike_window_size: param.spike_window_size || 3,
+        precision: param.precision !== undefined ? param.precision : 2,
+        scale: param.scale !== undefined ? param.scale : (param.scale_factor || 1.0),
+        offset: param.offset !== undefined ? param.offset : 0.0,
+        enabled: param.enabled !== undefined ? param.enabled : true,
+        formula: param.formula || '',
+        hold_last_value_enabled: param.hold_last_value_enabled !== undefined ? param.hold_last_value_enabled : false,
+        hold_last_value_seconds: param.hold_last_value_seconds || 120,
+      };
+    },
+    populateFromSource(source) {
+      this.targetDeviceId = Number(this.deviceId);
+      const code = source.parameter_code || source.code || '';
+      const name = source.parameter_name || source.name || '';
+      this.form = {
+        parameter_code: this.generateSuggestedCode(code),
+        parameter_name: this.generateSuggestedName(name),
+        data_type: source.data_type || 'FLOAT32',
+        unit: source.unit || '',
+        icon: source.icon || '',
+        description: source.description || '',
+        register_address: source.register_address !== undefined ? source.register_address : 0,
+        register_type: source.register_type || 'HOLDING_REGISTER',
+        byte_order: source.byte_order || '',
+        min_value: source.min_value !== undefined ? source.min_value : (source.low_limit || null),
+        max_value: source.max_value !== undefined ? source.max_value : (source.high_limit || null),
+        warning_low: source.warning_low !== undefined ? source.warning_low : null,
+        warning_high: source.warning_high !== undefined ? source.warning_high : null,
+        quality_validation_enabled: source.quality_validation_enabled !== undefined ? source.quality_validation_enabled : true,
+        processing_enabled: source.processing_enabled !== undefined ? source.processing_enabled : true,
+        stale_timeout_seconds: source.stale_timeout_seconds || 120,
+        spike_detection_enabled: source.spike_detection_enabled !== undefined ? source.spike_detection_enabled : false,
+        spike_threshold: source.spike_threshold || 0.0,
+        spike_window_size: source.spike_window_size || 3,
+        precision: source.precision !== undefined ? source.precision : 2,
+        scale: source.scale !== undefined ? source.scale : (source.scale_factor || 1.0),
+        offset: source.offset !== undefined ? source.offset : 0.0,
+        enabled: source.enabled !== undefined ? source.enabled : true,
+        formula: source.formula || '',
+        hold_last_value_enabled: source.hold_last_value_enabled !== undefined ? source.hold_last_value_enabled : false,
+        hold_last_value_seconds: source.hold_last_value_seconds || 120,
+      };
+    },
     async submitForm() {
       if (this.clientValidationError) {
         this.error = this.clientValidationError;
@@ -903,20 +1087,31 @@ export default {
         hold_last_value_seconds: this.cleanNum(this.form.hold_last_value_seconds) || 120,
       };
 
+      if (this.isCopying && this.sourceParam) {
+        payload.source_parameter_id = this.sourceParam.id;
+      }
+
+      const effectiveDeviceId = (this.isCopying && this.targetDeviceId) ? this.targetDeviceId : this.deviceId;
+
       try {
         if (this.isEditing) {
           await this.$store.dispatch('updateParameter', {
-            deviceId: this.deviceId,
+            deviceId: effectiveDeviceId,
             paramId: this.paramToEdit.id,
             updates: payload,
           });
         } else {
           await this.$store.dispatch('createParameter', {
-            deviceId: this.deviceId,
+            deviceId: effectiveDeviceId,
             paramData: payload,
           });
         }
-        this.$emit('saved');
+        this.$emit('saved', {
+          isCopy: this.isCopying,
+          deviceId: effectiveDeviceId,
+          paramCode: payload.parameter_code,
+          paramName: payload.parameter_name,
+        });
         this.closeModal();
       } catch (err) {
         const rawMsg = (err.response && err.response.data && err.response.data.error) || err.message || 'Operation failed';

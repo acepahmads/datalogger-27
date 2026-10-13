@@ -1,5 +1,23 @@
 <template>
   <div class="space-y-6 font-sans">
+    <!-- Copy Success Notification Banner -->
+    <div v-if="copySuccessMessage" class="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200 flex items-center justify-between shadow-lg animate-fade-in">
+      <div class="flex items-center space-x-2.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>{{ copySuccessMessage }}</span>
+      </div>
+      <div class="flex items-center space-x-3">
+        <router-link
+          v-if="createdCopiedDevice"
+          :to="'/monitoring/devices/' + createdCopiedDevice.id"
+          class="text-xs font-bold text-emerald-300 hover:underline flex items-center space-x-1"
+        >
+          <span>{{ $t('devices.viewCopiedDevice') || 'View New Device' }}</span>
+          <span>→</span>
+        </router-link>
+        <button @click="copySuccessMessage = ''" class="text-slate-400 hover:text-white text-xs">✕</button>
+      </div>
+    </div>
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
@@ -267,6 +285,16 @@
                 <router-link :to="'/monitoring/devices/' + dev.id" class="text-blue-400 hover:text-blue-300 font-semibold text-2xs transition">
                   {{ $t('common.view') }}
                 </router-link>
+                <button
+                  @click="openCopyModal(dev)"
+                  class="inline-flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 font-semibold text-2xs transition"
+                  :title="$t('devices.copyDevice') || 'Copy Device'"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                  </svg>
+                  <span>{{ $t('devices.copyDevice') || 'Copy' }}</span>
+                </button>
                 <button @click="openEditModal(dev)" class="text-slate-300 hover:text-white font-semibold text-2xs transition">
                   {{ $t('common.edit') }}
                 </button>
@@ -382,6 +410,7 @@
             </router-link>
           </div>
           <div class="space-x-2">
+            <button @click="openCopyModal(dev)" class="text-cyan-400 hover:text-cyan-300 text-2xs font-semibold">{{ $t('devices.copyDevice') || 'Copy' }}</button>
             <button @click="openEditModal(dev)" class="text-slate-400 hover:text-white text-2xs">{{ $t('common.edit') }}</button>
             <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 text-2xs">{{ $t('common.delete') }}</button>
           </div>
@@ -389,12 +418,14 @@
       </div>
     </div>
 
-    <!-- Device Modal (Create/Edit) -->
+    <!-- Device Modal (Create/Edit/Copy) -->
     <DeviceModal
       :is-open="isModalOpen"
       :device-to-edit="deviceToEdit"
-      @close="isModalOpen = false"
-      @saved="loadDevices"
+      :is-copying="isCopyModal"
+      :source-device="deviceToCopy"
+      @close="isModalOpen = false; isCopyModal = false; deviceToCopy = null"
+      @saved="handleDeviceSaved"
     />
   </div>
 </template>
@@ -422,7 +453,11 @@ export default {
       currentPage: 1,
       pageSize: 15,
       isModalOpen: false,
+      isCopyModal: false,
       deviceToEdit: null,
+      deviceToCopy: null,
+      copySuccessMessage: '',
+      createdCopiedDevice: null,
     };
   },
   computed: {
@@ -491,11 +526,36 @@ export default {
     },
     openAddModal() {
       this.deviceToEdit = null;
+      this.deviceToCopy = null;
+      this.isCopyModal = false;
       this.isModalOpen = true;
     },
     openEditModal(device) {
       this.deviceToEdit = device;
+      this.deviceToCopy = null;
+      this.isCopyModal = false;
       this.isModalOpen = true;
+    },
+    openCopyModal(device) {
+      this.deviceToEdit = null;
+      this.deviceToCopy = device;
+      this.isCopyModal = true;
+      this.isModalOpen = true;
+    },
+    handleDeviceSaved(createdDev) {
+      this.loadDevices();
+      if (this.isCopyModal && createdDev) {
+        this.createdCopiedDevice = createdDev;
+        this.copySuccessMessage = this.$t('devices.copiedSuccess', {
+          name: createdDev.deviceName || createdDev.device_name || createdDev.name || createdDev.deviceCode || createdDev.device_code,
+        });
+        setTimeout(() => {
+          this.copySuccessMessage = '';
+          this.createdCopiedDevice = null;
+        }, 8000);
+      }
+      this.isCopyModal = false;
+      this.deviceToCopy = null;
     },
     async toggleDeviceEnabled(device) {
       try {
