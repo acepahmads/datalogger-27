@@ -246,7 +246,7 @@ class AudioAlertEngine {
     }
 
     // Schedule controlled repeating interval
-    const intervalMs = Math.max(10000, this.repeatIntervalSeconds * 1000); // Minimum 10s floor
+    const intervalMs = Math.max(1000, this.repeatIntervalSeconds * 1000); // Minimum 1s floor
     const timerId = setInterval(() => {
       // Re-check mute and conditions before playing each pulse
       if (this.soundEnabled && !this.checkMuteActive()) {

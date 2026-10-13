@@ -336,6 +336,14 @@ runTest('Test 12: Translation keys for alarm banner exist in both EN and ID', ()
     'globalBanner',
     'alertVolume',
     'criticalRepeatInterval',
+    'repeatEvery1s',
+    'repeatEvery3s',
+    'repeatEvery5s',
+    'repeatEvery10s',
+    'repeatEvery15s',
+    'repeatEvery30s',
+    'repeatEvery60s',
+    'repeatOnceOnly',
     'muteDuration',
     'unmuted',
     'testAudioChimes',
@@ -352,6 +360,26 @@ runTest('Test 12: Translation keys for alarm banner exist in both EN and ID', ()
     assert.ok(enContent.includes(`"${key}":`), `EN missing translation key: ${key}`);
     assert.ok(idContent.includes(`"${key}":`), `ID missing translation key: ${key}`);
   }
+});
+
+// -------------------------------------------------------------
+// Test 13: Rapid repeat interval options (1s, 3s, 5s, 10s) supported
+// -------------------------------------------------------------
+runTest('Test 13: Rapid repeat intervals (1s, 3s, 5s, 10s) supported with 1s minimum floor', () => {
+  const modalFilePath = path.join(__dirname, '../src/components/AlarmNotificationModal.vue');
+  const modalContent = fs.readFileSync(modalFilePath, 'utf8');
+
+  assert.ok(modalContent.includes(':value="1"'), 'Modal must have 1s repeat option');
+  assert.ok(modalContent.includes(':value="3"'), 'Modal must have 3s repeat option');
+  assert.ok(modalContent.includes(':value="5"'), 'Modal must have 5s repeat option');
+  assert.ok(modalContent.includes(':value="10"'), 'Modal must have 10s repeat option');
+
+  const audioAlertFilePath = path.join(__dirname, '../src/utils/audioAlert.js');
+  const audioAlertContent = fs.readFileSync(audioAlertFilePath, 'utf8');
+  assert.ok(
+    audioAlertContent.includes('Math.max(1000,') || audioAlertContent.includes('Math.max(1000 ,'),
+    'audioAlert.js must allow minimum 1s floor'
+  );
 });
 
 // -------------------------------------------------------------

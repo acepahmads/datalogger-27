@@ -125,6 +125,10 @@
               v-model.number="localPrefs.repeatIntervalSeconds"
               class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
+              <option :value="1">{{ $t('alarms.repeatEvery1s') || 'Every 1 second' }}</option>
+              <option :value="3">{{ $t('alarms.repeatEvery3s') || 'Every 3 seconds' }}</option>
+              <option :value="5">{{ $t('alarms.repeatEvery5s') || 'Every 5 seconds' }}</option>
+              <option :value="10">{{ $t('alarms.repeatEvery10s') || 'Every 10 seconds' }}</option>
               <option :value="15">{{ $t('alarms.repeatEvery15s') || 'Every 15 seconds' }}</option>
               <option :value="30">{{ $t('alarms.repeatEvery30s') || 'Every 30 seconds (Default)' }}</option>
               <option :value="60">{{ $t('alarms.repeatEvery60s') || 'Every 60 seconds' }}</option>

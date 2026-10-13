@@ -6,7 +6,7 @@ export const DEFAULT_ALARM_PREFERENCES = {
   soundEnabled: true,
   bannerEnabled: true,
   volume: 0.7,
-  repeatIntervalSeconds: 30, // 15, 30, 60, or 0 (once only)
+  repeatIntervalSeconds: 30, // 1, 3, 5, 10, 15, 30, 60, or 0 (once only)
   isMuted: false,
   muteDurationMinutes: 0, // 0 = unmuted, 5, 15, 30, 60, or -1 (indefinite)
   muteUntil: null,
