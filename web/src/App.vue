@@ -9,11 +9,14 @@
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Sidebar Navigation -->
-      <Sidebar />
+      <Sidebar :is-collapsed="isSidebarCollapsed" />
 
       <!-- Viewport / Route Views -->
-      <main class="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950 transition-colors duration-150">
-        <router-view />
+      <main
+        class="flex-1 overflow-y-auto transition-colors duration-150"
+        :class="isOperatorRoute ? 'p-1.5 sm:p-2.5 bg-[#050B16]' : 'p-4 bg-slate-50 dark:bg-slate-950'"
+      >
+        <router-view :is-sidebar-collapsed="isSidebarCollapsed" @toggle-sidebar="toggleSidebar" />
       </main>
     </div>
   </div>
@@ -30,6 +33,21 @@ export default {
     Header,
     Sidebar,
     GlobalAlarmBanner,
+  },
+  data() {
+    return {
+      isSidebarCollapsed: false,
+    };
+  },
+  computed: {
+    isOperatorRoute() {
+      return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
+    },
+  },
+  methods: {
+    toggleSidebar() {
+      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    },
   },
 };
 </script>

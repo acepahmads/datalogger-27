@@ -8,6 +8,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        operator: {
+          bg: '#050B16',
+          panel: '#0B1422',
+          panelSecondary: '#101B2B',
+          border: '#20354B',
+          primary: '#168BFF',
+          cyan: '#00CFFF',
+          normal: '#00D6A0',
+          warning: '#FFB020',
+          critical: '#FF4559',
+          text: '#F1F5F9',
+          muted: '#94A3B8',
+        },
         dark: {
           bg: '#0B0F19',
           surface: '#111827',

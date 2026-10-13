@@ -54,6 +54,16 @@
             {{ highestAlarm.message || highestAlarm.alarm_code }}
           </span>
 
+          <!-- Trigger Value & Unit if present -->
+          <span v-if="highestAlarm.trigger_value != null" class="font-mono font-bold text-3xs px-1.5 py-0.5 rounded bg-black/25 flex-shrink-0">
+            Val: {{ Number(highestAlarm.trigger_value).toFixed(2) }} {{ (highestAlarm.Parameter && highestAlarm.Parameter.unit) || '' }}
+          </span>
+
+          <!-- Threshold limit if present -->
+          <span v-if="highestAlarm.threshold_value != null" class="font-mono text-3xs opacity-80 hidden lg:inline flex-shrink-0">
+            (Limit: {{ Number(highestAlarm.threshold_value).toFixed(2) }})
+          </span>
+
           <!-- Timestamp Relative -->
           <span class="opacity-75 text-3xs font-mono hidden sm:inline flex-shrink-0" :title="formatFullDate(highestAlarm.triggered_at)">
             · {{ formatRelativeTime(highestAlarm.triggered_at) }}

@@ -11,7 +11,11 @@
         </p>
       </div>
 
-      <div class="flex items-center space-x-2">
+        <router-link to="/monitoring/operator"
+                     class="px-3 py-1.5 bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 mr-1.5 animate-pulse"></span>
+          {{ $t('navigation.operatorConsole') || 'Operator Console' }}
+        </router-link>
         <button @click="showNewTaskModal = true"
                 class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
           <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">

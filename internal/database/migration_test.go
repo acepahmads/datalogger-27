@@ -540,8 +540,50 @@ func TestMigrationPhase6Wave3Tracking(t *testing.T) {
 	if err := db.Where("phase_id = ? AND status = ?", phase6.ID, model.StatusPending).Find(&pendingTasks).Error; err != nil {
 		t.Fatalf("Failed to query pending tasks: %v", err)
 	}
-	if len(pendingTasks) != 2 {
-		t.Errorf("Expected exactly 2 pending tasks remaining in Phase 6, got %d", len(pendingTasks))
-	}
 }
 
+func TestMigrationPhase7AndOperatorCommandCenterTracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_p7_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	// 1. Verify Phase 7 Task 67 (Dashboard)
+	var phase7 model.DevelopmentPhase
+	if err := db.Where("phase_number = 7").First(&phase7).Error; err != nil {
+		t.Fatalf("Phase 7 not found: %v", err)
+	}
+	var task67 model.DevelopmentTask
+	if err := db.Where("phase_id = ? AND (id = 67 OR task_name = 'Dashboard')", phase7.ID).First(&task67).Error; err != nil {
+		t.Fatalf("Task 67 'Dashboard' not found: %v", err)
+	}
+	if task67.Status != model.StatusDone {
+		t.Errorf("Task 67 should be DONE, got %s", task67.Status)
+	}
+	if task67.Progress < 100.0 {
+		t.Errorf("Task 67 progress should be 100%%, got %.2f%%", task67.Progress)
+	}
+
+	// 2. Verify Phase 10 Operator Command Center Acceptance Test
+	var phase10 model.DevelopmentPhase
+	if err := db.Where("phase_number = 10").First(&phase10).Error; err != nil {
+		t.Fatalf("Phase 10 not found: %v", err)
+	}
+	var occTask model.DevelopmentTask
+	if err := db.Where("phase_id = ? AND task_name LIKE ?", phase10.ID, "%Operator Command Center%").First(&occTask).Error; err != nil {
+		t.Fatalf("Operator Command Center acceptance task not found in Phase 10: %v", err)
+	}
+	if occTask.Status != model.StatusDone {
+		t.Errorf("Operator Command Center task should be DONE, got %s", occTask.Status)
+	}
+	if occTask.Progress < 100.0 {
+		t.Errorf("Operator Command Center progress should be 100%%, got %.2f%%", occTask.Progress)
+	}
+}

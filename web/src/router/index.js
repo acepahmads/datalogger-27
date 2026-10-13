@@ -18,11 +18,14 @@ import BackupRestoreView from '../views/BackupRestoreView.vue';
 import RetentionStorageView from '../views/RetentionStorageView.vue';
 import ReportsView from '../views/ReportsView.vue';
 import AccessControlView from '../views/AccessControlView.vue';
+import OperatorCommandCenterView from '../views/OperatorCommandCenterView.vue';
 
 Vue.use(VueRouter);
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
+  { path: '/operator', redirect: '/monitoring/operator' },
+  { path: '/monitoring/operator', name: 'OperatorCommandCenter', component: OperatorCommandCenterView },
   { path: '/dashboard', name: 'Dashboard', component: DashboardView },
   { path: '/development', name: 'Development', component: DevelopmentView },
   { path: '/development/phases', name: 'Phases', component: DevelopmentView },

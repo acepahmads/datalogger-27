@@ -15,37 +15,72 @@
       </div>
     </div>
 
-    <!-- Center: Clean Inline Host, Status & Live Time -->
-    <div class="hidden lg:flex items-center space-x-5 text-2xs">
-      <!-- Host & OS -->
+    <!-- Center: Clean Inline Host/Station, App Health vs Comm Health, & Live Time -->
+    <div class="hidden lg:flex items-center space-x-4 text-2xs">
+      <!-- Station / Host & OS -->
       <div class="flex items-center space-x-1.5 text-slate-500 dark:text-slate-400">
-        <span class="text-slate-400 dark:text-slate-500">{{ $t('header.host') }}:</span>
-        <span class="font-mono text-slate-700 dark:text-slate-200 font-medium">{{ systemStatus.hostname || 'LAPTOP-5UE284DP' }}</span>
+        <span class="text-slate-400 dark:text-slate-500 font-semibold">{{ $t('operator.station') || 'Station' }}:</span>
+        <span class="font-mono text-cyan-600 dark:text-cyan-400 font-bold">{{ systemStatus.hostname || 'Edge-01' }}</span>
         <span class="text-slate-300 dark:text-slate-600">·</span>
-        <span class="text-slate-600 dark:text-slate-300 font-mono">{{ systemStatus.os || 'Windows · amd64' }}</span>
+        <span class="text-slate-600 dark:text-slate-400 font-mono text-3xs">{{ systemStatus.os || 'Linux · arm64' }}</span>
       </div>
 
-      <!-- Status Indicator -->
+      <!-- Application Health (HEALTHY / DEGRADED / FAILURE) -->
+      <div class="flex items-center space-x-1.5">
+        <span class="text-slate-400 dark:text-slate-500 font-semibold">{{ $t('operator.appStatus') || 'App' }}:</span>
+        <span class="px-2 py-0.5 rounded-full font-mono font-bold text-3xs border flex items-center space-x-1" :class="appStatusBadgeClass">
+          <span class="w-1.5 h-1.5 rounded-full" :class="overallAppStatus === 'HEALTHY' ? 'bg-emerald-400' : overallAppStatus === 'DEGRADED' ? 'bg-amber-400 animate-pulse' : 'bg-rose-400 animate-ping'"></span>
+          <span>{{ overallAppStatus }}</span>
+        </span>
+      </div>
+
+      <!-- Device Communication Health -->
       <div class="flex items-center space-x-1.5 text-slate-500 dark:text-slate-400">
-        <span class="text-slate-400 dark:text-slate-500">{{ $t('header.status') }}:</span>
-        <span class="flex items-center text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-3xs tracking-wider">
-          <span class="relative flex h-2 w-2 mr-1.5">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          {{ $t('header.online') }}
+        <span class="text-slate-400 dark:text-slate-500 font-semibold">{{ $t('operator.commHealth') || 'Comm' }}:</span>
+        <span class="font-mono font-semibold text-3xs" :class="systemStatus.offline_devices > 0 ? 'text-amber-500' : 'text-emerald-500'">
+          {{ systemStatus.online_devices != null ? systemStatus.online_devices : 3 }}/{{ systemStatus.total_devices != null ? systemStatus.total_devices : 3 }} {{ $t('header.online') || 'ONLINE' }}
         </span>
       </div>
 
       <!-- Live Clock -->
-      <div class="flex items-center space-x-1.5 text-slate-500 dark:text-slate-400">
+      <div class="flex items-center space-x-1.5 text-slate-500 dark:text-slate-400 pl-1 border-l border-slate-200 dark:border-slate-800">
         <span class="text-slate-400 dark:text-slate-500">{{ $t('header.time') }}:</span>
         <span class="font-mono text-slate-700 dark:text-slate-200 font-medium tabular-nums">{{ currentTime }}</span>
       </div>
     </div>
 
     <!-- Right: Controls & User -->
-    <div class="flex items-center space-x-3">
+    <div class="flex items-center space-x-2.5">
+      <!-- Operator Console Quick Button -->
+      <router-link
+        to="/monitoring/operator"
+        class="px-2.5 py-1.5 rounded-lg border text-2xs font-bold font-mono transition-colors flex items-center space-x-1.5 shadow-xs"
+        :class="$route.path.includes('/operator') ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'"
+        :title="$t('operator.title') || 'Operator Command Center'"
+      >
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+        </span>
+        <span class="hidden sm:inline">{{ $t('navigation.operatorConsole') || 'Operator Console' }}</span>
+      </router-link>
+
+      <!-- Notification Bell with Unread / Active Alarms Badge -->
+      <router-link
+        to="/alarm/active"
+        class="relative p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors"
+        :title="$t('navigation.alarmsEvents') || 'Active Alarms'"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        <span
+          v-if="activeAlarmsCount > 0"
+          class="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold bg-rose-500 text-white shadow-xs animate-pulse"
+        >
+          {{ activeAlarmsCount }}
+        </span>
+      </router-link>
       <!-- Language Selector Dropdown -->
       <div class="relative" ref="langDropdown">
         <button
@@ -196,6 +231,30 @@ export default {
       if (this.themeSetting === 'light') return this.$t('header.light');
       if (this.themeSetting === 'dark') return this.$t('header.dark');
       return this.$t('header.system');
+    },
+    activeAlarmsCount() {
+      const active = this.$store.state.activeAlarms || [];
+      return active.filter(a => a && a.status === 'ACTIVE').length;
+    },
+    overallAppStatus() {
+      const s = this.systemStatus;
+      if (!s) return 'HEALTHY';
+      if (s.database_status && typeof s.database_status === 'string' && s.database_status.toLowerCase().includes('fail')) {
+        return 'FAILURE';
+      }
+      if (s.offline_devices > 0 || this.activeAlarmsCount > 0 || (s.critical_alarms && s.critical_alarms > 0)) {
+        return 'DEGRADED';
+      }
+      return 'HEALTHY';
+    },
+    appStatusBadgeClass() {
+      if (this.overallAppStatus === 'FAILURE') {
+        return 'bg-rose-500/20 text-rose-500 dark:text-rose-400 border-rose-500/40';
+      }
+      if (this.overallAppStatus === 'DEGRADED') {
+        return 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40';
+      }
+      return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40';
     },
   },
   mounted() {

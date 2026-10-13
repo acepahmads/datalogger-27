@@ -1,5 +1,8 @@
 <template>
-  <aside class="w-60 bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800/60 flex flex-col flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-colors duration-150">
+  <aside
+    :class="isCollapsed ? 'hidden' : 'w-60 flex flex-col'"
+    class="bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800/60 flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-all duration-150"
+  >
     <!-- Brand Header -->
     <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800/40">
       <div class="text-sm font-black text-slate-900 dark:text-white tracking-wider">DATALOGGER</div>
@@ -65,10 +68,22 @@
 
       <!-- MONITORING -->
       <div>
-        <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans">
-          {{ $t('navigation.monitoring') }}
+        <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans flex items-center justify-between">
+          <span>{{ $t('navigation.monitoring') }}</span>
         </div>
         <div class="space-y-1">
+          <!-- Operator Command Center / SCADA Console -->
+          <router-link to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-cyan-500 dark:text-cyan-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
+            </svg>
+            <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ $t('navigation.operatorConsole') || 'Operator Console' }}</span>
+            <span class="ml-auto text-4xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+              SCADA
+            </span>
+          </router-link>
+
           <router-link to="/monitoring/system" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/system' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
@@ -256,6 +271,12 @@
 <script>
 export default {
   name: 'Sidebar',
+  props: {
+    isCollapsed: {
+      type: Boolean,
+      default: false,
+    },
+  },
   computed: {
     progress() {
       return this.$store.state.progress;
