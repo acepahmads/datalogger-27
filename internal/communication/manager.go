@@ -401,17 +401,23 @@ func (m *ConnectionManager) DiagnosticTest(ctx context.Context, device *model.De
 		logger.Warn("Diagnostic test lock for device %d expired after %v; breaking stale lock", device.ID, time.Since(startedAt))
 	}
 
-	// 2b. Prevent diagnostic test while auto-reconnection is currently in-flight
-	m.reconnectingMu.Lock()
-	isReconn := m.reconnecting[device.ID]
-	m.reconnectingMu.Unlock()
-
-	if isReconn {
-		m.diagMu.Unlock()
-		res.Code = DiagBusy
-		res.Error = fmt.Sprintf("device %s is currently executing an auto-reconnect cycle", device.DeviceCode)
-		res.Message = "Device is currently reconnecting; please wait a moment"
-		return res
+	// 2b. If auto-reconnection is currently in-flight, wait briefly (up to 1.5s) for it to complete
+	// so that operator Test Link requests succeed immediately once device is plugged back in
+	for i := 0; i < 15; i++ {
+		m.reconnectingMu.Lock()
+		isReconn := m.reconnecting[device.ID]
+		m.reconnectingMu.Unlock()
+		if !isReconn {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			m.diagMu.Unlock()
+			res.Code = DiagBusy
+			res.Error = "diagnostic cancelled"
+			return res
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 
 	m.diagActive[device.ID] = time.Now()

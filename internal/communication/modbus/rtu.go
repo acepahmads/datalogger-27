@@ -286,18 +286,19 @@ func (a *ModbusRTUAdapter) Connect(ctx context.Context) error {
 
 	// If already attached to a different bus, detach first
 	if a.bus != nil && a.bus.portPath != targetPort {
-		a.bus.mu.Lock()
-		a.bus.refCount--
-		if a.bus.refCount <= 0 {
-			if a.bus.transport != nil {
-				_ = a.bus.transport.Close()
-				a.bus.transport = nil
+		oldBus := a.bus
+		oldBus.mu.Lock()
+		oldBus.refCount--
+		if oldBus.refCount <= 0 {
+			if oldBus.transport != nil {
+				_ = oldBus.transport.Close()
+				oldBus.transport = nil
 			}
 			sharedBusesMu.Lock()
-			delete(sharedBuses, a.bus.portPath)
+			delete(sharedBuses, oldBus.portPath)
 			sharedBusesMu.Unlock()
 		}
-		a.bus.mu.Unlock()
+		oldBus.mu.Unlock()
 		a.bus = nil
 		a.transport = nil
 	}
@@ -339,18 +340,19 @@ func (a *ModbusRTUAdapter) Disconnect() error {
 
 	var err error
 	if a.bus != nil {
-		a.bus.mu.Lock()
-		a.bus.refCount--
-		if a.bus.refCount <= 0 {
-			if a.bus.transport != nil {
-				err = a.bus.transport.Close()
-				a.bus.transport = nil
+		bus := a.bus
+		bus.mu.Lock()
+		bus.refCount--
+		if bus.refCount <= 0 {
+			if bus.transport != nil {
+				err = bus.transport.Close()
+				bus.transport = nil
 			}
 			sharedBusesMu.Lock()
-			delete(sharedBuses, a.bus.portPath)
+			delete(sharedBuses, bus.portPath)
 			sharedBusesMu.Unlock()
 		}
-		a.bus.mu.Unlock()
+		bus.mu.Unlock()
 		a.bus = nil
 		a.transport = nil
 	} else if a.transport != nil {
@@ -434,8 +436,11 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 		}
 		defer bus.Unlock()
 	} else {
-		a.mu.Lock()
-		defer a.mu.Unlock()
+		return nil, &ModbusTransactionError{
+			Category: FailCategoryPortNotFound,
+			Message:  "no serial bus attached",
+			Err:      fmt.Errorf("serial bus is not initialized"),
+		}
 	}
 
 	// Ensure Modbus RTU 3.5-character silent interval between serial frames
@@ -719,6 +724,9 @@ func isFatalSerialError(err error) bool {
 }
 
 func (a *ModbusRTUAdapter) handleSerialError(err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	a.status.State = StateError
 	a.status.LastError = err.Error()
 	a.status.FailedCount++
@@ -726,18 +734,19 @@ func (a *ModbusRTUAdapter) handleSerialError(err error) {
 	// Only close physical transport on true hardware/OS I/O failures (not slave timeouts)
 	if isFatalSerialError(err) {
 		logger.Warn("Modbus RTU fatal serial error on %s: %v. Releasing physical transport handle.", a.config.SerialPort, err)
-		if a.bus != nil {
-			a.bus.mu.Lock()
-			if a.bus.transport != nil {
-				_ = a.bus.transport.Close()
-				a.bus.transport = nil
+		bus := a.bus
+		if bus != nil {
+			bus.mu.Lock()
+			if bus.transport != nil {
+				_ = bus.transport.Close()
+				bus.transport = nil
 			}
-			a.bus.mu.Unlock()
-		} else if a.transport != nil {
+			bus.mu.Unlock()
+		}
+		if a.transport != nil {
 			_ = a.transport.Close()
 			a.transport = nil
 		}
-		a.transport = nil
 
 		// Dynamic Self-Healing Port Migration Check:
 		if runtime.GOOS != "windows" && a.config != nil && (strings.HasPrefix(a.config.SerialPort, "/dev/tty") || strings.HasPrefix(a.config.SerialPort, "/dev/serial")) {
