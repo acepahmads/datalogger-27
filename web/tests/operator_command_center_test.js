@@ -149,9 +149,9 @@ it('Test 8: Operator Command Center supports Grid and Table view modes with debo
 });
 
 // 9. Trend Analysis Chart
-it('Test 9: Trend Analysis supports 15m, 1h, 6h, 24h, 7d timeframes and multi-parameter SVG plotting', () => {
+it('Test 9: Trend Analysis supports 1m, 5m, 15m, 1h, 6h timeframes and multi-parameter SVG plotting', () => {
   const viewSrc = fs.readFileSync(path.join(__dirname, '../src/views/OperatorCommandCenterView.vue'), 'utf8');
-  assert(viewSrc.includes("'15m', '1h', '6h', '24h', '7d'"), 'Missing standard timeframe presets');
+  assert(viewSrc.includes("'1m', '5m', '15m', '1h', '6h'"), 'Missing standard timeframe presets');
   assert(viewSrc.includes('generateChartPolyline'), 'Missing SVG polyline generator');
   assert(viewSrc.includes('generateChartPolygon'), 'Missing SVG polygon gradient generator');
   assert(viewSrc.includes('onChartScrub'), 'Missing hover scrubbing tooltip');

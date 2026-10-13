@@ -749,7 +749,7 @@
             <div class="flex items-center space-x-2">
               <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#1E3048] text-3xs font-mono">
                 <button
-                  v-for="tf in ['15m', '1h', '6h', '24h', '7d']"
+                  v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                   :key="tf"
                   @click="setTimeframe(tf)"
                   class="px-2.5 py-1 rounded transition font-semibold"
@@ -1544,7 +1544,7 @@
             <!-- Timeframe Presets -->
             <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <button
-                v-for="tf in ['15m', '1h', '6h', '24h', '7d']"
+                v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                 :key="'fs-' + tf"
                 @click="setTimeframe(tf)"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -1935,7 +1935,7 @@ export default {
       viewMode: 'cards', // 'cards' | 'table'
 
       // Trend Chart State
-      currentTimeframe: '24h',
+      currentTimeframe: '15m',
       chartMode: 'processed', // 'processed' | 'raw'
       trendScaleMode: 'auto', // 'auto' | 'normalized'
       activeTrendSeries: [],
@@ -1943,7 +1943,7 @@ export default {
       scrubPoint: null,
       fullscreenScrubPoint: null,
       trendTimeBounds: {
-        start: Date.now() - 24 * 3600 * 1000,
+        start: Date.now() - 15 * 60 * 1000,
         end: Date.now(),
       },
       showTrendDownloadMenu: false,
@@ -2174,17 +2174,14 @@ export default {
         const x = padLeft + frac * plotW;
         const time = new Date(start + frac * span);
         let label = '';
-        if (span <= 20 * 60 * 1000) {
-          // 15m range: e.g. 15:30, 15:35, 15:40
-          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } else if (span <= 2 * 3600 * 1000) {
-          // 1h range: e.g. 14:00, 14:15, 14:30
-          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (span <= 7 * 60 * 1000) {
+          // 1m / 5m range: e.g. 15:30:00, 15:31:15
+          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         } else if (span <= 25 * 3600 * 1000) {
-          // 6h / 24h range: e.g. 00:00, 06:00, 12:00, 18:00
+          // 15m, 1h, 6h range: e.g. 15:30, 16:00
           label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else {
-          // 7d range: e.g. 12 Oct, 13 Oct
+          // Multi-day custom range
           label = time.toLocaleDateString([], { month: 'short', day: 'numeric' });
         }
         ticks.push({ x, label });
@@ -2235,7 +2232,7 @@ export default {
         const x = padLeft + frac * plotW;
         const time = new Date(start + frac * span);
         let label = '';
-        if (span <= 20 * 60 * 1000) {
+        if (span <= 7 * 60 * 1000) {
           label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         } else if (span <= 25 * 3600 * 1000) {
           label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -3137,7 +3134,7 @@ export default {
     },
     openTrendFullscreen() {
       const now = new Date();
-      const start = new Date(this.trendTimeBounds.start || (now.getTime() - 24 * 3600 * 1000));
+      const start = new Date(this.trendTimeBounds.start || (now.getTime() - 15 * 60 * 1000));
       this.fullscreenCustomStart = this.toLocalISO(start);
       this.fullscreenCustomEnd = this.toLocalISO(now);
       this.showTrendFullscreen = true;
@@ -3175,11 +3172,11 @@ export default {
           startTime = new Date(this.fullscreenCustomStart);
           endTime = new Date(this.fullscreenCustomEnd);
         } else {
-          if (this.currentTimeframe === '15m') startTime = new Date(now.getTime() - 15 * 60 * 1000);
+          if (this.currentTimeframe === '1m') startTime = new Date(now.getTime() - 60 * 1000);
+          else if (this.currentTimeframe === '5m') startTime = new Date(now.getTime() - 5 * 60 * 1000);
+          else if (this.currentTimeframe === '15m') startTime = new Date(now.getTime() - 15 * 60 * 1000);
           else if (this.currentTimeframe === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
           else if (this.currentTimeframe === '6h') startTime = new Date(now.getTime() - 6 * 3600 * 1000);
-          else if (this.currentTimeframe === '24h') startTime = new Date(now.getTime() - 24 * 3600 * 1000);
-          else if (this.currentTimeframe === '7d') startTime = new Date(now.getTime() - 7 * 86400 * 1000);
         }
 
         this.trendTimeBounds = {
@@ -3325,11 +3322,13 @@ export default {
 
       // Estimate gap threshold: when delta t exceeds 3-4x typical sample interval, break path
       let maxGapMs = 15 * 60 * 1000;
-      if (timeSpan <= 20 * 60 * 1000) maxGapMs = 60 * 1000; // 1 min for 15m
+      if (timeSpan <= 90 * 1000) maxGapMs = 15 * 1000; // 15s for 1m
+      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 30 * 1000; // 30s for 5m
+      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 60 * 1000; // 1 min for 15m
       else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 5 * 60 * 1000; // 5 min for 1h
-      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 25 * 60 * 1000; // 25 min for 6h
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 20 * 60 * 1000; // 20 min for 6h
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000; // 1 hr for 24h
-      else maxGapMs = 4 * 3600 * 1000; // 4 hrs for 7d
+      else maxGapMs = 4 * 3600 * 1000; // 4 hrs for multi-day
 
       let pathStr = '';
       let inSegment = false;
@@ -3363,7 +3362,7 @@ export default {
     generatePrimaryAreaPath(bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
       if (this.activeTrendSeries.length === 0) return '';
       const primary = this.activeTrendSeries[0];
-      const pts = (primary.dataPoints || []).filter(p => p.y !== null && isFinite(p.y));
+      const pts = primary.dataPoints || [];
       if (pts.length === 0) return '';
 
       const plotW = width - padLeft - padRight;
@@ -3382,20 +3381,63 @@ export default {
       }
       const spanY = maxY - minY || 1;
 
-      let d = '';
-      const firstX = padLeft + Math.min(Math.max((pts[0].x - timeStart) / timeSpan, 0), 1) * plotW;
-      const lastX = padLeft + Math.min(Math.max((pts[pts.length - 1].x - timeStart) / timeSpan, 0), 1) * plotW;
+      let maxGapMs = 15 * 60 * 1000;
+      if (timeSpan <= 90 * 1000) maxGapMs = 15 * 1000;
+      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 30 * 1000;
+      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 60 * 1000;
+      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 5 * 60 * 1000;
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 20 * 60 * 1000;
+      else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
+      else maxGapMs = 4 * 3600 * 1000;
+
+      // Group points into continuous valid segments to avoid diagonal area fills across outages
+      const segments = [];
+      let currentSeg = [];
+      let prevX = null;
 
       for (let i = 0; i < pts.length; i++) {
-        const px = padLeft + Math.min(Math.max((pts[i].x - timeStart) / timeSpan, 0), 1) * plotW;
-        const py = (padTop + plotH) - Math.min(Math.max((pts[i].y - minY) / spanY, 0), 1) * plotH;
-        if (i === 0) {
-          d += `M ${px.toFixed(1)} ${baseY} L ${px.toFixed(1)} ${py.toFixed(1)}`;
-        } else {
-          d += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        const p = pts[i];
+        if (p.y === null || !isFinite(p.y)) {
+          if (currentSeg.length > 0) {
+            segments.push(currentSeg);
+            currentSeg = [];
+          }
+          prevX = null;
+          continue;
         }
+
+        if (prevX !== null && (p.x - prevX) > maxGapMs) {
+          if (currentSeg.length > 0) {
+            segments.push(currentSeg);
+            currentSeg = [];
+          }
+        }
+
+        currentSeg.push(p);
+        prevX = p.x;
       }
-      d += ` L ${lastX.toFixed(1)} ${baseY} Z`;
+      if (currentSeg.length > 0) {
+        segments.push(currentSeg);
+      }
+
+      if (segments.length === 0) return '';
+
+      let d = '';
+      for (const seg of segments) {
+        if (seg.length === 0) continue;
+        const firstPx = padLeft + Math.min(Math.max((seg[0].x - timeStart) / timeSpan, 0), 1) * plotW;
+        const lastPx = padLeft + Math.min(Math.max((seg[seg.length - 1].x - timeStart) / timeSpan, 0), 1) * plotW;
+
+        let segD = `M ${firstPx.toFixed(1)} ${baseY}`;
+        for (let i = 0; i < seg.length; i++) {
+          const px = padLeft + Math.min(Math.max((seg[i].x - timeStart) / timeSpan, 0), 1) * plotW;
+          const py = (padTop + plotH) - Math.min(Math.max((seg[i].y - minY) / spanY, 0), 1) * plotH;
+          segD += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        }
+        segD += ` L ${lastPx.toFixed(1)} ${baseY} Z`;
+        d += (d ? ' ' : '') + segD;
+      }
+
       return d;
     },
     generateChartPolyline(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {

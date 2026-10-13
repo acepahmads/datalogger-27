@@ -107,9 +107,9 @@ runTest('Test 9: Threshold lines match parameter configuration and scale appropr
   assert(occContent.includes('WARN'), 'Must render WARN label');
 });
 
-// 10. Timeframe Controls: Standard presets (15m, 1h, 6h, 24h, 7d) formatted concisely
-runTest('Test 10: Preserves 15m, 1h, 6h, 24h, 7d timeframe presets with concise X-axis formatting', () => {
-  assert(occContent.includes("['15m', '1h', '6h', '24h', '7d']"), 'Must preserve timeframe buttons');
+// 10. Timeframe Controls: Standard presets (1m, 5m, 15m, 1h, 6h) formatted concisely
+runTest('Test 10: Provides 1m, 5m, 15m, 1h, 6h timeframe presets with concise X-axis formatting', () => {
+  assert(occContent.includes("['1m', '5m', '15m', '1h', '6h']"), 'Must provide updated timeframe buttons');
   assert(occContent.includes('trendXTicks'), 'Must compute concise X-axis time ticks');
 });
 
