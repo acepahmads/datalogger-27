@@ -246,11 +246,23 @@
         </div>
         <div class="flex items-baseline justify-between mt-1">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-xl font-bold font-mono text-slate-900 dark:text-white">{{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}</span>
-            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">since last packet</span>
+            <span
+              class="text-xl font-bold font-mono"
+              :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
+            >
+              {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
+            </span>
+            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
+              {{ isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet') }}
+            </span>
           </div>
           <div class="text-right font-mono text-3xs">
-            <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ summaryStats.goodSensors }}</span>
+            <span
+              class="font-bold"
+              :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
+            >
+              {{ summaryStats.goodSensors }}
+            </span>
             <span class="text-slate-500 dark:text-slate-400">/{{ allParameters.length }} Good</span>
           </div>
         </div>
@@ -522,10 +534,33 @@
               </svg>
             </div>
 
-            <!-- Tile Footer: Timestamp & Quick Action Link -->
-            <div class="flex items-center justify-between text-4xs font-mono text-slate-400 dark:text-slate-500 mt-1">
-              <span>{{ param.received_at ? formatTimeShort(param.received_at) : 'Waiting data' }}</span>
-              <span class="text-cyan-600 dark:text-cyan-400 group-hover:underline">
+            <!-- Tile Footer: Timestamp, Alarm/Failure Duration & Quick Action Link -->
+            <div class="flex items-center justify-between text-4xs font-mono mt-1.5 pt-1 border-t border-slate-100 dark:border-[#132235]">
+              <div
+                class="flex items-center space-x-1 truncate max-w-[70%]"
+                :title="getParamTimingTitle(param)"
+              >
+                <!-- When in alarm, bad, stale, or offline: show clear status + last time + relative duration -->
+                <span
+                  v-if="isParamAlarmOrStaleBad(param)"
+                  class="flex items-center space-x-1 font-bold truncate"
+                  :class="paramTimingColorClass(param)"
+                >
+                  <span>{{ getParamTimingIcon(param) }}</span>
+                  <span class="truncate">{{ getParamTimingLabel(param) }}</span>
+                  <span v-if="param.received_at" class="opacity-90 whitespace-nowrap">({{ formatRelative(param.received_at) }})</span>
+                </span>
+
+                <!-- When healthy and normal: show checkmark + timestamp + ago -->
+                <span v-else class="text-slate-400 dark:text-slate-500 flex items-center space-x-1 truncate">
+                  <span class="text-emerald-500 font-bold">✓</span>
+                  <span>{{ param.received_at ? formatTimeShort(param.received_at) : ($t('operator.waitingData') || 'Waiting data') }}</span>
+                  <span v-if="param.received_at" class="text-slate-400 dark:text-slate-500 font-mono">({{ formatRelative(param.received_at) }})</span>
+                </span>
+              </div>
+
+              <!-- Quick Action Link -->
+              <span class="text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer whitespace-nowrap ml-1 font-semibold">
                 {{ isParamSelectedForTrend(param) ? '● Selected in Chart' : '+ Plot Trend' }}
               </span>
             </div>
@@ -1467,7 +1502,7 @@ export default {
     },
     isTelemetryStale() {
       const intervalSec = Math.max(Math.ceil(this.configuredPollingIntervalMs / 1000), 10);
-      return this.lastTelemetrySecondsAgo > (intervalSec * 2.5) || this.summaryStats.staleSensors > 0;
+      return this.lastTelemetrySecondsAgo > (intervalSec * 2.5) || this.summaryStats.staleSensors > 0 || this.summaryStats.goodSensors === 0;
     },
     lastTelemetryTimeStr() {
       if (!this.lastTelemetryTime) return '';
@@ -1726,12 +1761,16 @@ export default {
       const data = e.detail;
       if (!data) return;
 
-      if (data.received_at) {
-        this.lastTelemetryTime = data.received_at;
-      } else {
-        this.lastTelemetryTime = new Date();
+      // Only update last valid telemetry timestamp from GOOD data packets
+      // This prevents failed comm/error packets from resetting the operator's offline counter!
+      if (data.quality === 'GOOD') {
+        if (data.received_at) {
+          this.lastTelemetryTime = data.received_at;
+        } else {
+          this.lastTelemetryTime = new Date();
+        }
+        this.lastTelemetrySecondsAgo = 0;
       }
-      this.lastTelemetrySecondsAgo = 0;
 
       // Update device connection status when telemetry arrives
       if (data.device_id) {
@@ -1797,7 +1836,8 @@ export default {
               this.$set(this.liveMap, item.parameter_id, item);
               this.recordSparkline(item.parameter_id, item.value);
 
-              if (item.received_at) {
+              // Only update last valid telemetry timestamp from GOOD quality data
+              if (item.received_at && item.quality === 'GOOD') {
                 const itemTime = new Date(item.received_at).getTime();
                 if (!this.lastTelemetryTime || itemTime > new Date(this.lastTelemetryTime).getTime()) {
                   this.lastTelemetryTime = item.received_at;
@@ -1819,6 +1859,30 @@ export default {
         if (res.data && res.data.data) {
           this.devicesList = res.data.data.items || res.data.data || [];
           await this.refreshLatestOnly();
+
+          // Initialize lastTelemetryTime from most recent valid (or historical) telemetry
+          if (!this.lastTelemetryTime) {
+            let maxGood = null;
+            let maxAny = null;
+            for (const dev of this.devicesList) {
+              for (const p of dev.parameters || []) {
+                const live = this.liveMap[p.id];
+                const ts = live?.received_at || p.current_received_at;
+                if (ts) {
+                  const t = new Date(ts).getTime();
+                  if (live?.quality === 'GOOD' || p.current_quality === 'GOOD') {
+                    if (!maxGood || t > maxGood) maxGood = t;
+                  }
+                  if (!maxAny || t > maxAny) maxAny = t;
+                }
+              }
+            }
+            const target = maxGood || maxAny;
+            if (target) {
+              this.lastTelemetryTime = new Date(target);
+              this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - target) / 1000));
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to load device catalog:', err);
@@ -2153,7 +2217,51 @@ export default {
     formatRelativeSeconds(sec) {
       if (sec < 5) return '< 1s';
       if (sec < 60) return `${sec}s`;
-      return `${Math.floor(sec / 60)}m`;
+      if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+      return `${Math.floor(sec / 3600)}h`;
+    },
+    getParamTimingIcon(param) {
+      if (!param) return '•';
+      if (param.device_status === 'OFFLINE' || param.device_status === 'ERROR') return '🔴';
+      if (param.alarm_status === 'CRITICAL') return '🚨';
+      if (param.alarm_status === 'WARNING') return '⚠️';
+      if (param.quality === 'BAD') return '❌';
+      if (param.quality === 'STALE') return '⏳';
+      return '•';
+    },
+    getParamTimingLabel(param) {
+      if (!param) return '';
+      const timeStr = param.received_at ? this.formatTimeShort(param.received_at) : '';
+      if (param.device_status === 'OFFLINE' || param.device_status === 'ERROR') {
+        return `${this.$t('operator.offlineSince') || 'Offline'}: ${timeStr}`;
+      }
+      if (param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING') {
+        return `${param.alarm_status}: ${timeStr}`;
+      }
+      if (param.quality === 'BAD') {
+        const reason = param.quality_reason ? ` (${param.quality_reason})` : '';
+        return `Bad${reason}: ${timeStr}`;
+      }
+      if (param.quality === 'STALE') {
+        return `Stale: ${timeStr}`;
+      }
+      return `${timeStr}`;
+    },
+    paramTimingColorClass(param) {
+      if (!param) return '';
+      if (param.alarm_status === 'CRITICAL' || param.device_status === 'OFFLINE' || param.device_status === 'ERROR' || param.quality === 'BAD') {
+        return 'text-rose-600 dark:text-rose-400';
+      }
+      if (param.alarm_status === 'WARNING' || param.quality === 'STALE') {
+        return 'text-amber-600 dark:text-amber-400';
+      }
+      return 'text-slate-400 dark:text-slate-500';
+    },
+    getParamTimingTitle(param) {
+      if (!param) return '';
+      const timeFull = param.received_at ? new Date(param.received_at).toLocaleString() : 'N/A';
+      const rel = param.received_at ? this.formatRelative(param.received_at) : '';
+      return `Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status} | Last seen: ${timeFull} (${rel})`;
     },
   },
 };

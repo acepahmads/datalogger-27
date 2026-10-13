@@ -373,6 +373,16 @@ it('Test 26: Active devices with valid communication or live telemetry are recog
   assert(viewSrc.includes('device-comm-event'), 'Must listen to device-comm-event for instant status updates');
 });
 
+// 27. Parameter Alarm Last Time & Freshness Without Error Reset
+it('Test 27: Parameter cards display alarm/offline last time and valid telemetry freshness without error resets', () => {
+  const viewSrc = fs.readFileSync(path.join(__dirname, '../src/views/OperatorCommandCenterView.vue'), 'utf8');
+  assert(viewSrc.includes('getParamTimingIcon'), 'Missing getParamTimingIcon helper');
+  assert(viewSrc.includes('getParamTimingLabel'), 'Missing getParamTimingLabel helper');
+  assert(viewSrc.includes('getParamTimingTitle'), 'Missing getParamTimingTitle helper');
+  assert(viewSrc.includes('sinceLastValidData'), 'Must support sinceLastValidData label');
+  assert(viewSrc.includes("data.quality === 'GOOD'"), 'Must update freshness only on GOOD data');
+});
+
 console.log('===============================================================');
 console.log(`TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED (TOTAL: ${passedTests + failedTests})`);
 console.log('===============================================================');
