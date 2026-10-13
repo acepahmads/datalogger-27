@@ -76,6 +76,7 @@ type CreateParameterRequest struct {
 	ParameterName            string                  `json:"parameter_name"`
 	DataType                 model.ParameterDataType `json:"data_type"`
 	Unit                     string                  `json:"unit"`
+	Icon                     string                  `json:"icon"`
 	Description              string                  `json:"description"`
 	MinValue                 *float64                `json:"min_value"`
 	MaxValue                 *float64                `json:"max_value"`
@@ -155,6 +156,7 @@ type UpdateParameterRequest struct {
 	ParameterName            *string                  `json:"parameter_name"`
 	DataType                 *model.ParameterDataType `json:"data_type"`
 	Unit                     *string                  `json:"unit"`
+	Icon                     *string                  `json:"icon"`
 	Description              *string                  `json:"description"`
 	MinValue                 *float64                 `json:"min_value"`
 	MaxValue                 *float64                 `json:"max_value"`
@@ -936,6 +938,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		ParameterName:            name,
 		DataType:                 dataType,
 		Unit:                     strings.TrimSpace(req.Unit),
+		Icon:                     strings.TrimSpace(req.Icon),
 		Description:              strings.TrimSpace(req.Description),
 		MinValue:                 req.MinValue,
 		MaxValue:                 req.MaxValue,
@@ -1017,6 +1020,9 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.Unit != nil {
 		param.Unit = strings.TrimSpace(*req.Unit)
+	}
+	if req.Icon != nil {
+		param.Icon = strings.TrimSpace(*req.Icon)
 	}
 	if req.Description != nil {
 		param.Description = strings.TrimSpace(*req.Description)

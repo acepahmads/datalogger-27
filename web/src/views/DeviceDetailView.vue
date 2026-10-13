@@ -482,7 +482,12 @@
           <tbody class="divide-y divide-slate-800/60">
             <tr v-for="param in device.parameters" :key="param.id" class="hover:bg-slate-800/30 transition-colors">
               <td class="py-2.5 px-3 font-mono font-bold text-blue-400">{{ param.parameter_code || param.code }}</td>
-              <td class="py-2.5 px-3 font-medium text-slate-200">{{ param.parameter_name || param.name }}</td>
+              <td class="py-2.5 px-3 font-medium text-slate-200">
+                <div class="flex items-center space-x-1.5">
+                  <ParameterIcon :icon="param.icon" :code="param.parameter_code || param.code" :name="param.parameter_name || param.name" :unit="param.unit" size-class="w-3.5 h-3.5" />
+                  <span>{{ param.parameter_name || param.name }}</span>
+                </div>
+              </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">{{ param.data_type }}</td>
               <td class="py-2.5 px-3 font-medium text-slate-400">{{ param.unit || '--' }}</td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">
@@ -2984,12 +2989,14 @@
 import axios from 'axios';
 import DeviceModal from '../components/DeviceModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
+import ParameterIcon from '../components/ParameterIcon.vue';
 
 export default {
   name: 'DeviceDetailView',
   components: {
     DeviceModal,
     ParameterModal,
+    ParameterIcon,
   },
   data() {
     return {

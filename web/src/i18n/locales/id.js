@@ -667,6 +667,10 @@ export default {
     "expectedMin": "Nilai Minimum Standar",
     "expectedMax": "Nilai Maksimum Standar",
     "description": "Catatan Parameter",
+    "iconLabel": "Ikon Parameter / Tipe Sensor",
+    "iconAuto": "✨ Deteksi Otomatis (Berdasarkan Kode/Nama/Satuan)",
+    "iconCardPreview": "Pratinjau Header Kartu",
+    "iconResolved": "Ikon Terdeteksi",
     "save": "Simpan Parameter",
     "cancel": "Batal",
     "placeholders": {

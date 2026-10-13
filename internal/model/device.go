@@ -274,6 +274,7 @@ type Parameter struct {
 	ParameterName string            `gorm:"column:parameter_name;size:128;not null" json:"parameter_name"`
 	DataType      ParameterDataType `gorm:"size:32;default:'FLOAT32'" json:"data_type"`
 	Unit          string            `gorm:"size:32" json:"unit"`
+	Icon          string            `gorm:"size:64;default:''" json:"icon,omitempty"`
 	Description   string            `gorm:"size:255" json:"description"`
 	MinValue      *float64          `json:"min_value"`
 	MaxValue      *float64          `json:"max_value"`

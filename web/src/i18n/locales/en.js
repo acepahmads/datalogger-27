@@ -667,6 +667,10 @@ export default {
     "expectedMin": "Expected Minimum",
     "expectedMax": "Expected Maximum",
     "description": "Parameter Notes",
+    "iconLabel": "Parameter Icon / Sensor Type",
+    "iconAuto": "✨ Auto-Detect (Based on Code/Name/Unit)",
+    "iconCardPreview": "Card Preview",
+    "iconResolved": "Resolved Icon",
     "save": "Save Parameter",
     "cancel": "Cancel",
     "placeholders": {

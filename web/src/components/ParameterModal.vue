@@ -62,6 +62,43 @@
           </div>
         </div>
 
+        <!-- Parameter Icon & Type Configuration Row -->
+        <div class="p-3 bg-[#0B0F19]/60 border border-slate-800 rounded-xl space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('parameterModal.iconLabel') || 'Parameter Icon / Sensor Type' }}
+            </label>
+            <!-- Live Preview Badge -->
+            <div class="flex items-center space-x-1.5 text-2xs font-mono px-2 py-1 bg-slate-900 border border-slate-700/80 rounded-lg">
+              <span class="text-slate-400 text-3xs">{{ $t('parameterModal.iconCardPreview') || 'Card Preview' }}:</span>
+              <span class="text-cyan-400/80 font-semibold text-3xs">AQMS-01</span>
+              <span class="text-slate-500">·</span>
+              <div class="flex items-center space-x-1 font-bold text-white">
+                <ParameterIcon :icon="form.icon" :code="form.parameter_code" :name="form.parameter_name" :unit="form.unit" size-class="w-3.5 h-3.5" />
+                <span class="truncate max-w-[130px]">{{ form.parameter_name || form.parameter_code || 'Preview' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+            <select
+              v-model="form.icon"
+              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+            >
+              <option value="">{{ $t('parameterModal.iconAuto') || '✨ Auto-Detect (Based on Code/Name/Unit)' }}</option>
+              <option v-for="cat in iconCatalog" :key="cat.key" :value="cat.key">
+                {{ cat.label }}
+              </option>
+            </select>
+            <div class="text-3xs text-slate-400 flex items-center space-x-1.5">
+              <span>{{ $t('parameterModal.iconResolved') || 'Resolved Icon' }}:</span>
+              <span class="font-bold text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
+              <span v-if="!form.icon" class="text-slate-500 font-sans italic">(automatic heuristic)</span>
+              <span v-else class="text-emerald-400 font-sans italic">(manually configured)</span>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Data Type -->
           <div>
@@ -544,8 +581,14 @@
 </template>
 
 <script>
+import ParameterIcon from './ParameterIcon.vue';
+import { PARAMETER_ICON_CATALOG, resolveParameterIconKey } from '../utils/parameterIcons.js';
+
 export default {
   name: 'ParameterModal',
+  components: {
+    ParameterIcon,
+  },
   props: {
     isOpen: {
       type: Boolean,
@@ -569,6 +612,7 @@ export default {
         parameter_name: '',
         data_type: 'FLOAT32',
         unit: '',
+        icon: '',
         description: '',
         register_address: 0,
         register_type: 'HOLDING_REGISTER',
@@ -596,6 +640,12 @@ export default {
   computed: {
     isEditing() {
       return !!this.paramToEdit;
+    },
+    iconCatalog() {
+      return PARAMETER_ICON_CATALOG;
+    },
+    currentResolvedIconKey() {
+      return resolveParameterIconKey(this.form.icon, this.form.parameter_code, this.form.parameter_name, this.form.unit);
     },
     previewSampleX() {
       if (this.paramToEdit && this.paramToEdit.current_value !== null && this.paramToEdit.current_value !== undefined) {
@@ -703,6 +753,7 @@ export default {
             parameter_name: newVal.parameter_name || newVal.name || '',
             data_type: newVal.data_type || 'FLOAT32',
             unit: newVal.unit || '',
+            icon: newVal.icon || '',
             description: newVal.description || '',
             register_address: newVal.register_address || 0,
             register_type: newVal.register_type || 'HOLDING_REGISTER',
@@ -780,6 +831,7 @@ export default {
         parameter_name: '',
         data_type: 'FLOAT32',
         unit: '',
+        icon: '',
         description: '',
         register_address: 0,
         register_type: 'HOLDING_REGISTER',
@@ -823,6 +875,7 @@ export default {
         parameter_name: this.form.parameter_name ? this.form.parameter_name.trim() : '',
         data_type: this.form.data_type,
         unit: this.form.unit ? this.form.unit.trim() : '',
+        icon: this.form.icon ? this.form.icon.trim() : '',
         description: this.form.description ? this.form.description.trim() : '',
         register_address: this.cleanNum(this.form.register_address) || 0,
         register_type: this.form.register_type,

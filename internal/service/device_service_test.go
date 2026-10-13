@@ -240,6 +240,7 @@ func TestParameterCRUDAndUniqueness(t *testing.T) {
 		ParameterName: "Temperature Sensor 1",
 		DataType:      model.DataTypeFloat32,
 		Unit:          "°C",
+		Icon:          "thermometer",
 		Scale:         0.1,
 		Offset:        0.0,
 	}
@@ -248,8 +249,8 @@ func TestParameterCRUDAndUniqueness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create parameter: %v", err)
 	}
-	if param.ID == 0 || param.ParameterCode != "TEMP_01" {
-		t.Errorf("Expected valid parameter, got ID %d, Code %s", param.ID, param.ParameterCode)
+	if param.ID == 0 || param.ParameterCode != "TEMP_01" || param.Icon != "thermometer" {
+		t.Errorf("Expected valid parameter with icon, got ID %d, Code %s, Icon %s", param.ID, param.ParameterCode, param.Icon)
 	}
 
 	// 2. Reject duplicate parameter_code for SAME device
@@ -268,16 +269,18 @@ func TestParameterCRUDAndUniqueness(t *testing.T) {
 	// 4. Update parameter
 	newName := "Ambient Temperature Chamber"
 	newScale := 0.5
+	newIcon := "droplet"
 	_, updateErr := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
 		ParameterName: &newName,
 		Scale:         &newScale,
+		Icon:          &newIcon,
 	}, "admin", "127.0.0.1", "TestAgent")
 	if updateErr != nil {
 		t.Fatalf("Failed to update parameter: %v", updateErr)
 	}
 
 	updatedParam, _ := devService.GetParameter(dev.ID, param.ID)
-	if updatedParam.ParameterName != "Ambient Temperature Chamber" || updatedParam.Scale != 0.5 {
+	if updatedParam.ParameterName != "Ambient Temperature Chamber" || updatedParam.Scale != 0.5 || updatedParam.Icon != "droplet" {
 		t.Errorf("Parameter update failed: %+v", updatedParam)
 	}
 

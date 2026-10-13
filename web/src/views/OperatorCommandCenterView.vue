@@ -471,23 +471,42 @@
             ]"
           >
             <!-- Tile Header -->
-            <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 mb-1">
-              <div class="flex items-center space-x-1.5 truncate">
+            <div class="flex items-center justify-between mb-1 min-w-0">
+              <div class="flex items-center space-x-1.5 min-w-0 flex-1 truncate">
                 <span
-                  class="w-1.5 h-1.5 rounded-full transition-all duration-150"
+                  class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                   :class="[
                     (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500',
                     isParamAlarmOrStaleBad(param) && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-400' : 'scale-100'
                   ]"
                 ></span>
-                <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ param.device_code }}</span>
-                <span>:</span>
-                <span class="text-slate-700 dark:text-slate-300 truncate font-semibold" :title="param.param_name">{{ param.param_code }}</span>
+                <span
+                  class="text-[10.5px] sm:text-[11px] font-mono font-medium text-cyan-600/75 dark:text-cyan-400/75 whitespace-nowrap flex-shrink-0 tracking-tight"
+                  :title="param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code"
+                >
+                  {{ param.device_code }}
+                </span>
+                <span class="text-slate-300 dark:text-slate-600 text-xs font-mono select-none flex-shrink-0">·</span>
+                <div class="flex items-center space-x-1 min-w-0 flex-1 truncate">
+                  <ParameterIcon
+                    :icon="param.icon"
+                    :code="param.param_code"
+                    :name="param.param_name"
+                    :unit="param.unit"
+                    size-class="w-4 h-4 flex-shrink-0"
+                  />
+                  <span
+                    class="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white truncate tracking-tight leading-none"
+                    :title="(param.param_name && param.param_name !== param.param_code) ? (param.param_name + ' (' + param.param_code + ')') : param.param_code"
+                  >
+                    {{ param.param_name || param.param_code }}
+                  </span>
+                </div>
               </div>
               <!-- Pin Favorite Button -->
               <button
                 @click.stop="togglePin(param.param_id)"
-                class="text-xs transition hover:scale-110 p-0.5"
+                class="text-xs transition hover:scale-110 p-0.5 ml-1 flex-shrink-0"
                 :class="isPinned(param.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'"
                 :title="isPinned(param.param_id) ? 'Unpin' : 'Pin to top'"
               >
@@ -644,8 +663,15 @@
 
                   <!-- Parameter Name & Code -->
                   <td class="py-2 px-2.5 text-slate-700 dark:text-slate-200">
-                    <div class="font-bold text-slate-900 dark:text-white leading-tight">{{ p.param_code }}</div>
-                    <div class="text-4xs text-slate-500 dark:text-slate-400 font-sans truncate max-w-[130px]">{{ p.param_name }}</div>
+                    <div class="flex items-center space-x-2">
+                      <ParameterIcon :icon="p.icon" :code="p.param_code" :name="p.param_name" :unit="p.unit" size-class="w-4 h-4 flex-shrink-0" />
+                      <div class="min-w-0">
+                        <div class="font-bold text-slate-900 dark:text-white leading-tight text-sm truncate max-w-[150px]" :title="p.param_name || p.param_code">
+                          {{ p.param_name || p.param_code }}
+                        </div>
+                        <div class="text-4xs text-slate-500 dark:text-slate-400 font-mono truncate max-w-[130px]">{{ p.param_code }}</div>
+                      </div>
+                    </div>
                   </td>
 
                   <!-- Value -->
@@ -1637,6 +1663,7 @@ import axios from 'axios';
 import audioAlert from '../utils/audioAlert';
 import WindRoseChart from '../components/WindRoseChart.vue';
 import PollutantDispersionMap from '../components/PollutantDispersionMap.vue';
+import ParameterIcon from '../components/ParameterIcon.vue';
 
 const TREND_PALETTE = ['#00CFFF', '#168BFF', '#00D6A0', '#FFB020', '#A855F7', '#EC4899'];
 
@@ -1645,6 +1672,7 @@ export default {
   components: {
     WindRoseChart,
     PollutantDispersionMap,
+    ParameterIcon,
   },
   props: {
     isSidebarCollapsed: {
@@ -2028,6 +2056,7 @@ export default {
             param_id: p.id,
             param_code: p.parameter_code || p.code,
             param_name: p.parameter_name || p.name,
+            icon: p.icon || '',
             unit: p.unit,
             data_type: p.data_type,
             precision: p.precision !== undefined ? p.precision : 2,

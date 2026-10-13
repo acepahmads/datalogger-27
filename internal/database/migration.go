@@ -1843,8 +1843,8 @@ func updatePhase7Tracking(db *gorm.DB) {
 			{
 				TaskName:   "Parameter Monitoring",
 				TaskID:     69,
-				TestResult: "PASSED: Live digital readout tables, sensor card grid with quality tags (GOOD, BAD, UNCERTAIN, STALE), formula evaluation, and telemetry freshness tracking verified.",
-				Notes:      "Verified live WebSocket packet reactivity and automatic quality tagging.",
+				TestResult: "PASSED: Parameter card visual hierarchy enhanced with compact muted 10-11px device identifier (e.g. AQMS-02), prominent 14-16px bold parameter name, dot separator, and configurable vector icon system (particles, atom, thermometer, droplet, gauge, wind, compass, cloud-rain, sun, waves, activity) with auto-detection, safe fallback, and live preview in parameter configuration modal.",
+				Notes:      "Verified typography hierarchy, icon catalog resolution, live telemetry preservation, and dark/light theme compatibility.",
 			},
 			{
 				TaskName:   "Communication Monitoring",
@@ -2605,6 +2605,9 @@ func preMigrateEdgeSchema(db *gorm.DB) {
 		}
 		if !db.Migrator().HasColumn("parameters", "parameter_name") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "ParameterName")
+		}
+		if !db.Migrator().HasColumn("parameters", "icon") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "Icon")
 		}
 
 		type ParamMini struct {
