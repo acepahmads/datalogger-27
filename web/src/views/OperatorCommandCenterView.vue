@@ -1228,6 +1228,7 @@ export default {
       devicesList: [],
       liveMap: {},
       liveBlinks: {},
+      lastGoodTimeMap: {},
       sparklinesMap: {},
       pinnedIds: JSON.parse(localStorage.getItem('dl_pinned_params') || '[]'),
       searchQuery: '',
@@ -1418,9 +1419,15 @@ export default {
               ? 'STALE_TIMEOUT'
               : (live.quality_reason || p.current_quality_reason || '');
 
-          const finalTime = isDevOffline
-            ? (live.received_at || this.lastTelemetryTime || receivedAt)
-            : receivedAt;
+          // Resolve last known valid data timestamp
+          const lastValidTime = this.lastGoodTimeMap[p.id] || p.current_received_at || dev.last_data_at || p.last_updated;
+
+          // If device is offline, or parameter is in BAD / STALE quality due to comm failure:
+          // Display the timestamp of the last valid data received so that operators see consistent duration
+          // across all parameters on that device (e.g. 11:22:33, 46m ago) rather than confusing error polling times.
+          const finalTime = (isDevOffline || finalQuality === 'BAD' || finalQuality === 'STALE')
+            ? (lastValidTime || dev.last_data_at || receivedAt)
+            : (live.received_at || receivedAt);
 
           list.push({
             device_id: dev.id,
@@ -1764,10 +1771,10 @@ export default {
       // Only update last valid telemetry timestamp from GOOD data packets
       // This prevents failed comm/error packets from resetting the operator's offline counter!
       if (data.quality === 'GOOD') {
-        if (data.received_at) {
-          this.lastTelemetryTime = data.received_at;
-        } else {
-          this.lastTelemetryTime = new Date();
+        const goodTime = data.received_at || new Date().toISOString();
+        this.lastTelemetryTime = goodTime;
+        if (data.parameter_id) {
+          this.$set(this.lastGoodTimeMap, data.parameter_id, goodTime);
         }
         this.lastTelemetrySecondsAgo = 0;
       }
@@ -1838,6 +1845,7 @@ export default {
 
               // Only update last valid telemetry timestamp from GOOD quality data
               if (item.received_at && item.quality === 'GOOD') {
+                this.$set(this.lastGoodTimeMap, item.parameter_id, item.received_at);
                 const itemTime = new Date(item.received_at).getTime();
                 if (!this.lastTelemetryTime || itemTime > new Date(this.lastTelemetryTime).getTime()) {
                   this.lastTelemetryTime = item.received_at;
@@ -1859,6 +1867,16 @@ export default {
         if (res.data && res.data.data) {
           this.devicesList = res.data.data.items || res.data.data || [];
           await this.refreshLatestOnly();
+
+          // Pre-populate lastGoodTimeMap from DB parameter records
+          for (const dev of this.devicesList) {
+            for (const p of dev.parameters || []) {
+              const ts = p.current_received_at || dev.last_data_at || p.last_updated;
+              if (ts && !this.lastGoodTimeMap[p.id]) {
+                this.$set(this.lastGoodTimeMap, p.id, ts);
+              }
+            }
+          }
 
           // Initialize lastTelemetryTime from most recent valid (or historical) telemetry
           if (!this.lastTelemetryTime) {
