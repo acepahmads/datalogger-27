@@ -413,9 +413,13 @@
             v-for="param in filteredParameters"
             :key="param.param_id"
             @click="selectParamForTrend(param)"
-            class="scada-param-tile p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border transition relative cursor-pointer group shadow-xs dark:shadow-none"
+            class="scada-param-tile p-2.5 rounded-xl border transition relative cursor-pointer group shadow-xs dark:shadow-none"
             :class="[
-              isParamSelectedForTrend(param) ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/40 dark:bg-[#0e1b2e]' : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-600',
+              isParamAlarmOrStaleBad(param)
+                ? 'bg-slate-200/90 dark:bg-slate-800/90 border-2 border-rose-500 animate-alarm-pulse'
+                : isParamSelectedForTrend(param)
+                  ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/40 dark:bg-[#0e1b2e]'
+                  : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-600',
               liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
             ]"
           >
@@ -537,8 +541,11 @@
                 <tr
                   v-for="p in filteredParameters"
                   :key="p.param_id"
-                  class="transition-colors hover:bg-slate-50 dark:hover:bg-[#101B2B]"
+                  class="transition-colors"
                   :class="[
+                    isParamAlarmOrStaleBad(p)
+                      ? 'bg-slate-200/70 dark:bg-slate-800/80 border-l-4 border-l-rose-500'
+                      : 'hover:bg-slate-50 dark:hover:bg-[#101B2B]',
                     liveBlinks[p.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : '',
                     isPinned(p.param_id) ? 'bg-amber-50/40 dark:bg-[#0f1d30]/40' : ''
                   ]"
@@ -1582,6 +1589,23 @@ export default {
       if (p.low_warning != null && num <= p.low_warning) return 'WARNING';
       return 'NORMAL';
     },
+    isParamAlarmOrStaleBad(param) {
+      if (!param) return false;
+      if (param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING') return true;
+      if (param.quality === 'STALE' || param.quality === 'BAD' || param.quality === 'UNCERTAIN') return true;
+      if (param.device_status && (param.device_status === 'OFFLINE' || param.device_status === 'DISCONNECTED' || param.device_status === 'FAILED')) return true;
+      if (this.activeAlarmsList && this.activeAlarmsList.length > 0) {
+        const hasMatchingAlarm = this.activeAlarmsList.some(a => {
+          if (a.status !== 'ACTIVE') return false;
+          if (a.parameter_id && a.parameter_id === param.param_id) return true;
+          if (a.device_id && a.device_id === param.device_id) return true;
+          if (a.device && (a.device.device_code === param.device_code || a.device.code === param.device_code)) return true;
+          return false;
+        });
+        if (hasMatchingAlarm) return true;
+      }
+      return false;
+    },
     formatParamValue(param) {
       if (param.value == null || param.value === '') return '--';
       const num = Number(param.value);
@@ -1624,8 +1648,9 @@ export default {
       }
     },
     getSparklineColor(param) {
-      if (param.alarm_status === 'CRITICAL') return '#FF4559';
+      if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD') return '#FF4559';
       if (param.alarm_status === 'WARNING') return '#FFB020';
+      if (param.quality === 'STALE') return '#A855F7';
       return this.isDark ? '#00CFFF' : '#0284c7';
     },
     recordSparkline(paramId, val) {
@@ -2088,5 +2113,31 @@ export default {
 }
 :global(.dark) .scada-panel {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Bright-dim breathing animation for alarmed and stale/bad parameter cards */
+@keyframes alarm-pulse-glow {
+  0%, 100% {
+    border-color: rgba(239, 68, 68, 0.45);
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.25);
+    opacity: 0.88;
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 1);
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.7), inset 0 0 8px rgba(239, 68, 68, 0.2);
+    opacity: 1;
+  }
+}
+
+.animate-alarm-pulse {
+  animation: alarm-pulse-glow 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-alarm-pulse {
+    animation: none;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+    opacity: 1;
+  }
 }
 </style>
