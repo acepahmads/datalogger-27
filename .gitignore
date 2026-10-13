@@ -5,8 +5,9 @@
 *.so
 *.dylib
 datalogger
-bin/*.exe
+#bin/*.exe
 !bin/datalogger-linux-*
+!bin/datalogger-windows-*
 
 # Go build cache & test artifacts
 *.test
