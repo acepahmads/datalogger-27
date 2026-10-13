@@ -19,14 +19,19 @@ class AudioAlertEngine {
     this.muteUntil = null;
     this.volume = 0.7; // Default 70% volume
     this.soundEnabled = true;
-    this.repeatIntervalSeconds = 30; // Default 30s repeat for unacknowledged critical alarms
+    this.repeatIntervalSeconds = 5; // Default 5s repeat for unacknowledged alarms
 
-    // Track active repeating alarms: Map<alarmId, { timerId, lastPlayed } >
-    this.activeCriticalLoops = new Map();
+    // Track active unacknowledged alarms: Map<alarmId, { severity, lastUpdated }>
+    this.activeAlarmMap = new Map();
     this.activeCriticalAlarmIds = new Set();
+    this.currentLoopSeverity = null;
+    this.masterAlarmTimer = null;
     this.masterCriticalTimer = null;
     this.lastWarningTime = 0;
     this.lastCriticalTime = 0;
+
+    // Pulse event listeners
+    this.onPulseCallbacks = new Set();
 
     // Track autoplay availability
     this.isUnlocked = false;
@@ -121,6 +126,10 @@ class AudioAlertEngine {
         await ctx.resume();
         this.isUnlocked = ctx.state === 'running';
         this.notifyStateChange();
+        // If there are active alarms looping, trigger a pulse now that audio is unlocked
+        if (this.isUnlocked && this.activeAlarmMap.size > 0 && this.currentLoopSeverity) {
+          this.triggerPulse(this.currentLoopSeverity);
+        }
         return this.isUnlocked;
       } catch (err) {
         console.warn('[AudioAlert] Failed to resume AudioContext:', err);
@@ -184,17 +193,17 @@ class AudioAlertEngine {
    * Play WARNING sound: Soft industrial dual-tone chime (D5 -> A5)
    * Enforces Single Audio Stream: debounced so multiple concurrent warning alarms sound only once
    */
-  playWarningAlert() {
+  playWarningAlert(force = false) {
     if (!this.soundEnabled || this.checkMuteActive()) return;
 
-    // SCADA Priority Rule: If any critical alarm is actively repeating, suppress lower priority warning sound
-    if (this.activeCriticalAlarmIds.size > 0 || this.masterCriticalTimer !== null) {
+    // SCADA Priority Rule: If any critical alarm is actively repeating and not forced, suppress
+    if (!force && this.currentLoopSeverity === 'CRITICAL') {
       return;
     }
 
     // Debounce warning alert so an alarm storm (multiple alarms at once) plays only 1 chime
     const now = Date.now();
-    if (now - this.lastWarningTime < 3000) {
+    if (!force && (now - this.lastWarningTime < 3000)) {
       return;
     }
     this.lastWarningTime = now;
@@ -219,12 +228,12 @@ class AudioAlertEngine {
    * Play CRITICAL sound: Urgent dual-pulse industrial alert (A5 + C6)
    * High attention-commanding acoustic signature
    */
-  playCriticalAlert() {
+  playCriticalAlert(force = false) {
     if (!this.soundEnabled || this.checkMuteActive()) return;
 
     // Throttle successive critical alert chimes to prevent sound overlap/cacophony
     const now = Date.now();
-    if (now - this.lastCriticalTime < 800) {
+    if (!force && (now - this.lastCriticalTime < 600)) {
       return;
     }
     this.lastCriticalTime = now;
@@ -251,72 +260,195 @@ class AudioAlertEngine {
   }
 
   /**
-   * Start repeated sound policy for an active unacknowledged critical alarm.
-   * Enforces SCADA Single Audio Stream Rule:
-   * No matter how many critical alarms arrive, only ONE global chime loop runs.
+   * Executes a synchronized alarm pulse (audio tone + visual event).
+   * Scheduled at the exact same millisecond. Even if audio is muted or volume is 0,
+   * the visual pulse still fires to maintain 100% synchronized cadence.
    */
-  startCriticalAlarmLoop(alarmId) {
-    if (!alarmId) return;
+  triggerPulse(severity = 'WARNING') {
+    const normSeverity = (severity || 'WARNING').toUpperCase();
 
-    const isFirstCritical = this.activeCriticalAlarmIds.size === 0 && this.masterCriticalTimer === null;
-    this.activeCriticalAlarmIds.add(alarmId);
-    this.activeCriticalLoops.set(alarmId, { timerId: null, lastPlayed: Date.now() });
+    // 1. Synthesize audio chime if audio is enabled and unmuted
+    if (normSeverity === 'CRITICAL') {
+      this.playCriticalAlert(true);
+    } else {
+      this.playWarningAlert(true);
+    }
 
-    if (isFirstCritical) {
-      // Play immediately once for this incident cluster
-      this.playCriticalAlert();
+    // 2. Broadcast synchronized visual pulse event
+    const payload = {
+      severity: normSeverity,
+      timestamp: Date.now(),
+    };
 
-      // If repeat is disabled (interval <= 0), do not schedule repeat
-      if (this.repeatIntervalSeconds <= 0) {
-        return;
-      }
+    for (const cb of this.onPulseCallbacks) {
+      try { cb(payload); } catch (e) {}
+    }
 
-      // Schedule single master repeating interval
-      const intervalMs = Math.max(1000, this.repeatIntervalSeconds * 1000); // Minimum 1s floor
-      this.masterCriticalTimer = setInterval(() => {
-        // Re-check conditions before each pulse
-        if (this.soundEnabled && !this.checkMuteActive() && this.activeCriticalAlarmIds.size > 0) {
-          this.playCriticalAlert();
-        } else if (this.activeCriticalAlarmIds.size === 0) {
-          this.stopAllLoops();
-        }
-      }, intervalMs);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('scada-alarm-pulse', { detail: payload }));
     }
   }
 
   /**
-   * Stop repeated sound for an acknowledged, cleared, or dismissed alarm.
-   * Sound stops only when ALL active critical alarms are acknowledged or cleared.
+   * Restart master timer at the specified severity (CRITICAL or WARNING).
    */
+  restartMasterTimer(severity) {
+    if (this.masterAlarmTimer) {
+      clearInterval(this.masterAlarmTimer);
+      this.masterAlarmTimer = null;
+      this.masterCriticalTimer = null;
+    }
+
+    this.currentLoopSeverity = severity;
+
+    // Immediate pulse on first occurrence or escalation
+    this.triggerPulse(severity);
+
+    // If repeat is disabled (interval <= 0), do not schedule recurring timer
+    if (this.repeatIntervalSeconds <= 0) {
+      return;
+    }
+
+    const intervalMs = Math.max(1000, this.repeatIntervalSeconds * 1000);
+    this.masterAlarmTimer = setInterval(() => {
+      if (this.activeAlarmMap.size > 0 && this.currentLoopSeverity) {
+        this.triggerPulse(this.currentLoopSeverity);
+      } else {
+        this.stopAllLoops();
+      }
+    }, intervalMs);
+    this.masterCriticalTimer = this.masterAlarmTimer;
+  }
+
+  /**
+   * Synchronize the entire active unacknowledged alarm list from Vuex or API.
+   * Runs single master annunciator loop with synchronized audio & visual pulse.
+   */
+  syncActiveAlarms(alarms = []) {
+    if (!Array.isArray(alarms) || alarms.length === 0) {
+      if (this.activeAlarmMap.size > 0) {
+        this.stopAllLoops();
+      }
+      return;
+    }
+
+    const unacked = alarms.filter((a) => a && (a.status === 'ACTIVE' || !a.status));
+    if (unacked.length === 0) {
+      if (this.activeAlarmMap.size > 0) {
+        this.stopAllLoops();
+      }
+      return;
+    }
+
+    const currentIds = new Set();
+    let hasCritical = false;
+
+    for (const a of unacked) {
+      const id = Number(a.id);
+      currentIds.add(id);
+      const sev = (a.severity || 'WARNING').toUpperCase();
+      this.activeAlarmMap.set(id, { severity: sev, lastUpdated: Date.now() });
+      if (sev === 'CRITICAL') {
+        hasCritical = true;
+      }
+    }
+
+    // Prune alarms that are no longer unacknowledged
+    for (const id of this.activeAlarmMap.keys()) {
+      if (!currentIds.has(id)) {
+        this.activeAlarmMap.delete(id);
+      }
+    }
+
+    if (this.activeAlarmMap.size === 0) {
+      this.stopAllLoops();
+      return;
+    }
+
+    const targetSeverity = hasCritical ? 'CRITICAL' : 'WARNING';
+    if (!this.masterAlarmTimer || this.currentLoopSeverity !== targetSeverity) {
+      this.restartMasterTimer(targetSeverity);
+    }
+  }
+
+  /**
+   * Start or register an active unacknowledged alarm incident.
+   */
+  startAlarmLoop(alarmId, severity = 'WARNING') {
+    if (!alarmId) return;
+    const id = Number(alarmId);
+    const sev = (severity || 'WARNING').toUpperCase();
+    this.activeAlarmMap.set(id, { severity: sev, lastUpdated: Date.now() });
+
+    let hasCritical = false;
+    for (const item of this.activeAlarmMap.values()) {
+      if (item.severity === 'CRITICAL') {
+        hasCritical = true;
+        break;
+      }
+    }
+    const targetSeverity = hasCritical ? 'CRITICAL' : 'WARNING';
+    if (!this.masterAlarmTimer || this.currentLoopSeverity !== targetSeverity) {
+      this.restartMasterTimer(targetSeverity);
+    }
+  }
+
+  /**
+   * Stop an acknowledged, cleared, or dismissed alarm from repeating.
+   */
+  stopAlarmLoop(alarmId) {
+    if (!alarmId) return;
+    const id = Number(alarmId);
+    this.activeAlarmMap.delete(id);
+
+    if (this.activeAlarmMap.size === 0) {
+      this.stopAllLoops();
+    } else {
+      let hasCritical = false;
+      for (const item of this.activeAlarmMap.values()) {
+        if (item.severity === 'CRITICAL') {
+          hasCritical = true;
+          break;
+        }
+      }
+      const targetSeverity = hasCritical ? 'CRITICAL' : 'WARNING';
+      if (this.currentLoopSeverity !== targetSeverity) {
+        this.restartMasterTimer(targetSeverity);
+      }
+    }
+  }
+
+  /**
+   * Compatibility shims for legacy callers
+   */
+  startCriticalAlarmLoop(alarmId) {
+    if (!alarmId) return;
+    const isFirstCritical = this.activeCriticalAlarmIds.size === 0 && this.masterCriticalTimer === null;
+    this.activeCriticalAlarmIds.add(alarmId);
+    this.startAlarmLoop(alarmId, 'CRITICAL');
+  }
+
   stopCriticalAlarmLoop(alarmId) {
     if (!alarmId) return;
     this.activeCriticalAlarmIds.delete(alarmId);
-    this.activeCriticalLoops.delete(alarmId);
-
-    // If no more critical alarms remain unacknowledged, stop the single master repeating timer
-    if (this.activeCriticalAlarmIds.size === 0) {
-      if (this.masterCriticalTimer) {
-        clearInterval(this.masterCriticalTimer);
-        this.masterCriticalTimer = null;
-      }
-    }
+    this.stopAlarmLoop(alarmId);
   }
 
   /**
    * Stop all active repeating loops (e.g. on mute, logout, or clear all)
    */
   stopAllLoops() {
+    if (this.masterAlarmTimer) {
+      clearInterval(this.masterAlarmTimer);
+      this.masterAlarmTimer = null;
+    }
     if (this.masterCriticalTimer) {
       clearInterval(this.masterCriticalTimer);
       this.masterCriticalTimer = null;
     }
-    for (const [, loop] of this.activeCriticalLoops.entries()) {
-      if (loop && loop.timerId) {
-        clearInterval(loop.timerId);
-      }
-    }
-    this.activeCriticalLoops.clear();
+    this.activeAlarmMap.clear();
     this.activeCriticalAlarmIds.clear();
+    this.currentLoopSeverity = null;
   }
 
   /**
@@ -366,36 +498,20 @@ class AudioAlertEngine {
    */
   setSoundEnabled(enabled) {
     this.soundEnabled = !!enabled;
-    if (!this.soundEnabled) {
-      this.stopAllLoops();
-    }
     this.updateMasterGain();
   }
 
   /**
-   * Set repeat interval for unacknowledged critical alarms (in seconds)
+   * Set repeat interval for unacknowledged alarms (in seconds)
    */
   setRepeatInterval(seconds) {
     const val = parseInt(seconds, 10);
-    this.repeatIntervalSeconds = isNaN(val) ? 30 : val;
+    this.repeatIntervalSeconds = isNaN(val) ? 5 : val;
 
-    // If active critical alarms are looping, restart single master timer with new interval
-    if (this.activeCriticalAlarmIds.size > 0) {
-      if (this.masterCriticalTimer) {
-        clearInterval(this.masterCriticalTimer);
-        this.masterCriticalTimer = null;
-      }
-      if (this.repeatIntervalSeconds > 0) {
-        const intervalMs = Math.max(1000, this.repeatIntervalSeconds * 1000);
-        this.masterCriticalTimer = setInterval(() => {
-          if (this.soundEnabled && !this.checkMuteActive() && this.activeCriticalAlarmIds.size > 0) {
-            this.playCriticalAlert();
-          } else if (this.activeCriticalAlarmIds.size === 0) {
-            this.stopAllLoops();
-          }
-        }, intervalMs);
-      }
+    if (this.activeAlarmMap.size > 0 && this.currentLoopSeverity) {
+      this.restartMasterTimer(this.currentLoopSeverity);
     }
+    this.notifyStateChange();
   }
 
   /**
@@ -406,17 +522,12 @@ class AudioAlertEngine {
     this.unlockAudio().then(() => {
       // Temporarily unmute if needed for preview test
       const wasMuted = this.isMuted;
-      const prevGain = this.masterGain ? this.masterGain.gain.value : 0;
 
       if (this.masterGain) {
         this.masterGain.gain.setValueAtTime(Math.max(0.1, this.volume), this.audioCtx.currentTime);
       }
 
-      if (severity === 'CRITICAL') {
-        this.playCriticalAlert();
-      } else {
-        this.playWarningAlert();
-      }
+      this.triggerPulse(severity);
 
       // Restore gain after preview duration
       setTimeout(() => {
@@ -425,6 +536,14 @@ class AudioAlertEngine {
         }
       }, 500);
     });
+  }
+
+  /**
+   * Add listener for synchronized pulse events
+   */
+  onPulse(callback) {
+    this.onPulseCallbacks.add(callback);
+    return () => this.onPulseCallbacks.delete(callback);
   }
 
   /**

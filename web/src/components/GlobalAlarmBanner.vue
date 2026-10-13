@@ -3,7 +3,10 @@
     <!-- Main Banner Bar -->
     <div
       class="px-4 py-2 sm:px-6 flex items-center justify-between shadow-md border-b text-xs transition-colors duration-150"
-      :class="bannerColorClasses"
+      :class="[
+        bannerColorClasses,
+        isAlarmPulseActive ? 'brightness-125 saturate-125 ring-2 ring-white/60 shadow-lg' : ''
+      ]"
     >
       <!-- Left: Severity Icon, Priority Badge & Alarm Info -->
       <div class="flex items-center space-x-3 overflow-hidden flex-1 min-w-0 pr-2">
@@ -13,10 +16,13 @@
             {{ severityIcon(highestAlarm.severity) }}
           </span>
           <span
-            v-if="highestAlarm.severity === 'CRITICAL' && highestAlarm.status === 'ACTIVE'"
-            class="relative flex h-2 w-2"
+            v-if="highestAlarm.status === 'ACTIVE'"
+            class="relative flex h-2.5 w-2.5 items-center justify-center"
           >
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
+            <span
+              class="absolute inline-flex h-full w-full rounded-full bg-white transition-all duration-300"
+              :class="isAlarmPulseActive ? 'scale-175 opacity-90' : 'scale-100 opacity-25'"
+            ></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
           </span>
         </div>
@@ -307,6 +313,8 @@ export default {
       quickAckNotes: '',
       isAckSubmitting: false,
       reconcileInterval: null,
+      isAlarmPulseActive: false,
+      alarmPulseTimeout: null,
     };
   },
   computed: {
@@ -328,6 +336,10 @@ export default {
       return this.activeAlarms.filter(
         (a) => a && a.status !== 'CLEARED' && !this.dismissedMap[Number(a.id)]
       );
+    },
+    // Active unacknowledged alarms for audio-visual loop
+    unacknowledgedAlarms() {
+      return this.filteredAlarms.filter((a) => a && (a.status === 'ACTIVE' || !a.status));
     },
     // Prioritize: CRITICAL (3) > WARNING (2) > INFO (1), then newest triggered_at
     sortedAlarms() {
@@ -382,28 +394,13 @@ export default {
     },
   },
   watch: {
-    // Watch highest alarm changes to trigger audio alerts
-    highestAlarm: {
-      handler(newAlarm, oldAlarm) {
-        if (!newAlarm) {
-          audioAlert.stopAllLoops();
-          return;
-        }
-
-        // If new or different alarm became highest
-        const isNewIncident = !oldAlarm || oldAlarm.id !== newAlarm.id;
-        if (isNewIncident) {
-          if (newAlarm.severity === 'CRITICAL' && newAlarm.status === 'ACTIVE') {
-            audioAlert.startCriticalAlarmLoop(newAlarm.id);
-          } else if (newAlarm.severity === 'WARNING' && newAlarm.status === 'ACTIVE') {
-            audioAlert.playWarningAlert();
-          }
-        } else if (newAlarm.status === 'ACKNOWLEDGED') {
-          // If status transitioned to acknowledged, stop critical audio loop
-          audioAlert.stopCriticalAlarmLoop(newAlarm.id);
-        }
+    // Keep active audio loop in sync with unacknowledged alarms
+    unacknowledgedAlarms: {
+      handler(newAlarms) {
+        audioAlert.syncActiveAlarms(newAlarms);
       },
       deep: true,
+      immediate: true,
     },
   },
   mounted() {
@@ -420,6 +417,9 @@ export default {
       this.isAudioUnlocked = state.isUnlocked;
     });
 
+    // Subscribe to master SCADA alarm pulse for synchronized flash animation
+    window.addEventListener('scada-alarm-pulse', this.handleAlarmPulse);
+
     // Reconcile periodically (every 30 seconds) in case of missed WebSocket frames
     this.reconcileInterval = setInterval(() => {
       this.$store.dispatch('fetchActiveAlarms');
@@ -435,6 +435,10 @@ export default {
     if (this.reconcileInterval) {
       clearInterval(this.reconcileInterval);
     }
+    if (this.alarmPulseTimeout) {
+      clearTimeout(this.alarmPulseTimeout);
+    }
+    window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
     audioAlert.stopAllLoops();
     window.removeEventListener('click', this.handleUserInteractionUnlock);
   },
@@ -497,6 +501,15 @@ export default {
         });
       }
     },
+    handleAlarmPulse() {
+      this.isAlarmPulseActive = true;
+      if (this.alarmPulseTimeout) {
+        clearTimeout(this.alarmPulseTimeout);
+      }
+      this.alarmPulseTimeout = setTimeout(() => {
+        this.isAlarmPulseActive = false;
+      }, 550);
+    },
     toggleMute() {
       const newMuted = audioAlert.toggleMute();
       this.$store.dispatch('updateAlarmPreferences', {
@@ -514,7 +527,7 @@ export default {
       if (!alarmId) return;
       const idNum = Number(alarmId);
       this.$set(this.dismissedMap, idNum, true);
-      audioAlert.stopCriticalAlarmLoop(idNum);
+      audioAlert.stopAlarmLoop(idNum);
     },
     openAckModal(alarm) {
       this.ackTargetAlarm = alarm;
@@ -529,7 +542,7 @@ export default {
           id: this.ackTargetAlarm.id,
           notes: this.quickAckNotes,
         });
-        audioAlert.stopCriticalAlarmLoop(this.ackTargetAlarm.id);
+        audioAlert.stopAlarmLoop(this.ackTargetAlarm.id);
         this.showQuickAckModal = false;
         this.ackTargetAlarm = null;
         // Refresh active alarms

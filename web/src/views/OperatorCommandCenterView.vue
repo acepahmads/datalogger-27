@@ -138,16 +138,19 @@
       <div
         class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition"
         :class="summaryStats.offlineCount > 0
-          ? 'border-rose-500/70 ring-1 ring-rose-500/30'
+          ? (isAlarmPulseActive
+              ? 'border-rose-500 ring-2 ring-rose-500/50 shadow-md shadow-rose-500/30 transition-all duration-150'
+              : 'border-rose-500/70 ring-1 ring-rose-500/30 transition-all duration-300')
           : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
       >
         <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
           <div class="flex items-center space-x-1.5">
             <span
-              class="w-2 h-2 rounded-full"
-              :class="summaryStats.offlineCount > 0
-                ? (summaryStats.onlineCount === 0 ? 'bg-rose-500 animate-ping' : 'bg-rose-500 animate-pulse')
-                : 'bg-emerald-500'"
+              class="w-2 h-2 rounded-full transition-all duration-150"
+              :class="[
+                summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-500',
+                summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-4 ring-rose-500/40' : 'scale-100'
+              ]"
             ></span>
             <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summaryDevices') || 'Device Fleet & Comm' }}</span>
           </div>
@@ -169,7 +172,7 @@
             </span>
             <span
               class="px-1.5 py-0.2 rounded font-bold"
-              :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 animate-pulse' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'"
+              :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'"
               :title="'Offline: ' + summaryStats.offlineCount"
             >
               {{ summaryStats.offlineCount }} OFF
@@ -188,12 +191,22 @@
       <!-- 2. Active Alarms -->
       <div
         class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer"
-        :class="activeCriticalCount > 0 ? 'border-rose-500/60 ring-1 ring-rose-500/30' : activeAlarmsList.length > 0 ? 'border-amber-500/60' : 'border-slate-200 dark:border-[#20354B]'"
+        :class="activeCriticalCount > 0
+          ? (isAlarmPulseActive ? 'border-rose-500 ring-2 ring-rose-500/60 shadow-md shadow-rose-500/40 transition-all duration-150' : 'border-rose-500/60 ring-1 ring-rose-500/30 transition-all duration-300')
+          : activeAlarmsList.length > 0
+            ? (isAlarmPulseActive ? 'border-amber-500 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/40 transition-all duration-150' : 'border-amber-500/60 transition-all duration-300')
+            : 'border-slate-200 dark:border-[#20354B]'"
         @click="$router.push('/alarm/active')"
       >
         <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider mb-1">
           <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full" :class="activeCriticalCount > 0 ? 'bg-rose-500 animate-ping' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500'"></span>
+            <span
+              class="w-2 h-2 rounded-full transition-all duration-150"
+              :class="[
+                activeCriticalCount > 0 ? 'bg-rose-500' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+                activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-4 ring-amber-500/40' : 'scale-100'
+              ]"
+            ></span>
             <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summaryAlarms') || 'Active Incidents' }}</span>
           </div>
           <router-link to="/alarm/active" class="text-3xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono">
@@ -444,7 +457,11 @@
             class="scada-param-tile p-2.5 rounded-xl border transition relative cursor-pointer group shadow-xs dark:shadow-none"
             :class="[
               isParamAlarmOrStaleBad(param)
-                ? 'bg-slate-200/90 dark:bg-slate-800/90 border-2 border-rose-500 animate-alarm-pulse'
+                ? (isAlarmPulseActive
+                    ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL'
+                        ? 'bg-rose-500/20 dark:bg-rose-950/70 border-2 border-rose-500 ring-2 ring-rose-500/60 shadow-lg shadow-rose-500/40 scale-[1.008] transition-all duration-150'
+                        : 'bg-amber-500/20 dark:bg-amber-950/70 border-2 border-amber-500 ring-2 ring-amber-500/60 shadow-lg shadow-amber-500/40 scale-[1.008] transition-all duration-150')
+                    : 'bg-slate-200/90 dark:bg-slate-800/90 border-2 border-rose-500/80 transition-all duration-300')
                 : isParamSelectedForTrend(param)
                   ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/40 dark:bg-[#0e1b2e]'
                   : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-600',
@@ -454,7 +471,13 @@
             <!-- Tile Header -->
             <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 mb-1">
               <div class="flex items-center space-x-1.5 truncate">
-                <span class="w-1.5 h-1.5 rounded-full" :class="(param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                <span
+                  class="w-1.5 h-1.5 rounded-full transition-all duration-150"
+                  :class="[
+                    (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500',
+                    isParamAlarmOrStaleBad(param) && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-400' : 'scale-100'
+                  ]"
+                ></span>
                 <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ param.device_code }}</span>
                 <span>:</span>
                 <span class="text-slate-700 dark:text-slate-300 truncate font-semibold" :title="param.param_name">{{ param.param_code }}</span>
@@ -595,7 +618,9 @@
                   class="transition-colors"
                   :class="[
                     isParamAlarmOrStaleBad(p)
-                      ? 'bg-slate-200/70 dark:bg-slate-800/80 border-l-4 border-l-rose-500'
+                      ? (isAlarmPulseActive
+                          ? 'bg-rose-500/25 dark:bg-rose-950/70 border-l-4 border-l-rose-500 transition-colors duration-150'
+                          : 'bg-slate-200/70 dark:bg-slate-800/80 border-l-4 border-l-rose-500/70 transition-colors duration-300')
                       : 'hover:bg-slate-50 dark:hover:bg-[#101B2B]',
                     liveBlinks[p.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : '',
                     isPinned(p.param_id) ? 'bg-amber-50/40 dark:bg-[#0f1d30]/40' : ''
@@ -1268,6 +1293,11 @@ export default {
       isRefreshing: false,
       telemetryRate: 24.5,
 
+      // Synchronized SCADA Alarm Annunciator Pulse
+      isAlarmPulseActive: false,
+      alarmPulseSeverity: null,
+      alarmPulseTimer: null,
+
       // Modals
       showAckModal: false,
       targetAckAlarm: null,
@@ -1551,15 +1581,30 @@ export default {
     // Listen to real WebSocket Telemetry & Communication events
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.addEventListener('device-comm-event', this.onDeviceCommEvent);
+
+    // Listen to synchronized SCADA alarm annunciator pulses (audio + visual synchronized clock)
+    window.addEventListener('scada-alarm-pulse', this.handleAlarmPulse);
   },
   beforeDestroy() {
     if (this.tickerInterval) clearInterval(this.tickerInterval);
     if (this.clockInterval) clearInterval(this.clockInterval);
     if (this.pollingInterval) clearInterval(this.pollingInterval);
+    if (this.alarmPulseTimer) clearTimeout(this.alarmPulseTimer);
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
+    window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
   },
   methods: {
+    handleAlarmPulse(e) {
+      this.isAlarmPulseActive = true;
+      this.alarmPulseSeverity = e && e.detail ? e.detail.severity : 'WARNING';
+      if (this.alarmPulseTimer) {
+        clearTimeout(this.alarmPulseTimer);
+      }
+      this.alarmPulseTimer = setTimeout(() => {
+        this.isAlarmPulseActive = false;
+      }, 550);
+    },
     toggleTheme() {
       const nextTheme = this.isDark ? 'light' : 'dark';
       this.$store.dispatch('setTheme', nextTheme);
@@ -2324,29 +2369,5 @@ export default {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* Bright-dim breathing animation for alarmed and stale/bad parameter cards */
-@keyframes alarm-pulse-glow {
-  0%, 100% {
-    border-color: rgba(239, 68, 68, 0.45);
-    box-shadow: 0 0 4px rgba(239, 68, 68, 0.25);
-    opacity: 0.88;
-  }
-  50% {
-    border-color: rgba(239, 68, 68, 1);
-    box-shadow: 0 0 16px rgba(239, 68, 68, 0.7), inset 0 0 8px rgba(239, 68, 68, 0.2);
-    opacity: 1;
-  }
-}
-
-.animate-alarm-pulse {
-  animation: alarm-pulse-glow 1.8s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-alarm-pulse {
-    animation: none;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
-    opacity: 1;
-  }
-}
+/* Event-driven Synchronized SCADA Annunciator Flashing is handled via CSS utility classes on scada-alarm-pulse */
 </style>

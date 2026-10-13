@@ -119,7 +119,7 @@
           <!-- Critical Repeat Policy -->
           <div class="space-y-1.5" :class="{ 'opacity-50 pointer-events-none': !localPrefs.soundEnabled }">
             <label class="block font-semibold text-slate-800 dark:text-slate-200 text-3xs">
-              {{ $t('alarms.criticalRepeatInterval') || 'Critical Alarm Sound Repeat' }}
+              {{ $t('alarms.criticalRepeatInterval') || 'Alarm Sound Repeat Interval' }}
             </label>
             <select
               v-model.number="localPrefs.repeatIntervalSeconds"
@@ -127,15 +127,15 @@
             >
               <option :value="1">{{ $t('alarms.repeatEvery1s') || 'Every 1 second' }}</option>
               <option :value="3">{{ $t('alarms.repeatEvery3s') || 'Every 3 seconds' }}</option>
-              <option :value="5">{{ $t('alarms.repeatEvery5s') || 'Every 5 seconds' }}</option>
+              <option :value="5">{{ $t('alarms.repeatEvery5s') || 'Every 5 seconds (Recommended)' }}</option>
               <option :value="10">{{ $t('alarms.repeatEvery10s') || 'Every 10 seconds' }}</option>
               <option :value="15">{{ $t('alarms.repeatEvery15s') || 'Every 15 seconds' }}</option>
-              <option :value="30">{{ $t('alarms.repeatEvery30s') || 'Every 30 seconds (Default)' }}</option>
+              <option :value="30">{{ $t('alarms.repeatEvery30s') || 'Every 30 seconds' }}</option>
               <option :value="60">{{ $t('alarms.repeatEvery60s') || 'Every 60 seconds' }}</option>
               <option :value="0">{{ $t('alarms.repeatOnceOnly') || 'Play once only' }}</option>
             </select>
             <p class="text-4xs text-slate-400 leading-tight">
-              {{ $t('alarms.repeatPolicyNote') || 'Repeats only while unacknowledged. Acknowledging stops repeating immediately.' }}
+              {{ $t('alarms.repeatPolicyNote') || 'Repeats synchronously with visual flashes while unacknowledged. Acknowledging stops repeating immediately.' }}
             </p>
           </div>
 
