@@ -355,6 +355,24 @@ it('Test 24: Quick actions bar provides Export Telemetry, Reports, History, and 
   assert(viewSrc.includes('toggleAudioMute'), 'Missing audio mute/unmute action');
 });
 
+// 25. Adaptive Device Polling Interval Sync
+it('Test 25: Dashboard polling interval adapts dynamically to device setup polling interval', () => {
+  const viewSrc = fs.readFileSync(path.join(__dirname, '../src/views/OperatorCommandCenterView.vue'), 'utf8');
+  assert(viewSrc.includes('configuredPollingIntervalMs'), 'Missing configuredPollingIntervalMs computed property');
+  assert(viewSrc.includes('setupPollingTimer'), 'Missing setupPollingTimer lifecycle method');
+  assert(viewSrc.includes('polling_interval'), 'Must read polling_interval from device connection setup');
+  assert(viewSrc.includes('pollDashboardCycle'), 'Must run synchronized dashboard poll cycle');
+});
+
+// 26. Active Device Online Recognition & No False BAD Status
+it('Test 26: Active devices with valid communication or live telemetry are recognized as ONLINE and GOOD', () => {
+  const viewSrc = fs.readFileSync(path.join(__dirname, '../src/views/OperatorCommandCenterView.vue'), 'utf8');
+  assert(viewSrc.includes('isDeviceActiveOnline'), 'Missing isDeviceActiveOnline helper');
+  assert(viewSrc.includes("param.device_status === 'ONLINE'"), 'Must recognize ONLINE device status');
+  assert(viewSrc.includes("device_status: isOnline ? 'ONLINE'"), 'Must assign ONLINE device status when telemetry is active');
+  assert(viewSrc.includes('device-comm-event'), 'Must listen to device-comm-event for instant status updates');
+});
+
 console.log('===============================================================');
 console.log(`TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED (TOTAL: ${passedTests + failedTests})`);
 console.log('===============================================================');
@@ -362,3 +380,4 @@ console.log('===============================================================');
 if (failedTests > 0) {
   process.exit(1);
 }
+

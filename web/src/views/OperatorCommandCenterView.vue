@@ -45,6 +45,7 @@
           <span class="text-emerald-600 dark:text-emerald-400 font-bold flex items-center space-x-1">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
             <span>{{ $t('operator.pollingActive') || 'POLLING ACTIVE' }}</span>
+            <span class="text-4xs text-slate-400 font-mono">({{ (configuredPollingIntervalMs / 1000).toFixed(0) }}s)</span>
           </span>
         </div>
 
@@ -441,7 +442,7 @@
             <!-- Tile Header -->
             <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 mb-1">
               <div class="flex items-center space-x-1.5 truncate">
-                <span class="w-1.5 h-1.5 rounded-full" :class="param.device_status === 'CONNECTED' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                <span class="w-1.5 h-1.5 rounded-full" :class="(param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500'"></span>
                 <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ param.device_code }}</span>
                 <span>:</span>
                 <span class="text-slate-700 dark:text-slate-300 truncate font-semibold" :title="param.param_name">{{ param.param_code }}</span>
@@ -1221,6 +1222,7 @@ export default {
       currentTimeMs: Date.now(),
       tickerInterval: null,
       pollingInterval: null,
+      devicePollCycles: 0,
       clockInterval: null,
       currentTime: new Date().toLocaleTimeString('en-GB'),
       isRefreshing: false,
@@ -1312,12 +1314,36 @@ export default {
       if (this.overallAppHealth === 'DEGRADED') return 'bg-amber-500 animate-pulse';
       return 'bg-emerald-500';
     },
+    configuredPollingIntervalMs() {
+      // 1. If a specific device is selected in the filter, use that device's configured interval
+      if (this.selectedDeviceFilter) {
+        const dev = (this.devicesList || []).find(d => d.id === Number(this.selectedDeviceFilter));
+        const conn = dev?.connection;
+        const iv = conn?.polling_interval || conn?.poll_interval_ms;
+        if (iv && iv >= 500) return iv;
+      }
+      // 2. Otherwise find minimum interval among active enabled devices
+      const activeDevs = (this.devicesList || []).filter(d => d.enabled !== false && d.status !== 'DISABLED');
+      const intervals = [];
+      for (const dev of activeDevs) {
+        const conn = dev.connection;
+        const iv = conn?.polling_interval || conn?.poll_interval_ms;
+        if (iv && iv >= 500) {
+          intervals.push(iv);
+        }
+      }
+      if (intervals.length > 0) {
+        return Math.min(...intervals);
+      }
+      return 10000;
+    },
     allParameters() {
       const list = [];
       const nowMs = this.currentTimeMs || Date.now();
       for (const dev of this.devicesList) {
         if (!dev.parameters) continue;
-        const isDevOffline = dev.connection_status && (
+        const isOnline = this.isDeviceActiveOnline(dev);
+        const isDevOffline = !isOnline && (
           dev.connection_status === 'OFFLINE' ||
           dev.connection_status === 'DISCONNECTED' ||
           dev.connection_status === 'ERROR' ||
@@ -1341,7 +1367,7 @@ export default {
 
           let rawQuality = live.quality || p.current_quality || 'UNKNOWN';
           let finalQuality = rawQuality;
-          // If the device is offline/disconnected: all parameters have communication failure -> BAD!
+          // If the device is genuinely offline with no communication and no fresh telemetry -> BAD!
           // If the device is online, but data has not arrived past stale timeout -> STALE!
           if (isDevOffline) {
             finalQuality = 'BAD';
@@ -1365,7 +1391,7 @@ export default {
             device_id: dev.id,
             device_code: dev.device_code || dev.code,
             device_name: dev.device_name || dev.name,
-            device_status: dev.connection_status,
+            device_status: isOnline ? 'ONLINE' : (dev.connection_status || 'OFFLINE'),
             param_id: p.id,
             param_code: p.parameter_code || p.code,
             param_name: p.parameter_name || p.name,
@@ -1422,9 +1448,9 @@ export default {
     summaryStats() {
       const devs = this.devicesList || [];
       const totalDevs = devs.length;
-      const onlineDevs = devs.filter(d => d.connection_status === 'CONNECTED' || d.is_active).length;
+      const onlineDevs = devs.filter(d => this.isDeviceActiveOnline(d)).length;
       const offlineDevs = totalDevs - onlineDevs;
-      const disabledDevs = devs.filter(d => d.admin_status === 'DISABLED' || !d.is_active).length;
+      const disabledDevs = devs.filter(d => d.admin_status === 'DISABLED' || d.status === 'DISABLED' || d.enabled === false).length;
 
       const params = this.allParameters;
       const goodParams = params.filter(p => p.quality === 'GOOD').length;
@@ -1440,11 +1466,21 @@ export default {
       };
     },
     isTelemetryStale() {
-      return this.lastTelemetrySecondsAgo > 30 || this.summaryStats.staleSensors > 0;
+      const intervalSec = Math.max(Math.ceil(this.configuredPollingIntervalMs / 1000), 10);
+      return this.lastTelemetrySecondsAgo > (intervalSec * 2.5) || this.summaryStats.staleSensors > 0;
     },
     lastTelemetryTimeStr() {
       if (!this.lastTelemetryTime) return '';
       return new Date(this.lastTelemetryTime).toLocaleTimeString('en-GB');
+    },
+  },
+  watch: {
+    configuredPollingIntervalMs: {
+      handler(newVal, oldVal) {
+        if (newVal !== oldVal) {
+          this.setupPollingTimer();
+        }
+      },
     },
   },
   mounted() {
@@ -1463,20 +1499,19 @@ export default {
       this.currentTime = new Date().toLocaleTimeString('en-GB');
     }, 1000);
 
-    // Background Poll Interval for Telemetry & Alarms
-    this.pollingInterval = setInterval(() => {
-      this.refreshLatestOnly();
-      this.fetchActiveAlarms();
-    }, 10000);
+    // Background Poll Interval for Telemetry & Alarms (configured dynamically to device interval)
+    this.setupPollingTimer();
 
-    // Listen to real WebSocket Telemetry events
+    // Listen to real WebSocket Telemetry & Communication events
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
+    window.addEventListener('device-comm-event', this.onDeviceCommEvent);
   },
   beforeDestroy() {
     if (this.tickerInterval) clearInterval(this.tickerInterval);
     if (this.clockInterval) clearInterval(this.clockInterval);
     if (this.pollingInterval) clearInterval(this.pollingInterval);
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
+    window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
   },
   methods: {
     toggleTheme() {
@@ -1597,11 +1632,102 @@ export default {
       const pts = this.getSparklinePoints(paramId);
       return `${pts} 100,24 0,24`;
     },
+    isDeviceActiveOnline(dev) {
+      if (!dev) return false;
+      if (dev.connection_status === 'ONLINE' || dev.connection_status === 'CONNECTED') {
+        return true;
+      }
+      const nowMs = this.currentTimeMs || Date.now();
+      return (dev.parameters || []).some(p => {
+        const live = this.liveMap[p.id];
+        const ts = live?.received_at || p.current_received_at || p.last_updated;
+        if (!ts) return false;
+        const ageSec = (nowMs - new Date(ts).getTime()) / 1000;
+        const maxAge = p.stale_timeout_seconds || 120;
+        return ageSec < maxAge && (live?.quality === 'GOOD' || p.current_quality === 'GOOD');
+      });
+    },
+    setupPollingTimer() {
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
+      const intervalMs = this.configuredPollingIntervalMs;
+      this.pollingInterval = setInterval(async () => {
+        await this.pollDashboardCycle();
+      }, intervalMs);
+    },
+    async pollDashboardCycle() {
+      await this.refreshLatestOnly();
+      await this.fetchActiveAlarms();
+      this.devicePollCycles = (this.devicePollCycles || 0) + 1;
+      if (this.devicePollCycles >= 3) {
+        this.devicePollCycles = 0;
+        await this.syncDeviceCatalog();
+      }
+    },
+    async syncDeviceCatalog() {
+      try {
+        const res = await axios.get('/api/devices?page_size=100');
+        if (res.data?.data) {
+          const items = res.data.data.items || res.data.data || [];
+          this.devicesList = items;
+        }
+      } catch (err) {
+        // silent ignore
+      }
+    },
+    onDeviceCommEvent(e) {
+      const detail = e.detail;
+      if (!detail) return;
+      const type = detail.type;
+      const data = detail.data || {};
+
+      if (type === 'device.communication.success') {
+        const devId = data.device_id;
+        if (devId) {
+          const target = this.devicesList.find(d => d.id === devId);
+          if (target) {
+            target.connection_status = 'ONLINE';
+          }
+        }
+      } else if (type === 'device.communication.error') {
+        const devId = data.device_id;
+        if (devId) {
+          const target = this.devicesList.find(d => d.id === devId);
+          if (target && !this.isDeviceActiveOnline(target)) {
+            target.connection_status = 'ERROR';
+          }
+        }
+      } else if (type === 'device.connection.changed') {
+        const devId = data.device_id || data.id;
+        const status = data.connection_status || data.status;
+        if (devId && status) {
+          const target = this.devicesList.find(d => d.id === devId);
+          if (target) {
+            target.connection_status = status;
+          }
+        }
+      }
+    },
     onTelemetryEvent(e) {
       const data = e.detail;
       if (!data) return;
-      this.lastTelemetryTime = new Date();
+
+      if (data.received_at) {
+        this.lastTelemetryTime = data.received_at;
+      } else {
+        this.lastTelemetryTime = new Date();
+      }
       this.lastTelemetrySecondsAgo = 0;
+
+      // Update device connection status when good telemetry arrives
+      if (data.device_id) {
+        const target = this.devicesList.find(d => d.id === data.device_id);
+        if (target && data.quality !== 'BAD') {
+          target.connection_status = 'ONLINE';
+        }
+      }
 
       if (data.parameter_id && data.value !== undefined) {
         this.$set(this.liveMap, data.parameter_id, data);
@@ -1654,6 +1780,17 @@ export default {
             for (const item of res.data.data) {
               this.$set(this.liveMap, item.parameter_id, item);
               this.recordSparkline(item.parameter_id, item.value);
+
+              if (item.received_at) {
+                const itemTime = new Date(item.received_at).getTime();
+                if (!this.lastTelemetryTime || itemTime > new Date(this.lastTelemetryTime).getTime()) {
+                  this.lastTelemetryTime = item.received_at;
+                  this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - itemTime) / 1000));
+                }
+              }
+              if (item.quality === 'GOOD') {
+                dev.connection_status = 'ONLINE';
+              }
             }
           }
         } catch (e) {
