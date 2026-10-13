@@ -1252,9 +1252,13 @@ export default {
       notificationQueue: [],
       notificationQueueStats: { total: 0, pending: 0, sent: 0, failed: 0 },
 
-      // Telemetry Freshness Ticker & Live Clock
-      lastTelemetryTime: new Date(),
-      lastTelemetrySecondsAgo: 0,
+      // Telemetry Freshness Ticker & Live Clock (persisted in localStorage across page reloads)
+      lastTelemetryTime: localStorage.getItem('dl_last_telemetry_time')
+        ? new Date(localStorage.getItem('dl_last_telemetry_time'))
+        : null,
+      lastTelemetrySecondsAgo: localStorage.getItem('dl_last_telemetry_time')
+        ? Math.max(0, Math.floor((Date.now() - new Date(localStorage.getItem('dl_last_telemetry_time')).getTime()) / 1000))
+        : 0,
       currentTimeMs: Date.now(),
       tickerInterval: null,
       pollingInterval: null,
@@ -1772,11 +1776,14 @@ export default {
       // This prevents failed comm/error packets from resetting the operator's offline counter!
       if (data.quality === 'GOOD') {
         const goodTime = data.received_at || new Date().toISOString();
-        this.lastTelemetryTime = goodTime;
+        this.lastTelemetryTime = new Date(goodTime);
         if (data.parameter_id) {
           this.$set(this.lastGoodTimeMap, data.parameter_id, goodTime);
         }
         this.lastTelemetrySecondsAgo = 0;
+        try {
+          localStorage.setItem('dl_last_telemetry_time', new Date(goodTime).toISOString());
+        } catch (e) {}
       }
 
       // Update device connection status when telemetry arrives
@@ -1848,8 +1855,11 @@ export default {
                 this.$set(this.lastGoodTimeMap, item.parameter_id, item.received_at);
                 const itemTime = new Date(item.received_at).getTime();
                 if (!this.lastTelemetryTime || itemTime > new Date(this.lastTelemetryTime).getTime()) {
-                  this.lastTelemetryTime = item.received_at;
+                  this.lastTelemetryTime = new Date(item.received_at);
                   this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - itemTime) / 1000));
+                  try {
+                    localStorage.setItem('dl_last_telemetry_time', this.lastTelemetryTime.toISOString());
+                  } catch (e) {}
                 }
               }
               // Parameter values and sparklines are updated from latest cache.
@@ -1878,28 +1888,33 @@ export default {
             }
           }
 
-          // Initialize lastTelemetryTime from most recent valid (or historical) telemetry
-          if (!this.lastTelemetryTime) {
-            let maxGood = null;
-            let maxAny = null;
-            for (const dev of this.devicesList) {
-              for (const p of dev.parameters || []) {
-                const live = this.liveMap[p.id];
-                const ts = live?.received_at || p.current_received_at;
-                if (ts) {
-                  const t = new Date(ts).getTime();
-                  if (live?.quality === 'GOOD' || p.current_quality === 'GOOD') {
-                    if (!maxGood || t > maxGood) maxGood = t;
-                  }
-                  if (!maxAny || t > maxAny) maxAny = t;
+          // Initialize/Reconcile lastTelemetryTime from most recent valid (or historical) telemetry
+          let maxGood = null;
+          let maxAny = null;
+          for (const dev of this.devicesList) {
+            for (const p of dev.parameters || []) {
+              const live = this.liveMap[p.id];
+              const ts = live?.received_at || p.current_received_at;
+              if (ts) {
+                const t = new Date(ts).getTime();
+                if (live?.quality === 'GOOD' || p.current_quality === 'GOOD') {
+                  if (!maxGood || t > maxGood) maxGood = t;
                 }
+                if (!maxAny || t > maxAny) maxAny = t;
               }
             }
-            const target = maxGood || maxAny;
-            if (target) {
-              this.lastTelemetryTime = new Date(target);
-              this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - target) / 1000));
+            if (dev.last_data_at) {
+              const t = new Date(dev.last_data_at).getTime();
+              if (!maxAny || t > maxAny) maxAny = t;
             }
+          }
+          const target = maxGood || maxAny;
+          if (target) {
+            this.lastTelemetryTime = new Date(target);
+            this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - target) / 1000));
+            try {
+              localStorage.setItem('dl_last_telemetry_time', new Date(target).toISOString());
+            } catch (e) {}
           }
         }
       } catch (err) {
