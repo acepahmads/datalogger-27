@@ -528,25 +528,60 @@ func (s *TelemetryService) staleDetectionWorker() {
 
 func (s *TelemetryService) evaluateStaleParameters() {
 	s.latestMu.Lock()
-	defer s.latestMu.Unlock()
+	var staleItems []*LatestTelemetry
+	devLastData := make(map[uint]time.Time)
+	devCodes := make(map[uint]string)
 
 	for _, item := range s.latestCache {
 		if item == nil {
 			continue
 		}
+		if cur, ok := devLastData[item.DeviceID]; !ok || item.ReceivedAt.After(cur) {
+			devLastData[item.DeviceID] = item.ReceivedAt
+			devCodes[item.DeviceID] = item.DeviceCode
+		}
+
 		staleTimeout := 120 // Default 2 minutes
 		isStale, staleQ, staleReason := s.qualityProcessor.CheckStale(item.ParameterID, staleTimeout, item.ReceivedAt)
-		if isStale && item.Quality != model.QualityStale {
+		if isStale {
+			wasAlreadyStale := (item.Quality == model.QualityStale)
 			item.Quality = staleQ
 			item.QualityReason = staleReason
+			item.QualityFlags = model.FlagStale
 			item.UpdatedAt = time.Now().UTC()
 
-			if s.hub != nil {
+			if !wasAlreadyStale && s.hub != nil {
 				s.hub.Broadcast(websocket.WSMessage{
 					Type:      "device.telemetry.received",
 					Timestamp: item.UpdatedAt,
 					Data:      item,
 				})
+			}
+
+			// Copy item snapshot for evaluation outside mutex lock
+			itemCopy := *item
+			staleItems = append(staleItems, &itemCopy)
+		}
+	}
+	s.latestMu.Unlock()
+
+	// Evaluate parameter alarms and device offline status outside lock to avoid DB/evaluator lock contention
+	if s.alarmEvaluator != nil {
+		for _, staleItem := range staleItems {
+			s.alarmEvaluator.EvaluateTelemetry(s.ctx, staleItem, nil)
+		}
+
+		now := time.Now().UTC()
+		for devID, lastData := range devLastData {
+			if now.Sub(lastData) >= 60*time.Second {
+				dev := &model.Device{
+					ID:         devID,
+					DeviceCode: devCodes[devID],
+					Enabled:    true,
+					Status:     model.DeviceStatusActive,
+					LastDataAt: &lastData,
+				}
+				s.alarmEvaluator.EvaluateDeviceOffline(s.ctx, dev, nil)
 			}
 		}
 	}

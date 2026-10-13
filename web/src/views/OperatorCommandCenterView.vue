@@ -1755,6 +1755,22 @@ export default {
         return false;
       }
       if (status === 'ONLINE' || status === 'CONNECTED') {
+        // If device has parameters configured, verify that not ALL parameters are in STALE/BAD state
+        const params = dev.parameters || [];
+        if (params.length > 0) {
+          const nowMs = this.currentTimeMs || Date.now();
+          const hasAnyFreshData = params.some(p => {
+            const live = this.liveMap[p.id];
+            const q = live?.quality || p.current_quality;
+            const ts = live?.received_at || p.current_received_at;
+            const ageSec = ts ? (nowMs - new Date(ts).getTime()) / 1000 : Infinity;
+            const staleLimit = p.stale_timeout_seconds || 120;
+            return q !== 'STALE' && q !== 'BAD' && ageSec < staleLimit;
+          });
+          if (!hasAnyFreshData) {
+            return false;
+          }
+        }
         return true;
       }
       // Fallback only if status is empty/unknown: verify fresh live telemetry arrived within 15 seconds

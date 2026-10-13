@@ -142,6 +142,7 @@ func main() {
 			return deviceRepo.FindParameterByID(paramID)
 		},
 	)
+	alarmEvaluator.SetDeviceStatusUpdater(deviceRepo.SetConnectionStatus)
 	telemetryService.SetAlarmEvaluator(alarmEvaluator)
 	logger.Info("AlarmEvaluator initialized with active DB alarm synchronization and attached to TelemetryService")
 

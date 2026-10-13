@@ -130,11 +130,21 @@ type AlarmEvaluator struct {
 	activeAbnormality   map[string]*ActiveAlarmEntry      // key: "deviceID:paramID:alarmCode"
 	abnormalityTracking map[string]*paramAbnormalityState // key: "deviceID:paramID"
 
+	// Device status synchronization callback
+	statusUpdater func(deviceID uint, status model.DeviceConnectionStatus) error
+
 	// Evaluation metrics
 	evaluationsCount      uint64
 	alarmsTriggeredCount  uint64
 	alarmsClearedCount    uint64
 	evaluationErrorsCount uint64
+}
+
+// SetDeviceStatusUpdater registers a callback for syncing device online/offline state to repository/DB
+func (e *AlarmEvaluator) SetDeviceStatusUpdater(updater func(deviceID uint, status model.DeviceConnectionStatus) error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.statusUpdater = updater
 }
 
 // NewAlarmEvaluator constructs a new AlarmEvaluator and synchronizes active alarms from DB
@@ -507,7 +517,17 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 
 	// 2. Startup Grace Period Protection
 	now := time.Now().UTC()
-	hasEverCommunicated := (health != nil && health.LastCommSuccess != nil && !health.LastCommSuccess.IsZero())
+	var lastComm *time.Time
+	if health != nil && health.LastCommSuccess != nil && !health.LastCommSuccess.IsZero() {
+		lastComm = health.LastCommSuccess
+	}
+	if device.LastDataAt != nil && !device.LastDataAt.IsZero() {
+		if lastComm == nil || device.LastDataAt.After(*lastComm) {
+			lastComm = device.LastDataAt
+		}
+	}
+
+	hasEverCommunicated := (lastComm != nil)
 	if !hasEverCommunicated {
 		if now.Sub(e.startTime) < e.cfg.StartupGracePeriod {
 			// Suppress during initial startup/connection grace period
@@ -525,7 +545,7 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 	var outageDuration time.Duration
 
 	if hasEverCommunicated {
-		outageDuration = now.Sub(*health.LastCommSuccess)
+		outageDuration = now.Sub(*lastComm)
 		if outageDuration >= timeout {
 			isOffline = true
 		}
@@ -543,8 +563,8 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 		}
 	}
 
-	// If device is actively communicating or connected and not timed out, ensure it's NOT marked offline
-	if health != nil && (health.State == "CONNECTED" || health.ConsecutiveSuccesses > 0) && (!hasEverCommunicated || outageDuration < timeout) {
+	// If device is actively communicating or connected AND not timed out, ensure it's NOT marked offline
+	if health != nil && (health.State == "CONNECTED" || health.ConsecutiveSuccesses > 0) && outageDuration < timeout {
 		isOffline = false
 	}
 
@@ -552,6 +572,10 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 	existing := e.activeDeviceOffline[device.ID]
 
 	if isOffline {
+		if e.statusUpdater != nil {
+			_ = e.statusUpdater(device.ID, model.DeviceConnOffline)
+		}
+
 		if existing != nil {
 			// Outage episode already alarmed; do NOT create duplicate alarm
 			return
@@ -559,7 +583,7 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 
 		lastSuccessStr := "never"
 		if hasEverCommunicated {
-			lastSuccessStr = health.LastCommSuccess.Format("2006-01-02 15:04:05 UTC")
+			lastSuccessStr = lastComm.Format("2006-01-02 15:04:05 UTC")
 		}
 
 		cat := "COMMUNICATION_TIMEOUT"
@@ -579,6 +603,9 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 		if existing != nil {
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeDeviceOffline, device.ID)
+			if e.statusUpdater != nil {
+				_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
+			}
 		}
 	}
 }
@@ -664,6 +691,9 @@ func (e *AlarmEvaluator) EvaluateDeviceCommSuccess(ctx context.Context, device *
 	if existing, ok := e.activeDeviceOffline[device.ID]; ok {
 		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 		delete(e.activeDeviceOffline, device.ID)
+		if e.statusUpdater != nil {
+			_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
+		}
 	}
 }
 
