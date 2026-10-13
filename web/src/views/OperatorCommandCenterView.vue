@@ -1473,14 +1473,25 @@ export default {
           }
 
           let rawQuality = live.quality || p.current_quality || 'UNKNOWN';
-          let finalQuality = rawQuality;
-          // If the device is offline/disconnected or data timestamp has exceeded stale timeout:
-          // Data cannot be GOOD. It is STALE (or retained BAD if communication failed)
-          if (isDevOffline || isTimeStale) {
+          // If the device is offline/disconnected: all parameters have communication failure -> BAD!
+          // If the device is online, but data has not arrived past stale timeout -> STALE!
+          if (isDevOffline) {
+            finalQuality = 'BAD';
+          } else if (isTimeStale) {
             if (finalQuality !== 'BAD') {
               finalQuality = 'STALE';
             }
           }
+
+          const finalReason = isDevOffline
+            ? (live.quality_reason || 'COMMUNICATION_ERROR')
+            : (isTimeStale && (!live.quality_reason && !p.current_quality_reason))
+              ? 'STALE_TIMEOUT'
+              : (live.quality_reason || p.current_quality_reason || '');
+
+          const finalTime = isDevOffline
+            ? (live.received_at || this.lastTelemetryTime || receivedAt)
+            : receivedAt;
 
           list.push({
             device_id: dev.id,
@@ -1497,13 +1508,11 @@ export default {
             is_held_value: isHeld,
             formula: p.formula || '',
             quality: finalQuality,
-            quality_reason: (finalQuality === 'STALE' && (!live.quality_reason && !p.current_quality_reason))
-              ? (isDevOffline ? 'DEVICE_OFFLINE' : 'STALE_TIMEOUT')
-              : (live.quality_reason || p.current_quality_reason || ''),
+            quality_reason: finalReason,
             low_limit: p.low_critical != null ? p.low_critical : (p.low_warning != null ? p.low_warning : null),
             high_limit: p.high_critical != null ? p.high_critical : (p.high_warning != null ? p.high_warning : null),
             alarm_status: alarmState,
-            received_at: receivedAt,
+            received_at: finalTime,
           });
         }
       }

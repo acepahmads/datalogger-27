@@ -303,7 +303,12 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 	}
 
 	anySuccess := false
-	for _, param := range enabledParams {
+	source := ""
+	if device != nil && device.Connection != nil {
+		source = string(device.Connection.Protocol)
+	}
+
+	for idx, param := range enabledParams {
 		select {
 		case <-ctx.Done():
 			return false
@@ -333,13 +338,46 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 				})
 			}
 
-			// If device transport itself is dead, skip subsequent parameters in this cycle to avoid blocking
+			// If device transport itself is dead, mark remaining parameters BAD (comm failure) and abort cycle
 			errStr := strings.ToLower(err.Error())
 			if strings.Contains(errStr, "offline") ||
 				strings.Contains(errStr, "connection refused") ||
 				strings.Contains(errStr, "dial failed") ||
 				strings.Contains(errStr, "cannot find") ||
 				strings.Contains(errStr, "timeout") {
+				nowErr := time.Now().UTC()
+				for j := idx + 1; j < len(enabledParams); j++ {
+					remParam := enabledParams[j]
+					lastKnownVal := 0.0
+					if remParam.CurrentProcessedValue != nil {
+						lastKnownVal = *remParam.CurrentProcessedValue
+					} else if remParam.CurrentValue != nil {
+						lastKnownVal = *remParam.CurrentValue
+					}
+					if p.telemetryService != nil {
+						_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+							DeviceID:      device.ID,
+							DeviceCode:    device.DeviceCode,
+							DeviceName:    device.DeviceName,
+							ParameterID:   remParam.ID,
+							ParameterCode: remParam.ParameterCode,
+							ParameterName: remParam.ParameterName,
+							Unit:          remParam.Unit,
+							DataType:      remParam.DataType,
+							RawValue:      lastKnownVal,
+							Value:         lastKnownVal,
+							Quality:       model.QualityBad,
+							QualityReason: model.ReasonCommunicationError,
+							QualityFlags:  model.FlagCommError,
+							IsHeldValue:   false,
+							Source:        source,
+							ErrorMessage:  err.Error(),
+							ReceivedAt:    nowErr,
+							Parameter:     &remParam,
+							ReadError:     err,
+						})
+					}
+				}
 				return false
 			}
 			continue
