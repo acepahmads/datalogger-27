@@ -47,7 +47,7 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 
 		// 2. Track latest values per parameter in this batch
 		latestPerParam := make(map[uint]*model.RawData)
-		var maxReceivedAt time.Time
+		var maxValidReceivedAt time.Time
 		var deviceID uint
 
 		for _, item := range batch {
@@ -55,8 +55,8 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 				continue
 			}
 			deviceID = item.DeviceID
-			if item.ReceivedAt.After(maxReceivedAt) {
-				maxReceivedAt = item.ReceivedAt
+			if item.Quality != model.QualityBad && item.ReceivedAt.After(maxValidReceivedAt) {
+				maxValidReceivedAt = item.ReceivedAt
 			}
 
 			existing, ok := latestPerParam[item.ParameterID]
@@ -68,29 +68,33 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 		// 3. Update parameter current/latest values
 		for paramID, item := range latestPerParam {
 			updates := map[string]interface{}{
-				"current_value":            &item.Value,
-				"current_value_numeric":    item.ValueNumeric,
-				"current_processed_value":  &item.ProcessedValue,
-				"current_formula_value":    item.FormulaValue,
-				"is_current_held":          item.IsHeldValue,
-				"current_value_text":       item.ValueText,
-				"current_value_bool":       item.ValueBool,
-				"current_quality":          item.Quality,
-				"current_quality_reason":   item.QualityReason,
-				"current_quality_flags":    item.QualityFlags,
-				"current_raw_hex":          item.RawHex,
-				"current_received_at":      &item.ReceivedAt,
-				"current_device_timestamp": item.DeviceTimestamp,
-				"last_updated":             &item.ReceivedAt,
+				"current_value":           &item.Value,
+				"current_value_numeric":   item.ValueNumeric,
+				"current_processed_value": &item.ProcessedValue,
+				"current_formula_value":   item.FormulaValue,
+				"is_current_held":         item.IsHeldValue,
+				"current_value_text":      item.ValueText,
+				"current_value_bool":      item.ValueBool,
+				"current_quality":         item.Quality,
+				"current_quality_reason":  item.QualityReason,
+				"current_quality_flags":   item.QualityFlags,
+				"current_raw_hex":         item.RawHex,
+				"last_updated":            &item.ReceivedAt,
+			}
+			// Only update current_received_at and current_device_timestamp for valid telemetry
+			// to prevent failed polling attempts from resetting the last valid data timestamp!
+			if item.Quality != model.QualityBad {
+				updates["current_received_at"] = &item.ReceivedAt
+				updates["current_device_timestamp"] = item.DeviceTimestamp
 			}
 			if err := tx.Model(&model.Parameter{}).Where("id = ?", paramID).Updates(updates).Error; err != nil {
 				return err
 			}
 		}
 
-		// 4. Update device last_data_at
-		if deviceID > 0 && !maxReceivedAt.IsZero() {
-			_ = tx.Model(&model.Device{}).Where("id = ?", deviceID).Update("last_data_at", maxReceivedAt).Error
+		// 4. Update device last_data_at only from valid received telemetry
+		if deviceID > 0 && !maxValidReceivedAt.IsZero() {
+			_ = tx.Model(&model.Device{}).Where("id = ?", deviceID).Update("last_data_at", maxValidReceivedAt).Error
 		}
 
 		return nil

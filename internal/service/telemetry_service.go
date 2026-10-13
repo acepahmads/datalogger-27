@@ -308,9 +308,10 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	atomic.AddUint64(&s.ingestedCount, 1)
 
 	// 2. Update Instantaneous In-Memory Cache (O(1) lookup for dashboard)
-	// Reliability (Phase 4.1): If read failed, retain previous valid values while flagging BAD quality
+	// Reliability (Phase 4.1): If read failed or quality is BAD, retain previous valid values AND valid timestamps
+	// so that dashboard and operator console show true last-seen time rather than failed poll attempt timestamps.
 	s.latestMu.Lock()
-	if payload.ReadError != nil {
+	if payload.ReadError != nil || latest.Quality == model.QualityBad {
 		if prev, ok := s.latestCache[latest.ParameterID]; ok {
 			latest.Value = prev.Value
 			latest.ProcessedValue = prev.ProcessedValue
@@ -320,6 +321,12 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 			latest.ValueBool = prev.ValueBool
 			latest.RawValue = prev.RawValue
 			latest.RawHex = prev.RawHex
+			if !prev.ReceivedAt.IsZero() {
+				latest.ReceivedAt = prev.ReceivedAt
+			}
+			if prev.DeviceTimestamp != nil {
+				latest.DeviceTimestamp = prev.DeviceTimestamp
+			}
 		}
 	}
 	s.latestCache[latest.ParameterID] = latest

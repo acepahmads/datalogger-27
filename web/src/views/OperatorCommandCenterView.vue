@@ -1253,7 +1253,13 @@ export default {
       devicesList: [],
       liveMap: {},
       liveBlinks: {},
-      lastGoodTimeMap: {},
+      lastGoodTimeMap: (() => {
+        try {
+          return JSON.parse(localStorage.getItem('dl_last_good_time_map') || '{}');
+        } catch (e) {
+          return {};
+        }
+      })(),
       sparklinesMap: {},
       pinnedIds: JSON.parse(localStorage.getItem('dl_pinned_params') || '[]'),
       searchQuery: '',
@@ -1824,6 +1830,9 @@ export default {
         this.lastTelemetryTime = new Date(goodTime);
         if (data.parameter_id) {
           this.$set(this.lastGoodTimeMap, data.parameter_id, goodTime);
+          try {
+            localStorage.setItem('dl_last_good_time_map', JSON.stringify(this.lastGoodTimeMap));
+          } catch (e) {}
         }
         this.lastTelemetrySecondsAgo = 0;
         try {
@@ -1898,6 +1907,9 @@ export default {
               // Only update last valid telemetry timestamp from GOOD quality data
               if (item.received_at && item.quality === 'GOOD') {
                 this.$set(this.lastGoodTimeMap, item.parameter_id, item.received_at);
+                try {
+                  localStorage.setItem('dl_last_good_time_map', JSON.stringify(this.lastGoodTimeMap));
+                } catch (e) {}
                 const itemTime = new Date(item.received_at).getTime();
                 if (!this.lastTelemetryTime || itemTime > new Date(this.lastTelemetryTime).getTime()) {
                   this.lastTelemetryTime = new Date(item.received_at);
@@ -1932,6 +1944,9 @@ export default {
               }
             }
           }
+          try {
+            localStorage.setItem('dl_last_good_time_map', JSON.stringify(this.lastGoodTimeMap));
+          } catch (e) {}
 
           // Initialize/Reconcile lastTelemetryTime from most recent valid (or historical) telemetry
           let maxGood = null;
@@ -1953,12 +1968,22 @@ export default {
               if (!maxAny || t > maxAny) maxAny = t;
             }
           }
-          const target = maxGood || maxAny;
-          if (target) {
-            this.lastTelemetryTime = new Date(target);
-            this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - target) / 1000));
+
+          // If we have a good telemetry timestamp from DB/live cache, use it if newer or not yet set
+          if (maxGood) {
+            if (!this.lastTelemetryTime || maxGood > new Date(this.lastTelemetryTime).getTime()) {
+              this.lastTelemetryTime = new Date(maxGood);
+              this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - maxGood) / 1000));
+              try {
+                localStorage.setItem('dl_last_telemetry_time', new Date(maxGood).toISOString());
+              } catch (e) {}
+            }
+          } else if (!this.lastTelemetryTime && maxAny) {
+            // Only fall back to maxAny if we have NO previous stored or active lastTelemetryTime at all
+            this.lastTelemetryTime = new Date(maxAny);
+            this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - maxAny) / 1000));
             try {
-              localStorage.setItem('dl_last_telemetry_time', new Date(target).toISOString());
+              localStorage.setItem('dl_last_telemetry_time', new Date(maxAny).toISOString());
             } catch (e) {}
           }
         }
