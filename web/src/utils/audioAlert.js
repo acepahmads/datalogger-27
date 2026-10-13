@@ -126,9 +126,9 @@ class AudioAlertEngine {
         await ctx.resume();
         this.isUnlocked = ctx.state === 'running';
         this.notifyStateChange();
-        // If there are active alarms looping, trigger a pulse now that audio is unlocked
+        // If there are active alarms looping, restart master timer so audio & visual pulse fire together from t=0
         if (this.isUnlocked && this.activeAlarmMap.size > 0 && this.currentLoopSeverity) {
-          this.triggerPulse(this.currentLoopSeverity);
+          this.restartMasterTimer(this.currentLoopSeverity);
         }
         return this.isUnlocked;
       } catch (err) {
@@ -217,7 +217,7 @@ class AudioAlertEngine {
       return;
     }
 
-    const t0 = ctx.currentTime + 0.02;
+    const t0 = ctx.currentTime + 0.005;
     // Tone 1: 587.33 Hz (D5), 110ms
     this.playTone(587.33, t0, 0.11, 'sine', 0.4);
     // Tone 2: 880.00 Hz (A5), 140ms
@@ -246,7 +246,7 @@ class AudioAlertEngine {
       return;
     }
 
-    const t0 = ctx.currentTime + 0.02;
+    const t0 = ctx.currentTime + 0.005;
 
     // Pulse 1: 880 Hz + overtone 1046.5 Hz, 90ms
     this.playTone(880.00, t0, 0.09, 'sine', 0.5);
@@ -267,6 +267,26 @@ class AudioAlertEngine {
   triggerPulse(severity = 'WARNING') {
     const normSeverity = (severity || 'WARNING').toUpperCase();
 
+    const ctx = this.getAudioContext();
+    if (ctx && ctx.state === 'suspended' && this.soundEnabled && !this.checkMuteActive()) {
+      // If audio context is suspended, resume first so audio tone and visual pulse START TOGETHER!
+      ctx.resume().then(() => {
+        if (ctx.state === 'running') {
+          this.isUnlocked = true;
+          this.notifyStateChange();
+          this.executePulseNow(normSeverity);
+        }
+      }).catch(() => {
+        // Fallback to visual pulse if browser blocked autoplay gesture
+        this.fireVisualPulse(normSeverity);
+      });
+      return;
+    }
+
+    this.executePulseNow(normSeverity);
+  }
+
+  executePulseNow(normSeverity) {
     // 1. Synthesize audio chime if audio is enabled and unmuted
     if (normSeverity === 'CRITICAL') {
       this.playCriticalAlert(true);
@@ -275,6 +295,10 @@ class AudioAlertEngine {
     }
 
     // 2. Broadcast synchronized visual pulse event
+    this.fireVisualPulse(normSeverity);
+  }
+
+  fireVisualPulse(normSeverity) {
     const payload = {
       severity: normSeverity,
       timestamp: Date.now(),

@@ -192,9 +192,9 @@
       <div
         class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer"
         :class="activeCriticalCount > 0
-          ? (isAlarmPulseActive ? 'border-rose-500 ring-2 ring-rose-500/60 shadow-md shadow-rose-500/40 transition-all duration-150' : 'border-rose-500/60 ring-1 ring-rose-500/30 transition-all duration-300')
+          ? (isAlarmPulseActive ? 'border-rose-500 ring-2 ring-rose-500/60 shadow-md shadow-rose-500/40 transition-all duration-75' : 'border-rose-500/60 ring-1 ring-rose-500/30 transition-all duration-300')
           : activeAlarmsList.length > 0
-            ? (isAlarmPulseActive ? 'border-amber-500 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/40 transition-all duration-150' : 'border-amber-500/60 transition-all duration-300')
+            ? (isAlarmPulseActive ? 'border-amber-500 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/40 transition-all duration-75' : 'border-amber-500/60 transition-all duration-300')
             : 'border-slate-200 dark:border-[#20354B]'"
         @click="$router.push('/alarm/active')"
       >
@@ -459,8 +459,8 @@
               isParamAlarmOrStaleBad(param)
                 ? (isAlarmPulseActive
                     ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL'
-                        ? 'bg-rose-500/20 dark:bg-rose-950/70 border-2 border-rose-500 ring-2 ring-rose-500/60 shadow-lg shadow-rose-500/40 scale-[1.008] transition-all duration-150'
-                        : 'bg-amber-500/20 dark:bg-amber-950/70 border-2 border-amber-500 ring-2 ring-amber-500/60 shadow-lg shadow-amber-500/40 scale-[1.008] transition-all duration-150')
+                        ? 'bg-rose-500/20 dark:bg-rose-950/70 border-2 border-rose-500 ring-2 ring-rose-500/60 shadow-lg shadow-rose-500/40 scale-[1.008] transition-all duration-75'
+                        : 'bg-amber-500/20 dark:bg-amber-950/70 border-2 border-amber-500 ring-2 ring-amber-500/60 shadow-lg shadow-amber-500/40 scale-[1.008] transition-all duration-75')
                     : 'bg-slate-200/90 dark:bg-slate-800/90 border-2 border-rose-500/80 transition-all duration-300')
                 : isParamSelectedForTrend(param)
                   ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/40 dark:bg-[#0e1b2e]'
@@ -1460,13 +1460,22 @@ export default {
               : (live.quality_reason || p.current_quality_reason || '');
 
           // Resolve last known valid data timestamp
-          const lastValidTime = this.lastGoodTimeMap[p.id] || p.current_received_at || dev.last_data_at || p.last_updated;
+          let lastValidTime = this.lastGoodTimeMap[p.id] || p.current_received_at || dev.last_data_at || p.last_updated;
 
           // If device is offline, or parameter is in BAD / STALE quality due to comm failure:
+          // Synchronize with station's lastTelemetryTime if lastValidTime is missing or was mistakenly set
+          // to an error polling timestamp newer than lastTelemetryTime.
+          if (this.lastTelemetryTime && (isDevOffline || finalQuality === 'BAD' || finalQuality === 'STALE')) {
+            const teleMs = new Date(this.lastTelemetryTime).getTime();
+            if (!lastValidTime || new Date(lastValidTime).getTime() > teleMs) {
+              lastValidTime = this.lastTelemetryTime;
+            }
+          }
+
           // Display the timestamp of the last valid data received so that operators see consistent duration
-          // across all parameters on that device (e.g. 11:22:33, 46m ago) rather than confusing error polling times.
+          // across all parameters on that device (e.g. 11:22:33, 16m ago) rather than confusing error polling times.
           const finalTime = (isDevOffline || finalQuality === 'BAD' || finalQuality === 'STALE')
-            ? (lastValidTime || dev.last_data_at || receivedAt)
+            ? (lastValidTime || this.lastTelemetryTime || dev.last_data_at || receivedAt)
             : (live.received_at || receivedAt);
 
           list.push({
@@ -1609,7 +1618,7 @@ export default {
       }
       this.alarmPulseTimer = setTimeout(() => {
         this.isAlarmPulseActive = false;
-      }, 550);
+      }, 350);
     },
     toggleTheme() {
       const nextTheme = this.isDark ? 'light' : 'dark';
@@ -1938,8 +1947,19 @@ export default {
           // Pre-populate lastGoodTimeMap from DB parameter records
           for (const dev of this.devicesList) {
             for (const p of dev.parameters || []) {
-              const ts = p.current_received_at || dev.last_data_at || p.last_updated;
-              if (ts && !this.lastGoodTimeMap[p.id]) {
+              let ts = p.current_received_at || dev.last_data_at || p.last_updated;
+              // If param is bad/offline and this.lastTelemetryTime is known, ensure ts does not exceed lastTelemetryTime
+              if (this.lastTelemetryTime && (p.current_quality === 'BAD' || dev.connection_status === 'OFFLINE' || dev.connection_status === 'ERROR')) {
+                const teleMs = new Date(this.lastTelemetryTime).getTime();
+                if (!ts || new Date(ts).getTime() > teleMs) {
+                  ts = this.lastTelemetryTime;
+                }
+              }
+              const existingStored = this.lastGoodTimeMap[p.id];
+              // If existing stored time in localStorage was set to a newer error poll timestamp, correct it!
+              if (this.lastTelemetryTime && existingStored && new Date(existingStored).getTime() > new Date(this.lastTelemetryTime).getTime() && (p.current_quality === 'BAD' || dev.connection_status === 'OFFLINE')) {
+                this.$set(this.lastGoodTimeMap, p.id, this.lastTelemetryTime);
+              } else if (ts && !this.lastGoodTimeMap[p.id]) {
                 this.$set(this.lastGoodTimeMap, p.id, ts);
               }
             }

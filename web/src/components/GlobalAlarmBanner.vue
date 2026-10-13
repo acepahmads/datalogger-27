@@ -2,10 +2,10 @@
   <div v-if="shouldShowBanner" class="relative z-30 select-none transition-all duration-200" role="region" aria-label="Global Alarm Notification">
     <!-- Main Banner Bar -->
     <div
-      class="px-4 py-2 sm:px-6 flex items-center justify-between shadow-md border-b text-xs transition-colors duration-150"
+      class="px-4 py-2 sm:px-6 flex items-center justify-between shadow-md border-b text-xs transition-colors"
       :class="[
         bannerColorClasses,
-        isAlarmPulseActive ? 'brightness-125 saturate-125 ring-2 ring-white/60 shadow-lg' : ''
+        isAlarmPulseActive ? 'brightness-125 saturate-125 ring-2 ring-white/70 shadow-lg duration-75' : 'duration-300'
       ]"
     >
       <!-- Left: Severity Icon, Priority Badge & Alarm Info -->
@@ -20,8 +20,8 @@
             class="relative flex h-2.5 w-2.5 items-center justify-center"
           >
             <span
-              class="absolute inline-flex h-full w-full rounded-full bg-white transition-all duration-300"
-              :class="isAlarmPulseActive ? 'scale-175 opacity-90' : 'scale-100 opacity-25'"
+              class="absolute inline-flex h-full w-full rounded-full bg-white transition-all"
+              :class="isAlarmPulseActive ? 'scale-175 opacity-90 duration-75' : 'scale-100 opacity-25 duration-300'"
             ></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
           </span>
@@ -508,7 +508,7 @@ export default {
       }
       this.alarmPulseTimeout = setTimeout(() => {
         this.isAlarmPulseActive = false;
-      }, 550);
+      }, 350);
     },
     toggleMute() {
       const newMuted = audioAlert.toggleMute();
