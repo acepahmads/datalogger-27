@@ -735,27 +735,27 @@
       <!-- ======================================================== -->
       <div class="xl:col-span-5 flex flex-col space-y-2">
         <!-- 1. TREND ANALYSIS CHART PANEL -->
-        <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-col space-y-2">
+        <div class="scada-panel p-3 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] shadow-xs dark:shadow-md flex flex-col space-y-2.5">
           <!-- Chart Header & Timeframe Buttons -->
-          <div class="flex flex-wrap items-center justify-between gap-1.5 pb-1.5 border-b border-slate-200 dark:border-[#20354B]">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-[#1E3048]">
             <div class="flex items-center space-x-2">
-              <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
-              <h3 class="text-xs font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-glow-cyan"></span>
+              <h3 class="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono">
                 {{ $t('operator.trendAnalysis') || 'TREND ANALYSIS' }}
               </h3>
             </div>
 
             <!-- Timeframe Preset Buttons & Actions -->
-            <div class="flex items-center space-x-1.5">
-              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
+            <div class="flex items-center space-x-2">
+              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#1E3048] text-3xs font-mono">
                 <button
                   v-for="tf in ['15m', '1h', '6h', '24h', '7d']"
                   :key="tf"
                   @click="setTimeframe(tf)"
-                  class="px-2 py-0.5 rounded transition font-semibold"
+                  class="px-2.5 py-1 rounded transition font-semibold"
                   :class="currentTimeframe === tf
                     ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
                 >
                   {{ tf }}
                 </button>
@@ -765,7 +765,7 @@
               <div class="relative">
                 <button
                   @click="showTrendDownloadMenu = !showTrendDownloadMenu"
-                  class="p-1 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
+                  class="p-1.5 rounded-lg border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                   title="Download Data / Chart"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -774,22 +774,22 @@
                 </button>
                 <div
                   v-if="showTrendDownloadMenu"
-                  class="absolute right-0 mt-1 w-40 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-lg shadow-xl py-1 z-40 text-3xs font-mono"
+                  class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
                 >
-                  <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
-                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <span>CSV Data</span>
                   </button>
-                  <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
-                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                  <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                     <span>JSON Data</span>
                   </button>
-                  <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
-                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     <span>PNG Graphic</span>
                   </button>
-                  <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
-                    <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                  <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
                     <span>SVG Graphic</span>
                   </button>
                 </div>
@@ -798,7 +798,7 @@
               <!-- Fullscreen Button -->
               <button
                 @click="openTrendFullscreen"
-                class="p-1 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
+                class="p-1.5 rounded-lg border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                 title="Fullscreen / Expanded View"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -808,44 +808,59 @@
             </div>
           </div>
 
-          <!-- Series Selector Chips Bar -->
-          <div class="flex flex-wrap items-center gap-1.5 text-3xs font-mono">
-            <span class="text-slate-400 dark:text-slate-500 text-4xs uppercase">Series:</span>
+          <!-- Series Selector Chips Bar (Horizontal Scroll, ~11-12px readable typography) -->
+          <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full text-2xs font-mono">
+            <span class="text-slate-400 dark:text-slate-500 text-3xs uppercase shrink-0 font-semibold">Series:</span>
             <div
               v-for="s in activeTrendSeries"
               :key="s.id"
-              class="flex items-center space-x-1.5 px-2 py-0.5 rounded-md border text-3xs"
-              :style="{ borderColor: s.color, backgroundColor: s.color + '15' }"
+              class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md border shrink-0 bg-slate-100/90 dark:bg-[#101B2B] text-slate-800 dark:text-slate-200 shadow-xs transition"
+              :style="{ borderColor: s.color + '55' }"
             >
-              <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: s.color }"></span>
-              <span class="font-bold text-slate-900 dark:text-white">{{ s.deviceCode }}:{{ s.paramCode }}</span>
-              <span v-if="s.latestVal != null" class="font-bold" :style="{ color: s.color }">
-                {{ s.latestVal }} {{ s.unit }}
+              <!-- Series Color Indicator Dot -->
+              <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" :style="{ backgroundColor: s.color }"></span>
+
+              <!-- Device Identifier · Parameter Display Name -->
+              <span class="text-slate-500 dark:text-slate-400 text-3xs font-medium">{{ s.deviceCode }} ·</span>
+              <span class="font-bold text-slate-900 dark:text-white">{{ s.paramName || s.paramCode }}</span>
+
+              <!-- Current / Latest Value and Unit -->
+              <span
+                v-if="s.latestVal != null && s.latestVal !== '--'"
+                class="font-bold tabular-nums ml-0.5"
+                :style="{ color: s.color }"
+              >
+                {{ s.latestVal }} <span class="text-3xs font-normal opacity-80">{{ s.unit }}</span>
               </span>
-              <span v-if="s.stats && s.stats.min !== '--'" class="text-slate-500 dark:text-slate-400 text-4xs hidden sm:inline">
-                ({{ s.stats.min }} - {{ s.stats.max }})
-              </span>
-              <button @click="removeTrendSeries(s.id)" class="text-slate-400 hover:text-slate-700 dark:hover:text-white ml-0.5">✕</button>
+
+              <!-- Quick Remove Action -->
+              <button
+                @click.stop="removeTrendSeries(s.id)"
+                class="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 ml-1 transition p-0.5"
+                title="Remove series"
+              >
+                ✕
+              </button>
             </div>
 
             <button
               v-if="activeTrendSeries.length === 0"
               @click="addDefaultTrendSeries"
-              class="text-cyan-600 dark:text-cyan-400 text-3xs hover:underline"
+              class="text-cyan-600 dark:text-cyan-400 text-3xs hover:underline shrink-0"
             >
               + Click any parameter card to plot
             </button>
           </div>
 
-          <!-- SVG Industrial Chart Canvas -->
+          <!-- SVG Industrial Chart Canvas (Expanded height: ~210-224px, Dark Industrial SCADA) -->
           <div
             ref="scadaChartContainer"
-            class="w-full h-44 bg-slate-50 dark:bg-[#070D18] rounded-lg border border-slate-200 dark:border-[#20354B] relative overflow-hidden select-none"
+            class="w-full h-52 sm:h-56 bg-slate-50 dark:bg-[#060B13] rounded-lg border border-slate-200 dark:border-[#17263A] relative overflow-hidden select-none"
             @mousemove="onChartScrub"
             @mouseleave="scrubPoint = null"
           >
             <!-- Loading Indicator -->
-            <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#070D18]/80 flex items-center justify-center text-cyan-600 dark:text-cyan-400 text-xs font-mono z-20">
+            <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#060B13]/85 backdrop-blur-xs flex items-center justify-center text-cyan-600 dark:text-cyan-400 text-xs font-mono z-20">
               <span class="animate-spin w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2"></span>
               Loading Telemetry Trend...
             </div>
@@ -856,100 +871,208 @@
             </div>
 
             <!-- SVG Multi-Series Trend Line -->
-            <svg v-else ref="trendPanelSvg" class="w-full h-full" viewBox="0 0 460 170" preserveAspectRatio="none">
+            <svg v-else ref="trendPanelSvg" class="w-full h-full" viewBox="0 0 560 200" preserveAspectRatio="none">
+              <defs>
+                <!-- Subtle vertical gradient for Primary Series only -->
+                <linearGradient id="scadaPrimaryFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" :stop-color="primarySeriesColor" stop-opacity="0.08" />
+                  <stop offset="100%" :stop-color="primarySeriesColor" stop-opacity="0.00" />
+                </linearGradient>
+              </defs>
+
               <!-- Y-Axis Grid Lines & Values -->
               <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="1">
                 <g v-for="(tick, idx) in trendYTicks" :key="'ytick-' + idx">
-                  <line x1="45" :y1="tick.y" x2="445" :y2="tick.y" />
+                  <line x1="52" :y1="tick.y" x2="512" :y2="tick.y" />
+                  <!-- Left Y-Axis Tick Label (~10-11px readable) -->
                   <text
-                    x="40"
-                    :y="tick.y + 3"
+                    x="46"
+                    :y="tick.y + 3.5"
                     text-anchor="end"
-                    font-size="8"
+                    font-size="9.5"
                     font-family="monospace"
-                    :fill="isDark ? '#64748b' : '#94a3b8'"
+                    :fill="isDark ? '#7E8B9B' : '#64748B'"
                   >{{ tick.label }}</text>
                 </g>
+
+                <!-- Dual Y-Axis Right Ticks (when active series have incompatible units) -->
+                <template v-if="trendScales.isDual">
+                  <g v-for="(tick, idx) in trendRightYTicks" :key="'rytick-' + idx">
+                    <text
+                      x="518"
+                      :y="tick.y + 3.5"
+                      text-anchor="start"
+                      font-size="9.5"
+                      font-family="monospace"
+                      :fill="trendScales.right ? trendScales.right.color : '#7E8B9B'"
+                    >{{ tick.label }}</text>
+                  </g>
+                </template>
+
                 <!-- Base Axis Line -->
-                <line x1="45" y1="145" x2="445" y2="145" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+                <line x1="52" y1="170" x2="512" y2="170" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+              </g>
+
+              <!-- Axis Unit Labels at top of axis -->
+              <g class="axis-units">
+                <!-- Left Axis Unit Badge -->
+                <text
+                  x="52"
+                  y="15"
+                  font-size="9.5"
+                  font-family="monospace"
+                  font-weight="bold"
+                  :fill="trendScales.left ? trendScales.left.color : (isDark ? '#00E5FF' : '#0284C7')"
+                >
+                  {{ trendScales.left ? trendScales.left.label : '' }}
+                </text>
+
+                <!-- Right Axis Unit Badge (when dual axis) -->
+                <text
+                  v-if="trendScales.isDual && trendScales.right"
+                  x="512"
+                  y="15"
+                  font-size="9.5"
+                  font-family="monospace"
+                  font-weight="bold"
+                  text-anchor="end"
+                  :fill="trendScales.right.color"
+                >
+                  {{ trendScales.right.label }}
+                </text>
               </g>
 
               <!-- X-Axis Time Ticks & Timestamps -->
               <g class="time-ticks">
                 <g v-for="(tick, idx) in trendXTicks" :key="'xtick-' + idx">
-                  <line :x1="tick.x" y1="145" :x2="tick.x" y2="149" :stroke="axisStroke" stroke-width="1" />
+                  <line :x1="tick.x" y1="170" :x2="tick.x" y2="174" :stroke="axisStroke" stroke-width="1" />
                   <text
                     :x="tick.x"
-                    y="161"
+                    y="186"
                     text-anchor="middle"
-                    font-size="8"
+                    font-size="9.5"
                     font-family="monospace"
-                    :fill="isDark ? '#64748b' : '#94a3b8'"
+                    :fill="isDark ? '#7E8B9B' : '#64748B'"
                   >{{ tick.label }}</text>
                 </g>
               </g>
 
-              <!-- Threshold Reference Lines (e.g. Critical High / Warning High) -->
+              <!-- Threshold Reference Lines (Configured limits with clear parameter labels) -->
               <g v-if="trendThresholdLines.crit != null">
-                <line x1="45" :y1="trendThresholdLines.crit.y" x2="445" :y2="trendThresholdLines.crit.y" stroke="#FF4559" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" />
-                <text x="440" :y="trendThresholdLines.crit.y - 3" fill="#FF4559" font-size="7.5" text-anchor="end" font-family="monospace">
-                  CRIT ({{ trendThresholdLines.crit.val }})
+                <line x1="52" :y1="trendThresholdLines.crit.y" x2="512" :y2="trendThresholdLines.crit.y" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+                <text x="510" :y="trendThresholdLines.crit.y - 4" fill="#EF4444" font-size="8.5" text-anchor="end" font-family="monospace" font-weight="bold">
+                  {{ trendThresholdLines.crit.label }}
                 </text>
               </g>
               <g v-if="trendThresholdLines.warn != null">
-                <line x1="45" :y1="trendThresholdLines.warn.y" x2="445" :y2="trendThresholdLines.warn.y" stroke="#FFB020" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" />
-                <text x="440" :y="trendThresholdLines.warn.y - 3" fill="#FFB020" font-size="7.5" text-anchor="end" font-family="monospace">
-                  WARN ({{ trendThresholdLines.warn.val }})
+                <line x1="52" :y1="trendThresholdLines.warn.y" x2="512" :y2="trendThresholdLines.warn.y" stroke="#F59E0B" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+                <text x="510" :y="trendThresholdLines.warn.y - 4" fill="#F59E0B" font-size="8.5" text-anchor="end" font-family="monospace" font-weight="bold">
+                  {{ trendThresholdLines.warn.label }}
                 </text>
               </g>
 
-              <!-- Series Paths -->
-              <g v-for="s in activeTrendSeries" :key="'plot-' + s.id">
-                <!-- Area gradient -->
-                <polygon
-                  :points="generateChartPolygon(s)"
-                  :fill="s.color"
-                  fill-opacity="0.14"
-                />
-                <!-- Path line -->
-                <polyline
-                  :points="generateChartPolyline(s)"
+              <!-- Primary Series Subtle Area Gradient Fill (Single primary series only) -->
+              <path
+                v-if="activeTrendSeries.length > 0 && generatePrimaryAreaPath()"
+                :d="generatePrimaryAreaPath()"
+                fill="url(#scadaPrimaryFill)"
+              />
+
+              <!-- Series Paths (Unfilled lines by default, clean 2px strokes with data gap handling) -->
+              <g v-for="(s, sIdx) in activeTrendSeries" :key="'plot-' + s.id">
+                <path
+                  :d="generateChartPath(s)"
                   fill="none"
                   :stroke="s.color"
-                  stroke-width="2"
+                  :stroke-width="sIdx === 0 ? 2.2 : 2.0"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
               </g>
 
-              <!-- Scrubbing Hover Crosshair -->
+              <!-- Scrubbing Hover Crosshair & Multi-Series Value Points -->
               <g v-if="scrubPoint">
-                <line :x1="scrubPoint.x" y1="20" :x2="scrubPoint.x" y2="145" stroke="#00CFFF" stroke-width="1.2" stroke-dasharray="2 2" />
-                <circle :cx="scrubPoint.x" :cy="scrubPoint.y" r="3.5" fill="#00CFFF" stroke="#ffffff" stroke-width="1.5" />
+                <line
+                  :x1="scrubPoint.x"
+                  y1="24"
+                  :x2="scrubPoint.x"
+                  y2="170"
+                  stroke="#00E5FF"
+                  stroke-width="1.2"
+                  stroke-dasharray="2 2"
+                  opacity="0.8"
+                />
+                <!-- Points for all active series at scrub X -->
+                <g v-for="sp in scrubPoint.allSeries" :key="'scrub-dot-' + sp.seriesId">
+                  <circle
+                    v-if="sp.plotY != null"
+                    :cx="scrubPoint.x"
+                    :cy="sp.plotY"
+                    r="3.5"
+                    :fill="sp.color"
+                    :stroke="isDark ? '#060B13' : '#FFFFFF'"
+                    stroke-width="1.5"
+                  />
+                </g>
               </g>
             </svg>
 
-            <!-- Floating Hover Tooltip -->
+            <!-- Floating Hover Tooltip (Dark Glassmorphic SCADA card with complete metadata) -->
             <div
               v-if="scrubPoint"
-              class="absolute z-30 pointer-events-none bg-white dark:bg-[#0B1422] border border-cyan-500 rounded px-2.5 py-1.5 shadow-xl text-3xs font-mono text-slate-900 dark:text-white"
-              :style="{ left: Math.min(Math.max(scrubPoint.x - 50, 10), 280) + 'px', top: '10px' }"
+              class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[210px] max-w-[290px]"
+              :style="{ left: tooltipLeftPos + 'px', top: '10px' }"
             >
-              <div class="text-slate-400 dark:text-slate-500 text-4xs border-b border-slate-200 dark:border-[#20354B] pb-0.5 mb-1">
-                {{ scrubPoint.date }} {{ scrubPoint.time }}
+              <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-slate-200 dark:border-[#1E3048] pb-1.5 mb-2 font-mono">
+                <span class="flex items-center space-x-1">
+                  <span>🕒</span>
+                  <span class="font-bold text-slate-700 dark:text-slate-200">{{ scrubPoint.date }}</span>
+                  <span>{{ scrubPoint.time }}</span>
+                </span>
+                <span class="px-1.5 py-0.2 rounded text-4xs font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                  {{ currentTimeframe }}
+                </span>
               </div>
-              <div v-for="sp in (scrubPoint.allSeries || [scrubPoint])" :key="sp.seriesId || sp.label" class="flex items-center space-x-1.5 font-bold">
-                <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: sp.color || '#00CFFF' }"></span>
-                <span class="text-slate-500 dark:text-slate-400">{{ sp.deviceCode }}:{{ sp.paramCode }}:</span>
-                <span :style="{ color: sp.color || '#00CFFF' }">{{ sp.val }} {{ sp.unit }}</span>
+
+              <div class="space-y-1.5">
+                <div
+                  v-for="sp in scrubPoint.allSeries"
+                  :key="sp.seriesId"
+                  class="flex items-center justify-between space-x-2 text-2xs"
+                >
+                  <div class="flex items-center space-x-1.5 min-w-0">
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" :style="{ backgroundColor: sp.color }"></span>
+                    <span class="text-slate-500 dark:text-slate-400 text-3xs shrink-0">{{ sp.deviceCode }} ·</span>
+                    <span class="font-bold text-slate-800 dark:text-slate-100 truncate">{{ sp.paramName || sp.paramCode }}</span>
+                  </div>
+                  <div class="flex items-center space-x-1 shrink-0 font-mono">
+                    <span class="font-black tabular-nums" :style="{ color: sp.color }">
+                      {{ sp.val }} <span class="text-3xs font-medium text-slate-500 dark:text-slate-400">{{ sp.unit }}</span>
+                    </span>
+                    <span
+                      v-if="sp.quality && sp.quality !== 'GOOD'"
+                      class="px-1 py-0.2 rounded text-4xs font-bold"
+                      :class="sp.quality === 'BAD' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'"
+                    >
+                      {{ sp.quality }}
+                    </span>
+                    <span
+                      v-if="sp.alarmStatus && sp.alarmStatus !== 'NORMAL'"
+                      class="px-1 py-0.2 rounded text-4xs font-bold"
+                      :class="sp.alarmStatus === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'"
+                    >
+                      {{ sp.alarmStatus === 'CRITICAL' ? 'CRIT' : 'WARN' }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Chart Footer Controls -->
-          <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400">
+          <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 pt-0.5">
             <div class="flex items-center space-x-2">
-              <span>Mode:</span>
+              <span class="text-slate-400 dark:text-slate-500">Mode:</span>
               <button
                 @click="setChartMode('processed')"
                 :class="chartMode === 'processed' ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
@@ -969,7 +1092,7 @@
                 class="hover:text-cyan-500 transition"
                 :title="'Current Scale: ' + (trendScaleMode === 'auto' ? 'Native units' : 'Normalized 0-100%')"
               >
-                SCALE: {{ trendScaleMode === 'auto' ? 'NATIVE' : 'NORM %' }}
+                SCALE: {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'DUAL-AXIS' : 'NATIVE') : 'NORM %' }}
               </button>
             </div>
             <div class="flex items-center space-x-2">
@@ -1552,20 +1675,69 @@
             viewBox="0 0 960 380"
             preserveAspectRatio="none"
           >
+            <defs>
+              <linearGradient id="fullscreenPrimaryFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" :stop-color="primarySeriesColor" stop-opacity="0.08" />
+                <stop offset="100%" :stop-color="primarySeriesColor" stop-opacity="0.00" />
+              </linearGradient>
+            </defs>
+
             <!-- Y-Axis Grid Lines & Values -->
             <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="1">
               <g v-for="(tick, idx) in fullscreenYTicks" :key="'fs-ytick-' + idx">
-                <line x1="60" :y1="tick.y" x2="930" :y2="tick.y" />
+                <line x1="65" :y1="tick.y" x2="905" :y2="tick.y" />
                 <text
-                  x="52"
-                  :y="tick.y + 3"
+                  x="56"
+                  :y="tick.y + 3.5"
                   text-anchor="end"
-                  font-size="10"
+                  font-size="10.5"
                   font-family="monospace"
-                  :fill="isDark ? '#64748b' : '#94a3b8'"
+                  :fill="isDark ? '#7E8B9B' : '#64748B'"
                 >{{ tick.label }}</text>
               </g>
-              <line x1="60" y1="335" x2="930" y2="335" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+
+              <!-- Dual-axis Right Ticks (when active series have incompatible units) -->
+              <template v-if="trendScales.isDual">
+                <g v-for="(tick, idx) in fullscreenRightYTicks" :key="'fs-rytick-' + idx">
+                  <text
+                    x="914"
+                    :y="tick.y + 3.5"
+                    text-anchor="start"
+                    font-size="10.5"
+                    font-family="monospace"
+                    :fill="trendScales.right ? trendScales.right.color : '#7E8B9B'"
+                  >{{ tick.label }}</text>
+                </g>
+              </template>
+
+              <!-- Base Axis Line -->
+              <line x1="65" y1="335" x2="905" y2="335" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+            </g>
+
+            <!-- Axis Unit Badges at top -->
+            <g class="axis-units">
+              <text
+                x="65"
+                y="20"
+                font-size="11"
+                font-family="monospace"
+                font-weight="bold"
+                :fill="trendScales.left ? trendScales.left.color : (isDark ? '#00E5FF' : '#0284C7')"
+              >
+                {{ trendScales.left ? trendScales.left.label : '' }}
+              </text>
+              <text
+                v-if="trendScales.isDual && trendScales.right"
+                x="905"
+                y="20"
+                font-size="11"
+                font-family="monospace"
+                font-weight="bold"
+                text-anchor="end"
+                :fill="trendScales.right.color"
+              >
+                {{ trendScales.right.label }}
+              </text>
             </g>
 
             <!-- X-Axis Time Ticks & Timestamps -->
@@ -1576,51 +1748,106 @@
                   :x="tick.x"
                   y="355"
                   text-anchor="middle"
-                  font-size="9"
+                  font-size="10"
                   font-family="monospace"
-                  :fill="isDark ? '#64748b' : '#94a3b8'"
+                  :fill="isDark ? '#7E8B9B' : '#64748B'"
                 >{{ tick.label }}</text>
               </g>
             </g>
 
-            <!-- Series Plots -->
-            <g v-for="s in activeTrendSeries" :key="'fs-plot-' + s.id">
-              <polygon
-                :points="generateChartPolygon(s, null, 960, 380, 60, 30, 30, 45)"
-                :fill="s.color"
-                fill-opacity="0.12"
-              />
-              <polyline
-                :points="generateChartPolyline(s, null, 960, 380, 60, 30, 30, 45)"
+            <!-- Threshold Reference Lines in Fullscreen -->
+            <g v-if="fullscreenThresholdLines.crit != null">
+              <line x1="65" :y1="fullscreenThresholdLines.crit.y" x2="905" :y2="fullscreenThresholdLines.crit.y" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+              <text x="900" :y="fullscreenThresholdLines.crit.y - 4" fill="#EF4444" font-size="9.5" text-anchor="end" font-family="monospace" font-weight="bold">
+                {{ fullscreenThresholdLines.crit.label }}
+              </text>
+            </g>
+            <g v-if="fullscreenThresholdLines.warn != null">
+              <line x1="65" :y1="fullscreenThresholdLines.warn.y" x2="905" :y2="fullscreenThresholdLines.warn.y" stroke="#F59E0B" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+              <text x="900" :y="fullscreenThresholdLines.warn.y - 4" fill="#F59E0B" font-size="9.5" text-anchor="end" font-family="monospace" font-weight="bold">
+                {{ fullscreenThresholdLines.warn.label }}
+              </text>
+            </g>
+
+            <!-- Primary Series Subtle Area Fill -->
+            <path
+              v-if="activeTrendSeries.length > 0 && generatePrimaryAreaPath(null, 960, 380, 65, 55, 30, 45)"
+              :d="generatePrimaryAreaPath(null, 960, 380, 65, 55, 30, 45)"
+              fill="url(#fullscreenPrimaryFill)"
+            />
+
+            <!-- Series Plots (Unfilled clean 2.2px lines with gap handling) -->
+            <g v-for="(s, sIdx) in activeTrendSeries" :key="'fs-plot-' + s.id">
+              <path
+                :d="generateChartPath(s, null, 960, 380, 65, 55, 30, 45)"
                 fill="none"
                 :stroke="s.color"
-                stroke-width="2.2"
+                :stroke-width="sIdx === 0 ? 2.4 : 2.0"
                 stroke-linecap="round"
                 stroke-linejoin="round"
               />
             </g>
 
-            <!-- Hover Scrub Crosshair -->
+            <!-- Hover Scrub Crosshair & Value Dots -->
             <g v-if="fullscreenScrubPoint">
-              <line :x1="fullscreenScrubPoint.x" y1="30" :x2="fullscreenScrubPoint.x" y2="335" stroke="#00CFFF" stroke-width="1.5" stroke-dasharray="3 3" />
+              <line :x1="fullscreenScrubPoint.x" y1="30" :x2="fullscreenScrubPoint.x" y2="335" stroke="#00E5FF" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.85" />
+              <g v-for="sp in fullscreenScrubPoint.allSeries" :key="'fs-scrub-dot-' + sp.seriesId">
+                <circle
+                  v-if="sp.plotY != null"
+                  :cx="fullscreenScrubPoint.x"
+                  :cy="sp.plotY"
+                  r="4"
+                  :fill="sp.color"
+                  :stroke="isDark ? '#060B13' : '#FFFFFF'"
+                  stroke-width="1.5"
+                />
+              </g>
             </g>
           </svg>
 
-          <!-- Hover Tooltip -->
+          <!-- Hover Tooltip in Fullscreen -->
           <div
             v-if="fullscreenScrubPoint"
-            class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#0B1422]/95 backdrop-blur-md border border-cyan-500 rounded-lg p-2.5 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white"
-            :style="{ left: Math.min(Math.max(fullscreenScrubPoint.x - 70, 20), 750) + 'px', top: '20px' }"
+            class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[260px] max-w-[340px]"
+            :style="{ left: Math.min(Math.max(fullscreenScrubPoint.rawPixelX ? (fullscreenScrubPoint.rawPixelX > 480 ? fullscreenScrubPoint.rawPixelX - 280 : fullscreenScrubPoint.rawPixelX + 20) : (fullscreenScrubPoint.x - 70), 20), 650) + 'px', top: '20px' }"
           >
-            <div class="text-slate-400 dark:text-slate-500 text-3xs border-b border-slate-200 dark:border-[#20354B] pb-1 mb-1.5 font-bold">
-              🕒 {{ fullscreenScrubPoint.date }} {{ fullscreenScrubPoint.time }}
+            <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-slate-200 dark:border-[#20354B] pb-1.5 mb-2 font-bold font-mono">
+              <span class="flex items-center space-x-1">
+                <span>🕒</span>
+                <span class="text-slate-700 dark:text-slate-200">{{ fullscreenScrubPoint.date }}</span>
+                <span>{{ fullscreenScrubPoint.time }}</span>
+              </span>
+              <span class="px-1.5 py-0.2 rounded text-4xs bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                {{ currentTimeframe }}
+              </span>
             </div>
-            <div v-for="sp in fullscreenScrubPoint.allSeries" :key="sp.seriesId" class="flex items-center justify-between space-x-3 py-0.5">
-              <div class="flex items-center space-x-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: sp.color }"></span>
-                <span class="text-slate-600 dark:text-slate-300 font-bold">{{ sp.deviceCode }}:{{ sp.paramCode }}:</span>
+            <div class="space-y-1.5">
+              <div v-for="sp in fullscreenScrubPoint.allSeries" :key="sp.seriesId" class="flex items-center justify-between space-x-3 py-0.5">
+                <div class="flex items-center space-x-2 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" :style="{ backgroundColor: sp.color }"></span>
+                  <span class="text-slate-500 dark:text-slate-400 text-3xs shrink-0">{{ sp.deviceCode }} ·</span>
+                  <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ sp.paramName || sp.paramCode }}</span>
+                </div>
+                <div class="flex items-center space-x-1.5 shrink-0 font-mono">
+                  <span class="font-black tabular-nums" :style="{ color: sp.color }">
+                    {{ sp.val }} <span class="text-3xs font-medium text-slate-500 dark:text-slate-400">{{ sp.unit }}</span>
+                  </span>
+                  <span
+                    v-if="sp.quality && sp.quality !== 'GOOD'"
+                    class="px-1 py-0.2 rounded text-4xs font-bold"
+                    :class="sp.quality === 'BAD' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'"
+                  >
+                    {{ sp.quality }}
+                  </span>
+                  <span
+                    v-if="sp.alarmStatus && sp.alarmStatus !== 'NORMAL'"
+                    class="px-1 py-0.2 rounded text-4xs font-bold"
+                    :class="sp.alarmStatus === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'"
+                  >
+                    {{ sp.alarmStatus === 'CRITICAL' ? 'CRIT' : 'WARN' }}
+                  </span>
+                </div>
               </div>
-              <span class="font-black" :style="{ color: sp.color }">{{ sp.val }} {{ sp.unit }}</span>
             </div>
           </div>
         </div>
@@ -1665,7 +1892,8 @@ import WindRoseChart from '../components/WindRoseChart.vue';
 import PollutantDispersionMap from '../components/PollutantDispersionMap.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
 
-const TREND_PALETTE = ['#00CFFF', '#168BFF', '#00D6A0', '#FFB020', '#A855F7', '#EC4899'];
+// Curated high-contrast SCADA palette (Cyan, Blue, Green, Amber, Magenta, Violet)
+const TREND_PALETTE = ['#00E5FF', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'];
 
 export default {
   name: 'OperatorCommandCenterView',
@@ -1791,41 +2019,145 @@ export default {
     axisStroke() {
       return this.isDark ? '#20354B' : '#cbd5e1';
     },
-    trendNativeScale() {
-      const allY = [];
+    primarySeriesColor() {
+      return this.activeTrendSeries.length > 0 ? this.activeTrendSeries[0].color : '#00E5FF';
+    },
+    tooltipLeftPos() {
+      if (!this.scrubPoint) return 10;
+      const rawX = this.scrubPoint.rawPixelX != null ? this.scrubPoint.rawPixelX : this.scrubPoint.x;
+      // If hovering on right half of canvas, place tooltip to the left of crosshair
+      if (rawX > 250) {
+        return Math.max(10, rawX - 270);
+      }
+      return Math.min(rawX + 16, 290);
+    },
+    trendScales() {
+      if (this.activeTrendSeries.length === 0) {
+        return {
+          left: { min: 0, max: 100, unit: '', color: '#00E5FF', label: '' },
+          right: null,
+          isDual: false,
+        };
+      }
+
+      const computeNiceScale = (yVals, defaultMin = 0, defaultMax = 100) => {
+        const valid = (yVals || []).filter(v => v !== null && typeof v === 'number' && isFinite(v));
+        if (valid.length === 0) return { min: defaultMin, max: defaultMax };
+        let min = Math.min(...valid);
+        let max = Math.max(...valid);
+        if (min === max) {
+          min = min > 0 ? Math.max(0, min * 0.8 - 1) : min - 5;
+          max = max + 5;
+        } else {
+          const padding = (max - min) * 0.08;
+          min = min - padding;
+          max = max + padding;
+        }
+        return { min, max };
+      };
+
+      if (this.trendScaleMode === 'normalized') {
+        return {
+          left: { min: 0, max: 100, unit: '%', color: '#00E5FF', label: '[ 0-100% SPAN ]' },
+          right: null,
+          isDual: false,
+        };
+      }
+
+      const s1 = this.activeTrendSeries[0];
+      const unit1 = (s1.unit || '').trim();
+      const diffSeries = this.activeTrendSeries.find(s => (s.unit || '').trim() !== unit1);
+
+      if (!diffSeries) {
+        // All series have matching unit or single series
+        const allY = [];
+        this.activeTrendSeries.forEach(s => {
+          (s.dataPoints || []).forEach(p => {
+            if (p.y !== null && typeof p.y === 'number' && isFinite(p.y)) allY.push(p.y);
+          });
+        });
+        const scale = computeNiceScale(allY);
+        return {
+          left: {
+            min: scale.min,
+            max: scale.max,
+            unit: unit1,
+            color: s1.color,
+            label: unit1 ? `[ ${unit1} ]` : (s1.paramName || s1.paramCode),
+          },
+          right: null,
+          isDual: false,
+        };
+      }
+
+      // Dual-Axis: Series matching unit1 on left, series with different unit on right
+      const unit2 = (diffSeries.unit || '').trim();
+      const leftY = [];
+      const rightY = [];
+
       this.activeTrendSeries.forEach(s => {
-        if (s.dataPoints && s.dataPoints.length > 0) {
-          allY.push(...s.dataPoints.map(p => p.y).filter(v => typeof v === 'number' && !isNaN(v)));
+        const u = (s.unit || '').trim();
+        const pts = (s.dataPoints || []).map(p => p.y).filter(v => v !== null && typeof v === 'number' && isFinite(v));
+        if (u === unit1) {
+          leftY.push(...pts);
+        } else {
+          rightY.push(...pts);
         }
       });
-      if (allY.length === 0) return { min: 0, max: 100 };
-      let min = Math.min(...allY);
-      let max = Math.max(...allY);
-      if (min === max) {
-        min = Math.floor(min - 5);
-        max = Math.ceil(max + 5);
-      } else {
-        const padding = (max - min) * 0.05;
-        min = Math.floor(min - padding);
-        max = Math.ceil(max + padding);
-      }
-      return { min, max };
+
+      const leftScale = computeNiceScale(leftY);
+      const rightScale = computeNiceScale(rightY);
+
+      return {
+        left: {
+          min: leftScale.min,
+          max: leftScale.max,
+          unit: unit1,
+          color: s1.color,
+          label: unit1 ? `[ ${unit1} ]` : (s1.paramName || s1.paramCode),
+        },
+        right: {
+          min: rightScale.min,
+          max: rightScale.max,
+          unit: unit2,
+          color: diffSeries.color,
+          label: unit2 ? `[ ${unit2} ]` : (diffSeries.paramName || diffSeries.paramCode),
+        },
+        isDual: true,
+      };
+    },
+    trendNativeScale() {
+      const left = this.trendScales.left;
+      return { min: left.min, max: left.max };
     },
     trendYTicks() {
-      const scale = this.trendNativeScale;
+      const scale = this.trendScales.left;
       const ticks = [];
       const steps = 4;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const y = 20 + 125 - frac * 125;
+        const y = 170 - frac * 146;
         let label = '';
         if (this.trendScaleMode === 'normalized') {
           label = `${Math.round(frac * 100)}%`;
         } else {
           const val = scale.min + frac * (scale.max - scale.min);
-          label = isNaN(val) ? '--' : (Math.abs(val) >= 100 ? val.toFixed(0) : val.toFixed(1));
+          label = this.formatAxisValue(val);
         }
         ticks.push({ y, frac, label });
+      }
+      return ticks;
+    },
+    trendRightYTicks() {
+      if (!this.trendScales.isDual || !this.trendScales.right) return [];
+      const scale = this.trendScales.right;
+      const ticks = [];
+      const steps = 4;
+      for (let i = 0; i <= steps; i++) {
+        const frac = i / steps;
+        const y = 170 - frac * 146;
+        const val = scale.min + frac * (scale.max - scale.min);
+        ticks.push({ y, frac, label: this.formatAxisValue(val) });
       }
       return ticks;
     },
@@ -1833,37 +2165,60 @@ export default {
       const start = this.trendTimeBounds.start;
       const end = this.trendTimeBounds.end;
       const span = Math.max(end - start, 1000);
+      const padLeft = 52;
+      const plotW = 460;
       const ticks = [];
       const steps = 4;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const x = 45 + frac * 400;
+        const x = padLeft + frac * plotW;
         const time = new Date(start + frac * span);
         let label = '';
-        if (span <= 24 * 3600 * 1000) {
+        if (span <= 20 * 60 * 1000) {
+          // 15m range: e.g. 15:30, 15:35, 15:40
+          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else if (span <= 2 * 3600 * 1000) {
+          // 1h range: e.g. 14:00, 14:15, 14:30
+          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else if (span <= 25 * 3600 * 1000) {
+          // 6h / 24h range: e.g. 00:00, 06:00, 12:00, 18:00
           label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else {
-          label = `${time.getMonth() + 1}/${time.getDate()} ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          // 7d range: e.g. 12 Oct, 13 Oct
+          label = time.toLocaleDateString([], { month: 'short', day: 'numeric' });
         }
         ticks.push({ x, label });
       }
       return ticks;
     },
     fullscreenYTicks() {
-      const scale = this.trendNativeScale;
+      const scale = this.trendScales.left;
       const ticks = [];
       const steps = 5;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const y = 30 + 305 - frac * 305;
+        const y = 335 - frac * 305;
         let label = '';
         if (this.trendScaleMode === 'normalized') {
           label = `${Math.round(frac * 100)}%`;
         } else {
           const val = scale.min + frac * (scale.max - scale.min);
-          label = isNaN(val) ? '--' : (Math.abs(val) >= 100 ? val.toFixed(0) : val.toFixed(1));
+          label = this.formatAxisValue(val);
         }
         ticks.push({ y, frac, label });
+      }
+      return ticks;
+    },
+    fullscreenRightYTicks() {
+      if (!this.trendScales.isDual || !this.trendScales.right) return [];
+      const scale = this.trendScales.right;
+      const ticks = [];
+      const steps = 5;
+      for (let i = 0; i <= steps; i++) {
+        const frac = i / steps;
+        const y = 335 - frac * 305;
+        const val = scale.min + frac * (scale.max - scale.min);
+        ticks.push({ y, frac, label: this.formatAxisValue(val) });
       }
       return ticks;
     },
@@ -1871,42 +2226,107 @@ export default {
       const start = this.trendTimeBounds.start;
       const end = this.trendTimeBounds.end;
       const span = Math.max(end - start, 1000);
+      const padLeft = 65;
+      const plotW = 840;
       const ticks = [];
       const steps = 7;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const x = 60 + frac * 870;
+        const x = padLeft + frac * plotW;
         const time = new Date(start + frac * span);
         let label = '';
-        if (span <= 24 * 3600 * 1000) {
+        if (span <= 20 * 60 * 1000) {
           label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } else if (span <= 25 * 3600 * 1000) {
+          label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else {
-          label = `${time.getMonth() + 1}/${time.getDate()} ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          label = `${time.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
         }
         ticks.push({ x, label });
       }
       return ticks;
     },
     trendThresholdLines() {
-      if (this.activeTrendSeries.length === 0) return { crit: null, warn: null };
-      const first = this.activeTrendSeries[0];
-      const param = this.allParameters.find(p => p.param_id === first.parameterId);
-      if (!param) return { crit: null, warn: null };
+      if (this.activeTrendSeries.length === 0 || this.trendScaleMode === 'normalized') return { crit: null, warn: null };
+      for (const s of this.activeTrendSeries) {
+        const param = this.allParameters.find(p => p.param_id === s.parameterId);
+        if (!param || (param.high_critical == null && param.high_warning == null)) continue;
 
-      const scale = this.trendNativeScale;
-      const span = scale.max - scale.min || 1;
-      let crit = null;
-      let warn = null;
+        const isRightAxis = this.trendScales.isDual && (s.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
+        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
+        const span = scale.max - scale.min || 1;
 
-      if (param.high_critical != null && this.trendScaleMode !== 'normalized') {
-        const frac = Math.min(Math.max((param.high_critical - scale.min) / span, 0), 1);
-        crit = { y: 20 + 125 - frac * 125, val: param.high_critical };
+        let crit = null;
+        let warn = null;
+
+        if (param.high_critical != null) {
+          const frac = (param.high_critical - scale.min) / span;
+          if (frac >= 0 && frac <= 1.08) {
+            const y = 170 - Math.min(Math.max(frac, 0), 1) * 146;
+            crit = {
+              y,
+              val: param.high_critical,
+              label: `${param.param_code || s.paramCode} CRIT ${param.high_critical} ${param.unit || ''}`.trim(),
+            };
+          }
+        }
+
+        if (param.high_warning != null) {
+          const frac = (param.high_warning - scale.min) / span;
+          if (frac >= 0 && frac <= 1.08) {
+            const y = 170 - Math.min(Math.max(frac, 0), 1) * 146;
+            warn = {
+              y,
+              val: param.high_warning,
+              label: `${param.param_code || s.paramCode} WARN ${param.high_warning} ${param.unit || ''}`.trim(),
+            };
+          }
+        }
+
+        if (crit || warn) return { crit, warn };
       }
-      if (param.high_warning != null && this.trendScaleMode !== 'normalized') {
-        const frac = Math.min(Math.max((param.high_warning - scale.min) / span, 0), 1);
-        warn = { y: 20 + 125 - frac * 125, val: param.high_warning };
+      return { crit: null, warn: null };
+    },
+    fullscreenThresholdLines() {
+      if (this.activeTrendSeries.length === 0 || this.trendScaleMode === 'normalized') return { crit: null, warn: null };
+      for (const s of this.activeTrendSeries) {
+        const param = this.allParameters.find(p => p.param_id === s.parameterId);
+        if (!param || (param.high_critical == null && param.high_warning == null)) continue;
+
+        const isRightAxis = this.trendScales.isDual && (s.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
+        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
+        const span = scale.max - scale.min || 1;
+
+        let crit = null;
+        let warn = null;
+
+        if (param.high_critical != null) {
+          const frac = (param.high_critical - scale.min) / span;
+          if (frac >= 0 && frac <= 1.08) {
+            const y = 335 - Math.min(Math.max(frac, 0), 1) * 305;
+            crit = {
+              y,
+              val: param.high_critical,
+              label: `${param.param_code || s.paramCode} CRIT ${param.high_critical} ${param.unit || ''}`.trim(),
+            };
+          }
+        }
+
+        if (param.high_warning != null) {
+          const frac = (param.high_warning - scale.min) / span;
+          if (frac >= 0 && frac <= 1.08) {
+            const y = 335 - Math.min(Math.max(frac, 0), 1) * 305;
+            warn = {
+              y,
+              val: param.high_warning,
+              label: `${param.param_code || s.paramCode} WARN ${param.high_warning} ${param.unit || ''}`.trim(),
+            };
+          }
+        }
+
+        if (crit || warn) return { crit, warn };
       }
-      return { crit, warn };
+      return { crit: null, warn: null };
     },
     formatFullscreenWindowStr() {
       const s = new Date(this.trendTimeBounds.start);
@@ -2654,7 +3074,7 @@ export default {
     },
 
     // ----------------------------------------------------
-    // TREND ANALYSIS TIME-SERIES MAPPING
+    // TREND ANALYSIS TIME-SERIES MAPPING & RENDERING
     // ----------------------------------------------------
     selectParamForTrend(param) {
       const existingIdx = this.activeTrendSeries.findIndex(s => s.parameterId === param.param_id);
@@ -2664,14 +3084,19 @@ export default {
         if (this.activeTrendSeries.length >= 6) {
           this.activeTrendSeries.shift();
         }
-        const color = TREND_PALETTE[this.activeTrendSeries.length % TREND_PALETTE.length];
+        // Stable color assignment: pick first available color from palette
+        const usedColors = new Set(this.activeTrendSeries.map(s => s.color));
+        const color = TREND_PALETTE.find(c => !usedColors.has(c)) || TREND_PALETTE[this.activeTrendSeries.length % TREND_PALETTE.length];
+
         this.activeTrendSeries.push({
           id: `${param.device_id}_${param.param_id}`,
           deviceId: param.device_id,
           parameterId: param.param_id,
           deviceCode: param.device_code,
           paramCode: param.param_code,
+          paramName: param.param_name || param.param_code,
           unit: param.unit || '',
+          precision: param.precision !== undefined ? param.precision : 2,
           latestVal: this.formatParamValue(param),
           color,
           dataPoints: [],
@@ -2721,6 +3146,23 @@ export default {
       this.showTrendFullscreen = false;
       this.showTrendParamPicker = false;
     },
+    formatAxisValue(val) {
+      if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return '--';
+      const abs = Math.abs(val);
+      if (abs >= 10000) {
+        return (val / 1000).toFixed(1) + 'k';
+      } else if (abs >= 100) {
+        return val.toFixed(0);
+      } else if (abs >= 10) {
+        return val.toFixed(1);
+      } else if (abs >= 1) {
+        return val.toFixed(2);
+      } else if (abs === 0) {
+        return '0';
+      } else {
+        return val.toFixed(3);
+      }
+    },
     async fetchTrendData() {
       if (this.activeTrendSeries.length === 0) return;
       this.isChartLoading = true;
@@ -2759,14 +3201,20 @@ export default {
               },
             });
             if (downRes.data && downRes.data.data && Array.isArray(downRes.data.data.points) && downRes.data.data.points.length > 0) {
-              points = downRes.data.data.points.map(p => ({
-                x: new Date(p.timestamp).getTime(),
-                y: p.value !== null && p.value !== undefined ? Number(p.value) : (Number(p.avg_value) || 0),
-                min: p.min_value !== undefined ? p.min_value : null,
-                max: p.max_value !== undefined ? p.max_value : null,
-                avg: p.avg_value !== undefined ? p.avg_value : null,
-                quality: p.quality || 'GOOD',
-              }));
+              points = downRes.data.data.points.map(p => {
+                const rawVal = p.value !== null && p.value !== undefined ? p.value : p.avg_value;
+                const numVal = rawVal !== null && rawVal !== undefined && rawVal !== '' ? Number(rawVal) : null;
+                // Reject invalid numbers, NaN, or raw epoch timestamps (e.g. > 1e8) mistakenly in value
+                const isValid = numVal !== null && isFinite(numVal) && Math.abs(numVal) < 1e8;
+                return {
+                  x: new Date(p.timestamp).getTime(),
+                  y: isValid ? numVal : null,
+                  min: p.min_value !== undefined && isFinite(p.min_value) ? Number(p.min_value) : null,
+                  max: p.max_value !== undefined && isFinite(p.max_value) ? Number(p.max_value) : null,
+                  avg: p.avg_value !== undefined && isFinite(p.avg_value) ? Number(p.avg_value) : null,
+                  quality: p.quality || 'GOOD',
+                };
+              });
             }
           } catch (err) {
             // silent fallback
@@ -2789,42 +3237,168 @@ export default {
 
             if (res && res.data && res.data.data) {
               const items = res.data.data.items || [];
-              points = items.map(item => ({
-                x: new Date(item.received_at || item.timestamp).getTime(),
-                y: Number(this.chartMode === 'raw' ? (item.raw_value !== undefined ? item.raw_value : item.value) : (item.processed_value !== undefined ? item.processed_value : item.value)) || 0,
-                quality: item.quality || 'GOOD',
-              }));
+              points = items.map(item => {
+                const raw = this.chartMode === 'raw'
+                  ? (item.raw_value !== undefined ? item.raw_value : item.value)
+                  : (item.processed_value !== undefined ? item.processed_value : item.value);
+                const num = raw !== null && raw !== undefined && raw !== '' ? Number(raw) : null;
+                const isValid = num !== null && isFinite(num) && Math.abs(num) < 1e8;
+                return {
+                  x: new Date(item.received_at || item.timestamp).getTime(),
+                  y: isValid ? num : null,
+                  quality: item.quality || 'GOOD',
+                };
+              });
             }
           }
 
-          s.dataPoints = points.sort((a, b) => a.x - b.x);
+          // Filter out bad timestamps and sort chronologically
+          const validPoints = points
+            .filter(p => p.x && !isNaN(p.x))
+            .sort((a, b) => a.x - b.x);
 
-          // Calculate statistics over window
-          if (s.dataPoints.length > 0) {
-            const yVals = s.dataPoints.map(p => p.y).filter(v => typeof v === 'number' && !isNaN(v));
-            if (yVals.length > 0) {
-              const min = Math.min(...yVals);
-              const max = Math.max(...yVals);
-              const sum = yVals.reduce((acc, v) => acc + v, 0);
-              const avg = sum / yVals.length;
-              s.stats = {
-                min: min.toFixed(Math.abs(min) >= 100 ? 0 : 2),
-                max: max.toFixed(Math.abs(max) >= 100 ? 0 : 2),
-                avg: avg.toFixed(Math.abs(avg) >= 100 ? 0 : 2),
-                count: yVals.length,
-              };
-              const lastVal = yVals[yVals.length - 1];
-              s.latestVal = lastVal.toFixed(Math.abs(lastVal) >= 100 ? 0 : 2);
+          // Deduplicate consecutive points with identical timestamps
+          const deduplicated = [];
+          for (let i = 0; i < validPoints.length; i++) {
+            if (i === 0 || validPoints[i].x !== validPoints[i - 1].x) {
+              deduplicated.push(validPoints[i]);
+            } else {
+              deduplicated[deduplicated.length - 1] = validPoints[i];
             }
+          }
+          s.dataPoints = deduplicated;
+
+          // Calculate statistics over window using only valid numeric values
+          const yVals = s.dataPoints.map(p => p.y).filter(v => v !== null && typeof v === 'number' && isFinite(v));
+          if (yVals.length > 0) {
+            const min = Math.min(...yVals);
+            const max = Math.max(...yVals);
+            const sum = yVals.reduce((acc, v) => acc + v, 0);
+            const avg = sum / yVals.length;
+            const prec = s.precision !== undefined ? s.precision : (Math.abs(max) >= 100 ? 1 : 2);
+            s.stats = {
+              min: min.toFixed(prec),
+              max: max.toFixed(prec),
+              avg: avg.toFixed(prec),
+              count: yVals.length,
+            };
+            const lastVal = yVals[yVals.length - 1];
+            s.latestVal = lastVal.toFixed(prec);
           } else {
             s.stats = { min: '--', max: '--', avg: '--', count: 0 };
+            s.latestVal = '--';
           }
         }
       } finally {
         this.isChartLoading = false;
       }
     },
-    generateChartPolyline(series, bounds = null, width = 460, height = 170, padLeft = 45, padRight = 15, padTop = 20, padBottom = 25) {
+    generateChartPath(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
+      const pts = series.dataPoints;
+      if (!pts || pts.length === 0) return '';
+
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+
+      const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
+      const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
+      const timeSpan = Math.max(timeEnd - timeStart, 1000);
+
+      // Determine scale for this series (supports dual axis)
+      let minY = 0;
+      let maxY = 100;
+      if (this.trendScaleMode === 'auto') {
+        const isRightAxis = this.trendScales.isDual && (series.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
+        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
+        minY = scale.min;
+        maxY = scale.max;
+      } else {
+        const yVals = pts.map(p => p.y).filter(v => v !== null && isFinite(v));
+        minY = yVals.length > 0 ? Math.min(...yVals) : 0;
+        maxY = yVals.length > 0 ? Math.max(...yVals) : 100;
+      }
+      if (minY === maxY) {
+        minY -= 1;
+        maxY += 1;
+      }
+      const spanY = maxY - minY || 1;
+
+      // Estimate gap threshold: when delta t exceeds 3-4x typical sample interval, break path
+      let maxGapMs = 15 * 60 * 1000;
+      if (timeSpan <= 20 * 60 * 1000) maxGapMs = 60 * 1000; // 1 min for 15m
+      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 5 * 60 * 1000; // 5 min for 1h
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 25 * 60 * 1000; // 25 min for 6h
+      else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000; // 1 hr for 24h
+      else maxGapMs = 4 * 3600 * 1000; // 4 hrs for 7d
+
+      let pathStr = '';
+      let inSegment = false;
+      let prevX = null;
+
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        if (p.y === null || !isFinite(p.y)) {
+          inSegment = false;
+          continue;
+        }
+
+        const px = padLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
+        const py = (padTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
+
+        if (prevX !== null && (p.x - prevX) > maxGapMs) {
+          inSegment = false;
+        }
+
+        if (!inSegment) {
+          pathStr += ` M ${px.toFixed(1)} ${py.toFixed(1)}`;
+          inSegment = true;
+        } else {
+          pathStr += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        }
+        prevX = p.x;
+      }
+
+      return pathStr.trim();
+    },
+    generatePrimaryAreaPath(bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
+      if (this.activeTrendSeries.length === 0) return '';
+      const primary = this.activeTrendSeries[0];
+      const pts = (primary.dataPoints || []).filter(p => p.y !== null && isFinite(p.y));
+      if (pts.length === 0) return '';
+
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+      const baseY = padTop + plotH;
+
+      const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
+      const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
+      const timeSpan = Math.max(timeEnd - timeStart, 1000);
+
+      let minY = this.trendScales.left.min;
+      let maxY = this.trendScales.left.max;
+      if (minY === maxY) {
+        minY -= 1;
+        maxY += 1;
+      }
+      const spanY = maxY - minY || 1;
+
+      let d = '';
+      const firstX = padLeft + Math.min(Math.max((pts[0].x - timeStart) / timeSpan, 0), 1) * plotW;
+      const lastX = padLeft + Math.min(Math.max((pts[pts.length - 1].x - timeStart) / timeSpan, 0), 1) * plotW;
+
+      for (let i = 0; i < pts.length; i++) {
+        const px = padLeft + Math.min(Math.max((pts[i].x - timeStart) / timeSpan, 0), 1) * plotW;
+        const py = (padTop + plotH) - Math.min(Math.max((pts[i].y - minY) / spanY, 0), 1) * plotH;
+        if (i === 0) {
+          d += `M ${px.toFixed(1)} ${baseY} L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        } else {
+          d += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        }
+      }
+      d += ` L ${lastX.toFixed(1)} ${baseY} Z`;
+      return d;
+    },
+    generateChartPolyline(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
       const pts = series.dataPoints;
       if (!pts || pts.length === 0) return '';
 
@@ -2838,11 +3412,12 @@ export default {
       let minY = 0;
       let maxY = 100;
       if (this.trendScaleMode === 'auto') {
-        const scale = this.trendNativeScale;
+        const isRightAxis = this.trendScales.isDual && (series.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
+        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
         minY = scale.min;
         maxY = scale.max;
       } else {
-        const yVals = pts.map(p => p.y).filter(v => !isNaN(v));
+        const yVals = pts.map(p => p.y).filter(v => v !== null && isFinite(v));
         minY = yVals.length > 0 ? Math.min(...yVals) : 0;
         maxY = yVals.length > 0 ? Math.max(...yVals) : 100;
       }
@@ -2852,16 +3427,19 @@ export default {
       }
       const spanY = maxY - minY || 1;
 
-      return pts.map(p => {
-        const px = padLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
-        const py = (padTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
-        return `${px.toFixed(1)},${py.toFixed(1)}`;
-      }).join(' ');
+      return pts
+        .filter(p => p.y !== null && isFinite(p.y))
+        .map(p => {
+          const px = padLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
+          const py = (padTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
+          return `${px.toFixed(1)},${py.toFixed(1)}`;
+        }).join(' ');
     },
-    generateChartPolygon(series, bounds = null, width = 460, height = 170, padLeft = 45, padRight = 15, padTop = 20, padBottom = 25) {
+    generateChartPolygon(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
       const polyline = this.generateChartPolyline(series, bounds, width, height, padLeft, padRight, padTop, padBottom);
       if (!polyline) return '';
-      const pts = series.dataPoints;
+      const pts = (series.dataPoints || []).filter(p => p.y !== null && isFinite(p.y));
+      if (pts.length === 0) return '';
       const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
       const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
       const timeSpan = Math.max(timeEnd - timeStart, 1000);
@@ -2878,12 +3456,12 @@ export default {
     onChartScrub(e) {
       if (!this.$refs.scadaChartContainer || this.activeTrendSeries.length === 0) return;
       const rect = this.$refs.scadaChartContainer.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const scaleX = 460 / rect.width;
+      const mouseX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const scaleX = 560 / rect.width;
       const chartX = mouseX * scaleX;
 
-      const padLeft = 45;
-      const plotW = 400;
+      const padLeft = 52;
+      const plotW = 460;
       const clampedX = Math.min(Math.max(chartX, padLeft), padLeft + plotW);
       const frac = (clampedX - padLeft) / plotW;
 
@@ -2903,24 +3481,49 @@ export default {
             closest = s.dataPoints[i];
           }
         }
+
+        const isRightAxis = this.trendScales.isDual && (s.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
+        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
+        const spanY = scale.max - scale.min || 1;
+        let plotY = null;
+        if (closest.y !== null && isFinite(closest.y)) {
+          const fracY = Math.min(Math.max((closest.y - scale.min) / spanY, 0), 1);
+          plotY = 24 + 146 - fracY * 146;
+        }
+
+        const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
+        let alarmStatus = 'NORMAL';
+        if (closest.y !== null && typeof closest.y === 'number') {
+          if (param.high_critical != null && closest.y >= param.high_critical) {
+            alarmStatus = 'CRITICAL';
+          } else if (param.high_warning != null && closest.y >= param.high_warning) {
+            alarmStatus = 'WARNING';
+          }
+        }
+
         seriesValues.push({
           seriesId: s.id,
           deviceCode: s.deviceCode,
           paramCode: s.paramCode,
-          val: closest.y !== null && closest.y !== undefined ? closest.y.toFixed(Math.abs(closest.y) >= 100 ? 0 : 2) : '--',
+          paramName: s.paramName || param.param_name || s.paramCode,
+          val: closest.y !== null && closest.y !== undefined ? this.formatAxisValue(closest.y) : '--',
           unit: s.unit || '',
           color: s.color,
+          plotY,
           quality: closest.quality || 'GOOD',
+          alarmStatus,
         });
       }
 
-      const firstSeries = seriesValues[0] || { deviceCode: 'AQMS', paramCode: 'val', val: '--', unit: '' };
+      const firstSeries = seriesValues[0] || { deviceCode: 'AQMS', paramCode: 'val', paramName: 'Param', val: '--', unit: '' };
+      const d = new Date(hoverTime);
       this.scrubPoint = {
         x: clampedX,
+        rawPixelX: mouseX,
         y: 85,
-        time: new Date(hoverTime).toLocaleTimeString('en-GB'),
-        date: new Date(hoverTime).toLocaleDateString(),
-        label: `${firstSeries.deviceCode}:${firstSeries.paramCode}`,
+        time: d.toLocaleTimeString('en-GB'),
+        date: d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
+        label: `${firstSeries.deviceCode} · ${firstSeries.paramName}`,
         val: firstSeries.val,
         unit: firstSeries.unit,
         allSeries: seriesValues,
@@ -2929,12 +3532,12 @@ export default {
     onFullscreenChartScrub(e) {
       if (!this.$refs.fullscreenChartContainer || this.activeTrendSeries.length === 0) return;
       const rect = this.$refs.fullscreenChartContainer.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
+      const mouseX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const scaleX = 960 / rect.width;
       const chartX = mouseX * scaleX;
 
-      const padLeft = 60;
-      const plotW = 870;
+      const padLeft = 65;
+      const plotW = 840;
       const clampedX = Math.min(Math.max(chartX, padLeft), padLeft + plotW);
       const frac = (clampedX - padLeft) / plotW;
 
@@ -2954,21 +3557,46 @@ export default {
             closest = s.dataPoints[i];
           }
         }
+
+        const isRightAxis = this.trendScales.isDual && (s.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
+        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
+        const spanY = scale.max - scale.min || 1;
+        let plotY = null;
+        if (closest.y !== null && isFinite(closest.y)) {
+          const fracY = Math.min(Math.max((closest.y - scale.min) / spanY, 0), 1);
+          plotY = 30 + 305 - fracY * 305;
+        }
+
+        const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
+        let alarmStatus = 'NORMAL';
+        if (closest.y !== null && typeof closest.y === 'number') {
+          if (param.high_critical != null && closest.y >= param.high_critical) {
+            alarmStatus = 'CRITICAL';
+          } else if (param.high_warning != null && closest.y >= param.high_warning) {
+            alarmStatus = 'WARNING';
+          }
+        }
+
         seriesValues.push({
           seriesId: s.id,
           deviceCode: s.deviceCode,
           paramCode: s.paramCode,
-          val: closest.y !== null && closest.y !== undefined ? closest.y.toFixed(Math.abs(closest.y) >= 100 ? 0 : 2) : '--',
+          paramName: s.paramName || param.param_name || s.paramCode,
+          val: closest.y !== null && closest.y !== undefined ? this.formatAxisValue(closest.y) : '--',
           unit: s.unit || '',
           color: s.color,
+          plotY,
           quality: closest.quality || 'GOOD',
+          alarmStatus,
         });
       }
 
+      const d = new Date(hoverTime);
       this.fullscreenScrubPoint = {
         x: clampedX,
-        time: new Date(hoverTime).toLocaleTimeString('en-GB'),
-        date: new Date(hoverTime).toLocaleDateString(),
+        rawPixelX: mouseX,
+        time: d.toLocaleTimeString('en-GB'),
+        date: d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
         allSeries: seriesValues,
       };
     },
