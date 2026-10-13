@@ -346,7 +346,7 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 				strings.Contains(errStr, "cannot find") ||
 				strings.Contains(errStr, "timeout") {
 				nowErr := time.Now().UTC()
-				for j := idx + 1; j < len(enabledParams); j++ {
+				for j := idx; j < len(enabledParams); j++ {
 					remParam := enabledParams[j]
 					lastKnownVal := 0.0
 					if remParam.CurrentProcessedValue != nil {

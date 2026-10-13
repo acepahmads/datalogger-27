@@ -1634,17 +1634,29 @@ export default {
     },
     isDeviceActiveOnline(dev) {
       if (!dev) return false;
-      if (dev.connection_status === 'ONLINE' || dev.connection_status === 'CONNECTED') {
+      const status = dev.connection_status || dev.status;
+      // If explicitly marked offline, error, disconnected, failed, or disabled, it is NOT online
+      if (
+        status === 'OFFLINE' ||
+        status === 'DISCONNECTED' ||
+        status === 'ERROR' ||
+        status === 'FAILED' ||
+        status === 'DISABLED' ||
+        dev.enabled === false
+      ) {
+        return false;
+      }
+      if (status === 'ONLINE' || status === 'CONNECTED') {
         return true;
       }
+      // Fallback only if status is empty/unknown: verify fresh live telemetry arrived within 15 seconds
       const nowMs = this.currentTimeMs || Date.now();
       return (dev.parameters || []).some(p => {
         const live = this.liveMap[p.id];
-        const ts = live?.received_at || p.current_received_at || p.last_updated;
+        const ts = live?.received_at || p.current_received_at;
         if (!ts) return false;
         const ageSec = (nowMs - new Date(ts).getTime()) / 1000;
-        const maxAge = p.stale_timeout_seconds || 120;
-        return ageSec < maxAge && (live?.quality === 'GOOD' || p.current_quality === 'GOOD');
+        return ageSec < 15 && live?.quality === 'GOOD';
       });
     },
     setupPollingTimer() {
@@ -1695,7 +1707,7 @@ export default {
         const devId = data.device_id;
         if (devId) {
           const target = this.devicesList.find(d => d.id === devId);
-          if (target && !this.isDeviceActiveOnline(target)) {
+          if (target) {
             target.connection_status = 'ERROR';
           }
         }
@@ -1721,11 +1733,15 @@ export default {
       }
       this.lastTelemetrySecondsAgo = 0;
 
-      // Update device connection status when good telemetry arrives
+      // Update device connection status when telemetry arrives
       if (data.device_id) {
         const target = this.devicesList.find(d => d.id === data.device_id);
-        if (target && data.quality !== 'BAD') {
-          target.connection_status = 'ONLINE';
+        if (target) {
+          if (data.quality === 'GOOD') {
+            target.connection_status = 'ONLINE';
+          } else if (data.quality === 'BAD' && (data.quality_reason === 'COMMUNICATION_ERROR' || data.quality_reason === 'DEVICE_OFFLINE')) {
+            target.connection_status = 'ERROR';
+          }
         }
       }
 
@@ -1788,9 +1804,8 @@ export default {
                   this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - itemTime) / 1000));
                 }
               }
-              if (item.quality === 'GOOD') {
-                dev.connection_status = 'ONLINE';
-              }
+              // Parameter values and sparklines are updated from latest cache.
+              // Device connection status is maintained strictly by backend comm events and catalog sync.
             }
           }
         } catch (e) {

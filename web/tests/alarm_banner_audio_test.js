@@ -383,6 +383,29 @@ runTest('Test 13: Rapid repeat intervals (1s, 3s, 5s, 10s) supported with 1s min
 });
 
 // -------------------------------------------------------------
+// Test 14: SCADA Single Audio Stream Rule (Single Master Critical Timer)
+// -------------------------------------------------------------
+runTest('Test 14: SCADA Single Audio Stream — multiple critical alarms share a single master timer', () => {
+  const audioAlertFilePath = path.join(__dirname, '../src/utils/audioAlert.js');
+  const audioAlertContent = fs.readFileSync(audioAlertFilePath, 'utf8');
+
+  assert.ok(audioAlertContent.includes('masterCriticalTimer'), 'audioAlert.js must use masterCriticalTimer');
+  assert.ok(audioAlertContent.includes('activeCriticalAlarmIds'), 'audioAlert.js must track active critical IDs in a Set');
+  assert.ok(audioAlertContent.includes('isFirstCritical'), 'audioAlert.js must start timer only on first critical alarm');
+});
+
+// -------------------------------------------------------------
+// Test 15: Warning chimes debounced during simultaneous alarm storms
+// -------------------------------------------------------------
+runTest('Test 15: Warning chimes debounced during simultaneous alarm storms (single chime for cluster)', () => {
+  const audioAlertFilePath = path.join(__dirname, '../src/utils/audioAlert.js');
+  const audioAlertContent = fs.readFileSync(audioAlertFilePath, 'utf8');
+
+  assert.ok(audioAlertContent.includes('lastWarningTime'), 'audioAlert.js must track lastWarningTime for debouncing');
+  assert.ok(audioAlertContent.includes('now - this.lastWarningTime < 3000'), 'audioAlert.js must debounce warning sounds within 3s');
+});
+
+// -------------------------------------------------------------
 // Summary
 // -------------------------------------------------------------
 console.log('\n===============================================================');
