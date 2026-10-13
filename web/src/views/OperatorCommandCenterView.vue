@@ -1488,6 +1488,7 @@ export default {
           }
 
           let rawQuality = live.quality || p.current_quality || 'UNKNOWN';
+          let finalQuality = rawQuality;
           // If the device is offline/disconnected: all parameters have communication failure -> BAD!
           // If the device is online, but data has not arrived past stale timeout -> STALE!
           if (isDevOffline) {
@@ -1824,7 +1825,7 @@ export default {
     },
     async fetchEvents() {
       try {
-        const res = await axios.get('/api/audit-trail?page=1&page_size=30');
+        const res = await axios.get('/api/audit-trails?page=1&page_size=30');
         if (res.data && res.data.data) {
           this.recentEvents = res.data.data.items || res.data.data || [];
         }
