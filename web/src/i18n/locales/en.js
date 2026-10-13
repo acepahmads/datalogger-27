@@ -1817,6 +1817,18 @@ export default {
     "formula": "CALC",
     "testAudioWarning": "Test Warning Sound",
     "testAudioCritical": "Test Critical Sound",
-    "recordsLoaded": "records loaded"
+    "recordsLoaded": "records loaded",
+    "windRoseTitle": "Wind Rose",
+    "windRoseSubtitle": "Wind direction and speed distribution",
+    "selectStation": "Select Station",
+    "windUnavailable": "Wind data unavailable",
+    "dispersionTitle": "Pollutant Dispersion",
+    "dispersionSubtitle": "Environmental distribution and wind context",
+    "selectPollutant": "Select Pollutant",
+    "allStations": "All Stations",
+    "filterStation": "Filter Station",
+    "measuredPoints": "Measured Points",
+    "spatialInterpolation": "Spatial Interpolation (IDW)",
+    "windVector": "Wind Vector Overlay"
   }
 };

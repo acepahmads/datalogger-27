@@ -188,7 +188,7 @@
       <div
         class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer"
         :class="activeCriticalCount > 0 ? 'border-rose-500/60 ring-1 ring-rose-500/30' : activeAlarmsList.length > 0 ? 'border-amber-500/60' : 'border-slate-200 dark:border-[#20354B]'"
-        @click="activeRecentTab = 'alarms'"
+        @click="$router.push('/alarm/active')"
       >
         <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider mb-1">
           <div class="flex items-center space-x-1.5">
@@ -795,178 +795,24 @@
           </div>
         </div>
 
-        <!-- 2. RECENT ALARMS, NOTIFICATIONS & EVENTS PANEL -->
-        <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs dark:shadow-md flex-1 flex flex-col min-h-[280px]">
-          <!-- Panel Segmented Tabs -->
-          <div class="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-[#20354B]">
-            <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
-              <!-- Tab 1: Active Alarms -->
-              <button
-                @click="activeRecentTab = 'alarms'"
-                class="px-2.5 py-1 rounded transition font-semibold flex items-center space-x-1.5"
-                :class="activeRecentTab === 'alarms'
-                  ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
-              >
-                <span>{{ $t('operator.tabActiveAlarms') || 'Alarms' }}</span>
-                <span v-if="activeAlarmsList.length > 0" class="px-1 py-0.2 rounded-full text-4xs font-bold" :class="activeRecentTab === 'alarms' ? 'bg-slate-900 text-cyan-300' : 'bg-rose-500 text-white'">
-                  {{ activeAlarmsList.length }}
-                </span>
-              </button>
-
-              <!-- Tab 2: Recent Events -->
-              <button
-                @click="activeRecentTab = 'events'"
-                class="px-2.5 py-1 rounded transition font-semibold flex items-center space-x-1"
-                :class="activeRecentTab === 'events'
-                  ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
-              >
-                <span>{{ $t('operator.tabRecentEvents') || 'Events' }}</span>
-              </button>
-
-              <!-- Tab 3: Notification Delivery Queue -->
-              <button
-                @click="activeRecentTab = 'notifications'"
-                class="px-2.5 py-1 rounded transition font-semibold flex items-center space-x-1"
-                :class="activeRecentTab === 'notifications'
-                  ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
-              >
-                <span>{{ $t('operator.tabNotifications') || 'Delivery Queue' }}</span>
-                <span v-if="notificationQueueStats.pending > 0" class="px-1 py-0.2 rounded-full bg-amber-500 text-slate-950 text-4xs font-bold">
-                  {{ notificationQueueStats.pending }}
-                </span>
-              </button>
-            </div>
-
-            <!-- Tab Quick Actions -->
-            <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">
-              <span v-if="activeRecentTab === 'alarms'">
-                <button @click="fetchActiveAlarms" class="hover:text-cyan-600 dark:hover:text-cyan-400">↻ Sync</button>
-              </span>
-              <span v-else-if="activeRecentTab === 'events'">
-                <router-link to="/system/audit" class="hover:text-cyan-600 dark:hover:text-cyan-400">All Audits →</router-link>
-              </span>
-              <span v-else>
-                <router-link to="/alarm/queue" class="hover:text-cyan-600 dark:hover:text-cyan-400">Full Queue →</router-link>
-              </span>
-            </div>
+        <!-- 2. OPERATIONAL ENVIRONMENTAL VISUALIZATIONS (WIND ROSE & POLLUTANT DISPERSION MAP) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-2 flex-1">
+          <!-- Left: Wind Rose (approx 40% -> 5 cols out of 12) -->
+          <div class="lg:col-span-5 min-h-[300px] flex flex-col">
+            <WindRoseChart
+              :devices-list="devicesList"
+              :is-dark="isDark"
+              :live-map="liveMap"
+            />
           </div>
 
-          <!-- TAB CONTENT 1: ACTIVE ALARMS LIST -->
-          <div v-if="activeRecentTab === 'alarms'" class="flex-1 overflow-y-auto max-h-56 divide-y divide-slate-100 dark:divide-[#18283E] text-2xs font-mono custom-scroller mt-1">
-            <div
-              v-for="a in activeAlarmsList"
-              :key="a.id"
-              class="py-2 px-1.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-[#101B2B] transition rounded-lg"
-            >
-              <div class="flex items-center space-x-2 truncate flex-1 min-w-0 pr-2">
-                <span class="text-xs">{{ a.severity === 'CRITICAL' ? '🚨' : '⚠️' }}</span>
-                <span
-                  class="px-1.5 py-0.2 rounded text-4xs font-bold uppercase flex-shrink-0"
-                  :class="a.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'"
-                >
-                  {{ a.severity }}
-                </span>
-                <span class="font-bold text-slate-900 dark:text-white flex-shrink-0">[{{ a.device ? a.device.device_code : 'SYS' }}]</span>
-                <span class="truncate text-slate-700 dark:text-slate-300 font-sans text-xs" :title="a.message">{{ a.message || a.alarm_code }}</span>
-                <span v-if="a.trigger_value != null" class="text-rose-600 dark:text-rose-400 font-bold flex-shrink-0">
-                  Val: {{ Number(a.trigger_value).toFixed(1) }}
-                </span>
-              </div>
-              <div class="flex items-center space-x-1.5 flex-shrink-0">
-                <span class="text-4xs text-slate-400 dark:text-slate-500">{{ formatRelative(a.triggered_at) }}</span>
-                <button
-                  v-if="a.status === 'ACTIVE'"
-                  @click="openAckModal(a)"
-                  class="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-3xs font-bold font-mono transition"
-                >
-                  {{ $t('operator.acknowledge') || 'ACK' }}
-                </button>
-                <span v-else class="text-4xs text-emerald-600 dark:text-emerald-400 font-bold">ACKED</span>
-              </div>
-            </div>
-
-            <div v-if="activeAlarmsList.length === 0" class="py-8 text-center text-slate-400 dark:text-slate-500 text-3xs font-mono">
-              ✓ {{ $t('operator.noActiveAlarms') || 'No active alarms. Fleet functioning within safe limits.' }}
-            </div>
-          </div>
-
-          <!-- TAB CONTENT 2: RECENT AUDIT & SYSTEM EVENTS -->
-          <div v-else-if="activeRecentTab === 'events'" class="flex-1 overflow-y-auto max-h-56 divide-y divide-slate-100 dark:divide-[#18283E] text-2xs font-mono custom-scroller mt-1">
-            <div
-              v-for="e in recentEvents"
-              :key="e.id"
-              class="py-1.5 px-1 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-[#101B2B] transition"
-            >
-              <div class="flex items-center space-x-2 truncate flex-1 min-w-0 pr-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-                <span class="text-cyan-600 dark:text-cyan-400 font-bold flex-shrink-0">{{ e.action || 'EVENT' }}</span>
-                <span class="truncate text-slate-700 dark:text-slate-300 font-sans text-xs" :title="e.details">{{ e.details || e.description }}</span>
-              </div>
-              <div class="text-4xs text-slate-400 dark:text-slate-500 flex-shrink-0 font-mono">
-                {{ formatRelative(e.created_at || e.timestamp) }}
-              </div>
-            </div>
-
-            <div v-if="recentEvents.length === 0" class="py-8 text-center text-slate-400 dark:text-slate-500 text-3xs font-mono">
-              {{ $t('operator.noEvents') || 'No recent events recorded.' }}
-            </div>
-          </div>
-
-          <!-- TAB CONTENT 3: NOTIFICATION DELIVERY QUEUE -->
-          <div v-else class="flex-1 overflow-y-auto max-h-56 divide-y divide-slate-100 dark:divide-[#18283E] text-2xs font-mono custom-scroller mt-1">
-            <div
-              v-for="n in notificationQueue"
-              :key="n.id"
-              class="py-1.5 px-1 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-[#101B2B] transition"
-            >
-              <div class="flex items-center space-x-2 truncate flex-1 min-w-0 pr-2">
-                <span class="text-xs">{{ n.channel === 'EMAIL' ? '✉️' : n.channel === 'TELEGRAM' ? '✈️' : '🔗' }}</span>
-                <span
-                  class="px-1.5 py-0.2 rounded text-4xs font-bold uppercase flex-shrink-0"
-                  :class="getNotifStatusClass(n.status)"
-                >
-                  {{ n.status }}
-                </span>
-                <span class="font-mono text-slate-700 dark:text-slate-300">{{ n.recipient }}</span>
-                <span class="truncate text-slate-500 dark:text-slate-400 text-4xs font-sans">{{ n.subject || n.message }}</span>
-              </div>
-              <div class="flex items-center space-x-1.5 flex-shrink-0">
-                <span class="text-4xs text-slate-400 dark:text-slate-500">Tries: {{ n.attempts }}/{{ n.max_retries || 3 }}</span>
-                <button
-                  v-if="n.status === 'FAILED'"
-                  @click="retryNotification(n.id)"
-                  class="px-1.5 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-4xs font-bold"
-                >
-                  {{ $t('operator.retryDelivery') || 'Retry' }}
-                </button>
-              </div>
-            </div>
-
-            <div v-if="notificationQueue.length === 0" class="py-8 text-center text-slate-400 dark:text-slate-500 text-3xs font-mono">
-              ✓ {{ $t('operator.noNotifications') || 'Notification queue is clear.' }}
-            </div>
-          </div>
-
-          <!-- Panel Bottom Status: Channels Health -->
-          <div class="pt-2 mt-auto border-t border-slate-200 dark:border-[#20354B] flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400">
-            <span class="text-slate-400 dark:text-slate-500">{{ $t('operator.channelsHealth') || 'Channels' }}:</span>
-            <div class="flex items-center space-x-2">
-              <span class="flex items-center space-x-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Email</span>
-              </span>
-              <span class="flex items-center space-x-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Telegram</span>
-              </span>
-              <span class="flex items-center space-x-1 text-slate-400 dark:text-slate-500">
-                <span class="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                <span>Webhook ({{ $t('operator.notConfigured') || 'NOT CONFIGURED' }})</span>
-              </span>
-            </div>
+          <!-- Right: Pollutant Dispersion Map (approx 60% -> 7 cols out of 12) -->
+          <div class="lg:col-span-7 min-h-[300px] flex flex-col">
+            <PollutantDispersionMap
+              :devices-list="devicesList"
+              :is-dark="isDark"
+              :live-map="liveMap"
+            />
           </div>
         </div>
       </div>
@@ -1320,11 +1166,17 @@
 <script>
 import axios from 'axios';
 import audioAlert from '../utils/audioAlert';
+import WindRoseChart from '../components/WindRoseChart.vue';
+import PollutantDispersionMap from '../components/PollutantDispersionMap.vue';
 
 const TREND_PALETTE = ['#00CFFF', '#168BFF', '#00D6A0', '#FFB020', '#A855F7', '#EC4899'];
 
 export default {
   name: 'OperatorCommandCenterView',
+  components: {
+    WindRoseChart,
+    PollutantDispersionMap,
+  },
   props: {
     isSidebarCollapsed: {
       type: Boolean,

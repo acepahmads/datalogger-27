@@ -1817,6 +1817,18 @@ export default {
     "formula": "KALK",
     "testAudioWarning": "Uji Suara Peringatan",
     "testAudioCritical": "Uji Suara Kritis",
-    "recordsLoaded": "catatan dimuat"
+    "recordsLoaded": "catatan dimuat",
+    "windRoseTitle": "Wind Rose (Mawar Angin)",
+    "windRoseSubtitle": "Distribusi arah dan kecepatan angin",
+    "selectStation": "Pilih Stasiun",
+    "windUnavailable": "Data angin tidak tersedia",
+    "dispersionTitle": "Dispersi Polutan",
+    "dispersionSubtitle": "Distribusi lingkungan dan konteks angin",
+    "selectPollutant": "Pilih Polutan",
+    "allStations": "Semua Stasiun",
+    "filterStation": "Filter Stasiun",
+    "measuredPoints": "Titik Pengukuran",
+    "spatialInterpolation": "Interpolasi Spasial (IDW)",
+    "windVector": "Overlay Vektor Angin"
   }
 };
