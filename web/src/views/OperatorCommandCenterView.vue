@@ -133,14 +133,14 @@
     </div>
 
     <!-- C. FOUR OPERATIONAL SUMMARY CARDS -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2.5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
       <!-- 1. Device / System Status -->
       <div
         class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition"
         :class="summaryStats.offlineCount > 0
           ? (isAlarmPulseActive
-              ? 'border-rose-500 ring-2 ring-rose-500/50 shadow-md shadow-rose-500/30 transition-all duration-150'
-              : 'border-rose-500/70 ring-1 ring-rose-500/30 transition-all duration-300')
+              ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
+              : 'border-rose-500/70 transition-all duration-300')
           : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
       >
         <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
@@ -192,9 +192,9 @@
       <div
         class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer"
         :class="activeCriticalCount > 0
-          ? (isAlarmPulseActive ? 'border-rose-500 ring-2 ring-rose-500/60 shadow-md shadow-rose-500/40 transition-all duration-75' : 'border-rose-500/60 ring-1 ring-rose-500/30 transition-all duration-300')
+          ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500/70 transition-all duration-300')
           : activeAlarmsList.length > 0
-            ? (isAlarmPulseActive ? 'border-amber-500 ring-2 ring-amber-500/60 shadow-md shadow-amber-500/40 transition-all duration-75' : 'border-amber-500/60 transition-all duration-300')
+            ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500/70 transition-all duration-300')
             : 'border-slate-200 dark:border-[#20354B]'"
         @click="$router.push('/alarm/active')"
       >
@@ -448,7 +448,7 @@
         <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (High Density) -->
         <div
           v-if="viewMode === 'cards'"
-          class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 overflow-y-auto max-h-[500px] pr-1 custom-scroller"
+          class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 overflow-y-auto max-h-[500px] pr-1 custom-scroller"
         >
           <div
             v-for="param in filteredParameters"
@@ -458,10 +458,12 @@
             :class="[
               isParamAlarmOrStaleBad(param)
                 ? (isAlarmPulseActive
-                    ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL'
-                        ? 'bg-rose-500/20 dark:bg-rose-950/70 border-2 border-rose-500 ring-2 ring-rose-500/60 shadow-lg shadow-rose-500/40 scale-[1.008] transition-all duration-75'
-                        : 'bg-amber-500/20 dark:bg-amber-950/70 border-2 border-amber-500 ring-2 ring-amber-500/60 shadow-lg shadow-amber-500/40 scale-[1.008] transition-all duration-75')
-                    : 'bg-slate-200/90 dark:bg-slate-800/90 border-2 border-rose-500/80 transition-all duration-300')
+                    ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
+                        ? 'border-rose-500 bg-rose-500/15 dark:bg-rose-950/45 shadow-sm shadow-rose-500/30 transition-colors duration-75'
+                        : 'border-amber-500 bg-amber-500/15 dark:bg-amber-950/45 shadow-sm shadow-amber-500/30 transition-colors duration-75')
+                    : (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
+                        ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
+                        : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
                 : isParamSelectedForTrend(param)
                   ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/40 dark:bg-[#0e1b2e]'
                   : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-600',
