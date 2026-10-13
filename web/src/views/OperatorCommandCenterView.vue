@@ -134,13 +134,28 @@
     <!-- C. FOUR OPERATIONAL SUMMARY CARDS -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2.5">
       <!-- 1. Device / System Status -->
-      <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition">
+      <div
+        class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition"
+        :class="summaryStats.offlineCount > 0
+          ? 'border-rose-500/70 ring-1 ring-rose-500/30'
+          : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
+      >
         <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
           <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
+            <span
+              class="w-2 h-2 rounded-full"
+              :class="summaryStats.offlineCount > 0
+                ? (summaryStats.onlineCount === 0 ? 'bg-rose-500 animate-ping' : 'bg-rose-500 animate-pulse')
+                : 'bg-emerald-500'"
+            ></span>
             <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summaryDevices') || 'Device Fleet & Comm' }}</span>
           </div>
-          <span class="text-cyan-600 dark:text-cyan-400 font-bold">{{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }} ONLINE</span>
+          <span
+            class="font-bold"
+            :class="summaryStats.offlineCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-cyan-600 dark:text-cyan-400'"
+          >
+            {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }} ONLINE
+          </span>
         </div>
         <div class="flex items-baseline justify-between mt-1">
           <div class="flex items-baseline space-x-1.5">
