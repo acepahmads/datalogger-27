@@ -96,198 +96,181 @@
     </div>
 
     <!-- C. FOUR OPERATIONAL SUMMARY CARDS -->
+    <!-- C. FOUR COMPACT OPERATIONAL STATUS CARDS (ONE ROW, TWO LINES PER CARD) -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
-      <!-- 1. Device / System Status -->
+      <!-- 1. Device & Comm Status -->
       <div
-        class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition"
+        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[72px] sm:h-[76px]"
         :class="summaryStats.offlineCount > 0
           ? (isAlarmPulseActive
               ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
               : 'border-rose-500/70 transition-all duration-300')
           : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
+        :title="'Device Fleet: ' + summaryStats.onlineCount + '/' + summaryStats.totalDevices + ' Online · Latency: ' + (systemStatus.avg_latency_ms || 1.2) + 'ms · Success: ' + ((systemStatus.success_rate || 99.8).toFixed(1)) + '%'"
       >
-        <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-          <div class="flex items-center space-x-1.5">
+        <!-- Line 1: Header (icon + compact title + optional state badge) -->
+        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <div class="flex items-center space-x-1.5 min-w-0">
             <span
-              class="w-2 h-2 rounded-full transition-all duration-150"
+              class="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
               :class="[
                 summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-500',
-                summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-4 ring-rose-500/40' : 'scale-100'
+                summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-500/40' : 'scale-100'
               ]"
             ></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summaryDevices') || 'Device Fleet & Comm' }}</span>
+            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryDevices') || 'Device Status' }}</span>
           </div>
           <span
-            class="font-bold"
-            :class="summaryStats.offlineCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-cyan-600 dark:text-cyan-400'"
+            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0"
+            :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
           >
-            {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }} ONLINE
+            {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
           </span>
         </div>
-        <div class="flex items-baseline justify-between mt-1">
+
+        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+        <div class="flex items-baseline justify-between leading-none mt-1">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-xl font-bold font-mono text-slate-900 dark:text-white">{{ summaryStats.totalDevices }}</span>
+            <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+              {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
+            </span>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">devices</span>
           </div>
-          <div class="flex items-center space-x-1 font-mono text-3xs">
-            <span class="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold" :title="'Online: ' + summaryStats.onlineCount">
-              {{ summaryStats.onlineCount }} ON
+          <div class="flex items-center space-x-1 text-3xs font-mono">
+            <span v-if="summaryStats.offlineCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
+              {{ summaryStats.offlineCount }} offline
             </span>
-            <span
-              class="px-1.5 py-0.2 rounded font-bold"
-              :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'"
-              :title="'Offline: ' + summaryStats.offlineCount"
-            >
-              {{ summaryStats.offlineCount }} OFF
-            </span>
-            <span v-if="summaryStats.disabledCount > 0" class="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" :title="'Disabled: ' + summaryStats.disabledCount">
-              {{ summaryStats.disabledCount }} DIS
+            <span v-else class="text-emerald-600 dark:text-emerald-400 font-semibold">
+              100% active
             </span>
           </div>
-        </div>
-        <div class="flex items-center justify-between text-4xs text-slate-500 dark:text-slate-400 font-mono mt-1 pt-1 border-t border-slate-100 dark:border-[#1a2d42]">
-          <span>Latency: <strong class="text-slate-800 dark:text-slate-200">{{ systemStatus.avg_latency_ms || 1.2 }}ms</strong></span>
-          <span>Success: <strong class="text-emerald-600 dark:text-emerald-400">{{ (systemStatus.success_rate || 99.8).toFixed(1) }}%</strong></span>
         </div>
       </div>
 
       <!-- 2. Active Alarms -->
       <div
-        class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer"
+        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[72px] sm:h-[76px]"
         :class="activeCriticalCount > 0
           ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500/70 transition-all duration-300')
           : activeAlarmsList.length > 0
             ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500/70 transition-all duration-300')
-            : 'border-slate-200 dark:border-[#20354B]'"
+            : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
         @click="$router.push('/alarm/active')"
+        :title="highestPriorityAlarm ? ('Top Incident: ' + highestPriorityAlarm.alarm_code + ' - ' + highestPriorityAlarm.message) : 'All Parameters Within Normal Operating Limits'"
       >
-        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider mb-1">
-          <div class="flex items-center space-x-1.5">
+        <!-- Line 1: Header (icon + compact title + console link) -->
+        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <div class="flex items-center space-x-1.5 min-w-0">
             <span
-              class="w-2 h-2 rounded-full transition-all duration-150"
+              class="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
               :class="[
                 activeCriticalCount > 0 ? 'bg-rose-500' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
-                activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-4 ring-amber-500/40' : 'scale-100'
+                activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-amber-500/40' : 'scale-100'
               ]"
             ></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summaryAlarms') || 'Active Incidents' }}</span>
+            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryAlarms') || 'Active Alarms' }}</span>
           </div>
-          <router-link to="/alarm/active" class="text-3xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono">
+          <router-link to="/alarm/active" class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono flex-shrink-0">
             {{ $t('operator.viewConsole') || 'Console →' }}
           </router-link>
         </div>
-        <div class="flex items-baseline justify-between mt-1">
+
+        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+        <div class="flex items-baseline justify-between leading-none mt-1">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-xl font-bold font-mono" :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
+            <span
+              class="text-xl sm:text-2xl font-bold font-mono tabular-nums tracking-tight"
+              :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
+            >
               {{ activeAlarmsList.length }}
             </span>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">active</span>
           </div>
-          <div class="flex items-center space-x-1 font-mono text-3xs">
-            <span class="px-1.5 py-0.2 rounded font-bold" :class="activeCriticalCount > 0 ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 animate-pulse' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'">
+          <div class="flex items-center space-x-1 text-3xs font-mono">
+            <span v-if="activeCriticalCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
               {{ activeCriticalCount }} CRIT
             </span>
-            <span class="px-1.5 py-0.2 rounded font-bold" :class="activeWarningCount > 0 ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'">
+            <span v-if="activeWarningCount > 0" class="text-amber-600 dark:text-amber-400 font-bold">
               {{ activeWarningCount }} WARN
             </span>
-            <span class="px-1.5 py-0.2 rounded font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-              {{ activeAckedCount }} ACK
+            <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
+              ✓ Limits Normal
             </span>
           </div>
-        </div>
-        <div class="flex items-center justify-between text-4xs text-slate-500 dark:text-slate-400 font-mono mt-1 pt-1 border-t border-slate-100 dark:border-[#1a2d42]">
-          <span v-if="highestPriorityAlarm" class="truncate max-w-[170px] text-rose-600 dark:text-rose-400 font-semibold" :title="highestPriorityAlarm.message">
-            Top: {{ highestPriorityAlarm.alarm_code }}
-          </span>
-          <span v-else class="text-emerald-600 dark:text-emerald-400">
-            ✓ Normal Operating Limits
-          </span>
-          <span class="text-slate-500 font-mono">{{ activeAlarmsList.length }} incident(s)</span>
         </div>
       </div>
 
-      <!-- 3. Latest Telemetry & Freshness -->
-      <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition">
-        <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-          <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summaryTelemetry') || 'Data Pipeline' }}</span>
+      <!-- 3. Latest Telemetry -->
+      <div
+        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
+      >
+        <!-- Line 1: Header (icon + compact title + status badge) -->
+        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <div class="flex items-center space-x-1.5 min-w-0">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
+            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}</span>
           </div>
           <span
-            class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold"
+            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0"
             :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
           >
-            {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE < 1s') }}
+            {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
           </span>
         </div>
-        <div class="flex items-baseline justify-between mt-1">
+
+        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+        <div class="flex items-baseline justify-between leading-none mt-1">
           <div class="flex items-baseline space-x-1.5">
             <span
-              class="text-xl font-bold font-mono"
+              class="text-xl sm:text-2xl font-bold font-mono tabular-nums tracking-tight"
               :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
             >
               {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
             </span>
-            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
-              {{ isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet') }}
-            </span>
+            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">ago</span>
           </div>
-          <div class="text-right font-mono text-3xs">
+          <div class="flex items-center space-x-1 text-3xs font-mono">
             <span
               class="font-bold"
               :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
             >
-              {{ summaryStats.goodSensors }}
+              {{ summaryStats.goodSensors }}/{{ allParameters.length }}
             </span>
-            <span class="text-slate-500 dark:text-slate-400">/{{ allParameters.length }} Good</span>
+            <span class="text-slate-500 dark:text-slate-400">Good</span>
           </div>
-        </div>
-        <div class="flex items-center justify-between text-4xs text-slate-500 dark:text-slate-400 font-mono mt-1 pt-1 border-t border-slate-100 dark:border-[#1a2d42]">
-          <span>Last: <strong class="text-slate-800 dark:text-slate-200 font-mono">{{ lastTelemetryTimeStr || 'Just now' }}</strong></span>
-          <span :class="summaryStats.staleSensors > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'">
-            {{ summaryStats.staleSensors }} timed out
-          </span>
         </div>
       </div>
 
       <!-- 4. System Monitor -->
-      <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition">
-        <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-          <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200">{{ $t('operator.summarySystem') || 'System Health' }}</span>
+      <div
+        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
+      >
+        <!-- Line 1: Header (icon + compact title + status badge) -->
+        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <div class="flex items-center space-x-1.5 min-w-0">
+            <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summarySystem') || 'System Monitor' }}</span>
           </div>
-          <span class="text-emerald-600 dark:text-emerald-400 font-bold font-mono">{{ systemStatus.service_status || 'RUNNING' }}</span>
+          <span class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0">
+            {{ systemStatus.service_status || 'RUNNING' }}
+          </span>
         </div>
-        <div class="grid grid-cols-3 gap-1 mt-1 text-center font-mono">
-          <!-- CPU -->
-          <div class="bg-slate-50 dark:bg-[#101B2B] p-1 rounded border border-slate-200 dark:border-[#20354B]">
-            <div class="text-4xs text-slate-500 dark:text-slate-400 uppercase">CPU</div>
-            <div class="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{{ Math.round(systemStatus.cpu_percent || 0) }}%</div>
-            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
-              <div class="bg-cyan-500 h-full" :style="{ width: Math.min(systemStatus.cpu_percent || 0, 100) + '%' }"></div>
-            </div>
+
+        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+        <div class="flex items-baseline justify-between leading-none mt-1">
+          <div class="flex items-baseline space-x-1.5">
+            <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+              {{ Math.round(systemStatus.cpu_percent || 0) }}%
+            </span>
+            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">CPU</span>
           </div>
-          <!-- RAM -->
-          <div class="bg-slate-50 dark:bg-[#101B2B] p-1 rounded border border-slate-200 dark:border-[#20354B]">
-            <div class="text-4xs text-slate-500 dark:text-slate-400 uppercase">RAM</div>
-            <div class="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{{ Math.round(systemStatus.ram_percent || 0) }}%</div>
-            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
-              <div class="bg-indigo-500 h-full" :style="{ width: Math.min(systemStatus.ram_percent || 0, 100) + '%' }"></div>
-            </div>
+          <div class="flex items-center space-x-1.5 text-3xs font-mono text-slate-500 dark:text-slate-400">
+            <span>RAM: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.ram_percent || 0) }}%</strong></span>
+            <span>·</span>
+            <span>Disk: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.disk_percent || 0) }}%</strong></span>
           </div>
-          <!-- DISK -->
-          <div class="bg-slate-50 dark:bg-[#101B2B] p-1 rounded border border-slate-200 dark:border-[#20354B]">
-            <div class="text-4xs text-slate-500 dark:text-slate-400 uppercase">DISK</div>
-            <div class="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{{ Math.round(systemStatus.disk_percent || 0) }}%</div>
-            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
-              <div class="bg-emerald-500 h-full" :style="{ width: Math.min(systemStatus.disk_percent || 0, 100) + '%' }"></div>
-            </div>
-          </div>
-        </div>
-        <div class="flex items-center justify-between text-4xs text-slate-500 dark:text-slate-400 font-mono mt-1 pt-1 border-t border-slate-100 dark:border-[#1a2d42]">
-          <span>DB: <strong class="text-emerald-600 dark:text-emerald-400">{{ systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms' }}</strong></span>
-          <span>WAL: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.queue_status || 'HEALTHY' }}</strong></span>
         </div>
       </div>
     </div>
