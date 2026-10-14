@@ -445,16 +445,18 @@
           </div>
         </div>
 
-        <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (High Density) -->
+        <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (High Density Compact Cards) -->
         <div
           v-if="viewMode === 'cards'"
-          class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 overflow-y-auto max-h-[500px] pr-1 custom-scroller"
+          :class="cardGridClass"
+          :style="cardGridContainerStyle"
+          class="overflow-y-auto pr-1 custom-scroller"
         >
           <div
             v-for="param in filteredParameters"
             :key="param.param_id"
             @click="selectParamForTrend(param)"
-            class="scada-param-tile p-2.5 rounded-xl border transition relative cursor-pointer group shadow-xs dark:shadow-none"
+            class="scada-param-tile p-2 sm:p-2.5 rounded-xl border transition relative cursor-pointer group shadow-xs dark:shadow-none flex flex-col justify-between h-[114px] sm:h-[118px]"
             :class="[
               isParamAlarmOrStaleBad(param)
                 ? (isAlarmPulseActive
@@ -465,13 +467,14 @@
                         ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
                         : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
                 : isParamSelectedForTrend(param)
-                  ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/40 dark:bg-[#0e1b2e]'
+                  ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/50 dark:bg-[#0c1c2e]'
                   : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-600',
               liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
             ]"
+            :style="isParamSelectedForTrend(param) ? { borderColor: getTrendSeriesColor(param), boxShadow: '0 0 0 1px ' + getTrendSeriesColor(param) + '40' } : {}"
           >
-            <!-- Tile Header -->
-            <div class="flex items-center justify-between mb-1 min-w-0">
+            <!-- Row 1: Header (Device code, Parameter icon & prominent name, Pin & Alarm tag) -->
+            <div class="flex items-center justify-between min-w-0 leading-none">
               <div class="flex items-center space-x-1.5 min-w-0 flex-1 truncate">
                 <span
                   class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
@@ -493,7 +496,7 @@
                     :code="param.param_code"
                     :name="param.param_name"
                     :unit="param.unit"
-                    size-class="w-4 h-4 flex-shrink-0"
+                    size-class="w-3.5 h-3.5 flex-shrink-0"
                   />
                   <span
                     class="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white truncate tracking-tight leading-none"
@@ -503,85 +506,122 @@
                   </span>
                 </div>
               </div>
-              <!-- Pin Favorite Button -->
-              <button
-                @click.stop="togglePin(param.param_id)"
-                class="text-xs transition hover:scale-110 p-0.5 ml-1 flex-shrink-0"
-                :class="isPinned(param.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'"
-                :title="isPinned(param.param_id) ? 'Unpin' : 'Pin to top'"
-              >
-                ★
-              </button>
+
+              <!-- Header Right: Alarm tag & Pin button -->
+              <div class="flex items-center space-x-1 ml-1 flex-shrink-0">
+                <span
+                  v-if="param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING'"
+                  class="px-1 py-0.5 rounded text-[8.5px] font-mono font-bold uppercase leading-none"
+                  :class="param.alarm_status === 'CRITICAL'
+                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 animate-pulse'
+                    : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
+                  :title="'Active alarm: ' + param.alarm_status"
+                >
+                  {{ param.alarm_status === 'CRITICAL' ? 'CRIT' : 'WARN' }}
+                </span>
+                <button
+                  @click.stop="togglePin(param.param_id)"
+                  class="text-xs transition hover:scale-110 p-0.5 leading-none"
+                  :class="isPinned(param.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'"
+                  :title="isPinned(param.param_id) ? 'Unpin' : 'Pin to top'"
+                >
+                  ★
+                </button>
+              </div>
             </div>
 
-            <!-- Value Display & Unit -->
-            <div class="flex items-baseline justify-between mt-1">
-              <div class="flex items-baseline space-x-1">
+            <!-- Row 2: Value Display, Unit & Badges (Quality, Limits, Held, FX) -->
+            <div class="flex items-baseline justify-between mt-0.5">
+              <div class="flex items-baseline min-w-0 truncate">
                 <span
-                  class="text-2xl font-bold font-mono tracking-tight"
+                  class="text-lg sm:text-[21px] font-bold font-mono tracking-tight leading-none"
                   :class="paramValueColorClass(param)"
                 >
                   {{ formatParamValue(param) }}
                 </span>
-                <span class="text-3xs font-mono text-slate-500 dark:text-slate-400 font-semibold">{{ param.unit || '' }}</span>
+                <span class="text-3xs font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1 flex-shrink-0">{{ param.unit || '' }}</span>
+                <span
+                  v-if="param.low_limit != null || param.high_limit != null"
+                  class="text-4xs font-mono text-slate-400 dark:text-slate-500 ml-1.5 hidden xl:inline truncate"
+                  :title="'Limit range: ' + (param.low_limit != null ? param.low_limit : '--') + ' .. ' + (param.high_limit != null ? param.high_limit : '--')"
+                >
+                  [{{ param.low_limit != null ? param.low_limit : '--' }}..{{ param.high_limit != null ? param.high_limit : '--' }}]
+                </span>
               </div>
 
-              <!-- Quality Badge -->
-              <span
-                class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase"
-                :class="qualityBadgeClass(param.quality)"
-              >
-                {{ param.quality || 'GOOD' }}
-              </span>
-            </div>
-
-            <!-- Sub indicators: Thresholds & Held/Formula -->
-            <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 mt-1">
-              <span class="truncate">
-                <span v-if="param.low_limit != null || param.high_limit != null" class="text-slate-600 dark:text-slate-400">
-                  Lim: [{{ param.low_limit != null ? param.low_limit : '--' }} .. {{ param.high_limit != null ? param.high_limit : '--' }}]
-                </span>
-                <span v-else class="text-slate-400 dark:text-slate-600">Standard range</span>
-              </span>
-
-              <div class="flex items-center space-x-1">
-                <span v-if="param.is_held_value" class="px-1 rounded bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold" title="Hold last value active">
+              <!-- Badges Container -->
+              <div class="flex items-center space-x-1 ml-1.5 flex-shrink-0">
+                <span
+                  v-if="param.is_held_value"
+                  class="px-1 py-0.2 rounded bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold text-4xs font-mono"
+                  title="Hold last value active"
+                >
                   HELD
                 </span>
-                <span v-if="param.formula" class="px-1 rounded bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold" :title="'Formula: ' + param.formula">
+                <span
+                  v-if="param.formula"
+                  class="px-1 py-0.2 rounded bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold text-4xs font-mono"
+                  :title="'Formula: ' + param.formula"
+                >
                   FX
+                </span>
+                <span
+                  class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider"
+                  :class="qualityBadgeClass(param.quality)"
+                >
+                  {{ param.quality || 'GOOD' }}
                 </span>
               </div>
             </div>
 
-            <!-- Sparkline Trend Chart (SVG) -->
-            <div class="mt-1.5 h-7 w-full bg-slate-50 dark:bg-[#080E18] border border-slate-100 dark:border-transparent rounded-md overflow-hidden relative">
-              <svg class="w-full h-full" viewBox="0 0 100 24" preserveAspectRatio="none">
+            <!-- Row 3: Mini Sparkline Trend Chart (26px height, gap-aware) -->
+            <div class="h-[26px] w-full bg-slate-50/80 dark:bg-[#080E18]/80 border border-slate-100 dark:border-slate-800/40 rounded overflow-hidden relative my-0.5">
+              <!-- Render Sparkline if samples available -->
+              <svg
+                v-if="getSparkline(param.param_id).hasHistory"
+                class="w-full h-full"
+                viewBox="0 0 100 26"
+                preserveAspectRatio="none"
+              >
                 <defs>
                   <linearGradient :id="'sparkGrad-' + param.param_id" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" :stop-color="getSparklineColor(param)" stop-opacity="0.3" />
+                    <stop offset="0%" :stop-color="getSparklineColor(param)" stop-opacity="0.25" />
                     <stop offset="100%" :stop-color="getSparklineColor(param)" stop-opacity="0.0" />
                   </linearGradient>
                 </defs>
-                <polygon
-                  :points="getSparklinePolygon(param.param_id)"
+                <!-- Gap-aware area paths -->
+                <path
+                  v-for="(areaD, aIdx) in getSparkline(param.param_id).areaPaths"
+                  :key="'a-' + param.param_id + '-' + aIdx"
+                  :d="areaD"
                   :fill="'url(#sparkGrad-' + param.param_id + ')'"
                 />
-                <polyline
-                  :points="getSparklinePoints(param.param_id)"
+                <!-- Gap-aware stroke lines -->
+                <path
+                  v-for="(strokeD, sIdx) in getSparkline(param.param_id).strokePaths"
+                  :key="'s-' + param.param_id + '-' + sIdx"
+                  :d="strokeD"
                   fill="none"
                   :stroke="getSparklineColor(param)"
-                  stroke-width="1.8"
+                  stroke-width="1.75"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
               </svg>
+              <!-- Empty state: Awaiting history samples -->
+              <div
+                v-else
+                class="w-full h-full flex items-center justify-center font-mono text-[9px] text-slate-400 dark:text-slate-600 tracking-wider space-x-1 select-none"
+              >
+                <span class="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-600 opacity-60"></span>
+                <span class="opacity-60">{{ $t('operator.awaitingSamples') || 'Awaiting history' }}</span>
+              </div>
             </div>
 
-            <!-- Tile Footer: Timestamp, Alarm/Failure Duration & Quick Action Link -->
-            <div class="flex items-center justify-between text-4xs font-mono mt-1.5 pt-1 border-t border-slate-100 dark:border-[#132235]">
+            <!-- Row 4: Tile Footer (Timestamp / Alarm duration & Quick Action Link) -->
+            <div class="flex items-center justify-between text-4xs font-mono pt-1 border-t border-slate-100 dark:border-[#132235] leading-none">
               <div
-                class="flex items-center space-x-1 truncate max-w-[70%]"
+                class="flex items-center space-x-1 truncate max-w-[65%]"
                 :title="getParamTimingTitle(param)"
               >
                 <!-- When in alarm, bad, stale, or offline: show clear status + last time + relative duration -->
@@ -603,9 +643,17 @@
                 </span>
               </div>
 
-              <!-- Quick Action Link -->
-              <span class="text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer whitespace-nowrap ml-1 font-semibold">
-                {{ isParamSelectedForTrend(param) ? '● Selected in Chart' : '+ Plot Trend' }}
+              <!-- Quick Action Link / Selection indicator -->
+              <span
+                class="text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer whitespace-nowrap ml-1 font-semibold flex items-center space-x-1"
+                :style="isParamSelectedForTrend(param) ? { color: getTrendSeriesColor(param) } : {}"
+              >
+                <span
+                  v-if="isParamSelectedForTrend(param)"
+                  class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: getTrendSeriesColor(param) }"
+                ></span>
+                <span>{{ isParamSelectedForTrend(param) ? ($t('operator.inChart') || '● In Chart') : ($t('operator.plotTrend') || '+ Plot Trend') }}</span>
               </span>
             </div>
           </div>
@@ -1925,6 +1973,7 @@ export default {
         }
       })(),
       sparklinesMap: {},
+      sparklineMetaCache: {},
       pinnedIds: JSON.parse(localStorage.getItem('dl_pinned_params') || '[]'),
       searchQuery: '',
       searchDebounceTimer: null,
@@ -2400,6 +2449,29 @@ export default {
       }
       return 10000;
     },
+    cardGridClass() {
+      const count = this.filteredParameters.length;
+      if (count <= 2) {
+        return 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5';
+      }
+      if (count <= 6) {
+        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5';
+      }
+      return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-2.5';
+    },
+    cardGridContainerStyle() {
+      const count = this.filteredParameters.length;
+      if (count <= 9) {
+        return {
+          maxHeight: 'none',
+          minHeight: '220px',
+        };
+      }
+      return {
+        maxHeight: 'calc(100vh - 290px)',
+        minHeight: '360px',
+      };
+    },
     allParameters() {
       const list = [];
       const nowMs = this.currentTimeMs || Date.now();
@@ -2692,39 +2764,205 @@ export default {
           return 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400';
       }
     },
+    getTrendSeriesColor(param) {
+      if (!param) return '#00E5FF';
+      const s = this.activeTrendSeries.find(item => item.parameterId === param.param_id);
+      if (s && s.color) return s.color;
+      return this.getSparklineColor(param);
+    },
     getSparklineColor(param) {
+      if (!param) return this.isDark ? '#00E5FF' : '#0284c7';
+      // If parameter is selected in main Trend Analysis, strictly match the series color
+      const s = this.activeTrendSeries.find(item => item.parameterId === param.param_id);
+      if (s && s.color) return s.color;
+
       if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD') return '#FF4559';
       if (param.alarm_status === 'WARNING') return '#FFB020';
       if (param.quality === 'STALE') return '#A855F7';
-      return this.isDark ? '#00CFFF' : '#0284c7';
+
+      // Stable series color matching Trend Analysis palette by parameter index/ID
+      const idx = this.allParameters.findIndex(p => p.param_id === param.param_id);
+      if (idx >= 0) return TREND_PALETTE[idx % TREND_PALETTE.length];
+      return this.isDark ? '#00E5FF' : '#0284c7';
     },
-    recordSparkline(paramId, val) {
-      if (val == null || isNaN(val)) return;
+    recordSparkline(paramId, val, time, quality = 'GOOD') {
+      if (paramId == null) return;
       if (!this.sparklinesMap[paramId]) {
         this.$set(this.sparklinesMap, paramId, []);
       }
       const arr = this.sparklinesMap[paramId];
-      arr.push(Number(val));
-      if (arr.length > 20) arr.shift();
+      const num = (val !== null && val !== undefined && val !== '' && !isNaN(val)) ? Number(val) : null;
+      const ts = time ? new Date(time).getTime() : Date.now();
+
+      // If last item has same or near-identical timestamp, update in place
+      if (arr.length > 0 && Math.abs(arr[arr.length - 1].time - ts) < 500) {
+        arr[arr.length - 1].val = num;
+        arr[arr.length - 1].quality = quality;
+      } else {
+        arr.push({ val: num, time: ts, quality });
+        // Bound the number of sparkline points to keep memory and rendering lightweight
+        if (arr.length > 25) {
+          arr.shift();
+        }
+      }
+      this.recomputeSparklineMeta(paramId);
+    },
+    async fetchInitialSparklines() {
+      for (const dev of this.devicesList || []) {
+        if (!dev.id) continue;
+        try {
+          const res = await axios.get(`/api/devices/${dev.id}/telemetry/history?page_size=120`);
+          if (res.data?.data?.items) {
+            const items = res.data.data.items;
+            const grouped = {};
+            for (const item of items) {
+              const pid = item.parameter_id;
+              if (!pid) continue;
+              if (!grouped[pid]) grouped[pid] = [];
+              const raw = item.processed_value !== undefined ? item.processed_value : item.value;
+              const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw)) ? Number(raw) : null;
+              const ts = new Date(item.received_at || item.timestamp || 0).getTime();
+              grouped[pid].push({ val: num, time: ts, quality: item.quality || 'GOOD' });
+            }
+            for (const pid in grouped) {
+              // Preserve chronological order (ascending timestamp)
+              grouped[pid].sort((a, b) => a.time - b.time);
+              const sliced = grouped[pid].slice(-25);
+              this.$set(this.sparklinesMap, pid, sliced);
+              this.recomputeSparklineMeta(pid);
+            }
+          }
+        } catch (e) {
+          // silent fallback
+        }
+      }
+    },
+    recomputeSparklineMeta(paramId) {
+      const rawList = this.sparklinesMap[paramId] || [];
+      const validItems = rawList.filter(item => item && item.val !== null && item.val !== undefined && isFinite(item.val));
+
+      if (validItems.length < 2) {
+        this.$set(this.sparklineMetaCache, paramId, {
+          hasHistory: false,
+          validCount: validItems.length,
+          strokePaths: [],
+          areaPaths: [],
+          min: 0,
+          max: 0,
+        });
+        return;
+      }
+
+      let min = Infinity;
+      let max = -Infinity;
+      for (const item of validItems) {
+        if (item.val < min) min = item.val;
+        if (item.val > max) max = item.val;
+      }
+
+      let span = max - min;
+      if (span === 0) {
+        min = min - 1;
+        max = max + 1;
+        span = 2;
+      } else {
+        // Add 8% vertical padding so peaks don't clip at top/bottom border
+        const pad = span * 0.08;
+        min -= pad;
+        max += pad;
+        span = max - min;
+      }
+
+      const W = 100;
+      const H = 26;
+      const topPad = 2;
+      const bottomPad = 2;
+      const plotH = H - topPad - bottomPad;
+
+      const total = rawList.length;
+      const stepX = total > 1 ? W / (total - 1) : W;
+
+      const segments = [];
+      let currentSegment = [];
+
+      for (let i = 0; i < total; i++) {
+        const item = rawList[i];
+        const isValValid = item && item.val !== null && item.val !== undefined && isFinite(item.val);
+
+        // Detect substantial time gap (> 4x standard sample spacing) as visual break
+        let isTimeGap = false;
+        if (isValValid && currentSegment.length > 0) {
+          const prevItem = currentSegment[currentSegment.length - 1].raw;
+          if (item.time && prevItem.time && (item.time - prevItem.time > 20000)) {
+            isTimeGap = true;
+          }
+        }
+
+        if (isValValid && !isTimeGap) {
+          const x = i * stepX;
+          const norm = (item.val - min) / span;
+          const y = (H - bottomPad) - norm * plotH;
+          currentSegment.push({ x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), raw: item });
+        } else {
+          if (currentSegment.length > 0) {
+            segments.push(currentSegment);
+            currentSegment = [];
+          }
+          if (isValValid) {
+            const x = i * stepX;
+            const norm = (item.val - min) / span;
+            const y = (H - bottomPad) - norm * plotH;
+            currentSegment.push({ x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), raw: item });
+          }
+        }
+      }
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+      }
+
+      const strokePaths = [];
+      const areaPaths = [];
+
+      for (const seg of segments) {
+        if (seg.length === 1) {
+          const p = seg[0];
+          strokePaths.push(`M ${p.x - 1},${p.y} L ${p.x + 1},${p.y}`);
+        } else if (seg.length > 1) {
+          const strokeD = seg.map((p, idx) => (idx === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`)).join(' ');
+          strokePaths.push(strokeD);
+
+          const first = seg[0];
+          const last = seg[seg.length - 1];
+          const areaD = `M ${first.x},${H} L ${seg.map(p => `${p.x},${p.y}`).join(' L ')} L ${last.x},${H} Z`;
+          areaPaths.push(areaD);
+        }
+      }
+
+      this.$set(this.sparklineMetaCache, paramId, {
+        hasHistory: true,
+        validCount: validItems.length,
+        strokePaths,
+        areaPaths,
+        min: Number(min.toFixed(2)),
+        max: Number(max.toFixed(2)),
+      });
+    },
+    getSparkline(paramId) {
+      if (this.sparklineMetaCache[paramId]) {
+        return this.sparklineMetaCache[paramId];
+      }
+      this.recomputeSparklineMeta(paramId);
+      return this.sparklineMetaCache[paramId] || { hasHistory: false, strokePaths: [], areaPaths: [] };
     },
     getSparklinePoints(paramId) {
-      const arr = this.sparklinesMap[paramId] || [];
-      if (arr.length < 2) return '0,12 100,12';
-      const min = Math.min(...arr);
-      const max = Math.max(...arr);
-      const span = max - min || 1;
-      const step = 100 / (arr.length - 1);
-
-      return arr.map((val, idx) => {
-        const x = idx * step;
-        const norm = (val - min) / span;
-        const y = 22 - norm * 20;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
+      const meta = this.getSparkline(paramId);
+      if (!meta.hasHistory || meta.strokePaths.length === 0) return '';
+      return meta.strokePaths[0].replace(/M |L /g, '');
     },
     getSparklinePolygon(paramId) {
-      const pts = this.getSparklinePoints(paramId);
-      return `${pts} 100,24 0,24`;
+      const meta = this.getSparkline(paramId);
+      if (!meta.hasHistory || meta.areaPaths.length === 0) return '';
+      return meta.areaPaths[0].replace(/M |L |Z/g, '');
     },
     isDeviceActiveOnline(dev) {
       if (!dev) return false;
@@ -2867,7 +3105,7 @@ export default {
 
       if (data.parameter_id && data.value !== undefined) {
         this.$set(this.liveMap, data.parameter_id, data);
-        this.recordSparkline(data.parameter_id, data.value);
+        this.recordSparkline(data.parameter_id, data.value, data.received_at, data.quality);
 
         // Flash row/tile briefly
         this.$set(this.liveBlinks, data.parameter_id, true);
@@ -2915,7 +3153,7 @@ export default {
           if (res.data && res.data.data) {
             for (const item of res.data.data) {
               this.$set(this.liveMap, item.parameter_id, item);
-              this.recordSparkline(item.parameter_id, item.value);
+              this.recordSparkline(item.parameter_id, item.value, item.received_at, item.quality);
 
               // Only update last valid telemetry timestamp from GOOD quality data
               if (item.received_at && item.quality === 'GOOD') {
@@ -2947,6 +3185,7 @@ export default {
         if (res.data && res.data.data) {
           this.devicesList = res.data.data.items || res.data.data || [];
           await this.refreshLatestOnly();
+          await this.fetchInitialSparklines();
 
           // Pre-populate lastGoodTimeMap from DB parameter records
           for (const dev of this.devicesList) {
