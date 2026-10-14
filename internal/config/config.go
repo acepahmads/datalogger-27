@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -46,6 +47,9 @@ type Config struct {
 	BackupCompression           string `json:"backup_compression"` // "gzip", "none"
 	BackupMinFreeSpaceMB        int64  `json:"backup_min_free_space_mb"`
 	BackupMaxKeepCount          int    `json:"backup_max_keep_count"`
+
+	// Primary Monitoring Domain: "AQMS", "WQMS", "CUSTOM"
+	MonitoringDomain string `json:"monitoring_domain"`
 
 	// Communication / Serial Bus Defaults (Phase 7 #83)
 	SerialPort      string `json:"serial_port"`
@@ -97,6 +101,7 @@ func DefaultConfig() *Config {
 		BackupCompression:           "gzip",
 		BackupMinFreeSpaceMB:        500,
 		BackupMaxKeepCount:          10,
+		MonitoringDomain:            "AQMS",
 		SerialPort:                  "COM1",
 		SerialBaudRate:              9600,
 		SerialDataBits:              8,
@@ -197,6 +202,10 @@ func Load(configPath string) (*Config, error) {
 	if bTime := os.Getenv("DATALOGGER_BACKUP_TIME"); bTime != "" {
 		cfg.BackupScheduleTime = bTime
 	}
+	if mDomain := os.Getenv("DATALOGGER_MONITORING_DOMAIN"); mDomain != "" {
+		cfg.MonitoringDomain = mDomain
+	}
+	cfg.MonitoringDomain = NormalizeMonitoringDomain(cfg.MonitoringDomain)
 
 	// Ensure data, log, queue, and backup directories exist
 	_ = os.MkdirAll(cfg.DataDir, 0755)
@@ -239,4 +248,13 @@ func Get() *Config {
 		globalConfig = DefaultConfig()
 	}
 	return globalConfig
+}
+
+// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, WQMS, or CUSTOM.
+func NormalizeMonitoringDomain(domain string) string {
+	d := strings.ToUpper(strings.TrimSpace(domain))
+	if d == "AQMS" || d == "WQMS" || d == "CUSTOM" {
+		return d
+	}
+	return "AQMS"
 }

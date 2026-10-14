@@ -17,5 +17,6 @@
   "log_dir": "logs",
   "data_dir": "data",
   "enable_cloud_sync": false,
-  "cloud_endpoint": ""
+  "cloud_endpoint": "",
+  "monitoring_domain": "AQMS"
 }

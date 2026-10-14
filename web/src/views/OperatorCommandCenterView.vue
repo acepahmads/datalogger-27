@@ -290,6 +290,13 @@
             <span class="text-4xs font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#20354B]">
               {{ filteredParameters.length }} / {{ allParameters.length }}
             </span>
+            <span
+              class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
+              :class="monitoringDomainBadgeClass"
+              :title="'Configured Application Domain: ' + currentMonitoringDomain"
+            >
+              {{ currentMonitoringDomain }}
+            </span>
           </div>
 
           <!-- View Mode & Quick Filter Toggles -->
@@ -502,6 +509,13 @@
                         :title="'Active alarm: ' + param.alarm_status"
                       >
                         {{ param.alarm_status === 'CRITICAL' ? 'CRIT' : 'WARN' }}
+                      </span>
+                      <span
+                        v-if="isParamDomainMismatched(param)"
+                        class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 cursor-help"
+                        :title="'Category domain mismatch (' + (param.category ? param.category.domain : 'Other') + ' vs active ' + currentMonitoringDomain + '). Preserved safely.'"
+                      >
+                        MISMATCH
                       </span>
                       <span
                         class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider"
@@ -737,6 +751,13 @@
                       class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700/60 font-mono"
                     >
                       {{ $t('operator.uncategorized') || 'Uncategorized' }}
+                    </span>
+                    <span
+                      v-if="isParamDomainMismatched(p)"
+                      class="ml-1 px-1 py-0.2 rounded text-4xs font-bold font-mono bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                      :title="'Domain mismatch: Active domain is ' + currentMonitoringDomain"
+                    >
+                      MISMATCH
                     </span>
                   </td>
 
@@ -2676,10 +2697,34 @@ export default {
     canViewCategories() {
       return true;
     },
+    currentMonitoringDomain() {
+      return (this.systemStatus && this.systemStatus.monitoring_domain) || 'AQMS';
+    },
+    monitoringDomainBadgeClass() {
+      const d = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
+      if (d === 'AQMS') return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30';
+      if (d === 'WQMS') return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30';
+      return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30';
+    },
     activeCategoriesList() {
+      const dom = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
       return (this.categoriesList || [])
-        .filter(c => c.enabled)
+        .filter(c => {
+          if (!c.enabled) return false;
+          if (dom === 'CUSTOM') return true;
+          const cDom = (c.domain || 'ALL').toUpperCase();
+          return cDom === dom || cDom === 'ALL' || cDom === 'CUSTOM';
+        })
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    },
+    isParamDomainMismatched(param) {
+      if (!param || !param.category_id) return false;
+      const dom = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
+      if (dom === 'CUSTOM') return false;
+      const cat = this.categoryMap[param.category_id];
+      if (!cat) return false;
+      const cDom = (cat.domain || 'ALL').toUpperCase();
+      return cDom !== 'ALL' && cDom !== 'CUSTOM' && cDom !== dom;
     },
     categoryMap() {
       const map = {};

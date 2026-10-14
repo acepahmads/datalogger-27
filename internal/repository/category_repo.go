@@ -16,10 +16,18 @@ func NewCategoryRepository(db *gorm.DB) *CategoryRepository {
 
 // List returns all parameter categories, optionally filtering by enabled status, ordered by display_order
 func (r *CategoryRepository) List(enabledOnly bool) ([]model.ParameterCategory, error) {
+	return r.ListWithDomain(enabledOnly, "")
+}
+
+// ListWithDomain returns parameter categories, optionally filtered by enabled status and domain
+func (r *CategoryRepository) ListWithDomain(enabledOnly bool, domain string) ([]model.ParameterCategory, error) {
 	var categories []model.ParameterCategory
 	query := r.db.Model(&model.ParameterCategory{}).Where("deleted_at IS NULL")
 	if enabledOnly {
 		query = query.Where("enabled = ?", true)
+	}
+	if domain != "" && domain != "ALL" && domain != "CUSTOM" {
+		query = query.Where("domain = ? OR domain = 'ALL' OR domain = 'CUSTOM' OR domain = '' OR domain IS NULL", domain)
 	}
 	err := query.Order("display_order ASC, id ASC").Find(&categories).Error
 	if err != nil {

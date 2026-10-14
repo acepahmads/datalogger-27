@@ -445,9 +445,22 @@ func main() {
 		configGroup.Use(middleware.JWTAuth(authService))
 		{
 			configGroup.GET("", middleware.RequirePermission("config.view"), systemHandler.GetConfig)
+			configGroup.GET("/domain-compatibility", middleware.RequirePermission("config.view"), systemHandler.CheckDomainCompatibility)
 			configGroup.PUT("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
 			configGroup.POST("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
 		}
+
+		// Public deployment domain inspection
+		api.GET("/system/domain", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data": gin.H{
+					"monitoring_domain": config.Get().MonitoringDomain,
+					"app_name":          config.Get().AppName,
+					"version":           config.Get().Version,
+				},
+			})
+		})
 	}
 
 	// 11. Serve Web UI Static Assets (if web/dist exists)

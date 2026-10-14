@@ -128,6 +128,12 @@
                     </span>
                     <span
                       class="text-4xs font-mono px-1.5 py-0.5 rounded font-bold uppercase"
+                      :class="getDomainBadgeClass(cat.domain)"
+                    >
+                      {{ cat.domain || 'AQMS' }}
+                    </span>
+                    <span
+                      class="text-4xs font-mono px-1.5 py-0.5 rounded font-bold uppercase"
                       :class="cat.enabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700/40 text-slate-400 border border-slate-600'"
                     >
                       {{ cat.enabled ? 'Active' : 'Disabled' }}
@@ -297,7 +303,7 @@
 
             <!-- Form Content -->
             <form @submit.prevent="submitCategoryForm" class="flex-1 overflow-y-auto p-6 space-y-4 font-mono text-2xs custom-scroller">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Category Code -->
                 <div>
                   <label class="block text-slate-300 font-semibold mb-1">
@@ -326,6 +332,24 @@
                     placeholder="e.g. Water Quality"
                     class="w-full px-3 py-2 bg-[#080E18] border border-[#20354B] rounded-xl text-white focus:outline-none focus:border-cyan-500"
                   />
+                  <span class="text-4xs text-slate-400 mt-1 block">Display label shown in dashboard</span>
+                </div>
+
+                <!-- Monitoring Domain -->
+                <div>
+                  <label class="block text-slate-300 font-semibold mb-1">
+                    Monitoring Domain
+                  </label>
+                  <select
+                    v-model="form.domain"
+                    class="w-full px-3 py-2 bg-[#080E18] border border-[#20354B] rounded-xl text-white focus:outline-none focus:border-cyan-500 uppercase font-mono"
+                  >
+                    <option value="AQMS">AQMS (Air Quality)</option>
+                    <option value="WQMS">WQMS (Water Quality)</option>
+                    <option value="CUSTOM">CUSTOM (Configurable)</option>
+                    <option value="ALL">ALL (Universal)</option>
+                  </select>
+                  <span class="text-4xs text-slate-400 mt-1 block">Target monitoring domain profile</span>
                 </div>
               </div>
 
@@ -578,6 +602,7 @@ export default {
         color_key: 'cyan',
         default_column_span: 1,
         enabled: true,
+        domain: 'AQMS',
       },
 
       // Delete confirmation state
@@ -714,6 +739,13 @@ export default {
         this.showError('Failed to toggle category: ' + (err.response?.data?.error || err.message));
       }
     },
+    getDomainBadgeClass(domain) {
+      const d = (domain || 'AQMS').toUpperCase();
+      if (d === 'AQMS') return 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30';
+      if (d === 'WQMS') return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+      if (d === 'CUSTOM') return 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
+      return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+    },
     openCreateForm() {
       this.editingId = null;
       this.form = {
@@ -724,6 +756,7 @@ export default {
         color_key: 'cyan',
         default_column_span: 1,
         enabled: true,
+        domain: 'AQMS',
       };
       this.isFormOpen = true;
     },
@@ -737,6 +770,7 @@ export default {
         color_key: cat.color_key || 'cyan',
         default_column_span: cat.default_column_span || 1,
         enabled: cat.enabled !== false,
+        domain: cat.domain || 'AQMS',
       };
       this.isFormOpen = true;
     },
@@ -752,6 +786,7 @@ export default {
             color_key: this.form.color_key,
             default_column_span: this.form.default_column_span,
             enabled: this.form.enabled,
+            domain: this.form.domain,
           });
           this.showNotice(this.$t('categoryManagement.notifications.updated', { name: this.form.name }) || `Updated category '${this.form.name}'`);
         } else {

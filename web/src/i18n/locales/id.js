@@ -1935,5 +1935,48 @@ export default {
       "reordered": "Urutan tampilan kategori disimpan",
       "assigned": "Berhasil menetapkan {count} parameter"
     }
+  },
+  "config": {
+    "title": "Konfigurasi Sistem",
+    "subtitle": "Pengaturan runtime operasional, domain pemantauan aplikasi, dan konektivitas edge",
+    "firstRunSetup": "Panduan Pengaturan Awal",
+    "tabDomain": "Domain Pemantauan",
+    "tabDatabase": "Basis Data",
+    "tabGeneral": "Server & Runtime",
+    "tabLocalFirst": "Local-First",
+    "domain": {
+      "title": "Domain Pemantauan Aplikasi",
+      "subtitle": "Pilih domain pemantauan operasional utama untuk penerapan datalogger ini.",
+      "aqmsTitle": "Sistem Pemantauan Kualitas Udara (AQMS)",
+      "aqmsSubtitle": "Kualitas udara ambien, gas polutan beracun, partikulat debu (PM2.5, PM10), dan stasiun meteorologi cuaca.",
+      "wqmsTitle": "Sistem Pemantauan Kualitas Air (WQMS)",
+      "wqmsSubtitle": "Air permukaan, air limbah industri, instalasi pengolahan limbah (IPAL), dan hidrologi kimia.",
+      "customTitle": "Penerapan Kustom / Industri",
+      "customSubtitle": "Telemetri sensor lingkungan terkonfigurasi, energi, getaran, atau multi-domain industri.",
+      "activeBadge": "DOMAIN AKTIF",
+      "switchAction": "Ganti Domain",
+      "confirmModalTitle": "Konfirmasi Transisi Domain Pemantauan",
+      "zeroDataLossGuarantee": "Jaminan Tanpa Kehilangan Data: Mengubah domain pemantauan TIDAK AKAN PERNAH menghapus perangkat, riwayat telemetri, agregasi data, alarm, atau audit trail yang sudah ada.",
+      "compatibilityAnalysis": "Analisis Kompatibilitas Domain",
+      "compatibleCount": "Parameter Kompatibel",
+      "incompatibleCount": "Parameter Tidak Kompatibel",
+      "incompatibleNotice": "Parameter berikut termasuk dalam kategori di luar domain target. Parameter akan tetap dapat diakses di bagian 'Tanpa Kategori' atau Anda dapat menetapkan ulang di bawah:",
+      "keepUncategorized": "Tetap di Tanpa Kategori (Tersimpan aman)",
+      "reassignTo": "Tetapkan ulang ke",
+      "confirmButton": "Terapkan Transisi Domain",
+      "cancelButton": "Batal"
+    },
+    "firstRun": {
+      "title": "Panduan Pengaturan Pertama Aplikasi",
+      "subtitle": "Konfigurasi domain pemantauan awal dan identitas stasiun untuk instalasi edge ini.",
+      "stepDomain": "1. Domain Pemantauan",
+      "stepStation": "2. Identitas Stasiun",
+      "stepReview": "3. Tinjau & Selesai",
+      "stationName": "Nama / Pengenal Stasiun Edge",
+      "stationLocation": "Lokasi Pemasangan / Site",
+      "organization": "Organisasi Pengelola",
+      "completeButton": "Selesaikan Pengaturan & Luncurkan"
+    }
   }
 };
+

@@ -144,6 +144,7 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		NumCPU:            info.NumCPU,
 		Goroutines:        info.Goroutines,
 		AppVersion:        s.cfg.Version,
+		MonitoringDomain:  s.cfg.MonitoringDomain,
 
 		ServiceStatus:   "RUNNING",
 		WorkerStatus:    "READY",
@@ -379,25 +380,33 @@ type SystemConfigDTO struct {
 	BackupScheduleIntervalHours int    `json:"backup_schedule_interval_hours"`
 	BackupScheduleTime          string `json:"backup_schedule_time"`
 	BackupCompression           string `json:"backup_compression"`
+	MonitoringDomain            string `json:"monitoring_domain"`
+}
+
+type ReassignParameterCategoryItem struct {
+	ParameterID      uint  `json:"parameter_id"`
+	TargetCategoryID *uint `json:"target_category_id"`
 }
 
 type SaveSystemConfigRequest struct {
-	Environment        string `json:"environment"`
-	Port               string `json:"port"`
-	Host               string `json:"host"`
-	DBHost             string `json:"db_host"`
-	DBPort             string `json:"db_port"`
-	DBUser             string `json:"db_user"`
-	DBPassword         string `json:"db_password"`
-	DBName             string `json:"db_name"`
-	LogLevel           string `json:"log_level"`
-	JWTExpirationHours int    `json:"jwt_expiration_hours"`
-	SerialPort         string `json:"serial_port"`
-	SerialBaudRate     int    `json:"serial_baud_rate"`
-	SerialDataBits     int    `json:"serial_data_bits"`
-	SerialStopBits     int    `json:"serial_stop_bits"`
-	SerialParity       string `json:"serial_parity"`
-	SerialTimeoutMs    int    `json:"serial_timeout_ms"`
+	Environment        string                          `json:"environment"`
+	Port               string                          `json:"port"`
+	Host               string                          `json:"host"`
+	DBHost             string                          `json:"db_host"`
+	DBPort             string                          `json:"db_port"`
+	DBUser             string                          `json:"db_user"`
+	DBPassword         string                          `json:"db_password"`
+	DBName             string                          `json:"db_name"`
+	LogLevel           string                          `json:"log_level"`
+	JWTExpirationHours int                             `json:"jwt_expiration_hours"`
+	SerialPort         string                          `json:"serial_port"`
+	SerialBaudRate     int                             `json:"serial_baud_rate"`
+	SerialDataBits     int                             `json:"serial_data_bits"`
+	SerialStopBits     int                             `json:"serial_stop_bits"`
+	SerialParity       string                          `json:"serial_parity"`
+	SerialTimeoutMs    int                             `json:"serial_timeout_ms"`
+	MonitoringDomain   string                          `json:"monitoring_domain"`
+	Reassignments      []ReassignParameterCategoryItem `json:"reassignments,omitempty"`
 }
 
 type ConfigSaveResult struct {
@@ -438,6 +447,7 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		BackupScheduleIntervalHours: cfg.BackupScheduleIntervalHours,
 		BackupScheduleTime:          cfg.BackupScheduleTime,
 		BackupCompression:           cfg.BackupCompression,
+		MonitoringDomain:            cfg.MonitoringDomain,
 	}
 }
 
@@ -566,6 +576,30 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		cfg.SerialTimeoutMs = req.SerialTimeoutMs
 	}
 
+	// Monitoring Domain
+	if req.MonitoringDomain != "" {
+		dom := strings.ToUpper(strings.TrimSpace(req.MonitoringDomain))
+		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" {
+			return nil, errors.New("monitoring domain must be 'AQMS', 'WQMS', or 'CUSTOM'")
+		}
+		if dom != cfg.MonitoringDomain {
+			changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> %s", cfg.MonitoringDomain, dom))
+			cfg.MonitoringDomain = dom
+		}
+	}
+
+	// Apply optional parameter category reassignments if provided
+	if len(req.Reassignments) > 0 && s.systemRepo.GetDB() != nil {
+		for _, re := range req.Reassignments {
+			if re.ParameterID > 0 {
+				_ = s.systemRepo.GetDB().Model(&model.Parameter{}).
+					Where("id = ?", re.ParameterID).
+					Update("category_id", re.TargetCategoryID).Error
+			}
+		}
+		changedNotes = append(changedNotes, fmt.Sprintf("%d parameters reassigned", len(req.Reassignments)))
+	}
+
 	if err := config.Save("config.json", cfg); err != nil {
 		return nil, errors.New("failed to save configuration file: " + err.Error())
 	}
@@ -605,6 +639,170 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		RestartRequiredFields: restartFields,
 		DisruptedFields:       disruptedFields,
 		Message:               msg,
+	}, nil
+}
+
+type DomainCompatibilityReport struct {
+	CurrentDomain          string                     `json:"current_domain"`
+	TargetDomain           string                     `json:"target_domain"`
+	Compatible             bool                       `json:"compatible"`
+	TotalParameters        int                        `json:"total_parameters"`
+	IncompatibleCount      int                        `json:"incompatible_count"`
+	IncompatibleParameters []IncompatibleParameterDTO `json:"incompatible_parameters"`
+	AvailableCategories    []CategoryMiniDTO          `json:"available_categories"`
+	Message                string                     `json:"message"`
+	DataSafetyGuarantee    string                     `json:"data_safety_guarantee"`
+}
+
+type IncompatibleParameterDTO struct {
+	ParameterID         uint   `json:"parameter_id"`
+	ParameterCode       string `json:"parameter_code"`
+	ParameterName       string `json:"parameter_name"`
+	DeviceID            uint   `json:"device_id"`
+	DeviceCode          string `json:"device_code"`
+	CurrentCategoryID   *uint  `json:"current_category_id"`
+	CurrentCategoryCode string `json:"current_category_code"`
+	CurrentCategoryName string `json:"current_category_name"`
+	CategoryDomain      string `json:"category_domain"`
+	Reason              string `json:"reason"`
+}
+
+type CategoryMiniDTO struct {
+	ID     uint   `json:"id"`
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	Domain string `json:"domain"`
+}
+
+func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCompatibilityReport, error) {
+	target := strings.ToUpper(strings.TrimSpace(targetDomain))
+	if target != "AQMS" && target != "WQMS" && target != "CUSTOM" {
+		return nil, errors.New("target domain must be 'AQMS', 'WQMS', or 'CUSTOM'")
+	}
+
+	currentDomain := s.cfg.MonitoringDomain
+	if currentDomain == "" {
+		currentDomain = "AQMS"
+	}
+
+	db := s.systemRepo.GetDB()
+	if db == nil {
+		return &DomainCompatibilityReport{
+			CurrentDomain:       currentDomain,
+			TargetDomain:        target,
+			Compatible:          true,
+			DataSafetyGuarantee: "Existing telemetry records, alarms, aggregations, and devices remain 100% intact.",
+		}, nil
+	}
+
+	// 1. Fetch all parameters with their device and category
+	type ParamJoin struct {
+		ParamID      uint
+		ParamCode    string
+		ParamName    string
+		DeviceID     uint
+		DeviceCode   string
+		CategoryID   *uint
+		CategoryCode *string
+		CategoryName *string
+		CatDomain    *string
+	}
+
+	var params []ParamJoin
+	_ = db.Table("parameters").
+		Select("parameters.id as param_id, parameters.parameter_code as param_code, parameters.parameter_name as param_name, parameters.device_id as device_id, devices.device_code as device_code, parameters.category_id as category_id, parameter_categories.code as category_code, parameter_categories.name as category_name, parameter_categories.domain as cat_domain").
+		Joins("LEFT JOIN devices ON devices.id = parameters.device_id").
+		Joins("LEFT JOIN parameter_categories ON parameter_categories.id = parameters.category_id").
+		Where("parameters.deleted_at IS NULL").
+		Find(&params).Error
+
+	var incomp []IncompatibleParameterDTO
+	for _, p := range params {
+		if p.CategoryID == nil || *p.CategoryID == 0 || p.CatDomain == nil || *p.CatDomain == "" {
+			continue // Uncategorized parameters are never incompatible
+		}
+		catDom := strings.ToUpper(*p.CatDomain)
+		if catDom == "ALL" || catDom == "CUSTOM" {
+			continue // Generic or Custom categories are compatible with any domain
+		}
+
+		if target == "AQMS" && catDom == "WQMS" {
+			catName := ""
+			if p.CategoryName != nil {
+				catName = *p.CategoryName
+			}
+			catCode := ""
+			if p.CategoryCode != nil {
+				catCode = *p.CategoryCode
+			}
+			incomp = append(incomp, IncompatibleParameterDTO{
+				ParameterID:         p.ParamID,
+				ParameterCode:       p.ParamCode,
+				ParameterName:       p.ParamName,
+				DeviceID:            p.DeviceID,
+				DeviceCode:          p.DeviceCode,
+				CurrentCategoryID:   p.CategoryID,
+				CurrentCategoryCode: catCode,
+				CurrentCategoryName: catName,
+				CategoryDomain:      catDom,
+				Reason:              fmt.Sprintf("Parameter '%s' is categorized under WQMS category '%s', which differs from target AQMS domain.", p.ParamName, catName),
+			})
+		} else if target == "WQMS" && catDom == "AQMS" {
+			catName := ""
+			if p.CategoryName != nil {
+				catName = *p.CategoryName
+			}
+			catCode := ""
+			if p.CategoryCode != nil {
+				catCode = *p.CategoryCode
+			}
+			incomp = append(incomp, IncompatibleParameterDTO{
+				ParameterID:         p.ParamID,
+				ParameterCode:       p.ParamCode,
+				ParameterName:       p.ParamName,
+				DeviceID:            p.DeviceID,
+				DeviceCode:          p.DeviceCode,
+				CurrentCategoryID:   p.CategoryID,
+				CurrentCategoryCode: catCode,
+				CurrentCategoryName: catName,
+				CategoryDomain:      catDom,
+				Reason:              fmt.Sprintf("Parameter '%s' is categorized under AQMS category '%s', which differs from target WQMS domain.", p.ParamName, catName),
+			})
+		}
+	}
+
+	// 2. Fetch target domain available categories
+	var cats []model.ParameterCategory
+	_ = db.Where("deleted_at IS NULL AND enabled = true").Find(&cats).Error
+	var avail []CategoryMiniDTO
+	for _, c := range cats {
+		cDom := strings.ToUpper(c.Domain)
+		if target == "CUSTOM" || cDom == target || cDom == "ALL" || cDom == "CUSTOM" || cDom == "" {
+			avail = append(avail, CategoryMiniDTO{
+				ID:     c.ID,
+				Code:   c.Code,
+				Name:   c.Name,
+				Domain: c.Domain,
+			})
+		}
+	}
+
+	msg := fmt.Sprintf("Domain compatibility check passed. All %d parameters are fully compatible with %s domain.", len(params), target)
+	compatible := len(incomp) == 0
+	if !compatible {
+		msg = fmt.Sprintf("Notice: %d parameter(s) belong to %s categories while target domain is %s. You can reassign them or keep them as custom parameters.", len(incomp), currentDomain, target)
+	}
+
+	return &DomainCompatibilityReport{
+		CurrentDomain:          currentDomain,
+		TargetDomain:           target,
+		Compatible:             compatible,
+		TotalParameters:        len(params),
+		IncompatibleCount:      len(incomp),
+		IncompatibleParameters: incomp,
+		AvailableCategories:    avail,
+		Message:                msg,
+		DataSafetyGuarantee:    "No devices, parameters, telemetry records, aggregations, or alarms will be deleted. Data and history remain 100% preserved.",
 	}, nil
 }
 

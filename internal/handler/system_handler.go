@@ -882,6 +882,23 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 	response.OK(c, result)
 }
 
+// CheckDomainCompatibility validates parameters and category alignment before domain switch
+func (h *SystemHandler) CheckDomainCompatibility(c *gin.Context) {
+	target := c.Query("target")
+	if target == "" {
+		response.BadRequest(c, "Target domain parameter 'target' is required (e.g. 'AQMS', 'WQMS', 'CUSTOM')")
+		return
+	}
+
+	report, err := h.systemService.CheckDomainCompatibility(target)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	response.OK(c, report)
+}
+
 
 func formatAlarmDuration(seconds int64) string {
 	if seconds < 0 {

@@ -17,10 +17,32 @@ type ParameterCategory struct {
 	DisplayOrder      int            `gorm:"default:0;index" json:"display_order"`
 	DefaultColumnSpan int            `gorm:"default:1" json:"default_column_span"`
 	Enabled           bool           `gorm:"default:true;index" json:"enabled"`
+	Domain            string         `gorm:"size:32;default:'ALL';index" json:"domain"`
 	ParameterCount    int            `gorm:"-" json:"parameter_count,omitempty"`
 	CreatedAt         time.Time      `json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
 	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// Monitoring domain constants
+const (
+	DomainAQMS   = "AQMS"
+	DomainWQMS   = "WQMS"
+	DomainCustom = "CUSTOM"
+	DomainAll    = "ALL"
+)
+
+// ValidCategoryDomains defines permitted domain tags
+var ValidCategoryDomains = map[string]bool{
+	DomainAQMS:   true,
+	DomainWQMS:   true,
+	DomainCustom: true,
+	DomainAll:    true,
+}
+
+// IsValidCategoryDomain checks whether the given domain tag is valid
+func IsValidCategoryDomain(domain string) bool {
+	return ValidCategoryDomains[domain]
 }
 
 // ValidCategoryIcons defines the permitted safe vector icon catalog

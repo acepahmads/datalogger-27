@@ -1935,5 +1935,48 @@ export default {
       "reordered": "Category display order saved",
       "assigned": "Assigned {count} parameter(s) successfully"
     }
+  },
+  "config": {
+    "title": "System Configuration",
+    "subtitle": "Operational runtime settings, application monitoring domain, and edge connectivity",
+    "firstRunSetup": "First-Run Setup",
+    "tabDomain": "Monitoring Domain",
+    "tabDatabase": "Database",
+    "tabGeneral": "Server & Runtime",
+    "tabLocalFirst": "Local-First",
+    "domain": {
+      "title": "Application Monitoring Domain",
+      "subtitle": "Select the primary operational monitoring domain for this datalogger deployment.",
+      "aqmsTitle": "Air Quality Monitoring System (AQMS)",
+      "aqmsSubtitle": "Ambient air quality, toxic gas pollutants, particulate matter (PM2.5, PM10), and meteorological stations.",
+      "wqmsTitle": "Water Quality Monitoring System (WQMS)",
+      "wqmsSubtitle": "Surface water, industrial effluent, wastewater treatment, and chemical hydrology.",
+      "customTitle": "Custom / Industrial Deployment",
+      "customSubtitle": "Configurable environmental, energy, vibration, or multi-domain industrial sensor telemetry.",
+      "activeBadge": "ACTIVE DOMAIN",
+      "switchAction": "Switch Domain",
+      "confirmModalTitle": "Confirm Monitoring Domain Transition",
+      "zeroDataLossGuarantee": "Zero Data Deletion Guarantee: Changing the monitoring domain will NEVER delete existing devices, telemetry records, aggregations, alarms, or audit history.",
+      "compatibilityAnalysis": "Domain Compatibility Analysis",
+      "compatibleCount": "Compatible Parameters",
+      "incompatibleCount": "Incompatible Parameters",
+      "incompatibleNotice": "The following parameters belong to categories outside the target domain. They will remain fully accessible under 'Uncategorized' or you may reassign them below:",
+      "keepUncategorized": "Keep under Uncategorized (Safely preserved)",
+      "reassignTo": "Reassign to",
+      "confirmButton": "Apply Domain Transition",
+      "cancelButton": "Cancel"
+    },
+    "firstRun": {
+      "title": "Application First-Run Setup Wizard",
+      "subtitle": "Configure initial monitoring domain and station identity for this edge installation.",
+      "stepDomain": "1. Monitoring Domain",
+      "stepStation": "2. Station Identity",
+      "stepReview": "3. Review & Complete",
+      "stationName": "Station / Edge Identifier",
+      "stationLocation": "Deployment Location / Site",
+      "organization": "Operating Organization",
+      "completeButton": "Complete Setup & Launch"
+    }
   }
 };
+

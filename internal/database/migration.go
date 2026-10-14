@@ -2703,6 +2703,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      1,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainAQMS,
 		},
 		{
 			Code:              "particulate_matter",
@@ -2713,6 +2714,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      2,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainAQMS,
 		},
 		{
 			Code:              "meteorology",
@@ -2723,6 +2725,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      3,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainAQMS,
 		},
 		{
 			Code:              "water_quality",
@@ -2733,6 +2736,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      4,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainWQMS,
 		},
 		{
 			Code:              "physical_water",
@@ -2743,6 +2747,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      5,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainWQMS,
 		},
 		{
 			Code:              "chemical_parameters",
@@ -2753,6 +2758,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      6,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainWQMS,
 		},
 		{
 			Code:              "flow_level",
@@ -2763,6 +2769,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      7,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainWQMS,
 		},
 		{
 			Code:              "environmental",
@@ -2773,6 +2780,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			DisplayOrder:      8,
 			DefaultColumnSpan: 1,
 			Enabled:           true,
+			Domain:            model.DomainCustom,
 		},
 	}
 
@@ -2783,6 +2791,9 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			db.Create(&c)
 			catMap[c.Code] = c.ID
 		} else {
+			if existing.Domain == "" || existing.Domain == "ALL" {
+				db.Model(&existing).Update("domain", c.Domain)
+			}
 			catMap[c.Code] = existing.ID
 		}
 	}

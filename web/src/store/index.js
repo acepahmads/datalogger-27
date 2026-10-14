@@ -56,6 +56,7 @@ export default new Vuex.Store({
       warning_alarms: 0,
       critical_alarms: 0,
       acknowledged_alarms: 0,
+      monitoring_domain: 'AQMS',
     },
     progress: {
       overall_percentage: 18.5,

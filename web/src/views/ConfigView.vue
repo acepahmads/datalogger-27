@@ -5,37 +5,55 @@
       <div>
         <h1 class="text-xl font-bold tracking-tight text-white font-sans flex items-center gap-2">
           {{ $t('config.title') || 'System Configuration' }}
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-3xs font-mono font-bold"
+                :class="currentDomainBadgeClass">
+            ● {{ form.monitoring_domain || 'AQMS' }}
+          </span>
           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
             #83
           </span>
         </h1>
         <p class="text-xs text-slate-400 mt-0.5 font-sans">
-          {{ $t('config.subtitle') || 'Operational runtime settings, database connectivity, and hardware serial ports' }}
+          {{ $t('config.subtitle') || 'Operational runtime settings, application monitoring domain, and edge connectivity' }}
         </p>
       </div>
 
-      <!-- Tab Switcher -->
-      <div class="flex items-center space-x-1 bg-[#111827] p-1 rounded-lg border border-slate-800 text-xs font-sans">
-        <button @click="activeTab = 'database'"
-                class="px-3 py-1.5 rounded-md transition-colors"
-                :class="activeTab === 'database' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          {{ $t('config.tabDatabase') || 'Database' }}
+      <!-- Tab Switcher & First-Run Setup Button -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button @click="openSetupWizard"
+                class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition">
+          <span>🚀</span>
+          <span>{{ $t('config.firstRunSetup') || 'First-Run Setup' }}</span>
         </button>
-        <button @click="activeTab = 'serial'"
-                class="px-3 py-1.5 rounded-md transition-colors"
-                :class="activeTab === 'serial' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          Serial & Comm
-        </button>
-        <button @click="activeTab = 'general'"
-                class="px-3 py-1.5 rounded-md transition-colors"
-                :class="activeTab === 'general' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          {{ $t('config.tabGeneral') || 'Server & Runtime' }}
-        </button>
-        <button @click="activeTab = 'localfirst'"
-                class="px-3 py-1.5 rounded-md transition-colors"
-                :class="activeTab === 'localfirst' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
-          {{ $t('config.tabLocalFirst') || 'Local-First' }}
-        </button>
+
+        <div class="flex items-center space-x-1 bg-[#111827] p-1 rounded-lg border border-slate-800 text-xs font-sans">
+          <button @click="activeTab = 'domain'"
+                  class="px-3 py-1.5 rounded-md transition-colors flex items-center space-x-1.5"
+                  :class="activeTab === 'domain' ? 'bg-cyan-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+            <span>🌍</span>
+            <span>{{ $t('config.tabDomain') || 'Monitoring Domain' }}</span>
+          </button>
+          <button @click="activeTab = 'database'"
+                  class="px-3 py-1.5 rounded-md transition-colors"
+                  :class="activeTab === 'database' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+            {{ $t('config.tabDatabase') || 'Database' }}
+          </button>
+          <button @click="activeTab = 'serial'"
+                  class="px-3 py-1.5 rounded-md transition-colors"
+                  :class="activeTab === 'serial' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+            Serial & Comm
+          </button>
+          <button @click="activeTab = 'general'"
+                  class="px-3 py-1.5 rounded-md transition-colors"
+                  :class="activeTab === 'general' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+            {{ $t('config.tabGeneral') || 'Server & Runtime' }}
+          </button>
+          <button @click="activeTab = 'localfirst'"
+                  class="px-3 py-1.5 rounded-md transition-colors"
+                  :class="activeTab === 'localfirst' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+            {{ $t('config.tabLocalFirst') || 'Local-First' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -52,8 +70,193 @@
       </div>
     </div>
 
+    <!-- TAB 0: Monitoring Domain (#83 Single Monitoring Domain Configuration) -->
+    <div v-if="activeTab === 'domain'" class="space-y-5 max-w-5xl font-sans">
+      <!-- Active Domain Overview Card -->
+      <div class="saas-card p-5 space-y-4 bg-gradient-to-br from-[#111827] to-[#131E35] border border-cyan-500/30">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div class="flex items-center space-x-3">
+            <span class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-lg">
+              🌍
+            </span>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h2 class="text-sm font-bold text-white tracking-tight">{{ $t('config.domain.title') || 'Application Monitoring Domain' }}</h2>
+                <span class="text-3xs font-mono font-bold px-2 py-0.5 rounded-full" :class="currentDomainBadgeClass">
+                  ● ACTIVE: {{ form.monitoring_domain || 'AQMS' }}
+                </span>
+              </div>
+              <p class="text-2xs text-slate-400 mt-0.5">
+                {{ $t('config.domain.subtitle') || 'Select the primary operational monitoring domain for this datalogger deployment.' }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-3xs font-mono px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1">
+              <span>🛡️</span>
+              <span>Zero Data Deletion Guarantee</span>
+            </span>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          A single application installation represents one monitoring deployment. The selected domain governs default category presentation on the Operator Command Center while strictly preserving all device mappings, historical telemetry, alarms, and analytical records.
+        </p>
+      </div>
+
+      <!-- Domain Selection Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- 1. AQMS Card -->
+        <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
+             :class="form.monitoring_domain === 'AQMS'
+               ? 'bg-cyan-950/20 border-cyan-500/50 shadow-lg shadow-cyan-950/30 ring-1 ring-cyan-500/30'
+               : 'bg-[#111827] border-slate-800 hover:border-slate-700'">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">💨</span>
+              <span v-if="form.monitoring_domain === 'AQMS'" class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                ACTIVE DOMAIN
+              </span>
+              <span v-else class="text-4xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                READY
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-bold text-white font-sans flex items-center gap-1.5">
+                AQMS
+                <span class="text-2xs text-slate-400 font-normal">Air Quality</span>
+              </h3>
+              <p class="text-3xs text-slate-400 mt-1 leading-normal">
+                Ambient air quality, toxic gases, particulate matter (PM2.5, PM10), and meteorological stations.
+              </p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-800/80">
+              <span class="text-4xs uppercase tracking-wider text-slate-400 font-bold block">Relevant Categories:</span>
+              <div class="flex flex-wrap gap-1 text-3xs font-mono">
+                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">Gas & Pollutants</span>
+                <span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">Particulate Matter</span>
+                <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">Meteorology</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button v-if="form.monitoring_domain === 'AQMS'" disabled
+                    class="w-full py-1.5 px-3 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold cursor-default text-center">
+              ✓ Active Domain
+            </button>
+            <button v-else @click="initiateDomainSwitch('AQMS')"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-200 border border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1">
+              <span>Switch to AQMS</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. WQMS Card -->
+        <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
+             :class="form.monitoring_domain === 'WQMS'
+               ? 'bg-blue-950/20 border-blue-500/50 shadow-lg shadow-blue-950/30 ring-1 ring-blue-500/30'
+               : 'bg-[#111827] border-slate-800 hover:border-slate-700'">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">💧</span>
+              <span v-if="form.monitoring_domain === 'WQMS'" class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                ACTIVE DOMAIN
+              </span>
+              <span v-else class="text-4xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                READY
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-bold text-white font-sans flex items-center gap-1.5">
+                WQMS
+                <span class="text-2xs text-slate-400 font-normal">Water Quality</span>
+              </h3>
+              <p class="text-3xs text-slate-400 mt-1 leading-normal">
+                Surface water, industrial effluent, wastewater treatment (WWTP/IPAL), and chemical hydrology.
+              </p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-800/80">
+              <span class="text-4xs uppercase tracking-wider text-slate-400 font-bold block">Relevant Categories:</span>
+              <div class="flex flex-wrap gap-1 text-3xs font-mono">
+                <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">Water Quality</span>
+                <span class="px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">Physical Water</span>
+                <span class="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">Chemical Water</span>
+                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">Flow & Level</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button v-if="form.monitoring_domain === 'WQMS'" disabled
+                    class="w-full py-1.5 px-3 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold cursor-default text-center">
+              ✓ Active Domain
+            </button>
+            <button v-else @click="initiateDomainSwitch('WQMS')"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-200 border border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1">
+              <span>Switch to WQMS</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. CUSTOM Card -->
+        <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
+             :class="form.monitoring_domain === 'CUSTOM'
+               ? 'bg-purple-950/20 border-purple-500/50 shadow-lg shadow-purple-950/30 ring-1 ring-purple-500/30'
+               : 'bg-[#111827] border-slate-800 hover:border-slate-700'">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">⚙️</span>
+              <span v-if="form.monitoring_domain === 'CUSTOM'" class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                ACTIVE DOMAIN
+              </span>
+              <span v-else class="text-4xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                READY
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-bold text-white font-sans flex items-center gap-1.5">
+                CUSTOM
+                <span class="text-2xs text-slate-400 font-normal">Multi-Discipline</span>
+              </h3>
+              <p class="text-3xs text-slate-400 mt-1 leading-normal">
+                Configurable environmental, energy, vibration, or multi-domain industrial sensor telemetry.
+              </p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-800/80">
+              <span class="text-4xs uppercase tracking-wider text-slate-400 font-bold block">Relevant Categories:</span>
+              <div class="flex flex-wrap gap-1 text-3xs font-mono">
+                <span class="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">All Categories Enabled</span>
+                <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">Custom Taxonomies</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button v-if="form.monitoring_domain === 'CUSTOM'" disabled
+                    class="w-full py-1.5 px-3 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold cursor-default text-center">
+              ✓ Active Domain
+            </button>
+            <button v-else @click="initiateDomainSwitch('CUSTOM')"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-purple-600 hover:text-white text-slate-200 border border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1">
+              <span>Switch to CUSTOM</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB 1: Database (MariaDB) -->
-    <div v-if="activeTab === 'database'" class="space-y-5 max-w-4xl">
+    <div v-else-if="activeTab === 'database'" class="space-y-5 max-w-4xl">
       <!-- Live Database Health Monitoring Card -->
       <div class="saas-card p-5 space-y-4 bg-gradient-to-br from-[#111827] to-[#131E35]">
         <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -323,6 +526,262 @@
         The system is designed with a strict local-first architecture. All operational telemetry, user accounts, security roles, alarms, and configuration parameters are persisted directly onto the edge hardware (MariaDB Edge). In the event of network disruption or cloud disconnects, telemetry acquisition, threshold monitoring, and local reporting continue uninterrupted.
       </p>
     </div>
+
+    <!-- MODAL 1: Monitoring Domain Transition Validation & Confirmation Modal -->
+    <div v-if="showDomainModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-[#0B1422] border border-[#20354B] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-[#20354B] flex items-center justify-between bg-[#080E18]">
+          <div class="flex items-center space-x-2.5">
+            <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-base">
+              🔄
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white tracking-wide font-mono uppercase">
+                {{ $t('config.domain.confirmModalTitle') || 'Confirm Monitoring Domain Transition' }}
+              </h2>
+              <p class="text-3xs text-slate-400 mt-0.5 font-mono">
+                Transitioning primary domain from <strong class="text-cyan-400">{{ form.monitoring_domain || 'AQMS' }}</strong> ➔ <strong class="text-emerald-400">{{ targetDomainForModal }}</strong>
+              </p>
+            </div>
+          </div>
+          <button @click="showDomainModal = false" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scroller text-xs">
+          <!-- Zero Data Deletion Guarantee Banner -->
+          <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-1">
+            <div class="font-bold flex items-center gap-1.5">
+              <span>🛡️</span>
+              <span>Zero Data Deletion Guarantee</span>
+            </div>
+            <p class="text-2xs text-emerald-300/90 leading-relaxed">
+              {{ $t('config.domain.zeroDataLossGuarantee') || 'Changing the monitoring domain will NEVER delete existing devices, telemetry records, aggregations, alarms, or audit history.' }}
+            </p>
+          </div>
+
+          <!-- Compatibility Summary Stats -->
+          <div v-if="compatibilityReport" class="grid grid-cols-3 gap-3 font-mono text-center">
+            <div class="p-3 rounded-xl bg-[#080E18] border border-slate-800">
+              <span class="text-3xs text-slate-400 block uppercase">Total Parameters</span>
+              <span class="text-base font-bold text-white mt-0.5 block">{{ compatibilityReport.total_parameters }}</span>
+            </div>
+            <div class="p-3 rounded-xl bg-[#080E18] border border-emerald-500/30">
+              <span class="text-3xs text-emerald-400 block uppercase">Compatible</span>
+              <span class="text-base font-bold text-emerald-400 mt-0.5 block">{{ compatibilityReport.compatible_parameters }}</span>
+            </div>
+            <div class="p-3 rounded-xl bg-[#080E18] border"
+                 :class="compatibilityReport.incompatible_parameters > 0 ? 'border-amber-500/30' : 'border-slate-800'">
+              <span class="text-3xs block uppercase" :class="compatibilityReport.incompatible_parameters > 0 ? 'text-amber-400' : 'text-slate-400'">
+                Incompatible
+              </span>
+              <span class="text-base font-bold mt-0.5 block" :class="compatibilityReport.incompatible_parameters > 0 ? 'text-amber-400' : 'text-slate-300'">
+                {{ compatibilityReport.incompatible_parameters }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Incompatible Parameters Review & Controlled Reassignment -->
+          <div v-if="compatibilityReport && compatibilityReport.incompatible_parameters > 0" class="space-y-2">
+            <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-2xs text-amber-300 space-y-1">
+              <div class="font-bold flex items-center gap-1">
+                <span>⚠️</span>
+                <span>Controlled Reassignment Review</span>
+              </div>
+              <p class="text-amber-300/90 leading-relaxed">
+                {{ $t('config.domain.incompatibleNotice') || 'The following parameters belong to categories outside the target domain. They will remain fully accessible under \'Uncategorized\' or you may reassign them below:' }}
+              </p>
+            </div>
+
+            <div class="space-y-2 max-h-56 overflow-y-auto custom-scroller pr-1">
+              <div v-for="inc in compatibilityReport.incompatibilities" :key="inc.parameter_id"
+                   class="p-2.5 rounded-lg bg-[#080E18] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-2xs font-mono">
+                <div>
+                  <div class="font-bold text-white">{{ inc.parameter_name }} <span class="text-slate-400 font-normal">({{ inc.parameter_code }})</span></div>
+                  <div class="text-3xs text-slate-400">Current Category: <span class="text-cyan-400">{{ inc.category_name }}</span> ({{ inc.category_domain }})</div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                  <select v-model="parameterReassignments[inc.parameter_id]"
+                          class="bg-[#101B2B] border border-slate-700 rounded-lg px-2.5 py-1 text-white text-3xs focus:outline-none focus:border-cyan-500">
+                    <option :value="0">Keep as Uncategorized (Safely Preserved)</option>
+                    <option v-for="cat in availableTargetCategories" :key="cat.id" :value="cat.id">
+                      Reassign: {{ cat.name }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="compatibilityReport && compatibilityReport.incompatible_parameters === 0" class="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-2xs flex items-center gap-2">
+            <span>✓</span>
+            <span>All active parameters and categories are 100% compatible with the {{ targetDomainForModal }} domain.</span>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="px-6 py-3 border-t border-[#20354B] bg-[#080E18] flex items-center justify-end space-x-3">
+          <button @click="showDomainModal = false" :disabled="switchingDomain"
+                  class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+            {{ $t('config.domain.cancelButton') || 'Cancel' }}
+          </button>
+          <button @click="executeDomainSwitch" :disabled="switchingDomain"
+                  class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-cyan-900/20">
+            <span v-if="switchingDomain" class="inline-block w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin mr-1"></span>
+            <span>{{ $t('config.domain.confirmButton') || 'Apply Domain Transition' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: First-Run Setup Wizard Modal -->
+    <div v-if="showSetupWizard" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-[#0B1422] border border-[#20354B] rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <!-- Wizard Header -->
+        <div class="px-6 py-4 border-b border-[#20354B] flex items-center justify-between bg-[#080E18]">
+          <div class="flex items-center space-x-2.5">
+            <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-base">
+              🚀
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white tracking-wide font-mono uppercase">
+                {{ $t('config.firstRun.title') || 'Application First-Run Setup Wizard' }}
+              </h2>
+              <p class="text-3xs text-slate-400 mt-0.5">
+                {{ $t('config.firstRun.subtitle') || 'Configure initial monitoring domain and station identity for this edge installation.' }}
+              </p>
+            </div>
+          </div>
+          <button @click="showSetupWizard = false" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+        </div>
+
+        <!-- Wizard Step Indicators -->
+        <div class="px-6 py-2.5 bg-[#0e192a] border-b border-[#20354B] flex items-center justify-between text-3xs font-mono text-slate-400">
+          <span :class="wizardStep >= 1 ? 'text-cyan-400 font-bold' : ''">1. Monitoring Domain</span>
+          <span>→</span>
+          <span :class="wizardStep >= 2 ? 'text-cyan-400 font-bold' : ''">2. Edge Identity</span>
+          <span>→</span>
+          <span :class="wizardStep >= 3 ? 'text-cyan-400 font-bold' : ''">3. Review & Save</span>
+        </div>
+
+        <!-- Wizard Body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scroller text-xs">
+          <!-- Step 1: Domain Selection -->
+          <div v-if="wizardStep === 1" class="space-y-3">
+            <div class="text-2xs text-slate-300 font-semibold">
+              Select the primary monitoring domain for this station:
+            </div>
+
+            <div class="grid grid-cols-1 gap-2.5">
+              <label v-for="d in [
+                       { code: 'AQMS', name: 'Air Quality Monitoring System (AQMS)', icon: '💨', desc: 'Gas pollutants, PM2.5, PM10, meteorology' },
+                       { code: 'WQMS', name: 'Water Quality Monitoring System (WQMS)', icon: '💧', desc: 'Effluent, wastewater, pH, DO, turbidity, hydrology' },
+                       { code: 'CUSTOM', name: 'Custom Multi-Domain Deployment', icon: '⚙️', desc: 'All categories enabled, user-defined taxonomies' },
+                     ]"
+                     :key="d.code"
+                     class="p-3 rounded-xl border cursor-pointer flex items-center justify-between transition"
+                     :class="wizardDomain === d.code ? 'bg-cyan-950/30 border-cyan-500/60 ring-1 ring-cyan-500/40' : 'bg-[#080E18] border-slate-800 hover:border-slate-700'">
+                <div class="flex items-center space-x-3">
+                  <input type="radio" v-model="wizardDomain" :value="d.code" class="text-cyan-500 focus:ring-0" />
+                  <div>
+                    <div class="font-bold text-white flex items-center gap-1.5">
+                      <span>{{ d.icon }}</span>
+                      <span>{{ d.name }}</span>
+                    </div>
+                    <div class="text-3xs text-slate-400 mt-0.5">{{ d.desc }}</div>
+                  </div>
+                </div>
+                <span class="text-3xs font-mono font-bold px-2 py-0.5 rounded"
+                      :class="wizardDomain === d.code ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'">
+                  {{ d.code }}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 2: Station Identity -->
+          <div v-else-if="wizardStep === 2" class="space-y-3">
+            <div class="text-2xs text-slate-300 font-semibold">
+              Configure station and site identification:
+            </div>
+
+            <div class="space-y-3 font-mono text-2xs">
+              <div>
+                <label class="block text-slate-400 mb-1 uppercase font-semibold">Station / Host Identifier</label>
+                <input type="text" v-model="wizardStationName"
+                       class="w-full bg-[#080E18] border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1 uppercase font-semibold">Deployment Site / Location</label>
+                <input type="text" v-model="wizardSiteName"
+                       class="w-full bg-[#080E18] border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1 uppercase font-semibold">Operating Organization</label>
+                <input type="text" v-model="wizardOrganization"
+                       class="w-full bg-[#080E18] border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Review & Summary -->
+          <div v-else-if="wizardStep === 3" class="space-y-3 font-mono text-2xs">
+            <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-1">
+              <div class="font-bold">✓ Ready to Activate Application Profile</div>
+              <p class="text-3xs text-emerald-300/90 leading-relaxed">
+                The setup wizard will persist this monitoring domain to the edge configuration without disrupting historical records.
+              </p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-[#080E18] border border-slate-800 space-y-2">
+              <div class="flex justify-between py-1 border-b border-slate-800/80">
+                <span class="text-slate-400">Target Monitoring Domain:</span>
+                <span class="font-bold text-cyan-400">{{ wizardDomain }}</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-slate-800/80">
+                <span class="text-slate-400">Station Identifier:</span>
+                <span class="text-white">{{ wizardStationName }}</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-slate-800/80">
+                <span class="text-slate-400">Deployment Location:</span>
+                <span class="text-white">{{ wizardSiteName }}</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">Operating Organization:</span>
+                <span class="text-white">{{ wizardOrganization }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wizard Footer -->
+        <div class="px-6 py-3 border-t border-[#20354B] bg-[#080E18] flex items-center justify-between">
+          <button v-if="wizardStep > 1" @click="wizardStep--"
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold">
+            ← Back
+          </button>
+          <div v-else></div>
+
+          <div class="flex items-center space-x-2">
+            <button @click="showSetupWizard = false"
+                    class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-xs hover:text-white">
+              Cancel
+            </button>
+            <button v-if="wizardStep < 3" @click="wizardStep++"
+                    class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition">
+              Next →
+            </button>
+            <button v-else @click="applyWizardSetup" :disabled="saving"
+                    class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition flex items-center gap-1.5">
+              <span v-if="saving" class="inline-block w-3 h-3 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+              <span>Complete Setup & Launch</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -333,11 +792,24 @@ export default {
   name: 'ConfigView',
   data() {
     return {
-      activeTab: 'database',
+      activeTab: 'domain',
       testing: false,
       saving: false,
       testResult: null,
       saveResult: null,
+      selectedTargetDomain: '',
+      targetDomainForModal: '',
+      showDomainModal: false,
+      switchingDomain: false,
+      compatibilityReport: null,
+      parameterReassignments: {},
+      availableTargetCategories: [],
+      showSetupWizard: false,
+      wizardStep: 1,
+      wizardDomain: 'AQMS',
+      wizardStationName: 'Edge-Node-01',
+      wizardSiteName: 'Local Autonomous Edge',
+      wizardOrganization: 'Environmental Monitoring Division',
       dbStatus: {
         host: '127.0.0.1',
         port: '3306',
@@ -350,6 +822,7 @@ export default {
         database_size_mb: 1.08,
       },
       form: {
+        monitoring_domain: 'AQMS',
         db_host: '127.0.0.1',
         db_port: '3306',
         db_name: 'datalogger',
@@ -368,11 +841,110 @@ export default {
       },
     };
   },
+  computed: {
+    currentDomainBadgeClass() {
+      const d = (this.form.monitoring_domain || 'AQMS').toUpperCase();
+      if (d === 'AQMS') return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
+      if (d === 'WQMS') return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
+      return 'bg-purple-500/10 text-purple-400 border border-purple-500/30';
+    },
+  },
   mounted() {
     this.fetchDbStatus();
     this.fetchConfig();
   },
   methods: {
+    openSetupWizard() {
+      this.wizardStep = 1;
+      this.wizardDomain = this.form.monitoring_domain || 'AQMS';
+      this.showSetupWizard = true;
+    },
+    async initiateDomainSwitch(targetDomain) {
+      if (targetDomain === this.form.monitoring_domain) return;
+      this.targetDomainForModal = targetDomain;
+      this.selectedTargetDomain = targetDomain;
+      this.compatibilityReport = null;
+      this.parameterReassignments = {};
+      this.availableTargetCategories = [];
+      try {
+        const res = await axios.get(`/api/system/config/domain-compatibility?target_domain=${targetDomain}`);
+        if (res.data && res.data.data) {
+          this.compatibilityReport = res.data.data;
+          this.availableTargetCategories = res.data.data.available_categories || [];
+          if (this.compatibilityReport.incompatibilities) {
+            this.compatibilityReport.incompatibilities.forEach(inc => {
+              this.parameterReassignments[inc.parameter_id] = 0;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch domain compatibility:', err);
+      }
+      this.showDomainModal = true;
+    },
+    async executeDomainSwitch() {
+      this.switchingDomain = true;
+      try {
+        const reassignmentsArray = [];
+        Object.keys(this.parameterReassignments).forEach(paramIdStr => {
+          const targetCatId = this.parameterReassignments[paramIdStr];
+          reassignmentsArray.push({
+            parameter_id: Number(paramIdStr),
+            target_category_id: Number(targetCatId),
+          });
+        });
+
+        const payload = {
+          ...this.form,
+          monitoring_domain: this.targetDomainForModal,
+          reassignments: reassignmentsArray,
+        };
+
+        const res = await axios.post('/api/system/config', payload);
+        if (res.data && res.data.success) {
+          this.form.monitoring_domain = this.targetDomainForModal;
+          this.$store.commit('SET_SYSTEM_STATUS', {
+            monitoring_domain: this.targetDomainForModal,
+          });
+          this.saveResult = {
+            restart_required: false,
+            message: `Monitoring domain successfully transitioned to ${this.targetDomainForModal}. Zero data deletion guaranteed.`,
+          };
+          this.showDomainModal = false;
+          await this.fetchConfig();
+        }
+      } catch (err) {
+        alert('Failed to switch monitoring domain: ' + (err.response?.data?.error || err.message));
+      } finally {
+        this.switchingDomain = false;
+      }
+    },
+    async applyWizardSetup() {
+      this.saving = true;
+      try {
+        const payload = {
+          ...this.form,
+          monitoring_domain: this.wizardDomain,
+        };
+        const res = await axios.post('/api/system/config', payload);
+        if (res.data && res.data.success) {
+          this.form.monitoring_domain = this.wizardDomain;
+          this.$store.commit('SET_SYSTEM_STATUS', {
+            monitoring_domain: this.wizardDomain,
+          });
+          this.saveResult = {
+            restart_required: false,
+            message: `Initial deployment setup completed. Active domain: ${this.wizardDomain}.`,
+          };
+          this.showSetupWizard = false;
+          await this.fetchConfig();
+        }
+      } catch (err) {
+        alert('Failed to complete setup: ' + (err.response?.data?.error || err.message));
+      } finally {
+        this.saving = false;
+      }
+    },
     async fetchDbStatus() {
       try {
         const res = await axios.get('/api/system/database/status');
@@ -389,6 +961,7 @@ export default {
         if (res.data && res.data.data) {
           const cfg = res.data.data;
           this.form = {
+            monitoring_domain: cfg.monitoring_domain || 'AQMS',
             db_host: cfg.db_host || '127.0.0.1',
             db_port: cfg.db_port || '3306',
             db_name: cfg.db_name || 'datalogger',
@@ -469,3 +1042,4 @@ export default {
   },
 };
 </script>
+

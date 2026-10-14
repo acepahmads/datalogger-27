@@ -30,10 +30,11 @@ func (h *CategoryHandler) getActorInfo(c *gin.Context) (string, string, string) 
 	return username, ip, ua
 }
 
-// ListCategories returns all parameter categories, optionally filtered by enabled status
+// ListCategories returns all parameter categories, optionally filtered by enabled status and domain
 func (h *CategoryHandler) ListCategories(c *gin.Context) {
 	enabledOnly := c.Query("enabled_only") == "true"
-	categories, err := h.categoryService.ListCategories(enabledOnly)
+	domain := c.Query("domain")
+	categories, err := h.categoryService.ListCategoriesWithDomain(enabledOnly, domain)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to retrieve categories: "+err.Error())
 		return

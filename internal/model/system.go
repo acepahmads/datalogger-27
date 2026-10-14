@@ -42,6 +42,7 @@ type SystemStatusOverview struct {
 	NumCPU         int     `json:"num_cpu"`
 	Goroutines     int     `json:"goroutines"`
 	AppVersion     string  `json:"app_version"`
+	MonitoringDomain string `json:"monitoring_domain"`
 
 	// Datalogger service status
 	ServiceStatus   string `json:"service_status"`

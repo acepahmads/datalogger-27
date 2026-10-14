@@ -30,6 +30,7 @@ type CreateCategoryRequest struct {
 	Description       string `json:"description"`
 	IconKey           string `json:"icon_key"`
 	ColorKey          string `json:"color_key"`
+	Domain            string `json:"domain"`
 	DisplayOrder      int    `json:"display_order"`
 	DefaultColumnSpan int    `json:"default_column_span"`
 	Enabled           *bool  `json:"enabled"`
@@ -40,6 +41,7 @@ type UpdateCategoryRequest struct {
 	Description       *string `json:"description"`
 	IconKey           *string `json:"icon_key"`
 	ColorKey          *string `json:"color_key"`
+	Domain            *string `json:"domain"`
 	DisplayOrder      *int    `json:"display_order"`
 	DefaultColumnSpan *int    `json:"default_column_span"`
 	Enabled           *bool   `json:"enabled"`
@@ -56,6 +58,10 @@ type AssignParametersRequest struct {
 
 func (s *CategoryService) ListCategories(enabledOnly bool) ([]model.ParameterCategory, error) {
 	return s.categoryRepo.List(enabledOnly)
+}
+
+func (s *CategoryService) ListCategoriesWithDomain(enabledOnly bool, domain string) ([]model.ParameterCategory, error) {
+	return s.categoryRepo.ListWithDomain(enabledOnly, domain)
 }
 
 func (s *CategoryService) GetCategory(id uint) (*model.ParameterCategory, error) {
@@ -100,12 +106,18 @@ func (s *CategoryService) CreateCategory(req *CreateCategoryRequest, actor, ip, 
 		enabled = *req.Enabled
 	}
 
+	domain := strings.ToUpper(strings.TrimSpace(req.Domain))
+	if domain == "" || !model.ValidCategoryDomains[domain] {
+		domain = "ALL"
+	}
+
 	cat := &model.ParameterCategory{
 		Code:              code,
 		Name:              name,
 		Description:       strings.TrimSpace(req.Description),
 		IconKey:           icon,
 		ColorKey:          color,
+		Domain:            domain,
 		DisplayOrder:      req.DisplayOrder,
 		DefaultColumnSpan: span,
 		Enabled:           enabled,
@@ -116,7 +128,7 @@ func (s *CategoryService) CreateCategory(req *CreateCategoryRequest, actor, ip, 
 	}
 
 	s.logAudit("CATEGORY_CREATED", fmt.Sprintf("ID:%d", cat.ID), actor, ip, ua,
-		fmt.Sprintf("Created parameter category '%s' (Code: %s, Icon: %s, Color: %s)", cat.Name, cat.Code, cat.IconKey, cat.ColorKey))
+		fmt.Sprintf("Created parameter category '%s' (Code: %s, Icon: %s, Color: %s, Domain: %s)", cat.Name, cat.Code, cat.IconKey, cat.ColorKey, cat.Domain))
 
 	return cat, nil
 }
@@ -150,6 +162,13 @@ func (s *CategoryService) UpdateCategory(id uint, req *UpdateCategoryRequest, ac
 		color := strings.TrimSpace(*req.ColorKey)
 		if color != "" && model.ValidCategoryColors[color] {
 			cat.ColorKey = color
+		}
+	}
+
+	if req.Domain != nil {
+		d := strings.ToUpper(strings.TrimSpace(*req.Domain))
+		if model.ValidCategoryDomains[d] {
+			cat.Domain = d
 		}
 	}
 

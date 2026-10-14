@@ -17,6 +17,10 @@ func NewSystemRepository(db *gorm.DB) *SystemRepository {
 	return &SystemRepository{db: db}
 }
 
+func (r *SystemRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // Devices
 func (r *SystemRepository) GetAllDevices() ([]model.Device, error) {
 	var devices []model.Device
