@@ -2717,15 +2717,7 @@ export default {
         })
         .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     },
-    isParamDomainMismatched(param) {
-      if (!param || !param.category_id) return false;
-      const dom = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
-      if (dom === 'CUSTOM') return false;
-      const cat = this.categoryMap[param.category_id];
-      if (!cat) return false;
-      const cDom = (cat.domain || 'ALL').toUpperCase();
-      return cDom !== 'ALL' && cDom !== 'CUSTOM' && cDom !== dom;
-    },
+
     categoryMap() {
       const map = {};
       for (const c of this.categoriesList || []) {
@@ -2833,6 +2825,15 @@ export default {
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
   },
   methods: {
+    isParamDomainMismatched(param) {
+      if (!param || !param.category_id) return false;
+      const dom = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
+      if (dom === 'CUSTOM') return false;
+      const cat = this.categoryMap[param.category_id];
+      if (!cat) return false;
+      const cDom = (cat.domain || 'ALL').toUpperCase();
+      return cDom !== 'ALL' && cDom !== 'CUSTOM' && cDom !== dom;
+    },
     getCategoryTheme(colorKey) {
       return getCategoryColor(colorKey);
     },
