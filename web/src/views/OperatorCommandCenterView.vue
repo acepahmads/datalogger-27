@@ -28,38 +28,10 @@
         </div>
       </div>
 
-      <!-- Center: Acquisition & Health Status Badges -->
-      <div class="hidden md:flex items-center space-x-2.5 text-2xs font-mono">
-        <!-- App Status -->
-        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B]">
-          <span class="text-slate-500 dark:text-slate-400 text-3xs">{{ $t('operator.systemHealth') || 'App' }}:</span>
-          <span class="font-bold flex items-center space-x-1" :class="appHealthColorClass">
-            <span class="w-2 h-2 rounded-full" :class="appHealthDotClass"></span>
-            <span>{{ overallAppHealth }}</span>
-          </span>
-        </div>
-
-        <!-- Acquisition Engine Status -->
-        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B]">
-          <span class="text-slate-500 dark:text-slate-400 text-3xs">{{ $t('operator.acquisitionStatus') || 'Acquisition' }}:</span>
-          <span class="text-emerald-600 dark:text-emerald-400 font-bold flex items-center space-x-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-            <span>{{ $t('operator.pollingActive') || 'POLLING ACTIVE' }}</span>
-            <span class="text-4xs text-slate-400 font-mono">({{ (configuredPollingIntervalMs / 1000).toFixed(0) }}s)</span>
-          </span>
-        </div>
-
-        <!-- Telemetry Rate -->
-        <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B]">
-          <span class="text-slate-500 dark:text-slate-400 text-3xs">{{ $t('operator.throughput') || 'Throughput' }}:</span>
-          <span class="text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">{{ (systemStatus.data_per_sec || telemetryRate).toFixed(1) }} pkt/s</span>
-        </div>
-
-        <!-- Live Clock in SCADA bar (visible especially when global header is hidden) -->
-        <div class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-3xs tabular-nums">
-          <span class="text-slate-400 dark:text-slate-500">🕒</span>
-          <span>{{ currentTime }}</span>
-        </div>
+      <!-- Center: Live Clock in SCADA bar -->
+      <div v-if="currentTime" class="hidden md:flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-3xs tabular-nums font-mono">
+        <span class="text-slate-400 dark:text-slate-500">🕒</span>
+        <span>{{ currentTime }}</span>
       </div>
 
       <!-- Right: Audio Controls, Theme, Language, Refresh, & Fullscreen Toggles -->
@@ -91,15 +63,6 @@
         >
           <span>{{ isAudioMuted ? '🔇' : '🔊' }}</span>
           <span class="hidden sm:inline">{{ isAudioMuted ? ($t('operator.audioMuted') || 'MUTED') : ($t('operator.audioActive') || 'AUDIO') }}</span>
-        </button>
-
-        <!-- Test Chime -->
-        <button
-          @click="testAlarmChime('CRITICAL')"
-          class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition"
-          :title="$t('operator.testAudioCritical') || 'Test Emergency Chime'"
-        >
-          🚨
         </button>
 
         <!-- Manual Refresh -->
