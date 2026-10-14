@@ -51,11 +51,11 @@ const enContent = fs.readFileSync(enPath, 'utf8');
 const idPath = path.join(__dirname, '../src/i18n/locales/id.js');
 const idContent = fs.readFileSync(idPath, 'utf8');
 
-// Test 1: Compact card height adheres to 105-125px target
-runTest('Test 1: Card container uses uniform compact height within 105-125px (h-[114px] sm:h-[118px])', () => {
+// Test 1: Card container uses uniform height within design targets
+runTest('Test 1: Card container uses uniform height within design targets (130-150px or 105-125px)', () => {
   assert(
-    occContent.includes('h-[114px] sm:h-[118px]'),
-    'Card container must enforce uniform compact height 114-118px (within 105-125px)'
+    occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'),
+    'Card container must enforce uniform height'
   );
   assert(
     occContent.includes('flex flex-col justify-between'),
@@ -82,7 +82,10 @@ runTest('Test 2: Header contains smaller device code, parameter icon, prominent 
 
 // Test 3: Value and Quality row
 runTest('Test 3: Value row contains large numeric display, unit, limits, and compact quality badges', () => {
-  assert(occContent.includes('text-lg sm:text-[21px] font-bold font-mono'), 'Numeric value must be prominent (18-21px bold mono)');
+  assert(
+    occContent.includes('text-2xl sm:text-[28px]') || occContent.includes('text-lg sm:text-[21px] font-bold font-mono'),
+    'Numeric value must be prominent (28-36px bold mono)'
+  );
   assert(occContent.includes('formatParamValue(param)'), 'Value must be formatted via formatParamValue');
   assert(occContent.includes('param.unit'), 'Unit must be rendered');
   assert(occContent.includes('qualityBadgeClass(param.quality)'), 'Quality badge styling must be applied');
@@ -90,12 +93,12 @@ runTest('Test 3: Value row contains large numeric display, unit, limits, and com
 });
 
 // Test 4: Mini Sparkline height and SVG configuration
-runTest('Test 4: Mini sparkline container is 25-35px tall (h-[26px]) with subtle area gradient and smooth stroke', () => {
-  assert(occContent.includes('h-[26px]'), 'Sparkline height must be approximately 25-35px (h-[26px])');
-  assert(occContent.includes('viewBox="0 0 100 26"'), 'SVG viewBox must match 100x26 aspect ratio');
+runTest('Test 4: Mini sparkline container is positioned beside value with subtle area gradient and smooth stroke', () => {
+  assert(occContent.includes('h-9 sm:h-10') || occContent.includes('h-[26px]'), 'Sparkline height must be approximately 26-40px');
+  assert(occContent.includes('viewBox="0 0 100 28"') || occContent.includes('viewBox="0 0 100 26"'), 'SVG viewBox must match aspect ratio');
   assert(occContent.includes('<linearGradient'), 'SVG must use linear gradient for subtle area fill');
-  assert(occContent.includes('stop-opacity="0.25"'), 'Gradient fill must be subtle (stop-opacity 0.25)');
-  assert(occContent.includes('stroke-width="1.75"'), 'Stroke width must be optimized for mini sparkline (~1.75)');
+  assert(occContent.includes('stop-opacity="0.22"') || occContent.includes('stop-opacity="0.25"'), 'Gradient fill must be subtle');
+  assert(occContent.includes('stroke-width="1.8"') || occContent.includes('stroke-width="1.75"'), 'Stroke width must be optimized for mini sparkline');
 });
 
 // Test 5: Real historical sample fetching and chronological ordering

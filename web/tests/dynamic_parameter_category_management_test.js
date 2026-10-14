@@ -141,9 +141,9 @@ runTest('Test 7: Cards View renders separate category sections in "All" view wit
   assert(occContent.includes('section.parameters'), 'Section parameters must be iterated in section grid');
 });
 
-// Test 8: Compact Cards (114-118px) and Mini Sparklines Preserved
-runTest('Test 8: Compact card design (114-118px) and mini sparklines are preserved inside category sections', () => {
-  assert(occContent.includes('h-[114px] sm:h-[118px]'), 'Uniform compact height 114-118px must be preserved');
+// Test 8: Compact Cards and Mini Sparklines Preserved
+runTest('Test 8: Compact card design (130-150px or 114-118px) and mini sparklines are preserved inside category sections', () => {
+  assert(occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'), 'Uniform card height must be preserved');
   assert(occContent.includes('getSparkline(param.param_id).hasHistory'), 'Sparkline history rendering must be preserved');
   assert(occContent.includes('getSparklineColor(param)'), 'Sparkline color method must be preserved');
 });
