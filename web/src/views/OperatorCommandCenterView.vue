@@ -626,23 +626,28 @@
                     </div>
                   </div>
 
-                  <!-- Row 2: Main Row (Prominent Value + Unit, Mini Sparkline Positioned Beside Main Value) -->
+                  <!-- Row 2: Main Row (Value-First Layout: Prominent Numeric Value + Unit, Flexible Mini Sparkline) -->
                   <div class="flex items-center justify-between gap-2.5 my-auto min-w-0">
-                    <!-- Left: Value and Unit -->
-                    <div class="flex flex-col justify-center min-w-0 flex-1">
-                      <div class="flex items-baseline min-w-0">
+                    <!-- Left: Value and Unit (Value-First Priority, Never Truncated with Ellipsis) -->
+                    <div class="flex flex-col justify-center min-w-0 flex-shrink-0 max-w-[65%]">
+                      <div class="flex items-baseline flex-shrink-0 min-w-0">
                         <span
-                          class="text-2xl sm:text-[28px] xl:text-[30px] font-bold font-mono tracking-tight leading-none truncate"
-                          :class="paramValueColorClass(param)"
+                          class="font-bold font-mono tracking-tight leading-none whitespace-nowrap tabular-nums select-all"
+                          style="font-variant-numeric: tabular-nums;"
+                          :class="[paramValueColorClass(param), getParamValueFontSizeClass(param)]"
                           :title="formatParamValue(param)"
                         >
                           {{ formatParamValue(param) }}
                         </span>
-                        <span class="text-xs sm:text-[13px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1.5 flex-shrink-0">
-                          {{ param.unit || '' }}
+                        <span
+                          v-if="param.unit"
+                          class="text-xs sm:text-[13px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1.5 flex-shrink-0 whitespace-nowrap"
+                          :title="param.unit"
+                        >
+                          {{ param.unit }}
                         </span>
                       </div>
-                      <div class="flex items-center space-x-1.5 mt-1 text-4xs font-mono text-slate-400 dark:text-slate-500 leading-none truncate">
+                      <div class="flex items-center space-x-1.5 mt-1 text-4xs font-mono text-slate-400 dark:text-slate-500 leading-none truncate max-w-[140px] sm:max-w-[170px]">
                         <span
                           v-if="param.low_limit != null || param.high_limit != null"
                           class="truncate"
@@ -652,14 +657,14 @@
                         </span>
                         <span
                           v-if="param.is_held_value"
-                          class="px-1 py-0.2 rounded bg-amber-500/10 text-amber-500 font-bold"
+                          class="px-1 py-0.2 rounded bg-amber-500/10 text-amber-500 font-bold flex-shrink-0"
                           title="Hold last value active"
                         >
                           HELD
                         </span>
                         <span
                           v-if="param.formula"
-                          class="px-1 py-0.2 rounded bg-blue-500/10 text-blue-400 font-bold"
+                          class="px-1 py-0.2 rounded bg-blue-500/10 text-blue-400 font-bold flex-shrink-0"
                           :title="'Formula: ' + param.formula"
                         >
                           FX
@@ -667,8 +672,8 @@
                       </div>
                     </div>
 
-                    <!-- Right: Mini Sparkline Beside Value (approx 36-40px height, gap-aware) -->
-                    <div class="w-28 sm:w-32 xl:w-36 h-9 sm:h-10 flex-shrink-0 relative bg-slate-50/70 dark:bg-[#070D17]/70 border border-slate-100 dark:border-slate-800/40 rounded-lg overflow-hidden">
+                    <!-- Right: Flexible Mini Sparkline (Adapts to remaining space, height ~36-40px, gap-aware) -->
+                    <div class="flex-1 min-w-[50px] max-w-[136px] h-9 sm:h-10 flex-shrink relative bg-slate-50/70 dark:bg-[#070D17]/70 border border-slate-100 dark:border-slate-800/40 rounded-lg overflow-hidden ml-auto">
                       <svg
                         v-if="getSparkline(param.param_id).hasHistory"
                         class="w-full h-full"
@@ -2984,10 +2989,43 @@ export default {
       return false;
     },
     formatParamValue(param) {
-      if (param.value == null || param.value === '') return '--';
+      if (!param || param.value == null || param.value === '') return '--';
+      if (param.value_text) return String(param.value_text);
+      if (typeof param.value === 'string' && /[eE]/.test(param.value)) {
+        return param.value;
+      }
       const num = Number(param.value);
       if (isNaN(num)) return String(param.value);
-      return num.toFixed(param.precision != null ? param.precision : 2);
+      if (param.precision != null && param.precision >= 0) {
+        return num.toFixed(param.precision);
+      }
+      const strVal = String(param.value);
+      if (strVal.includes('.')) {
+        const decimals = strVal.split('.')[1].length;
+        if (decimals > 2) {
+          return num.toFixed(decimals);
+        }
+      }
+      return num.toFixed(2);
+    },
+    getParamValueFontSizeClass(param) {
+      if (!param) return 'text-2xl sm:text-[26px] xl:text-[28px]';
+      const formatted = this.formatParamValue(param);
+      const str = String(formatted);
+      const len = str.length;
+      if (len <= 5) {
+        // e.g. "2.00", "39.00", "--"
+        return 'text-2xl sm:text-[28px] xl:text-[30px]';
+      } else if (len <= 7) {
+        // e.g. "912.00", "-12.34"
+        return 'text-xl sm:text-[23px] xl:text-[25px]';
+      } else if (len <= 9) {
+        // e.g. "-1234.56", "1013.25"
+        return 'text-lg sm:text-[19px] xl:text-[21px]';
+      } else {
+        // e.g. "-1234.567", "101325.00"
+        return 'text-base sm:text-[16px] xl:text-[17px]';
+      }
     },
     paramValueColorClass(param) {
       if (param.alarm_status === 'CRITICAL') return 'text-rose-600 dark:text-rose-400 font-black';

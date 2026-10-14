@@ -10,7 +10,8 @@
     "test:operator": "node tests/operator_command_center_test.js",
     "test:param-icon": "node tests/parameter_card_typography_icon_test.js",
     "test:trend": "node tests/trend_analysis_redesign_test.js",
-    "test:redesign": "node tests/parameter_cards_redesign_layout_test.js"
+    "test:redesign": "node tests/parameter_cards_redesign_layout_test.js",
+    "test:value-clipping": "node tests/parameter_value_clipping_prevention_test.js"
   },
   "dependencies": {
     "axios": "^1.6.8",

@@ -77,27 +77,31 @@ runTest('Test 2: Card dimensions match 130-150px height and responsive min-width
   assert(occContent.includes('rounded-xl'), 'Card must use refined rounded-xl corners');
 });
 
-// Test 3: Numeric values are prominent (28-36px font) and unit remains readable
+// Test 3: Numeric values are prominent (26-28px font) and unit remains readable without ellipsis clipping
 runTest('Test 3: Numeric values are prominent (28-36px font) and unit remains readable', () => {
   assert(
-    occContent.includes('text-2xl sm:text-[28px] xl:text-[30px] font-bold font-mono tracking-tight leading-none truncate'),
-    'Main numeric value must use 28-30px bold monospace font'
+    occContent.includes('font-bold font-mono tracking-tight leading-none whitespace-nowrap tabular-nums'),
+    'Main numeric value must use bold monospace font with tabular-nums and whitespace-nowrap (never truncate)'
   );
   assert(
-    occContent.includes('text-xs sm:text-[13px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1.5 flex-shrink-0'),
+    occContent.includes('getParamValueFontSizeClass(param)'),
+    'Main numeric value must scale font size dynamically for long numbers to prevent overflow'
+  );
+  assert(
+    occContent.includes('text-xs sm:text-[13px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1.5 flex-shrink-0 whitespace-nowrap'),
     'Unit must be clearly visible and positioned immediately beside numeric value'
   );
 });
 
-// Test 4: Mini sparkline is placed horizontally beside main numeric value
+// Test 4: Mini sparkline is placed horizontally beside main numeric value with flexible responsive width
 runTest('Test 4: Mini sparkline is placed horizontally beside main numeric value', () => {
   assert(
     occContent.includes('flex items-center justify-between gap-2.5 my-auto min-w-0'),
     'Main row must use flex justify-between to place value and sparkline horizontally side-by-side'
   );
   assert(
-    occContent.includes('w-28 sm:w-32 xl:w-36 h-9 sm:h-10 flex-shrink-0 relative'),
-    'Sparkline must have dedicated responsive width (~112-144px) and height (~36-40px)'
+    occContent.includes('flex-1 min-w-[50px] max-w-[136px] h-9 sm:h-10 flex-shrink relative'),
+    'Sparkline must have flexible responsive width adapting to remaining space with height ~36-40px'
   );
   assert(
     occContent.includes('viewBox="0 0 100 28"'),
