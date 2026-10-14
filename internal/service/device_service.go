@@ -78,6 +78,7 @@ type CreateParameterRequest struct {
 	DataType                 model.ParameterDataType `json:"data_type"`
 	Unit                     string                  `json:"unit"`
 	Icon                     string                  `json:"icon"`
+	CategoryID               *uint                   `json:"category_id"`
 	Description              string                  `json:"description"`
 	MinValue                 *float64                `json:"min_value"`
 	MaxValue                 *float64                `json:"max_value"`
@@ -159,6 +160,8 @@ type UpdateParameterRequest struct {
 	DataType                 *model.ParameterDataType `json:"data_type"`
 	Unit                     *string                  `json:"unit"`
 	Icon                     *string                  `json:"icon"`
+	CategoryID               *uint                    `json:"category_id"`
+	ClearCategoryID          bool                     `json:"clear_category_id"`
 	Description              *string                  `json:"description"`
 	MinValue                 *float64                 `json:"min_value"`
 	MaxValue                 *float64                 `json:"max_value"`
@@ -947,6 +950,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		DataType:                 dataType,
 		Unit:                     strings.TrimSpace(req.Unit),
 		Icon:                     strings.TrimSpace(req.Icon),
+		CategoryID:               req.CategoryID,
 		Description:              strings.TrimSpace(req.Description),
 		MinValue:                 req.MinValue,
 		MaxValue:                 req.MaxValue,
@@ -1037,6 +1041,11 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.Icon != nil {
 		param.Icon = strings.TrimSpace(*req.Icon)
+	}
+	if req.ClearCategoryID {
+		param.CategoryID = nil
+	} else if req.CategoryID != nil {
+		param.CategoryID = req.CategoryID
 	}
 	if req.Description != nil {
 		param.Description = strings.TrimSpace(*req.Description)

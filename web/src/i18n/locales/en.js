@@ -1867,6 +1867,73 @@ export default {
     "filterStation": "Filter Station",
     "measuredPoints": "Measured Points",
     "spatialInterpolation": "Spatial Interpolation (IDW)",
-    "windVector": "Wind Vector Overlay"
+    "windVector": "Wind Vector Overlay",
+    "allCategories": "All Categories",
+    "uncategorized": "Uncategorized",
+    "configureLayout": "Configure Layout",
+    "categorySettings": "Categories & Layout",
+    "categoryCount": "{count} parameters",
+    "categoryEmpty": "No parameters assigned to this category."
+  },
+  "categoryManagement": {
+    "title": "Parameter Category Management",
+    "subtitle": "Configure domain categories, display ordering, responsive column spans, and parameter assignments.",
+    "tabs": {
+      "categories": "Categories & Layout",
+      "assignments": "Parameter Assignments",
+      "create": "Create Category",
+      "edit": "Edit Category"
+    },
+    "fields": {
+      "code": "Category Code",
+      "name": "Category Display Name",
+      "description": "Description",
+      "icon": "Category Vector Icon",
+      "color": "Theme Color",
+      "order": "Display Order",
+      "span": "Default Column Span",
+      "enabled": "Category Enabled",
+      "paramsAssigned": "Assigned Parameters"
+    },
+    "spans": {
+      "span1": "1 Column (Standard)",
+      "span2": "2 Columns (Double Wide)",
+      "span3": "3 Columns (Wide SCADA)",
+      "span4": "4 Columns (Full Width Row)"
+    },
+    "actions": {
+      "add": "Add Category",
+      "edit": "Edit",
+      "delete": "Delete",
+      "save": "Save Changes",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "reorder": "Save Order",
+      "assign": "Assign to Category",
+      "moveUp": "Move Up",
+      "moveDown": "Move Down",
+      "toggleEnable": "Enable Category",
+      "toggleDisable": "Disable Category"
+    },
+    "deleteModal": {
+      "title": "Delete Category",
+      "warning": "Are you sure you want to delete category '{name}'?",
+      "reassignPrompt": "Choose what to do with the {count} parameter(s) currently in this category:",
+      "optionUnassign": "Keep as Uncategorized (Safely unassigns without deleting parameters or telemetry)",
+      "optionReassign": "Reassign to another category:",
+      "confirm": "Confirm Delete",
+      "safetyNotice": "Data Safety Guarantee: Deleting a category never deletes parameters, telemetry records, alarms, or aggregations."
+    },
+    "preview": {
+      "sectionHeader": "Category Section Header Preview",
+      "cardTile": "Card Layout Preview"
+    },
+    "notifications": {
+      "created": "Category '{name}' created successfully",
+      "updated": "Category '{name}' updated successfully",
+      "deleted": "Category deleted successfully",
+      "reordered": "Category display order saved",
+      "assigned": "Assigned {count} parameter(s) successfully"
+    }
   }
 };

@@ -350,6 +350,17 @@
 
           <!-- View Mode & Quick Filter Toggles -->
           <div class="flex items-center space-x-1.5">
+            <!-- Categories & Layout Button -->
+            <button
+              v-if="canManageCategories || canViewCategories"
+              @click="openCategoryManagementModal"
+              class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+              :title="$t('operator.categoryManagement') || 'Configure Categories & Layout'"
+            >
+              <span>🏷️</span>
+              <span class="hidden md:inline">{{ $t('operator.categories') || 'Categories' }}</span>
+            </button>
+
             <!-- Pinned Only Toggle -->
             <button
               @click="toggleFilterPinned"
@@ -445,18 +456,96 @@
           </div>
         </div>
 
-        <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (High Density Compact Cards) -->
+        <!-- Dynamic Category Tabs Filter Strip -->
+        <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 custom-scroller text-3xs font-mono select-none">
+          <!-- All Categories Tab -->
+          <button
+            @click="selectedCategoryFilter = 'all'"
+            class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
+            :class="selectedCategoryFilter === 'all'
+              ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
+              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+          >
+            <span>🌐</span>
+            <span>{{ $t('operator.allCategories') || 'All Categories' }}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-4xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+              {{ allParameters.length }}
+            </span>
+          </button>
+
+          <!-- Dynamic Category Tabs -->
+          <button
+            v-for="cat in activeCategoriesList"
+            :key="cat.id"
+            @click="selectedCategoryFilter = cat.id"
+            class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
+            :class="selectedCategoryFilter === cat.id
+              ? getCategoryTheme(cat.color_key).activeTab
+              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+          >
+            <span class="w-1.5 h-1.5 rounded-full" :class="getCategoryTheme(cat.color_key).dot"></span>
+            <span>{{ cat.name }}</span>
+            <span
+              class="px-1.5 py-0.2 rounded-full text-4xs font-bold font-mono"
+              :class="selectedCategoryFilter === cat.id ? getCategoryTheme(cat.color_key).pill : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
+            >
+              {{ getCategoryParamCount(cat.id) }}
+            </span>
+          </button>
+
+          <!-- Uncategorized Tab -->
+          <button
+            v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
+            @click="selectedCategoryFilter = 'uncategorized'"
+            class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
+            :class="selectedCategoryFilter === 'uncategorized'
+              ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs'
+              : 'bg-white dark:bg-[#0B1422] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-300'"
+          >
+            <span>📦</span>
+            <span>{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-4xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+              {{ uncategorizedParamCount }}
+            </span>
+          </button>
+        </div>
+
+        <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Categorized Grid Sections) -->
+        <!-- All filtered parameters rendered in bounded category sections without arbitrary limits: v-for="param in filteredParameters" -->
         <div
           v-if="viewMode === 'cards'"
-          :class="cardGridClass"
           :style="cardGridContainerStyle"
-          class="overflow-y-auto pr-1 custom-scroller"
+          class="overflow-y-auto pr-1 custom-scroller space-y-3"
         >
           <div
-            v-for="param in filteredParameters"
-            :key="param.param_id"
-            @click="selectParamForTrend(param)"
-            class="scada-param-tile p-2 sm:p-2.5 rounded-xl border transition relative cursor-pointer group shadow-xs dark:shadow-none flex flex-col justify-between h-[114px] sm:h-[118px]"
+            v-for="section in categorySections"
+            :key="section.id"
+            class="space-y-1.5"
+          >
+            <!-- Section Header (shown in 'all' view when multiple categories exist) -->
+            <div
+              v-if="selectedCategoryFilter === 'all'"
+              class="flex items-center justify-between px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-2xs font-mono"
+            >
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full" :class="getCategoryTheme(section.color_key).dot"></span>
+                <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-3xs">{{ section.name }}</span>
+                <span v-if="section.description" class="hidden md:inline text-4xs text-slate-400 font-sans italic truncate max-w-xs">
+                  — {{ section.description }}
+                </span>
+              </div>
+              <span class="text-4xs font-mono px-1.5 py-0.2 rounded-full font-bold" :class="getCategoryTheme(section.color_key).pill">
+                {{ section.parameters.length }}
+              </span>
+            </div>
+
+            <!-- Parameters Grid for this Category Section -->
+            <div :class="getSectionGridClass(section)">
+              <div
+                v-for="param in section.parameters"
+                :key="param.param_id"
+                @click="selectParamForTrend(param)"
+                class="scada-param-tile p-2 sm:p-2.5 rounded-xl border transition relative cursor-pointer group shadow-xs dark:shadow-none flex flex-col justify-between h-[114px] sm:h-[118px]"
             :class="[
               isParamAlarmOrStaleBad(param)
                 ? (isAlarmPulseActive
@@ -655,11 +744,12 @@
                 ></span>
                 <span>{{ isParamSelectedForTrend(param) ? ($t('operator.inChart') || '● In Chart') : ($t('operator.plotTrend') || '+ Plot Trend') }}</span>
               </span>
+              </div>
             </div>
           </div>
 
-          <div v-if="filteredParameters.length === 0" class="col-span-full p-8 text-center text-slate-500 font-mono text-xs">
-            No parameters matching current filter criteria.
+          <div v-if="categorySections.length === 0" class="col-span-full p-8 text-center text-slate-500 font-mono text-xs">
+            {{ $t('operator.noParamsMatch') || 'No parameters matching current filter criteria.' }}
           </div>
         </div>
 
@@ -672,6 +762,7 @@
                   <th class="py-2 px-2.5 text-center w-8">⭐</th>
                   <th class="py-2 px-2.5">{{ $t('telemetry.device') || 'Device' }}</th>
                   <th class="py-2 px-2.5">{{ $t('telemetry.parameterName') || 'Parameter' }}</th>
+                  <th class="py-2 px-2.5">{{ $t('operator.categories') || 'Category' }}</th>
                   <th class="py-2 px-2.5 text-right">{{ $t('common.value') || 'Value' }}</th>
                   <th class="py-2 px-2">{{ $t('common.unit') || 'Unit' }}</th>
                   <th class="py-2 px-2 text-center">{{ $t('common.quality') || 'Quality' }}</th>
@@ -720,6 +811,30 @@
                         <div class="text-4xs text-slate-500 dark:text-slate-400 font-mono truncate max-w-[130px]">{{ p.param_code }}</div>
                       </div>
                     </div>
+                  </td>
+
+                  <!-- Category Badge -->
+                  <td class="py-2 px-2.5 whitespace-nowrap">
+                    <span
+                      v-if="p.category"
+                      class="px-1.5 py-0.2 rounded text-4xs font-bold border font-mono"
+                      :class="getCategoryTheme(p.category.color_key).pill"
+                    >
+                      {{ p.category.name }}
+                    </span>
+                    <span
+                      v-else-if="categoryMap[p.category_id]"
+                      class="px-1.5 py-0.2 rounded text-4xs font-bold border font-mono"
+                      :class="getCategoryTheme(categoryMap[p.category_id].color_key).pill"
+                    >
+                      {{ categoryMap[p.category_id].name }}
+                    </span>
+                    <span
+                      v-else
+                      class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700/60 font-mono"
+                    >
+                      {{ $t('operator.uncategorized') || 'Uncategorized' }}
+                    </span>
                   </td>
 
                   <!-- Value -->
@@ -1929,7 +2044,13 @@
           </div>
         </div>
       </div>
-    </div>
+    <!-- Category Management Modal -->
+    <CategoryManagementModal
+      :is-open="isCategoryModalOpen"
+      :devices="devicesList"
+      @close="isCategoryModalOpen = false"
+      @saved="onCategoryConfigSaved"
+    />
   </div>
 </template>
 
@@ -1939,6 +2060,9 @@ import audioAlert from '../utils/audioAlert';
 import WindRoseChart from '../components/WindRoseChart.vue';
 import PollutantDispersionMap from '../components/PollutantDispersionMap.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
+import CategoryManagementModal from '../components/CategoryManagementModal.vue';
+import { getCategoryColor } from '../utils/categoryTheme.js';
+import apiClient from '../services/api.js';
 
 // Curated high-contrast SCADA palette (Cyan, Blue, Green, Amber, Magenta, Violet)
 const TREND_PALETTE = ['#00E5FF', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'];
@@ -1949,6 +2073,7 @@ export default {
     WindRoseChart,
     PollutantDispersionMap,
     ParameterIcon,
+    CategoryManagementModal,
   },
   props: {
     isSidebarCollapsed: {
@@ -1980,6 +2105,9 @@ export default {
       selectedDeviceFilter: '',
       selectedQualityFilter: '',
       selectedAlarmFilter: '',
+      selectedCategoryFilter: 'all',
+      categoriesList: [],
+      isCategoryModalOpen: false,
       filterPinnedOnly: false,
       viewMode: 'cards', // 'cards' | 'table'
 
@@ -2545,6 +2673,8 @@ export default {
             param_id: p.id,
             param_code: p.parameter_code || p.code,
             param_name: p.parameter_name || p.name,
+            category_id: p.category_id || (p.category ? p.category.id : null),
+            category: p.category || null,
             icon: p.icon || '',
             unit: p.unit,
             data_type: p.data_type,
@@ -2573,6 +2703,18 @@ export default {
         }
         if (this.selectedAlarmFilter && p.alarm_status !== this.selectedAlarmFilter) {
           return false;
+        }
+        // Category Filter
+        if (this.selectedCategoryFilter && this.selectedCategoryFilter !== 'all') {
+          if (this.selectedCategoryFilter === 'uncategorized') {
+            if (p.category_id && this.categoryMap[p.category_id] && this.categoryMap[p.category_id].enabled) {
+              return false;
+            }
+          } else {
+            if (Number(p.category_id) !== Number(this.selectedCategoryFilter)) {
+              return false;
+            }
+          }
         }
         if (this.filterPinnedOnly && !this.isPinned(p.param_id)) {
           return false;
@@ -2624,6 +2766,79 @@ export default {
       if (!this.lastTelemetryTime) return '';
       return new Date(this.lastTelemetryTime).toLocaleTimeString('en-GB');
     },
+    canManageCategories() {
+      const role = (this.$store.state.user && this.$store.state.user.role) || '';
+      return role === 'Administrator' || role === 'Engineer';
+    },
+    canViewCategories() {
+      return true;
+    },
+    activeCategoriesList() {
+      return (this.categoriesList || [])
+        .filter(c => c.enabled)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    },
+    categoryMap() {
+      const map = {};
+      for (const c of this.categoriesList || []) {
+        map[c.id] = c;
+      }
+      return map;
+    },
+    uncategorizedParamCount() {
+      return this.allParameters.filter(p => !p.category_id || !this.categoryMap[p.category_id] || !this.categoryMap[p.category_id].enabled).length;
+    },
+    categorySections() {
+      if (this.selectedCategoryFilter !== 'all') {
+        let cat = null;
+        if (this.selectedCategoryFilter === 'uncategorized') {
+          cat = {
+            id: 'uncategorized',
+            code: 'uncategorized',
+            name: this.$t('operator.uncategorized') || 'Uncategorized',
+            color_key: 'slate',
+            icon_key: 'box',
+            default_column_span: 4,
+          };
+        } else {
+          cat = this.categoriesList.find(c => Number(c.id) === Number(this.selectedCategoryFilter));
+        }
+        if (!cat) return [];
+        return [{
+          ...cat,
+          parameters: this.filteredParameters,
+        }];
+      }
+
+      const sections = [];
+      const usedParamIds = new Set();
+
+      for (const cat of this.activeCategoriesList) {
+        const catParams = this.filteredParameters.filter(p => Number(p.category_id) === Number(cat.id));
+        if (catParams.length > 0) {
+          catParams.forEach(p => usedParamIds.add(p.param_id));
+          sections.push({
+            ...cat,
+            parameters: catParams,
+          });
+        }
+      }
+
+      const uncatParams = this.filteredParameters.filter(p => !usedParamIds.has(p.param_id));
+      if (uncatParams.length > 0) {
+        sections.push({
+          id: 'uncategorized',
+          code: 'uncategorized',
+          name: this.$t('operator.uncategorized') || 'Uncategorized',
+          color_key: 'slate',
+          icon_key: 'box',
+          default_column_span: 4,
+          parameters: uncatParams,
+        });
+      }
+
+      return sections;
+    },
   },
   watch: {
     configuredPollingIntervalMs: {
@@ -2670,6 +2885,42 @@ export default {
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
   },
   methods: {
+    getCategoryTheme(colorKey) {
+      return getCategoryColor(colorKey);
+    },
+    getCategoryParamCount(catId) {
+      return this.allParameters.filter(p => Number(p.category_id) === Number(catId)).length;
+    },
+    getSectionGridClass(section) {
+      const span = section?.default_column_span || 4;
+      if (span === 1) {
+        return 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5';
+      }
+      if (span === 2) {
+        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-2.5';
+      }
+      if (span === 3) {
+        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5';
+      }
+      return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-2.5';
+    },
+    openCategoryManagementModal() {
+      this.isCategoryModalOpen = true;
+    },
+    async onCategoryConfigSaved() {
+      await Promise.all([
+        this.fetchCategories(),
+        this.fetchDevices(),
+      ]);
+    },
+    async fetchCategories() {
+      try {
+        const res = await apiClient.get('/categories');
+        this.categoriesList = res.data?.data || res.data || [];
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      }
+    },
     handleAlarmPulse(e) {
       this.isAlarmPulseActive = true;
       this.alarmPulseSeverity = e && e.detail ? e.detail.severity : 'WARNING';
@@ -3119,6 +3370,7 @@ export default {
       try {
         await Promise.all([
           this.fetchDevices(),
+          this.fetchCategories(),
           this.$store.dispatch('fetchSystemStatus'),
           this.fetchActiveAlarms(),
           this.fetchEvents(),
@@ -3136,6 +3388,7 @@ export default {
       try {
         await Promise.all([
           this.fetchDevices(),
+          this.fetchCategories(),
           this.$store.dispatch('fetchSystemStatus'),
           this.fetchActiveAlarms(),
           this.fetchEvents(),

@@ -494,9 +494,22 @@
             <tr v-for="param in device.parameters" :key="param.id" class="hover:bg-slate-800/30 transition-colors">
               <td class="py-2.5 px-3 font-mono font-bold text-blue-400">{{ param.parameter_code || param.code }}</td>
               <td class="py-2.5 px-3 font-medium text-slate-200">
-                <div class="flex items-center space-x-1.5">
+                <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
                   <ParameterIcon :icon="param.icon" :code="param.parameter_code || param.code" :name="param.parameter_name || param.name" :unit="param.unit" size-class="w-3.5 h-3.5" />
                   <span>{{ param.parameter_name || param.name }}</span>
+                  <span
+                    v-if="param.category"
+                    class="px-1.5 py-0.2 rounded text-4xs font-bold border ml-1 font-mono"
+                    :class="getCategoryTheme(param.category.color_key).pill"
+                  >
+                    {{ param.category.name }}
+                  </span>
+                  <span
+                    v-else
+                    class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-800/80 text-slate-400 border border-slate-700/60 ml-1 font-mono"
+                  >
+                    {{ $t('operator.uncategorized') || 'Uncategorized' }}
+                  </span>
                 </div>
               </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">{{ param.data_type }}</td>
@@ -3016,6 +3029,7 @@ import axios from 'axios';
 import DeviceModal from '../components/DeviceModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
+import { getCategoryColor } from '../utils/categoryTheme.js';
 
 export default {
   name: 'DeviceDetailView',
@@ -3562,6 +3576,9 @@ export default {
         clearInterval(this.activityPollTimer);
         this.activityPollTimer = null;
       }
+    },
+    getCategoryTheme(colorKey) {
+      return getCategoryColor(colorKey);
     },
     showToast(msg, type = 'success') {
       this.toastMessage = msg;

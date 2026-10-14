@@ -112,7 +112,8 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				permissionCode == "notification.view" || permissionCode == "notification.manage" ||
 				permissionCode == "alarm.view" || permissionCode == "alarm.manage" || permissionCode == "alarm.acknowledge" ||
 				permissionCode == "report.view" || permissionCode == "report.generate" ||
-				permissionCode == "config.view" || permissionCode == "user.view" || permissionCode == "role.view" {
+				permissionCode == "config.view" || permissionCode == "user.view" || permissionCode == "role.view" ||
+				permissionCode == "category.view" || permissionCode == "category.manage" || permissionCode == "category.assign" {
 				c.Next()
 				return
 			}
@@ -123,7 +124,8 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			if permissionCode == "device.view" || permissionCode == "device.communication.view" ||
 				permissionCode == "notification.view" || permissionCode == "alarm.view" ||
 				permissionCode == "alarm.acknowledge" ||
-				permissionCode == "report.view" || permissionCode == "report.generate" {
+				permissionCode == "report.view" || permissionCode == "report.generate" ||
+				permissionCode == "category.view" {
 				c.Next()
 				return
 			}

@@ -114,7 +114,7 @@ func (r *DeviceRepository) List(params DeviceFilterParams) ([]model.Device, int6
 	}
 
 	// Execute query with preloads
-	err := query.Preload("Connection").Preload("Parameters").Preload("TypeRel").Find(&devices).Error
+	err := query.Preload("Connection").Preload("Parameters.Category").Preload("Parameters").Preload("TypeRel").Find(&devices).Error
 	return devices, total, err
 }
 
@@ -123,6 +123,7 @@ func (r *DeviceRepository) GetByID(id uint) (*model.Device, error) {
 	var dev model.Device
 	err := r.db.Where("deleted_at IS NULL").
 		Preload("Connection").
+		Preload("Parameters.Category").
 		Preload("Parameters", "deleted_at IS NULL").
 		Preload("TypeRel").
 		First(&dev, id).Error
@@ -138,6 +139,7 @@ func (r *DeviceRepository) GetByCode(code string) (*model.Device, error) {
 	cleanCode := strings.TrimSpace(code)
 	err := r.db.Where("deleted_at IS NULL AND (LOWER(device_code) = LOWER(?) OR LOWER(code) = LOWER(?))", cleanCode, cleanCode).
 		Preload("Connection").
+		Preload("Parameters.Category").
 		Preload("Parameters", "deleted_at IS NULL").
 		First(&dev).Error
 	if err != nil {
@@ -230,13 +232,13 @@ func (r *DeviceRepository) SetConnectionStatus(id uint, status model.DeviceConne
 // Parameters
 func (r *DeviceRepository) ListParameters(deviceID uint) ([]model.Parameter, error) {
 	var params []model.Parameter
-	err := r.db.Where("device_id = ? AND deleted_at IS NULL", deviceID).Order("id ASC").Find(&params).Error
+	err := r.db.Preload("Category").Where("device_id = ? AND deleted_at IS NULL", deviceID).Order("id ASC").Find(&params).Error
 	return params, err
 }
 
 func (r *DeviceRepository) GetParameterByID(deviceID, paramID uint) (*model.Parameter, error) {
 	var param model.Parameter
-	err := r.db.Where("id = ? AND device_id = ? AND deleted_at IS NULL", paramID, deviceID).First(&param).Error
+	err := r.db.Preload("Category").Where("id = ? AND device_id = ? AND deleted_at IS NULL", paramID, deviceID).First(&param).Error
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +247,7 @@ func (r *DeviceRepository) GetParameterByID(deviceID, paramID uint) (*model.Para
 
 func (r *DeviceRepository) FindParameterByID(paramID uint) (*model.Parameter, error) {
 	var param model.Parameter
-	err := r.db.Where("id = ? AND deleted_at IS NULL", paramID).First(&param).Error
+	err := r.db.Preload("Category").Where("id = ? AND deleted_at IS NULL", paramID).First(&param).Error
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +257,7 @@ func (r *DeviceRepository) FindParameterByID(paramID uint) (*model.Parameter, er
 func (r *DeviceRepository) GetParameterByCode(deviceID uint, code string) (*model.Parameter, error) {
 	var param model.Parameter
 	cleanCode := strings.TrimSpace(code)
-	err := r.db.Where("device_id = ? AND deleted_at IS NULL AND (LOWER(parameter_code) = LOWER(?) OR LOWER(code) = LOWER(?))",
+	err := r.db.Preload("Category").Where("device_id = ? AND deleted_at IS NULL AND (LOWER(parameter_code) = LOWER(?) OR LOWER(code) = LOWER(?))",
 		deviceID, cleanCode, cleanCode).First(&param).Error
 	if err != nil {
 		return nil, err

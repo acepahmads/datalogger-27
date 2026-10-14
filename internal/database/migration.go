@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"datalogger/internal/logger"
@@ -31,6 +32,7 @@ func RunMigrations(db *gorm.DB) error {
 		&model.DeviceType{},
 		&model.Device{},
 		&model.DeviceConnection{},
+		&model.ParameterCategory{},
 		&model.Parameter{},
 		&model.Sensor{},
 		&model.RawData{},
@@ -118,6 +120,7 @@ func RunMigrations(db *gorm.DB) error {
 	ensureRetentionPermissions(db)
 	ensureDefaultRetentionPolicies(db)
 	ensureAdministrationAndReportPermissions(db)
+	ensureParameterCategoriesAndPermissions(db)
 
 	// 5. Update Development Tracking Dashboard for Phase 2
 	updatePhase2Tracking(db)
@@ -1843,8 +1846,8 @@ func updatePhase7Tracking(db *gorm.DB) {
 			{
 				TaskName:   "Parameter Monitoring",
 				TaskID:     69,
-				TestResult: "PASSED: Compact Telemetry Cards with Mini Sparklines verified in Operator Command Center. High-density 114-118px cards in responsive 3-4 column grid featuring prominent parameter name, muted device code (e.g. AQMS-01), large live numeric value + unit, compact quality badge (GOOD/UNCERTAIN/BAD/STALE), visible alarm tag, timestamp with relative elapsed time, and a 26px gap-aware SVG mini sparkline. Real chronological historical samples loaded from telemetry history and updated live without fake zeros or flatline fabrication. Extrema bounds preserved, empty state ('Awaiting history') rendered when <2 samples, and card selection synchronized with Trend Analysis with subtle color-matched highlight.",
-				Notes:      "Verified across 6, 14, 24, and 40 parameter layouts, dark/light themes, EN/ID localization, 14 compact sparkline tests, 11 typography tests, 27 operator center tests, backend Go test suite, and clean Vite production build.",
+				TestResult: "PASSED: Dynamic Parameter Category Management and Compact Telemetry Cards with Mini Sparklines verified in Operator Command Center. Replaced hardcoded categories with configurable, data-driven category management system supporting AQMS, WQMS, and Environmental domains. Backend provides REST CRUD APIs (/api/categories), safe vector icon catalog, curated SCADA color tokens, default column spans (1-4), enabled toggle, reordering, and parameter assignment. Built CategoryManagementModal with live preview and ParameterModal domain category selector. Operator Command Center features dynamic category tabs with counts (All, per-category, Uncategorized fallback), multi-criteria filter intersection (Search, Device, Quality, Alarm, Pinned, Category), and configurable categorized card sections preserving 114-118px compact cards and mini sparklines. Guaranteed data safety with zero cascading deletes of parameters or telemetry, audit trail logging (CATEGORY_CREATED/UPDATED/TOGGLED/DELETED/CATEGORIES_REORDERED/PARAMETERS_ASSIGNED_CATEGORY), RBAC permissions (category.view, category.manage, category.assign), EN/ID localization, and dark/light themes.",
+				Notes:      "Verified across 14 dynamic parameter category management tests, 14 compact sparkline tests, 11 typography tests, 27 operator center tests, 13 trend redesign tests, backend Go test suite (internal/service & internal/handler), clean Vite production build, and quad-target cross-platform binaries (Windows x64, Linux x64, Linux ARM64, Linux ARMv7).",
 			},
 			{
 				TaskName:   "Communication Monitoring",
@@ -2651,4 +2654,208 @@ func preMigrateEdgeSchema(db *gorm.DB) {
 	if db.Migrator().HasTable("aggregation_definitions") {
 		_ = db.Exec("UPDATE aggregation_definitions SET grace_period_seconds = 5 WHERE grace_period_seconds IS NULL OR grace_period_seconds = 120 OR grace_period_seconds > 60;").Error
 	}
+}
+
+func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
+	// 1. Seed Permissions for Category Management
+	perms := []model.Permission{
+		{Code: "category.view", Name: "View Parameter Categories", Category: "CATEGORY", Description: "View parameter categories and dynamic layout configurations"},
+		{Code: "category.manage", Name: "Manage Parameter Categories", Category: "CATEGORY", Description: "Create, edit, reorder, enable, disable, and configure parameter categories"},
+		{Code: "category.assign", Name: "Assign Parameter Categories", Category: "CATEGORY", Description: "Assign and reassign telemetry parameters to domain categories"},
+	}
+	for _, p := range perms {
+		var existing model.Permission
+		if db.Where("code = ?", p.Code).First(&existing).Error != nil {
+			db.Create(&p)
+		}
+	}
+
+	// Update roles with category permissions
+	var adminRole model.Role
+	if db.Where("name = ?", "Administrator").First(&adminRole).Error == nil {
+		var allPerms []model.Permission
+		db.Find(&allPerms)
+		_ = db.Model(&adminRole).Association("Permissions").Replace(allPerms)
+	}
+
+	var engRole model.Role
+	if db.Where("name = ?", "Engineer").First(&engRole).Error == nil {
+		var catPerms []model.Permission
+		db.Where("code IN ?", []string{"category.view", "category.manage", "category.assign"}).Find(&catPerms)
+		_ = db.Model(&engRole).Association("Permissions").Append(catPerms)
+	}
+
+	var opRole model.Role
+	if db.Where("name = ?", "Operator").First(&opRole).Error == nil {
+		var catPerms []model.Permission
+		db.Where("code = ?", "category.view").Find(&catPerms)
+		_ = db.Model(&opRole).Association("Permissions").Append(catPerms)
+	}
+
+	// 2. Seed Default Parameter Categories (Air Quality, Water Quality, Environmental)
+	defaultCategories := []model.ParameterCategory{
+		{
+			Code:              "gas_pollutants",
+			Name:              "Gas & Pollutants",
+			Description:       "Gaseous air pollutants such as O3, CO, CO2, NO2, SO2",
+			IconKey:           "atom",
+			ColorKey:          "purple",
+			DisplayOrder:      1,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "particulate_matter",
+			Name:              "Particulate Matter",
+			Description:       "Suspended airborne particulate matter (PM2.5, PM10, TSP)",
+			IconKey:           "particles",
+			ColorKey:          "sky",
+			DisplayOrder:      2,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "meteorology",
+			Name:              "Weather / Meteorology",
+			Description:       "Ambient weather, wind, rain, pressure, and solar radiation",
+			IconKey:           "cloud-rain",
+			ColorKey:          "cyan",
+			DisplayOrder:      3,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "water_quality",
+			Name:              "Water Quality",
+			Description:       "Primary water quality indicators (pH, DO, Turbidity, Salinity)",
+			IconKey:           "droplet",
+			ColorKey:          "blue",
+			DisplayOrder:      4,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "physical_water",
+			Name:              "Physical Water Parameters",
+			Description:       "Water temperature, conductivity, TDS, and TSS",
+			IconKey:           "thermometer",
+			ColorKey:          "amber",
+			DisplayOrder:      5,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "chemical_parameters",
+			Name:              "Chemical Parameters",
+			Description:       "Chemical oxygen demand, BOD, ammonia, nitrates, chlorine",
+			IconKey:           "gauge",
+			ColorKey:          "teal",
+			DisplayOrder:      6,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "flow_level",
+			Name:              "Flow & Level",
+			Description:       "Effluent flow rate, water level, river discharge, and volume",
+			IconKey:           "waves",
+			ColorKey:          "emerald",
+			DisplayOrder:      7,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+		{
+			Code:              "environmental",
+			Name:              "Custom Environmental Parameters",
+			Description:       "Specialized noise, vibration, radiation, and electrical telemetry",
+			IconKey:           "activity",
+			ColorKey:          "slate",
+			DisplayOrder:      8,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+		},
+	}
+
+	catMap := make(map[string]uint)
+	for _, c := range defaultCategories {
+		var existing model.ParameterCategory
+		if err := db.Where("code = ?", c.Code).First(&existing).Error; err != nil {
+			db.Create(&c)
+			catMap[c.Code] = c.ID
+		} else {
+			catMap[c.Code] = existing.ID
+		}
+	}
+
+	// 3. Safe heuristic auto-mapping for unassigned legacy parameters
+	type ParamCategoryMini struct {
+		ID            uint
+		ParameterCode string
+		ParameterName string
+		CategoryID    *uint
+	}
+	var unassigned []ParamCategoryMini
+	if err := db.Table("parameters").
+		Select("id, parameter_code, parameter_name, category_id").
+		Where("deleted_at IS NULL AND (category_id IS NULL OR category_id = 0)").
+		Find(&unassigned).Error; err == nil && len(unassigned) > 0 {
+
+		for _, p := range unassigned {
+			targetCode := classifyParameterToCategory(p.ParameterCode, p.ParameterName)
+			if targetCode != "" {
+				if catID, exists := catMap[targetCode]; exists && catID > 0 {
+					_ = db.Table("parameters").Where("id = ?", p.ID).Update("category_id", catID).Error
+				}
+			}
+		}
+	}
+}
+
+func classifyParameterToCategory(code, name string) string {
+	combined := strings.ToUpper(code + " " + name)
+
+	// Gas
+	for _, kw := range []string{"O3", "OZONE", "CO2", "NO2", "SO2", "CO", "CH4", "VOC", "NH3", "H2S", "GAS", "POLLUTANT"} {
+		if strings.Contains(combined, kw) {
+			return "gas_pollutants"
+		}
+	}
+	// Particulate
+	for _, kw := range []string{"PM25", "PM2.5", "PM10", "PM1", "TSP", "DUST", "PARTICULATE", "AEROSOL"} {
+		if strings.Contains(combined, kw) {
+			return "particulate_matter"
+		}
+	}
+	// Weather / Meteorology
+	for _, kw := range []string{"TEMP", "SUHU", "HUMIDITY", "RH", "KELEMBABAN", "WIND", "ANGIN", "WS", "WD", "COMPASS", "RAIN", "HUJAN", "SOLAR", "UV", "RADIASI", "BARO", "PRESSURE", "TEKANAN"} {
+		if strings.Contains(combined, kw) {
+			return "meteorology"
+		}
+	}
+	// Water Quality
+	for _, kw := range []string{"PH", "DO", "DISSOLVED OXYGEN", "TURBIDITY", "SALINITY", "ORP"} {
+		if strings.Contains(combined, kw) {
+			return "water_quality"
+		}
+	}
+	// Physical Water
+	for _, kw := range []string{"TDS", "TSS", "COND", "CONDUCTIVITY"} {
+		if strings.Contains(combined, kw) {
+			return "physical_water"
+		}
+	}
+	// Chemical Water
+	for _, kw := range []string{"COD", "BOD", "NITRATE", "NO3", "CHLORINE", "AMMONIA", "NH4"} {
+		if strings.Contains(combined, kw) {
+			return "chemical_parameters"
+		}
+	}
+	// Flow & Level
+	for _, kw := range []string{"FLOW", "LEVEL", "DEBIT", "DISCHARGE", "WATER LEVEL"} {
+		if strings.Contains(combined, kw) {
+			return "flow_level"
+		}
+	}
+
+	return ""
 }

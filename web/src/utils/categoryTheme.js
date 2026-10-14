@@ -1,0 +1,123 @@
+/**
+ * Parameter Category Styling & Theme Tokens
+ * SCADA Industrial Palettes for Dark/Light Themes
+ */
+
+export const CATEGORY_COLORS = {
+  cyan: {
+    key: 'cyan',
+    name: 'Cyan',
+    text: 'text-cyan-500 dark:text-cyan-400',
+    bg: 'bg-cyan-500/10 dark:bg-cyan-950/40',
+    border: 'border-cyan-500/30 dark:border-cyan-500/40',
+    pill: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30',
+    dot: 'bg-cyan-500',
+    gradient: 'from-cyan-500/20 to-transparent',
+    hex: '#00E5FF',
+  },
+  blue: {
+    key: 'blue',
+    name: 'Blue',
+    text: 'text-blue-500 dark:text-blue-400',
+    bg: 'bg-blue-500/10 dark:bg-blue-950/40',
+    border: 'border-blue-500/30 dark:border-blue-500/40',
+    pill: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30',
+    dot: 'bg-blue-500',
+    gradient: 'from-blue-500/20 to-transparent',
+    hex: '#3B82F6',
+  },
+  purple: {
+    key: 'purple',
+    name: 'Purple',
+    text: 'text-purple-500 dark:text-purple-400',
+    bg: 'bg-purple-500/10 dark:bg-purple-950/40',
+    border: 'border-purple-500/30 dark:border-purple-500/40',
+    pill: 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30',
+    dot: 'bg-purple-500',
+    gradient: 'from-purple-500/20 to-transparent',
+    hex: '#A855F7',
+  },
+  sky: {
+    key: 'sky',
+    name: 'Sky',
+    text: 'text-sky-500 dark:text-sky-400',
+    bg: 'bg-sky-500/10 dark:bg-sky-950/40',
+    border: 'border-sky-500/30 dark:border-sky-500/40',
+    pill: 'bg-sky-500/15 text-sky-600 dark:text-sky-300 border-sky-500/30',
+    dot: 'bg-sky-400',
+    gradient: 'from-sky-500/20 to-transparent',
+    hex: '#38BDF8',
+  },
+  amber: {
+    key: 'amber',
+    name: 'Amber',
+    text: 'text-amber-500 dark:text-amber-400',
+    bg: 'bg-amber-500/10 dark:bg-amber-950/40',
+    border: 'border-amber-500/30 dark:border-amber-500/40',
+    pill: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
+    dot: 'bg-amber-500',
+    gradient: 'from-amber-500/20 to-transparent',
+    hex: '#F59E0B',
+  },
+  emerald: {
+    key: 'emerald',
+    name: 'Emerald',
+    text: 'text-emerald-500 dark:text-emerald-400',
+    bg: 'bg-emerald-500/10 dark:bg-emerald-950/40',
+    border: 'border-emerald-500/30 dark:border-emerald-500/40',
+    pill: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
+    dot: 'bg-emerald-500',
+    gradient: 'from-emerald-500/20 to-transparent',
+    hex: '#10B981',
+  },
+  teal: {
+    key: 'teal',
+    name: 'Teal',
+    text: 'text-teal-500 dark:text-teal-400',
+    bg: 'bg-teal-500/10 dark:bg-teal-950/40',
+    border: 'border-teal-500/30 dark:border-teal-500/40',
+    pill: 'bg-teal-500/15 text-teal-600 dark:text-teal-300 border-teal-500/30',
+    dot: 'bg-teal-500',
+    gradient: 'from-teal-500/20 to-transparent',
+    hex: '#14B8A6',
+  },
+  indigo: {
+    key: 'indigo',
+    name: 'Indigo',
+    text: 'text-indigo-500 dark:text-indigo-400',
+    bg: 'bg-indigo-500/10 dark:bg-indigo-950/40',
+    border: 'border-indigo-500/30 dark:border-indigo-500/40',
+    pill: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
+    dot: 'bg-indigo-500',
+    gradient: 'from-indigo-500/20 to-transparent',
+    hex: '#6366F1',
+  },
+  rose: {
+    key: 'rose',
+    name: 'Rose',
+    text: 'text-rose-500 dark:text-rose-400',
+    bg: 'bg-rose-500/10 dark:bg-rose-950/40',
+    border: 'border-rose-500/30 dark:border-rose-500/40',
+    pill: 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30',
+    dot: 'bg-rose-500',
+    gradient: 'from-rose-500/20 to-transparent',
+    hex: '#F43F5E',
+  },
+  slate: {
+    key: 'slate',
+    name: 'Slate / Gray',
+    text: 'text-slate-500 dark:text-slate-400',
+    bg: 'bg-slate-500/10 dark:bg-slate-950/40',
+    border: 'border-slate-500/30 dark:border-slate-500/40',
+    pill: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30',
+    dot: 'bg-slate-400',
+    gradient: 'from-slate-500/20 to-transparent',
+    hex: '#64748B',
+  },
+};
+
+export const COLOR_LIST = Object.values(CATEGORY_COLORS);
+
+export function getCategoryColor(colorKey) {
+  return CATEGORY_COLORS[colorKey] || CATEGORY_COLORS.cyan;
+}

@@ -186,6 +186,9 @@ func main() {
 	reportHandler := handler.NewReportHandler(reportService)
 	userHandler := handler.NewUserHandler(authService)
 	roleHandler := handler.NewRoleHandler(authService)
+	categoryRepo := repository.NewCategoryRepository(db)
+	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -270,6 +273,20 @@ func main() {
 
 			// Phase 3.3 — Historical Downsampling
 			devicesGroup.GET("/:id/telemetry/downsampled", middleware.RequirePermission("device.view"), aggHandler.GetDownsampledHistory)
+		}
+
+		// Dynamic Parameter Categories & Layout (Authenticated & Authorized)
+		categoriesGroup := api.Group("/categories")
+		categoriesGroup.Use(middleware.JWTAuth(authService))
+		{
+			categoriesGroup.GET("", middleware.RequirePermission("category.view"), categoryHandler.ListCategories)
+			categoriesGroup.GET("/:id", middleware.RequirePermission("category.view"), categoryHandler.GetCategory)
+			categoriesGroup.POST("", middleware.RequirePermission("category.manage"), categoryHandler.CreateCategory)
+			categoriesGroup.PUT("/reorder", middleware.RequirePermission("category.manage"), categoryHandler.ReorderCategories)
+			categoriesGroup.PUT("/:id", middleware.RequirePermission("category.manage"), categoryHandler.UpdateCategory)
+			categoriesGroup.PUT("/:id/toggle", middleware.RequirePermission("category.manage"), categoryHandler.ToggleCategory)
+			categoriesGroup.DELETE("/:id", middleware.RequirePermission("category.manage"), categoryHandler.DeleteCategory)
+			categoriesGroup.POST("/:id/parameters", middleware.RequirePermission("category.assign"), categoryHandler.AssignParameters)
 		}
 
 		// Phase 3.3 — Aggregations & Rollups (Internal & Management)

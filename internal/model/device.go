@@ -275,7 +275,9 @@ type Parameter struct {
 	DataType      ParameterDataType `gorm:"size:32;default:'FLOAT32'" json:"data_type"`
 	Unit          string            `gorm:"size:32" json:"unit"`
 	Icon          string            `gorm:"size:64;default:''" json:"icon,omitempty"`
-	Description   string            `gorm:"size:255" json:"description"`
+	CategoryID    *uint              `gorm:"index" json:"category_id,omitempty"`
+	Category      *ParameterCategory `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
+	Description   string             `gorm:"size:255" json:"description"`
 	MinValue      *float64          `json:"min_value"`
 	MaxValue      *float64          `json:"max_value"`
 	Precision     int               `gorm:"default:2" json:"precision"`

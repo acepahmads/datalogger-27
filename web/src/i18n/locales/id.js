@@ -1867,6 +1867,73 @@ export default {
     "filterStation": "Filter Stasiun",
     "measuredPoints": "Titik Pengukuran",
     "spatialInterpolation": "Interpolasi Spasial (IDW)",
-    "windVector": "Overlay Vektor Angin"
+    "windVector": "Overlay Vektor Angin",
+    "allCategories": "Semua Kategori",
+    "uncategorized": "Tanpa Kategori",
+    "configureLayout": "Atur Tata Letak",
+    "categorySettings": "Kategori & Tata Letak",
+    "categoryCount": "{count} parameter",
+    "categoryEmpty": "Tidak ada parameter yang ditetapkan ke kategori ini."
+  },
+  "categoryManagement": {
+    "title": "Manajemen Kategori Parameter",
+    "subtitle": "Konfigurasi kategori domain, urutan tampilan, lebar kolom responsif, dan penetapan parameter.",
+    "tabs": {
+      "categories": "Kategori & Tata Letak",
+      "assignments": "Penetapan Parameter",
+      "create": "Buat Kategori",
+      "edit": "Ubah Kategori"
+    },
+    "fields": {
+      "code": "Kode Kategori",
+      "name": "Nama Tampilan Kategori",
+      "description": "Deskripsi",
+      "icon": "Ikon Vektor Kategori",
+      "color": "Warna Tema",
+      "order": "Urutan Tampilan",
+      "span": "Lebar Kolom Bawaan",
+      "enabled": "Kategori Aktif",
+      "paramsAssigned": "Parameter Ditetapkan"
+    },
+    "spans": {
+      "span1": "1 Kolom (Standar)",
+      "span2": "2 Kolom (Ganda)",
+      "span3": "3 Kolom (Lebar SCADA)",
+      "span4": "4 Kolom (Penuh Baris)"
+    },
+    "actions": {
+      "add": "Tambah Kategori",
+      "edit": "Ubah",
+      "delete": "Hapus",
+      "save": "Simpan Perubahan",
+      "saving": "Menyimpan...",
+      "cancel": "Batal",
+      "reorder": "Simpan Urutan",
+      "assign": "Tetapkan ke Kategori",
+      "moveUp": "Naikkan",
+      "moveDown": "Turunkan",
+      "toggleEnable": "Aktifkan Kategori",
+      "toggleDisable": "Nonaktifkan Kategori"
+    },
+    "deleteModal": {
+      "title": "Hapus Kategori",
+      "warning": "Apakah Anda yakin ingin menghapus kategori '{name}'?",
+      "reassignPrompt": "Pilih tindakan untuk {count} parameter yang saat ini ada di kategori ini:",
+      "optionUnassign": "Jadikan Tanpa Kategori (Aman tanpa menghapus parameter atau telemetri)",
+      "optionReassign": "Tetapkan ulang ke kategori lain:",
+      "confirm": "Konfirmasi Hapus",
+      "safetyNotice": "Jaminan Keamanan Data: Menghapus kategori tidak akan pernah menghapus parameter, riwayat telemetri, alarm, atau agregasi."
+    },
+    "preview": {
+      "sectionHeader": "Pratinjau Header Bagian Kategori",
+      "cardTile": "Pratinjau Tata Letak Kartu"
+    },
+    "notifications": {
+      "created": "Kategori '{name}' berhasil dibuat",
+      "updated": "Kategori '{name}' berhasil diperbarui",
+      "deleted": "Kategori berhasil dihapus",
+      "reordered": "Urutan tampilan kategori disimpan",
+      "assigned": "Berhasil menetapkan {count} parameter"
+    }
   }
 };

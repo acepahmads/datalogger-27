@@ -117,40 +117,70 @@
           </div>
         </div>
 
-        <!-- Parameter Icon & Type Configuration Row -->
-        <div class="p-3 bg-[#0B0F19]/60 border border-slate-800 rounded-xl space-y-2">
+        <!-- Parameter Category & Sensor Icon Configuration Row -->
+        <div class="p-3 bg-[#0B0F19]/60 border border-slate-800 rounded-xl space-y-2.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
-              {{ $t('parameterModal.iconLabel') || 'Parameter Icon / Sensor Type' }}
+              {{ $t('operator.categorySettings') || 'Parameter Category & Sensor Icon' }}
             </label>
-            <!-- Live Preview Badge -->
+            <!-- Live Preview Badge with Category -->
             <div class="flex items-center space-x-1.5 text-2xs font-mono px-2 py-1 bg-slate-900 border border-slate-700/80 rounded-lg">
               <span class="text-slate-400 text-3xs">{{ $t('parameterModal.iconCardPreview') || 'Card Preview' }}:</span>
               <span class="text-cyan-400/80 font-semibold text-3xs">AQMS-01</span>
               <span class="text-slate-500">·</span>
               <div class="flex items-center space-x-1 font-bold text-white">
                 <ParameterIcon :icon="form.icon" :code="form.parameter_code" :name="form.parameter_name" :unit="form.unit" size-class="w-3.5 h-3.5" />
-                <span class="truncate max-w-[130px]">{{ form.parameter_name || form.parameter_code || 'Preview' }}</span>
+                <span class="truncate max-w-[110px]">{{ form.parameter_name || form.parameter_code || 'Preview' }}</span>
               </div>
+              <span
+                v-if="selectedCategoryObject"
+                class="px-1.5 py-0.2 rounded text-4xs font-bold border ml-1"
+                :class="getCategoryTheme(selectedCategoryObject.color_key).pill"
+              >
+                {{ selectedCategoryObject.name }}
+              </span>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
-            <select
-              v-model="form.icon"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-            >
-              <option value="">{{ $t('parameterModal.iconAuto') || '✨ Auto-Detect (Based on Code/Name/Unit)' }}</option>
-              <option v-for="cat in iconCatalog" :key="cat.key" :value="cat.key">
-                {{ cat.label }}
-              </option>
-            </select>
-            <div class="text-3xs text-slate-400 flex items-center space-x-1.5">
-              <span>{{ $t('parameterModal.iconResolved') || 'Resolved Icon' }}:</span>
-              <span class="font-bold text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
-              <span v-if="!form.icon" class="text-slate-500 font-sans italic">(automatic heuristic)</span>
-              <span v-else class="text-emerald-400 font-sans italic">(manually configured)</span>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- Category Selector -->
+            <div>
+              <label class="block text-3xs text-slate-400 mb-1 font-mono">
+                {{ $t('categoryManagement.fields.name') || 'Domain Category' }}
+              </label>
+              <select
+                v-model="form.category_id"
+                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+              >
+                <option :value="null">— {{ $t('operator.uncategorized') || 'Uncategorized' }} —</option>
+                <option v-for="cat in availableCategories" :key="cat.id" :value="cat.id">
+                  {{ cat.name }} {{ !cat.enabled ? '(Disabled)' : '' }}
+                </option>
+              </select>
             </div>
+
+            <!-- Icon Selector -->
+            <div>
+              <label class="block text-3xs text-slate-400 mb-1 font-mono">
+                {{ $t('parameterModal.iconLabel') || 'Sensor Icon Type' }}
+              </label>
+              <select
+                v-model="form.icon"
+                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+              >
+                <option value="">{{ $t('parameterModal.iconAuto') || '✨ Auto-Detect (Based on Code/Name/Unit)' }}</option>
+                <option v-for="cat in iconCatalog" :key="cat.key" :value="cat.key">
+                  {{ cat.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="text-3xs text-slate-400 flex items-center space-x-1.5 font-mono">
+            <span>{{ $t('parameterModal.iconResolved') || 'Resolved Icon' }}:</span>
+            <span class="font-bold text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
+            <span v-if="!form.icon" class="text-slate-500 font-sans italic">(automatic heuristic)</span>
+            <span v-else class="text-emerald-400 font-sans italic">(manually configured)</span>
           </div>
         </div>
 
@@ -638,6 +668,8 @@
 <script>
 import ParameterIcon from './ParameterIcon.vue';
 import { PARAMETER_ICON_CATALOG, resolveParameterIconKey } from '../utils/parameterIcons.js';
+import { getCategoryColor } from '../utils/categoryTheme.js';
+import apiClient from '../services/api.js';
 
 export default {
   name: 'ParameterModal',
@@ -675,7 +707,9 @@ export default {
       loading: false,
       error: null,
       targetDeviceId: null,
+      availableCategories: [],
       form: {
+        category_id: null,
         parameter_code: '',
         parameter_name: '',
         data_type: 'FLOAT32',
@@ -746,6 +780,10 @@ export default {
     },
     iconCatalog() {
       return PARAMETER_ICON_CATALOG;
+    },
+    selectedCategoryObject() {
+      if (!this.form.category_id) return null;
+      return this.availableCategories.find(c => Number(c.id) === Number(this.form.category_id)) || null;
     },
     currentResolvedIconKey() {
       return resolveParameterIconKey(this.form.icon, this.form.parameter_code, this.form.parameter_name, this.form.unit);
@@ -851,6 +889,7 @@ export default {
       immediate: true,
       handler(val) {
         if (val) {
+          this.fetchCategories();
           if (!this.$store.state.devices || this.$store.state.devices.length === 0) {
             this.$store.dispatch('fetchDevices');
           }
@@ -882,6 +921,17 @@ export default {
     },
   },
   methods: {
+    getCategoryTheme(colorKey) {
+      return getCategoryColor(colorKey);
+    },
+    async fetchCategories() {
+      try {
+        const res = await apiClient.get('/categories');
+        this.availableCategories = res.data?.data || res.data || [];
+      } catch (err) {
+        console.error('Failed to load categories in ParameterModal:', err);
+      }
+    },
     cleanNum(val) {
       if (val === null || val === undefined || val === '') return null;
       const n = Number(val);
@@ -926,6 +976,7 @@ export default {
     },
     resetForm() {
       this.form = {
+        category_id: null,
         parameter_code: '',
         parameter_name: '',
         data_type: 'FLOAT32',
@@ -978,6 +1029,7 @@ export default {
     populateFromParam(param) {
       this.targetDeviceId = Number(this.deviceId);
       this.form = {
+        category_id: param.category_id !== undefined && param.category_id !== null ? Number(param.category_id) : (param.category ? Number(param.category.id) : null),
         parameter_code: param.parameter_code || param.code || '',
         parameter_name: param.parameter_name || param.name || '',
         data_type: param.data_type || 'FLOAT32',
@@ -1011,6 +1063,7 @@ export default {
       const code = source.parameter_code || source.code || '';
       const name = source.parameter_name || source.name || '';
       this.form = {
+        category_id: source.category_id !== undefined && source.category_id !== null ? Number(source.category_id) : (source.category ? Number(source.category.id) : null),
         parameter_code: this.generateSuggestedCode(code),
         parameter_name: this.generateSuggestedName(name),
         data_type: source.data_type || 'FLOAT32',
@@ -1054,7 +1107,10 @@ export default {
       const warnLow = this.cleanNum(this.form.warning_low);
       const warnHigh = this.cleanNum(this.form.warning_high);
 
+      const catId = this.form.category_id ? Number(this.form.category_id) : null;
       const payload = {
+        category_id: catId,
+        clear_category_id: catId === null,
         parameter_code: this.form.parameter_code ? this.form.parameter_code.trim() : '',
         parameter_name: this.form.parameter_name ? this.form.parameter_name.trim() : '',
         data_type: this.form.data_type,

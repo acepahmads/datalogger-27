@@ -104,7 +104,7 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 // GetLatestForDevice returns all enabled parameters for a device with current values (or all if deviceID == 0)
 func (r *TelemetryRepository) GetLatestForDevice(ctx context.Context, deviceID uint) ([]model.Parameter, error) {
 	var params []model.Parameter
-	query := r.db.WithContext(ctx).Where("deleted_at IS NULL")
+	query := r.db.WithContext(ctx).Preload("Category").Where("deleted_at IS NULL")
 	if deviceID > 0 {
 		query = query.Where("device_id = ?", deviceID)
 	}
@@ -116,6 +116,7 @@ func (r *TelemetryRepository) GetLatestForDevice(ctx context.Context, deviceID u
 func (r *TelemetryRepository) GetLatestForParameter(ctx context.Context, deviceID, paramID uint) (*model.Parameter, error) {
 	var param model.Parameter
 	err := r.db.WithContext(ctx).
+		Preload("Category").
 		Where("id = ? AND device_id = ? AND deleted_at IS NULL", paramID, deviceID).
 		First(&param).Error
 	if err != nil {
