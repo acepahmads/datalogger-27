@@ -166,15 +166,12 @@ runTest('Test 9: Trend Analysis, Wind Rose, and Dispersion Map are preserved and
   assert(occContent.includes('lg:col-span-7'), 'Dispersion Map receives 7/12 columns');
 });
 
-// Test 10: Search, Device, Quality, Alarm filters, Pinned mode, and Table view preserved
-runTest('Test 10: Search, Device, Quality, Alarm filters, Pinned mode, and Table view preserved', () => {
-  assert(occContent.includes('v-model="searchQuery"'), 'Search input must be preserved');
-  assert(occContent.includes('v-model="selectedDeviceFilter"'), 'Device filter must be preserved');
-  assert(occContent.includes('v-model="selectedQualityFilter"'), 'Quality filter must be preserved');
-  assert(occContent.includes('v-model="selectedAlarmFilter"'), 'Alarm filter must be preserved');
+// Test 10: Pinned mode, Cards view, and Table view preserved (filter dropdowns row removed per user request)
+runTest('Test 10: Category tabs, Pinned mode, and Cards vs Table view preserved', () => {
   assert(occContent.includes('toggleFilterPinned'), 'Pinned filter toggle must be preserved');
   assert(occContent.includes("viewMode === 'cards'"), 'Cards view mode toggle must be preserved');
   assert(occContent.includes("viewMode === 'table'") || occContent.includes('v-else class="scada-panel'), 'Table view mode must be preserved');
+  assert(occContent.includes('selectedCategoryFilter'), 'Category tabs filter must be preserved');
 });
 
 // Test 11: Live telemetry, alarms, sparkline gap handling, and empty states preserved

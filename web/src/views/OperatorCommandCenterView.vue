@@ -400,59 +400,7 @@
           </div>
         </div>
 
-        <!-- Filter Dropdowns Row -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] text-2xs font-mono">
-          <!-- Search Input -->
-          <div class="col-span-2 sm:col-span-1">
-            <input
-              type="text"
-              v-model="searchQuery"
-              @input="onSearchDebounced"
-              :placeholder="$t('operator.searchPlaceholder') || 'Search params, dev...'"
-              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-white text-3xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-            />
-          </div>
 
-          <!-- Device Filter -->
-          <div>
-            <select
-              v-model="selectedDeviceFilter"
-              class="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-300 text-3xs focus:outline-none focus:border-cyan-500"
-            >
-              <option value="">{{ $t('operator.filterDevice') || 'All Devices' }}</option>
-              <option v-for="dev in devicesList" :key="dev.id" :value="dev.id">
-                {{ dev.device_code || dev.code }} ({{ dev.device_name || dev.name }})
-              </option>
-            </select>
-          </div>
-
-          <!-- Quality Filter -->
-          <div>
-            <select
-              v-model="selectedQualityFilter"
-              class="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-300 text-3xs focus:outline-none focus:border-cyan-500"
-            >
-              <option value="">{{ $t('operator.filterQuality') || 'All Qualities' }}</option>
-              <option value="GOOD">GOOD (Healthy)</option>
-              <option value="UNCERTAIN">UNCERTAIN</option>
-              <option value="BAD">BAD (Anomaly)</option>
-              <option value="STALE">STALE (Timeout)</option>
-            </select>
-          </div>
-
-          <!-- Alarm Status Filter -->
-          <div>
-            <select
-              v-model="selectedAlarmFilter"
-              class="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-300 text-3xs focus:outline-none focus:border-cyan-500"
-            >
-              <option value="">{{ $t('operator.filterAlarm') || 'All Alarms' }}</option>
-              <option value="CRITICAL">Critical Alarms</option>
-              <option value="WARNING">Warning Alarms</option>
-              <option value="NORMAL">Normal Operating</option>
-            </select>
-          </div>
-        </div>
 
         <!-- Dynamic Category Tabs Filter Strip -->
         <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 custom-scroller text-3xs font-mono select-none">
