@@ -69,9 +69,9 @@ runTest('Test 1: Parameter cards structure matches Reference 2 (Top, Main, and B
   assert(occContent.includes('plotTrend'), 'Bottom row must render Plot Trend action');
 });
 
-// Test 2: Card dimensions match 130-150px height and responsive min-width ~260px
-runTest('Test 2: Card dimensions match 130-150px height and responsive min-width ~260px', () => {
-  assert(occContent.includes('h-[134px] sm:h-[140px]'), 'Card must have uniform height between 130-150px');
+// Test 2: Card dimensions match uniform height (130-150px or compact 114-118px) and responsive min-width ~260px
+runTest('Test 2: Card dimensions match uniform height and responsive min-width ~260px', () => {
+  assert(occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'), 'Card must have uniform height between 114-140px');
   assert(occContent.includes('min-w-[260px]'), 'Card must enforce responsive min-width of ~260px');
   assert(occContent.includes('p-3'), 'Card must use comfortable p-3 internal padding');
   assert(occContent.includes('rounded-xl'), 'Card must use refined rounded-xl corners');

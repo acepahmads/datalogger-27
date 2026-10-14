@@ -414,7 +414,7 @@
         <div
           v-if="viewMode === 'cards'"
           :style="cardGridContainerStyle"
-          class="custom-scroller"
+          class="custom-scroller pb-8 sm:pb-10"
         >
           <!-- 12-Column Responsive Category Grid across the full available desktop width -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-3.5">
@@ -422,7 +422,7 @@
               v-for="section in categorySections"
               :key="section.id"
               :class="getSectionContainerSpanClass(section)"
-              class="flex flex-col space-y-2 rounded-xl p-2.5 sm:p-3 bg-slate-50/60 dark:bg-[#070D17]/40 border border-slate-200/80 dark:border-[#1A2C3F]/60"
+              class="flex flex-col space-y-1.5 sm:space-y-2 rounded-xl p-2 sm:p-2.5 lg:p-3 bg-slate-50/60 dark:bg-[#070D17]/40 border border-slate-200/80 dark:border-[#1A2C3F]/60"
             >
               <!-- Section Header (shown in 'all' view when multiple categories exist) -->
               <div
@@ -447,7 +447,7 @@
                   v-for="param in section.parameters"
                   :key="param.param_id"
                   @click="selectParamForTrend(param)"
-                  class="scada-param-tile p-3 rounded-xl border transition-all duration-200 relative cursor-pointer group flex flex-col justify-between h-[134px] sm:h-[140px] min-w-[260px]"
+                  class="scada-param-tile p-2.5 sm:p-2.5 xl:p-3 rounded-xl border transition-all duration-200 relative cursor-pointer group flex flex-col justify-between h-[114px] sm:h-[118px] lg:h-[126px] xl:h-[134px] min-w-0 sm:min-w-0 xl:min-w-[260px]"
                   :class="[
                     isParamAlarmOrStaleBad(param)
                       ? (isAlarmPulseActive
@@ -466,7 +466,7 @@
                 >
                   <!-- Row 1: Header (Device code, Parameter icon & prominent name, Alarm tag, Quality badge, Pin button) -->
                   <div class="flex items-center justify-between min-w-0 leading-none">
-                    <div class="flex items-center space-x-1.5 min-w-0 flex-1 truncate mr-2">
+                    <div class="flex items-center space-x-1 sm:space-x-1.5 min-w-0 flex-1 truncate mr-1.5 sm:mr-2">
                       <span
                         class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                         :class="[
@@ -481,7 +481,7 @@
                         {{ param.device_code }}
                       </span>
                       <span class="text-slate-300 dark:text-slate-600 text-xs font-mono select-none flex-shrink-0">·</span>
-                      <div class="flex items-center space-x-1.5 min-w-0 flex-1 truncate">
+                      <div class="flex items-center space-x-1 sm:space-x-1.5 min-w-0 flex-1 truncate">
                         <ParameterIcon
                           :icon="param.icon"
                           :code="param.param_code"
@@ -499,7 +499,7 @@
                     </div>
 
                     <!-- Header Right: Alarm tag, Quality badge, Pin button -->
-                    <div class="flex items-center space-x-1.5 flex-shrink-0">
+                    <div class="flex items-center space-x-1 sm:space-x-1.5 flex-shrink-0">
                       <span
                         v-if="param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING'"
                         class="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold uppercase leading-none"
@@ -555,7 +555,7 @@
                           {{ param.unit }}
                         </span>
                       </div>
-                      <div class="flex items-center space-x-1.5 mt-1 text-4xs font-mono text-slate-400 dark:text-slate-500 leading-none truncate max-w-[140px] sm:max-w-[170px]">
+                      <div class="flex items-center space-x-1.5 mt-0.5 sm:mt-1 text-4xs font-mono text-slate-400 dark:text-slate-500 leading-none truncate max-w-[140px] sm:max-w-[170px]">
                         <span
                           v-if="param.low_limit != null || param.high_limit != null"
                           class="truncate"
@@ -2512,15 +2512,15 @@ export default {
     },
     cardGridContainerStyle() {
       const count = this.filteredParameters.length;
-      if (count <= 16) {
+      if (count <= 6) {
         return {
           maxHeight: 'none',
-          minHeight: '180px',
+          minHeight: '140px',
         };
       }
       return {
-        maxHeight: 'calc(100vh - 250px)',
-        minHeight: '360px',
+        maxHeight: 'calc(100vh - 215px)',
+        minHeight: '200px',
         overflowY: 'auto',
       };
     },
@@ -2948,22 +2948,22 @@ export default {
       return num.toFixed(2);
     },
     getParamValueFontSizeClass(param) {
-      if (!param) return 'text-2xl sm:text-[26px] xl:text-[28px]';
+      if (!param) return 'text-2xl sm:text-[28px]';
       const formatted = this.formatParamValue(param);
       const str = String(formatted);
       const len = str.length;
       if (len <= 5) {
         // e.g. "2.00", "39.00", "--"
-        return 'text-2xl sm:text-[28px] xl:text-[30px]';
+        return 'text-2xl sm:text-[28px]';
       } else if (len <= 7) {
         // e.g. "912.00", "-12.34"
-        return 'text-xl sm:text-[23px] xl:text-[25px]';
+        return 'text-xl sm:text-[23px]';
       } else if (len <= 9) {
         // e.g. "-1234.56", "1013.25"
-        return 'text-lg sm:text-[19px] xl:text-[21px]';
+        return 'text-lg sm:text-[19px]';
       } else {
         // e.g. "-1234.567", "101325.00"
-        return 'text-base sm:text-[16px] xl:text-[17px]';
+        return 'text-base sm:text-[16px]';
       }
     },
     paramValueColorClass(param) {

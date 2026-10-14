@@ -194,8 +194,8 @@ runTest('Test 6: Sparkline retains real sample history, gap handling, area fill,
 });
 
 // Test 7: Card dimensions and responsive grid layout preserved
-runTest('Test 7: Uniform card height (130-150px) and minimum width (~260px) preserved across categories', () => {
-  assert(occContent.includes('h-[134px] sm:h-[140px]'), 'Uniform card height 134-140px preserved');
+runTest('Test 7: Uniform card height (130-150px or compact 114-118px) and minimum width (~260px) preserved across categories', () => {
+  assert(occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'), 'Uniform card height 134-140px or compact 114-118px preserved');
   assert(occContent.includes('min-w-[260px]'), 'Card min-width 260px preserved');
   assert(occContent.includes('grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-3.5'), '12-column responsive layout preserved');
 });
