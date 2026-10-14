@@ -114,7 +114,7 @@ func (r *DeviceRepository) List(params DeviceFilterParams) ([]model.Device, int6
 	}
 
 	// Execute query with preloads
-	err := query.Preload("Connection").Preload("Parameters.Category").Preload("Parameters").Preload("TypeRel").Find(&devices).Error
+	err := query.Preload("Connection").Preload("Parameters", "deleted_at IS NULL").Preload("Parameters.Category").Preload("TypeRel").Find(&devices).Error
 	return devices, total, err
 }
 
@@ -123,8 +123,8 @@ func (r *DeviceRepository) GetByID(id uint) (*model.Device, error) {
 	var dev model.Device
 	err := r.db.Where("deleted_at IS NULL").
 		Preload("Connection").
-		Preload("Parameters.Category").
 		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
 		Preload("TypeRel").
 		First(&dev, id).Error
 	if err != nil {
@@ -139,8 +139,8 @@ func (r *DeviceRepository) GetByCode(code string) (*model.Device, error) {
 	cleanCode := strings.TrimSpace(code)
 	err := r.db.Where("deleted_at IS NULL AND (LOWER(device_code) = LOWER(?) OR LOWER(code) = LOWER(?))", cleanCode, cleanCode).
 		Preload("Connection").
-		Preload("Parameters.Category").
 		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
 		First(&dev).Error
 	if err != nil {
 		return nil, err

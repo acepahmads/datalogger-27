@@ -824,3 +824,123 @@ func TestCloneParameter(t *testing.T) {
 	}
 }
 
+func TestUpdateParameterCategoryAssignment(t *testing.T) {
+	db, devService, _ := setupDeviceTestDB(t)
+
+	// Fetch seeded categories from migrations
+	var cat1, cat2 model.ParameterCategory
+	if err := db.Where("code = ?", "gas_pollutants").First(&cat1).Error; err != nil {
+		t.Fatalf("Failed to find gas_pollutants category: %v", err)
+	}
+	if err := db.Where("code = ?", "particulate_matter").First(&cat2).Error; err != nil {
+		t.Fatalf("Failed to find particulate_matter category: %v", err)
+	}
+
+	// Create device
+	dev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "DEV-CAT-01",
+		DeviceName: "Category Test Device",
+		DeviceType: "MODBUS_TCP",
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("Failed to create device: %v", err)
+	}
+
+	// Create parameter with category 1
+	param, err := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode: "PM10",
+		ParameterName: "PM 10",
+		DataType:      model.DataTypeFloat32,
+		CategoryID:    &cat1.ID,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("Failed to create parameter: %v", err)
+	}
+
+	if param.CategoryID == nil || *param.CategoryID != cat1.ID {
+		t.Fatalf("Expected category %d, got %v", cat1.ID, param.CategoryID)
+	}
+
+	// Step 1: Update to Category 2
+	updated, err := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		CategoryID: &cat2.ID,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("Failed to update parameter category: %v", err)
+	}
+	if updated.CategoryID == nil || *updated.CategoryID != cat2.ID {
+		t.Errorf("Step 1 return: Expected category %d, got %v", cat2.ID, updated.CategoryID)
+	}
+
+	// Fetch again from DB
+	fetched, err := devService.GetParameter(dev.ID, param.ID)
+	if err != nil {
+		t.Fatalf("Failed to get parameter: %v", err)
+	}
+	if fetched.CategoryID == nil || *fetched.CategoryID != cat2.ID {
+		t.Errorf("Step 1 DB persist: Expected category %d, got %v", cat2.ID, fetched.CategoryID)
+	}
+	if fetched.Category == nil || fetched.Category.ID != cat2.ID {
+		t.Errorf("Step 1 Category struct: Expected Category ID %d, got %+v", cat2.ID, fetched.Category)
+	}
+
+	// Check device repo GetByID
+	devWithParams, err := devService.GetDeviceByID(dev.ID)
+	if err != nil {
+		t.Fatalf("Failed to get device by id: %v", err)
+	}
+	if len(devWithParams.Parameters) == 0 {
+		t.Fatalf("Expected parameters in devWithParams, got 0")
+	}
+	p0 := devWithParams.Parameters[0]
+	if p0.CategoryID == nil || *p0.CategoryID != cat2.ID {
+		t.Errorf("devWithParams Parameter CategoryID: Expected %d, got %v", cat2.ID, p0.CategoryID)
+	}
+	if p0.Category == nil || p0.Category.ID != cat2.ID {
+		t.Errorf("devWithParams Parameter Category struct: Expected ID %d, got %+v", cat2.ID, p0.Category)
+	}
+
+	// Check device repo ListDevices (which OCC calls)
+	listedDevices, _, err := devService.ListDevices(repository.DeviceFilterParams{Page: 1, PageSize: 50})
+	if err != nil {
+		t.Fatalf("Failed to list devices: %v", err)
+	}
+	var foundDev *model.Device
+	for i := range listedDevices {
+		if listedDevices[i].ID == dev.ID {
+			foundDev = &listedDevices[i]
+			break
+		}
+	}
+	if foundDev == nil || len(foundDev.Parameters) == 0 {
+		t.Fatalf("Expected foundDev with parameters from ListDevices")
+	}
+	lp0 := foundDev.Parameters[0]
+	if lp0.CategoryID == nil || *lp0.CategoryID != cat2.ID {
+		t.Errorf("ListDevices Parameter CategoryID: Expected %d, got %v", cat2.ID, lp0.CategoryID)
+	}
+	if lp0.Category == nil || lp0.Category.ID != cat2.ID {
+		t.Errorf("ListDevices Parameter Category struct: Expected ID %d, got %+v", cat2.ID, lp0.Category)
+	}
+
+	// Step 2: Clear Category
+	cleared, err := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		ClearCategoryID: true,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("Failed to clear parameter category: %v", err)
+	}
+	if cleared.CategoryID != nil {
+		t.Errorf("Step 2 return: Expected nil category, got %v", cleared.CategoryID)
+	}
+
+	// Fetch again from DB
+	fetchedCleared, err := devService.GetParameter(dev.ID, param.ID)
+	if err != nil {
+		t.Fatalf("Failed to get cleared parameter: %v", err)
+	}
+	if fetchedCleared.CategoryID != nil {
+		t.Errorf("Step 2 DB persist: Expected nil category, got %v", fetchedCleared.CategoryID)
+	}
+}
+

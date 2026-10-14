@@ -113,6 +113,7 @@ func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 		RawScale       interface{} `json:"scale"`
 		RawOffset      interface{} `json:"offset"`
 		RawSpikeThresh interface{} `json:"spike_threshold"`
+		RawCategoryID  interface{} `json:"category_id"`
 		*Alias
 	}{
 		Alias: (*Alias)(r),
@@ -124,6 +125,9 @@ func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 	var rawMap map[string]interface{}
 	_ = json.Unmarshal(data, &rawMap)
 
+	if val, ok := rawMap["category_id"]; ok {
+		r.CategoryID = parseNullableUint(val, nil)
+	}
 	if val, ok := rawMap["min_value"]; ok {
 		r.MinValue = parseNullableFloat(val, nil)
 	}
@@ -199,6 +203,7 @@ func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
 		RawScale       interface{} `json:"scale"`
 		RawOffset      interface{} `json:"offset"`
 		RawSpikeThresh interface{} `json:"spike_threshold"`
+		RawCategoryID  interface{} `json:"category_id"`
 		*Alias
 	}{
 		Alias: (*Alias)(r),
@@ -210,6 +215,9 @@ func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
 	var rawMap map[string]interface{}
 	_ = json.Unmarshal(data, &rawMap)
 
+	if val, ok := rawMap["category_id"]; ok {
+		r.CategoryID = parseNullableUint(val, &r.ClearCategoryID)
+	}
 	if val, ok := rawMap["min_value"]; ok {
 		r.MinValue = parseNullableFloat(val, &r.ClearMinValue)
 	}
@@ -347,6 +355,112 @@ func parseNullableFloat(val interface{}, clear *bool) *float64 {
 		}
 		if parsed, err := strconv.ParseFloat(trimmed, 64); err == nil {
 			return &parsed
+		}
+	}
+	return nil
+}
+
+func parseNullableUint(val interface{}, clear *bool) *uint {
+	if val == nil {
+		if clear != nil {
+			*clear = true
+		}
+		return nil
+	}
+	switch v := val.(type) {
+	case float64:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		u := uint(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &u
+	case float32:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		u := uint(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &u
+	case int:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		u := uint(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &u
+	case int64:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		u := uint(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &u
+	case uint:
+		if v == 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		if clear != nil {
+			*clear = false
+		}
+		return &v
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			if i <= 0 {
+				if clear != nil {
+					*clear = true
+				}
+				return nil
+			}
+			u := uint(i)
+			if clear != nil {
+				*clear = false
+			}
+			return &u
+		}
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" || trimmed == "0" || strings.EqualFold(trimmed, "null") || strings.EqualFold(trimmed, "undefined") {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		if parsed, err := strconv.ParseUint(trimmed, 10, 32); err == nil {
+			if parsed == 0 {
+				if clear != nil {
+					*clear = true
+				}
+				return nil
+			}
+			u := uint(parsed)
+			if clear != nil {
+				*clear = false
+			}
+			return &u
 		}
 	}
 	return nil
@@ -1044,8 +1158,10 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.ClearCategoryID {
 		param.CategoryID = nil
+		param.Category = nil
 	} else if req.CategoryID != nil {
 		param.CategoryID = req.CategoryID
+		param.Category = nil
 	}
 	if req.Description != nil {
 		param.Description = strings.TrimSpace(*req.Description)
@@ -1177,6 +1293,11 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 
 	if err := s.repo.UpdateParameter(param); err != nil {
 		return nil, fmt.Errorf("failed to update parameter: %w", err)
+	}
+
+	// Reload with populated Category relationship for fresh response
+	if reloaded, err := s.repo.GetParameterByID(deviceID, param.ID); err == nil {
+		param = reloaded
 	}
 
 	afterState, _ := json.Marshal(map[string]interface{}{

@@ -1107,7 +1107,10 @@ export default {
       const warnLow = this.cleanNum(this.form.warning_low);
       const warnHigh = this.cleanNum(this.form.warning_high);
 
-      const catId = this.form.category_id ? Number(this.form.category_id) : null;
+      const rawCat = this.form.category_id;
+      const catId = (rawCat !== null && rawCat !== undefined && rawCat !== '' && Number(rawCat) > 0)
+        ? Number(rawCat)
+        : null;
       const payload = {
         category_id: catId,
         clear_category_id: catId === null,

@@ -793,7 +793,7 @@ export default {
     },
     async onParamCategoryChanged(param, newCatId) {
       try {
-        const catId = newCatId ? Number(newCatId) : null;
+        const catId = (newCatId !== null && newCatId !== undefined && newCatId !== '' && Number(newCatId) > 0) ? Number(newCatId) : null;
         await apiClient.put(`/devices/${param.device_id}/parameters/${param.id}`, {
           category_id: catId,
           clear_category_id: !catId,

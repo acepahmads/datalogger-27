@@ -505,6 +505,13 @@
                     {{ param.category.name }}
                   </span>
                   <span
+                    v-else-if="param.category_id && categoryMap[param.category_id]"
+                    class="px-1.5 py-0.2 rounded text-4xs font-bold border ml-1 font-mono"
+                    :class="getCategoryTheme(categoryMap[param.category_id].color_key).pill"
+                  >
+                    {{ categoryMap[param.category_id].name }}
+                  </span>
+                  <span
                     v-else
                     class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-800/80 text-slate-400 border border-slate-700/60 ml-1 font-mono"
                   >
@@ -3026,6 +3033,7 @@
 
 <script>
 import axios from 'axios';
+import apiClient from '../services/api.js';
 import DeviceModal from '../components/DeviceModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
@@ -3044,6 +3052,7 @@ export default {
       toastType: 'success',
       toastTimer: null,
       device: null,
+      categoriesList: [],
       activities: [],
       activityLoading: false,
       showRawAudit: {},
@@ -3195,6 +3204,13 @@ export default {
         return this.device.parameters[0].id;
       }
       return null;
+    },
+    categoryMap() {
+      const map = {};
+      for (const cat of this.categoriesList || []) {
+        map[cat.id] = cat;
+      }
+      return map;
     },
     chartActiveParam() {
       if (!this.device || !this.device.parameters || !this.activeChartParamId) return null;
@@ -3479,6 +3495,7 @@ export default {
       this.activeTab = this.$route.query.tab;
     }
     this.loadDevice();
+    this.fetchCategories();
     if (this.activeTab === 'activity') {
       this.startActivityPolling();
     }
@@ -3580,6 +3597,22 @@ export default {
     getCategoryTheme(colorKey) {
       return getCategoryColor(colorKey);
     },
+    async fetchCategories() {
+      try {
+        const res = await apiClient.get('/categories');
+        this.categoriesList = res.data?.data || res.data || [];
+      } catch (err) {
+        console.warn('Failed to load categories in DeviceDetailView:', err);
+      }
+    },
+    getResolvedParamCategory(param) {
+      if (!param) return null;
+      if (param.category) return param.category;
+      if (param.category_id && this.categoryMap[param.category_id]) {
+        return this.categoryMap[param.category_id];
+      }
+      return null;
+    },
     showToast(msg, type = 'success') {
       this.toastMessage = msg;
       this.toastType = type;
@@ -3607,6 +3640,8 @@ export default {
       }
       this.closeParamModal();
       this.loadDevice();
+      this.fetchCategories();
+      this.$store.dispatch('fetchDevices');
     },
     openEditModal() {
       this.isCopyDeviceModal = false;
