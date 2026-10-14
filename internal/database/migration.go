@@ -1834,8 +1834,8 @@ func updatePhase7Tracking(db *gorm.DB) {
 			{
 				TaskName:   "Dashboard",
 				TaskID:     67,
-				TestResult: "PASSED: Live overview dashboard with high-density operational telemetry cards (Device Fleet Matrix, Telemetry Throughput Pipeline, Active Alarms, and Live MariaDB Latency/Version) and dedicated Operator Command Center SCADA dashboard (/monitoring/operator) verified with dynamic backend data binding.",
-				Notes:      "Eliminated hardcoded strings; live operational metrics reactively bound to GET /api/system/status and WebSocket telemetry. Added dedicated high-density Operator Command Center SCADA console.",
+				TestResult: "PASSED: Live overview dashboard and dedicated Operator Command Center SCADA dashboard (/monitoring/operator) verified. Redesigned four operational status cards (Device & Comm Status, Active Alarms, Latest Telemetry, System Monitor) into an ultra-compact single-row, two-lines-per-card layout (height 72-76px, Line 1: icon + compact title + badge, Line 2: prominent primary metric + concise secondary status) freeing ~65px vertical space for parameter monitoring while preserving deep system metrics via tooltips.",
+				Notes:      "Compact Status Summary verified across 27 operator test suites, all frontend automated suites, clean Vite production build, and cross-platform binaries.",
 			},
 			{
 				TaskName:   "Device Monitoring",
