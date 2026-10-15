@@ -177,7 +177,7 @@ runTest('Test 10: Preserves live telemetry values, sparklines, quality badges, a
 
 // Test 11: Backend model, DTOs, and Service support Icon field
 runTest('Test 11: Backend Parameter model, CreateParameterRequest, and UpdateParameterRequest include Icon', () => {
-  assert(modelDeviceContent.includes('Icon          string            `gorm:"size:64;default:\'\'" json:"icon,omitempty"`'), 'model.Parameter must include Icon column');
+  assert(/Icon\s+string\s+`gorm:"size:64;default:''" json:"icon,omitempty"`/.test(modelDeviceContent), 'model.Parameter must include Icon column');
   assert(serviceDeviceContent.includes('Icon                     string                  `json:"icon"`'), 'CreateParameterRequest must include Icon');
   assert(serviceDeviceContent.includes('Icon                     *string                  `json:"icon"`'), 'UpdateParameterRequest must include Icon pointer');
   assert(serviceDeviceContent.includes('param.Icon = strings.TrimSpace(*req.Icon)'), 'UpdateParameter must assign Icon');

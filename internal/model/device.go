@@ -267,14 +267,23 @@ const (
 )
 
 // Parameter represents an engineering telemetry parameter (Section 8)
+type ZeroValueAlarmPolicy string
+
+const (
+	ZeroValuePolicyNormal            ZeroValueAlarmPolicy = "NORMAL"
+	ZeroValuePolicySuppressThreshold ZeroValueAlarmPolicy = "SUPPRESS_THRESHOLD"
+	ZeroValuePolicyInvalidReading    ZeroValueAlarmPolicy = "INVALID_READING"
+)
+
 type Parameter struct {
-	ID            uint              `gorm:"primaryKey" json:"id"`
-	DeviceID      uint              `gorm:"uniqueIndex:idx_device_param_code;index;not null" json:"device_id"`
-	ParameterCode string            `gorm:"column:parameter_code;size:64;uniqueIndex:idx_device_param_code;not null" json:"parameter_code"`
-	ParameterName string            `gorm:"column:parameter_name;size:128;not null" json:"parameter_name"`
-	DataType      ParameterDataType `gorm:"size:32;default:'FLOAT32'" json:"data_type"`
-	Unit          string            `gorm:"size:32" json:"unit"`
-	Icon          string            `gorm:"size:64;default:''" json:"icon,omitempty"`
+	ID                   uint                 `gorm:"primaryKey" json:"id"`
+	DeviceID             uint                 `gorm:"uniqueIndex:idx_device_param_code;index;not null" json:"device_id"`
+	ParameterCode        string               `gorm:"column:parameter_code;size:64;uniqueIndex:idx_device_param_code;not null" json:"parameter_code"`
+	ParameterName        string               `gorm:"column:parameter_name;size:128;not null" json:"parameter_name"`
+	DataType             ParameterDataType    `gorm:"size:32;default:'FLOAT32'" json:"data_type"`
+	Unit                 string               `gorm:"size:32" json:"unit"`
+	Icon                 string               `gorm:"size:64;default:''" json:"icon,omitempty"`
+	ZeroValueAlarmPolicy ZeroValueAlarmPolicy `gorm:"column:zero_value_alarm_policy;size:32;default:'NORMAL'" json:"zero_value_alarm_policy"`
 	CategoryID    *uint              `gorm:"index" json:"category_id,omitempty"`
 	Category      *ParameterCategory `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
 	Description   string             `gorm:"size:255" json:"description"`
@@ -335,6 +344,9 @@ type Parameter struct {
 }
 
 func (p *Parameter) BeforeSave(tx *gorm.DB) error {
+	if p.ZeroValueAlarmPolicy == "" {
+		p.ZeroValueAlarmPolicy = ZeroValuePolicyNormal
+	}
 	if p.ByteOrder == "" {
 		p.ByteOrder = "ABCD"
 	}

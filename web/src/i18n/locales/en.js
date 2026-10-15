@@ -748,7 +748,14 @@ export default {
     "destinationDevice": "Destination Device",
     "destinationDeviceHelp": "Copy parameter to this device or select another compatible device.",
     "destProtocolMismatch": "Notice: Destination device protocol ({destProto}) differs from source ({srcProto}). Verify register addressing and data types.",
-    "copyButton": "Create Copied Parameter"
+    "copyButton": "Create Copied Parameter",
+    "zeroValueAlarmPolicy": "Zero-Value Alarm Policy",
+    "zeroPolicyNormal": "NORMAL (Evaluate standard alarms on zero)",
+    "zeroPolicySuppress": "SUPPRESS_THRESHOLD (Zero is valid, suppress threshold alarms)",
+    "zeroPolicyInvalid": "INVALID_READING (Zero indicates sensor fault / disconnection)",
+    "zeroPolicyNormalHelp": "Zero is evaluated normally. Critical and warning threshold alarms will trigger if 0 is outside limits.",
+    "zeroPolicySuppressHelp": "Recommended for Wind Speed, Solar Radiation, Rainfall, etc. Zero readings are valid and will not trigger low-threshold or stuck alarms.",
+    "zeroPolicyInvalidHelp": "Zero indicates a disconnected or faulty sensor and will trigger a DATA_ABNORMALITY_ZERO_INVALID warning alarm."
   },
   "parameters": {
     "title": "Device Parameters",

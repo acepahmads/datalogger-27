@@ -21,12 +21,13 @@ const (
 	AlarmCodeCriticalLow  = "THRESHOLD_CRITICAL_LOW"
 
 	// Wave 2: Device Health, Communication & Data Abnormality Codes
-	AlarmCodeDeviceOffline    = "DEVICE_OFFLINE"
-	AlarmCodeCommError        = "COMMUNICATION_ERROR"
-	AlarmCodeAbnormalityStuck = "DATA_ABNORMALITY_STUCK_VALUE"
-	AlarmCodeAbnormalityBad   = "DATA_ABNORMALITY_BAD_QUALITY"
-	AlarmCodeAbnormalityStale = "DATA_ABNORMALITY_STALE_DATA"
-	AlarmCodeAbnormalitySpike = "DATA_ABNORMALITY_SPIKE"
+	AlarmCodeDeviceOffline          = "DEVICE_OFFLINE"
+	AlarmCodeCommError              = "COMMUNICATION_ERROR"
+	AlarmCodeAbnormalityStuck       = "DATA_ABNORMALITY_STUCK_VALUE"
+	AlarmCodeAbnormalityBad         = "DATA_ABNORMALITY_BAD_QUALITY"
+	AlarmCodeAbnormalityStale       = "DATA_ABNORMALITY_STALE_DATA"
+	AlarmCodeAbnormalitySpike       = "DATA_ABNORMALITY_SPIKE"
+	AlarmCodeAbnormalityZeroInvalid = "DATA_ABNORMALITY_ZERO_INVALID"
 
 	DefaultHysteresisPercent        = 1.0 // 1.0% of threshold value by default
 	DefaultDeviceOfflineTimeout     = 60 * time.Second
@@ -319,6 +320,65 @@ func (e *AlarmEvaluator) EvaluateTelemetry(ctx context.Context, latest *LatestTe
 		return
 	}
 
+	zeroKey := fmt.Sprintf("%s:%s", key, AlarmCodeAbnormalityZeroInvalid)
+	isZero := math.Abs(val) < 1e-9
+
+	// Zero-Value Alarm Policy Enforcement
+	policy := param.ZeroValueAlarmPolicy
+	if policy == "" {
+		policy = model.ZeroValuePolicyNormal
+	}
+
+	if isZero {
+		if policy == model.ZeroValuePolicyInvalidReading {
+			// Zero is considered an invalid sensor reading (e.g. wire disconnect / sensor failure)
+			if _, ok := e.activeAbnormality[zeroKey]; !ok {
+				msg := fmt.Sprintf("Parameter %s on device %s reported 0.0 which is configured as an INVALID_READING",
+					param.ParameterName, latest.DeviceCode)
+				entry := e.createDeviceParamAlarm(ctx, latest.DeviceID, latest.ParameterID, latest.DeviceCode, param.ParameterCode, AlarmCodeAbnormalityZeroInvalid, model.SeverityWarning, msg, &val, nil)
+				if entry != nil {
+					e.activeAbnormality[zeroKey] = entry
+				}
+			}
+			// Clear any active threshold alarms since 0 is an invalid reading
+			if existing, ok := e.activeLow[key]; ok {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeLow, key)
+			}
+			if existing, ok := e.activeHigh[key]; ok {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeHigh, key)
+			}
+			return
+		} else if policy == model.ZeroValuePolicySuppressThreshold {
+			// Zero is valid telemetry, but suppresses configured threshold alarms (e.g. Wind Speed, Solar, Rainfall)
+			logger.Debug("Threshold alarms suppressed for parameter %s (%d) with value 0.0 under SUPPRESS_THRESHOLD policy", param.ParameterName, param.ID)
+			// Clear any active threshold alarms since 0 is valid and thresholds are suppressed
+			if existing, ok := e.activeLow[key]; ok {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeLow, key)
+			}
+			if existing, ok := e.activeHigh[key]; ok {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeHigh, key)
+			}
+			// Clear any zero-invalid alarm if present
+			if existing, ok := e.activeAbnormality[zeroKey]; ok {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeAbnormality, zeroKey)
+			}
+			return
+		}
+	}
+
+	// If value is non-zero, clear any zero-invalid alarm that was active
+	if !isZero {
+		if existing, ok := e.activeAbnormality[zeroKey]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, zeroKey)
+		}
+	}
+
 	// Wave 1: Threshold evaluation
 	e.evaluateHighSide(ctx, key, latest, param, val)
 	e.evaluateLowSide(ctx, key, latest, param, val)
@@ -433,6 +493,17 @@ func (e *AlarmEvaluator) evaluateDataAbnormality(ctx context.Context, latest *La
 	}
 
 	stuckKey := fmt.Sprintf("%s:%s", paramKey, AlarmCodeAbnormalityStuck)
+
+	// If zero-value policy is SUPPRESS_THRESHOLD and value is 0.0 (e.g. continuous 0.0 rainfall or calm wind speed),
+	// do not treat repeated 0.0 as an abnormal stuck value!
+	if param.ZeroValueAlarmPolicy == model.ZeroValuePolicySuppressThreshold && math.Abs(val) < 1e-9 {
+		if existing, ok := e.activeAbnormality[stuckKey]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, stuckKey)
+		}
+		return
+	}
+
 	tol := e.cfg.StuckTolerance
 	if tol <= 0 {
 		tol = DefaultStuckTolerance

@@ -405,6 +405,40 @@
           </div>
         </div>
 
+        <!-- Zero-Value Alarm Policy Configuration -->
+        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('parameterModal.zeroValueAlarmPolicy') }}
+            </label>
+            <span
+              class="text-3xs font-mono font-bold px-2 py-0.5 rounded"
+              :class="form.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/60' : (form.zero_value_alarm_policy === 'INVALID_READING' ? 'bg-rose-950/60 text-rose-300 border border-rose-800/60' : 'bg-slate-800 text-slate-300')"
+            >
+              {{ form.zero_value_alarm_policy || 'NORMAL' }}
+            </span>
+          </div>
+          <select
+            v-model="form.zero_value_alarm_policy"
+            class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+          >
+            <option value="NORMAL">{{ $t('parameterModal.zeroPolicyNormal') }}</option>
+            <option value="SUPPRESS_THRESHOLD">{{ $t('parameterModal.zeroPolicySuppress') }}</option>
+            <option value="INVALID_READING">{{ $t('parameterModal.zeroPolicyInvalid') }}</option>
+          </select>
+          <p class="text-3xs leading-relaxed">
+            <span v-if="form.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD'" class="text-amber-300">
+              ℹ️ {{ $t('parameterModal.zeroPolicySuppressHelp') }}
+            </span>
+            <span v-else-if="form.zero_value_alarm_policy === 'INVALID_READING'" class="text-rose-300">
+              ⚠️ {{ $t('parameterModal.zeroPolicyInvalidHelp') }}
+            </span>
+            <span v-else class="text-slate-400">
+              {{ $t('parameterModal.zeroPolicyNormalHelp') }}
+            </span>
+          </p>
+        </div>
+
         <!-- Mathematical Formula Evaluation (Python-style eval) -->
         <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2.5">
           <div class="flex items-center justify-between">
@@ -736,6 +770,7 @@ export default {
         formula: '',
         hold_last_value_enabled: false,
         hold_last_value_seconds: 120,
+        zero_value_alarm_policy: 'NORMAL',
       },
     };
   },
@@ -1003,6 +1038,7 @@ export default {
         formula: '',
         hold_last_value_enabled: false,
         hold_last_value_seconds: 120,
+        zero_value_alarm_policy: 'NORMAL',
       };
     },
     generateSuggestedCode(sourceCode) {
@@ -1056,6 +1092,7 @@ export default {
         formula: param.formula || '',
         hold_last_value_enabled: param.hold_last_value_enabled !== undefined ? param.hold_last_value_enabled : false,
         hold_last_value_seconds: param.hold_last_value_seconds || 120,
+        zero_value_alarm_policy: param.zero_value_alarm_policy || 'NORMAL',
       };
     },
     populateFromSource(source) {
@@ -1090,6 +1127,7 @@ export default {
         formula: source.formula || '',
         hold_last_value_enabled: source.hold_last_value_enabled !== undefined ? source.hold_last_value_enabled : false,
         hold_last_value_seconds: source.hold_last_value_seconds || 120,
+        zero_value_alarm_policy: source.zero_value_alarm_policy || 'NORMAL',
       };
     },
     async submitForm() {
@@ -1144,6 +1182,7 @@ export default {
         formula: this.form.formula ? this.form.formula.trim() : '',
         hold_last_value_enabled: !!this.form.hold_last_value_enabled,
         hold_last_value_seconds: this.cleanNum(this.form.hold_last_value_seconds) || 120,
+        zero_value_alarm_policy: this.form.zero_value_alarm_policy || 'NORMAL',
       };
 
       if (this.isCopying && this.sourceParam) {

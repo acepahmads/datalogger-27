@@ -57,6 +57,14 @@ func RunMigrations(db *gorm.DB) error {
 		return err
 	}
 
+	// 1b. Ensure zero_value_alarm_policy column is initialized and backfilled
+	if db.Migrator().HasTable(&model.Parameter{}) {
+		if !db.Migrator().HasColumn(&model.Parameter{}, "zero_value_alarm_policy") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "zero_value_alarm_policy")
+		}
+		_ = db.Model(&model.Parameter{}).Where("zero_value_alarm_policy IS NULL OR zero_value_alarm_policy = ''").Update("zero_value_alarm_policy", string(model.ZeroValuePolicyNormal)).Error
+	}
+
 	// 2. Data backfill / synchronization for existing devices from Phase 1
 	var existingDevices []model.Device
 	if err := db.Unscoped().Find(&existingDevices).Error; err == nil {
@@ -1846,8 +1854,8 @@ func updatePhase7Tracking(db *gorm.DB) {
 			{
 				TaskName:   "Parameter Monitoring",
 				TaskID:     69,
-				TestResult: "PASSED: Parameter Cards Redesign & Value-First Unclipped Layout verified in Operator Command Center. Fixed numeric value clipping and ellipsis truncation (e.g. 39..., 48..., 912...) by removing rigid sparkline flex-shrink-0 and replacing value truncation with whitespace-nowrap and tabular-nums (font-variant-numeric: tabular-nums). Implemented responsive value-first layout: numeric value + unit container protected with flex-shrink-0, dynamic font scaling (getParamValueFontSizeClass) for short, medium, and long digit lengths (e.g. 2.00, 39.00, 912.00, -1234.567, 101325.00), separate unit element without overlap, and elastic mini sparkline (height 36-40px, flex-1, flex-shrink, min-w-[50px], max-w-[136px]) adapting flexibly to remaining space. Preserved all telemetry precision, category full-width layout, sparkline history gradients, and responsive 12-column grid.",
-				Notes:      "Verified across 8 parameter value clipping tests, 13 parameter cards redesign tests, 14 dynamic category management tests, 14 compact sparkline tests, 11 typography tests, 27 operator center tests, 13 trend tests, Go test suite, clean Vite production build, and quad-target cross-platform binaries.",
+				TestResult: "PASSED: Parameter Cards Redesign, Value-First Unclipped Layout, and Correct Freshness Display verified in Operator Command Center. Fixed numeric value clipping and ellipsis truncation with whitespace-nowrap and tabular-nums. Eliminated freshness label flickering ('Just now' vs '5s ago') on standard 5-second polling cycle by establishing a consistent 10s freshness threshold absorbing polling jitter. Source timestamps preserved with detailed localized and ISO timestamps in tooltips, maintaining distinct states for recent valid, delayed/stale, and communication timeout.",
+				Notes:      "Verified across 21 operator trend/freshness/alarm tests, 8 parameter value clipping tests, 13 parameter cards redesign tests, 14 dynamic category management tests, 11 typography tests, Go test suite, clean Vite production build, and quad-target cross-platform binaries.",
 			},
 			{
 				TaskName:   "Communication Monitoring",
@@ -1864,8 +1872,8 @@ func updatePhase7Tracking(db *gorm.DB) {
 			{
 				TaskName:   "Historical Trend",
 				TaskID:     72,
-				TestResult: "PASSED: Professional Trend Analysis SCADA Chart Redesign verified. Resolved Y-axis timestamp artifacts and vertical spikes (eliminated || 0 coercion, gap-aware path generation). Enhanced with dual-axis scaling for incompatible units, subtle single primary transparent gradient fill, unfilled 2px lines by default, single-row horizontal scrolling series chips (AQMS-02 · O₃ 38.00 µg/m³), dark glassmorphic multi-series tooltip, configured warning/critical threshold lines, and expanded h-52/h-56 canvas.",
-				Notes:      "Verified across 13 automated trend tests, 27 operator command center tests, production Vite build, and dual AMD64/ARM64 targets. Zero data distortion or fake zero drops.",
+				TestResult: "PASSED: Professional Trend Analysis SCADA Chart Redesign & Multi-Series Selection verified. Automatically defaults to all eligible configured parameters on fresh visit (up to 16 series across devices/categories). Persists series selection in browser localStorage under versioned key operatorTrendSelection:v1:${userId} with race-condition guards during metadata loading. Includes compact [All], [Clear], [Reset] controls, 16-color high-contrast SCADA palette, dual/multi-axis scaling for incompatible units, and resilient handling of missing data.",
+				Notes:      "Verified across 21 operator trend/freshness/alarm tests, 13 automated trend tests, 27 operator command center tests, production Vite build, and dual AMD64/ARM64 targets. Zero data distortion or fake zero drops.",
 			},
 			{
 				TaskName:   "Analysis",
@@ -1882,8 +1890,8 @@ func updatePhase7Tracking(db *gorm.DB) {
 			{
 				TaskName:   "Alarm Dashboard",
 				TaskID:     74,
-				TestResult: "PASSED: Global Alarm Banner & Audio Alert engine verified. Distinct critical (red) and warning (amber) banners, explicit Web Audio API activation, mute/unmute sound control, dismiss preservation, and authenticated operator acknowledgement with server-side audit trail verified.",
-				Notes:      "Verified in TestPackageB_AlarmAcknowledgementAndAuditTrail and alarm_banner_audio_test.js (12/12 PASS).",
+				TestResult: "PASSED: Global Alarm Banner, Audio Alert engine, and Per-Parameter Zero-Value Alarm Policy verified. Supported zero_value_alarm_policy options: NORMAL (standard evaluation), SUPPRESS_THRESHOLD (zero is legitimate telemetry e.g. Wind Speed, Rain, Solar Radiation, suppressing low/critical threshold and stuck-value alarms with audit logs), and INVALID_READING (zero generates DATA_ABNORMALITY_ZERO_INVALID alarm). Preserved raw telemetry, quality flags, and unhindered device-offline/comm-error alarm triggers.",
+				Notes:      "Verified in TestAlarmEvaluator_ZeroValueAlarmPolicies, TestPackageB_AlarmAcknowledgementAndAuditTrail, and operator_trend_freshness_zero_alarm_test.js (21/21 PASS).",
 			},
 			{
 				TaskName:   "Audit Trail Viewer",

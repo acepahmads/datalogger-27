@@ -748,7 +748,14 @@ export default {
     "destinationDevice": "Perangkat Tujuan",
     "destinationDeviceHelp": "Salin parameter ke perangkat ini atau pilih perangkat kompatibel lainnya.",
     "destProtocolMismatch": "Perhatian: Protokol perangkat tujuan ({destProto}) berbeda dari sumber ({srcProto}). Harap verifikasi pemetaan alamat register dan tipe data.",
-    "copyButton": "Buat Parameter Salinan"
+    "copyButton": "Buat Parameter Salinan",
+    "zeroValueAlarmPolicy": "Kebijakan Alarm Nilai Nol",
+    "zeroPolicyNormal": "NORMAL (Evaluasi alarm standar pada nilai nol)",
+    "zeroPolicySuppress": "SUPPRESS_THRESHOLD (Nol valid, redam alarm batas ambang)",
+    "zeroPolicyInvalid": "INVALID_READING (Nol menandakan sensor rusak / terputus)",
+    "zeroPolicyNormalHelp": "Nilai nol dievaluasi normal. Alarm batas rendah dan kritis akan terpicu bila 0 berada di luar ambang batas.",
+    "zeroPolicySuppressHelp": "Disarankan untuk Kecepatan Angin, Radiasi Surya, Curah Hujan, dll. Nilai nol adalah sah dan tidak memicu alarm ambang batas atau macet.",
+    "zeroPolicyInvalidHelp": "Nilai nol menandakan sensor rusak/terputus dan akan memicu alarm peringatan DATA_ABNORMALITY_ZERO_INVALID."
   },
   "parameters": {
     "title": "Parameter Perangkat",

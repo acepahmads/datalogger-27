@@ -912,7 +912,32 @@
 
           <!-- Series Selector Chips Bar (Horizontal Scroll, ~11-12px readable typography) -->
           <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full text-2xs font-mono">
-            <span class="text-slate-400 dark:text-slate-500 text-3xs uppercase shrink-0 font-semibold">Series:</span>
+            <!-- Compact Selection Controls -->
+            <div class="flex items-center space-x-1 shrink-0 mr-1">
+              <span class="text-slate-400 dark:text-slate-500 text-3xs uppercase font-semibold">Series ({{ activeTrendSeries.length }}):</span>
+              <button
+                @click="selectAllEligibleTrendSeries(true)"
+                class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 text-3xs border border-[#334155] dark:border-[#1E3048] transition cursor-pointer"
+                title="Select all eligible parameters"
+              >
+                All
+              </button>
+              <button
+                v-if="activeTrendSeries.length > 0"
+                @click="clearAllTrendSeries"
+                class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 text-3xs border border-[#334155] dark:border-[#1E3048] transition cursor-pointer"
+                title="Clear all series"
+              >
+                Clear
+              </button>
+              <button
+                @click="resetTrendSelectionToDefault"
+                class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 text-3xs border border-[#334155] dark:border-[#1E3048] transition cursor-pointer"
+                title="Reset to default (select all eligible parameters)"
+              >
+                Reset
+              </button>
+            </div>
             <div
               v-for="s in activeTrendSeries"
               :key="s.id"
@@ -950,10 +975,10 @@
 
             <button
               v-if="activeTrendSeries.length === 0"
-              @click="addDefaultTrendSeries"
+              @click="resetTrendSelectionToDefault"
               class="text-cyan-600 dark:text-cyan-400 text-3xs hover:underline shrink-0"
             >
-              + Click any parameter card to plot
+              + Click to restore all parameters or click any parameter card to plot
             </button>
           </div>
 
@@ -1804,7 +1829,7 @@
               @click="showTrendParamPicker = !showTrendParamPicker"
               class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-bold transition flex items-center space-x-1.5"
             >
-              <span>+ Add / Remove Parameter ({{ activeTrendSeries.length }}/6)</span>
+              <span>+ Add / Remove Parameter ({{ activeTrendSeries.length }}/{{ maxTrendSeries }})</span>
             </button>
 
             <!-- Parameter Picker Dropdown -->
@@ -1812,8 +1837,13 @@
               v-if="showTrendParamPicker"
               class="absolute right-0 mt-1 w-72 max-h-72 overflow-y-auto bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] rounded-xl shadow-2xl p-2 z-50 text-3xs font-mono"
             >
-              <div class="text-slate-400 font-bold px-2 py-1 uppercase border-b border-[#334155] dark:border-[#20354B] mb-1">
-                Toggle Series to Plot:
+              <div class="flex items-center justify-between text-slate-400 font-bold px-2 py-1 uppercase border-b border-[#334155] dark:border-[#20354B] mb-1">
+                <span>Toggle Series:</span>
+                <div class="flex items-center space-x-1">
+                  <button @click.stop="selectAllEligibleTrendSeries(true)" class="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">All</button>
+                  <button @click.stop="clearAllTrendSeries" class="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400">Clear</button>
+                  <button @click.stop="resetTrendSelectionToDefault" class="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-600 dark:text-amber-400">Reset</button>
+                </div>
               </div>
               <div
                 v-for="p in allParameters"
@@ -2136,8 +2166,12 @@ import CategoryManagementModal from '../components/CategoryManagementModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
 
-// Curated high-contrast SCADA palette (Cyan, Blue, Green, Amber, Magenta, Violet)
-const TREND_PALETTE = ['#00E5FF', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'];
+// Curated high-contrast SCADA palette (Cyan, Blue, Green, Amber, Magenta, Violet, Teal, Orange, Sky, Lime, Rose, Indigo, Fuchsia, Yellow, Turquoise, Purple)
+const TREND_PALETTE = [
+  '#00E5FF', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6',
+  '#14B8A6', '#F97316', '#06B6D4', '#84CC16', '#E11D48', '#6366F1',
+  '#D946EF', '#EAB308', '#2DD4BF', '#A855F7',
+];
 
 export default {
   name: 'OperatorCommandCenterView',
@@ -2190,6 +2224,8 @@ export default {
       trendSpikeZoom: 'robust', // 'robust' (smart scale with outlier marker) | 'full' (encompass full spike)
       hoveredTrendSeriesId: null,
       activeTrendSeries: [],
+      maxTrendSeries: 16,
+      trendSelectionRestored: false,
       isChartLoading: false,
       scrubPoint: null,
       fullscreenScrubPoint: null,
@@ -2277,6 +2313,13 @@ export default {
     },
     axisStroke() {
       return this.isDark ? '#20354B' : '#94A3B8';
+    },
+    currentUserIdentifier() {
+      const u = this.$store.state.user;
+      return (u && (u.id || u.username)) ? String(u.id || u.username) : 'default';
+    },
+    trendStorageKey() {
+      return `operatorTrendSelection:v1:${this.currentUserIdentifier}`;
     },
     primarySeriesColor() {
       return this.activeTrendSeries.length > 0 ? this.activeTrendSeries[0].color : '#00E5FF';
@@ -2984,6 +3027,7 @@ export default {
             low_limit: p.low_critical != null ? p.low_critical : (p.low_warning != null ? p.low_warning : null),
             high_limit: p.high_critical != null ? p.high_critical : (p.high_warning != null ? p.high_warning : null),
             alarm_status: alarmState,
+            zero_value_alarm_policy: p.zero_value_alarm_policy || 'NORMAL',
             received_at: finalTime,
           });
         }
@@ -3154,6 +3198,13 @@ export default {
     },
   },
   watch: {
+    allParameters: {
+      handler(newParams) {
+        if (!this.trendSelectionRestored && newParams && newParams.length > 0) {
+          this.restoreOrInitTrendSelection();
+        }
+      },
+    },
     configuredPollingIntervalMs: {
       handler(newVal, oldVal) {
         if (newVal !== oldVal) {
@@ -3324,6 +3375,15 @@ export default {
     determineAlarmState(p, val) {
       if (val == null || isNaN(val)) return 'NORMAL';
       const num = Number(val);
+      const policy = p.zero_value_alarm_policy || 'NORMAL';
+      if (num === 0.0) {
+        if (policy === 'SUPPRESS_THRESHOLD') {
+          return 'NORMAL';
+        }
+        if (policy === 'INVALID_READING') {
+          return 'WARNING';
+        }
+      }
       if (p.high_critical != null && num >= p.high_critical) return 'CRITICAL';
       if (p.low_critical != null && num <= p.low_critical) return 'CRITICAL';
       if (p.high_warning != null && num >= p.high_warning) return 'WARNING';
@@ -3791,7 +3851,9 @@ export default {
           this.fetchEvents(),
           this.fetchNotifications(),
         ]);
-        this.addDefaultTrendSeries();
+        if (!this.trendSelectionRestored) {
+          this.restoreOrInitTrendSelection();
+        }
       } catch (err) {
         console.error('Failed to initialize operator dashboard:', err);
       } finally {
@@ -3984,8 +4046,11 @@ export default {
       const existingIdx = this.activeTrendSeries.findIndex(s => s.parameterId === param.param_id);
       if (existingIdx !== -1) {
         this.activeTrendSeries.splice(existingIdx, 1);
+        if (this.trendSelectionRestored) {
+          this.saveTrendSelection();
+        }
       } else {
-        if (this.activeTrendSeries.length >= 6) {
+        if (this.activeTrendSeries.length >= this.maxTrendSeries) {
           this.activeTrendSeries.shift();
         }
         // Stable color assignment: pick first available color from palette
@@ -4006,6 +4071,9 @@ export default {
           dataPoints: [],
           stats: { min: '--', max: '--', avg: '--', count: 0 },
         });
+        if (this.trendSelectionRestored) {
+          this.saveTrendSelection();
+        }
         this.fetchTrendData();
       }
     },
@@ -4014,13 +4082,176 @@ export default {
     },
     removeTrendSeries(id) {
       this.activeTrendSeries = this.activeTrendSeries.filter(s => s.id !== id);
+      if (this.trendSelectionRestored) {
+        this.saveTrendSelection();
+      }
+    },
+    clearAllTrendSeries() {
+      this.activeTrendSeries = [];
+      if (this.trendSelectionRestored) {
+        this.saveTrendSelection();
+      }
+    },
+    selectAllEligibleTrendSeries(shouldFetch = true) {
+      if (this.allParameters.length === 0) return;
+      const eligible = this.allParameters.slice(0, this.maxTrendSeries);
+      const newSeries = [];
+      eligible.forEach((p, idx) => {
+        const color = TREND_PALETTE[idx % TREND_PALETTE.length];
+        newSeries.push({
+          id: `${p.device_id}_${p.param_id}`,
+          deviceId: p.device_id,
+          parameterId: p.param_id,
+          deviceCode: p.device_code,
+          paramCode: p.param_code,
+          paramName: p.param_name || p.param_code,
+          unit: p.unit || '',
+          precision: p.precision !== undefined ? p.precision : 2,
+          latestVal: this.formatParamValue(p),
+          color,
+          dataPoints: [],
+          stats: { min: '--', max: '--', avg: '--', count: 0 },
+        });
+      });
+      this.activeTrendSeries = newSeries;
+      if (this.trendSelectionRestored) {
+        this.saveTrendSelection();
+      }
+      if (shouldFetch) {
+        this.fetchTrendData();
+      }
+    },
+    resetTrendSelectionToDefault() {
+      try {
+        localStorage.removeItem(this.trendStorageKey);
+      } catch (e) {}
+      this.selectAllEligibleTrendSeries(true);
+    },
+    restoreOrInitTrendSelection() {
+      if (this.allParameters.length === 0) return;
+      let saved = null;
+      try {
+        const raw = localStorage.getItem(this.trendStorageKey);
+        if (raw) {
+          saved = JSON.parse(raw);
+        }
+      } catch (e) {
+        console.warn('Failed reading trend selection from localStorage:', e);
+      }
+
+      // 1. Returning user with saved series preferences
+      if (saved && Array.isArray(saved.series)) {
+        const restored = [];
+        const usedColors = new Set();
+        for (const item of saved.series) {
+          // Identify stably by device ID + parameter ID/code
+          const match = this.allParameters.find(p =>
+            (Number(p.device_id) === Number(item.deviceId) && Number(p.param_id) === Number(item.parameterId)) ||
+            (p.device_code === item.deviceCode && p.param_code === item.paramCode)
+          );
+          // If valid and not disabled/deleted, restore safely
+          if (match && !restored.some(r => r.parameterId === match.param_id)) {
+            const color = TREND_PALETTE.find(c => !usedColors.has(c)) || TREND_PALETTE[restored.length % TREND_PALETTE.length];
+            usedColors.add(color);
+            restored.push({
+              id: `${match.device_id}_${match.param_id}`,
+              deviceId: match.device_id,
+              parameterId: match.param_id,
+              deviceCode: match.device_code,
+              paramCode: match.param_code,
+              paramName: match.param_name || match.param_code,
+              unit: match.unit || '',
+              precision: match.precision !== undefined ? match.precision : 2,
+              latestVal: this.formatParamValue(match),
+              color,
+              dataPoints: [],
+              stats: { min: '--', max: '--', avg: '--', count: 0 },
+            });
+            if (restored.length >= this.maxTrendSeries) break;
+          }
+        }
+
+        // If saved parameters are valid, keep restored selection
+        if (restored.length > 0) {
+          this.activeTrendSeries = restored;
+          this.trendSelectionRestored = true;
+          this.saveTrendSelection();
+          this.fetchTrendData();
+          return;
+        }
+      }
+
+      // 2. Fresh installation / no saved selection or all saved parameters deleted/invalid:
+      // Automatically select all eligible configured parameters
+      this.selectAllEligibleTrendSeries(false);
+      this.trendSelectionRestored = true;
+      this.saveTrendSelection();
+      this.fetchTrendData();
+    },
+    saveTrendSelection() {
+      if (!this.trendSelectionRestored) return;
+      const payload = {
+        version: 1,
+        userId: this.currentUserIdentifier,
+        updatedAt: new Date().toISOString(),
+        series: this.activeTrendSeries.map(s => ({
+          deviceId: s.deviceId,
+          parameterId: s.parameterId,
+          deviceCode: s.deviceCode,
+          paramCode: s.paramCode,
+        })),
+      };
+      try {
+        localStorage.setItem(this.trendStorageKey, JSON.stringify(payload));
+      } catch (e) {
+        console.warn('Failed to save trend selection:', e);
+      }
     },
     addDefaultTrendSeries() {
-      if (this.activeTrendSeries.length > 0 || this.allParameters.length === 0) return;
-      const firstTwo = this.allParameters.slice(0, 2);
-      for (const p of firstTwo) {
-        this.selectParamForTrend(p);
+      this.restoreOrInitTrendSelection();
+    },
+    getSeriesScale(series, pts = null) {
+      if (this.trendScaleMode === 'normalized') {
+        return { min: 0, max: 100, span: 100 };
       }
+      const sUnit = (series.unit || '').trim();
+      const leftUnit = (this.trendScales.left?.unit || '').trim();
+      const rightUnit = (this.trendScales.right?.unit || '').trim();
+
+      let minY = 0;
+      let maxY = 100;
+
+      if (this.trendScaleMode === 'auto') {
+        if (sUnit === leftUnit || (!this.trendScales.isDual && !rightUnit)) {
+          minY = this.trendScales.left ? this.trendScales.left.min : 0;
+          maxY = this.trendScales.left ? this.trendScales.left.max : 100;
+        } else if (this.trendScales.isDual && sUnit === rightUnit) {
+          minY = this.trendScales.right ? this.trendScales.right.min : 0;
+          maxY = this.trendScales.right ? this.trendScales.right.max : 100;
+        } else {
+          // Incompatible 3rd unit: calculate dedicated bounds from series points to prevent cross-unit distortion
+          const points = pts || series.dataPoints || [];
+          const yVals = points.map(p => p.y).filter(v => v !== null && isFinite(v));
+          if (yVals.length > 0) {
+            minY = Math.min(...yVals);
+            maxY = Math.max(...yVals);
+          } else {
+            minY = 0;
+            maxY = 100;
+          }
+        }
+      } else {
+        const points = pts || series.dataPoints || [];
+        const yVals = points.map(p => p.y).filter(v => v !== null && isFinite(v));
+        minY = yVals.length > 0 ? Math.min(...yVals) : 0;
+        maxY = yVals.length > 0 ? Math.max(...yVals) : 100;
+      }
+
+      if (minY === maxY) {
+        minY -= 1;
+        maxY += 1;
+      }
+      return { min: minY, max: maxY, span: maxY - minY || 1 };
     },
     setTimeframe(tf) {
       this.currentTimeframe = tf;
@@ -4105,7 +4336,7 @@ export default {
           end: endTime.getTime(),
         };
 
-        for (const s of this.activeTrendSeries) {
+        await Promise.all(this.activeTrendSeries.map(async (s) => {
           let points = [];
           // 1. Primary: Intelligent Downsampling Engine (guarantees coverage across entire timeframe)
           try {
@@ -4140,34 +4371,36 @@ export default {
 
           // 2. Secondary fallback: Historical / Raw endpoint
           if (points.length === 0) {
-            const endpoint = this.chartMode === 'raw'
-              ? `/api/devices/${s.deviceId}/telemetry/raw`
-              : `/api/devices/${s.deviceId}/telemetry/history`;
+            try {
+              const endpoint = this.chartMode === 'raw'
+                ? `/api/devices/${s.deviceId}/telemetry/raw`
+                : `/api/devices/${s.deviceId}/telemetry/history`;
 
-            const res = await axios.get(endpoint, {
-              params: {
-                parameter_id: s.parameterId,
-                start_time: startTime.toISOString(),
-                end_time: endTime.toISOString(),
-                page_size: 500,
-              },
-            }).catch(() => null);
+              const res = await axios.get(endpoint, {
+                params: {
+                  parameter_id: s.parameterId,
+                  start_time: startTime.toISOString(),
+                  end_time: endTime.toISOString(),
+                  page_size: 500,
+                },
+              }).catch(() => null);
 
-            if (res && res.data && res.data.data) {
-              const items = res.data.data.items || [];
-              points = items.map(item => {
-                const raw = this.chartMode === 'raw'
-                  ? (item.raw_value !== undefined ? item.raw_value : item.value)
-                  : (item.processed_value !== undefined ? item.processed_value : item.value);
-                const num = raw !== null && raw !== undefined && raw !== '' ? Number(raw) : null;
-                const isValid = num !== null && isFinite(num) && Math.abs(num) < 1e8;
-                return {
-                  x: new Date(item.received_at || item.timestamp).getTime(),
-                  y: isValid ? num : null,
-                  quality: item.quality || 'GOOD',
-                };
-              });
-            }
+              if (res && res.data && res.data.data) {
+                const items = res.data.data.items || [];
+                points = items.map(item => {
+                  const raw = this.chartMode === 'raw'
+                    ? (item.raw_value !== undefined ? item.raw_value : item.value)
+                    : (item.processed_value !== undefined ? item.processed_value : item.value);
+                  const num = raw !== null && raw !== undefined && raw !== '' ? Number(raw) : null;
+                  const isValid = num !== null && isFinite(num) && Math.abs(num) < 1e8;
+                  return {
+                    x: new Date(item.received_at || item.timestamp).getTime(),
+                    y: isValid ? num : null,
+                    quality: item.quality || 'GOOD',
+                  };
+                });
+              }
+            } catch (err) {}
           }
 
           // Filter out bad timestamps and sort chronologically
@@ -4206,7 +4439,7 @@ export default {
             s.stats = { min: '--', max: '--', avg: '--', count: 0 };
             s.latestVal = '--';
           }
-        }
+        }));
       } finally {
         this.isChartLoading = false;
       }
@@ -4230,24 +4463,11 @@ export default {
       const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
       const timeSpan = Math.max(timeEnd - timeStart, 1000);
 
-      // Determine scale for this series (supports dual axis)
-      let minY = 0;
-      let maxY = 100;
-      if (this.trendScaleMode === 'auto') {
-        const isRightAxis = this.trendScales.isDual && (series.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
-        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
-        minY = scale.min;
-        maxY = scale.max;
-      } else {
-        const yVals = pts.map(p => p.y).filter(v => v !== null && isFinite(v));
-        minY = yVals.length > 0 ? Math.min(...yVals) : 0;
-        maxY = yVals.length > 0 ? Math.max(...yVals) : 100;
-      }
-      if (minY === maxY) {
-        minY -= 1;
-        maxY += 1;
-      }
-      const spanY = maxY - minY || 1;
+      // Determine scale for this series (supports dual axis and independent scale for 3rd unit)
+      const scaleInfo = this.getSeriesScale(series, pts);
+      const minY = scaleInfo.min;
+      const maxY = scaleInfo.max;
+      const spanY = scaleInfo.span;
 
       // Estimate gap threshold: when delta t exceeds 3-4x typical sample interval, break path
       let maxGapMs = 15 * 60 * 1000;
@@ -4388,23 +4608,10 @@ export default {
       const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
       const timeSpan = Math.max(timeEnd - timeStart, 1000);
 
-      let minY = 0;
-      let maxY = 100;
-      if (this.trendScaleMode === 'auto') {
-        const isRightAxis = this.trendScales.isDual && (series.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
-        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
-        minY = scale.min;
-        maxY = scale.max;
-      } else {
-        const yVals = pts.map(p => p.y).filter(v => v !== null && isFinite(v));
-        minY = yVals.length > 0 ? Math.min(...yVals) : 0;
-        maxY = yVals.length > 0 ? Math.max(...yVals) : 100;
-      }
-      if (minY === maxY) {
-        minY -= 1;
-        maxY += 1;
-      }
-      const spanY = maxY - minY || 1;
+      const scaleInfo = this.getSeriesScale(series, pts);
+      const minY = scaleInfo.min;
+      const maxY = scaleInfo.max;
+      const spanY = scaleInfo.span;
 
       return pts
         .filter(p => p.y !== null && isFinite(p.y))
@@ -4457,23 +4664,17 @@ export default {
           }
         }
 
-        const isRightAxis = this.trendScales.isDual && (s.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
-        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
-        const spanY = scale.max - scale.min || 1;
+        const scaleInfo = this.getSeriesScale(s, s.dataPoints);
         let plotY = null;
         if (closest.y !== null && isFinite(closest.y)) {
-          const fracY = Math.min(Math.max((closest.y - scale.min) / spanY, 0), 1);
+          const fracY = Math.min(Math.max((closest.y - scaleInfo.min) / scaleInfo.span, 0), 1);
           plotY = (padTop + plotH) - fracY * plotH;
         }
 
         const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
         let alarmStatus = 'NORMAL';
         if (closest.y !== null && typeof closest.y === 'number') {
-          if (param.high_critical != null && closest.y >= param.high_critical) {
-            alarmStatus = 'CRITICAL';
-          } else if (param.high_warning != null && closest.y >= param.high_warning) {
-            alarmStatus = 'WARNING';
-          }
+          alarmStatus = this.determineAlarmState(param, closest.y);
         }
 
         seriesValues.push({
@@ -4529,23 +4730,17 @@ export default {
           }
         }
 
-        const isRightAxis = this.trendScales.isDual && (s.unit || '').trim() === (this.trendScales.right?.unit || '').trim();
-        const scale = isRightAxis ? this.trendScales.right : this.trendScales.left;
-        const spanY = scale.max - scale.min || 1;
+        const scaleInfo = this.getSeriesScale(s, s.dataPoints);
         let plotY = null;
         if (closest.y !== null && isFinite(closest.y)) {
-          const fracY = Math.min(Math.max((closest.y - scale.min) / spanY, 0), 1);
+          const fracY = Math.min(Math.max((closest.y - scaleInfo.min) / scaleInfo.span, 0), 1);
           plotY = (padTop + plotH) - fracY * plotH;
         }
 
         const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
         let alarmStatus = 'NORMAL';
         if (closest.y !== null && typeof closest.y === 'number') {
-          if (param.high_critical != null && closest.y >= param.high_critical) {
-            alarmStatus = 'CRITICAL';
-          } else if (param.high_warning != null && closest.y >= param.high_warning) {
-            alarmStatus = 'WARNING';
-          }
+          alarmStatus = this.determineAlarmState(param, closest.y);
         }
 
         seriesValues.push({
@@ -4803,7 +4998,7 @@ export default {
     formatRelative(ts) {
       if (!ts) return '';
       const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-      if (diff < 5) return 'Just now';
+      if (diff < 10) return 'Just now';
       if (diff < 60) return `${diff}s ago`;
       if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
       return `${Math.floor(diff / 3600)}h ago`;
@@ -4854,8 +5049,9 @@ export default {
     getParamTimingTitle(param) {
       if (!param) return '';
       const timeFull = param.received_at ? new Date(param.received_at).toLocaleString() : 'N/A';
+      const timeIso = param.received_at ? new Date(param.received_at).toISOString() : 'N/A';
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
-      return `Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status} | Last seen: ${timeFull} (${rel})`;
+      return `Last Reading: ${timeFull} (${timeIso}) [${rel}] | Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status}`;
     },
   },
 };

@@ -100,6 +100,7 @@ type CreateParameterRequest struct {
 	Formula                  string                  `json:"formula"`
 	HoldLastValueEnabled     *bool                   `json:"hold_last_value_enabled"`
 	HoldLastValueSeconds     int                     `json:"hold_last_value_seconds"`
+	ZeroValueAlarmPolicy     *model.ZeroValueAlarmPolicy `json:"zero_value_alarm_policy"`
 	SourceParameterID        *uint                   `json:"source_parameter_id,omitempty"`
 }
 
@@ -191,6 +192,7 @@ type UpdateParameterRequest struct {
 	Formula                  *string                  `json:"formula"`
 	HoldLastValueEnabled     *bool                    `json:"hold_last_value_enabled"`
 	HoldLastValueSeconds     *int                     `json:"hold_last_value_seconds"`
+	ZeroValueAlarmPolicy     *model.ZeroValueAlarmPolicy `json:"zero_value_alarm_policy"`
 }
 
 func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
@@ -1032,6 +1034,11 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		holdSeconds = 120
 	}
 
+	zeroValPolicy := model.ZeroValuePolicyNormal
+	if req.ZeroValueAlarmPolicy != nil && *req.ZeroValueAlarmPolicy != "" {
+		zeroValPolicy = *req.ZeroValueAlarmPolicy
+	}
+
 	qualEnabled := true
 	if req.QualityValidationEnabled != nil {
 		qualEnabled = *req.QualityValidationEnabled
@@ -1086,6 +1093,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		Formula:                  cleanFormula,
 		HoldLastValueEnabled:     holdLastVal,
 		HoldLastValueSeconds:     holdSeconds,
+		ZeroValueAlarmPolicy:     zeroValPolicy,
 	}
 
 	if err := s.repo.CreateParameter(param); err != nil {
@@ -1235,6 +1243,9 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 			sec = 120
 		}
 		param.HoldLastValueSeconds = sec
+	}
+	if req.ZeroValueAlarmPolicy != nil && *req.ZeroValueAlarmPolicy != "" {
+		param.ZeroValueAlarmPolicy = *req.ZeroValueAlarmPolicy
 	}
 	if req.ClearWarningLow {
 		param.WarningLow = nil

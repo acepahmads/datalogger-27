@@ -1360,3 +1360,164 @@ func hasSubstr(s, sub string) bool {
 	return false
 }
 
+func TestAlarmEvaluator_ZeroValueAlarmPolicies(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	cLow := 5.0
+	wLow := 10.0
+
+	// 1. SUPPRESS_THRESHOLD Policy (e.g. Wind Speed, Rainfall, Solar Radiation)
+	dev, paramSuppress := createTestDeviceAndParam(db, &wLow, nil, &cLow, nil, nil)
+	paramSuppress.ZeroValueAlarmPolicy = model.ZeroValuePolicySuppressThreshold
+	db.Save(paramSuppress)
+
+	// Value 0.0 must NOT trigger threshold alarms
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    paramSuppress.ID,
+		ParameterCode:  paramSuppress.ParameterCode,
+		ParameterName:  paramSuppress.ParameterName,
+		ProcessedValue: 0.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, paramSuppress)
+
+	active, err := alarmRepo.GetActive(ctx)
+	if err != nil {
+		t.Fatalf("failed to query active alarms: %v", err)
+	}
+	if len(active) != 0 {
+		t.Fatalf("expected 0 alarms for SUPPRESS_THRESHOLD with value 0.0, got %d (code=%s)", len(active), active[0].AlarmCode)
+	}
+
+	// Non-zero threshold breach (3.0 < 5.0) MUST trigger threshold alarm
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    paramSuppress.ID,
+		ParameterCode:  paramSuppress.ParameterCode,
+		ParameterName:  paramSuppress.ParameterName,
+		ProcessedValue: 3.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, paramSuppress)
+
+	active, _ = alarmRepo.GetActive(ctx)
+	if len(active) != 1 || active[0].AlarmCode != service.AlarmCodeCriticalLow {
+		t.Fatalf("expected 1 CriticalLow alarm for value 3.0, got %d", len(active))
+	}
+
+	// Returning to 0.0 under SUPPRESS_THRESHOLD must clear the threshold alarm
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    paramSuppress.ID,
+		ParameterCode:  paramSuppress.ParameterCode,
+		ParameterName:  paramSuppress.ParameterName,
+		ProcessedValue: 0.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, paramSuppress)
+
+	active, _ = alarmRepo.GetActive(ctx)
+	if len(active) != 0 {
+		t.Fatalf("expected threshold alarm to clear on return to 0.0 under SUPPRESS_THRESHOLD, got %d", len(active))
+	}
+
+	// 2. NORMAL Policy (Default behavior)
+	devNormal, paramNormal := createTestDeviceAndParam(db, &wLow, nil, &cLow, nil, nil)
+	paramNormal.ZeroValueAlarmPolicy = model.ZeroValuePolicyNormal
+	db.Save(paramNormal)
+
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       devNormal.ID,
+		DeviceCode:     devNormal.DeviceCode,
+		ParameterID:    paramNormal.ID,
+		ParameterCode:  paramNormal.ParameterCode,
+		ParameterName:  paramNormal.ParameterName,
+		ProcessedValue: 0.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, paramNormal)
+
+	active, _ = alarmRepo.GetActive(ctx)
+	if len(active) != 1 || active[0].AlarmCode != service.AlarmCodeCriticalLow {
+		t.Fatalf("expected CriticalLow alarm for NORMAL policy with value 0.0, got %d", len(active))
+	}
+
+	// 3. INVALID_READING Policy
+	devInvalid, paramInvalid := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+	paramInvalid.ZeroValueAlarmPolicy = model.ZeroValuePolicyInvalidReading
+	db.Save(paramInvalid)
+
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       devInvalid.ID,
+		DeviceCode:     devInvalid.DeviceCode,
+		ParameterID:    paramInvalid.ID,
+		ParameterCode:  paramInvalid.ParameterCode,
+		ParameterName:  paramInvalid.ParameterName,
+		ProcessedValue: 0.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, paramInvalid)
+
+	active, _ = alarmRepo.GetActive(ctx)
+	foundInvalid := false
+	for _, a := range active {
+		if a.AlarmCode == service.AlarmCodeAbnormalityZeroInvalid {
+			foundInvalid = true
+			break
+		}
+	}
+	if !foundInvalid {
+		t.Fatalf("expected DATA_ABNORMALITY_ZERO_INVALID alarm for INVALID_READING policy, got %v", active)
+	}
+
+	// Returning to non-zero (5.0) clears the invalid alarm
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       devInvalid.ID,
+		DeviceCode:     devInvalid.DeviceCode,
+		ParameterID:    paramInvalid.ID,
+		ParameterCode:  paramInvalid.ParameterCode,
+		ParameterName:  paramInvalid.ParameterName,
+		ProcessedValue: 5.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}, paramInvalid)
+
+	active, _ = alarmRepo.GetActive(ctx)
+	for _, a := range active {
+		if a.AlarmCode == service.AlarmCodeAbnormalityZeroInvalid {
+			t.Fatalf("expected DATA_ABNORMALITY_ZERO_INVALID to clear for non-zero value")
+		}
+	}
+
+	// 4. Device Offline is NOT suppressed by zero policy
+	dev.Enabled = true
+	dev.Status = model.DeviceStatusActive
+	oldSuccess := time.Now().UTC().Add(-75 * time.Second)
+	devHealth := &service.DeviceHealthInput{
+		DeviceID:            dev.ID,
+		State:               "ERROR",
+		ConsecutiveFailures: 10,
+		LastCommSuccess:     &oldSuccess,
+		LastErrorCategory:   "TIMEOUT",
+		LastError:           "i/o timeout",
+	}
+	evaluator.EvaluateDeviceOffline(ctx, dev, devHealth)
+	active, _ = alarmRepo.GetActive(ctx)
+	foundOffline := false
+	for _, a := range active {
+		if a.AlarmCode == service.AlarmCodeDeviceOffline {
+			foundOffline = true
+			break
+		}
+	}
+	if !foundOffline {
+		t.Fatalf("expected DEVICE_OFFLINE alarm to trigger regardless of zero value policy")
+	}
+}
+
+
