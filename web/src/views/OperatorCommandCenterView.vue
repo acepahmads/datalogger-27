@@ -457,12 +457,9 @@
                           : (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
                               ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
                               : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
-                      : isParamSelectedForTrend(param)
-                        ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/50 dark:bg-[#0c1c2e]'
-                        : 'bg-white dark:bg-[#0B1422] border-[#334155] dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-500 shadow-xs dark:shadow-none hover:shadow-sm',
+                      : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400/80 dark:hover:border-cyan-500/50 shadow-xs dark:shadow-none hover:shadow-sm',
                     liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
                   ]"
-                  :style="isParamSelectedForTrend(param) ? { borderColor: getTrendSeriesColor(param), boxShadow: '0 0 0 1px ' + getTrendSeriesColor(param) + '40' } : {}"
                 >
                   <!-- Row 1: Header (Device code, Parameter icon & prominent name, Alarm tag, Quality badge, Pin button) -->
                   <div class="flex items-center justify-between min-w-0 leading-none">
@@ -2970,6 +2967,12 @@ export default {
 
           let rawQuality = live.quality || p.current_quality || 'UNKNOWN';
           let finalQuality = rawQuality;
+
+          // Zero-value policy exemption: If zero is valid (SUPPRESS_THRESHOLD) and value is 0.0,
+          // do not treat 0.0 as UNCERTAIN or BAD from soft/hard limit checks.
+          const isZeroValid = (p.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD') &&
+            val !== null && val !== undefined && val !== '' && !isNaN(val) && Math.abs(Number(val)) < 1e-9;
+
           // If the device is genuinely offline with no communication and no fresh telemetry -> BAD!
           // If the device is online, but data has not arrived past stale timeout -> STALE!
           if (isDevOffline) {
@@ -2978,13 +2981,18 @@ export default {
             if (finalQuality !== 'BAD') {
               finalQuality = 'STALE';
             }
+          } else if (isZeroValid && (finalQuality === 'UNCERTAIN' || finalQuality === 'BAD')) {
+            finalQuality = 'GOOD';
           }
 
+          const rawReason = live.quality_reason || p.current_quality_reason || '';
           const finalReason = isDevOffline
             ? (live.quality_reason || 'COMMUNICATION_ERROR')
-            : (isTimeStale && (!live.quality_reason && !p.current_quality_reason))
-              ? 'STALE_TIMEOUT'
-              : (live.quality_reason || p.current_quality_reason || '');
+            : (isZeroValid && (rawReason === 'OUT_OF_WARNING_RANGE' || rawReason === 'OUT_OF_HARD_RANGE'))
+              ? 'NONE'
+              : (isTimeStale && (!live.quality_reason && !p.current_quality_reason))
+                ? 'STALE_TIMEOUT'
+                : rawReason;
 
           // Resolve last known valid data timestamp
           let lastValidTime = this.lastGoodTimeMap[p.id] || p.current_received_at || dev.last_data_at || p.last_updated;
@@ -3396,6 +3404,14 @@ export default {
       if (param.quality === 'GOOD' && (!param.alarm_status || param.alarm_status === 'NORMAL')) {
         return false;
       }
+      // Zero-value policy exemption: If zero is valid and value is 0, ignore UNCERTAIN or soft limit alarms
+      const isZeroVal = param.value !== null && param.value !== undefined && param.value !== '' && Math.abs(Number(param.value)) < 1e-9;
+      if (isZeroVal && param.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD') {
+        if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD' || param.quality === 'STALE') {
+          return true;
+        }
+        return false;
+      }
       // 2. If parameter itself has an active threshold alarm (CRITICAL / WARNING)
       if (param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING') {
         return true;
@@ -3494,21 +3510,15 @@ export default {
       if (!param) return '#00E5FF';
       const s = this.activeTrendSeries.find(item => item.parameterId === param.param_id);
       if (s && s.color) return s.color;
-      return this.getSparklineColor(param);
+      const idx = this.allParameters.findIndex(p => p.param_id === param.param_id);
+      if (idx >= 0) return TREND_PALETTE[idx % TREND_PALETTE.length];
+      return '#00E5FF';
     },
     getSparklineColor(param) {
       if (!param) return this.isDark ? '#00E5FF' : '#0284c7';
-      // If parameter is selected in main Trend Analysis, strictly match the series color
-      const s = this.activeTrendSeries.find(item => item.parameterId === param.param_id);
-      if (s && s.color) return s.color;
-
       if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD') return '#FF4559';
-      if (param.alarm_status === 'WARNING') return '#FFB020';
+      if (param.alarm_status === 'WARNING' || param.quality === 'UNCERTAIN') return '#FFB020';
       if (param.quality === 'STALE') return '#A855F7';
-
-      // Stable series color matching Trend Analysis palette by parameter index/ID
-      const idx = this.allParameters.findIndex(p => p.param_id === param.param_id);
-      if (idx >= 0) return TREND_PALETTE[idx % TREND_PALETTE.length];
       return this.isDark ? '#00E5FF' : '#0284c7';
     },
     recordSparkline(paramId, val, time, quality = 'GOOD') {

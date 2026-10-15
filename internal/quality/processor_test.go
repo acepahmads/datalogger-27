@@ -363,3 +363,48 @@ func TestQualityProcessor_CommunicationError(t *testing.T) {
 		t.Errorf("expected ReasonCommunicationError, got %v", resErr.QualityReason)
 	}
 }
+
+func TestQualityProcessor_ZeroValuePolicySuppressThreshold(t *testing.T) {
+	qp := NewQualityProcessor()
+	warnLow := 10.0
+	minVal := 2.0
+	param := &model.Parameter{
+		ID:                       11,
+		ParameterCode:            "WSPEED",
+		QualityValidationEnabled: true,
+		MinValue:                 &minVal,
+		WarningLow:               &warnLow,
+		ZeroValueAlarmPolicy:     model.ZeroValuePolicySuppressThreshold,
+	}
+
+	inZero := &ValidationInput{
+		DeviceID:    1,
+		ParameterID: 11,
+		RawValue:    0.0,
+		Value:       0.0,
+		ReceivedAt:  time.Now().UTC(),
+	}
+
+	res := qp.Validate(param, inZero)
+	if res.Quality != model.QualityGood {
+		t.Errorf("expected QualityGood for 0.0 with SUPPRESS_THRESHOLD, got %v (%s)", res.Quality, res.QualityReason)
+	}
+	if res.QualityReason != model.ReasonNone {
+		t.Errorf("expected ReasonNone, got %v", res.QualityReason)
+	}
+
+	// Normal policy with same 0.0 should be QualityBad because 0 < minVal(2.0)
+	paramNormal := &model.Parameter{
+		ID:                       12,
+		ParameterCode:            "PRESSURE",
+		QualityValidationEnabled: true,
+		MinValue:                 &minVal,
+		WarningLow:               &warnLow,
+		ZeroValueAlarmPolicy:     model.ZeroValuePolicyNormal,
+	}
+	resNormal := qp.Validate(paramNormal, inZero)
+	if resNormal.Quality != model.QualityBad {
+		t.Errorf("expected QualityBad for 0.0 under NORMAL policy with minVal=2.0, got %v", resNormal.Quality)
+	}
+}
+

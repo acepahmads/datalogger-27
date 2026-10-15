@@ -182,12 +182,16 @@ func (qp *QualityProcessor) Validate(param *model.Parameter, in *ValidationInput
 	}
 
 	if validationEnabled && param != nil {
+		// If zero is explicitly configured as valid (SUPPRESS_THRESHOLD) and value is 0.0,
+		// do not flag 0.0 as out of lower range bounds (e.g. calm wind or 0 rainfall).
+		isZeroValid := param.ZeroValueAlarmPolicy == model.ZeroValuePolicySuppressThreshold && math.Abs(in.Value) < 1e-9
+
 		// Hard Minimum
 		minVal := param.MinValue
 		if minVal == nil && param.LowLimit != nil {
 			minVal = param.LowLimit
 		}
-		if minVal != nil && in.Value < *minVal {
+		if !isZeroValid && minVal != nil && in.Value < *minVal {
 			res.Quality = model.QualityBad
 			res.QualityReason = model.ReasonOutOfHardRange
 			addFlag(model.FlagRangeViolation)
@@ -205,7 +209,7 @@ func (qp *QualityProcessor) Validate(param *model.Parameter, in *ValidationInput
 		}
 
 		// Warning Minimum (Soft Limit)
-		if res.Quality != model.QualityBad && param.WarningLow != nil && in.Value < *param.WarningLow {
+		if !isZeroValid && res.Quality != model.QualityBad && param.WarningLow != nil && in.Value < *param.WarningLow {
 			res.Quality = model.QualityUncertain
 			res.QualityReason = model.ReasonOutOfWarningRange
 			addFlag(model.FlagRangeWarning)

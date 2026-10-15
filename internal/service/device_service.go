@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -1290,10 +1291,11 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	// Re-evaluate quality limits against current value if present
 	if param.CurrentValue != nil {
 		val := *param.CurrentValue
-		if (param.MinValue != nil && val < *param.MinValue) || (param.MaxValue != nil && val > *param.MaxValue) {
+		isZeroValid := param.ZeroValueAlarmPolicy == model.ZeroValuePolicySuppressThreshold && math.Abs(val) < 1e-9
+		if (!isZeroValid && param.MinValue != nil && val < *param.MinValue) || (param.MaxValue != nil && val > *param.MaxValue) {
 			param.CurrentQuality = model.QualityBad
 			param.CurrentQualityReason = model.ReasonOutOfHardRange
-		} else if (param.WarningLow != nil && val < *param.WarningLow) || (param.WarningHigh != nil && val > *param.WarningHigh) {
+		} else if (!isZeroValid && param.WarningLow != nil && val < *param.WarningLow) || (param.WarningHigh != nil && val > *param.WarningHigh) {
 			param.CurrentQuality = model.QualityUncertain
 			param.CurrentQualityReason = model.ReasonOutOfWarningRange
 		} else {
@@ -1438,10 +1440,11 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 	// Re-evaluate quality limits against current value if present
 	if param.CurrentValue != nil {
 		val := *param.CurrentValue
-		if (param.MinValue != nil && val < *param.MinValue) || (param.MaxValue != nil && val > *param.MaxValue) {
+		isZeroValid := param.ZeroValueAlarmPolicy == model.ZeroValuePolicySuppressThreshold && math.Abs(val) < 1e-9
+		if (!isZeroValid && param.MinValue != nil && val < *param.MinValue) || (param.MaxValue != nil && val > *param.MaxValue) {
 			param.CurrentQuality = model.QualityBad
 			param.CurrentQualityReason = model.ReasonOutOfHardRange
-		} else if (param.WarningLow != nil && val < *param.WarningLow) || (param.WarningHigh != nil && val > *param.WarningHigh) {
+		} else if (!isZeroValid && param.WarningLow != nil && val < *param.WarningLow) || (param.WarningHigh != nil && val > *param.WarningHigh) {
 			param.CurrentQuality = model.QualityUncertain
 			param.CurrentQualityReason = model.ReasonOutOfWarningRange
 		} else {
