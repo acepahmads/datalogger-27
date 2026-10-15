@@ -654,7 +654,7 @@
                         class="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         :style="{ backgroundColor: getTrendSeriesColor(param) }"
                       ></span>
-                      <span>{{ isParamSelectedForTrend(param) ? ($t('operator.inChart') || '● In Chart') : ($t('operator.plotTrend') || '+ Plot Trend') }}</span>
+                      <span>{{ isParamSelectedForTrend(param) ? cleanInChartLabel : ($t('operator.plotTrend') || '+ Plot Trend') }}</span>
                     </span>
                   </div>
                 </div>
@@ -667,149 +667,169 @@
           </div>
         </div>
 
-        <!-- VIEW MODE 2: COMPACT LIVE TELEMETRY TABLE -->
-        <div v-else class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] overflow-hidden shadow-xs dark:shadow-lg">
-          <div class="overflow-x-auto max-h-[500px] custom-scroller">
-            <table class="w-full text-left text-xs font-mono border-collapse">
-              <thead class="sticky top-0 bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-[#334155] dark:border-[#20354B] z-10">
-                <tr>
-                  <th class="py-2 px-2.5 text-center w-8">⭐</th>
-                  <th class="py-2 px-2.5">{{ $t('telemetry.device') || 'Device' }}</th>
-                  <th class="py-2 px-2.5">{{ $t('telemetry.parameterName') || 'Parameter' }}</th>
-                  <th class="py-2 px-2.5">{{ $t('operator.categories') || 'Category' }}</th>
-                  <th class="py-2 px-2.5 text-right">{{ $t('common.value') || 'Value' }}</th>
-                  <th class="py-2 px-2">{{ $t('common.unit') || 'Unit' }}</th>
-                  <th class="py-2 px-2 text-center">{{ $t('common.quality') || 'Quality' }}</th>
-                  <th class="py-2 px-2.5 text-center">Status</th>
-                  <th class="py-2 px-2.5 text-right">Last Received</th>
-                  <th class="py-2 px-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 dark:divide-[#18283E] text-2xs">
-                <tr
-                  v-for="p in filteredParameters"
-                  :key="p.param_id"
-                  class="transition-colors"
-                  :class="[
-                    isParamAlarmOrStaleBad(p)
-                      ? (isAlarmPulseActive
-                          ? 'bg-rose-500/25 dark:bg-rose-950/70 border-l-4 border-l-rose-500 transition-colors duration-150'
-                          : 'bg-slate-200/70 dark:bg-slate-800/80 border-l-4 border-l-rose-500/70 transition-colors duration-300')
-                      : 'hover:bg-slate-50 dark:hover:bg-[#101B2B]',
-                    liveBlinks[p.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : '',
-                    isPinned(p.param_id) ? 'bg-amber-50/40 dark:bg-[#0f1d30]/40' : ''
-                  ]"
-                >
-                  <!-- Pin -->
-                  <td class="py-2 px-2.5 text-center">
-                    <button @click="togglePin(p.param_id)" class="text-xs" :class="isPinned(p.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'">
-                      ★
-                    </button>
-                  </td>
+        <div v-else class="scada-panel w-full bg-transparent border-0 shadow-none p-0">
+          <!-- Empty State -->
+          <div
+            v-if="categorySections.length === 0 || filteredParameters.length === 0"
+            class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-8 text-center text-slate-500 font-mono text-xs"
+          >
+            {{ $t('operator.noParamsMatch') || 'No parameters matching current filter criteria.' }}
+          </div>
 
-                  <!-- Device -->
-                  <td class="py-2 px-2.5 text-cyan-600 dark:text-cyan-400 font-bold whitespace-nowrap">
-                    <router-link :to="'/monitoring/devices/' + p.device_id" class="hover:underline">
-                      {{ p.device_code }}
-                    </router-link>
-                  </td>
+          <!-- Multi-Table Side-by-Side Grid (No Vertical Scroll) -->
+          <div
+            v-else
+            class="grid grid-cols-1 gap-3.5"
+            :class="tableColumns.length > 1 ? 'xl:grid-cols-2' : ''"
+          >
+            <div
+              v-for="(colParams, colIdx) in tableColumns"
+              :key="'telemetry-table-col-' + colIdx"
+              class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] overflow-hidden shadow-xs dark:shadow-lg flex flex-col"
+            >
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono border-collapse">
+                  <thead class="bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-[#334155] dark:border-[#20354B]">
+                    <tr>
+                      <th class="py-2 px-1 text-center w-6">⭐</th>
+                      <th class="py-2 px-1.5">{{ $t('telemetry.device') || 'Device' }}</th>
+                      <th class="py-2 px-1.5">{{ $t('telemetry.parameterName') || 'Parameter' }}</th>
+                      <th class="py-2 px-1.5">{{ $t('operator.categories') || 'Category' }}</th>
+                      <th class="py-2 px-1.5 text-right">{{ $t('common.value') || 'Value' }}</th>
+                      <th class="py-2 px-1">{{ $t('common.unit') || 'Unit' }}</th>
+                      <th class="py-2 px-1 text-center">{{ $t('common.quality') || 'Quality' }}</th>
+                      <th class="py-2 px-1.5 text-center">Status</th>
+                      <th class="py-2 px-1.5 text-right">Last Received</th>
+                      <th class="py-2 px-1.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 dark:divide-[#18283E] text-2xs">
+                    <tr
+                      v-for="p in colParams"
+                      :key="p.param_id"
+                      class="transition-colors"
+                      :class="[
+                        isParamAlarmOrStaleBad(p)
+                          ? (isAlarmPulseActive
+                              ? 'bg-rose-500/25 dark:bg-rose-950/70 border-l-4 border-l-rose-500 transition-colors duration-150'
+                              : 'bg-slate-200/70 dark:bg-slate-800/80 border-l-4 border-l-rose-500/70 transition-colors duration-300')
+                          : 'hover:bg-slate-50 dark:hover:bg-[#101B2B]',
+                        liveBlinks[p.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : '',
+                        isPinned(p.param_id) ? 'bg-amber-50/40 dark:bg-[#0f1d30]/40' : ''
+                      ]"
+                    >
+                      <!-- Pin -->
+                      <td class="py-1.5 px-1 text-center">
+                        <button @click="togglePin(p.param_id)" class="text-xs" :class="isPinned(p.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'">
+                          ★
+                        </button>
+                      </td>
 
-                  <!-- Parameter Name & Code -->
-                  <td class="py-2 px-2.5 text-slate-700 dark:text-slate-200">
-                    <div class="flex items-center space-x-2">
-                      <ParameterIcon :icon="p.icon" :code="p.param_code" :name="p.param_name" :unit="p.unit" size-class="w-4 h-4 flex-shrink-0" />
-                      <div class="min-w-0">
-                        <div class="font-bold text-slate-900 dark:text-white leading-tight text-sm truncate max-w-[150px]" :title="p.param_name || p.param_code">
-                          {{ p.param_name || p.param_code }}
+                      <!-- Device -->
+                      <td class="py-1.5 px-1.5 text-cyan-600 dark:text-cyan-400 font-bold whitespace-nowrap text-3xs">
+                        <router-link :to="'/monitoring/devices/' + p.device_id" class="hover:underline">
+                          {{ p.device_code }}
+                        </router-link>
+                      </td>
+
+                      <!-- Parameter Name & Code -->
+                      <td class="py-1.5 px-1.5 text-slate-700 dark:text-slate-200">
+                        <div class="flex items-center space-x-1">
+                          <ParameterIcon :icon="p.icon" :code="p.param_code" :name="p.param_name" :unit="p.unit" size-class="w-3.5 h-3.5 flex-shrink-0" />
+                          <div class="min-w-0">
+                            <div class="font-bold text-slate-900 dark:text-white leading-tight text-xs truncate max-w-[105px]" :title="p.param_name || p.param_code">
+                              {{ p.param_name || p.param_code }}
+                            </div>
+                            <div class="text-4xs text-slate-500 dark:text-slate-400 font-mono truncate max-w-[90px]">{{ p.param_code }}</div>
+                          </div>
                         </div>
-                        <div class="text-4xs text-slate-500 dark:text-slate-400 font-mono truncate max-w-[130px]">{{ p.param_code }}</div>
-                      </div>
-                    </div>
-                  </td>
+                      </td>
 
-                  <!-- Category Badge -->
-                  <td class="py-2 px-2.5 whitespace-nowrap">
-                    <span
-                      v-if="p.category"
-                      class="px-1.5 py-0.2 rounded text-4xs font-bold border font-mono"
-                      :class="getCategoryTheme(p.category.color_key).pill"
-                    >
-                      {{ p.category.name }}
-                    </span>
-                    <span
-                      v-else-if="categoryMap[p.category_id]"
-                      class="px-1.5 py-0.2 rounded text-4xs font-bold border font-mono"
-                      :class="getCategoryTheme(categoryMap[p.category_id].color_key).pill"
-                    >
-                      {{ categoryMap[p.category_id].name }}
-                    </span>
-                    <span
-                      v-else
-                      class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-[#334155] dark:border-slate-700/60 font-mono"
-                    >
-                      {{ $t('operator.uncategorized') || 'Uncategorized' }}
-                    </span>
-                    <span
-                      v-if="isParamDomainMismatched(p)"
-                      class="ml-1 px-1 py-0.2 rounded text-4xs font-bold font-mono bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                      :title="'Domain mismatch: Active domain is ' + currentMonitoringDomain"
-                    >
-                      MISMATCH
-                    </span>
-                  </td>
+                      <!-- Category Badge -->
+                      <td class="py-1.5 px-1.5 whitespace-nowrap">
+                        <span
+                          v-if="p.category"
+                          class="px-1.5 py-0.2 rounded text-4xs font-bold border font-mono"
+                          :class="getCategoryTheme(p.category.color_key).pill"
+                        >
+                          {{ p.category.name }}
+                        </span>
+                        <span
+                          v-else-if="categoryMap[p.category_id]"
+                          class="px-1.5 py-0.2 rounded text-4xs font-bold border font-mono"
+                          :class="getCategoryTheme(categoryMap[p.category_id].color_key).pill"
+                        >
+                          {{ categoryMap[p.category_id].name }}
+                        </span>
+                        <span
+                          v-else
+                          class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-[#334155] dark:border-slate-700/60 font-mono"
+                        >
+                          {{ $t('operator.uncategorized') || 'Uncategorized' }}
+                        </span>
+                        <span
+                          v-if="isParamDomainMismatched(p)"
+                          class="ml-1 px-1 py-0.2 rounded text-4xs font-bold font-mono bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                          :title="'Domain mismatch: Active domain is ' + currentMonitoringDomain"
+                        >
+                          MISMATCH
+                        </span>
+                      </td>
 
-                  <!-- Value -->
-                  <td class="py-2 px-2.5 text-right font-bold text-sm whitespace-nowrap" :class="paramValueColorClass(p)">
-                    <span>{{ formatParamValue(p) }}</span>
-                    <span v-if="p.is_held_value" class="text-4xs text-amber-500 dark:text-amber-400 ml-1">H</span>
-                  </td>
+                      <!-- Value -->
+                      <td class="py-1.5 px-1.5 text-right font-bold text-xs whitespace-nowrap" :class="paramValueColorClass(p)">
+                        <span>{{ formatParamValue(p) }}</span>
+                        <span v-if="p.is_held_value" class="text-4xs text-amber-500 dark:text-amber-400 ml-0.5">H</span>
+                      </td>
 
-                  <!-- Unit -->
-                  <td class="py-2 px-2 text-slate-500 dark:text-slate-400 font-semibold text-3xs">{{ p.unit || '--' }}</td>
+                      <!-- Unit -->
+                      <td class="py-1.5 px-1 text-slate-500 dark:text-slate-400 font-semibold text-4xs">{{ p.unit || '--' }}</td>
 
-                  <!-- Quality -->
-                  <td class="py-2 px-2 text-center">
-                    <span class="px-1.5 py-0.5 rounded text-4xs font-bold uppercase inline-block" :class="qualityBadgeClass(p.quality)">
-                      {{ p.quality || 'GOOD' }}
-                    </span>
-                  </td>
+                      <!-- Quality -->
+                      <td class="py-1.5 px-1 text-center">
+                        <span class="px-1.5 py-0.2 rounded text-4xs font-bold uppercase inline-block" :class="qualityBadgeClass(p.quality)">
+                          {{ p.quality || 'GOOD' }}
+                        </span>
+                      </td>
 
-                  <!-- Threshold / Limit Status -->
-                  <td class="py-2 px-2.5 text-center">
-                    <span
-                      class="px-1.5 py-0.5 rounded text-4xs font-bold"
-                      :class="p.alarm_status === 'CRITICAL' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : p.alarm_status === 'WARNING' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'"
-                    >
-                      {{ p.alarm_status || 'NORMAL' }}
-                    </span>
-                  </td>
+                      <!-- Threshold / Limit Status -->
+                      <td class="py-1.5 px-1 text-center">
+                        <span
+                          class="px-1.5 py-0.2 rounded text-4xs font-bold"
+                          :class="p.alarm_status === 'CRITICAL' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : p.alarm_status === 'WARNING' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'"
+                        >
+                          {{ p.alarm_status || 'NORMAL' }}
+                        </span>
+                      </td>
 
-                  <!-- Last Received -->
-                  <td class="py-2 px-2.5 text-right text-slate-500 dark:text-slate-400 text-3xs whitespace-nowrap">
-                    <div>{{ p.received_at ? formatTimeShort(p.received_at) : '--' }}</div>
-                    <div class="text-4xs text-slate-400 dark:text-slate-500">{{ p.received_at ? formatRelative(p.received_at) : '' }}</div>
-                  </td>
+                      <!-- Last Received -->
+                      <td class="py-1.5 px-1.5 text-right text-slate-500 dark:text-slate-400 text-3xs whitespace-nowrap">
+                        <div>{{ p.received_at ? formatTimeShort(p.received_at) : '--' }}</div>
+                        <div class="text-4xs text-slate-400 dark:text-slate-500">{{ p.received_at ? formatRelative(p.received_at) : '' }}</div>
+                      </td>
 
-                  <!-- Actions -->
-                  <td class="py-2 px-2.5 text-right whitespace-nowrap space-x-1">
-                    <button
-                      @click="selectParamForTrend(p)"
-                      class="px-1.5 py-0.5 rounded text-4xs font-bold transition"
-                      :class="isParamSelectedForTrend(p) ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#18283E] dark:hover:bg-[#20354B] text-cyan-700 dark:text-cyan-400'"
-                    >
-                      {{ isParamSelectedForTrend(p) ? 'PLOTTED' : 'PLOT' }}
-                    </button>
-                    <router-link
-                      :to="'/monitoring/analysis?device_id=' + p.device_id + '&parameter_id=' + p.param_id"
-                      class="px-1.5 py-0.5 rounded text-4xs bg-slate-100 hover:bg-slate-200 dark:bg-[#18283E] dark:hover:bg-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                      title="Inspect in Analysis"
-                    >
-                      FX
-                    </router-link>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                      <!-- Actions -->
+                      <td class="py-1.5 px-1.5 text-right whitespace-nowrap space-x-1">
+                        <button
+                          @click="selectParamForTrend(p)"
+                          class="px-1.5 py-0.5 rounded text-4xs font-bold transition"
+                          :class="isParamSelectedForTrend(p) ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#18283E] dark:hover:bg-[#20354B] text-cyan-700 dark:text-cyan-400'"
+                        >
+                          {{ isParamSelectedForTrend(p) ? 'PLOTTED' : 'PLOT' }}
+                        </button>
+                        <router-link
+                          :to="'/monitoring/analysis?device_id=' + p.device_id + '&parameter_id=' + p.param_id"
+                          class="px-1.5 py-0.5 rounded text-4xs bg-slate-100 hover:bg-slate-200 dark:bg-[#18283E] dark:hover:bg-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                          title="Inspect in Analysis"
+                        >
+                          FX
+                        </router-link>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2163,12 +2183,24 @@ import CategoryManagementModal from '../components/CategoryManagementModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
 
-// Curated high-contrast SCADA palette (Cyan, Blue, Green, Amber, Magenta, Violet, Teal, Orange, Sky, Lime, Rose, Indigo, Fuchsia, Yellow, Turquoise, Purple)
+// Curated high-contrast SCADA non-alarm palette (Cyans, Blues, Emeralds, Teals, Mints, Indigos, Violets, Purples)
+// Strictly excludes red, crimson, rose, orange, amber, and yellow to avoid alarm/error confusion
 const TREND_PALETTE = [
-  '#00E5FF', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6',
-  '#14B8A6', '#F97316', '#06B6D4', '#84CC16', '#E11D48', '#6366F1',
-  '#D946EF', '#EAB308', '#2DD4BF', '#A855F7',
+  '#00E5FF', '#3B82F6', '#10B981', '#8B5CF6', '#06B6D4', '#6366F1',
+  '#14B8A6', '#2DD4BF', '#A855F7', '#38BDF8', '#4F46E5', '#059669',
+  '#7C3AED', '#0284C7', '#818CF8', '#0D9488',
 ];
+
+const ALARM_LIKE_COLORS = new Set([
+  '#F59E0B', '#F97316', '#E11D48', '#EAB308', '#EC4899', '#D946EF', '#84CC16',
+  '#FF4559', '#FFB020', '#EF4444', '#DC2626', '#E53E3E', '#DD6B20', '#D69E2E',
+  '#F87171', '#FBBF24', '#F43F5E', '#EA580C', '#CA8A04'
+]);
+
+function isAlarmLikeColor(color) {
+  if (!color || typeof color !== 'string') return false;
+  return ALARM_LIKE_COLORS.has(color.toUpperCase());
+}
 
 export default {
   name: 'OperatorCommandCenterView',
@@ -3087,6 +3119,22 @@ export default {
 
       return list;
     },
+    tableColumns() {
+      const list = this.filteredParameters || [];
+      if (list.length === 0) return [];
+      if (list.length <= 4) {
+        return [list];
+      }
+      const mid = Math.ceil(list.length / 2);
+      return [
+        list.slice(0, mid),
+        list.slice(mid),
+      ];
+    },
+    cleanInChartLabel() {
+      const raw = this.$t('operator.inChart') || 'In Chart';
+      return raw.replace(/^[●•\s]+/, '');
+    },
     summaryStats() {
       const devs = this.devicesList || [];
       const totalDevs = devs.length;
@@ -3509,7 +3557,7 @@ export default {
     getTrendSeriesColor(param) {
       if (!param) return '#00E5FF';
       const s = this.activeTrendSeries.find(item => item.parameterId === param.param_id);
-      if (s && s.color) return s.color;
+      if (s && s.color && !isAlarmLikeColor(s.color)) return s.color;
       const idx = this.allParameters.findIndex(p => p.param_id === param.param_id);
       if (idx >= 0) return TREND_PALETTE[idx % TREND_PALETTE.length];
       return '#00E5FF';
@@ -4161,7 +4209,10 @@ export default {
           );
           // If valid and not disabled/deleted, restore safely
           if (match && !restored.some(r => r.parameterId === match.param_id)) {
-            const color = TREND_PALETTE.find(c => !usedColors.has(c)) || TREND_PALETTE[restored.length % TREND_PALETTE.length];
+            let color = item.color;
+            if (!color || isAlarmLikeColor(color) || usedColors.has(color) || !TREND_PALETTE.includes(color)) {
+              color = TREND_PALETTE.find(c => !usedColors.has(c)) || TREND_PALETTE[restored.length % TREND_PALETTE.length];
+            }
             usedColors.add(color);
             restored.push({
               id: `${match.device_id}_${match.param_id}`,
@@ -4184,6 +4235,11 @@ export default {
         // If saved parameters are valid, keep restored selection
         if (restored.length > 0) {
           this.activeTrendSeries = restored;
+          this.activeTrendSeries.forEach((s, idx) => {
+            if (isAlarmLikeColor(s.color) || !TREND_PALETTE.includes(s.color)) {
+              s.color = TREND_PALETTE[idx % TREND_PALETTE.length];
+            }
+          });
           this.trendSelectionRestored = true;
           this.saveTrendSelection();
           this.fetchTrendData();

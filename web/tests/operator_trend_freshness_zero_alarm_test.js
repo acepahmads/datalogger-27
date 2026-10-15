@@ -61,14 +61,16 @@ runTest('1.2: Stable parameter identity uses device ID + parameter ID/code', () 
   assert(occContent.includes('Number(p.device_id) === Number(item.deviceId) && Number(p.param_id) === Number(item.parameterId)'), 'Must restore by matching device_id and param_id');
 });
 
-runTest('1.3: Expanded high-contrast SCADA palette supports up to 16 distinct series', () => {
+runTest('1.3: Expanded high-contrast SCADA non-alarm palette supports up to 16 distinct series', () => {
   assert(occContent.includes("maxTrendSeries: 16"), 'maxTrendSeries must be configured to 16');
-  // Check first 6 colors preserved for backward compatibility
-  assert(occContent.includes("'#00E5FF', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'"), 'Must preserve the first 6 SCADA colors');
-  // Check expanded colors
-  assert(occContent.includes("'#14B8A6'"), 'Must include expanded color Teal');
-  assert(occContent.includes("'#F97316'"), 'Must include expanded color Orange');
-  assert(occContent.includes("'#E11D48'"), 'Must include expanded color Rose');
+  // Must use curated cool hues strictly excluding alarm colors (red, amber, yellow, orange)
+  assert(occContent.includes("'#00E5FF'"), 'Must include Cyan');
+  assert(occContent.includes("'#3B82F6'"), 'Must include Blue');
+  assert(occContent.includes("'#10B981'"), 'Must include Emerald');
+  assert(occContent.includes("'#8B5CF6'"), 'Must include Violet');
+  assert(occContent.includes("'#14B8A6'"), 'Must include Teal');
+  assert(occContent.includes("'#2DD4BF'"), 'Must include Mint');
+  assert(occContent.includes("isAlarmLikeColor"), 'Must include alarm color sanitizer');
 });
 
 runTest('1.4: Incompatible units support dual-axis or independent scale for 3rd unit', () => {

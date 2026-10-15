@@ -1016,16 +1016,16 @@
 import axios from 'axios';
 
 const SERIES_PALETTE = [
+  '#00E5FF', // Cyan
   '#3B82F6', // Blue
   '#10B981', // Emerald
-  '#F59E0B', // Amber
-  '#EC4899', // Pink
   '#8B5CF6', // Purple
-  '#06B6D4', // Cyan
-  '#F97316', // Orange
+  '#06B6D4', // Deep Cyan
   '#14B8A6', // Teal
   '#6366F1', // Indigo
-  '#84CC16', // Lime
+  '#2DD4BF', // Mint
+  '#A855F7', // Vivid Purple
+  '#38BDF8', // Light Sky Blue
 ];
 
 export default {
