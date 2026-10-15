@@ -11,6 +11,7 @@
         </p>
       </div>
 
+      <div class="flex items-center space-x-2">
         <router-link to="/monitoring/operator"
                      class="px-3 py-1.5 bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
           <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 mr-1.5 animate-pulse"></span>

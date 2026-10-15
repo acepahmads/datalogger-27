@@ -1,7 +1,7 @@
 <template>
   <div class="operator-command-center font-sans text-slate-800 dark:text-slate-100 select-none pb-20 transition-colors duration-150">
     <!-- Sub-Header / SCADA Operational Status Bar -->
-    <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 mb-2 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs dark:shadow-lg transition-colors">
+    <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 mb-2 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-lg transition-colors">
       <!-- Left: Station & Console Title -->
       <div class="flex items-center space-x-3">
         <div class="flex items-center space-x-2">
@@ -29,7 +29,7 @@
       </div>
 
       <!-- Center: Live Clock in SCADA bar -->
-      <div v-if="currentTime" class="hidden md:flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-3xs tabular-nums font-mono">
+      <div v-if="currentTime" class="hidden md:flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-3xs tabular-nums font-mono">
         <span class="text-slate-400 dark:text-slate-500">🕒</span>
         <span>{{ currentTime }}</span>
       </div>
@@ -39,7 +39,7 @@
         <!-- Quick Theme Toggle (☀ / 🌙) -->
         <button
           @click="toggleTheme"
-          class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition"
+          class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition"
           :title="isDark ? ($t('operator.lightMode') || 'Switch to Light Mode') : ($t('operator.darkMode') || 'Switch to Dark Mode')"
         >
           <span>{{ isDark ? '🌙' : '☀' }}</span>
@@ -48,7 +48,7 @@
         <!-- Quick Language Toggle (EN / ID) -->
         <button
           @click="toggleLanguage"
-          class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition"
+          class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition"
           :title="$t('header.language') || 'Language'"
         >
           {{ currentLocale.toUpperCase() }}
@@ -69,7 +69,7 @@
         <button
           @click="refreshDashboard"
           :disabled="isRefreshing"
-          class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50"
+          class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50"
           :title="$t('common.refresh') || 'Refresh All'"
         >
           <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +83,7 @@
           class="px-2.5 py-1 rounded-lg border text-3xs font-mono font-semibold transition flex items-center space-x-1"
           :class="isSidebarCollapsed
             ? 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 ring-1 ring-cyan-500/30'
-            : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border-slate-200 dark:border-[#20354B] text-cyan-600 dark:text-cyan-400'"
+            : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border-[#334155] dark:border-[#20354B] text-cyan-600 dark:text-cyan-400'"
           :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Full Width (Restore Panels)') : ($t('operator.fullWidth') || 'Full Width SCADA (Hide Panels)')"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -280,14 +280,14 @@
     <!-- ======================================================== -->
     <div class="w-full flex flex-col space-y-2.5">
         <!-- Panel Header & Filter Controls Bar -->
-        <div class="p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-wrap items-center justify-between gap-2">
+        <div class="p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-wrap items-center justify-between gap-2">
           <!-- Left: Title & Mode Toggle -->
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
             <h2 class="text-xs font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono">
               {{ $t('operator.parameterMonitoring') || 'DEVICE & PARAMETER MONITORING' }}
             </h2>
-            <span class="text-4xs font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#20354B]">
+            <span class="text-4xs font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border border-[#334155] dark:border-[#20354B]">
               {{ filteredParameters.length }} / {{ allParameters.length }}
             </span>
             <span
@@ -305,7 +305,7 @@
             <button
               v-if="canManageCategories || canViewCategories"
               @click="openCategoryManagementModal"
-              class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+              class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-[#334155] dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
               :title="$t('operator.categoryManagement') || 'Configure Categories & Layout'"
             >
               <span>🏷️</span>
@@ -318,7 +318,7 @@
               class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1"
               :class="filterPinnedOnly
                 ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
-                : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+                : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
               :title="$t('operator.pinnedOnly') || 'Show Pinned Favorites Only'"
             >
               <span>⭐</span>
@@ -326,7 +326,7 @@
             </button>
 
             <!-- Cards vs Table Switcher -->
-            <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+            <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
               <button
                 @click="viewMode = 'cards'"
                 class="px-2 py-1 rounded text-3xs font-mono font-semibold transition flex items-center space-x-1"
@@ -363,7 +363,7 @@
             class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
             :class="selectedCategoryFilter === 'all'
               ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
-              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
           >
             <span>🌐</span>
             <span>{{ $t('operator.allCategories') || 'All Categories' }}</span>
@@ -380,7 +380,7 @@
             class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
             :class="selectedCategoryFilter === cat.id
               ? getCategoryTheme(cat.color_key).activeTab
-              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
           >
             <span class="w-1.5 h-1.5 rounded-full" :class="getCategoryTheme(cat.color_key).dot"></span>
             <span>{{ cat.name }}</span>
@@ -399,7 +399,7 @@
             class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
             :class="selectedCategoryFilter === 'uncategorized'
               ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs'
-              : 'bg-white dark:bg-[#0B1422] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-300'"
+              : 'bg-white dark:bg-[#0B1422] text-slate-500 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-300'"
           >
             <span>📦</span>
             <span>{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
@@ -422,12 +422,12 @@
               v-for="section in categorySections"
               :key="section.id"
               :class="getSectionContainerSpanClass(section)"
-              class="flex flex-col space-y-1.5 sm:space-y-2 rounded-xl p-2 sm:p-2.5 lg:p-3 bg-slate-50/60 dark:bg-[#070D17]/40 border border-slate-200/80 dark:border-[#1A2C3F]/60"
+              class="flex flex-col space-y-1.5 sm:space-y-2 rounded-xl p-2 sm:p-2.5 lg:p-3 bg-slate-50/60 dark:bg-[#070D17]/40 border border-[#475569] dark:border-[#1A2C3F]/60"
             >
               <!-- Section Header (shown in 'all' view when multiple categories exist) -->
               <div
                 v-if="selectedCategoryFilter === 'all'"
-                class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#0B1422]/90 border border-slate-200 dark:border-[#20354B] text-2xs font-mono"
+                class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#0B1422]/90 border border-[#334155] dark:border-[#20354B] text-2xs font-mono"
               >
                 <div class="flex items-center space-x-2 min-w-0">
                   <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(section.color_key).dot"></span>
@@ -459,7 +459,7 @@
                               : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
                       : isParamSelectedForTrend(param)
                         ? 'border-cyan-500 dark:border-cyan-400 ring-1 ring-cyan-500/40 bg-cyan-50/50 dark:bg-[#0c1c2e]'
-                        : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-500 shadow-xs dark:shadow-none hover:shadow-sm',
+                        : 'bg-white dark:bg-[#0B1422] border-[#334155] dark:border-[#20354B] hover:border-cyan-400 dark:hover:border-slate-500 shadow-xs dark:shadow-none hover:shadow-sm',
                     liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
                   ]"
                   :style="isParamSelectedForTrend(param) ? { borderColor: getTrendSeriesColor(param), boxShadow: '0 0 0 1px ' + getTrendSeriesColor(param) + '40' } : {}"
@@ -671,10 +671,10 @@
         </div>
 
         <!-- VIEW MODE 2: COMPACT LIVE TELEMETRY TABLE -->
-        <div v-else class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] overflow-hidden shadow-xs dark:shadow-lg">
+        <div v-else class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] overflow-hidden shadow-xs dark:shadow-lg">
           <div class="overflow-x-auto max-h-[500px] custom-scroller">
             <table class="w-full text-left text-xs font-mono border-collapse">
-              <thead class="sticky top-0 bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-[#20354B] z-10">
+              <thead class="sticky top-0 bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-[#334155] dark:border-[#20354B] z-10">
                 <tr>
                   <th class="py-2 px-2.5 text-center w-8">⭐</th>
                   <th class="py-2 px-2.5">{{ $t('telemetry.device') || 'Device' }}</th>
@@ -748,7 +748,7 @@
                     </span>
                     <span
                       v-else
-                      class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700/60 font-mono"
+                      class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-[#334155] dark:border-slate-700/60 font-mono"
                     >
                       {{ $t('operator.uncategorized') || 'Uncategorized' }}
                     </span>
@@ -822,9 +822,9 @@
     <!-- ======================================================== -->
     <div class="w-full flex flex-col space-y-3 pt-1">
       <!-- 1. TREND ANALYSIS CHART PANEL -->
-        <div class="scada-panel p-3 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] shadow-xs dark:shadow-md flex flex-col space-y-2.5">
+        <div class="scada-panel p-3 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#1E3048] shadow-xs dark:shadow-md flex flex-col space-y-2.5">
           <!-- Chart Header & Timeframe Buttons -->
-          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-[#1E3048]">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#334155] dark:border-[#1E3048]">
             <div class="flex items-center space-x-2">
               <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-glow-cyan"></span>
               <h3 class="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono">
@@ -834,7 +834,7 @@
 
             <!-- Timeframe Preset Buttons & Actions -->
             <div class="flex items-center space-x-2">
-              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#1E3048] text-3xs font-mono">
+              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#1E3048] text-3xs font-mono">
                 <button
                   v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                   :key="tf"
@@ -852,7 +852,7 @@
               <div class="relative">
                 <button
                   @click="showTrendDownloadMenu = !showTrendDownloadMenu"
-                  class="p-1.5 rounded-lg border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
+                  class="p-1.5 rounded-lg border border-[#334155] dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                   title="Download Data / Chart"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -861,7 +861,7 @@
                 </button>
                 <div
                   v-if="showTrendDownloadMenu"
-                  class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
+                  class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
                 >
                   <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
                     <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -885,7 +885,7 @@
               <!-- Fullscreen Button -->
               <button
                 @click="openTrendFullscreen"
-                class="p-1.5 rounded-lg border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
+                class="p-1.5 rounded-lg border border-[#334155] dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
                 title="Fullscreen / Expanded View"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -942,7 +942,7 @@
           <!-- SVG Industrial Chart Canvas (Expanded height: ~210-224px, Dark Industrial SCADA) -->
           <div
             ref="scadaChartContainer"
-            class="w-full h-52 sm:h-56 bg-slate-50 dark:bg-[#060B13] rounded-lg border border-slate-200 dark:border-[#17263A] relative overflow-hidden select-none"
+            class="w-full h-52 sm:h-56 bg-slate-50 dark:bg-[#060B13] rounded-lg border border-[#334155] dark:border-[#17263A] relative overflow-hidden select-none"
             @mousemove="onChartScrub"
             @mouseleave="scrubPoint = null"
           >
@@ -1110,7 +1110,7 @@
               class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[210px] max-w-[290px]"
               :style="{ left: tooltipLeftPos + 'px', top: '10px' }"
             >
-              <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-slate-200 dark:border-[#1E3048] pb-1.5 mb-2 font-mono">
+              <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-[#334155] dark:border-[#1E3048] pb-1.5 mb-2 font-mono">
                 <span class="flex items-center space-x-1">
                   <span>🕒</span>
                   <span class="font-bold text-slate-700 dark:text-slate-200">{{ scrubPoint.date }}</span>
@@ -1217,7 +1217,7 @@
       </div>
 
     <!-- I. QUICK ACTIONS & EXPORT BAR (Docked SCADA Footer) -->
-    <div class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-[#0B1422]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#20354B] px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-2xl transition-colors">
+    <div class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-[#0B1422]/95 backdrop-blur-md border-t border-[#334155] dark:border-[#20354B] px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-2xl transition-colors">
       <!-- Left: Quick Operational Commands -->
       <div class="flex items-center space-x-2">
         <span class="text-3xs uppercase font-mono font-bold text-cyan-600 dark:text-cyan-400 hidden sm:inline">
@@ -1249,7 +1249,7 @@
         <!-- Alarm History -->
         <router-link
           to="/alarm/history"
-          class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#20354B] text-3xs font-mono font-semibold transition hidden md:flex items-center space-x-1"
+          class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-[#334155] dark:border-[#20354B] text-3xs font-mono font-semibold transition hidden md:flex items-center space-x-1"
         >
           <span>📋</span>
           <span>{{ $t('operator.alarmHistory') || 'Alarm History' }}</span>
@@ -1260,19 +1260,19 @@
       <div class="flex items-center space-x-2 text-3xs font-mono">
         <router-link
           to="/monitoring/devices"
-          class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#20354B] transition hidden lg:inline"
+          class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-[#334155] dark:border-[#20354B] transition hidden lg:inline"
         >
           {{ $t('operator.deviceMonitoring') || 'Devices' }}
         </router-link>
         <router-link
           to="/monitoring/analysis"
-          class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#20354B] transition hidden lg:inline"
+          class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-[#334155] dark:border-[#20354B] transition hidden lg:inline"
         >
           {{ $t('operator.telemetryAnalysis') || 'Analysis' }}
         </router-link>
         <router-link
           to="/monitoring/system"
-          class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#20354B] transition hidden lg:inline"
+          class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-[#334155] dark:border-[#20354B] transition hidden lg:inline"
         >
           {{ $t('operator.systemHealthAction') || 'System Health' }}
         </router-link>
@@ -1292,8 +1292,8 @@
       v-if="showAckModal && targetAckAlarm"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
     >
-      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-[#334155] dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-base">🛡️</span>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
@@ -1303,7 +1303,7 @@
           <button @click="showAckModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
         </div>
 
-        <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] space-y-1 text-2xs">
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] space-y-1 text-2xs">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-900 dark:text-white">[{{ targetAckAlarm.device ? targetAckAlarm.device.device_code : 'SYS' }}]</span>
             <span class="font-bold" :class="targetAckAlarm.severity === 'CRITICAL' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'">
@@ -1325,15 +1325,15 @@
           <textarea
             v-model="ackNotes"
             rows="3"
-            class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-200 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            class="w-full px-3 py-2 rounded-xl border border-[#334155] dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-200 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
             :placeholder="$t('operator.notesPlaceholder') || 'Action taken, field observation...'"
           ></textarea>
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155] dark:border-[#20354B]">
           <button
             @click="showAckModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="px-3.5 py-1.5 rounded-lg border border-[#334155] dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -1353,8 +1353,8 @@
       v-if="showExportModal"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
     >
-      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-[#334155] dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-base text-cyan-500">📦</span>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
@@ -1375,12 +1375,12 @@
               <input
                 type="datetime-local"
                 v-model="exportForm.startTime"
-                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
               />
               <input
                 type="datetime-local"
                 v-model="exportForm.endTime"
-                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
               />
             </div>
           </div>
@@ -1396,7 +1396,7 @@
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'PROCESSED'
                   ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50'
-                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
               >
                 PROCESSED
               </button>
@@ -1405,7 +1405,7 @@
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'RAW'
                   ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/50'
-                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
               >
                 RAW SENSOR
               </button>
@@ -1414,7 +1414,7 @@
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'AGGREGATED'
                   ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500/50'
-                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
               >
                 AGGREGATED
               </button>
@@ -1428,7 +1428,7 @@
             </label>
             <select
               v-model="exportForm.deviceId"
-              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
+              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
             >
               <option value="">{{ $t('operator.allDevicesSelected') || 'All Fleet Devices (Unified)' }}</option>
               <option v-for="dev in devicesList" :key="'exp-dev-' + dev.id" :value="dev.id">
@@ -1460,10 +1460,10 @@
           {{ exportStatusMessage }}
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155] dark:border-[#20354B]">
           <button
             @click="showExportModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="px-3.5 py-1.5 rounded-lg border border-[#334155] dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -1484,8 +1484,8 @@
       v-if="showReportModal"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
     >
-      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-[#334155] dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-base text-blue-500">📊</span>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
@@ -1501,7 +1501,7 @@
             <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Report Focus</label>
             <select
               v-model="reportForm.type"
-              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
+              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
             >
               <option value="COMPREHENSIVE">Comprehensive Operational (Fleet, Quality, Alarms)</option>
               <option value="TELEMETRY">Telemetry Quality & Data Gaps Focus</option>
@@ -1519,7 +1519,7 @@
                 :key="'rep-' + p"
                 @click="reportForm.preset = p"
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
-                :class="reportForm.preset === p ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
+                :class="reportForm.preset === p ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
               >
                 {{ p }}
               </button>
@@ -1542,10 +1542,10 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155] dark:border-[#20354B]">
           <button
             @click="showReportModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="px-3.5 py-1.5 rounded-lg border border-[#334155] dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -1567,9 +1567,9 @@
       class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in"
       @keydown.esc="closeTrendFullscreen"
     >
-      <div class="w-full max-w-7xl h-[92vh] bg-white dark:bg-[#070D18] border border-slate-200 dark:border-[#20354B] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div class="w-full max-w-7xl h-[92vh] bg-white dark:bg-[#070D18] border border-[#334155] dark:border-[#20354B] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         <!-- Fullscreen Header -->
-        <div class="px-5 py-3 border-b border-slate-200 dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-[#0B1422]">
+        <div class="px-5 py-3 border-b border-[#334155] dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-[#0B1422]">
           <div class="flex items-center space-x-3">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
             <div>
@@ -1590,7 +1590,7 @@
             <!-- CSV Download -->
             <button
               @click="downloadTrendCSV"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
             >
               <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               <span>Download CSV</span>
@@ -1599,7 +1599,7 @@
             <!-- PNG Download -->
             <button
               @click="downloadTrendChart('png')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
             >
               <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
               <span>Download PNG</span>
@@ -1608,7 +1608,7 @@
             <!-- SVG Download -->
             <button
               @click="downloadTrendChart('svg')"
-              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1"
+              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1"
             >
               <span>SVG</span>
             </button>
@@ -1625,10 +1625,10 @@
         </div>
 
         <!-- Fullscreen Filter & Toolbar Controls -->
-        <div class="px-5 py-2.5 bg-slate-100/60 dark:bg-[#0B1422]/60 border-b border-slate-200 dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-3xs font-mono">
+        <div class="px-5 py-2.5 bg-slate-100/60 dark:bg-[#0B1422]/60 border-b border-[#334155] dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-3xs font-mono">
           <div class="flex flex-wrap items-center gap-2">
             <!-- Timeframe Presets -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
               <button
                 v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                 :key="'fs-' + tf"
@@ -1643,7 +1643,7 @@
             </div>
 
             <!-- Custom Date Range Inputs -->
-            <div class="flex items-center space-x-1 bg-white dark:bg-[#101B2B] p-1 rounded-lg border border-slate-200 dark:border-[#20354B]">
+            <div class="flex items-center space-x-1 bg-white dark:bg-[#101B2B] p-1 rounded-lg border border-[#334155] dark:border-[#20354B]">
               <input
                 type="datetime-local"
                 v-model="fullscreenCustomStart"
@@ -1664,7 +1664,7 @@
             </div>
 
             <!-- Mode Selector -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
               <button
                 @click="setChartMode('processed')"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -1682,7 +1682,7 @@
             </div>
 
             <!-- Scale Mode Toggle -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
               <button
                 @click="trendScaleMode = 'auto'"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -1712,9 +1712,9 @@
             <!-- Parameter Picker Dropdown -->
             <div
               v-if="showTrendParamPicker"
-              class="absolute right-0 mt-1 w-72 max-h-72 overflow-y-auto bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-xl shadow-2xl p-2 z-50 text-3xs font-mono"
+              class="absolute right-0 mt-1 w-72 max-h-72 overflow-y-auto bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] rounded-xl shadow-2xl p-2 z-50 text-3xs font-mono"
             >
-              <div class="text-slate-400 font-bold px-2 py-1 uppercase border-b border-slate-200 dark:border-[#20354B] mb-1">
+              <div class="text-slate-400 font-bold px-2 py-1 uppercase border-b border-[#334155] dark:border-[#20354B] mb-1">
                 Toggle Series to Plot:
               </div>
               <div
@@ -1897,7 +1897,7 @@
             class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[260px] max-w-[340px]"
             :style="{ left: Math.min(Math.max(fullscreenScrubPoint.rawPixelX ? (fullscreenScrubPoint.rawPixelX > 480 ? fullscreenScrubPoint.rawPixelX - 280 : fullscreenScrubPoint.rawPixelX + 20) : (fullscreenScrubPoint.x - 70), 20), 650) + 'px', top: '20px' }"
           >
-            <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-slate-200 dark:border-[#20354B] pb-1.5 mb-2 font-bold font-mono">
+            <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-[#334155] dark:border-[#20354B] pb-1.5 mb-2 font-bold font-mono">
               <span class="flex items-center space-x-1">
                 <span>🕒</span>
                 <span class="text-slate-700 dark:text-slate-200">{{ fullscreenScrubPoint.date }}</span>
@@ -1939,7 +1939,7 @@
         </div>
 
         <!-- Fullscreen Bottom Statistics Cards Row -->
-        <div class="px-5 py-3 border-t border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0B1422] overflow-x-auto">
+        <div class="px-5 py-3 border-t border-[#334155] dark:border-[#20354B] bg-slate-50 dark:bg-[#0B1422] overflow-x-auto">
           <div class="flex items-center space-x-3 min-w-max">
             <div
               v-for="s in activeTrendSeries"
@@ -1952,7 +1952,7 @@
                 <div class="font-bold text-slate-900 dark:text-white text-2xs">{{ s.deviceCode }}:{{ s.paramCode }}</div>
                 <div class="text-slate-500 dark:text-slate-400">Current: <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ s.latestVal }} {{ s.unit }}</span></div>
               </div>
-              <div class="border-l border-slate-200 dark:border-[#20354B] pl-3 flex items-center space-x-3 text-slate-500 dark:text-slate-400">
+              <div class="border-l border-[#334155] dark:border-[#20354B] pl-3 flex items-center space-x-3 text-slate-500 dark:text-slate-400">
                 <div>Min: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.min ?? '--' }}</span></div>
                 <div>Max: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.max ?? '--' }}</span></div>
                 <div>Avg: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.avg ?? '--' }}</span></div>
@@ -2985,7 +2985,7 @@ export default {
         case 'STALE':
           return 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/30';
         default:
-          return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700';
+          return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-[#334155] dark:border-slate-700';
       }
     },
     getNotifStatusClass(status) {
@@ -4439,8 +4439,9 @@ export default {
 
 /* Event-driven Synchronized SCADA Annunciator Flashing is handled via CSS utility classes on scada-alarm-pulse */
 
-/* Primary Operational Status Cards: Dark Neutral Border in Light Mode */
-html:not(.dark) .primary-status-card:not([class*="border-rose"]):not([class*="border-amber"]) {
+/* Primary Operational Status Cards & SCADA Tiles: Dark Neutral Border in Light Mode */
+html:not(.dark) .primary-status-card:not([class*="border-rose"]):not([class*="border-amber"]),
+html:not(.dark) .scada-param-tile:not([class*="border-rose"]):not([class*="border-amber"]):not([class*="border-cyan"]) {
   border-color: #334155;
 }
 </style>
