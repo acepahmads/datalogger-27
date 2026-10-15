@@ -223,7 +223,7 @@
             :initial-range="trendRange"
             :selected-pollutant="selectedPollutant"
             :pollutant-name="selectedPollutantInfo?.name"
-            title="HISTORICAL ISPU TREND & REGULATORY BANDS"
+            title="ISPU HISTORICAL TREND CHART"
             @range-change="handleRangeChange"
           />
         </div>
