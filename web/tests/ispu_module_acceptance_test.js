@@ -185,6 +185,40 @@ if (runTest('Backend models, repository, service, handler, and routes verified',
   assert(fs.existsSync(handlerPath), 'handler/ispu_handler.go must exist');
 })) passed++;
 
+// Test 11: 7-Parameter SCADA Tray & Built-in Mapping Modal in OCC Bar
+total++;
+if (runTest('ISPUIndicatorBar provides 7-parameter SCADA breakdown tray and built-in mapping setup', () => {
+  const compPath = path.join(__dirname, '..', 'src', 'components', 'ISPUIndicatorBar.vue');
+  const content = fs.readFileSync(compPath, 'utf8');
+
+  assert(content.includes('sevenOfficialParameters'), 'Must define sevenOfficialParameters');
+  assert(content.includes('showBreakdown'), 'Must support toggling 7-parameter breakdown');
+  assert(content.includes('activeParametersCount'), 'Must display active parameters count');
+  assert(content.includes('showMappingsModal'), 'Must support opening mapping modal');
+  assert(content.includes('saveMapping'), 'Must support saving mappings');
+  assert(content.includes('deleteMapping'), 'Must support deleting mappings');
+  assert(content.includes('ispu-calculated-event'), 'Must listen to ispu-calculated-event over WebSocket');
+})) passed++;
+
+// Test 12: Backend Backfill Endpoint & WebSocket Event Dispatching
+total++;
+if (runTest('Backend backfill endpoint, WebSocket event dispatching, and 24h trend generation', () => {
+  const svcPath = path.join(__dirname, '..', '..', 'internal', 'service', 'ispu_service.go');
+  const handlerPath = path.join(__dirname, '..', '..', 'internal', 'handler', 'ispu_handler.go');
+  const storePath = path.join(__dirname, '..', 'src', 'store', 'index.js');
+
+  const svcContent = fs.readFileSync(svcPath, 'utf8');
+  assert(svcContent.includes('BackfillStationHourlyTrend'), 'ISPUService must implement BackfillStationHourlyTrend');
+  assert(svcContent.includes('ispu.calculated'), 'ISPUService must broadcast ispu.calculated message');
+
+  const handlerContent = fs.readFileSync(handlerPath, 'utf8');
+  assert(handlerContent.includes('func (h *ISPUHandler) Backfill'), 'ISPUHandler must provide Backfill endpoint');
+
+  const storeContent = fs.readFileSync(storePath, 'utf8');
+  assert(storeContent.includes("msg.type === 'ispu.calculated'"), 'Vuex store must process ispu.calculated');
+  assert(storeContent.includes('ispu-calculated-event'), 'Vuex store must dispatch ispu-calculated-event');
+})) passed++;
+
 console.log(`\n========================================`);
 console.log(`RESULTS: ${passed}/${total} TESTS PASSED (100%)`);
 console.log(`========================================\n`);

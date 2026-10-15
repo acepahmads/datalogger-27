@@ -11,6 +11,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/internal/websocket"
 
 	"gorm.io/gorm"
 )
@@ -21,6 +22,7 @@ type ISPUService struct {
 	ispuRepo   *repository.ISPURepository
 	systemRepo *repository.SystemRepository
 	calculator *ISPUCalculator
+	hub        *websocket.Hub
 }
 
 // NewISPUService instantiates an ISPUService.
@@ -31,6 +33,11 @@ func NewISPUService(db *gorm.DB, ispuRepo *repository.ISPURepository, systemRepo
 		systemRepo: systemRepo,
 		calculator: NewISPUCalculator(),
 	}
+}
+
+// SetHub updates or sets the WebSocket hub for real-time calculation broadcasting.
+func (s *ISPUService) SetHub(hub *websocket.Hub) {
+	s.hub = hub
 }
 
 // CalculateStationWindow performs a 24-hour regulatory ISPU evaluation for a station and persists the result.
@@ -199,7 +206,58 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 	logger.Info("ISPU calculated for station %d [%s]: ISPU=%.1f (%s, Dominant=%s, Status=%s)",
 		deviceID, dev.DeviceCode, calcRes.OverallISPU, calcRes.OverallCategory, calcRes.DominantPollutant, calcRes.CalculationStatus)
 
+	// Broadcast real-time ISPU calculation over WebSocket
+	if s.hub != nil {
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "ispu.calculated",
+			Timestamp: time.Now().UTC(),
+			Data:      calcRes,
+		})
+	}
+
 	return calcRes, nil
+}
+
+// BackfillStationHourlyTrend retrospectively calculates and persists 24-hour rolling ISPU points
+// at 1-hour increments for the specified lookback duration (e.g., 24 hours).
+func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID uint, lookbackHours int) (int, error) {
+	if lookbackHours <= 0 {
+		lookbackHours = 24
+	}
+	if lookbackHours > 720 { // Cap at 30 days
+		lookbackHours = 720
+	}
+
+	var dev model.Device
+	if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
+		return 0, fmt.Errorf("station/device %d not found: %w", deviceID, err)
+	}
+
+	tzName := dev.Timezone
+	if tzName == "" {
+		tzName = "Asia/Jakarta"
+	}
+	loc, err := time.LoadLocation(tzName)
+	if err != nil || loc == nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
+
+	now := time.Now().In(loc)
+	currentHour := now.Truncate(time.Hour)
+
+	processed := 0
+	// Step hourly backwards from current hour down to lookbackHours
+	for i := lookbackHours; i >= 0; i-- {
+		targetHour := currentHour.Add(-time.Duration(i) * time.Hour)
+		if _, err := s.CalculateStationWindow(ctx, deviceID, targetHour); err == nil {
+			processed++
+		}
+	}
+
+	logger.Info("ISPU trend backfill completed for station %d [%s]: %d/%d hourly windows generated",
+		deviceID, dev.DeviceCode, processed, lookbackHours+1)
+
+	return processed, nil
 }
 
 // GetLatestSummary retrieves the latest ISPU summary for a station, calculating on-demand if missing or stale (>1h).
@@ -245,10 +303,21 @@ func (s *ISPUService) GetTrend(ctx context.Context, deviceID uint, timeRange str
 		return nil, err
 	}
 
-	// If no records in trend, trigger an initial calculation
-	if len(trend) == 0 {
-		if res, err := s.CalculateStationWindow(ctx, deviceID, now); err == nil && res != nil {
-			trend = append(trend, *res)
+	// If fewer than 3 records in trend (e.g. freshly initialized station), backfill hourly trend
+	if len(trend) < 3 {
+		lookback := 24
+		if timeRange == "7d" {
+			lookback = 168
+		} else if timeRange == "30d" {
+			lookback = 720
+		}
+		_, _ = s.BackfillStationHourlyTrend(ctx, deviceID, lookback)
+		if refreshed, err := s.ispuRepo.GetTrend(ctx, deviceID, startTime, now); err == nil && len(refreshed) > 0 {
+			trend = refreshed
+		} else if len(trend) == 0 {
+			if res, err := s.CalculateStationWindow(ctx, deviceID, now); err == nil && res != nil {
+				trend = append(trend, *res)
+			}
 		}
 	}
 

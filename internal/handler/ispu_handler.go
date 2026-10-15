@@ -287,3 +287,35 @@ func (h *ISPUHandler) ExportExcel(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Data(http.StatusOK, "text/csv; charset=utf-8", excelData)
 }
+
+// Backfill triggers historical trend backfill for a station over lookback hours.
+func (h *ISPUHandler) Backfill(c *gin.Context) {
+	var req struct {
+		DeviceID uint `json:"device_id"`
+		Hours    int  `json:"hours"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+	if req.DeviceID == 0 {
+		response.BadRequest(c, "device_id is required")
+		return
+	}
+	if req.Hours <= 0 {
+		req.Hours = 24
+	}
+
+	count, err := h.ispuService.BackfillStationHourlyTrend(c.Request.Context(), req.DeviceID, req.Hours)
+	if err != nil {
+		response.InternalError(c, "failed to backfill trend: "+err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"device_id":          req.DeviceID,
+		"hours":              req.Hours,
+		"backfilled_records": count,
+	})
+}
+

@@ -159,7 +159,7 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime, endTime time.Time) ([]model.ISPUCalculationResult, error) {
 	var results []model.ISPUCalculationResult
 	query := r.db.WithContext(ctx).
-		Where("device_id = ? AND period_end >= ? AND period_start <= ?", deviceID, startTime, endTime).
+		Where("device_id = ? AND period_end >= ? AND period_end <= ?", deviceID, startTime.UTC(), endTime.UTC()).
 		Preload("ParameterResults").
 		Order("period_end ASC")
 

@@ -208,3 +208,36 @@ func TestISPUService_ExportCSVAndExcel(t *testing.T) {
 		t.Errorf("Expected UTF-8 BOM at start of Excel export")
 	}
 }
+
+func TestISPUService_BackfillStationHourlyTrend(t *testing.T) {
+	_, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	// Backfill 24 hours of trend
+	count, err := ispuSvc.BackfillStationHourlyTrend(ctx, dev.ID, 24)
+	if err != nil {
+		t.Fatalf("BackfillStationHourlyTrend failed: %v", err)
+	}
+	if count < 20 {
+		t.Errorf("Expected at least 20 hourly windows backfilled, got %d", count)
+	}
+
+	// Re-run backfill to verify idempotency (no duplicate key errors)
+	count2, err2 := ispuSvc.BackfillStationHourlyTrend(ctx, dev.ID, 24)
+	if err2 != nil {
+		t.Fatalf("Idempotent BackfillStationHourlyTrend failed: %v", err2)
+	}
+	if count2 != count {
+		t.Errorf("Expected second run to process %d windows, got %d", count, count2)
+	}
+
+	// Verify trend query returns records
+	trend, err := ispuSvc.GetTrend(ctx, dev.ID, "24h")
+	if err != nil {
+		t.Fatalf("GetTrend failed: %v", err)
+	}
+	if len(trend) < 20 {
+		t.Errorf("Expected at least 20 trend records in 24h range, got %d", len(trend))
+	}
+}
+

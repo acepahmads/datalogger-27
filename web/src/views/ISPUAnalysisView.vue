@@ -718,6 +718,12 @@ export default {
     if (this.selectedDeviceId) {
       this.loadStationData();
     }
+    window.addEventListener('ispu-calculated-event', this.handleISPUCalculated);
+    window.addEventListener('aggregation-result-event', this.handleAggregationUpdated);
+  },
+  beforeDestroy() {
+    window.removeEventListener('ispu-calculated-event', this.handleISPUCalculated);
+    window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
   },
   methods: {
     async fetchDomain() {
@@ -813,21 +819,37 @@ export default {
         this.historyLoading = false;
       }
     },
+    handleISPUCalculated(event) {
+      const data = event.detail;
+      if (data && data.device_id === this.selectedDeviceId) {
+        this.latestData = data;
+        this.fetchTrend();
+        this.fetchHistory(this.historyPage);
+      }
+    },
+    handleAggregationUpdated(event) {
+      const data = event.detail;
+      if (data && data.device_id === this.selectedDeviceId) {
+        if (this.aggTimer) clearTimeout(this.aggTimer);
+        this.aggTimer = setTimeout(() => {
+          this.fetchLatest();
+        }, 1000);
+      }
+    },
     async triggerRecalculation() {
       if (!this.selectedDeviceId || this.recalculating) return;
       this.recalculating = true;
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.post('/api/ispu/recalculate', {
-          device_id: this.selectedDeviceId
-        }, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (res.data?.success && res.data?.data) {
-          this.latestData = res.data.data;
-          this.fetchTrend();
-          this.fetchHistory(1);
-        }
+        await Promise.all([
+          axios.post('/api/ispu/backfill', { device_id: this.selectedDeviceId, hours: 24 }, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          }),
+          axios.post('/api/ispu/recalculate', { device_id: this.selectedDeviceId }, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          })
+        ]);
+        await this.loadStationData();
       } catch (err) {
         alert('Recalculation error: ' + (err.response?.data?.error || err.message));
       } finally {

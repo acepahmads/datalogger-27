@@ -193,10 +193,30 @@ func main() {
 	// Phase 7.5 — ISPU Module (Permen LHK No. 14 Tahun 2020)
 	ispuRepo := repository.NewISPURepository(db)
 	ispuService := service.NewISPUService(db, ispuRepo, systemRepo)
+	ispuService.SetHub(hub)
 	ispuHandler := handler.NewISPUHandler(ispuService)
 
-	// Periodic background ISPU calculation (every 15 minutes)
-	ispuTicker := time.NewTicker(15 * time.Minute)
+	// Initial startup backfill and calculation for active AQMS stations
+	go func() {
+		time.Sleep(3 * time.Second) // wait for DB & devices to stabilize
+		ctx := context.Background()
+		mappings, err := ispuRepo.GetAllActiveMappings(ctx)
+		if err == nil && len(mappings) > 0 {
+			processedDevices := make(map[uint]bool)
+			for _, m := range mappings {
+				if !processedDevices[m.DeviceID] {
+					processedDevices[m.DeviceID] = true
+					// Backfill 24 hours of trend so OCC charts are immediately full
+					_, _ = ispuService.BackfillStationHourlyTrend(ctx, m.DeviceID, 24)
+					// Calculate current rolling window
+					_, _ = ispuService.CalculateStationWindow(ctx, m.DeviceID, time.Now())
+				}
+			}
+		}
+	}()
+
+	// Real-time periodic background ISPU calculation (every 1 minute for responsive updates)
+	ispuTicker := time.NewTicker(1 * time.Minute)
 	go func() {
 		for range ispuTicker.C {
 			ctx := context.Background()
@@ -488,6 +508,7 @@ func main() {
 			ispuGroup.POST("/mappings", middleware.RequirePermission("ispu.manage_mapping"), ispuHandler.SaveMapping)
 			ispuGroup.DELETE("/mappings/:id", middleware.RequirePermission("ispu.manage_mapping"), ispuHandler.DeleteMapping)
 			ispuGroup.POST("/recalculate", middleware.RequirePermission("ispu.recalculate"), ispuHandler.Recalculate)
+			ispuGroup.POST("/backfill", middleware.RequirePermission("ispu.recalculate"), ispuHandler.Backfill)
 			ispuGroup.GET("/:id", middleware.RequirePermission("ispu.view"), ispuHandler.GetDetail)
 		}
 

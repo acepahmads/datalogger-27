@@ -593,6 +593,8 @@ export default new Vuex.Store({
             window.dispatchEvent(new CustomEvent('device-telemetry-event', { detail: msg.data }));
           } else if (msg.type === 'aggregation.result.updated' && msg.data) {
             window.dispatchEvent(new CustomEvent('aggregation-result-event', { detail: msg.data }));
+          } else if (msg.type === 'ispu.calculated' && msg.data) {
+            window.dispatchEvent(new CustomEvent('ispu-calculated-event', { detail: msg.data }));
           } else if (msg.type === 'notification.alert' && msg.data) {
             dispatch('fetchActiveAlarms');
             dispatch('fetchSystemStatus');

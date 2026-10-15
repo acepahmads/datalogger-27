@@ -33,6 +33,22 @@
             {{ dominantPollutant || '-' }}
           </span>
         </div>
+
+        <!-- Expandable Parameter Breakdown Pill -->
+        <button
+          @click="toggleBreakdown"
+          class="flex items-center space-x-1 px-2 py-0.5 rounded-md text-3xs font-mono font-bold transition border"
+          :class="showBreakdown
+            ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
+            : 'bg-slate-200/60 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-cyan-500'"
+          title="Inspect All 7 Official ISPU Parameters"
+        >
+          <span>📊 Params:</span>
+          <span class="text-cyan-600 dark:text-cyan-400 font-extrabold">{{ activeParametersCount }}/7</span>
+          <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': showBreakdown }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
 
       <!-- Center: Measurement Period & Validity -->
@@ -60,6 +76,16 @@
 
       <!-- Right: Action Controls -->
       <div class="flex items-center space-x-1.5">
+        <!-- Setup Mappings Button -->
+        <button
+          @click="openMappingsModal"
+          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-white/80 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+          title="Configure & Setup ISPU Parameter Mappings"
+        >
+          <span>⚙️</span>
+          <span class="hidden xl:inline">Mappings</span>
+        </button>
+
         <!-- Inline Trend Toggle -->
         <button
           @click="toggleTrend"
@@ -88,12 +114,90 @@
           @click="triggerRecalculation"
           :disabled="recalculating"
           class="p-1 rounded-lg text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition"
-          :title="'Recalculate ISPU (Current 24h Window)'"
+          :title="'Recalculate ISPU (Current 24h Window & Trend Backfill)'"
         >
           <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': recalculating }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
+      </div>
+    </div>
+
+    <!-- Collapsible 7 Official Parameters SCADA Tray -->
+    <div
+      v-if="showBreakdown"
+      class="p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-md transition-all"
+    >
+      <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800 text-3xs font-mono">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
+          <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+            All 7 Official ISPU Parameters Breakdown (Permen LHK No. 14/2020)
+          </span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-slate-500 dark:text-slate-400 text-4xs">
+            Dominant parameter determines overall ISPU
+          </span>
+          <button
+            @click="openMappingsModal"
+            class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline flex items-center space-x-0.5"
+          >
+            <span>⚙️ Edit Mappings</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 7 Cards Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        <div
+          v-for="pollutant in sevenOfficialParameters"
+          :key="pollutant.code"
+          class="p-2 rounded-lg border transition-all flex flex-col justify-between"
+          :class="getCardClass(pollutant.code)"
+        >
+          <!-- Card Header -->
+          <div class="flex items-center justify-between text-3xs font-mono mb-1">
+            <span class="font-bold text-slate-900 dark:text-white">{{ pollutant.code }}</span>
+            <span
+              v-if="isDominant(pollutant.code)"
+              class="px-1 py-0.2 rounded text-4xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40"
+              title="Dominant Pollutant"
+            >
+              ⭐ Dominant
+            </span>
+            <span
+              v-else-if="!getParameterResult(pollutant.code)"
+              class="px-1 py-0.2 rounded text-4xs bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700"
+            >
+              Unmapped
+            </span>
+          </div>
+
+          <!-- Metric -->
+          <div class="flex items-baseline space-x-1.5 my-0.5">
+            <span class="text-lg font-bold font-mono tabular-nums leading-none" :class="getTextClass(pollutant.code)">
+              {{ getISPUValue(pollutant.code) }}
+            </span>
+            <span
+              v-if="getParameterResult(pollutant.code)"
+              class="px-1 py-0.2 rounded text-4xs font-bold uppercase tracking-wider border"
+              :class="getBadgeClass(pollutant.code)"
+            >
+              {{ getParameterResult(pollutant.code).category }}
+            </span>
+          </div>
+
+          <!-- Concentration & Formula hint -->
+          <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 truncate mt-1">
+            <span v-if="getParameterResult(pollutant.code)">
+              {{ getParameterResult(pollutant.code).concentration.toFixed(1) }} {{ getParameterResult(pollutant.code).source_unit || 'µg/m³' }}
+            </span>
+            <span v-else class="italic text-slate-400">
+              No mapped sensor
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -109,6 +213,159 @@
         title="ISPU 24-HOUR ROLLING TREND"
         @range-change="handleRangeChange"
       />
+    </div>
+
+    <!-- Built-in Parameter Mapping Modal (accessible directly in OCC) -->
+    <div
+      v-if="showMappingsModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+      @click.self="showMappingsModal = false"
+    >
+      <div class="w-full max-w-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <!-- Header -->
+        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-lg">⚙️</span>
+            <div>
+              <h3 class="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                ISPU Parameter Mapping Setup
+              </h3>
+              <p class="text-4xs font-mono text-slate-500 dark:text-slate-400">
+                Map physical/virtual station telemetry channels to official Permen LHK 14/2020 pollutants
+              </p>
+            </div>
+          </div>
+          <button
+            @click="showMappingsModal = false"
+            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-4 space-y-4 overflow-y-auto custom-scroller">
+          <!-- Current Mappings Table -->
+          <div>
+            <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
+              Active Mappings for this Station
+            </h4>
+            <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+              <table class="w-full text-left text-3xs font-mono">
+                <thead class="bg-slate-50 dark:bg-[#101B2B] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th class="p-2">Official Pollutant</th>
+                    <th class="p-2">Source Sensor / Channel</th>
+                    <th class="p-2">Source Unit</th>
+                    <th class="p-2">Factor</th>
+                    <th class="p-2">Min Completeness</th>
+                    <th class="p-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tr v-for="m in stationMappings" :key="m.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td class="p-2 font-bold text-slate-900 dark:text-white">
+                      {{ m.pollutant_code }}
+                    </td>
+                    <td class="p-2 text-cyan-600 dark:text-cyan-400">
+                      {{ m.parameter ? (m.parameter.name || m.parameter.parameter_name) : `ID ${m.parameter_id}` }}
+                    </td>
+                    <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.source_unit }}</td>
+                    <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.conversion_factor }}</td>
+                    <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.min_completeness }}%</td>
+                    <td class="p-2 text-right">
+                      <button
+                        @click="deleteMapping(m.id)"
+                        class="text-rose-500 hover:text-rose-700 font-bold px-1.5 py-0.5 rounded hover:bg-rose-500/10 transition"
+                        title="Remove Mapping"
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="stationMappings.length === 0">
+                    <td colspan="6" class="p-3 text-center text-slate-400 italic">
+                      No parameter mappings configured yet. Add one below.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Add / Update Mapping Form -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-slate-800 space-y-3">
+            <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Add or Map Parameter
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-3xs font-mono">
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">Official Pollutant</label>
+                <select
+                  v-model="newMapping.pollutant_code"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+                >
+                  <option v-for="p in sevenOfficialParameters" :key="p.code" :value="p.code">
+                    {{ p.code }} ({{ p.name }})
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">Source Sensor / Channel</label>
+                <select
+                  v-model="newMapping.parameter_id"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+                >
+                  <option v-for="sp in stationParameters" :key="sp.id" :value="sp.id">
+                    {{ sp.name || sp.parameter_name }} ({{ sp.parameter_code || sp.code }})
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">Source Unit</label>
+                <input
+                  type="text"
+                  v-model="newMapping.source_unit"
+                  placeholder="µg/m³ or ppm"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">Conversion Factor</label>
+                <input
+                  type="number"
+                  step="any"
+                  v-model="newMapping.conversion_factor"
+                  placeholder="1.0"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button
+                @click="saveMapping"
+                class="px-3 py-1.5 rounded-lg text-3xs font-mono font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow-xs transition"
+              >
+                + Save Mapping
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-4 py-2.5 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+          <button
+            @click="showMappingsModal = false"
+            class="px-3 py-1.5 rounded-lg text-3xs font-mono font-semibold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -133,10 +390,35 @@ export default {
       loading: false,
       recalculating: false,
       showTrend: false,
+      showBreakdown: false,
       trendRange: '24h',
       trendRecords: [],
       trendLoading: false,
-      pollTimer: null
+      pollTimer: null,
+
+      // Seven official parameters defined in Permen LHK 14/2020
+      sevenOfficialParameters: [
+        { code: 'PM25', name: 'Partikulat PM2.5 (24h)' },
+        { code: 'PM10', name: 'Partikulat PM10 (24h)' },
+        { code: 'SO2', name: 'Sulfur Dioksida (24h)' },
+        { code: 'CO', name: 'Karbon Monoksida (24h)' },
+        { code: 'O3', name: 'Ozon (24h)' },
+        { code: 'NO2', name: 'Nitrogen Dioksida (24h)' },
+        { code: 'HC', name: 'Hidrokarbon (24h)' }
+      ],
+
+      // Mapping Modal State
+      showMappingsModal: false,
+      stationMappings: [],
+      stationParameters: [],
+      newMapping: {
+        pollutant_code: 'PM25',
+        parameter_id: null,
+        source_unit: 'µg/m³',
+        conversion_factor: 1.0,
+        min_completeness: 75.0,
+        enabled: true
+      }
     };
   },
   computed: {
@@ -155,6 +437,10 @@ export default {
     },
     completenessPercent() {
       return (this.ispuData && this.ispuData.completeness_percent) || 0;
+    },
+    activeParametersCount() {
+      if (!this.ispuData || !this.ispuData.parameter_results) return 0;
+      return this.ispuData.parameter_results.filter(p => p.calculated_ispu !== undefined).length;
     },
     formattedPeriod() {
       if (!this.ispuData || !this.ispuData.period_end) return '-';
@@ -258,18 +544,101 @@ export default {
     }
   },
   mounted() {
+    // 1. Polling fallback every 30 seconds
     this.pollTimer = setInterval(() => {
       if (this.deviceId && this.isAqmsDomain) {
         this.fetchLatestISPU();
       }
-    }, 60000); // 1 minute poll
+    }, 30000);
+
+    // 2. Real-time WebSocket Listeners
+    window.addEventListener('ispu-calculated-event', this.handleISPUCalculated);
+    window.addEventListener('aggregation-result-event', this.handleAggregationUpdated);
   },
   beforeDestroy() {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
     }
+    window.removeEventListener('ispu-calculated-event', this.handleISPUCalculated);
+    window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
   },
   methods: {
+    handleISPUCalculated(event) {
+      const data = event.detail;
+      if (data && data.device_id === this.deviceId) {
+        this.ispuData = data;
+        if (this.showTrend) {
+          this.fetchTrend();
+        }
+      }
+    },
+    handleAggregationUpdated(event) {
+      const data = event.detail;
+      if (data && data.device_id === this.deviceId) {
+        // Debounced latest fetch
+        if (this.aggTimeout) clearTimeout(this.aggTimeout);
+        this.aggTimeout = setTimeout(() => {
+          this.fetchLatestISPU();
+        }, 1000);
+      }
+    },
+    getParameterResult(pollutantCode) {
+      if (!this.ispuData || !this.ispuData.parameter_results) return null;
+      return this.ispuData.parameter_results.find(p => p.pollutant_code === pollutantCode);
+    },
+    isDominant(pollutantCode) {
+      return this.dominantPollutant === pollutantCode;
+    },
+    getISPUValue(pollutantCode) {
+      const pr = this.getParameterResult(pollutantCode);
+      return pr ? Math.round(pr.calculated_ispu) : '-';
+    },
+    getCardClass(pollutantCode) {
+      const pr = this.getParameterResult(pollutantCode);
+      if (!pr) return 'bg-slate-50 dark:bg-[#101B2B]/60 border-slate-200 dark:border-slate-800 opacity-60';
+      if (this.isDominant(pollutantCode)) return 'bg-amber-500/10 dark:bg-amber-950/20 border-amber-500/50 shadow-xs';
+      switch (pr.category) {
+        case 'BAIK': return 'bg-emerald-500/5 dark:bg-emerald-950/15 border-emerald-500/30';
+        case 'SEDANG': return 'bg-blue-500/5 dark:bg-blue-950/15 border-blue-500/30';
+        case 'TIDAK_SEHAT': return 'bg-amber-500/5 dark:bg-amber-950/15 border-amber-500/30';
+        case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/5 dark:bg-rose-950/15 border-rose-500/30';
+        case 'BERBAHAYA': return 'bg-purple-900/20 border-purple-500/40';
+        default: return 'bg-slate-50 dark:bg-[#101B2B] border-slate-200 dark:border-slate-800';
+      }
+    },
+    getTextClass(pollutantCode) {
+      const pr = this.getParameterResult(pollutantCode);
+      if (!pr) return 'text-slate-400';
+      switch (pr.category) {
+        case 'BAIK': return 'text-emerald-600 dark:text-emerald-400';
+        case 'SEDANG': return 'text-blue-600 dark:text-blue-400';
+        case 'TIDAK_SEHAT': return 'text-amber-600 dark:text-amber-400';
+        case 'SANGAT_TIDAK_SEHAT': return 'text-rose-600 dark:text-rose-400';
+        case 'BERBAHAYA': return 'text-purple-600 dark:text-purple-400';
+        default: return 'text-slate-600 dark:text-slate-400';
+      }
+    },
+    getBadgeClass(pollutantCode) {
+      const pr = this.getParameterResult(pollutantCode);
+      if (!pr) return 'bg-slate-200 text-slate-500 border-slate-300';
+      switch (pr.category) {
+        case 'BAIK': return 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40';
+        case 'SEDANG': return 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/40';
+        case 'TIDAK_SEHAT': return 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40';
+        case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/40';
+        case 'BERBAHAYA': return 'bg-purple-900/40 text-purple-300 border-purple-500/50';
+        default: return 'bg-slate-200 text-slate-500 border-slate-300';
+      }
+    },
+    toggleBreakdown() {
+      this.showBreakdown = !this.showBreakdown;
+    },
+    toggleTrend() {
+      this.showTrend = !this.showTrend;
+      if (this.showTrend && this.trendRecords.length === 0) {
+        this.fetchTrend();
+      }
+    },
     async fetchLatestISPU() {
       if (!this.deviceId) return;
       this.loading = true;
@@ -304,12 +673,6 @@ export default {
         this.trendLoading = false;
       }
     },
-    toggleTrend() {
-      this.showTrend = !this.showTrend;
-      if (this.showTrend && this.trendRecords.length === 0) {
-        this.fetchTrend();
-      }
-    },
     handleRangeChange(range) {
       this.trendRange = range;
       this.fetchTrend();
@@ -325,21 +688,79 @@ export default {
       this.recalculating = true;
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.post('/api/ispu/recalculate', {
-          device_id: this.deviceId
-        }, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (res.data && res.data.success && res.data.data) {
-          this.ispuData = res.data.data;
-          if (this.showTrend) {
-            this.fetchTrend();
-          }
-        }
+        // Trigger both backfill and recalculate for immediate rich history
+        await Promise.all([
+          axios.post('/api/ispu/backfill', { device_id: this.deviceId, hours: 24 }, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          }),
+          axios.post('/api/ispu/recalculate', { device_id: this.deviceId }, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          })
+        ]);
+        await Promise.all([this.fetchLatestISPU(), this.fetchTrend()]);
       } catch (err) {
         alert('ISPU recalculation error: ' + (err.response?.data?.error || err.message));
       } finally {
         this.recalculating = false;
+      }
+    },
+    async openMappingsModal() {
+      this.showMappingsModal = true;
+      try {
+        const token = localStorage.getItem('token');
+        const [mapRes, devRes] = await Promise.all([
+          axios.get(`/api/ispu/mappings?device_id=${this.deviceId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          }),
+          axios.get(`/api/devices`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          })
+        ]);
+        this.stationMappings = mapRes.data?.data || [];
+        
+        // Find parameters for this device
+        const devices = devRes.data?.data?.items || devRes.data?.data || [];
+        const currentDev = devices.find(d => d.id === this.deviceId) || devices[0];
+        this.stationParameters = currentDev?.parameters || [];
+        if (this.stationParameters.length > 0 && !this.newMapping.parameter_id) {
+          this.newMapping.parameter_id = this.stationParameters[0].id;
+        }
+      } catch (err) {
+        console.error('Failed to load mappings:', err);
+      }
+    },
+    async saveMapping() {
+      if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
+      try {
+        const token = localStorage.getItem('token');
+        await axios.post('/api/ispu/mappings', {
+          device_id: this.deviceId,
+          parameter_id: this.newMapping.parameter_id,
+          pollutant_code: this.newMapping.pollutant_code,
+          source_unit: this.newMapping.source_unit || 'µg/m³',
+          conversion_factor: Number(this.newMapping.conversion_factor) || 1.0,
+          min_completeness: Number(this.newMapping.min_completeness) || 75.0,
+          enabled: true
+        }, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        await this.openMappingsModal();
+        this.triggerRecalculation();
+      } catch (err) {
+        alert('Failed to save mapping: ' + (err.response?.data?.error || err.message));
+      }
+    },
+    async deleteMapping(id) {
+      if (!confirm('Are you sure you want to remove this ISPU parameter mapping?')) return;
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`/api/ispu/mappings/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        await this.openMappingsModal();
+        this.triggerRecalculation();
+      } catch (err) {
+        alert('Failed to delete mapping: ' + (err.response?.data?.error || err.message));
       }
     }
   }
