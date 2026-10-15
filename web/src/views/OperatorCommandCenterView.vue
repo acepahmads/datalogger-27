@@ -350,8 +350,27 @@
                 <span class="hidden sm:inline">{{ $t('operator.viewTable') || 'Table' }}</span>
               </button>
             </div>
+
+            <!-- ISPU Mode Access Button (AQMS domain only) -->
+            <button
+              v-if="isAQMSDomain"
+              @click="$router.push('/monitoring/ispu')"
+              class="px-2.5 py-1 rounded-lg text-3xs font-mono font-semibold transition flex items-center space-x-1.5 border shadow-xs bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400"
+              title="Indeks Standar Pencemar Udara (Permen LHK No. 14 Tahun 2020)"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="font-bold tracking-wider">ISPU</span>
+            </button>
           </div>
         </div>
+
+        <!-- ISPU SCADA Indicator Bar (Permen LHK No. 14 Tahun 2020) -->
+        <ISPUIndicatorBar
+          v-if="isAQMSDomain"
+          :device-id="selectedDeviceFilter ? Number(selectedDeviceFilter) : ((devicesList[0] && devicesList[0].id) || 1)"
+          :is-dark="isDark"
+          :is-aqms-domain="isAQMSDomain"
+        />
 
 
 
@@ -2340,6 +2359,7 @@ import TestReadModal from '../components/TestReadModal.vue';
 import ParameterConfigViewModal from '../components/ParameterConfigViewModal.vue';
 import ParameterHistoryModal from '../components/ParameterHistoryModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
+import ISPUIndicatorBar from '../components/ISPUIndicatorBar.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
 
@@ -2373,6 +2393,7 @@ export default {
     ParameterConfigViewModal,
     ParameterHistoryModal,
     ParameterModal,
+    ISPUIndicatorBar,
   },
   props: {
     isSidebarCollapsed: {
@@ -3360,6 +3381,9 @@ export default {
     },
     currentMonitoringDomain() {
       return (this.systemStatus && this.systemStatus.monitoring_domain) || 'AQMS';
+    },
+    isAQMSDomain() {
+      return (this.currentMonitoringDomain || 'AQMS').toUpperCase() === 'AQMS';
     },
     monitoringDomainBadgeClass() {
       const d = (this.currentMonitoringDomain || 'AQMS').toUpperCase();

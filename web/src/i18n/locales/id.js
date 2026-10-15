@@ -25,9 +25,9 @@ export default {
     "integrations": "Integrasi",
     "reports": "Laporan",
     "usersRoles": "Pengguna & RBAC",
-    "edgeSystem": "Sistem Edge Lokal Mandiri",
     "edgeDatabase": "Database MariaDB Edge",
-    "operatorConsole": "Konsol Operator"
+    "operatorConsole": "Konsol Operator",
+    "ispuAnalysis": "Analisis ISPU"
   },
   "header": {
     "appTitle": "Aplikasi Analisis Datalogger",

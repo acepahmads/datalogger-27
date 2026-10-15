@@ -130,6 +130,18 @@
             <span class="font-medium text-slate-200">{{ $t('navigation.telemetryAnalysis') }}</span>
           </router-link>
 
+          <!-- ISPU Compliance Module (Permen LHK No. 14 Tahun 2020) -->
+          <router-link to="/monitoring/ispu" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/ispu' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-cyan-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+            </svg>
+            <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ $t('navigation.ispuAnalysis') || 'ISPU Analysis' }}</span>
+            <span class="ml-auto text-4xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+              P.14
+            </span>
+          </router-link>
+
           <router-link to="/monitoring/reports" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/reports' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">

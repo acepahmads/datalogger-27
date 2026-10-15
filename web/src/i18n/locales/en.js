@@ -25,9 +25,9 @@ export default {
     "integrations": "Integrations",
     "reports": "Reports",
     "usersRoles": "Users & RBAC",
-    "edgeSystem": "Local-First Edge System",
     "edgeDatabase": "MariaDB Edge",
-    "operatorConsole": "Operator Console"
+    "operatorConsole": "Operator Console",
+    "ispuAnalysis": "ISPU Analysis"
   },
   "header": {
     "appTitle": "Datalogger Analysis Application",

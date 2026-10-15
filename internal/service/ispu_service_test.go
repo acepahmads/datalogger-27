@@ -1,0 +1,210 @@
+package service_test
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"datalogger/internal/model"
+	"datalogger/internal/repository"
+	"datalogger/internal/service"
+
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
+)
+
+func setupISPUTestDB(t *testing.T) (*gorm.DB, *service.ISPUService, *model.Device) {
+	dsn := fmt.Sprintf("file:memispu_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test sqlite: %v", err)
+	}
+
+	err = db.AutoMigrate(
+		&model.Device{},
+		&model.Parameter{},
+		&model.RawData{},
+		&model.AuditTrail{},
+		&model.ISPUParameterMapping{},
+		&model.ISPUCalculationResult{},
+		&model.ISPUParameterResult{},
+	)
+	if err != nil {
+		t.Fatalf("Failed to automigrate: %v", err)
+	}
+
+	// Create test AQMS Device
+	dev := &model.Device{
+		DeviceCode: "AQMS-TEST-01",
+		DeviceName: "AQMS Stasiun Pengujian",
+		DeviceType: "MODBUS_TCP",
+		Status:     model.DeviceStatusActive,
+		Timezone:   "Asia/Jakarta",
+	}
+	db.Create(dev)
+
+	// Create 2 test parameters: PM2.5 and PM10
+	paramPM25 := &model.Parameter{
+		DeviceID:      dev.ID,
+		ParameterCode: "PM25",
+		ParameterName: "Particulate Matter 2.5",
+		Unit:          "µg/m³",
+		Enabled:       true,
+	}
+	db.Create(paramPM25)
+
+	paramPM10 := &model.Parameter{
+		DeviceID:      dev.ID,
+		ParameterCode: "PM10",
+		ParameterName: "Particulate Matter 10",
+		Unit:          "µg/m³",
+		Enabled:       true,
+	}
+	db.Create(paramPM10)
+
+	// Create mappings
+	mappingPM25 := &model.ISPUParameterMapping{
+		DeviceID:         dev.ID,
+		ParameterID:      paramPM25.ID,
+		PollutantCode:    model.PollutantPM25,
+		SourceUnit:       "µg/m³",
+		NormalizedUnit:   "µg/m³",
+		ConversionFactor: 1.0,
+		MinCompleteness:  75.0,
+		Enabled:          true,
+	}
+	db.Create(mappingPM25)
+
+	mappingPM10 := &model.ISPUParameterMapping{
+		DeviceID:         dev.ID,
+		ParameterID:      paramPM10.ID,
+		PollutantCode:    model.PollutantPM10,
+		SourceUnit:       "µg/m³",
+		NormalizedUnit:   "µg/m³",
+		ConversionFactor: 1.0,
+		MinCompleteness:  75.0,
+		Enabled:          true,
+	}
+	db.Create(mappingPM10)
+
+	ispuRepo := repository.NewISPURepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	ispuSvc := service.NewISPUService(db, ispuRepo, sysRepo)
+
+	return db, ispuSvc, dev
+}
+
+func TestISPUService_CalculateStationWindowAndPersistence(t *testing.T) {
+	db, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+
+	// Seed 20 hours of valid hourly telemetry (20 / 24 = 83.3% completeness -> VALID)
+	// PM2.5 concentration = 31.4 µg/m³ -> ISPU 70 (Sedang)
+	// PM10 concentration = 40.0 µg/m³ -> ISPU 40 (Baik)
+	var pm25Param, pm10Param model.Parameter
+	db.Where("device_id = ? AND parameter_code = 'PM25'", dev.ID).First(&pm25Param)
+	db.Where("device_id = ? AND parameter_code = 'PM10'", dev.ID).First(&pm10Param)
+
+	for h := 0; h < 20; h++ {
+		ts := now.Add(-time.Duration(h) * time.Hour).Add(-5 * time.Minute)
+		db.Create(&model.RawData{
+			DeviceID:       dev.ID,
+			ParameterID:    pm25Param.ID,
+			ProcessedValue: 31.4,
+			Quality:        model.QualityGood,
+			ReceivedAt:     ts,
+		})
+		db.Create(&model.RawData{
+			DeviceID:       dev.ID,
+			ParameterID:    pm10Param.ID,
+			ProcessedValue: 40.0,
+			Quality:        model.QualityGood,
+			ReceivedAt:     ts,
+		})
+	}
+
+	result, err := ispuSvc.CalculateStationWindow(ctx, dev.ID, now)
+	if err != nil {
+		t.Fatalf("CalculateStationWindow failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatalf("Expected non-nil ISPUCalculationResult")
+	}
+
+	// Overall ISPU should be max(PM2.5=70, PM10=40) = 70 (Sedang)
+	if result.OverallCategory != model.CategorySedang {
+		t.Errorf("Expected Category Sedang, got %s", result.OverallCategory)
+	}
+	if result.DominantPollutant != model.PollutantPM25 {
+		t.Errorf("Expected Dominant Pollutant PM25, got %s", result.DominantPollutant)
+	}
+	if result.CalculationStatus != model.ISPUStatusValid {
+		t.Errorf("Expected CalculationStatus VALID (83.3%% coverage), got %s", result.CalculationStatus)
+	}
+
+	// Verify persistence in DB
+	var dbResult model.ISPUCalculationResult
+	err = db.Preload("ParameterResults").First(&dbResult, result.ID).Error
+	if err != nil {
+		t.Fatalf("Failed to fetch persisted result from DB: %v", err)
+	}
+	if len(dbResult.ParameterResults) != 2 {
+		t.Errorf("Expected 2 parameter results persisted, got %d", len(dbResult.ParameterResults))
+	}
+
+	// Test idempotency: re-running for the same period should update, not duplicate
+	result2, err := ispuSvc.CalculateStationWindow(ctx, dev.ID, now)
+	if err != nil {
+		t.Fatalf("Second calculation run failed: %v", err)
+	}
+	if result2.ID != result.ID {
+		t.Errorf("Expected idempotent update with same ID %d, got %d", result.ID, result2.ID)
+	}
+	var count int64
+	db.Model(&model.ISPUCalculationResult{}).Count(&count)
+	if count != 1 {
+		t.Errorf("Expected exactly 1 calculation result in DB after re-run, got %d", count)
+	}
+}
+
+func TestISPUService_ExportCSVAndExcel(t *testing.T) {
+	_, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	// Calculate a record
+	_, err := ispuSvc.CalculateStationWindow(ctx, dev.ID, time.Now())
+	if err != nil {
+		t.Fatalf("Calculation failed: %v", err)
+	}
+
+	// Export CSV
+	csvData, err := ispuSvc.ExportCSV(ctx, repository.ISPUHistoryFilter{DeviceID: dev.ID})
+	if err != nil {
+		t.Fatalf("ExportCSV failed: %v", err)
+	}
+	csvStr := string(csvData)
+	if !strings.Contains(csvStr, "AQMS-TEST-01") {
+		t.Errorf("Expected station code in CSV export, got: %s", csvStr)
+	}
+	if !strings.Contains(csvStr, "PM2.5 ISPU") {
+		t.Errorf("Expected pollutant headers in CSV export")
+	}
+
+	// Export Excel
+	excelData, err := ispuSvc.ExportExcel(ctx, repository.ISPUHistoryFilter{DeviceID: dev.ID})
+	if err != nil {
+		t.Fatalf("ExportExcel failed: %v", err)
+	}
+	// Check UTF-8 BOM
+	if len(excelData) < 3 || excelData[0] != 0xEF || excelData[1] != 0xBB || excelData[2] != 0xBF {
+		t.Errorf("Expected UTF-8 BOM at start of Excel export")
+	}
+}

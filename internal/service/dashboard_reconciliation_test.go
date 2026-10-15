@@ -52,6 +52,9 @@ func setupReconciledDB(t *testing.T) *gorm.DB {
 		&model.OutputDestination{},
 		&model.DeliveryLog{},
 		&model.SystemHealth{},
+		&model.ISPUParameterMapping{},
+		&model.ISPUCalculationResult{},
+		&model.ISPUParameterResult{},
 	)
 	if err != nil {
 		t.Fatalf("Failed to automigrate models: %v", err)
@@ -696,11 +699,11 @@ func TestPhase7PackageCReconciliation(t *testing.T) {
 		}
 	}
 
-	if activeCount != 17 {
-		t.Errorf("Expected 17 active tasks in Phase 7, got %d", activeCount)
+	if activeCount != 29 {
+		t.Errorf("Expected 29 active tasks in Phase 7 (17 general + 12 ISPU), got %d", activeCount)
 	}
-	if doneCount != 17 {
-		t.Errorf("Expected 17 DONE tasks in Phase 7 (5 Package C + 4 Package B + 4 Package A + 4 Preserved), got %d", doneCount)
+	if doneCount != 29 {
+		t.Errorf("Expected 29 DONE tasks in Phase 7 (5 Package C + 4 Package B + 4 Package A + 4 Preserved + 12 ISPU), got %d", doneCount)
 	}
 
 	expectedProgress := sum / float64(activeCount)

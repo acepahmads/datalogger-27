@@ -190,6 +190,31 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
+	// Phase 7.5 — ISPU Module (Permen LHK No. 14 Tahun 2020)
+	ispuRepo := repository.NewISPURepository(db)
+	ispuService := service.NewISPUService(db, ispuRepo, systemRepo)
+	ispuHandler := handler.NewISPUHandler(ispuService)
+
+	// Periodic background ISPU calculation (every 15 minutes)
+	ispuTicker := time.NewTicker(15 * time.Minute)
+	go func() {
+		for range ispuTicker.C {
+			ctx := context.Background()
+			mappings, err := ispuRepo.GetAllActiveMappings(ctx)
+			if err != nil || len(mappings) == 0 {
+				continue
+			}
+			processedDevices := make(map[uint]bool)
+			for _, m := range mappings {
+				if !processedDevices[m.DeviceID] {
+					processedDevices[m.DeviceID] = true
+					_, _ = ispuService.CalculateStationWindow(ctx, m.DeviceID, time.Now())
+				}
+			}
+		}
+	}()
+	defer ispuTicker.Stop()
+
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
 		websocket.ServeWS(hub, c)
@@ -448,6 +473,22 @@ func main() {
 			configGroup.GET("/domain-compatibility", middleware.RequirePermission("config.view"), systemHandler.CheckDomainCompatibility)
 			configGroup.PUT("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
 			configGroup.POST("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
+		}
+
+		// Phase 7.5 — Environmental Compliance & ISPU Module (Permen LHK No. 14 Tahun 2020)
+		ispuGroup := api.Group("/ispu")
+		ispuGroup.Use(middleware.JWTAuth(authService))
+		{
+			ispuGroup.GET("/latest", middleware.RequirePermission("ispu.view"), ispuHandler.GetLatest)
+			ispuGroup.GET("/trend", middleware.RequirePermission("ispu.view"), ispuHandler.GetTrend)
+			ispuGroup.GET("/history", middleware.RequirePermission("ispu.view"), ispuHandler.GetHistory)
+			ispuGroup.GET("/export/csv", middleware.RequirePermission("ispu.export"), ispuHandler.ExportCSV)
+			ispuGroup.GET("/export/excel", middleware.RequirePermission("ispu.export"), ispuHandler.ExportExcel)
+			ispuGroup.GET("/mappings", middleware.RequirePermission("ispu.view"), ispuHandler.GetMappings)
+			ispuGroup.POST("/mappings", middleware.RequirePermission("ispu.manage_mapping"), ispuHandler.SaveMapping)
+			ispuGroup.DELETE("/mappings/:id", middleware.RequirePermission("ispu.manage_mapping"), ispuHandler.DeleteMapping)
+			ispuGroup.POST("/recalculate", middleware.RequirePermission("ispu.recalculate"), ispuHandler.Recalculate)
+			ispuGroup.GET("/:id", middleware.RequirePermission("ispu.view"), ispuHandler.GetDetail)
 		}
 
 		// Public deployment domain inspection
