@@ -830,6 +830,21 @@
               <h3 class="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono">
                 {{ $t('operator.trendAnalysis') || 'TREND ANALYSIS' }}
               </h3>
+
+              <!-- Outlier Spike Alert Pill (When isolated spike detected) -->
+              <button
+                v-if="hasOutlierSpike && trendScaleMode === 'auto'"
+                @click="toggleTrendSpikeZoom"
+                class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-4xs font-mono font-bold transition shadow-xs"
+                :class="trendSpikeZoom === 'full'
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40 hover:bg-amber-500/25'
+                  : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25'"
+                :title="trendSpikeZoom === 'full' ? 'Click to focus normal telemetry range' : 'Click to expand to full spike range'"
+              >
+                <span>⚡</span>
+                <span>{{ activeSpikeSummary }}</span>
+                <span class="underline ml-1">[{{ trendSpikeZoom === 'full' ? 'Focus Normal' : 'Full Span' }}]</span>
+              </button>
             </div>
 
             <!-- Timeframe Preset Buttons & Actions -->
@@ -901,7 +916,10 @@
             <div
               v-for="s in activeTrendSeries"
               :key="s.id"
-              class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md border shrink-0 bg-slate-100/90 dark:bg-[#101B2B] text-slate-800 dark:text-slate-200 shadow-xs transition"
+              @mouseenter="hoveredTrendSeriesId = s.id"
+              @mouseleave="hoveredTrendSeriesId = null"
+              class="flex items-center space-x-1.5 px-2.5 py-1 rounded-md border shrink-0 bg-slate-100/90 dark:bg-[#101B2B] text-slate-800 dark:text-slate-200 shadow-xs transition cursor-pointer"
+              :class="{ 'ring-1 ring-cyan-500/50 shadow-sm': hoveredTrendSeriesId === s.id }"
               :style="{ borderColor: s.color + '55' }"
             >
               <!-- Series Color Indicator Dot -->
@@ -942,7 +960,7 @@
           <!-- SVG Industrial Chart Canvas (Expanded height: ~210-224px, Dark Industrial SCADA) -->
           <div
             ref="scadaChartContainer"
-            class="w-full h-52 sm:h-56 bg-slate-50 dark:bg-[#060B13] rounded-lg border border-[#334155] dark:border-[#17263A] relative overflow-hidden select-none"
+            class="w-full h-52 sm:h-56 bg-slate-50/80 dark:bg-[#060B13] rounded-lg border border-[#B8D4EA] dark:border-[#17263A] relative overflow-hidden select-none"
             @mousemove="onChartScrub"
             @mouseleave="scrubPoint = null"
           >
@@ -968,9 +986,9 @@
               </defs>
 
               <!-- Y-Axis Grid Lines & Values -->
-              <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="1">
+              <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="0.8">
                 <g v-for="(tick, idx) in trendYTicks" :key="'ytick-' + idx">
-                  <line x1="52" :y1="tick.y" x2="512" :y2="tick.y" />
+                  <line x1="52" :y1="tick.y" x2="512" :y2="tick.y" stroke-opacity="0.75" />
                   <!-- Left Y-Axis Tick Label (~10-11px readable) -->
                   <text
                     x="46"
@@ -978,7 +996,7 @@
                     text-anchor="end"
                     font-size="9.5"
                     font-family="monospace"
-                    :fill="isDark ? '#7E8B9B' : '#64748B'"
+                    :fill="isDark ? '#7E8B9B' : '#475569'"
                   >{{ tick.label }}</text>
                 </g>
 
@@ -991,7 +1009,7 @@
                       text-anchor="start"
                       font-size="9.5"
                       font-family="monospace"
-                      :fill="trendScales.right ? trendScales.right.color : '#7E8B9B'"
+                      :fill="trendScales.right ? trendScales.right.color : (isDark ? '#7E8B9B' : '#475569')"
                     >{{ tick.label }}</text>
                   </g>
                 </template>
@@ -1039,7 +1057,7 @@
                     text-anchor="middle"
                     font-size="9.5"
                     font-family="monospace"
-                    :fill="isDark ? '#7E8B9B' : '#64748B'"
+                    :fill="isDark ? '#7E8B9B' : '#475569'"
                   >{{ tick.label }}</text>
                 </g>
               </g>
@@ -1058,6 +1076,52 @@
                 </text>
               </g>
 
+              <!-- Outlier Spike Markers (When an isolated spike exceeds the focused scale) -->
+              <g v-if="trendOutlierSpikes.length > 0" class="outlier-spikes">
+                <g
+                  v-for="(spike, spkIdx) in trendOutlierSpikes"
+                  :key="'outlier-' + spkIdx"
+                  class="cursor-pointer"
+                  @click="toggleTrendSpikeZoom"
+                >
+                  <line
+                    :x1="spike.px"
+                    y1="24"
+                    :x2="spike.px"
+                    y2="170"
+                    :stroke="spike.color"
+                    stroke-width="1"
+                    stroke-dasharray="2 2"
+                    opacity="0.45"
+                  />
+                  <polygon
+                    :points="`${spike.px - 4},24 ${spike.px + 4},24 ${spike.px},30`"
+                    :fill="spike.color"
+                  />
+                  <rect
+                    :x="Math.min(Math.max(spike.px - 28, 54), 450)"
+                    y="12"
+                    width="56"
+                    height="14"
+                    rx="3"
+                    :fill="isDark ? '#0B1422' : '#FFFFFF'"
+                    :stroke="spike.color"
+                    stroke-width="1"
+                  />
+                  <text
+                    :x="Math.min(Math.max(spike.px, 82), 478)"
+                    y="22.5"
+                    text-anchor="middle"
+                    font-size="8.5"
+                    font-family="monospace"
+                    font-weight="bold"
+                    :fill="spike.color"
+                  >
+                    ▲ {{ spike.displayVal }}
+                  </text>
+                </g>
+              </g>
+
               <!-- Primary Series Subtle Area Gradient Fill (Single primary series only) -->
               <path
                 v-if="activeTrendSeries.length > 0 && generatePrimaryAreaPath()"
@@ -1065,15 +1129,19 @@
                 fill="url(#scadaPrimaryFill)"
               />
 
-              <!-- Series Paths (Unfilled lines by default, clean 2px strokes with data gap handling) -->
+              <!-- Series Paths (Unfilled lines by default, clean 1.8px strokes with data gap handling) -->
               <g v-for="(s, sIdx) in activeTrendSeries" :key="'plot-' + s.id">
                 <path
                   :d="generateChartPath(s)"
                   fill="none"
                   :stroke="s.color"
-                  :stroke-width="sIdx === 0 ? 2.2 : 2.0"
+                  :stroke-width="hoveredTrendSeriesId === s.id ? 2.2 : (sIdx === 0 ? 1.8 : 1.6)"
+                  :opacity="hoveredTrendSeriesId && hoveredTrendSeriesId !== s.id ? 0.35 : 1"
                   stroke-linecap="round"
                   stroke-linejoin="round"
+                  class="transition-all duration-150 cursor-pointer"
+                  @mouseenter="hoveredTrendSeriesId = s.id"
+                  @mouseleave="hoveredTrendSeriesId = null"
                 />
               </g>
 
@@ -1181,6 +1249,16 @@
               >
                 SCALE: {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'DUAL-AXIS' : 'NATIVE') : 'NORM %' }}
               </button>
+              <template v-if="hasOutlierSpike && trendScaleMode === 'auto'">
+                <span>·</span>
+                <button
+                  @click="toggleTrendSpikeZoom"
+                  class="hover:text-amber-500 dark:hover:text-amber-400 font-bold transition flex items-center space-x-1"
+                  :title="trendSpikeZoom === 'full' ? 'Click to focus normal telemetry variation' : 'Click to show full spike span'"
+                >
+                  <span>⚡ {{ trendSpikeZoom === 'full' ? 'SPIKE: FULL SPAN' : 'SPIKE: FOCUSED' }}</span>
+                </button>
+              </template>
             </div>
             <div class="flex items-center space-x-2">
               <button @click="openTrendFullscreen" class="text-cyan-600 dark:text-cyan-400 hover:underline">
@@ -1698,6 +1776,26 @@
                 NORMALIZED (%)
               </button>
             </div>
+
+            <!-- Fullscreen Spike Zoom Controls -->
+            <div v-if="hasOutlierSpike && trendScaleMode === 'auto'" class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
+              <button
+                @click="trendSpikeZoom = 'robust'"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="trendSpikeZoom === 'robust' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'"
+                title="Focus on normal telemetry variation (outliers marked with ▲)"
+              >
+                ⚡ FOCUS NORMAL
+              </button>
+              <button
+                @click="trendSpikeZoom = 'full'"
+                class="px-2.5 py-1 rounded transition font-bold"
+                :class="trendSpikeZoom === 'full' ? 'bg-cyan-600 text-white' : 'text-slate-500 hover:text-slate-300'"
+                title="Scale axis to encompass full spike peak"
+              >
+                FULL SPAN
+              </button>
+            </div>
           </div>
 
           <!-- Parameter Selector Button / Dropdown -->
@@ -1769,16 +1867,16 @@
             </defs>
 
             <!-- Y-Axis Grid Lines & Values -->
-            <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="1">
+            <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="0.8">
               <g v-for="(tick, idx) in fullscreenYTicks" :key="'fs-ytick-' + idx">
-                <line x1="65" :y1="tick.y" x2="905" :y2="tick.y" />
+                <line x1="65" :y1="tick.y" x2="905" :y2="tick.y" stroke-opacity="0.75" />
                 <text
                   x="56"
                   :y="tick.y + 3.5"
                   text-anchor="end"
                   font-size="10.5"
                   font-family="monospace"
-                  :fill="isDark ? '#7E8B9B' : '#64748B'"
+                  :fill="isDark ? '#7E8B9B' : '#475569'"
                 >{{ tick.label }}</text>
               </g>
 
@@ -1791,7 +1889,7 @@
                     text-anchor="start"
                     font-size="10.5"
                     font-family="monospace"
-                    :fill="trendScales.right ? trendScales.right.color : '#7E8B9B'"
+                    :fill="trendScales.right ? trendScales.right.color : (isDark ? '#7E8B9B' : '#475569')"
                   >{{ tick.label }}</text>
                 </g>
               </template>
@@ -1836,7 +1934,7 @@
                   text-anchor="middle"
                   font-size="10"
                   font-family="monospace"
-                  :fill="isDark ? '#7E8B9B' : '#64748B'"
+                  :fill="isDark ? '#7E8B9B' : '#475569'"
                 >{{ tick.label }}</text>
               </g>
             </g>
@@ -1855,6 +1953,52 @@
               </text>
             </g>
 
+            <!-- Fullscreen Outlier Spike Markers -->
+            <g v-if="fullscreenOutlierSpikes.length > 0" class="fs-outlier-spikes">
+              <g
+                v-for="(spike, spkIdx) in fullscreenOutlierSpikes"
+                :key="'fs-outlier-' + spkIdx"
+                class="cursor-pointer"
+                @click="toggleTrendSpikeZoom"
+              >
+                <line
+                  :x1="spike.px"
+                  y1="30"
+                  :x2="spike.px"
+                  y2="335"
+                  :stroke="spike.color"
+                  stroke-width="1"
+                  stroke-dasharray="2 2"
+                  opacity="0.45"
+                />
+                <polygon
+                  :points="`${spike.px - 5},30 ${spike.px + 5},30 ${spike.px},37`"
+                  :fill="spike.color"
+                />
+                <rect
+                  :x="Math.min(Math.max(spike.px - 34, 68), 830)"
+                  y="16"
+                  width="68"
+                  height="16"
+                  rx="3"
+                  :fill="isDark ? '#0B1422' : '#FFFFFF'"
+                  :stroke="spike.color"
+                  stroke-width="1"
+                />
+                <text
+                  :x="Math.min(Math.max(spike.px, 102), 864)"
+                  y="28"
+                  text-anchor="middle"
+                  font-size="9.5"
+                  font-family="monospace"
+                  font-weight="bold"
+                  :fill="spike.color"
+                >
+                  ▲ {{ spike.displayVal }}
+                </text>
+              </g>
+            </g>
+
             <!-- Primary Series Subtle Area Fill -->
             <path
               v-if="activeTrendSeries.length > 0 && generatePrimaryAreaPath(null, 960, 380, 65, 55, 30, 45)"
@@ -1862,15 +2006,19 @@
               fill="url(#fullscreenPrimaryFill)"
             />
 
-            <!-- Series Plots (Unfilled clean 2.2px lines with gap handling) -->
+            <!-- Series Plots (Unfilled clean 1.8px lines with gap handling) -->
             <g v-for="(s, sIdx) in activeTrendSeries" :key="'fs-plot-' + s.id">
               <path
                 :d="generateChartPath(s, null, 960, 380, 65, 55, 30, 45)"
                 fill="none"
                 :stroke="s.color"
-                :stroke-width="sIdx === 0 ? 2.4 : 2.0"
+                :stroke-width="hoveredTrendSeriesId === s.id ? 2.4 : (sIdx === 0 ? 1.8 : 1.6)"
+                :opacity="hoveredTrendSeriesId && hoveredTrendSeriesId !== s.id ? 0.35 : 1"
                 stroke-linecap="round"
                 stroke-linejoin="round"
+                class="transition-all duration-150 cursor-pointer"
+                @mouseenter="hoveredTrendSeriesId = s.id"
+                @mouseleave="hoveredTrendSeriesId = null"
               />
             </g>
 
@@ -2040,6 +2188,8 @@ export default {
       currentTimeframe: '15m',
       chartMode: 'processed', // 'processed' | 'raw'
       trendScaleMode: 'auto', // 'auto' | 'normalized'
+      trendSpikeZoom: 'robust', // 'robust' (smart scale with outlier marker) | 'full' (encompass full spike)
+      hoveredTrendSeriesId: null,
       activeTrendSeries: [],
       isChartLoading: false,
       scrubPoint: null,
@@ -2116,10 +2266,10 @@ export default {
       return this.$store.state.language || 'en';
     },
     gridStroke() {
-      return this.isDark ? '#132337' : '#e2e8f0';
+      return this.isDark ? '#142438' : '#CBD5E1';
     },
     axisStroke() {
-      return this.isDark ? '#20354B' : '#cbd5e1';
+      return this.isDark ? '#20354B' : '#94A3B8';
     },
     primarySeriesColor() {
       return this.activeTrendSeries.length > 0 ? this.activeTrendSeries[0].color : '#00E5FF';
@@ -2136,31 +2286,118 @@ export default {
     trendScales() {
       if (this.activeTrendSeries.length === 0) {
         return {
-          left: { min: 0, max: 100, unit: '', color: '#00E5FF', label: '' },
+          left: { min: 0, max: 100, unit: '', color: '#00E5FF', label: '', hasSpike: false, outlierPoints: [], rawMin: 0, rawMax: 100 },
           right: null,
           isDual: false,
         };
       }
 
-      const computeNiceScale = (yVals, defaultMin = 0, defaultMax = 100) => {
+      const computeNiceScale = (yVals, defaultMin = 0, defaultMax = 100, matchedSeries = []) => {
         const valid = (yVals || []).filter(v => v !== null && typeof v === 'number' && isFinite(v));
-        if (valid.length === 0) return { min: defaultMin, max: defaultMax };
-        let min = Math.min(...valid);
-        let max = Math.max(...valid);
-        if (min === max) {
-          min = min > 0 ? Math.max(0, min * 0.8 - 1) : min - 5;
-          max = max + 5;
-        } else {
-          const padding = (max - min) * 0.08;
-          min = min - padding;
-          max = max + padding;
+        if (valid.length === 0) {
+          return { min: defaultMin, max: defaultMax, hasSpike: false, outlierPoints: [], rawMin: defaultMin, rawMax: defaultMax };
         }
-        return { min, max };
+        let rawMin = Math.min(...valid);
+        let rawMax = Math.max(...valid);
+        if (rawMin === rawMax) {
+          let min = rawMin > 0 ? Math.max(0, rawMin * 0.8 - 1) : rawMin - 5;
+          let max = rawMax + 5;
+          return { min, max, hasSpike: false, outlierPoints: [], rawMin, rawMax };
+        }
+
+        // Analyze distribution for isolated spikes
+        let hasSpike = false;
+        let isHighSpike = false;
+        let isLowSpike = false;
+        let outlierPoints = [];
+        let min = rawMin;
+        let max = rawMax;
+
+        if (valid.length >= 5) {
+          const sorted = [...valid].sort((a, b) => a - b);
+          const n = sorted.length;
+          const p05 = sorted[Math.floor(n * 0.05)];
+          const p25 = sorted[Math.floor(n * 0.25)];
+          const p75 = sorted[Math.floor(n * 0.75)];
+          const p95 = sorted[Math.floor(n * 0.95)];
+          const iqr = p75 - p25;
+          const normalSpan = Math.max(p95 - p05, iqr * 1.5, Math.abs(p75) * 0.08, 0.01);
+
+          // Identify isolated spikes: points far outside normal range (>= 2.5x normal span beyond p95)
+          const highSpikes = sorted.filter(v => v > p95 + 2.5 * normalSpan);
+          const lowSpikes = sorted.filter(v => v < p05 - 2.5 * normalSpan);
+
+          // An isolated spike is at most a few points (e.g. <= 5% of dataset or <= 3 points)
+          const maxOutlierCount = Math.max(3, Math.ceil(n * 0.05));
+          if (highSpikes.length > 0 && highSpikes.length <= maxOutlierCount) {
+            isHighSpike = true;
+          }
+          if (lowSpikes.length > 0 && lowSpikes.length <= maxOutlierCount) {
+            isLowSpike = true;
+          }
+          hasSpike = isHighSpike || isLowSpike;
+
+          if (hasSpike) {
+            // Find points with metadata (x, y, seriesId, color)
+            matchedSeries.forEach(s => {
+              (s.dataPoints || []).forEach(p => {
+                if (p.y !== null && typeof p.y === 'number' && isFinite(p.y)) {
+                  if ((isHighSpike && p.y > p95 + 2.5 * normalSpan) || (isLowSpike && p.y < p05 - 2.5 * normalSpan)) {
+                    outlierPoints.push({
+                      x: p.x,
+                      y: p.y,
+                      seriesId: s.id,
+                      paramName: s.paramName || s.paramCode,
+                      unit: s.unit || '',
+                      color: s.color,
+                      quality: p.quality || 'GOOD',
+                    });
+                  }
+                }
+              });
+            });
+          }
+
+          if (hasSpike && this.trendSpikeZoom !== 'full') {
+            // SMART ROBUST / FOCUSED SCALE:
+            // Dedicate normal vertical span to normal telemetry fluctuations
+            min = isLowSpike ? Math.max(0, p05 - normalSpan * 0.15) : (rawMin >= 0 ? Math.max(0, rawMin - normalSpan * 0.08) : rawMin - normalSpan * 0.08);
+            max = isHighSpike ? (p95 + normalSpan * 0.25) : (rawMax + normalSpan * 0.08);
+          } else {
+            // FULL SPAN: Include all data points
+            const padding = (rawMax - rawMin) * 0.08;
+            min = (rawMin >= 0 && rawMin - padding < 0) ? 0 : rawMin - padding;
+            max = rawMax + padding;
+          }
+        } else {
+          const padding = (rawMax - rawMin) * 0.08;
+          min = (rawMin >= 0 && rawMin - padding < 0) ? 0 : rawMin - padding;
+          max = rawMax + padding;
+        }
+
+        // Include relevant threshold if within close proximity to data to avoid empty space
+        matchedSeries.forEach(s => {
+          const param = this.allParameters.find(p => p.param_id === s.parameterId);
+          if (param) {
+            if (param.high_warning != null && isFinite(param.high_warning)) {
+              if (param.high_warning >= min && param.high_warning <= max * 1.35) {
+                max = Math.max(max, param.high_warning * 1.05);
+              }
+            }
+            if (param.high_critical != null && isFinite(param.high_critical)) {
+              if (param.high_critical >= min && param.high_critical <= max * 1.35) {
+                max = Math.max(max, param.high_critical * 1.05);
+              }
+            }
+          }
+        });
+
+        return { min, max, hasSpike, isHighSpike, isLowSpike, outlierPoints, rawMin, rawMax };
       };
 
       if (this.trendScaleMode === 'normalized') {
         return {
-          left: { min: 0, max: 100, unit: '%', color: '#00E5FF', label: '[ 0-100% SPAN ]' },
+          left: { min: 0, max: 100, unit: '%', color: '#00E5FF', label: '[ 0-100% SPAN ]', hasSpike: false, outlierPoints: [] },
           right: null,
           isDual: false,
         };
@@ -2178,14 +2415,23 @@ export default {
             if (p.y !== null && typeof p.y === 'number' && isFinite(p.y)) allY.push(p.y);
           });
         });
-        const scale = computeNiceScale(allY);
+        const leftSeries = this.activeTrendSeries;
+        const scale = computeNiceScale(allY, 0, 100, leftSeries);
+        let modeLabel = '';
+        if (scale.hasSpike) {
+          modeLabel = this.trendSpikeZoom === 'full' ? ' · FULL SPAN' : ' · SMART ROBUST';
+        }
         return {
           left: {
             min: scale.min,
             max: scale.max,
             unit: unit1,
             color: s1.color,
-            label: unit1 ? `[ ${unit1} ]` : (s1.paramName || s1.paramCode),
+            label: unit1 ? `[ ${unit1}${modeLabel} ]` : (s1.paramName || s1.paramCode),
+            hasSpike: scale.hasSpike,
+            outlierPoints: scale.outlierPoints,
+            rawMin: scale.rawMin,
+            rawMax: scale.rawMax,
           },
           right: null,
           isDual: false,
@@ -2196,6 +2442,8 @@ export default {
       const unit2 = (diffSeries.unit || '').trim();
       const leftY = [];
       const rightY = [];
+      const leftSeries = this.activeTrendSeries.filter(s => (s.unit || '').trim() === unit1);
+      const rightSeries = this.activeTrendSeries.filter(s => (s.unit || '').trim() !== unit1);
 
       this.activeTrendSeries.forEach(s => {
         const u = (s.unit || '').trim();
@@ -2207,8 +2455,11 @@ export default {
         }
       });
 
-      const leftScale = computeNiceScale(leftY);
-      const rightScale = computeNiceScale(rightY);
+      const leftScale = computeNiceScale(leftY, 0, 100, leftSeries);
+      const rightScale = computeNiceScale(rightY, 0, 100, rightSeries);
+
+      let leftModeLabel = leftScale.hasSpike ? (this.trendSpikeZoom === 'full' ? ' · FULL SPAN' : ' · SMART ROBUST') : '';
+      let rightModeLabel = rightScale.hasSpike ? (this.trendSpikeZoom === 'full' ? ' · FULL SPAN' : ' · SMART ROBUST') : '';
 
       return {
         left: {
@@ -2216,17 +2467,103 @@ export default {
           max: leftScale.max,
           unit: unit1,
           color: s1.color,
-          label: unit1 ? `[ ${unit1} ]` : (s1.paramName || s1.paramCode),
+          label: unit1 ? `[ ${unit1}${leftModeLabel} ]` : (s1.paramName || s1.paramCode),
+          hasSpike: leftScale.hasSpike,
+          outlierPoints: leftScale.outlierPoints,
+          rawMin: leftScale.rawMin,
+          rawMax: leftScale.rawMax,
         },
         right: {
           min: rightScale.min,
           max: rightScale.max,
           unit: unit2,
           color: diffSeries.color,
-          label: unit2 ? `[ ${unit2} ]` : (diffSeries.paramName || diffSeries.paramCode),
+          label: unit2 ? `[ ${unit2}${rightModeLabel} ]` : (diffSeries.paramName || diffSeries.paramCode),
+          hasSpike: rightScale.hasSpike,
+          outlierPoints: rightScale.outlierPoints,
+          rawMin: rightScale.rawMin,
+          rawMax: rightScale.rawMax,
         },
         isDual: true,
       };
+    },
+    trendOutlierSpikes() {
+      if (this.trendScaleMode === 'normalized') return [];
+      const spikes = [];
+      const timeStart = this.trendTimeBounds.start;
+      const timeEnd = this.trendTimeBounds.end;
+      const timeSpan = Math.max(timeEnd - timeStart, 1000);
+      const padLeft = 52;
+      const plotW = 460;
+
+      if (this.trendScales.left && this.trendScales.left.hasSpike && this.trendSpikeZoom !== 'full') {
+        (this.trendScales.left.outlierPoints || []).forEach(pt => {
+          const px = padLeft + Math.min(Math.max((pt.x - timeStart) / timeSpan, 0), 1) * plotW;
+          spikes.push({
+            ...pt,
+            px,
+            displayVal: this.formatAxisValue(pt.y),
+          });
+        });
+      }
+      if (this.trendScales.isDual && this.trendScales.right && this.trendScales.right.hasSpike && this.trendSpikeZoom !== 'full') {
+        (this.trendScales.right.outlierPoints || []).forEach(pt => {
+          const px = padLeft + Math.min(Math.max((pt.x - timeStart) / timeSpan, 0), 1) * plotW;
+          spikes.push({
+            ...pt,
+            px,
+            displayVal: this.formatAxisValue(pt.y),
+          });
+        });
+      }
+      return spikes;
+    },
+    fullscreenOutlierSpikes() {
+      if (this.trendScaleMode === 'normalized') return [];
+      const spikes = [];
+      const timeStart = this.trendTimeBounds.start;
+      const timeEnd = this.trendTimeBounds.end;
+      const timeSpan = Math.max(timeEnd - timeStart, 1000);
+      const padLeft = 65;
+      const plotW = 840;
+
+      if (this.trendScales.left && this.trendScales.left.hasSpike && this.trendSpikeZoom !== 'full') {
+        (this.trendScales.left.outlierPoints || []).forEach(pt => {
+          const px = padLeft + Math.min(Math.max((pt.x - timeStart) / timeSpan, 0), 1) * plotW;
+          spikes.push({
+            ...pt,
+            px,
+            displayVal: this.formatAxisValue(pt.y),
+          });
+        });
+      }
+      if (this.trendScales.isDual && this.trendScales.right && this.trendScales.right.hasSpike && this.trendSpikeZoom !== 'full') {
+        (this.trendScales.right.outlierPoints || []).forEach(pt => {
+          const px = padLeft + Math.min(Math.max((pt.x - timeStart) / timeSpan, 0), 1) * plotW;
+          spikes.push({
+            ...pt,
+            px,
+            displayVal: this.formatAxisValue(pt.y),
+          });
+        });
+      }
+      return spikes;
+    },
+    hasOutlierSpike() {
+      return !!(this.trendScales.left?.hasSpike || this.trendScales.right?.hasSpike);
+    },
+    activeSpikeSummary() {
+      if (this.trendScales.left?.hasSpike) {
+        const pts = this.trendScales.left.outlierPoints || [];
+        const maxVal = pts.length > 0 ? Math.max(...pts.map(p => p.y)) : 0;
+        return `Spike: ${this.formatAxisValue(maxVal)} ${this.trendScales.left.unit || ''}`.trim();
+      }
+      if (this.trendScales.right?.hasSpike) {
+        const pts = this.trendScales.right.outlierPoints || [];
+        const maxVal = pts.length > 0 ? Math.max(...pts.map(p => p.y)) : 0;
+        return `Spike: ${this.formatAxisValue(maxVal)} ${this.trendScales.right.unit || ''}`.trim();
+      }
+      return '';
     },
     trendNativeScale() {
       const left = this.trendScales.left;
@@ -3612,6 +3949,13 @@ export default {
     },
     toggleTrendScaleMode() {
       this.trendScaleMode = this.trendScaleMode === 'auto' ? 'normalized' : 'auto';
+    },
+    toggleTrendSpikeZoom() {
+      this.trendSpikeZoom = this.trendSpikeZoom === 'full' ? 'robust' : 'full';
+    },
+    getSeriesStrokeWidth(s, sIdx) {
+      if (this.hoveredTrendSeriesId === s.id) return 2.2;
+      return sIdx === 0 ? 1.8 : 1.6;
     },
     openTrendFullscreen() {
       const now = new Date();

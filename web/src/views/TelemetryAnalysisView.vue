@@ -554,8 +554,8 @@
               x2="0"
               y2="1"
             >
-              <stop offset="0%" :stop-color="s.color" stop-opacity="0.25" />
-              <stop offset="60%" :stop-color="s.color" stop-opacity="0.05" />
+              <stop offset="0%" :stop-color="s.color" stop-opacity="0.08" />
+              <stop offset="60%" :stop-color="s.color" stop-opacity="0.02" />
               <stop offset="100%" :stop-color="s.color" stop-opacity="0.00" />
             </linearGradient>
           </defs>
@@ -570,7 +570,8 @@
                 :y2="tick.y"
                 stroke="#1E293B"
                 stroke-dasharray="4 4"
-                stroke-width="1"
+                stroke-width="0.8"
+                stroke-opacity="0.7"
               />
               <text
                 :x="chartPlotData.padLeft - 8"
@@ -594,7 +595,7 @@
                 :x2="tick.x"
                 :y2="containerHeight - chartPlotData.padBottom + 6"
                 stroke="#334155"
-                stroke-width="1.2"
+                stroke-width="1"
               />
               <text
                 :x="tick.x"
@@ -627,7 +628,7 @@
               :d="s.linePath"
               fill="none"
               :stroke="s.color"
-              :stroke-width="hoveredSeriesId === s.id || focusedSeriesId === s.id ? 3.2 : 2.2"
+              :stroke-width="hoveredSeriesId === s.id || focusedSeriesId === s.id ? 2.2 : 1.8"
               :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : hoveredSeriesId && hoveredSeriesId !== s.id ? 0.35 : 1"
               stroke-linecap="round"
               stroke-linejoin="round"
