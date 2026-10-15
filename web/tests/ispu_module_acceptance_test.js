@@ -272,6 +272,33 @@ if (runTest('Trend chart visual overhaul: dynamic aspect ratio, cubic bezier cur
   assert(chartContent.includes('trendAreaGradient'), 'Chart must have luxury gradient area fill');
 })) passed++;
 
+// Test 17: Aggregation-Aligned Calculation Trigger & Dynamic Table Pollutant Columns
+total++;
+if (runTest('Aggregation-aligned calculation trigger & dynamic table pollutant columns', () => {
+  const mainPath = path.join(__dirname, '..', '..', 'cmd', 'main.go');
+  const mainContent = fs.readFileSync(mainPath, 'utf8');
+  assert(mainContent.includes('SetOnBucketCompleted'), 'main.go must hook ISPU calculation to aggregation bucket completion');
+
+  const repoPath = path.join(__dirname, '..', '..', 'internal', 'repository', 'ispu_repo.go');
+  const repoContent = fs.readFileSync(repoPath, 'utf8');
+  assert(repoContent.includes('ispu_parameter_results WHERE pollutant_code'), 'ispu_repo.go must support filtering history by any pollutant parameter');
+
+  const viewPath = path.join(__dirname, '..', 'src', 'views', 'ISPUAnalysisView.vue');
+  const viewContent = fs.readFileSync(viewPath, 'utf8');
+  assert(viewContent.includes('getRowDisplayISPU'), 'ISPUAnalysisView must provide getRowDisplayISPU');
+  assert(viewContent.includes('getRowDisplayCategory'), 'ISPUAnalysisView must provide getRowDisplayCategory');
+})) passed++;
+
+// Test 18: Chart Band Opacity, Contrast and Right-Margin Fixes
+total++;
+if (runTest('Chart displays all 5 bands with high contrast and eliminates right dead space', () => {
+  const chartPath = path.join(__dirname, '..', 'src', 'components', 'ISPUTrendChart.vue');
+  const chartContent = fs.readFileSync(chartPath, 'utf8');
+  assert(chartContent.includes('padRight: 20'), 'Chart must eliminate right dead space with padRight: 20');
+  assert(chartContent.includes('isAdaptiveScale: false'), 'Chart must default to fixed scale (maxY: 350+) to show all 5 bands');
+  assert(chartContent.includes('stop-opacity="0.30"'), 'Chart must have prominent band gradient opacity for dark mode visibility');
+})) passed++;
+
 console.log(`\n========================================`);
 console.log(`RESULTS: ${passed}/${total} TESTS PASSED (100%)`);
 console.log(`========================================\n`);
@@ -279,3 +306,4 @@ console.log(`========================================\n`);
 if (passed !== total) {
   process.exit(1);
 }
+

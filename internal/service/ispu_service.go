@@ -61,6 +61,17 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 	if periodEnd.IsZero() {
 		periodEnd = time.Now().In(loc)
 	}
+
+	// Align periodEnd with the latest completed aggregation interval for this station
+	var latestBucketTime time.Time
+	_ = s.db.WithContext(ctx).Model(&model.AggregationResult{}).
+		Where("device_id = ?", deviceID).
+		Select("MAX(period_end)").
+		Scan(&latestBucketTime).Error
+
+	if !latestBucketTime.IsZero() && (targetEnd.IsZero() || time.Since(targetEnd) < 5*time.Minute) {
+		periodEnd = latestBucketTime.In(loc)
+	}
 	periodStart := periodEnd.Add(-24 * time.Hour)
 
 	// Fetch active parameter mappings for station

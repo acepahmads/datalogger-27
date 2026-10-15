@@ -92,9 +92,10 @@ type AggregationService struct {
 	engine       *aggregation.Engine
 	pollInterval time.Duration
 	stopCh       chan struct{}
-	wg           sync.WaitGroup
-	isWorkerRun  bool
-	workerMu     sync.Mutex
+	wg                sync.WaitGroup
+	isWorkerRun       bool
+	workerMu          sync.Mutex
+	onBucketCompleted func(ctx context.Context, deviceID uint, bucketEnd time.Time)
 }
 
 // NewAggregationService creates a new AggregationService
@@ -118,6 +119,11 @@ func NewAggregationService(
 // SetHub updates or sets the websocket hub
 func (s *AggregationService) SetHub(hub *websocket.Hub) {
 	s.hub = hub
+}
+
+// SetOnBucketCompleted registers a callback triggered whenever an aggregation bucket finishes calculation
+func (s *AggregationService) SetOnBucketCompleted(fn func(ctx context.Context, deviceID uint, bucketEnd time.Time)) {
+	s.onBucketCompleted = fn
 }
 
 // StartWorker initiates the background aggregation scheduler and recovery worker
@@ -444,6 +450,10 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 
 	_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, time.Now().UTC())
 
+	if s.onBucketCompleted != nil {
+		go s.onBucketCompleted(context.Background(), def.DeviceID, bucket.PeriodEnd)
+	}
+
 	return result, nil
 }
 
@@ -497,6 +507,9 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 
 	if !lastProcessedEnd.IsZero() {
 		_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, lastProcessedEnd)
+		if s.onBucketCompleted != nil {
+			go s.onBucketCompleted(context.Background(), def.DeviceID, lastProcessedEnd)
+		}
 	}
 
 	// Real-Time Active (In-Progress) Bucket Evaluation:

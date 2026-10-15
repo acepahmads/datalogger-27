@@ -394,18 +394,25 @@
             <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#20354B]">
               <tr>
                 <th class="py-2 px-3">Period End</th>
-                <th class="py-2 px-3">ISPU</th>
-                <th class="py-2 px-3">Category</th>
+                <th class="py-2 px-3" :class="{ 'text-cyan-400 font-bold': !isOverallMode }">
+                  {{ isOverallMode ? 'ISPU' : `ISPU (${selectedPollutant})` }}
+                </th>
+                <th class="py-2 px-3" :class="{ 'text-cyan-400 font-bold': !isOverallMode }">
+                  {{ isOverallMode ? 'Category' : `Category (${selectedPollutant})` }}
+                </th>
                 <th class="py-2 px-3">Dominant</th>
                 <th class="py-2 px-3">Coverage</th>
                 <th class="py-2 px-3">Status</th>
-                <th class="py-2 px-3">PM2.5</th>
-                <th class="py-2 px-3">PM10</th>
-                <th class="py-2 px-3">SO2</th>
-                <th class="py-2 px-3">CO</th>
-                <th class="py-2 px-3">O3</th>
-                <th class="py-2 px-3">NO2</th>
-                <th class="py-2 px-3">HC</th>
+                <th
+                  v-for="p in sevenOfficialParameters"
+                  :key="p.code"
+                  class="py-2 px-3 transition cursor-pointer"
+                  :class="selectedPollutant === p.code ? 'bg-cyan-500/20 text-cyan-400 font-extrabold' : 'hover:text-cyan-400'"
+                  @click="selectPollutant(p.code)"
+                  :title="`Klik untuk fokus pada ${p.code}`"
+                >
+                  {{ p.code }}
+                </th>
                 <th class="py-2 px-3 text-right">Action</th>
               </tr>
             </thead>
@@ -425,12 +432,14 @@
                 <td class="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
                   {{ formatDate(r.period_end) }}
                 </td>
-                <td class="py-2 px-3 font-bold text-sm tabular-nums" :style="{ color: getCategoryColor(r.overall_category) }">
-                  {{ Math.round(r.overall_ispu) }}
+                <!-- Main ISPU column (overall or selected pollutant) -->
+                <td class="py-2 px-3 font-bold text-sm tabular-nums" :style="{ color: getRowDisplayColor(r) }">
+                  {{ getRowDisplayISPU(r) }}
                 </td>
+                <!-- Main Category column (overall or selected pollutant) -->
                 <td class="py-2 px-3">
-                  <span class="px-1.5 py-0.2 rounded text-4xs font-bold border" :class="getCategoryPillClass(r.overall_category)">
-                    {{ r.overall_category }}
+                  <span class="px-1.5 py-0.2 rounded text-4xs font-bold border" :class="getCategoryPillClass(getRowDisplayCategory(r))">
+                    {{ getRowDisplayCategory(r) }}
                   </span>
                 </td>
                 <td class="py-2 px-3 font-bold text-slate-700 dark:text-slate-300">
@@ -447,14 +456,15 @@
                     {{ r.calculation_status }}
                   </span>
                 </td>
-                <!-- Pollutant Breakdown Columns -->
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'PM25') }}</td>
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'PM10') }}</td>
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'SO2') }}</td>
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'CO') }}</td>
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'O3') }}</td>
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'NO2') }}</td>
-                <td class="py-2 px-3 tabular-nums">{{ getParamVal(r, 'HC') }}</td>
+                <!-- 7 Pollutant Columns with Active Selection Highlight -->
+                <td
+                  v-for="p in sevenOfficialParameters"
+                  :key="p.code"
+                  class="py-2 px-3 tabular-nums transition"
+                  :class="selectedPollutant === p.code ? 'bg-cyan-500/15 text-cyan-400 font-black' : ''"
+                >
+                  {{ getParamVal(r, p.code) }}
+                </td>
                 <td class="py-2 px-3 text-right">
                   <button
                     @click.stop="openDetailModal(r)"
@@ -1074,6 +1084,24 @@ export default {
       if (!record || !record.parameter_results) return '-';
       const pr = record.parameter_results.find(p => p.pollutant_code === pollutantCode);
       return pr ? Math.round(pr.calculated_ispu) : '-';
+    },
+    getParamCategory(record, pollutantCode) {
+      if (!record || !record.parameter_results) return 'UNAVAIL';
+      const pr = record.parameter_results.find(p => p.pollutant_code === pollutantCode);
+      return pr ? pr.category : 'UNAVAIL';
+    },
+    getRowDisplayISPU(record) {
+      if (!record) return '-';
+      if (this.isOverallMode) return Math.round(record.overall_ispu);
+      return this.getParamVal(record, this.selectedPollutant);
+    },
+    getRowDisplayCategory(record) {
+      if (!record) return 'TIDAK_TERSEDIA';
+      if (this.isOverallMode) return record.overall_category;
+      return this.getParamCategory(record, this.selectedPollutant);
+    },
+    getRowDisplayColor(record) {
+      return this.getCategoryColor(this.getRowDisplayCategory(record));
     },
     formatDate(isoStr) {
       if (!isoStr) return '-';

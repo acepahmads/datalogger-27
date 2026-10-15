@@ -120,7 +120,8 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 		query = query.Where("overall_category = ?", filter.Category)
 	}
 	if filter.DominantPollutant != "" && filter.DominantPollutant != "ALL" {
-		query = query.Where("dominant_pollutant = ?", filter.DominantPollutant)
+		query = query.Where("dominant_pollutant = ? OR id IN (SELECT calculation_result_id FROM ispu_parameter_results WHERE pollutant_code = ?)",
+			filter.DominantPollutant, filter.DominantPollutant)
 	}
 	if filter.Status != "" && filter.Status != "ALL" {
 		query = query.Where("calculation_status = ?", filter.Status)

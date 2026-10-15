@@ -15,16 +15,16 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-1.5">
-        <!-- Scale Mode Toggle: Adaptive vs Full Scale -->
+        <!-- Scale Mode Toggle: Full Scale (0-350 All 5 Bands) vs Focus (Zoomed) -->
         <button
           @click="toggleScaleMode"
           class="px-2 py-0.5 rounded text-4xs font-mono font-semibold transition border flex items-center space-x-1"
           :class="isAdaptiveScale
-            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40 shadow-xs'
-            : 'bg-slate-100 dark:bg-[#101B2B] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-800 dark:hover:text-slate-200'"
-          :title="isAdaptiveScale ? 'Adaptive Scale: Zoomed to data range' : 'Full Scale: 0 to 350+ (All Permen LHK Bands)'"
+            ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 shadow-xs'
+            : 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40 shadow-xs'"
+          :title="isAdaptiveScale ? 'Adaptive Scale: Zoomed to data range' : 'Full Scale: 0 to 350+ (All 5 Regulatory Bands)'"
         >
-          <span>{{ isAdaptiveScale ? '⚡ Focus' : '📏 Full (0-350)' }}</span>
+          <span>{{ isAdaptiveScale ? '⚡ Focus (Zoom)' : '📏 Full (0-350 Bands)' }}</span>
         </button>
 
         <!-- Time Range Selector -->
@@ -47,7 +47,7 @@
     <!-- Chart Canvas Container -->
     <div
       ref="chartContainer"
-      class="relative w-full h-52 sm:h-64 bg-slate-50 dark:bg-[#070D18] rounded-xl border border-slate-200/90 dark:border-[#1E293B] overflow-hidden select-none shadow-inner"
+      class="relative w-full h-56 sm:h-68 bg-slate-50 dark:bg-[#070D18] rounded-xl border border-slate-200/90 dark:border-[#1E293B] overflow-hidden select-none shadow-inner"
       @mousemove="handleMouseMove"
       @mouseleave="hoveredPoint = null"
     >
@@ -74,41 +74,50 @@
         <defs>
           <!-- Gradient for Active Trend Area Fill -->
           <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="activeCurveColor" stop-opacity="0.32" />
-            <stop offset="50%" :stop-color="activeCurveColor" stop-opacity="0.12" />
+            <stop offset="0%" :stop-color="activeCurveColor" stop-opacity="0.35" />
+            <stop offset="60%" :stop-color="activeCurveColor" stop-opacity="0.10" />
             <stop offset="100%" :stop-color="activeCurveColor" stop-opacity="0.0" />
           </linearGradient>
 
           <!-- Neon Glow Filter -->
           <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="1" stdDeviation="2.5" :flood-color="activeCurveColor" flood-opacity="0.6" />
+            <feDropShadow dx="0" dy="1" stdDeviation="2.5" :flood-color="activeCurveColor" flood-opacity="0.65" />
           </filter>
 
-          <!-- Subtle Band Gradients -->
+          <!-- Vivid Band Gradients for all 5 Permen LHK 14/2020 Categories -->
+          <!-- 1. BAIK (0 - 50): Emerald -->
           <linearGradient id="bandBaikGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#10B981" stop-opacity="0.10" />
-            <stop offset="100%" stop-color="#10B981" stop-opacity="0.03" />
+            <stop offset="0%" stop-color="#10B981" stop-opacity="0.20" />
+            <stop offset="100%" stop-color="#10B981" stop-opacity="0.07" />
           </linearGradient>
+
+          <!-- 2. SEDANG (51 - 100): Electric Cyan / Sky Blue -->
           <linearGradient id="bandSedangGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.10" />
-            <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0.03" />
+            <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.20" />
+            <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0.07" />
           </linearGradient>
+
+          <!-- 3. TIDAK SEHAT (101 - 200): Luminous Warm Amber -->
           <linearGradient id="bandTidakSehatGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.04" />
+            <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.22" />
+            <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.08" />
           </linearGradient>
+
+          <!-- 4. SANGAT TIDAK SEHAT (201 - 300): Vivid Crimson Coral -->
           <linearGradient id="bandSangatTidakSehatGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#F43F5E" stop-opacity="0.14" />
-            <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.04" />
+            <stop offset="0%" stop-color="#F43F5E" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.09" />
           </linearGradient>
+
+          <!-- 5. BERBAHAYA (> 300): Deep Neon Violet Purple -->
           <linearGradient id="bandBerbahayaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.20" />
-            <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.06" />
+            <stop offset="0%" stop-color="#A855F7" stop-opacity="0.30" />
+            <stop offset="100%" stop-color="#A855F7" stop-opacity="0.12" />
           </linearGradient>
         </defs>
 
         <!-- Category Regulatory Background Bands (Permen LHK No. 14/2020 Lampiran II) -->
-        <!-- Berbahaya (>300) -->
+        <!-- Zone 5: Berbahaya (>300) -->
         <rect
           v-if="maxY > 300"
           :x="padLeft"
@@ -117,7 +126,7 @@
           :height="Math.max(0, getY(300) - padTop)"
           fill="url(#bandBerbahayaGrad)"
         />
-        <!-- Sangat Tidak Sehat (201 - 300) -->
+        <!-- Zone 4: Sangat Tidak Sehat (201 - 300) -->
         <rect
           v-if="maxY > 200"
           :x="padLeft"
@@ -126,7 +135,7 @@
           :height="Math.max(0, getY(200) - Math.max(padTop, getY(300)))"
           fill="url(#bandSangatTidakSehatGrad)"
         />
-        <!-- Tidak Sehat (101 - 200) -->
+        <!-- Zone 3: Tidak Sehat (101 - 200) -->
         <rect
           v-if="maxY > 100"
           :x="padLeft"
@@ -135,7 +144,7 @@
           :height="Math.max(0, getY(100) - Math.max(padTop, getY(200)))"
           fill="url(#bandTidakSehatGrad)"
         />
-        <!-- Sedang (51 - 100) -->
+        <!-- Zone 2: Sedang (51 - 100) -->
         <rect
           v-if="maxY > 50"
           :x="padLeft"
@@ -144,7 +153,7 @@
           :height="Math.max(0, getY(50) - Math.max(padTop, getY(100)))"
           fill="url(#bandSedangGrad)"
         />
-        <!-- Baik (0 - 50) -->
+        <!-- Zone 1: Baik (0 - 50) -->
         <rect
           :x="padLeft"
           :y="Math.max(padTop, getY(50))"
@@ -153,39 +162,132 @@
           fill="url(#bandBaikGrad)"
         />
 
-        <!-- Category Threshold Boundary Lines (Dashed) -->
-        <g stroke-dasharray="3,3" stroke-width="0.8" class="opacity-45">
+        <!-- Category Threshold Boundary Lines (Dashed, High-Visibility) -->
+        <g stroke-dasharray="4,4" stroke-width="1.2" class="opacity-70">
           <line v-if="getY(50) >= padTop" :x1="padLeft" :y1="getY(50)" :x2="padLeft + plotWidth" :y2="getY(50)" stroke="#10B981" />
           <line v-if="getY(100) >= padTop" :x1="padLeft" :y1="getY(100)" :x2="padLeft + plotWidth" :y2="getY(100)" stroke="#0EA5E9" />
           <line v-if="getY(200) >= padTop" :x1="padLeft" :y1="getY(200)" :x2="padLeft + plotWidth" :y2="getY(200)" stroke="#F59E0B" />
           <line v-if="getY(300) >= padTop" :x1="padLeft" :y1="getY(300)" :x2="padLeft + plotWidth" :y2="getY(300)" stroke="#F43F5E" />
         </g>
 
-        <!-- Right Side Regulatory Band Labels -->
-        <g class="text-[9px] font-mono font-bold select-none" text-anchor="end">
-          <text v-if="getY(25) <= chartHeight - padBottom" :x="padLeft + plotWidth - 4" :y="getY(25) + 3" fill="#10B981" class="opacity-80">
-            BAIK (0-50)
-          </text>
-          <text v-if="getY(75) >= padTop && getY(75) <= chartHeight - padBottom" :x="padLeft + plotWidth - 4" :y="getY(75) + 3" fill="#0EA5E9" class="opacity-80">
-            SEDANG (51-100)
-          </text>
-          <text v-if="getY(150) >= padTop && getY(150) <= chartHeight - padBottom" :x="padLeft + plotWidth - 4" :y="getY(150) + 3" fill="#F59E0B" class="opacity-80">
-            TIDAK SEHAT (101-200)
-          </text>
-          <text v-if="maxY > 200 && getY(250) >= padTop" :x="padLeft + plotWidth - 4" :y="getY(250) + 3" fill="#F43F5E" class="opacity-80">
-            SANGAT TIDAK SEHAT (201-300)
-          </text>
-          <text v-if="maxY > 300 && padTop + 14 < getY(300)" :x="padLeft + plotWidth - 4" :y="padTop + 12" fill="#8B5CF6" class="opacity-80">
-            BERBAHAYA (&gt;300)
-          </text>
+        <!-- Right Side Floating Regulatory Band Badges (High Contrast in Night Mode) -->
+        <g class="text-[9px] font-mono font-extrabold select-none" text-anchor="end">
+          <!-- BERBAHAYA (>300) -->
+          <g v-if="maxY > 300">
+            <rect
+              :x="padLeft + plotWidth - 116"
+              :y="Math.max(padTop + 2, getY(300) - 20)"
+              width="114"
+              height="16"
+              rx="4"
+              fill="#0B1422"
+              fill-opacity="0.9"
+              stroke="#A855F7"
+              stroke-width="1"
+            />
+            <text
+              :x="padLeft + plotWidth - 6"
+              :y="Math.max(padTop + 2, getY(300) - 20) + 11.5"
+              fill="#D8B4FE"
+            >
+              BERBAHAYA (&gt;300)
+            </text>
+          </g>
+
+          <!-- SANGAT TIDAK SEHAT (201-300) -->
+          <g v-if="maxY > 200">
+            <rect
+              :x="padLeft + plotWidth - 162"
+              :y="getY(250) - 8"
+              width="160"
+              height="16"
+              rx="4"
+              fill="#0B1422"
+              fill-opacity="0.9"
+              stroke="#F43F5E"
+              stroke-width="1"
+            />
+            <text
+              :x="padLeft + plotWidth - 6"
+              :y="getY(250) + 3.5"
+              fill="#FDA4AF"
+            >
+              SANGAT TIDAK SEHAT (201-300)
+            </text>
+          </g>
+
+          <!-- TIDAK SEHAT (101-200) -->
+          <g v-if="maxY > 100">
+            <rect
+              :x="padLeft + plotWidth - 128"
+              :y="getY(150) - 8"
+              width="126"
+              height="16"
+              rx="4"
+              fill="#0B1422"
+              fill-opacity="0.9"
+              stroke="#F59E0B"
+              stroke-width="1"
+            />
+            <text
+              :x="padLeft + plotWidth - 6"
+              :y="getY(150) + 3.5"
+              fill="#FDE047"
+            >
+              TIDAK SEHAT (101-200)
+            </text>
+          </g>
+
+          <!-- SEDANG (51-100) -->
+          <g v-if="maxY > 50">
+            <rect
+              :x="padLeft + plotWidth - 98"
+              :y="getY(75) - 8"
+              width="96"
+              height="16"
+              rx="4"
+              fill="#0B1422"
+              fill-opacity="0.9"
+              stroke="#0EA5E9"
+              stroke-width="1"
+            />
+            <text
+              :x="padLeft + plotWidth - 6"
+              :y="getY(75) + 3.5"
+              fill="#7DD3FC"
+            >
+              SEDANG (51-100)
+            </text>
+          </g>
+
+          <!-- BAIK (0-50) -->
+          <g>
+            <rect
+              :x="padLeft + plotWidth - 76"
+              :y="getY(25) - 8"
+              width="74"
+              height="16"
+              rx="4"
+              fill="#0B1422"
+              fill-opacity="0.9"
+              stroke="#10B981"
+              stroke-width="1"
+            />
+            <text
+              :x="padLeft + plotWidth - 6"
+              :y="getY(25) + 3.5"
+              fill="#6EE7B7"
+            >
+              BAIK (0-50)
+            </text>
+          </g>
         </g>
 
-        <!-- Left Y-Axis Numerical Scale Labels -->
-        <g class="text-[9px] font-mono select-none text-slate-400 dark:text-slate-500" text-anchor="end">
+        <!-- Left Y-Axis Numerical Scale Labels (Crisp Bright Text in Night Mode) -->
+        <g class="text-[9px] font-mono font-bold select-none" text-anchor="end" fill="#CBD5E1">
           <text :x="padLeft - 6" :y="getY(0) + 3">0</text>
           <text v-if="getY(50) >= padTop" :x="padLeft - 6" :y="getY(50) + 3">50</text>
           <text v-if="getY(100) >= padTop" :x="padLeft - 6" :y="getY(100) + 3">100</text>
-          <text v-if="getY(150) >= padTop && isAdaptiveScale && maxY <= 200" :x="padLeft - 6" :y="getY(150) + 3">150</text>
           <text v-if="getY(200) >= padTop" :x="padLeft - 6" :y="getY(200) + 3">200</text>
           <text v-if="getY(300) >= padTop" :x="padLeft - 6" :y="getY(300) + 3">300</text>
           <text v-if="maxY > 300" :x="padLeft - 6" :y="padTop + 6">{{ maxY }}</text>
@@ -218,7 +320,7 @@
             :cy="p.y"
             r="8"
             :fill="p.color"
-            class="animate-ping opacity-30"
+            class="animate-ping opacity-35"
           />
           <!-- Core Data Dot -->
           <circle
@@ -315,18 +417,19 @@ export default {
   data() {
     return {
       currentRange: this.initialRange,
-      isAdaptiveScale: true,
+      // Default to Full Regulatory Scale (0-350) so all 5 categories (Baik to Berbahaya) are visible
+      isAdaptiveScale: false,
       rangeOptions: [
         { label: '24H', value: '24h' },
         { label: '7D', value: '7d' },
         { label: '30D', value: '30d' }
       ],
       chartWidth: 700,
-      chartHeight: 240,
+      chartHeight: 250,
       padTop: 18,
       padBottom: 22,
       padLeft: 32,
-      padRight: 110,
+      padRight: 20, // Reduced from 110 to 20 so data curve flows all the way to the right edge!
       hoveredPoint: null,
       resizeObserver: null
     };
@@ -361,21 +464,21 @@ export default {
       return last.color || '#06B6D4';
     },
     maxY() {
-      if (!this.records || this.records.length === 0) return 320;
+      if (!this.records || this.records.length === 0) return 350;
       let maxVal = 0;
       for (const p of this.extractedRawPoints) {
         if (p.value > maxVal) maxVal = p.value;
       }
 
       if (!this.isAdaptiveScale) {
-        return Math.max(350, Math.ceil((maxVal + 20) / 50) * 50);
+        // Full Scale: Always show all 5 bands (0 to 350+)
+        return Math.max(350, Math.ceil((maxVal + 25) / 50) * 50);
       }
 
-      // Adaptive Scale: Give breathing room based on actual values
+      // Adaptive Scale: Focus on data range with padding
       if (maxVal <= 80) return 120;
       if (maxVal <= 130) return 160;
       if (maxVal <= 180) return 220;
-      if (maxVal <= 270) return 310;
       return Math.max(350, Math.ceil((maxVal + 25) / 50) * 50);
     },
     extractedRawPoints() {
@@ -499,7 +602,7 @@ export default {
         case 'SEDANG': return '#0EA5E9';
         case 'TIDAK_SEHAT': return '#F59E0B';
         case 'SANGAT_TIDAK_SEHAT': return '#F43F5E';
-        case 'BERBAHAYA': return '#8B5CF6';
+        case 'BERBAHAYA': return '#A855F7';
         default: return '#64748B';
       }
     },

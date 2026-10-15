@@ -214,26 +214,11 @@ func main() {
 			}
 		}
 	}()
-
-	// Real-time periodic background ISPU calculation (every 1 minute for responsive updates)
-	ispuTicker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for range ispuTicker.C {
-			ctx := context.Background()
-			mappings, err := ispuRepo.GetAllActiveMappings(ctx)
-			if err != nil || len(mappings) == 0 {
-				continue
-			}
-			processedDevices := make(map[uint]bool)
-			for _, m := range mappings {
-				if !processedDevices[m.DeviceID] {
-					processedDevices[m.DeviceID] = true
-					_, _ = ispuService.CalculateStationWindow(ctx, m.DeviceID, time.Now())
-				}
-			}
-		}
-	}()
-	defer ispuTicker.Stop()
+	// Automatically trigger ISPU calculation whenever an aggregation bucket finishes (aligned with aggregation setup)
+	aggService.SetOnBucketCompleted(func(ctx context.Context, deviceID uint, bucketEnd time.Time) {
+		logger.Info("Automatic ISPU calculation triggered for station %d aligned with aggregation bucket %v", deviceID, bucketEnd)
+		_, _ = ispuService.CalculateStationWindow(ctx, deviceID, bucketEnd)
+	})
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
