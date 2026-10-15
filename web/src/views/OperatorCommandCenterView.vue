@@ -100,12 +100,12 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
       <!-- 1. Device & Comm Status -->
       <div
-        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[72px] sm:h-[76px]"
         :class="summaryStats.offlineCount > 0
           ? (isAlarmPulseActive
               ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
-              : 'border-rose-500/70 transition-all duration-300')
-          : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
+              : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
+          : 'border-[#334155] dark:border-[#20354B] hover:border-cyan-500/50'"
         :title="'Device Fleet: ' + summaryStats.onlineCount + '/' + summaryStats.totalDevices + ' Online · Latency: ' + (systemStatus.avg_latency_ms || 1.2) + 'ms · Success: ' + ((systemStatus.success_rate || 99.8).toFixed(1)) + '%'"
       >
         <!-- Line 1: Header (icon + compact title + optional state badge) -->
@@ -149,12 +149,12 @@
 
       <!-- 2. Active Alarms -->
       <div
-        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[72px] sm:h-[76px]"
         :class="activeCriticalCount > 0
-          ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500/70 transition-all duration-300')
+          ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
           : activeAlarmsList.length > 0
-            ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500/70 transition-all duration-300')
-            : 'border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
+            ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500 dark:border-amber-500/70 transition-all duration-300')
+            : 'border-[#334155] dark:border-[#20354B] hover:border-cyan-500/50'"
         @click="$router.push('/alarm/active')"
         :title="highestPriorityAlarm ? ('Top Incident: ' + highestPriorityAlarm.alarm_code + ' - ' + highestPriorityAlarm.message) : 'All Parameters Within Normal Operating Limits'"
       >
@@ -202,7 +202,7 @@
 
       <!-- 3. Latest Telemetry -->
       <div
-        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
         :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
       >
         <!-- Line 1: Header (icon + compact title + status badge) -->
@@ -244,7 +244,7 @@
 
       <!-- 4. System Monitor -->
       <div
-        class="scada-panel px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
         :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
       >
         <!-- Line 1: Header (icon + compact title + status badge) -->
@@ -1967,6 +1967,8 @@
           </div>
         </div>
       </div>
+    </div>
+
     <!-- Category Management Modal -->
     <CategoryManagementModal
       :is-open="isCategoryModalOpen"
@@ -4436,4 +4438,9 @@ export default {
 }
 
 /* Event-driven Synchronized SCADA Annunciator Flashing is handled via CSS utility classes on scada-alarm-pulse */
+
+/* Primary Operational Status Cards: Dark Neutral Border in Light Mode */
+html:not(.dark) .primary-status-card:not([class*="border-rose"]):not([class*="border-amber"]) {
+  border-color: #334155;
+}
 </style>

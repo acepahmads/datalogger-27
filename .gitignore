@@ -20,6 +20,7 @@ web/.vite/
 # Application runtime data & logs
 data/
 logs/
+scratch/
 *.db
 *.db-wal
 *.db-shm
