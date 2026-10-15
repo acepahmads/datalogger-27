@@ -1,213 +1,300 @@
 <template>
-  <div class="relative w-full flex flex-col space-y-2">
-    <!-- Chart Header & Time Range Controls -->
+  <div class="relative w-full flex flex-col space-y-2.5">
+    <!-- Chart Header & Controls -->
     <div class="flex flex-wrap items-center justify-between gap-2 text-3xs font-mono">
       <div class="flex items-center space-x-2">
-        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-        <span class="font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-          {{ title || 'HISTORICAL ISPU TREND' }}
-        </span>
-        <span class="text-slate-400 dark:text-slate-500">
-          (Permen LHK No. 14/2020)
-        </span>
+        <span class="w-2.5 h-2.5 rounded-full" :class="pollutantDotClass"></span>
+        <div>
+          <span class="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+            {{ chartDisplayTitle }}
+          </span>
+          <span v-if="pollutantSubtitle" class="text-slate-400 dark:text-slate-500 ml-1.5 hidden sm:inline">
+            ({{ pollutantSubtitle }})
+          </span>
+        </div>
       </div>
 
-      <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <!-- Scale Mode Toggle: Adaptive vs Full Scale -->
         <button
-          v-for="r in rangeOptions"
-          :key="r.value"
-          @click="selectRange(r.value)"
-          class="px-2 py-0.5 rounded text-4xs font-mono font-semibold transition"
-          :class="currentRange === r.value
-            ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
-            : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
+          @click="toggleScaleMode"
+          class="px-2 py-0.5 rounded text-4xs font-mono font-semibold transition border flex items-center space-x-1"
+          :class="isAdaptiveScale
+            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40 shadow-xs'
+            : 'bg-slate-100 dark:bg-[#101B2B] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-800 dark:hover:text-slate-200'"
+          :title="isAdaptiveScale ? 'Adaptive Scale: Zoomed to data range' : 'Full Scale: 0 to 350+ (All Permen LHK Bands)'"
         >
-          {{ r.label }}
+          <span>{{ isAdaptiveScale ? '⚡ Focus' : '📏 Full (0-350)' }}</span>
         </button>
+
+        <!-- Time Range Selector -->
+        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+          <button
+            v-for="r in rangeOptions"
+            :key="r.value"
+            @click="selectRange(r.value)"
+            class="px-2 py-0.5 rounded text-4xs font-mono font-semibold transition"
+            :class="currentRange === r.value
+              ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
+          >
+            {{ r.label }}
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Chart Container -->
+    <!-- Chart Canvas Container -->
     <div
       ref="chartContainer"
-      class="relative w-full h-48 sm:h-56 bg-slate-50 dark:bg-[#070D18] rounded-xl border border-slate-200 dark:border-[#1E293B] overflow-hidden select-none"
+      class="relative w-full h-52 sm:h-64 bg-slate-50 dark:bg-[#070D18] rounded-xl border border-slate-200/90 dark:border-[#1E293B] overflow-hidden select-none shadow-inner"
       @mousemove="handleMouseMove"
       @mouseleave="hoveredPoint = null"
     >
       <!-- Loading State -->
-      <div v-if="loading" class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/20 backdrop-blur-xs">
-        <div class="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+      <div v-if="loading" class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/30 backdrop-blur-xs">
+        <div class="flex items-center space-x-2 text-xs font-mono text-cyan-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-cyan-500/30">
+          <div class="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Loading historical trend...</span>
+        </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="!points || points.length === 0" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-xs font-mono">
+      <div v-else-if="!points || points.length === 0" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-xs font-mono space-y-1">
         <span>No historical ISPU records available for selected range</span>
+        <span class="text-3xs text-slate-500">Historical trend will populate automatically from aggregation rollups</span>
       </div>
 
       <!-- SVG Chart -->
       <svg
         v-else
-        class="w-full h-full"
+        class="w-full h-full block"
         :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
-        preserveAspectRatio="none"
       >
         <defs>
-          <!-- Gradients for Category Bands -->
-          <linearGradient id="bandBaik" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#10B981" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#10B981" stop-opacity="0.04" />
+          <!-- Gradient for Active Trend Area Fill -->
+          <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" :stop-color="activeCurveColor" stop-opacity="0.32" />
+            <stop offset="50%" :stop-color="activeCurveColor" stop-opacity="0.12" />
+            <stop offset="100%" :stop-color="activeCurveColor" stop-opacity="0.0" />
           </linearGradient>
-          <linearGradient id="bandSedang" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.04" />
+
+          <!-- Neon Glow Filter -->
+          <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="1" stdDeviation="2.5" :flood-color="activeCurveColor" flood-opacity="0.6" />
+          </filter>
+
+          <!-- Subtle Band Gradients -->
+          <linearGradient id="bandBaikGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#10B981" stop-opacity="0.10" />
+            <stop offset="100%" stop-color="#10B981" stop-opacity="0.03" />
           </linearGradient>
-          <linearGradient id="bandTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#EAB308" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#EAB308" stop-opacity="0.04" />
+          <linearGradient id="bandSedangGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.10" />
+            <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0.03" />
           </linearGradient>
-          <linearGradient id="bandSangatTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#EF4444" stop-opacity="0.12" />
-            <stop offset="100%" stop-color="#EF4444" stop-opacity="0.04" />
+          <linearGradient id="bandTidakSehatGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.12" />
+            <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.04" />
           </linearGradient>
-          <linearGradient id="bandBerbahaya" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1E1B4B" stop-opacity="0.25" />
-            <stop offset="100%" stop-color="#1E1B4B" stop-opacity="0.08" />
+          <linearGradient id="bandSangatTidakSehatGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#F43F5E" stop-opacity="0.14" />
+            <stop offset="100%" stop-color="#F43F5E" stop-opacity="0.04" />
+          </linearGradient>
+          <linearGradient id="bandBerbahayaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.20" />
+            <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.06" />
           </linearGradient>
         </defs>
 
-        <!-- Category Background Bands (Lampiran II Permen LHK 14/2020) -->
-        <!-- 300+ : Berbahaya -->
+        <!-- Category Regulatory Background Bands (Permen LHK No. 14/2020 Lampiran II) -->
+        <!-- Berbahaya (>300) -->
         <rect
-          v-if="getY(300) > padTop"
+          v-if="maxY > 300"
           :x="padLeft"
           :y="padTop"
           :width="plotWidth"
           :height="Math.max(0, getY(300) - padTop)"
-          fill="url(#bandBerbahaya)"
+          fill="url(#bandBerbahayaGrad)"
         />
-        <!-- 200 - 300: Sangat Tidak Sehat -->
+        <!-- Sangat Tidak Sehat (201 - 300) -->
+        <rect
+          v-if="maxY > 200"
+          :x="padLeft"
+          :y="Math.max(padTop, getY(300))"
+          :width="plotWidth"
+          :height="Math.max(0, getY(200) - Math.max(padTop, getY(300)))"
+          fill="url(#bandSangatTidakSehatGrad)"
+        />
+        <!-- Tidak Sehat (101 - 200) -->
+        <rect
+          v-if="maxY > 100"
+          :x="padLeft"
+          :y="Math.max(padTop, getY(200))"
+          :width="plotWidth"
+          :height="Math.max(0, getY(100) - Math.max(padTop, getY(200)))"
+          fill="url(#bandTidakSehatGrad)"
+        />
+        <!-- Sedang (51 - 100) -->
+        <rect
+          v-if="maxY > 50"
+          :x="padLeft"
+          :y="Math.max(padTop, getY(100))"
+          :width="plotWidth"
+          :height="Math.max(0, getY(50) - Math.max(padTop, getY(100)))"
+          fill="url(#bandSedangGrad)"
+        />
+        <!-- Baik (0 - 50) -->
         <rect
           :x="padLeft"
-          :y="getY(300)"
+          :y="Math.max(padTop, getY(50))"
           :width="plotWidth"
-          :height="Math.max(0, getY(200) - getY(300))"
-          fill="url(#bandSangatTidakSehat)"
-        />
-        <!-- 100 - 200: Tidak Sehat -->
-        <rect
-          :x="padLeft"
-          :y="getY(200)"
-          :width="plotWidth"
-          :height="Math.max(0, getY(100) - getY(200))"
-          fill="url(#bandTidakSehat)"
-        />
-        <!-- 50 - 100: Sedang -->
-        <rect
-          :x="padLeft"
-          :y="getY(100)"
-          :width="plotWidth"
-          :height="Math.max(0, getY(50) - getY(100))"
-          fill="url(#bandSedang)"
-        />
-        <!-- 0 - 50: Baik -->
-        <rect
-          :x="padLeft"
-          :y="getY(50)"
-          :width="plotWidth"
-          :height="Math.max(0, getY(0) - getY(50))"
-          fill="url(#bandBaik)"
+          :height="Math.max(0, getY(0) - Math.max(padTop, getY(50)))"
+          fill="url(#bandBaikGrad)"
         />
 
-        <!-- Category Threshold Guide Lines -->
-        <g stroke-dasharray="3,3" stroke-width="0.75" class="opacity-40">
-          <line :x1="padLeft" :y1="getY(50)" :x2="padLeft + plotWidth" :y2="getY(50)" stroke="#10B981" />
-          <line :x1="padLeft" :y1="getY(100)" :x2="padLeft + plotWidth" :y2="getY(100)" stroke="#3B82F6" />
-          <line :x1="padLeft" :y1="getY(200)" :x2="padLeft + plotWidth" :y2="getY(200)" stroke="#EAB308" />
-          <line :x1="padLeft" :y1="getY(300)" :x2="padLeft + plotWidth" :y2="getY(300)" stroke="#EF4444" />
+        <!-- Category Threshold Boundary Lines (Dashed) -->
+        <g stroke-dasharray="3,3" stroke-width="0.8" class="opacity-45">
+          <line v-if="getY(50) >= padTop" :x1="padLeft" :y1="getY(50)" :x2="padLeft + plotWidth" :y2="getY(50)" stroke="#10B981" />
+          <line v-if="getY(100) >= padTop" :x1="padLeft" :y1="getY(100)" :x2="padLeft + plotWidth" :y2="getY(100)" stroke="#0EA5E9" />
+          <line v-if="getY(200) >= padTop" :x1="padLeft" :y1="getY(200)" :x2="padLeft + plotWidth" :y2="getY(200)" stroke="#F59E0B" />
+          <line v-if="getY(300) >= padTop" :x1="padLeft" :y1="getY(300)" :x2="padLeft + plotWidth" :y2="getY(300)" stroke="#F43F5E" />
         </g>
 
-        <!-- Right Y-Axis Category Labels -->
+        <!-- Right Side Regulatory Band Labels -->
         <g class="text-[9px] font-mono font-bold select-none" text-anchor="end">
-          <text :x="padLeft + plotWidth - 4" :y="getY(25) + 3" fill="#10B981" class="opacity-70">BAIK (0-50)</text>
-          <text :x="padLeft + plotWidth - 4" :y="getY(75) + 3" fill="#3B82F6" class="opacity-70">SEDANG (51-100)</text>
-          <text :x="padLeft + plotWidth - 4" :y="getY(150) + 3" fill="#EAB308" class="opacity-70">TIDAK SEHAT (101-200)</text>
-          <text :x="padLeft + plotWidth - 4" :y="getY(250) + 3" fill="#EF4444" class="opacity-70">SANGAT TIDAK SEHAT (201-300)</text>
-          <text v-if="maxY > 300" :x="padLeft + plotWidth - 4" :y="padTop + 10" fill="#A855F7" class="opacity-70">BERBAHAYA (&gt;300)</text>
+          <text v-if="getY(25) <= chartHeight - padBottom" :x="padLeft + plotWidth - 4" :y="getY(25) + 3" fill="#10B981" class="opacity-80">
+            BAIK (0-50)
+          </text>
+          <text v-if="getY(75) >= padTop && getY(75) <= chartHeight - padBottom" :x="padLeft + plotWidth - 4" :y="getY(75) + 3" fill="#0EA5E9" class="opacity-80">
+            SEDANG (51-100)
+          </text>
+          <text v-if="getY(150) >= padTop && getY(150) <= chartHeight - padBottom" :x="padLeft + plotWidth - 4" :y="getY(150) + 3" fill="#F59E0B" class="opacity-80">
+            TIDAK SEHAT (101-200)
+          </text>
+          <text v-if="maxY > 200 && getY(250) >= padTop" :x="padLeft + plotWidth - 4" :y="getY(250) + 3" fill="#F43F5E" class="opacity-80">
+            SANGAT TIDAK SEHAT (201-300)
+          </text>
+          <text v-if="maxY > 300 && padTop + 14 < getY(300)" :x="padLeft + plotWidth - 4" :y="padTop + 12" fill="#8B5CF6" class="opacity-80">
+            BERBAHAYA (&gt;300)
+          </text>
         </g>
 
-        <!-- Left Y-Axis Numerical Labels -->
+        <!-- Left Y-Axis Numerical Scale Labels -->
         <g class="text-[9px] font-mono select-none text-slate-400 dark:text-slate-500" text-anchor="end">
           <text :x="padLeft - 6" :y="getY(0) + 3">0</text>
-          <text :x="padLeft - 6" :y="getY(50) + 3">50</text>
-          <text :x="padLeft - 6" :y="getY(100) + 3">100</text>
-          <text :x="padLeft - 6" :y="getY(200) + 3">200</text>
-          <text :x="padLeft - 6" :y="getY(300) + 3">300</text>
+          <text v-if="getY(50) >= padTop" :x="padLeft - 6" :y="getY(50) + 3">50</text>
+          <text v-if="getY(100) >= padTop" :x="padLeft - 6" :y="getY(100) + 3">100</text>
+          <text v-if="getY(150) >= padTop && isAdaptiveScale && maxY <= 200" :x="padLeft - 6" :y="getY(150) + 3">150</text>
+          <text v-if="getY(200) >= padTop" :x="padLeft - 6" :y="getY(200) + 3">200</text>
+          <text v-if="getY(300) >= padTop" :x="padLeft - 6" :y="getY(300) + 3">300</text>
+          <text v-if="maxY > 300" :x="padLeft - 6" :y="padTop + 6">{{ maxY }}</text>
         </g>
 
-        <!-- Trend Line -->
+        <!-- Gradient Area Fill Under Curve -->
         <path
-          :d="trendPath"
+          v-if="areaPath"
+          :d="areaPath"
+          fill="url(#trendAreaGradient)"
+        />
+
+        <!-- Smooth Trend Path with Neon Glow -->
+        <path
+          :d="curvePath"
           fill="none"
-          stroke="#06B6D4"
+          :stroke="activeCurveColor"
           stroke-width="2.5"
           stroke-linecap="round"
           stroke-linejoin="round"
+          filter="url(#neonGlow)"
         />
 
-        <!-- Data Point Circles -->
+        <!-- Data Point Markers -->
         <g v-for="(p, idx) in points" :key="idx">
+          <!-- Active Pulsing Ripple on the Latest Data Point -->
+          <circle
+            v-if="idx === points.length - 1"
+            :cx="p.x"
+            :cy="p.y"
+            r="8"
+            :fill="p.color"
+            class="animate-ping opacity-30"
+          />
+          <!-- Core Data Dot -->
           <circle
             :cx="p.x"
             :cy="p.y"
-            r="3.5"
-            :fill="getCategoryHex(p.raw.overall_category)"
-            stroke="#0B1422"
-            stroke-width="1.5"
-            class="transition-all hover:scale-150 cursor-pointer"
+            :r="idx === points.length - 1 ? 4.5 : 3"
+            :fill="p.color"
+            stroke="#070D18"
+            :stroke-width="idx === points.length - 1 ? 2 : 1.2"
+            class="transition-all hover:scale-175 cursor-pointer"
           />
         </g>
 
-        <!-- Hover Guideline -->
-        <line
-          v-if="hoveredPoint"
-          :x1="hoveredPoint.x"
-          :y1="padTop"
-          :x2="hoveredPoint.x"
-          :y2="padTop + plotHeight"
-          stroke="#06B6D4"
-          stroke-width="1"
-          stroke-dasharray="2,2"
-          class="opacity-70"
-        />
+        <!-- Hover Guideline and Crosshair -->
+        <g v-if="hoveredPoint">
+          <line
+            :x1="hoveredPoint.x"
+            :y1="padTop"
+            :x2="hoveredPoint.x"
+            :y2="padTop + plotHeight"
+            :stroke="activeCurveColor"
+            stroke-width="1.2"
+            stroke-dasharray="2,2"
+            class="opacity-75"
+          />
+          <circle
+            :cx="hoveredPoint.x"
+            :cy="hoveredPoint.y"
+            r="6"
+            fill="none"
+            :stroke="activeCurveColor"
+            stroke-width="2"
+            class="animate-pulse"
+          />
+        </g>
       </svg>
 
-      <!-- Tooltip -->
+      <!-- Glassmorphism Floating Tooltip -->
       <div
         v-if="hoveredPoint"
-        class="absolute z-30 pointer-events-none p-2 rounded-lg bg-slate-900/95 text-white border border-cyan-500/50 shadow-xl backdrop-blur-md text-3xs font-mono transform -translate-x-1/2 -translate-y-full"
-        :style="{ left: `${hoveredPoint.clientPercentX}%`, top: `${Math.max(10, hoveredPoint.clientPercentY - 10)}%` }"
+        class="absolute z-30 pointer-events-none p-2.5 rounded-xl bg-slate-900/95 text-white border border-cyan-500/40 shadow-2xl backdrop-blur-md text-3xs font-mono transform -translate-x-1/2 -translate-y-full transition-transform duration-75"
+        :style="{
+          left: `${hoveredPoint.clientX}px`,
+          top: `${Math.max(12, hoveredPoint.clientY - 12)}px`
+        }"
       >
-        <div class="flex items-center justify-between space-x-2 border-b border-slate-700 pb-1 mb-1">
+        <div class="flex items-center justify-between space-x-3 border-b border-slate-700/80 pb-1.5 mb-1.5">
           <span class="font-bold text-cyan-400">{{ formatTimestamp(hoveredPoint.raw.period_end) }}</span>
           <span
-            class="px-1 py-0.2 rounded text-4xs font-bold"
-            :class="hoveredPoint.raw.calculation_status === 'VALID' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'"
+            class="px-1.5 py-0.2 rounded text-4xs font-bold uppercase border"
+            :class="hoveredPoint.statusClass"
           >
             {{ hoveredPoint.raw.calculation_status }}
           </span>
         </div>
+
         <div class="flex items-baseline space-x-2">
-          <span class="text-sm font-bold tabular-nums" :style="{ color: getCategoryHex(hoveredPoint.raw.overall_category) }">
-            {{ Math.round(hoveredPoint.raw.overall_ispu) }}
+          <span class="text-base font-black tabular-nums" :style="{ color: hoveredPoint.color }">
+            {{ Math.round(hoveredPoint.value) }}
           </span>
-          <span class="font-bold" :style="{ color: getCategoryHex(hoveredPoint.raw.overall_category) }">
-            {{ hoveredPoint.raw.overall_category }}
+          <span class="text-3xs font-bold uppercase tracking-wider" :style="{ color: hoveredPoint.color }">
+            {{ hoveredPoint.category }}
           </span>
         </div>
-        <div class="text-slate-300 mt-0.5">
-          <span>Dominant: <strong class="text-white">{{ hoveredPoint.raw.dominant_pollutant }}</strong></span>
-          <span class="mx-1">·</span>
-          <span>Coverage: {{ (hoveredPoint.raw.completeness_percent || 0).toFixed(1) }}%</span>
+
+        <div class="text-slate-300 mt-1 space-y-0.5">
+          <div v-if="isOverallMode">
+            <span>Dominant: <strong class="text-white">{{ hoveredPoint.raw.dominant_pollutant }}</strong></span>
+            <span class="mx-1">·</span>
+            <span>Coverage: {{ (hoveredPoint.raw.completeness_percent || 0).toFixed(1) }}%</span>
+          </div>
+          <div v-else>
+            <span>Parameter: <strong class="text-white">{{ selectedPollutant }}</strong></span>
+            <span class="mx-1">·</span>
+            <span>Conc: <strong class="text-white">{{ hoveredPoint.concentration.toFixed(1) }}</strong> {{ hoveredPoint.unit }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -221,66 +308,183 @@ export default {
     title: { type: String, default: '' },
     records: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
-    initialRange: { type: String, default: '24h' }
+    initialRange: { type: String, default: '24h' },
+    selectedPollutant: { type: String, default: 'OVERALL' },
+    pollutantName: { type: String, default: '' }
   },
   data() {
     return {
       currentRange: this.initialRange,
+      isAdaptiveScale: true,
       rangeOptions: [
         { label: '24H', value: '24h' },
         { label: '7D', value: '7d' },
         { label: '30D', value: '30d' }
       ],
-      chartWidth: 600,
-      chartHeight: 220,
-      padTop: 15,
-      padBottom: 25,
-      padLeft: 30,
-      padRight: 100,
-      hoveredPoint: null
+      chartWidth: 700,
+      chartHeight: 240,
+      padTop: 18,
+      padBottom: 22,
+      padLeft: 32,
+      padRight: 110,
+      hoveredPoint: null,
+      resizeObserver: null
     };
   },
   computed: {
+    isOverallMode() {
+      return !this.selectedPollutant || this.selectedPollutant === 'OVERALL';
+    },
+    chartDisplayTitle() {
+      if (this.isOverallMode) {
+        return this.title || 'HISTORICAL ISPU TREND & REGULATORY BANDS';
+      }
+      return `HISTORICAL ISPU TREND — ${this.selectedPollutant}`;
+    },
+    pollutantSubtitle() {
+      if (this.isOverallMode) return 'Permen LHK No. 14/2020';
+      return this.pollutantName || 'Official Pollutant Trend';
+    },
+    pollutantDotClass() {
+      if (this.isOverallMode) return 'bg-cyan-400';
+      return 'bg-amber-400';
+    },
     plotWidth() {
-      return this.chartWidth - this.padLeft - this.padRight;
+      return Math.max(100, this.chartWidth - this.padLeft - this.padRight);
     },
     plotHeight() {
-      return this.chartHeight - this.padTop - this.padBottom;
+      return Math.max(80, this.chartHeight - this.padTop - this.padBottom);
+    },
+    activeCurveColor() {
+      if (this.points.length === 0) return '#06B6D4';
+      const last = this.points[this.points.length - 1];
+      return last.color || '#06B6D4';
     },
     maxY() {
       if (!this.records || this.records.length === 0) return 320;
       let maxVal = 0;
-      for (const r of this.records) {
-        if (r.overall_ispu > maxVal) maxVal = r.overall_ispu;
+      for (const p of this.extractedRawPoints) {
+        if (p.value > maxVal) maxVal = p.value;
       }
-      return Math.max(320, Math.ceil(maxVal / 50) * 50);
+
+      if (!this.isAdaptiveScale) {
+        return Math.max(350, Math.ceil((maxVal + 20) / 50) * 50);
+      }
+
+      // Adaptive Scale: Give breathing room based on actual values
+      if (maxVal <= 80) return 120;
+      if (maxVal <= 130) return 160;
+      if (maxVal <= 180) return 220;
+      if (maxVal <= 270) return 310;
+      return Math.max(350, Math.ceil((maxVal + 25) / 50) * 50);
     },
-    points() {
+    extractedRawPoints() {
       if (!this.records || this.records.length === 0) return [];
-      const n = this.records.length;
-      return this.records.map((r, i) => {
-        const x = n === 1 ? this.padLeft + this.plotWidth / 2 : this.padLeft + (i / (n - 1)) * this.plotWidth;
-        const y = this.getY(r.overall_ispu);
+      return this.records.map(r => {
+        if (this.isOverallMode) {
+          return {
+            raw: r,
+            value: Number(r.overall_ispu || 0),
+            category: r.overall_category || 'TIDAK_TERSEDIA',
+            concentration: 0,
+            unit: 'µg/m³'
+          };
+        }
+        // Extract specific pollutant breakdown
+        const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+        if (pr) {
+          return {
+            raw: r,
+            value: Number(pr.calculated_ispu || 0),
+            category: pr.category || 'TIDAK_TERSEDIA',
+            concentration: Number(pr.normalized_concentration || 0),
+            unit: pr.normalized_unit || 'µg/m³'
+          };
+        }
         return {
-          x,
-          y,
           raw: r,
-          percentX: (x / this.chartWidth) * 100,
-          percentY: (y / this.chartHeight) * 100
+          value: 0,
+          category: 'TIDAK_TERSEDIA',
+          concentration: 0,
+          unit: 'µg/m³'
         };
       });
     },
-    trendPath() {
+    points() {
+      const raw = this.extractedRawPoints;
+      if (!raw || raw.length === 0) return [];
+      const n = raw.length;
+
+      return raw.map((item, i) => {
+        const x = n === 1
+          ? this.padLeft + this.plotWidth / 2
+          : this.padLeft + (i / (n - 1)) * this.plotWidth;
+        const y = this.getY(item.value);
+        const color = this.getCategoryHex(item.category);
+        const statusClass = item.raw.calculation_status === 'VALID'
+          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+          : 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+
+        return {
+          x,
+          y,
+          value: item.value,
+          category: item.category,
+          concentration: item.concentration,
+          unit: item.unit,
+          color,
+          statusClass,
+          raw: item.raw
+        };
+      });
+    },
+    curvePath() {
       if (this.points.length === 0) return '';
       if (this.points.length === 1) {
         return `M ${this.padLeft} ${this.points[0].y} L ${this.padLeft + this.plotWidth} ${this.points[0].y}`;
       }
-      return this.points.reduce((acc, p, i) => {
-        return i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
-      }, '');
+      return this.generateSmoothPath(this.points);
+    },
+    areaPath() {
+      if (this.points.length === 0) return '';
+      const basePath = this.curvePath;
+      const lastX = this.points[this.points.length - 1].x;
+      const firstX = this.points[0].x;
+      const bottomY = this.padTop + this.plotHeight;
+      return `${basePath} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
     }
   },
+  mounted() {
+    this.updateDimensions();
+    if (window.ResizeObserver && this.$refs.chartContainer) {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.updateDimensions();
+      });
+      this.resizeObserver.observe(this.$refs.chartContainer);
+    }
+    window.addEventListener('resize', this.updateDimensions);
+  },
+  beforeDestroy() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+    window.removeEventListener('resize', this.updateDimensions);
+  },
   methods: {
+    updateDimensions() {
+      if (this.$refs.chartContainer) {
+        const rect = this.$refs.chartContainer.getBoundingClientRect();
+        if (rect.width > 0) {
+          this.chartWidth = Math.round(rect.width);
+        }
+        if (rect.height > 0) {
+          this.chartHeight = Math.round(rect.height);
+        }
+      }
+    },
+    toggleScaleMode() {
+      this.isAdaptiveScale = !this.isAdaptiveScale;
+    },
     selectRange(r) {
       this.currentRange = r;
       this.$emit('range-change', r);
@@ -292,37 +496,64 @@ export default {
     getCategoryHex(cat) {
       switch (cat) {
         case 'BAIK': return '#10B981';
-        case 'SEDANG': return '#3B82F6';
-        case 'TIDAK_SEHAT': return '#EAB308';
-        case 'SANGAT_TIDAK_SEHAT': return '#EF4444';
-        case 'BERBAHAYA': return '#A855F7';
+        case 'SEDANG': return '#0EA5E9';
+        case 'TIDAK_SEHAT': return '#F59E0B';
+        case 'SANGAT_TIDAK_SEHAT': return '#F43F5E';
+        case 'BERBAHAYA': return '#8B5CF6';
         default: return '#64748B';
       }
     },
     formatTimestamp(isoStr) {
       if (!isoStr) return '-';
       const d = new Date(isoStr);
-      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    },
+    generateSmoothPath(pts) {
+      if (pts.length <= 2) {
+        return pts.reduce((acc, p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`), '');
+      }
+
+      let d = `M ${pts[0].x} ${pts[0].y}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = i > 0 ? pts[i - 1] : pts[i];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = i < pts.length - 2 ? pts[i + 2] : p2;
+
+        const cp1x = p1.x + (p2.x - p0.x) * 0.18;
+        const cp1y = p1.y + (p2.y - p0.y) * 0.18;
+        const cp2x = p2.x - (p3.x - p1.x) * 0.18;
+        const cp2y = p2.y - (p3.y - p1.y) * 0.18;
+
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      }
+      return d;
     },
     handleMouseMove(e) {
       if (!this.points || this.points.length === 0) return;
       const rect = this.$refs.chartContainer.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
-      const svgX = (mouseX / rect.width) * this.chartWidth;
 
       let closest = this.points[0];
-      let minDiff = Math.abs(this.points[0].x - svgX);
+      let minDiff = Math.abs(this.points[0].x - mouseX);
+
       for (let i = 1; i < this.points.length; i++) {
-        const diff = Math.abs(this.points[i].x - svgX);
+        const diff = Math.abs(this.points[i].x - mouseX);
         if (diff < minDiff) {
           minDiff = diff;
           closest = this.points[i];
         }
       }
+
       this.hoveredPoint = {
         ...closest,
-        clientPercentX: (closest.x / this.chartWidth) * 100,
-        clientPercentY: (closest.y / this.chartHeight) * 100
+        clientX: closest.x,
+        clientY: closest.y
       };
     }
   }

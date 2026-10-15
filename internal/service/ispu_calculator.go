@@ -101,10 +101,13 @@ type ParameterCalculationOutput struct {
 	CompletenessPercent     float64             `json:"completeness_percent"`
 	ValidSamples            int                 `json:"valid_samples"`
 	ExpectedSamples         int                 `json:"expected_samples"`
-	Formula                 string              `json:"formula"`
-	IsEligible              bool                `json:"is_eligible"`
-	AboveRange              bool                `json:"above_range"`
-	ErrorMessage            string              `json:"error_message,omitempty"`
+	Formula                  string              `json:"formula"`
+	IsEligible               bool                `json:"is_eligible"`
+	AboveRange               bool                `json:"above_range"`
+	AggregationConcentration float64             `json:"aggregation_concentration"`
+	AggregationISPU          float64             `json:"aggregation_ispu"`
+	AggregationCategory      model.ISPUCategory  `json:"aggregation_category"`
+	ErrorMessage             string              `json:"error_message,omitempty"`
 }
 
 // OverallISPUOutput holds the synthesized station result and dominant pollutant.
@@ -116,6 +119,9 @@ type OverallISPUOutput struct {
 	TiedPollutants      []model.ISPUParameter        `json:"tied_pollutants,omitempty"`
 	CalculationStatus   model.ISPUStatus             `json:"calculation_status"`
 	CompletenessPercent float64                      `json:"completeness_percent"`
+	AggregationISPU     float64                      `json:"aggregation_ispu"`
+	AggregationCategory model.ISPUCategory           `json:"aggregation_category"`
+	AggregationDominant model.ISPUParameter          `json:"aggregation_dominant,omitempty"`
 	Parameters          []ParameterCalculationOutput `json:"parameters"`
 	Notes               string                       `json:"notes,omitempty"`
 }

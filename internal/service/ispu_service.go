@@ -81,6 +81,7 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 	}
 
 	var paramInputs []ParameterCalculationInput
+	var paramOutputs []ParameterCalculationOutput
 
 	for _, m := range activeMappings {
 		input := ParameterCalculationInput{
@@ -93,62 +94,126 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			MinCompleteness:  m.MinCompleteness,
 		}
 
-		// Calculate 24h hourly average concentration and temporal coverage
-		type HourStat struct {
-			HourIndex int
-			AvgVal    float64
-			Cnt       int
-		}
-
-		// Query RawData within the 24-hour window excluding BAD quality
-		var rawStats []struct {
+		// 1. Query AggregationResult (per 2-min / configured interval rollups) within the 24-hour window excluding BAD quality
+		var aggStats []struct {
 			Val float64
 			Rec time.Time
 		}
-		s.db.WithContext(ctx).Model(&model.RawData{}).
-			Select("processed_value AS val, received_at AS rec").
-			Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
+			Select("COALESCE(avg_value, value) AS val, period_end AS rec").
+			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
 				deviceID, m.ParameterID, periodStart.UTC(), periodEnd.UTC(), model.QualityBad).
-			Find(&rawStats)
+			Order("period_end ASC").
+			Find(&aggStats)
 
-		if len(rawStats) > 0 {
-			// Bucket into 24 1-hour slots to evaluate temporal coverage
+		var latestAggVal float64
+		hasLatestAgg := false
+
+		if len(aggStats) > 0 {
+			// Bucket into 24 1-hour slots to evaluate temporal coverage (Permen LHK 14/2020: min 75% hours)
 			hoursWithData := make(map[int]bool)
 			var totalSum float64
 
-			for _, rs := range rawStats {
-				hoursDiff := int(periodEnd.Sub(rs.Rec).Hours())
+			for _, as := range aggStats {
+				hoursDiff := int(periodEnd.Sub(as.Rec).Hours())
 				if hoursDiff >= 0 && hoursDiff < 24 {
 					hoursWithData[hoursDiff] = true
-					totalSum += rs.Val
+					totalSum += as.Val
 				}
 			}
 
 			input.ValidSamples = len(hoursWithData)
-			if len(rawStats) > 0 {
-				input.RawConcentration = totalSum / float64(len(rawStats))
-			}
+			input.RawConcentration = totalSum / float64(len(aggStats))
+
+			// The latest bucket represents the instantaneous aggregation value (e.g. latest 2-minute rollup)
+			latestAggVal = aggStats[len(aggStats)-1].Val
+			hasLatestAgg = true
 		} else {
-			input.ValidSamples = 0
-			input.RawConcentration = 0
+			// Fallback to RawData if no aggregation results exist yet (e.g. freshly started station or unit tests)
+			var rawStats []struct {
+				Val float64
+				Rec time.Time
+			}
+			s.db.WithContext(ctx).Model(&model.RawData{}).
+				Select("processed_value AS val, received_at AS rec").
+				Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
+					deviceID, m.ParameterID, periodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+				Order("received_at ASC").
+				Find(&rawStats)
+
+			if len(rawStats) > 0 {
+				hoursWithData := make(map[int]bool)
+				var totalSum float64
+
+				for _, rs := range rawStats {
+					hoursDiff := int(periodEnd.Sub(rs.Rec).Hours())
+					if hoursDiff >= 0 && hoursDiff < 24 {
+						hoursWithData[hoursDiff] = true
+						totalSum += rs.Val
+					}
+				}
+
+				input.ValidSamples = len(hoursWithData)
+				input.RawConcentration = totalSum / float64(len(rawStats))
+				latestAggVal = rawStats[len(rawStats)-1].Val
+				hasLatestAgg = true
+			} else {
+				input.ValidSamples = 0
+				input.RawConcentration = 0
+			}
 		}
 
 		paramInputs = append(paramInputs, input)
-	}
 
-	// Calculate per-parameter ISPU
-	var paramOutputs []ParameterCalculationOutput
-	for _, in := range paramInputs {
-		out := s.calculator.CalculateParameter(in)
+		// Calculate 24h regulatory ISPU
+		out := s.calculator.CalculateParameter(input)
+
+		// Calculate instantaneous per-aggregation ISPU for this parameter
+		if hasLatestAgg {
+			normAgg, _, _ := s.calculator.NormalizeConcentration(latestAggVal, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
+			aggOut := s.calculator.CalculateParameter(ParameterCalculationInput{
+				PollutantCode:    m.PollutantCode,
+				ParameterID:      m.ParameterID,
+				SourceUnit:       m.SourceUnit,
+				RawConcentration: latestAggVal,
+				ConversionFactor: m.ConversionFactor,
+				ConversionRule:   m.ConversionRule,
+				ValidSamples:     1,
+				ExpectedSamples:  1,
+				MinCompleteness:  0,
+			})
+			out.AggregationConcentration = normAgg
+			out.AggregationISPU = aggOut.CalculatedISPU
+			out.AggregationCategory = aggOut.Category
+		} else {
+			out.AggregationCategory = model.CategoryUnavailable
+		}
+
 		paramOutputs = append(paramOutputs, out)
 	}
 
-	// Calculate overall station ISPU and dominant pollutant
+	// Calculate overall station ISPU and dominant pollutant (24-hour regulatory)
 	minComp := 75.0
 	if len(activeMappings) > 0 && activeMappings[0].MinCompleteness > 0 {
 		minComp = activeMappings[0].MinCompleteness
 	}
 	overall := s.calculator.CalculateOverall(paramOutputs, minComp)
+
+	// Determine overall station instantaneous per-aggregation ISPU (highest among pollutants)
+	var maxAggISPU float64 = -1
+	maxAggCat := model.CategoryUnavailable
+	var maxAggDominant model.ISPUParameter
+
+	for _, po := range paramOutputs {
+		if po.AggregationISPU > maxAggISPU {
+			maxAggISPU = po.AggregationISPU
+			maxAggCat = po.AggregationCategory
+			maxAggDominant = po.PollutantCode
+		}
+	}
+	if maxAggISPU < 0 {
+		maxAggISPU = 0
+	}
 
 	tiedStr := ""
 	if len(overall.TiedPollutants) > 0 {
@@ -174,27 +239,33 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		CalculationStatus:   overall.CalculationStatus,
 		Method:              "PERMEN_LHK_14_2020",
 		Timezone:            tzName,
+		AggregationISPU:     maxAggISPU,
+		AggregationCategory: maxAggCat,
+		AggregationDominant: maxAggDominant,
 		Notes:               overall.Notes,
 	}
 
 	for _, po := range paramOutputs {
 		calcRes.ParameterResults = append(calcRes.ParameterResults, model.ISPUParameterResult{
-			PollutantCode:           po.PollutantCode,
-			ParameterID:             po.ParameterID,
-			Concentration:           po.RawConcentration,
-			SourceUnit:              po.SourceUnit,
-			NormalizedConcentration: po.NormalizedConcentration,
-			NormalizedUnit:          po.NormalizedUnit,
-			CalculatedISPU:          po.CalculatedISPU,
-			Category:                po.Category,
-			Ia:                      po.Ia,
-			Ib:                      po.Ib,
-			Xa:                      po.Xa,
-			Xb:                      po.Xb,
-			CompletenessPercent:     po.CompletenessPercent,
-			ValidSamples:            po.ValidSamples,
-			TotalExpectedSamples:    po.ExpectedSamples,
-			Formula:                 po.Formula,
+			PollutantCode:            po.PollutantCode,
+			ParameterID:              po.ParameterID,
+			Concentration:            po.RawConcentration,
+			SourceUnit:               po.SourceUnit,
+			NormalizedConcentration:  po.NormalizedConcentration,
+			NormalizedUnit:           po.NormalizedUnit,
+			CalculatedISPU:           po.CalculatedISPU,
+			Category:                 po.Category,
+			AggregationConcentration: po.AggregationConcentration,
+			AggregationISPU:          po.AggregationISPU,
+			AggregationCategory:      po.AggregationCategory,
+			Ia:                       po.Ia,
+			Ib:                       po.Ib,
+			Xa:                       po.Xa,
+			Xb:                       po.Xb,
+			CompletenessPercent:      po.CompletenessPercent,
+			ValidSamples:             po.ValidSamples,
+			TotalExpectedSamples:     po.ExpectedSamples,
+			Formula:                  po.Formula,
 		})
 	}
 

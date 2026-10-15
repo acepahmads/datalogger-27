@@ -49,6 +49,30 @@
           </select>
         </div>
 
+        <!-- Mode Toggle: 24-Hour (Regulatory) vs Per Agregasi (Real-time Interval) -->
+        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
+          <button
+            @click="ispuMode = '24H'"
+            class="px-2 py-1 rounded-md transition font-bold"
+            :class="ispuMode === '24H'
+              ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
+            title="Perhitungan ISPU 24 Jam (Rata-rata Harian sesuai regulasi Permen LHK 14/2020)"
+          >
+            📅 24-Jam (Regulasi)
+          </button>
+          <button
+            @click="ispuMode = 'AGGREGATION'"
+            class="px-2 py-1 rounded-md transition font-bold"
+            :class="ispuMode === 'AGGREGATION'
+              ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
+            title="Perhitungan ISPU Per Agregasi (Interval Rollup Terkini, misal 2 Menit)"
+          >
+            ⏱️ Per Agregasi (2 Menit)
+          </button>
+        </div>
+
         <!-- Parameter Mappings Button -->
         <button
           v-if="canManageMapping"
@@ -65,7 +89,7 @@
           @click="triggerRecalculation"
           :disabled="recalculating"
           class="px-2.5 py-1.5 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-500"
-          title="Trigger on-demand 24h recalculation"
+          title="Trigger on-demand 24h recalculation from aggregation data"
         >
           <svg class="w-3 h-3" :class="{ 'animate-spin': recalculating }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -110,9 +134,19 @@
         >
           <div>
             <div class="flex items-center justify-between">
-              <span class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                LATEST STATION ISPU (24-HOUR)
-              </span>
+              <div class="flex items-center space-x-2">
+                <span class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {{ isOverallMode ? `LATEST STATION ISPU (${ispuMode === 'AGGREGATION' ? 'PER AGREGASI' : '24-HOUR'})` : `LATEST ISPU — ${selectedPollutant}` }}
+                </span>
+                <button
+                  v-if="!isOverallMode"
+                  @click="selectPollutant('OVERALL')"
+                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
+                  title="Kembali ke ISPU Stasiun (Dominan)"
+                >
+                  ← Overall
+                </button>
+              </div>
               <span
                 class="px-2 py-0.5 rounded text-4xs font-mono font-bold uppercase border"
                 :class="statusBadgeClass"
@@ -121,8 +155,13 @@
               </span>
             </div>
 
+            <!-- Pollutant Name Header if specific concentrate selected -->
+            <div v-if="!isOverallMode" class="text-2xs font-mono font-semibold text-slate-500 dark:text-slate-400 mt-1">
+              {{ selectedPollutantInfo?.name }}
+            </div>
+
             <!-- Main Metric Display -->
-            <div class="flex items-baseline space-x-3 mt-3">
+            <div class="flex items-baseline space-x-3 mt-2.5">
               <span class="text-5xl sm:text-6xl font-black font-mono tracking-tight tabular-nums" :class="categoryTextClass">
                 {{ displayISPU }}
               </span>
@@ -131,10 +170,18 @@
                   {{ ispuCategory }}
                 </div>
                 <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">
-                  Dominant: <strong class="text-slate-900 dark:text-white">{{ dominantPollutant }}</strong>
-                  <span v-if="latestData?.tied_pollutants" class="text-4xs text-amber-500 ml-1">
-                    (Tied: {{ latestData.tied_pollutants }})
-                  </span>
+                  <template v-if="isOverallMode">
+                    Dominant: <strong class="text-slate-900 dark:text-white">{{ dominantPollutant }}</strong>
+                    <span v-if="latestData?.tied_pollutants" class="text-4xs text-amber-500 ml-1">
+                      (Tied: {{ latestData.tied_pollutants }})
+                    </span>
+                  </template>
+                  <template v-else>
+                    Conc: <strong class="text-slate-900 dark:text-white">{{ activeConcentration.toFixed(1) }}</strong> µg/m³
+                    <span v-if="selectedPollutantResult?.xb !== undefined" class="text-4xs text-slate-400 ml-1">
+                      [Bp: {{ selectedPollutantResult.xb }} - {{ selectedPollutantResult.xa }}]
+                    </span>
+                  </template>
                 </div>
               </div>
             </div>
@@ -148,9 +195,9 @@
             </div>
             <div>
               <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                <span>Data Completeness (Pasal 7 ayat 3):</span>
+                <span>{{ isOverallMode ? 'Data Completeness (Pasal 7 ayat 3):' : 'Hourly Data Samples:' }}</span>
                 <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
-                  {{ completenessPercent.toFixed(1) }}% (Req: ≥ 75%)
+                  {{ isOverallMode ? `${completenessPercent.toFixed(1)}% (Req: ≥ 75%)` : `${selectedPollutantResult?.valid_samples || 0}/24h (${completenessPercent.toFixed(1)}%)` }}
                 </span>
               </div>
               <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -162,7 +209,7 @@
               </div>
             </div>
             <div class="flex items-center justify-between text-4xs text-slate-400 dark:text-slate-500 pt-1">
-              <span>Method: Permen LHK 14/2020</span>
+              <span>Data Source: Aggregation Rollups</span>
               <span>Timezone: {{ latestData?.timezone || 'Asia/Jakarta' }}</span>
             </div>
           </div>
@@ -174,42 +221,75 @@
             :records="trendRecords"
             :loading="trendLoading"
             :initial-range="trendRange"
+            :selected-pollutant="selectedPollutant"
+            :pollutant-name="selectedPollutantInfo?.name"
             title="HISTORICAL ISPU TREND & REGULATORY BANDS"
             @range-change="handleRangeChange"
           />
         </div>
       </div>
 
-      <!-- The 7 Official ISPU Pollutants Breakdown Cards -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between text-3xs font-mono">
+      <!-- Quick Concentrate Selector & 7 Official ISPU Pollutants Breakdown -->
+      <div class="space-y-2.5">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-3xs font-mono">
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
             <span class="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
               OFFICIAL 7 PARAMETERS EVALUATION BREAKDOWN
             </span>
-            <span class="text-slate-400">(Permen LHK No. 14/2020 Lampiran I & II)</span>
+            <span class="text-slate-400 hidden sm:inline">(Permen LHK No. 14/2020 Lampiran I & II)</span>
           </div>
-          <span class="text-4xs text-slate-400">
-            *Meteorological data strictly excluded from ISPU
-          </span>
+
+          <!-- Quick Selector Buttons -->
+          <div class="flex flex-wrap items-center gap-1">
+            <button
+              @click="selectPollutant('OVERALL')"
+              class="px-2 py-0.5 rounded text-4xs font-mono font-bold transition border flex items-center space-x-1"
+              :class="selectedPollutant === 'OVERALL'
+                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs ring-1 ring-cyan-400'
+                : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-white'"
+            >
+              <span>★ Overall</span>
+            </button>
+            <button
+              v-for="p in sevenOfficialParameters"
+              :key="p.code"
+              @click="selectPollutant(p.code)"
+              class="px-2 py-0.5 rounded text-4xs font-mono font-bold transition border"
+              :class="selectedPollutant === p.code
+                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs ring-1 ring-cyan-400'
+                : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-white'"
+            >
+              {{ p.code }}
+            </button>
+          </div>
         </div>
 
-        <!-- 7 Cards Grid -->
+        <!-- 7 Cards Grid (Clickable to display concentrate on large card & chart) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
           <div
             v-for="p in sevenOfficialParameters"
             :key="p.code"
-            class="p-3 rounded-xl border flex flex-col justify-between transition hover:border-cyan-500/50 shadow-xs"
+            @click="selectPollutant(p.code)"
+            class="p-3 rounded-xl border flex flex-col justify-between transition cursor-pointer select-none shadow-xs"
             :class="getParameterCardClass(p.code)"
+            :title="`Click to display ${p.code} ISPU on main card & trend chart`"
           >
             <div>
               <!-- Header: Code & Category Badge -->
               <div class="flex items-start justify-between">
                 <div>
-                  <span class="text-sm font-bold font-mono tracking-tight text-slate-900 dark:text-white">
-                    {{ p.code }}
-                  </span>
+                  <div class="flex items-center space-x-1.5">
+                    <span class="text-sm font-bold font-mono tracking-tight text-slate-900 dark:text-white">
+                      {{ p.code }}
+                    </span>
+                    <span
+                      v-if="selectedPollutant === p.code"
+                      class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500 text-slate-950 uppercase"
+                    >
+                      Active
+                    </span>
+                  </div>
                   <div class="text-[10px] text-slate-400 truncate max-w-[110px]" :title="p.name">
                     {{ p.name }}
                   </div>
@@ -218,7 +298,7 @@
                   class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase border"
                   :class="getParameterBadgeClass(p.code)"
                 >
-                  {{ getParameterResult(p.code)?.category || 'UNAVAIL' }}
+                  {{ getParameterDisplayCategory(p.code) }}
                 </span>
               </div>
 
@@ -226,12 +306,12 @@
               <div class="mt-2.5">
                 <div class="flex items-baseline space-x-1">
                   <span class="text-2xl font-black font-mono tabular-nums text-slate-900 dark:text-white">
-                    {{ Math.round(getParameterResult(p.code)?.calculated_ispu || 0) }}
+                    {{ getParameterDisplayISPU(p.code) }}
                   </span>
                   <span class="text-3xs font-mono text-slate-400">ISPU</span>
                 </div>
                 <div class="text-3xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                  Conc: <strong class="text-slate-700 dark:text-slate-200">{{ (getParameterResult(p.code)?.normalized_concentration || 0).toFixed(1) }}</strong> µg/m³
+                  Conc: <strong class="text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
                 </div>
               </div>
             </div>
@@ -242,7 +322,7 @@
                 {{ getParameterResult(p.code)?.valid_samples || 0 }}/24h
               </span>
               <button
-                @click="openFormulaModal(p.code)"
+                @click.stop="openFormulaModal(p.code)"
                 class="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
                 title="Inspect regulatory interpolation formula"
               >
@@ -610,6 +690,12 @@ export default {
       trendRange: '24h',
       recalculating: false,
 
+      // Calculation Mode: '24H' (regulatory rolling 24h) vs 'AGGREGATION' (instantaneous per 2-min rollup)
+      ispuMode: '24H',
+
+      // Selected Pollutant: 'OVERALL' or specific pollutant code ('PM25', 'PM10', etc.)
+      selectedPollutant: 'OVERALL',
+
       // Seven Official ISPU Pollutants according to Permen LHK 14/2020
       sevenOfficialParameters: [
         { code: 'PM25', name: 'Partikulat PM2.5 (24h)' },
@@ -650,24 +736,73 @@ export default {
     };
   },
   computed: {
+    isAqmsDomain() {
+      return (this.systemDomain || 'AQMS').toUpperCase() === 'AQMS';
+    },
     currentMonitoringDomain() {
       return this.systemDomain || 'AQMS';
     },
-    isAqmsDomain() {
-      return this.currentMonitoringDomain.toUpperCase() === 'AQMS';
+    isOverallMode() {
+      return !this.selectedPollutant || this.selectedPollutant === 'OVERALL';
+    },
+    selectedPollutantInfo() {
+      if (this.isOverallMode) return null;
+      return this.sevenOfficialParameters.find(p => p.code === this.selectedPollutant) || null;
+    },
+    selectedPollutantResult() {
+      if (this.isOverallMode) return null;
+      return this.getParameterResult(this.selectedPollutant);
     },
     displayISPU() {
-      if (!this.latestData || this.latestData.overall_ispu === undefined) return '-';
-      return Math.round(this.latestData.overall_ispu);
+      if (this.isOverallMode) {
+        if (!this.latestData) return '-';
+        if (this.ispuMode === 'AGGREGATION') {
+          return Math.round(this.latestData.aggregation_ispu || this.latestData.overall_ispu || 0);
+        }
+        return Math.round(this.latestData.overall_ispu || 0);
+      }
+      const pr = this.selectedPollutantResult;
+      if (!pr) return '-';
+      if (this.ispuMode === 'AGGREGATION') {
+        return Math.round(pr.aggregation_ispu || pr.calculated_ispu || 0);
+      }
+      return Math.round(pr.calculated_ispu || 0);
     },
     ispuCategory() {
-      return (this.latestData && this.latestData.overall_category) || 'TIDAK_TERSEDIA';
+      if (this.isOverallMode) {
+        if (!this.latestData) return 'TIDAK_TERSEDIA';
+        if (this.ispuMode === 'AGGREGATION') {
+          return this.latestData.aggregation_category || this.latestData.overall_category || 'TIDAK_TERSEDIA';
+        }
+        return this.latestData.overall_category || 'TIDAK_TERSEDIA';
+      }
+      const pr = this.selectedPollutantResult;
+      if (!pr) return 'TIDAK_TERSEDIA';
+      if (this.ispuMode === 'AGGREGATION') {
+        return pr.aggregation_category || pr.category || 'TIDAK_TERSEDIA';
+      }
+      return pr.category || 'TIDAK_TERSEDIA';
     },
     dominantPollutant() {
-      return (this.latestData && this.latestData.dominant_pollutant) || '-';
+      if (!this.latestData) return '-';
+      if (this.ispuMode === 'AGGREGATION') {
+        return this.latestData.aggregation_dominant || this.latestData.dominant_pollutant || '-';
+      }
+      return this.latestData.dominant_pollutant || '-';
+    },
+    activeConcentration() {
+      const pr = this.selectedPollutantResult;
+      if (!pr) return 0;
+      if (this.ispuMode === 'AGGREGATION') {
+        return pr.aggregation_concentration || pr.normalized_concentration || 0;
+      }
+      return pr.normalized_concentration || 0;
     },
     completenessPercent() {
-      return (this.latestData && this.latestData.completeness_percent) || 0;
+      if (this.isOverallMode) {
+        return (this.latestData && this.latestData.completeness_percent) || 0;
+      }
+      return (this.selectedPollutantResult && this.selectedPollutantResult.completeness_percent) || 0;
     },
     totalPages() {
       return Math.ceil(this.historyTotal / this.historyLimit);
@@ -726,6 +861,9 @@ export default {
     window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
   },
   methods: {
+    selectPollutant(code) {
+      this.selectedPollutant = code;
+    },
     async fetchDomain() {
       try {
         const res = await axios.get('/api/system/domain');
@@ -832,7 +970,7 @@ export default {
       if (data && data.device_id === this.selectedDeviceId) {
         if (this.aggTimer) clearTimeout(this.aggTimer);
         this.aggTimer = setTimeout(() => {
-          this.fetchLatest();
+          this.fetchLatestISPU();
         }, 1000);
       }
     },
@@ -860,22 +998,57 @@ export default {
       if (!this.latestData || !this.latestData.parameter_results) return null;
       return this.latestData.parameter_results.find(pr => pr.pollutant_code === pollutantCode);
     },
-    getParameterCardClass(pollutantCode) {
+    getParameterDisplayISPU(pollutantCode) {
       const res = this.getParameterResult(pollutantCode);
-      if (!res) return 'bg-slate-50 dark:bg-[#070D18] border-slate-200 dark:border-[#1E293B] opacity-60';
-      switch (res.category) {
-        case 'BAIK': return 'bg-emerald-500/5 border-emerald-500/30';
-        case 'SEDANG': return 'bg-blue-500/5 border-blue-500/30';
-        case 'TIDAK_SEHAT': return 'bg-amber-500/5 border-amber-500/30';
-        case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/5 border-rose-500/30';
-        case 'BERBAHAYA': return 'bg-purple-900/15 border-purple-500/40';
-        default: return 'bg-slate-50 dark:bg-[#070D18] border-slate-200 dark:border-[#1E293B]';
+      if (!res) return 0;
+      if (this.ispuMode === 'AGGREGATION') {
+        return Math.round(res.aggregation_ispu || res.calculated_ispu || 0);
       }
+      return Math.round(res.calculated_ispu || 0);
+    },
+    getParameterDisplayConc(pollutantCode) {
+      const res = this.getParameterResult(pollutantCode);
+      if (!res) return '0.0';
+      if (this.ispuMode === 'AGGREGATION') {
+        return (res.aggregation_concentration || res.normalized_concentration || 0).toFixed(1);
+      }
+      return (res.normalized_concentration || 0).toFixed(1);
+    },
+    getParameterDisplayCategory(pollutantCode) {
+      const res = this.getParameterResult(pollutantCode);
+      if (!res) return 'UNAVAIL';
+      if (this.ispuMode === 'AGGREGATION') {
+        return res.aggregation_category || res.category || 'UNAVAIL';
+      }
+      return res.category || 'UNAVAIL';
+    },
+    getParameterCardClass(pollutantCode) {
+      const isSelected = this.selectedPollutant === pollutantCode;
+      const res = this.getParameterResult(pollutantCode);
+      let baseClass = '';
+
+      if (!res) {
+        baseClass = 'bg-slate-50 dark:bg-[#070D18] border-slate-200 dark:border-[#1E293B] opacity-60';
+      } else {
+        const cat = this.getParameterDisplayCategory(pollutantCode);
+        switch (cat) {
+          case 'BAIK': baseClass = 'bg-emerald-500/5 border-emerald-500/30'; break;
+          case 'SEDANG': baseClass = 'bg-blue-500/5 border-blue-500/30'; break;
+          case 'TIDAK_SEHAT': baseClass = 'bg-amber-500/5 border-amber-500/30'; break;
+          case 'SANGAT_TIDAK_SEHAT': baseClass = 'bg-rose-500/5 border-rose-500/30'; break;
+          case 'BERBAHAYA': baseClass = 'bg-purple-900/15 border-purple-500/40'; break;
+          default: baseClass = 'bg-slate-50 dark:bg-[#070D18] border-slate-200 dark:border-[#1E293B]'; break;
+        }
+      }
+
+      if (isSelected) {
+        return `${baseClass} ring-2 ring-cyan-400 border-cyan-400 dark:border-cyan-400 bg-cyan-500/15 dark:bg-cyan-500/20 shadow-lg shadow-cyan-500/20 scale-[1.02]`;
+      }
+      return `${baseClass} hover:border-cyan-500/50 hover:scale-[1.01]`;
     },
     getParameterBadgeClass(pollutantCode) {
-      const res = this.getParameterResult(pollutantCode);
-      if (!res) return 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700';
-      return this.getCategoryPillClass(res.category);
+      const cat = this.getParameterDisplayCategory(pollutantCode);
+      return this.getCategoryPillClass(cat);
     },
     getCategoryPillClass(cat) {
       switch (cat) {
@@ -890,10 +1063,10 @@ export default {
     getCategoryColor(cat) {
       switch (cat) {
         case 'BAIK': return '#10B981';
-        case 'SEDANG': return '#3B82F6';
-        case 'TIDAK_SEHAT': return '#EAB308';
-        case 'SANGAT_TIDAK_SEHAT': return '#EF4444';
-        case 'BERBAHAYA': return '#A855F7';
+        case 'SEDANG': return '#0EA5E9';
+        case 'TIDAK_SEHAT': return '#F59E0B';
+        case 'SANGAT_TIDAK_SEHAT': return '#F43F5E';
+        case 'BERBAHAYA': return '#8B5CF6';
         default: return '#64748B';
       }
     },
@@ -973,7 +1146,6 @@ export default {
     exportData(type) {
       const token = localStorage.getItem('token');
       const url = `/api/ispu/export/${type}?device_id=${this.selectedDeviceId}`;
-      // Trigger download
       const a = document.createElement('a');
       a.href = url + (token ? `&token=${token}` : '');
       a.setAttribute('download', `ispu_export_${Date.now()}.${type === 'excel' ? 'csv' : 'csv'}`);

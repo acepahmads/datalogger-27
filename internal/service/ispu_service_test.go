@@ -29,6 +29,7 @@ func setupISPUTestDB(t *testing.T) (*gorm.DB, *service.ISPUService, *model.Devic
 		&model.Device{},
 		&model.Parameter{},
 		&model.RawData{},
+		&model.AggregationResult{},
 		&model.AuditTrail{},
 		&model.ISPUParameterMapping{},
 		&model.ISPUCalculationResult{},
@@ -238,6 +239,93 @@ func TestISPUService_BackfillStationHourlyTrend(t *testing.T) {
 	}
 	if len(trend) < 20 {
 		t.Errorf("Expected at least 20 trend records in 24h range, got %d", len(trend))
+	}
+}
+
+func TestISPUService_CalculateFromAggregationResults(t *testing.T) {
+	db, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+
+	var pm25Param, pm10Param model.Parameter
+	db.Where("device_id = ? AND parameter_code = 'PM25'", dev.ID).First(&pm25Param)
+	db.Where("device_id = ? AND parameter_code = 'PM10'", dev.ID).First(&pm10Param)
+
+	// Seed 20 hours of 2-minute aggregation results (10 buckets per hour for 20 hours)
+	// PM2.5 avg = 56.4 µg/m³ -> 24h ISPU ~ 101 (Tidak Sehat)
+	// PM10 avg = 40.0 µg/m³ -> 24h ISPU = 40 (Baik)
+	valPM25 := 56.4
+	valPM10 := 40.0
+	for h := 0; h < 20; h++ {
+		periodEnd := now.Add(-time.Duration(h) * time.Hour)
+		periodStart := periodEnd.Add(-2 * time.Minute)
+		db.Create(&model.AggregationResult{
+			DeviceID:        dev.ID,
+			ParameterID:     pm25Param.ID,
+			SourceType:      model.SourceCustomerProcessed,
+			PeriodStart:     periodStart,
+			PeriodEnd:       periodEnd,
+			IntervalSeconds: 120,
+			AvgValue:        &valPM25,
+			Quality:         model.QualityGood,
+		})
+		db.Create(&model.AggregationResult{
+			DeviceID:        dev.ID,
+			ParameterID:     pm10Param.ID,
+			SourceType:      model.SourceCustomerProcessed,
+			PeriodStart:     periodStart,
+			PeriodEnd:       periodEnd,
+			IntervalSeconds: 120,
+			AvgValue:        &valPM10,
+			Quality:         model.QualityGood,
+		})
+	}
+
+	result, err := ispuSvc.CalculateStationWindow(ctx, dev.ID, now)
+	if err != nil {
+		t.Fatalf("CalculateStationWindow from aggregation failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatalf("Expected non-nil ISPUCalculationResult")
+	}
+
+	// Overall 24h ISPU should be based on PM2.5 = 101 (Tidak Sehat)
+	if result.OverallCategory != model.CategoryTidakSehat {
+		t.Errorf("Expected Category Tidak Sehat, got %s", result.OverallCategory)
+	}
+	if result.DominantPollutant != model.PollutantPM25 {
+		t.Errorf("Expected Dominant Pollutant PM25, got %s", result.DominantPollutant)
+	}
+	if result.OverallISPU < 100 || result.OverallISPU > 105 {
+		t.Errorf("Expected OverallISPU ~101, got %.1f", result.OverallISPU)
+	}
+
+	// Verify instantaneous Aggregation ISPU
+	if result.AggregationISPU < 100 || result.AggregationISPU > 105 {
+		t.Errorf("Expected AggregationISPU ~101, got %.1f", result.AggregationISPU)
+	}
+	if result.AggregationCategory != model.CategoryTidakSehat {
+		t.Errorf("Expected AggregationCategory Tidak Sehat, got %s", result.AggregationCategory)
+	}
+	if result.AggregationDominant != model.PollutantPM25 {
+		t.Errorf("Expected AggregationDominant PM25, got %s", result.AggregationDominant)
+	}
+
+	// Verify parameter results have both 24h and aggregation values
+	if len(result.ParameterResults) != 2 {
+		t.Fatalf("Expected 2 parameter results, got %d", len(result.ParameterResults))
+	}
+	for _, pr := range result.ParameterResults {
+		if pr.PollutantCode == model.PollutantPM25 {
+			if pr.AggregationConcentration != 56.4 {
+				t.Errorf("Expected PM25 AggregationConcentration 56.4, got %.1f", pr.AggregationConcentration)
+			}
+			if pr.AggregationISPU < 100 || pr.AggregationISPU > 105 {
+				t.Errorf("Expected PM25 AggregationISPU ~101, got %.1f", pr.AggregationISPU)
+			}
+		}
 	}
 }
 

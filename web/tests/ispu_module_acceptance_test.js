@@ -219,6 +219,59 @@ if (runTest('Backend backfill endpoint, WebSocket event dispatching, and 24h tre
   assert(storeContent.includes('ispu-calculated-event'), 'Vuex store must dispatch ispu-calculated-event');
 })) passed++;
 
+// Test 13: AggregationResult Data Source
+total++;
+if (runTest('ISPU calculation queries AggregationResult rollups instead of raw per-second data', () => {
+  const svcPath = path.join(__dirname, '..', '..', 'internal', 'service', 'ispu_service.go');
+  const svcContent = fs.readFileSync(svcPath, 'utf8');
+
+  assert(svcContent.includes('model.AggregationResult{}'), 'ISPUService must query model.AggregationResult');
+  assert(svcContent.includes('COALESCE(avg_value, value) AS val'), 'ISPUService must extract avg_value or value from aggregation_results');
+  assert(svcContent.includes('model.RawData{}'), 'ISPUService must provide fallback to RawData');
+})) passed++;
+
+// Test 14: Dual Calculation Mode (24-Hour & Per-Aggregation)
+total++;
+if (runTest('Dual mode calculation: ISPU 24 Jam (Regulatory) & ISPU Per Agregasi (Rollup Interval)', () => {
+  const modelPath = path.join(__dirname, '..', '..', 'internal', 'model', 'ispu.go');
+  const modelContent = fs.readFileSync(modelPath, 'utf8');
+
+  assert(modelContent.includes('AggregationISPU'), 'ISPUCalculationResult must include AggregationISPU');
+  assert(modelContent.includes('AggregationCategory'), 'ISPUCalculationResult must include AggregationCategory');
+  assert(modelContent.includes('AggregationConcentration'), 'ISPUParameterResult must include AggregationConcentration');
+
+  const viewPath = path.join(__dirname, '..', 'src', 'views', 'ISPUAnalysisView.vue');
+  const viewContent = fs.readFileSync(viewPath, 'utf8');
+  assert(viewContent.includes("ispuMode: '24H'"), 'ISPUAnalysisView must define ispuMode');
+  assert(viewContent.includes('Per Agregasi'), 'ISPUAnalysisView must provide Per Agregasi button');
+})) passed++;
+
+// Test 15: Concentrate Selection on Large Card & Trend Chart
+total++;
+if (runTest('Concentrate selection dynamically updates Large Card and Trend Chart', () => {
+  const viewPath = path.join(__dirname, '..', 'src', 'views', 'ISPUAnalysisView.vue');
+  const viewContent = fs.readFileSync(viewPath, 'utf8');
+
+  assert(viewContent.includes("selectedPollutant: 'OVERALL'"), 'ISPUAnalysisView must maintain selectedPollutant state');
+  assert(viewContent.includes('selectPollutant('), 'ISPUAnalysisView must provide selectPollutant method');
+  assert(viewContent.includes(':selected-pollutant="selectedPollutant"'), 'ISPUAnalysisView must pass selectedPollutant to chart');
+  assert(viewContent.includes('ring-2 ring-cyan-400'), 'Selected pollutant card must have glowing highlight ring');
+})) passed++;
+
+// Test 16: Chart Visual Overhaul (Responsive Sizing, Cubic Splines, Adaptive Scale)
+total++;
+if (runTest('Trend chart visual overhaul: dynamic aspect ratio, cubic bezier curves, adaptive scale, neon glow', () => {
+  const chartPath = path.join(__dirname, '..', 'src', 'components', 'ISPUTrendChart.vue');
+  const chartContent = fs.readFileSync(chartPath, 'utf8');
+
+  assert(!chartContent.includes('preserveAspectRatio="none"'), 'Chart must NOT have preserveAspectRatio="none" to prevent stretching');
+  assert(chartContent.includes('ResizeObserver'), 'Chart must use ResizeObserver for pixel-perfect aspect ratio');
+  assert(chartContent.includes('generateSmoothPath'), 'Chart must generate smooth cubic bezier splines');
+  assert(chartContent.includes('isAdaptiveScale'), 'Chart must provide adaptive scale toggle');
+  assert(chartContent.includes('filter="url(#neonGlow)"'), 'Chart must have neon glow filter');
+  assert(chartContent.includes('trendAreaGradient'), 'Chart must have luxury gradient area fill');
+})) passed++;
+
 console.log(`\n========================================`);
 console.log(`RESULTS: ${passed}/${total} TESTS PASSED (100%)`);
 console.log(`========================================\n`);
