@@ -104,10 +104,14 @@ type ParameterCalculationOutput struct {
 	Formula                  string              `json:"formula"`
 	IsEligible               bool                `json:"is_eligible"`
 	AboveRange               bool                `json:"above_range"`
-	AggregationConcentration float64             `json:"aggregation_concentration"`
-	AggregationISPU          float64             `json:"aggregation_ispu"`
-	AggregationCategory      model.ISPUCategory  `json:"aggregation_category"`
-	ErrorMessage             string              `json:"error_message,omitempty"`
+	AggregationConcentration  float64             `json:"aggregation_concentration"`
+	AggregationISPU           float64             `json:"aggregation_ispu"`
+	AggregationCategory       model.ISPUCategory  `json:"aggregation_category"`
+	SourceAggregationCount    int                 `json:"source_aggregation_count"`
+	SourceLatestIdentifier    string              `json:"source_latest_identifier"`
+	SourceAggregationInterval int                 `json:"source_aggregation_interval"`
+	SourceAggregationFunction string              `json:"source_aggregation_function"`
+	ErrorMessage              string              `json:"error_message,omitempty"`
 }
 
 // OverallISPUOutput holds the synthesized station result and dominant pollutant.

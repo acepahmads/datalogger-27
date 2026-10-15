@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"datalogger/internal/logger"
@@ -16,22 +17,37 @@ import (
 	"gorm.io/gorm"
 )
 
+type ispuTriggerJob struct {
+	DeviceID  uint
+	BucketEnd time.Time
+	Reason    string
+}
+
 // ISPUService coordinates regulatory ISPU calculations, data window validation, MariaDB persistence, and exports.
 type ISPUService struct {
-	db         *gorm.DB
-	ispuRepo   *repository.ISPURepository
-	systemRepo *repository.SystemRepository
-	calculator *ISPUCalculator
-	hub        *websocket.Hub
+	db              *gorm.DB
+	ispuRepo        *repository.ISPURepository
+	systemRepo      *repository.SystemRepository
+	calculator      *ISPUCalculator
+	hub             *websocket.Hub
+	jobChan         chan ispuTriggerJob
+	jobMu           sync.Mutex
+	pendingJobs     map[string]ispuTriggerJob
+	stopWorker      chan struct{}
+	workerWg        sync.WaitGroup
+	isWorkerRunning bool
 }
 
 // NewISPUService instantiates an ISPUService.
 func NewISPUService(db *gorm.DB, ispuRepo *repository.ISPURepository, systemRepo *repository.SystemRepository) *ISPUService {
 	return &ISPUService{
-		db:         db,
-		ispuRepo:   ispuRepo,
-		systemRepo: systemRepo,
-		calculator: NewISPUCalculator(),
+		db:          db,
+		ispuRepo:    ispuRepo,
+		systemRepo:  systemRepo,
+		calculator:  NewISPUCalculator(),
+		jobChan:     make(chan ispuTriggerJob, 256),
+		pendingJobs: make(map[string]ispuTriggerJob),
+		stopWorker:  make(chan struct{}),
 	}
 }
 
@@ -64,8 +80,234 @@ func (s *ISPUService) AlignToAggregationInterval(t time.Time, intervalSec int, l
 	return time.Unix(bucketIndex*int64(intervalSec), 0).In(loc)
 }
 
+// StartWorker starts the bounded background calculation worker.
+func (s *ISPUService) StartWorker(ctx context.Context) {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
+	if s.isWorkerRunning {
+		return
+	}
+	s.isWorkerRunning = true
+	s.workerWg.Add(1)
+	go s.workerLoop(ctx)
+	logger.Info("ISPU calculation worker initialized with bounded queue")
+}
+
+// StopWorker gracefully stops the calculation worker.
+func (s *ISPUService) StopWorker() {
+	s.jobMu.Lock()
+	if !s.isWorkerRunning {
+		s.jobMu.Unlock()
+		return
+	}
+	s.isWorkerRunning = false
+	close(s.stopWorker)
+	s.jobMu.Unlock()
+	s.workerWg.Wait()
+	logger.Info("ISPU calculation worker stopped cleanly")
+}
+
+// EnqueueCalculation enqueues an asynchronous calculation job with debouncing and coalescing.
+func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, reason string) {
+	if deviceID == 0 || bucketEnd.IsZero() {
+		return
+	}
+	if reason == "" {
+		reason = "AGGREGATION_COMPLETED"
+	}
+
+	job := ispuTriggerJob{
+		DeviceID:  deviceID,
+		BucketEnd: bucketEnd,
+		Reason:    reason,
+	}
+
+	select {
+	case s.jobChan <- job:
+	default:
+		logger.Warn("ISPU calculation job queue is full, processing immediately in background for station %d bucket %v", deviceID, bucketEnd)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			_, _ = s.CalculateStationWindowWithReason(ctx, deviceID, bucketEnd, reason)
+		}()
+	}
+}
+
+// HandleAggregationCompleted evaluates whether a completed aggregation bucket is relevant to an enabled ISPU mapping,
+// and if so, enqueues the station window calculation.
+func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event AggregationCompletedEvent) {
+	if event.DeviceID == 0 || event.ParameterID == 0 {
+		return
+	}
+
+	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, event.DeviceID)
+	if err != nil {
+		logger.Warn("Failed to lookup ISPU mappings for station %d: %v", event.DeviceID, err)
+		return
+	}
+
+	isMapped := false
+	for _, m := range mappings {
+		if m.Enabled && m.ParameterID == event.ParameterID {
+			isMapped = true
+			break
+		}
+	}
+
+	if !isMapped {
+		return // Not an ISPU pollutant (e.g. ambient temperature, humidity, wind)
+	}
+
+	s.EnqueueCalculation(event.DeviceID, event.PeriodEnd, "AGGREGATION_COMPLETED")
+}
+
+// workerLoop coordinates job debouncing/coalescing and invokes calculation.
+func (s *ISPUService) workerLoop(ctx context.Context) {
+	defer s.workerWg.Done()
+	logger.Info("ISPU background calculation loop started")
+
+	coalesceDelay := 300 * time.Millisecond
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	scheduledJobs := make(map[string]struct {
+		job      ispuTriggerJob
+		deadline time.Time
+	})
+
+	for {
+		select {
+		case <-s.stopWorker:
+			return
+		case <-ctx.Done():
+			return
+		case job, ok := <-s.jobChan:
+			if !ok {
+				return
+			}
+			key := fmt.Sprintf("%d_%d", job.DeviceID, job.BucketEnd.Unix())
+			s.jobMu.Lock()
+			existing, exists := scheduledJobs[key]
+			if exists {
+				if job.Reason == "MANUAL_RECALCULATE" || job.Reason == "LATE_DATA" {
+					existing.job.Reason = job.Reason
+				}
+				scheduledJobs[key] = existing
+			} else {
+				scheduledJobs[key] = struct {
+					job      ispuTriggerJob
+					deadline time.Time
+				}{
+					job:      job,
+					deadline: time.Now().Add(coalesceDelay),
+				}
+			}
+			s.jobMu.Unlock()
+
+		case <-ticker.C:
+			now := time.Now()
+			var dueJobs []ispuTriggerJob
+
+			s.jobMu.Lock()
+			for k, v := range scheduledJobs {
+				if now.After(v.deadline) {
+					dueJobs = append(dueJobs, v.job)
+					delete(scheduledJobs, k)
+				}
+			}
+			s.jobMu.Unlock()
+
+			for _, job := range dueJobs {
+				calcCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				_, err := s.CalculateStationWindowWithReason(calcCtx, job.DeviceID, job.BucketEnd, job.Reason)
+				if err != nil {
+					logger.Warn("Failed to execute ISPU calculation for station %d bucket %v: %v", job.DeviceID, job.BucketEnd, err)
+				}
+				cancel()
+			}
+		}
+	}
+}
+
+// ReconcilePendingCalculations reconciles completed aggregation periods on startup or restart,
+// ensuring any completed aggregation bucket that lacks an ISPU record is calculated.
+func (s *ISPUService) ReconcilePendingCalculations(ctx context.Context) (int, error) {
+	mappings, err := s.ispuRepo.GetAllActiveMappings(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(mappings) == 0 {
+		return 0, nil
+	}
+
+	deviceMap := make(map[uint]bool)
+	for _, m := range mappings {
+		deviceMap[m.DeviceID] = true
+	}
+
+	totalReconciled := 0
+	for deviceID := range deviceMap {
+		var dev model.Device
+		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
+			continue
+		}
+		tzName := dev.Timezone
+		if tzName == "" {
+			tzName = "Asia/Jakarta"
+		}
+		loc, err := time.LoadLocation(tzName)
+		if err != nil {
+			loc = time.FixedZone("WIB", 7*3600)
+		}
+
+		var aggDef model.AggregationDefinition
+		intervalSec := 120
+		if err := s.db.WithContext(ctx).
+			Where("device_id = ? AND enabled = ?", deviceID, true).
+			Order("interval_seconds ASC").
+			First(&aggDef).Error; err == nil && aggDef.IntervalSeconds > 0 {
+			intervalSec = aggDef.IntervalSeconds
+		}
+
+		twoHoursAgo := time.Now().UTC().Add(-2 * time.Hour)
+		var completedPeriods []time.Time
+		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
+			Distinct("period_end").
+			Where("device_id = ? AND period_end >= ? AND quality != ?", deviceID, twoHoursAgo, model.QualityBad).
+			Order("period_end ASC").
+			Pluck("period_end", &completedPeriods)
+
+		for _, pEnd := range completedPeriods {
+			alignedEnd := s.AlignToAggregationInterval(pEnd, intervalSec, loc)
+			alignedStart := alignedEnd.Add(-24 * time.Hour)
+
+			var count int64
+			s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+				Where("device_id = ? AND period_start = ? AND period_end = ?", deviceID, alignedStart.UTC(), alignedEnd.UTC()).
+				Count(&count)
+
+			if count == 0 {
+				logger.Info("Reconciling missing ISPU calculation for station %d period_end %v", deviceID, alignedEnd)
+				_, err := s.CalculateStationWindowWithReason(ctx, deviceID, alignedEnd, "STARTUP_RECOVERY")
+				if err == nil {
+					totalReconciled++
+				}
+			}
+		}
+	}
+
+	logger.Info("ISPU restart recovery reconciliation completed: %d missing calculation periods recovered", totalReconciled)
+	return totalReconciled, nil
+}
+
 // CalculateStationWindow performs a 24-hour regulatory ISPU evaluation for a station and persists the result.
 func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint, targetEnd time.Time) (*model.ISPUCalculationResult, error) {
+	return s.CalculateStationWindowWithReason(ctx, deviceID, targetEnd, "AGGREGATION_COMPLETED")
+}
+
+// CalculateStationWindowWithReason performs a 24-hour regulatory ISPU evaluation with explicit reason and persists the result.
+func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, deviceID uint, targetEnd time.Time, reason string) (*model.ISPUCalculationResult, error) {
 	var dev model.Device
 	if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
 		return nil, fmt.Errorf("station/device %d not found: %w", deviceID, err)
@@ -80,20 +322,26 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		loc = time.FixedZone("WIB", 7*3600)
 	}
 
-	// 1. Determine active aggregation interval for this device (e.g. 120s = 2m even minutes)
+	// 1. Determine active aggregation definitions and interval for this device
 	var intervalSec int = 120
-	var aggDef model.AggregationDefinition
+	aggFunction := "AVG"
+	var aggDefs []model.AggregationDefinition
 	if err := s.db.WithContext(ctx).
 		Where("device_id = ? AND enabled = ?", deviceID, true).
 		Order("interval_seconds ASC").
-		First(&aggDef).Error; err == nil && aggDef.IntervalSeconds > 0 {
-		intervalSec = aggDef.IntervalSeconds
+		Find(&aggDefs).Error; err == nil && len(aggDefs) > 0 {
+		intervalSec = aggDefs[0].IntervalSeconds
+		if aggDefs[0].Function != "" {
+			aggFunction = string(aggDefs[0].Function)
+		}
+	}
+	if intervalSec <= 0 {
+		intervalSec = 120
 	}
 
 	// 2. Anchor targetEnd in station local time
 	refTime := targetEnd.In(loc)
 	if targetEnd.IsZero() {
-		// Look up latest completed aggregation result for this station
 		var latestAgg model.AggregationResult
 		if err := s.db.WithContext(ctx).
 			Where("device_id = ?", deviceID).
@@ -105,9 +353,13 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		}
 	}
 
-	// 3. Align periodEnd to the exact aggregation interval boundary (e.g. 15:36:00, 15:38:00, 15:40:00)
+	// 3. Align periodEnd to the exact aggregation interval boundary
 	periodEnd := s.AlignToAggregationInterval(refTime, intervalSec, loc)
 	periodStart := periodEnd.Add(-24 * time.Hour)
+	sourceBucketIdent := periodEnd.Format("20060102150405")
+	if reason == "" {
+		reason = "AGGREGATION_COMPLETED"
+	}
 
 	// Fetch active parameter mappings for station
 	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, deviceID)
@@ -140,19 +392,34 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			MinCompleteness:  m.MinCompleteness,
 		}
 
-		// 1. Query AggregationResult (per 2-min / configured interval rollups) within the 24-hour window excluding BAD quality
+		// Look up specific definition for this parameter if available
+		paramInterval := intervalSec
+		paramFunc := aggFunction
+		hasParamDef := false
+		for _, ad := range aggDefs {
+			if ad.ParameterID == m.ParameterID {
+				paramInterval = ad.IntervalSeconds
+				paramFunc = string(ad.Function)
+				hasParamDef = true
+				break
+			}
+		}
+
+		// 1. Query AggregationResult within the 24-hour window excluding BAD quality
 		var aggStats []struct {
-			Val float64
-			Rec time.Time
+			Val   float64
+			Rec   time.Time
+			Ident string
 		}
 		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
-			Select("COALESCE(avg_value, value) AS val, period_end AS rec").
+			Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
 			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
 				deviceID, m.ParameterID, periodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 			Order("period_end ASC").
 			Find(&aggStats)
 
 		var latestAggVal float64
+		latestAggIdent := ""
 		hasLatestAgg := false
 
 		if len(aggStats) > 0 {
@@ -171,11 +438,15 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			input.ValidSamples = len(hoursWithData)
 			input.RawConcentration = totalSum / float64(len(aggStats))
 
-			// The latest bucket represents the instantaneous aggregation value (e.g. latest 2-minute rollup)
-			latestAggVal = aggStats[len(aggStats)-1].Val
+			latest := aggStats[len(aggStats)-1]
+			latestAggVal = latest.Val
+			latestAggIdent = latest.Ident
+			if latestAggIdent == "" {
+				latestAggIdent = latest.Rec.In(loc).Format("20060102150405")
+			}
 			hasLatestAgg = true
-		} else {
-			// Fallback to RawData if no aggregation results exist yet (e.g. freshly started station or unit tests)
+		} else if !hasParamDef && len(aggDefs) == 0 {
+			// Fallback to RawData ONLY when NO aggregation definitions exist at all (backward-compat unit test mode)
 			var rawStats []struct {
 				Val float64
 				Rec time.Time
@@ -202,17 +473,26 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 				input.ValidSamples = len(hoursWithData)
 				input.RawConcentration = totalSum / float64(len(rawStats))
 				latestAggVal = rawStats[len(rawStats)-1].Val
+				latestAggIdent = rawStats[len(rawStats)-1].Rec.In(loc).Format("20060102150405")
 				hasLatestAgg = true
 			} else {
 				input.ValidSamples = 0
 				input.RawConcentration = 0
 			}
+		} else {
+			// Aggregation definition exists, but no aggregation records exist yet for this period
+			input.ValidSamples = 0
+			input.RawConcentration = 0
 		}
 
 		paramInputs = append(paramInputs, input)
 
 		// Calculate 24h regulatory ISPU
 		out := s.calculator.CalculateParameter(input)
+		out.SourceAggregationCount = len(aggStats)
+		out.SourceLatestIdentifier = latestAggIdent
+		out.SourceAggregationInterval = paramInterval
+		out.SourceAggregationFunction = paramFunc
 
 		// Calculate instantaneous per-aggregation ISPU for this parameter
 		if hasLatestAgg {
@@ -273,45 +553,53 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 
 	// Construct DB Result entity
 	calcRes := &model.ISPUCalculationResult{
-		DeviceID:            deviceID,
-		PeriodStart:         periodStart.UTC(),
-		PeriodEnd:           periodEnd.UTC(),
-		CalculatedAt:        time.Now().UTC(),
-		OverallISPU:         overall.OverallISPU,
-		OverallCategory:     overall.Category,
-		DominantPollutant:   overall.DominantPollutant,
-		TiedPollutants:      tiedStr,
-		CompletenessPercent: overall.CompletenessPercent,
-		CalculationStatus:   overall.CalculationStatus,
-		Method:              "PERMEN_LHK_14_2020",
-		Timezone:            tzName,
-		AggregationISPU:     maxAggISPU,
-		AggregationCategory: maxAggCat,
-		AggregationDominant: maxAggDominant,
-		Notes:               overall.Notes,
+		DeviceID:                   deviceID,
+		PeriodStart:                periodStart.UTC(),
+		PeriodEnd:                  periodEnd.UTC(),
+		CalculatedAt:               time.Now().UTC(),
+		OverallISPU:                overall.OverallISPU,
+		OverallCategory:            overall.Category,
+		DominantPollutant:          overall.DominantPollutant,
+		TiedPollutants:             tiedStr,
+		CompletenessPercent:        overall.CompletenessPercent,
+		CalculationStatus:          overall.CalculationStatus,
+		Method:                     "PERMEN_LHK_14_2020",
+		Timezone:                   tzName,
+		AggregationISPU:            maxAggISPU,
+		AggregationCategory:        maxAggCat,
+		AggregationDominant:        maxAggDominant,
+		AggregationIntervalSeconds: intervalSec,
+		AggregationFunction:        aggFunction,
+		SourceBucketIdentifier:     sourceBucketIdent,
+		TriggerReason:              reason,
+		Notes:                      overall.Notes,
 	}
 
 	for _, po := range paramOutputs {
 		calcRes.ParameterResults = append(calcRes.ParameterResults, model.ISPUParameterResult{
-			PollutantCode:            po.PollutantCode,
-			ParameterID:              po.ParameterID,
-			Concentration:            po.RawConcentration,
-			SourceUnit:               po.SourceUnit,
-			NormalizedConcentration:  po.NormalizedConcentration,
-			NormalizedUnit:           po.NormalizedUnit,
-			CalculatedISPU:           po.CalculatedISPU,
-			Category:                 po.Category,
-			AggregationConcentration: po.AggregationConcentration,
-			AggregationISPU:          po.AggregationISPU,
-			AggregationCategory:      po.AggregationCategory,
-			Ia:                       po.Ia,
-			Ib:                       po.Ib,
-			Xa:                       po.Xa,
-			Xb:                       po.Xb,
-			CompletenessPercent:      po.CompletenessPercent,
-			ValidSamples:             po.ValidSamples,
-			TotalExpectedSamples:     po.ExpectedSamples,
-			Formula:                  po.Formula,
+			PollutantCode:             po.PollutantCode,
+			ParameterID:               po.ParameterID,
+			Concentration:             po.RawConcentration,
+			SourceUnit:                po.SourceUnit,
+			NormalizedConcentration:   po.NormalizedConcentration,
+			NormalizedUnit:            po.NormalizedUnit,
+			CalculatedISPU:            po.CalculatedISPU,
+			Category:                  po.Category,
+			AggregationConcentration:  po.AggregationConcentration,
+			AggregationISPU:           po.AggregationISPU,
+			AggregationCategory:       po.AggregationCategory,
+			Ia:                        po.Ia,
+			Ib:                        po.Ib,
+			Xa:                        po.Xa,
+			Xb:                        po.Xb,
+			CompletenessPercent:       po.CompletenessPercent,
+			ValidSamples:              po.ValidSamples,
+			TotalExpectedSamples:      po.ExpectedSamples,
+			Formula:                   po.Formula,
+			SourceAggregationCount:    po.SourceAggregationCount,
+			SourceLatestIdentifier:    po.SourceLatestIdentifier,
+			SourceAggregationInterval: po.SourceAggregationInterval,
+			SourceAggregationFunction: po.SourceAggregationFunction,
 		})
 	}
 
@@ -320,8 +608,8 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		return nil, fmt.Errorf("failed to persist ISPU calculation result: %w", err)
 	}
 
-	logger.Info("ISPU calculated for station %d [%s]: ISPU=%.1f (%s, Dominant=%s, Status=%s)",
-		deviceID, dev.DeviceCode, calcRes.OverallISPU, calcRes.OverallCategory, calcRes.DominantPollutant, calcRes.CalculationStatus)
+	logger.Info("ISPU calculated for station %d [%s] (reason=%s): ISPU=%.1f (%s, Dominant=%s, Status=%s)",
+		deviceID, dev.DeviceCode, reason, calcRes.OverallISPU, calcRes.OverallCategory, calcRes.DominantPollutant, calcRes.CalculationStatus)
 
 	// Broadcast real-time ISPU calculation over WebSocket
 	if s.hub != nil {
@@ -416,31 +704,15 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	return processed, nil
 }
 
-// GetLatestSummary retrieves the latest ISPU summary for a station, calculating on-demand if missing or stale (>1h).
+// GetLatestSummary retrieves the latest ISPU summary for a station.
+// It strictly reads the persisted calculation result from MariaDB.
+// It NEVER executes calculations on read.
 func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint) (*model.ISPUCalculationResult, error) {
-	res, err := s.ispuRepo.GetLatestByDeviceID(ctx, deviceID)
-	if err == nil && res != nil {
-		// If calculation is less than 30 minutes old, return it
-		if time.Since(res.CalculatedAt) < 30*time.Minute {
-			return res, nil
-		}
-	}
-
-	// Trigger calculation for aligned latest interval
-	calculated, calcErr := s.CalculateStationWindow(ctx, deviceID, time.Time{})
-	if calcErr == nil && calculated != nil {
-		return s.ispuRepo.GetByID(ctx, calculated.ID)
-	}
-
-	// Fallback to previous record if calculation fails
-	if res != nil {
-		return res, nil
-	}
-
-	return nil, calcErr
+	return s.ispuRepo.GetLatestByDeviceID(ctx, deviceID)
 }
 
 // GetTrend retrieves historical calculations for chart rendering across selected time ranges ("24h", "7d", "30d").
+// It strictly reads persisted records from MariaDB without triggering calculations on read.
 func (s *ISPUService) GetTrend(ctx context.Context, deviceID uint, timeRange string) ([]model.ISPUCalculationResult, error) {
 	now := time.Now()
 	var startTime time.Time
@@ -454,30 +726,7 @@ func (s *ISPUService) GetTrend(ctx context.Context, deviceID uint, timeRange str
 		startTime = now.Add(-24 * time.Hour)
 	}
 
-	trend, err := s.ispuRepo.GetTrend(ctx, deviceID, startTime, now)
-	if err != nil {
-		return nil, err
-	}
-
-	// If fewer than 3 records in trend (e.g. freshly initialized station), backfill hourly trend
-	if len(trend) < 3 {
-		lookback := 24
-		if timeRange == "7d" {
-			lookback = 168
-		} else if timeRange == "30d" {
-			lookback = 720
-		}
-		_, _ = s.BackfillStationHourlyTrend(ctx, deviceID, lookback)
-		if refreshed, err := s.ispuRepo.GetTrend(ctx, deviceID, startTime, now); err == nil && len(refreshed) > 0 {
-			trend = refreshed
-		} else if len(trend) == 0 {
-			if res, err := s.CalculateStationWindow(ctx, deviceID, now); err == nil && res != nil {
-				trend = append(trend, *res)
-			}
-		}
-	}
-
-	return trend, nil
+	return s.ispuRepo.GetTrend(ctx, deviceID, startTime, now)
 }
 
 // GetHistory retrieves paginated historical records.
@@ -497,10 +746,7 @@ func (s *ISPUService) Recalculate(ctx context.Context, deviceID uint, targetTime
 		t = *targetTime
 	}
 
-	// Purge unaligned records and backfill recent high-frequency intervals
-	_, _ = s.BackfillStationHourlyTrend(ctx, deviceID, 2)
-
-	res, err := s.CalculateStationWindow(ctx, deviceID, t)
+	res, err := s.CalculateStationWindowWithReason(ctx, deviceID, t, "MANUAL_RECALCULATE")
 	if err != nil {
 		return nil, err
 	}

@@ -194,30 +194,22 @@ func main() {
 	ispuRepo := repository.NewISPURepository(db)
 	ispuService := service.NewISPUService(db, ispuRepo, systemRepo)
 	ispuService.SetHub(hub)
+	ispuService.StartWorker(context.Background())
 	ispuHandler := handler.NewISPUHandler(ispuService)
 
-	// Initial startup backfill and calculation for active AQMS stations
+	// Startup reconciliation for active AQMS stations (catch up any pending aggregation periods cleanly)
 	go func() {
-		time.Sleep(3 * time.Second) // wait for DB & devices to stabilize
+		time.Sleep(2 * time.Second) // wait for DB & devices to stabilize
 		ctx := context.Background()
-		mappings, err := ispuRepo.GetAllActiveMappings(ctx)
-		if err == nil && len(mappings) > 0 {
-			processedDevices := make(map[uint]bool)
-			for _, m := range mappings {
-				if !processedDevices[m.DeviceID] {
-					processedDevices[m.DeviceID] = true
-					// Backfill 24 hours of trend so OCC charts are immediately full
-					_, _ = ispuService.BackfillStationHourlyTrend(ctx, m.DeviceID, 24)
-					// Calculate current rolling window (aligned to latest aggregation interval)
-					_, _ = ispuService.CalculateStationWindow(ctx, m.DeviceID, time.Time{})
-				}
-			}
-		}
+		_, _ = ispuService.ReconcilePendingCalculations(ctx)
 	}()
-	// Automatically trigger ISPU calculation whenever an aggregation bucket finishes (aligned with aggregation setup)
+
+	// Automatically trigger ISPU calculation whenever an eligible parameter aggregation completes
+	aggService.SetOnAggregationCompleted(func(ctx context.Context, event service.AggregationCompletedEvent) {
+		ispuService.HandleAggregationCompleted(ctx, event)
+	})
 	aggService.SetOnBucketCompleted(func(ctx context.Context, deviceID uint, bucketEnd time.Time) {
-		logger.Info("Automatic ISPU calculation triggered for station %d aligned with aggregation bucket %v", deviceID, bucketEnd)
-		_, _ = ispuService.CalculateStationWindow(ctx, deviceID, bucketEnd)
+		ispuService.EnqueueCalculation(deviceID, bucketEnd, "AGGREGATION_COMPLETED")
 	})
 
 	// WebSocket endpoint
@@ -570,6 +562,7 @@ func main() {
 
 	// 2. Stop aggregation worker safely
 	aggService.StopWorker()
+	ispuService.StopWorker()
 
 	// 3. Stop background scheduler, backup scheduler, and housekeeping scheduler
 	sched.Stop()

@@ -84,40 +84,48 @@ type ISPUCalculationResult struct {
 	CalculationStatus   ISPUStatus            `gorm:"size:32;not null" json:"calculation_status"`
 	Method              string                `gorm:"size:64;default:'PERMEN_LHK_14_2020'" json:"method"`
 	Timezone            string                `gorm:"size:64;default:'Asia/Jakarta'" json:"timezone"`
-	AggregationISPU     float64               `gorm:"default:0" json:"aggregation_ispu"`
-	AggregationCategory ISPUCategory          `gorm:"size:32;default:'TIDAK_TERSEDIA'" json:"aggregation_category"`
-	AggregationDominant ISPUParameter         `gorm:"size:16" json:"aggregation_dominant,omitempty"`
-	ParameterResults    []ISPUParameterResult `gorm:"foreignKey:CalculationResultID;constraint:OnDelete:CASCADE" json:"parameter_results,omitempty"`
-	Notes               string                `gorm:"size:255" json:"notes,omitempty"`
-	CreatedAt           time.Time             `json:"created_at"`
-	UpdatedAt           time.Time             `json:"updated_at"`
+	AggregationISPU            float64               `gorm:"default:0" json:"aggregation_ispu"`
+	AggregationCategory        ISPUCategory          `gorm:"size:32;default:'TIDAK_TERSEDIA'" json:"aggregation_category"`
+	AggregationDominant        ISPUParameter         `gorm:"size:16" json:"aggregation_dominant,omitempty"`
+	AggregationIntervalSeconds int                   `gorm:"default:120" json:"aggregation_interval_seconds"`
+	AggregationFunction        string                `gorm:"size:32;default:'AVG'" json:"aggregation_function"`
+	SourceBucketIdentifier     string                `gorm:"size:32;index" json:"source_bucket_identifier"`
+	TriggerReason              string                `gorm:"size:64;default:'AGGREGATION_COMPLETED'" json:"trigger_reason"`
+	ParameterResults           []ISPUParameterResult `gorm:"foreignKey:CalculationResultID;constraint:OnDelete:CASCADE" json:"parameter_results,omitempty"`
+	Notes                      string                `gorm:"size:255" json:"notes,omitempty"`
+	CreatedAt                  time.Time             `json:"created_at"`
+	UpdatedAt                  time.Time             `json:"updated_at"`
 }
 
 // ISPUParameterResult stores the per-pollutant calculation breakdown and audit details.
 type ISPUParameterResult struct {
-	ID                       uint          `gorm:"primaryKey" json:"id"`
-	CalculationResultID      uint          `gorm:"index;not null" json:"calculation_result_id"`
-	PollutantCode            ISPUParameter `gorm:"size:16;not null" json:"pollutant_code"`
-	ParameterID              uint          `gorm:"index;not null" json:"parameter_id"`
-	Parameter                *Parameter    `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
-	Concentration            float64       `gorm:"not null" json:"concentration"`
-	SourceUnit               string        `gorm:"size:32;not null" json:"source_unit"`
-	NormalizedConcentration  float64       `gorm:"not null" json:"normalized_concentration"`
-	NormalizedUnit           string        `gorm:"size:32;not null;default:'µg/m³'" json:"normalized_unit"`
-	CalculatedISPU           float64       `gorm:"not null" json:"calculated_ispu"`
-	Category                 ISPUCategory  `gorm:"size:32;not null" json:"category"`
-	AggregationConcentration float64       `gorm:"default:0" json:"aggregation_concentration"`
-	AggregationISPU          float64       `gorm:"default:0" json:"aggregation_ispu"`
-	AggregationCategory      ISPUCategory  `gorm:"size:32;default:'TIDAK_TERSEDIA'" json:"aggregation_category"`
-	Ia                       float64       `json:"ia"`
-	Ib                       float64       `json:"ib"`
-	Xa                       float64       `json:"xa"`
-	Xb                       float64       `json:"xb"`
-	CompletenessPercent      float64       `json:"completeness_percent"`
-	ValidSamples             int           `json:"valid_samples"`
-	TotalExpectedSamples     int           `json:"total_expected_samples"`
-	Formula                  string        `gorm:"size:255" json:"formula"`
-	DetailsJSON              string        `gorm:"type:text" json:"details_json,omitempty"`
-	CreatedAt                time.Time     `json:"created_at"`
-	UpdatedAt                time.Time     `json:"updated_at"`
+	ID                        uint          `gorm:"primaryKey" json:"id"`
+	CalculationResultID       uint          `gorm:"index;not null" json:"calculation_result_id"`
+	PollutantCode             ISPUParameter `gorm:"size:16;not null" json:"pollutant_code"`
+	ParameterID               uint          `gorm:"index;not null" json:"parameter_id"`
+	Parameter                 *Parameter    `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
+	Concentration             float64       `gorm:"not null" json:"concentration"`
+	SourceUnit                string        `gorm:"size:32;not null" json:"source_unit"`
+	NormalizedConcentration   float64       `gorm:"not null" json:"normalized_concentration"`
+	NormalizedUnit            string        `gorm:"size:32;not null;default:'µg/m³'" json:"normalized_unit"`
+	CalculatedISPU            float64       `gorm:"not null" json:"calculated_ispu"`
+	Category                  ISPUCategory  `gorm:"size:32;not null" json:"category"`
+	AggregationConcentration  float64       `gorm:"default:0" json:"aggregation_concentration"`
+	AggregationISPU           float64       `gorm:"default:0" json:"aggregation_ispu"`
+	AggregationCategory       ISPUCategory  `gorm:"size:32;default:'TIDAK_TERSEDIA'" json:"aggregation_category"`
+	Ia                        float64       `json:"ia"`
+	Ib                        float64       `json:"ib"`
+	Xa                        float64       `json:"xa"`
+	Xb                        float64       `json:"xb"`
+	CompletenessPercent       float64       `json:"completeness_percent"`
+	ValidSamples              int           `json:"valid_samples"`
+	TotalExpectedSamples      int           `json:"total_expected_samples"`
+	Formula                   string        `gorm:"size:255" json:"formula"`
+	DetailsJSON               string        `gorm:"type:text" json:"details_json,omitempty"`
+	SourceAggregationCount    int           `gorm:"default:0" json:"source_aggregation_count"`
+	SourceLatestIdentifier    string        `gorm:"size:32" json:"source_latest_identifier"`
+	SourceAggregationInterval int           `gorm:"default:120" json:"source_aggregation_interval"`
+	SourceAggregationFunction string        `gorm:"size:32;default:'AVG'" json:"source_aggregation_function"`
+	CreatedAt                 time.Time     `json:"created_at"`
+	UpdatedAt                 time.Time     `json:"updated_at"`
 }

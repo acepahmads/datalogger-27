@@ -393,7 +393,9 @@
           <table class="w-full text-left text-3xs font-mono select-none">
             <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#20354B]">
               <tr>
-                <th class="py-2 px-3">Period End</th>
+                <th class="py-2 px-3">Period (24h)</th>
+                <th class="py-2 px-3">Source Aggregation</th>
+                <th class="py-2 px-3">Calculated At</th>
                 <th class="py-2 px-3" :class="{ 'text-cyan-400 font-bold': !isOverallMode }">
                   {{ isOverallMode ? 'ISPU' : `ISPU (${selectedPollutant})` }}
                 </th>
@@ -418,10 +420,10 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-if="historyLoading">
-                <td colspan="14" class="py-6 text-center text-slate-400">Loading records...</td>
+                <td colspan="16" class="py-6 text-center text-slate-400">Loading records...</td>
               </tr>
               <tr v-else-if="!historyRecords || historyRecords.length === 0">
-                <td colspan="14" class="py-6 text-center text-slate-400">No records found matching filters</td>
+                <td colspan="16" class="py-6 text-center text-slate-400">No records found matching filters</td>
               </tr>
               <tr
                 v-for="r in historyRecords"
@@ -430,7 +432,15 @@
                 @click="openDetailModal(r)"
               >
                 <td class="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
-                  {{ formatDate(r.period_end) }}
+                  <div>{{ formatDate(r.period_end) }}</div>
+                  <div class="text-4xs text-slate-400 font-normal">24h: {{ formatShortTime(r.period_start) }} → {{ formatShortTime(r.period_end) }}</div>
+                </td>
+                <td class="py-2 px-3 font-mono">
+                  <div class="font-bold text-cyan-600 dark:text-cyan-400">{{ r.source_bucket_identifier || '-' }}</div>
+                  <div class="text-4xs text-slate-400 font-normal">{{ r.aggregation_interval_seconds || 120 }}s {{ r.aggregation_function || 'AVG' }}</div>
+                </td>
+                <td class="py-2 px-3 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap text-3xs">
+                  {{ formatDateTime(r.calculated_at) }}
                 </td>
                 <!-- Main ISPU column (overall or selected pollutant) -->
                 <td class="py-2 px-3 font-bold text-sm tabular-nums" :style="{ color: getRowDisplayColor(r) }">
@@ -520,6 +530,34 @@
           <button @click="showDetailModal = false" class="text-slate-400 hover:text-white text-lg">✕</button>
         </div>
 
+        <!-- Traceability & Provenance Information Card -->
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono text-xs space-y-2">
+          <div class="text-2xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+            <span class="text-cyan-600 dark:text-cyan-400 font-bold">Provenance & Traceability Metadata</span>
+            <span class="px-2 py-0.5 rounded text-4xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+              {{ selectedRecord?.trigger_reason || 'AGGREGATION_COMPLETED' }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-3xs pt-1 border-t border-slate-200 dark:border-slate-800">
+            <div>
+              <span class="text-slate-400 block">Source Bucket:</span>
+              <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ selectedRecord?.source_bucket_identifier || '-' }}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Aggregation Setup:</span>
+              <span class="font-bold text-slate-800 dark:text-slate-200">{{ selectedRecord?.aggregation_interval_seconds || 120 }}s · {{ selectedRecord?.aggregation_function || 'AVG' }}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Calculation Period (24h):</span>
+              <span class="font-bold text-slate-800 dark:text-slate-200">{{ formatDate(selectedRecord?.period_start) }} → {{ formatDate(selectedRecord?.period_end) }}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block">Calculated At:</span>
+              <span class="font-bold text-slate-800 dark:text-slate-200">{{ formatDateTime(selectedRecord?.calculated_at) }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Formula Box -->
         <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono text-xs space-y-1.5">
           <div class="text-cyan-600 dark:text-cyan-400 font-bold">
@@ -539,7 +577,10 @@
             <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-b border-slate-200 dark:border-[#20354B]">
               <tr>
                 <th class="p-2">Pollutant</th>
-                <th class="p-2">Conc (µg/m³)</th>
+                <th class="p-2">Conc 24h</th>
+                <th class="p-2">Conc Aggr</th>
+                <th class="p-2">Buckets</th>
+                <th class="p-2">Latest Bucket ID</th>
                 <th class="p-2">Breakpoint [Xb, Xa]</th>
                 <th class="p-2">Index [Ib, Ia]</th>
                 <th class="p-2">Formula Evaluation</th>
@@ -550,7 +591,10 @@
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
               <tr v-for="pr in selectedRecord?.parameter_results || []" :key="pr.id">
                 <td class="p-2 font-bold text-slate-900 dark:text-white">{{ pr.pollutant_code }}</td>
-                <td class="p-2 tabular-nums">{{ pr.normalized_concentration.toFixed(1) }}</td>
+                <td class="p-2 tabular-nums">{{ pr.normalized_concentration.toFixed(1) }} µg/m³</td>
+                <td class="p-2 tabular-nums">{{ (pr.aggregation_concentration || 0).toFixed(1) }} µg/m³</td>
+                <td class="p-2 tabular-nums">{{ pr.source_aggregation_count || pr.valid_samples || 0 }}</td>
+                <td class="p-2 font-bold text-cyan-600 dark:text-cyan-400">{{ pr.source_latest_identifier || '-' }}</td>
                 <td class="p-2 tabular-nums">[{{ pr.xb }}, {{ pr.xa }}]</td>
                 <td class="p-2 tabular-nums">[{{ pr.ib }}, {{ pr.ia }}]</td>
                 <td class="p-2 text-4xs text-slate-400">{{ pr.formula || '-' }}</td>
@@ -1107,6 +1151,16 @@ export default {
       if (!isoStr) return '-';
       const d = new Date(isoStr);
       return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    },
+    formatDateTime(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    formatShortTime(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     },
     openFormulaModal(pollutantCode) {
       this.selectedRecord = this.latestData;

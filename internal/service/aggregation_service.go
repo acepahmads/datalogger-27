@@ -83,19 +83,33 @@ type DownsampledHistoryResponse struct {
 	Points      []DownsampledPoint `json:"points"`
 }
 
+// AggregationCompletedEvent describes a completed, persisted aggregation bucket.
+type AggregationCompletedEvent struct {
+	DeviceID        uint      `json:"device_id"`
+	ParameterID     uint      `json:"parameter_id"`
+	DefinitionID    uint      `json:"definition_id"`
+	IntervalSeconds int       `json:"interval_seconds"`
+	Function        string    `json:"function"`
+	PeriodStart     time.Time `json:"period_start"`
+	PeriodEnd       time.Time `json:"period_end"`
+	Identifier      string    `json:"identifier"`
+	Quality         string    `json:"quality"`
+}
+
 // AggregationService orchestrates aggregation definitions, calculations, rollups, and queries
 type AggregationService struct {
-	repo         *repository.AggregationRepository
-	devRepo      *repository.DeviceRepository
-	systemRepo   *repository.SystemRepository
-	hub          *websocket.Hub
-	engine       *aggregation.Engine
-	pollInterval time.Duration
-	stopCh       chan struct{}
-	wg                sync.WaitGroup
-	isWorkerRun       bool
-	workerMu          sync.Mutex
-	onBucketCompleted func(ctx context.Context, deviceID uint, bucketEnd time.Time)
+	repo                   *repository.AggregationRepository
+	devRepo                *repository.DeviceRepository
+	systemRepo             *repository.SystemRepository
+	hub                    *websocket.Hub
+	engine                 *aggregation.Engine
+	pollInterval           time.Duration
+	stopCh                 chan struct{}
+	wg                     sync.WaitGroup
+	isWorkerRun            bool
+	workerMu               sync.Mutex
+	onBucketCompleted      func(ctx context.Context, deviceID uint, bucketEnd time.Time)
+	onAggregationCompleted func(ctx context.Context, event AggregationCompletedEvent)
 }
 
 // NewAggregationService creates a new AggregationService
@@ -124,6 +138,11 @@ func (s *AggregationService) SetHub(hub *websocket.Hub) {
 // SetOnBucketCompleted registers a callback triggered whenever an aggregation bucket finishes calculation
 func (s *AggregationService) SetOnBucketCompleted(fn func(ctx context.Context, deviceID uint, bucketEnd time.Time)) {
 	s.onBucketCompleted = fn
+}
+
+// SetOnAggregationCompleted registers a callback triggered whenever a parameter aggregation completes and persists
+func (s *AggregationService) SetOnAggregationCompleted(fn func(ctx context.Context, event AggregationCompletedEvent)) {
+	s.onAggregationCompleted = fn
 }
 
 // StartWorker initiates the background aggregation scheduler and recovery worker
@@ -450,6 +469,21 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 
 	_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, time.Now().UTC())
 
+	if s.onAggregationCompleted != nil {
+		event := AggregationCompletedEvent{
+			DeviceID:        def.DeviceID,
+			ParameterID:     def.ParameterID,
+			DefinitionID:    def.ID,
+			IntervalSeconds: def.IntervalSeconds,
+			Function:        string(def.Function),
+			PeriodStart:     bucket.PeriodStart,
+			PeriodEnd:       bucket.PeriodEnd,
+			Identifier:      result.Identifier,
+			Quality:         string(result.Quality),
+		}
+		go s.onAggregationCompleted(context.Background(), event)
+	}
+
 	if s.onBucketCompleted != nil {
 		go s.onBucketCompleted(context.Background(), def.DeviceID, bucket.PeriodEnd)
 	}
@@ -498,6 +532,20 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 				Timestamp: time.Now().UTC(),
 				Data:      result,
 			})
+		}
+		if s.onAggregationCompleted != nil {
+			event := AggregationCompletedEvent{
+				DeviceID:        def.DeviceID,
+				ParameterID:     def.ParameterID,
+				DefinitionID:    def.ID,
+				IntervalSeconds: def.IntervalSeconds,
+				Function:        string(def.Function),
+				PeriodStart:     b.PeriodStart,
+				PeriodEnd:       b.PeriodEnd,
+				Identifier:      result.Identifier,
+				Quality:         string(result.Quality),
+			}
+			go s.onAggregationCompleted(context.Background(), event)
 		}
 		processedCount++
 		if b.PeriodEnd.After(lastProcessedEnd) {
