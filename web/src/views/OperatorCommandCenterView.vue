@@ -976,7 +976,7 @@
             </div>
 
             <!-- SVG Multi-Series Trend Line -->
-            <svg v-else ref="trendPanelSvg" class="w-full h-full" viewBox="0 0 560 200" preserveAspectRatio="none">
+            <svg v-else ref="trendPanelSvg" class="w-full h-full block" :viewBox="`0 0 ${trendChartDims.width} ${trendChartDims.height}`">
               <defs>
                 <!-- Subtle vertical gradient for Primary Series only -->
                 <linearGradient id="scadaPrimaryFill" x1="0" y1="0" x2="0" y2="1">
@@ -988,13 +988,13 @@
               <!-- Y-Axis Grid Lines & Values -->
               <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="0.8">
                 <g v-for="(tick, idx) in trendYTicks" :key="'ytick-' + idx">
-                  <line x1="52" :y1="tick.y" x2="512" :y2="tick.y" stroke-opacity="0.75" />
-                  <!-- Left Y-Axis Tick Label (~10-11px readable) -->
+                  <line :x1="trendChartDims.padLeft" :y1="tick.y" :x2="trendChartDims.width - trendChartDims.padRight" :y2="tick.y" stroke-opacity="0.75" />
+                  <!-- Left Y-Axis Tick Label (~10-11px readable, proportional typography) -->
                   <text
-                    x="46"
+                    :x="trendChartDims.padLeft - 6"
                     :y="tick.y + 3.5"
                     text-anchor="end"
-                    font-size="9.5"
+                    font-size="10"
                     font-family="monospace"
                     :fill="isDark ? '#7E8B9B' : '#475569'"
                   >{{ tick.label }}</text>
@@ -1004,10 +1004,10 @@
                 <template v-if="trendScales.isDual">
                   <g v-for="(tick, idx) in trendRightYTicks" :key="'rytick-' + idx">
                     <text
-                      x="518"
+                      :x="trendChartDims.width - trendChartDims.padRight + 6"
                       :y="tick.y + 3.5"
                       text-anchor="start"
-                      font-size="9.5"
+                      font-size="10"
                       font-family="monospace"
                       :fill="trendScales.right ? trendScales.right.color : (isDark ? '#7E8B9B' : '#475569')"
                     >{{ tick.label }}</text>
@@ -1015,16 +1015,16 @@
                 </template>
 
                 <!-- Base Axis Line -->
-                <line x1="52" y1="170" x2="512" y2="170" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+                <line :x1="trendChartDims.padLeft" :y1="trendChartDims.baseY" :x2="trendChartDims.width - trendChartDims.padRight" :y2="trendChartDims.baseY" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
               </g>
 
               <!-- Axis Unit Labels at top of axis -->
               <g class="axis-units">
                 <!-- Left Axis Unit Badge -->
                 <text
-                  x="52"
-                  y="15"
-                  font-size="9.5"
+                  :x="trendChartDims.padLeft"
+                  y="16"
+                  font-size="10.5"
                   font-family="monospace"
                   font-weight="bold"
                   :fill="trendScales.left ? trendScales.left.color : (isDark ? '#00E5FF' : '#0284C7')"
@@ -1035,9 +1035,9 @@
                 <!-- Right Axis Unit Badge (when dual axis) -->
                 <text
                   v-if="trendScales.isDual && trendScales.right"
-                  x="512"
-                  y="15"
-                  font-size="9.5"
+                  :x="trendChartDims.width - trendChartDims.padRight"
+                  y="16"
+                  font-size="10.5"
                   font-family="monospace"
                   font-weight="bold"
                   text-anchor="end"
@@ -1050,12 +1050,12 @@
               <!-- X-Axis Time Ticks & Timestamps -->
               <g class="time-ticks">
                 <g v-for="(tick, idx) in trendXTicks" :key="'xtick-' + idx">
-                  <line :x1="tick.x" y1="170" :x2="tick.x" y2="174" :stroke="axisStroke" stroke-width="1" />
+                  <line :x1="tick.x" :y1="trendChartDims.baseY" :x2="tick.x" :y2="trendChartDims.baseY + 4" :stroke="axisStroke" stroke-width="1" />
                   <text
                     :x="tick.x"
-                    y="186"
+                    :y="trendChartDims.baseY + 16"
                     text-anchor="middle"
-                    font-size="9.5"
+                    font-size="10"
                     font-family="monospace"
                     :fill="isDark ? '#7E8B9B' : '#475569'"
                   >{{ tick.label }}</text>
@@ -1064,14 +1064,14 @@
 
               <!-- Threshold Reference Lines (Configured limits with clear parameter labels) -->
               <g v-if="trendThresholdLines.crit != null">
-                <line x1="52" :y1="trendThresholdLines.crit.y" x2="512" :y2="trendThresholdLines.crit.y" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
-                <text x="510" :y="trendThresholdLines.crit.y - 4" fill="#EF4444" font-size="8.5" text-anchor="end" font-family="monospace" font-weight="bold">
+                <line :x1="trendChartDims.padLeft" :y1="trendThresholdLines.crit.y" :x2="trendChartDims.width - trendChartDims.padRight" :y2="trendThresholdLines.crit.y" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+                <text :x="trendChartDims.width - trendChartDims.padRight - 4" :y="trendThresholdLines.crit.y - 4" fill="#EF4444" font-size="9" text-anchor="end" font-family="monospace" font-weight="bold">
                   {{ trendThresholdLines.crit.label }}
                 </text>
               </g>
               <g v-if="trendThresholdLines.warn != null">
-                <line x1="52" :y1="trendThresholdLines.warn.y" x2="512" :y2="trendThresholdLines.warn.y" stroke="#F59E0B" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
-                <text x="510" :y="trendThresholdLines.warn.y - 4" fill="#F59E0B" font-size="8.5" text-anchor="end" font-family="monospace" font-weight="bold">
+                <line :x1="trendChartDims.padLeft" :y1="trendThresholdLines.warn.y" :x2="trendChartDims.width - trendChartDims.padRight" :y2="trendThresholdLines.warn.y" stroke="#F59E0B" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+                <text :x="trendChartDims.width - trendChartDims.padRight - 4" :y="trendThresholdLines.warn.y - 4" fill="#F59E0B" font-size="9" text-anchor="end" font-family="monospace" font-weight="bold">
                   {{ trendThresholdLines.warn.label }}
                 </text>
               </g>
@@ -1086,33 +1086,33 @@
                 >
                   <line
                     :x1="spike.px"
-                    y1="24"
+                    :y1="trendChartDims.padTop"
                     :x2="spike.px"
-                    y2="170"
+                    :y2="trendChartDims.baseY"
                     :stroke="spike.color"
                     stroke-width="1"
                     stroke-dasharray="2 2"
                     opacity="0.45"
                   />
                   <polygon
-                    :points="`${spike.px - 4},24 ${spike.px + 4},24 ${spike.px},30`"
+                    :points="`${spike.px - 4},${trendChartDims.padTop} ${spike.px + 4},${trendChartDims.padTop} ${spike.px},${trendChartDims.padTop + 6}`"
                     :fill="spike.color"
                   />
                   <rect
-                    :x="Math.min(Math.max(spike.px - 28, 54), 450)"
+                    :x="Math.min(Math.max(spike.px - 32, trendChartDims.padLeft), trendChartDims.width - trendChartDims.padRight - 64)"
                     y="12"
-                    width="56"
-                    height="14"
+                    width="64"
+                    height="16"
                     rx="3"
                     :fill="isDark ? '#0B1422' : '#FFFFFF'"
                     :stroke="spike.color"
                     stroke-width="1"
                   />
                   <text
-                    :x="Math.min(Math.max(spike.px, 82), 478)"
-                    y="22.5"
+                    :x="Math.min(Math.max(spike.px, trendChartDims.padLeft + 32), trendChartDims.width - trendChartDims.padRight - 32)"
+                    y="23.5"
                     text-anchor="middle"
-                    font-size="8.5"
+                    font-size="9"
                     font-family="monospace"
                     font-weight="bold"
                     :fill="spike.color"
@@ -1149,9 +1149,9 @@
               <g v-if="scrubPoint">
                 <line
                   :x1="scrubPoint.x"
-                  y1="24"
+                  :y1="trendChartDims.padTop"
                   :x2="scrubPoint.x"
-                  y2="170"
+                  :y2="trendChartDims.baseY"
                   stroke="#00E5FF"
                   stroke-width="1.2"
                   stroke-dasharray="2 2"
@@ -1855,9 +1855,8 @@
           <svg
             v-else
             ref="fullscreenTrendSvg"
-            class="w-full h-full"
-            viewBox="0 0 960 380"
-            preserveAspectRatio="none"
+            class="w-full h-full block"
+            :viewBox="`0 0 ${fullscreenChartDims.width} ${fullscreenChartDims.height}`"
           >
             <defs>
               <linearGradient id="fullscreenPrimaryFill" x1="0" y1="0" x2="0" y2="1">
@@ -1869,12 +1868,12 @@
             <!-- Y-Axis Grid Lines & Values -->
             <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="0.8">
               <g v-for="(tick, idx) in fullscreenYTicks" :key="'fs-ytick-' + idx">
-                <line x1="65" :y1="tick.y" x2="905" :y2="tick.y" stroke-opacity="0.75" />
+                <line :x1="fullscreenChartDims.padLeft" :y1="tick.y" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="tick.y" stroke-opacity="0.75" />
                 <text
-                  x="56"
+                  :x="fullscreenChartDims.padLeft - 8"
                   :y="tick.y + 3.5"
                   text-anchor="end"
-                  font-size="10.5"
+                  font-size="11"
                   font-family="monospace"
                   :fill="isDark ? '#7E8B9B' : '#475569'"
                 >{{ tick.label }}</text>
@@ -1884,10 +1883,10 @@
               <template v-if="trendScales.isDual">
                 <g v-for="(tick, idx) in fullscreenRightYTicks" :key="'fs-rytick-' + idx">
                   <text
-                    x="914"
+                    :x="fullscreenChartDims.width - fullscreenChartDims.padRight + 8"
                     :y="tick.y + 3.5"
                     text-anchor="start"
-                    font-size="10.5"
+                    font-size="11"
                     font-family="monospace"
                     :fill="trendScales.right ? trendScales.right.color : (isDark ? '#7E8B9B' : '#475569')"
                   >{{ tick.label }}</text>
@@ -1895,15 +1894,15 @@
               </template>
 
               <!-- Base Axis Line -->
-              <line x1="65" y1="335" x2="905" y2="335" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+              <line :x1="fullscreenChartDims.padLeft" :y1="fullscreenChartDims.baseY" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="fullscreenChartDims.baseY" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
             </g>
 
             <!-- Axis Unit Badges at top -->
             <g class="axis-units">
               <text
-                x="65"
+                :x="fullscreenChartDims.padLeft"
                 y="20"
-                font-size="11"
+                font-size="11.5"
                 font-family="monospace"
                 font-weight="bold"
                 :fill="trendScales.left ? trendScales.left.color : (isDark ? '#00E5FF' : '#0284C7')"
@@ -1912,9 +1911,9 @@
               </text>
               <text
                 v-if="trendScales.isDual && trendScales.right"
-                x="905"
+                :x="fullscreenChartDims.width - fullscreenChartDims.padRight"
                 y="20"
-                font-size="11"
+                font-size="11.5"
                 font-family="monospace"
                 font-weight="bold"
                 text-anchor="end"
@@ -1927,12 +1926,12 @@
             <!-- X-Axis Time Ticks & Timestamps -->
             <g class="time-ticks">
               <g v-for="(tick, idx) in fullscreenXTicks" :key="'fs-xtick-' + idx">
-                <line :x1="tick.x" y1="335" :x2="tick.x" y2="340" :stroke="axisStroke" stroke-width="1" />
+                <line :x1="tick.x" :y1="fullscreenChartDims.baseY" :x2="tick.x" :y2="fullscreenChartDims.baseY + 5" :stroke="axisStroke" stroke-width="1" />
                 <text
                   :x="tick.x"
-                  y="355"
+                  :y="fullscreenChartDims.baseY + 18"
                   text-anchor="middle"
-                  font-size="10"
+                  font-size="10.5"
                   font-family="monospace"
                   :fill="isDark ? '#7E8B9B' : '#475569'"
                 >{{ tick.label }}</text>
@@ -1941,14 +1940,14 @@
 
             <!-- Threshold Reference Lines in Fullscreen -->
             <g v-if="fullscreenThresholdLines.crit != null">
-              <line x1="65" :y1="fullscreenThresholdLines.crit.y" x2="905" :y2="fullscreenThresholdLines.crit.y" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
-              <text x="900" :y="fullscreenThresholdLines.crit.y - 4" fill="#EF4444" font-size="9.5" text-anchor="end" font-family="monospace" font-weight="bold">
+              <line :x1="fullscreenChartDims.padLeft" :y1="fullscreenThresholdLines.crit.y" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="fullscreenThresholdLines.crit.y" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+              <text :x="fullscreenChartDims.width - fullscreenChartDims.padRight - 5" :y="fullscreenThresholdLines.crit.y - 4" fill="#EF4444" font-size="10" text-anchor="end" font-family="monospace" font-weight="bold">
                 {{ fullscreenThresholdLines.crit.label }}
               </text>
             </g>
             <g v-if="fullscreenThresholdLines.warn != null">
-              <line x1="65" :y1="fullscreenThresholdLines.warn.y" x2="905" :y2="fullscreenThresholdLines.warn.y" stroke="#F59E0B" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
-              <text x="900" :y="fullscreenThresholdLines.warn.y - 4" fill="#F59E0B" font-size="9.5" text-anchor="end" font-family="monospace" font-weight="bold">
+              <line :x1="fullscreenChartDims.padLeft" :y1="fullscreenThresholdLines.warn.y" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="fullscreenThresholdLines.warn.y" stroke="#F59E0B" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.85" />
+              <text :x="fullscreenChartDims.width - fullscreenChartDims.padRight - 5" :y="fullscreenThresholdLines.warn.y - 4" fill="#F59E0B" font-size="10" text-anchor="end" font-family="monospace" font-weight="bold">
                 {{ fullscreenThresholdLines.warn.label }}
               </text>
             </g>
@@ -1963,33 +1962,33 @@
               >
                 <line
                   :x1="spike.px"
-                  y1="30"
+                  :y1="fullscreenChartDims.padTop"
                   :x2="spike.px"
-                  y2="335"
+                  :y2="fullscreenChartDims.baseY"
                   :stroke="spike.color"
                   stroke-width="1"
                   stroke-dasharray="2 2"
                   opacity="0.45"
                 />
                 <polygon
-                  :points="`${spike.px - 5},30 ${spike.px + 5},30 ${spike.px},37`"
+                  :points="`${spike.px - 5},${fullscreenChartDims.padTop} ${spike.px + 5},${fullscreenChartDims.padTop} ${spike.px},${fullscreenChartDims.padTop + 7}`"
                   :fill="spike.color"
                 />
                 <rect
-                  :x="Math.min(Math.max(spike.px - 34, 68), 830)"
+                  :x="Math.min(Math.max(spike.px - 36, fullscreenChartDims.padLeft), fullscreenChartDims.width - fullscreenChartDims.padRight - 72)"
                   y="16"
-                  width="68"
-                  height="16"
+                  width="72"
+                  height="18"
                   rx="3"
                   :fill="isDark ? '#0B1422' : '#FFFFFF'"
                   :stroke="spike.color"
                   stroke-width="1"
                 />
                 <text
-                  :x="Math.min(Math.max(spike.px, 102), 864)"
-                  y="28"
+                  :x="Math.min(Math.max(spike.px, fullscreenChartDims.padLeft + 36), fullscreenChartDims.width - fullscreenChartDims.padRight - 36)"
+                  y="29"
                   text-anchor="middle"
-                  font-size="9.5"
+                  font-size="10"
                   font-family="monospace"
                   font-weight="bold"
                   :fill="spike.color"
@@ -2001,15 +2000,15 @@
 
             <!-- Primary Series Subtle Area Fill -->
             <path
-              v-if="activeTrendSeries.length > 0 && generatePrimaryAreaPath(null, 960, 380, 65, 55, 30, 45)"
-              :d="generatePrimaryAreaPath(null, 960, 380, 65, 55, 30, 45)"
+              v-if="activeTrendSeries.length > 0 && generatePrimaryAreaPath(null, fullscreenChartDims.width, fullscreenChartDims.height, fullscreenChartDims.padLeft, fullscreenChartDims.padRight, fullscreenChartDims.padTop, fullscreenChartDims.padBottom)"
+              :d="generatePrimaryAreaPath(null, fullscreenChartDims.width, fullscreenChartDims.height, fullscreenChartDims.padLeft, fullscreenChartDims.padRight, fullscreenChartDims.padTop, fullscreenChartDims.padBottom)"
               fill="url(#fullscreenPrimaryFill)"
             />
 
             <!-- Series Plots (Unfilled clean 1.8px lines with gap handling) -->
             <g v-for="(s, sIdx) in activeTrendSeries" :key="'fs-plot-' + s.id">
               <path
-                :d="generateChartPath(s, null, 960, 380, 65, 55, 30, 45)"
+                :d="generateChartPath(s, null, fullscreenChartDims.width, fullscreenChartDims.height, fullscreenChartDims.padLeft, fullscreenChartDims.padRight, fullscreenChartDims.padTop, fullscreenChartDims.padBottom)"
                 fill="none"
                 :stroke="s.color"
                 :stroke-width="hoveredTrendSeriesId === s.id ? 2.4 : (sIdx === 0 ? 1.8 : 1.6)"
@@ -2024,7 +2023,7 @@
 
             <!-- Hover Scrub Crosshair & Value Dots -->
             <g v-if="fullscreenScrubPoint">
-              <line :x1="fullscreenScrubPoint.x" y1="30" :x2="fullscreenScrubPoint.x" y2="335" stroke="#00E5FF" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.85" />
+              <line :x1="fullscreenScrubPoint.x" :y1="fullscreenChartDims.padTop" :x2="fullscreenScrubPoint.x" :y2="fullscreenChartDims.baseY" stroke="#00E5FF" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.85" />
               <g v-for="sp in fullscreenScrubPoint.allSeries" :key="'fs-scrub-dot-' + sp.seriesId">
                 <circle
                   v-if="sp.plotY != null"
@@ -2205,6 +2204,14 @@ export default {
       fullscreenIsCustom: false,
       showTrendParamPicker: false,
 
+      // Responsive Trend Canvas Dimensions (1:1 coordinate space prevents text distortion)
+      trendChartWidth: 800,
+      trendChartHeight: 224,
+      fullscreenChartWidth: 1200,
+      fullscreenChartHeight: 440,
+      trendResizeObserver: null,
+      fullscreenResizeObserver: null,
+
       // Recent Activity & Queue
       activeRecentTab: 'alarms', // 'alarms' | 'events' | 'notifications'
       recentEvents: [],
@@ -2274,14 +2281,39 @@ export default {
     primarySeriesColor() {
       return this.activeTrendSeries.length > 0 ? this.activeTrendSeries[0].color : '#00E5FF';
     },
+    trendChartDims() {
+      const width = this.trendChartWidth || 800;
+      const height = this.trendChartHeight || 224;
+      const padLeft = 52;
+      const padRight = this.trendScales?.isDual ? 52 : 36;
+      const padTop = 26;
+      const padBottom = 26;
+      const plotW = Math.max(width - padLeft - padRight, 100);
+      const plotH = Math.max(height - padTop - padBottom, 60);
+      const baseY = height - padBottom;
+      return { width, height, padLeft, padRight, padTop, padBottom, plotW, plotH, baseY };
+    },
+    fullscreenChartDims() {
+      const width = this.fullscreenChartWidth || 1200;
+      const height = this.fullscreenChartHeight || 440;
+      const padLeft = 65;
+      const padRight = this.trendScales?.isDual ? 65 : 45;
+      const padTop = 30;
+      const padBottom = 35;
+      const plotW = Math.max(width - padLeft - padRight, 100);
+      const plotH = Math.max(height - padTop - padBottom, 80);
+      const baseY = height - padBottom;
+      return { width, height, padLeft, padRight, padTop, padBottom, plotW, plotH, baseY };
+    },
     tooltipLeftPos() {
       if (!this.scrubPoint) return 10;
       const rawX = this.scrubPoint.rawPixelX != null ? this.scrubPoint.rawPixelX : this.scrubPoint.x;
+      const width = this.trendChartDims.width;
       // If hovering on right half of canvas, place tooltip to the left of crosshair
-      if (rawX > 250) {
-        return Math.max(10, rawX - 270);
+      if (rawX > width * 0.5) {
+        return Math.max(10, rawX - 280);
       }
-      return Math.min(rawX + 16, 290);
+      return Math.min(rawX + 16, width - 290);
     },
     trendScales() {
       if (this.activeTrendSeries.length === 0) {
@@ -2493,8 +2525,7 @@ export default {
       const timeStart = this.trendTimeBounds.start;
       const timeEnd = this.trendTimeBounds.end;
       const timeSpan = Math.max(timeEnd - timeStart, 1000);
-      const padLeft = 52;
-      const plotW = 460;
+      const { padLeft, plotW } = this.trendChartDims;
 
       if (this.trendScales.left && this.trendScales.left.hasSpike && this.trendSpikeZoom !== 'full') {
         (this.trendScales.left.outlierPoints || []).forEach(pt => {
@@ -2524,8 +2555,7 @@ export default {
       const timeStart = this.trendTimeBounds.start;
       const timeEnd = this.trendTimeBounds.end;
       const timeSpan = Math.max(timeEnd - timeStart, 1000);
-      const padLeft = 65;
-      const plotW = 840;
+      const { padLeft, plotW } = this.fullscreenChartDims;
 
       if (this.trendScales.left && this.trendScales.left.hasSpike && this.trendSpikeZoom !== 'full') {
         (this.trendScales.left.outlierPoints || []).forEach(pt => {
@@ -2573,9 +2603,10 @@ export default {
       const scale = this.trendScales.left;
       const ticks = [];
       const steps = 4;
+      const { plotH, baseY } = this.trendChartDims;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const y = 170 - frac * 146;
+        const y = baseY - frac * plotH;
         let label = '';
         if (this.trendScaleMode === 'normalized') {
           label = `${Math.round(frac * 100)}%`;
@@ -2592,9 +2623,10 @@ export default {
       const scale = this.trendScales.right;
       const ticks = [];
       const steps = 4;
+      const { plotH, baseY } = this.trendChartDims;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const y = 170 - frac * 146;
+        const y = baseY - frac * plotH;
         const val = scale.min + frac * (scale.max - scale.min);
         ticks.push({ y, frac, label: this.formatAxisValue(val) });
       }
@@ -2604,10 +2636,9 @@ export default {
       const start = this.trendTimeBounds.start;
       const end = this.trendTimeBounds.end;
       const span = Math.max(end - start, 1000);
-      const padLeft = 52;
-      const plotW = 460;
+      const { padLeft, plotW, width } = this.trendChartDims;
       const ticks = [];
-      const steps = 4;
+      const steps = width >= 900 ? 6 : (width >= 600 ? 5 : 3);
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
         const x = padLeft + frac * plotW;
@@ -2631,9 +2662,10 @@ export default {
       const scale = this.trendScales.left;
       const ticks = [];
       const steps = 5;
+      const { plotH, baseY } = this.fullscreenChartDims;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const y = 335 - frac * 305;
+        const y = baseY - frac * plotH;
         let label = '';
         if (this.trendScaleMode === 'normalized') {
           label = `${Math.round(frac * 100)}%`;
@@ -2650,9 +2682,10 @@ export default {
       const scale = this.trendScales.right;
       const ticks = [];
       const steps = 5;
+      const { plotH, baseY } = this.fullscreenChartDims;
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
-        const y = 335 - frac * 305;
+        const y = baseY - frac * plotH;
         const val = scale.min + frac * (scale.max - scale.min);
         ticks.push({ y, frac, label: this.formatAxisValue(val) });
       }
@@ -2662,10 +2695,9 @@ export default {
       const start = this.trendTimeBounds.start;
       const end = this.trendTimeBounds.end;
       const span = Math.max(end - start, 1000);
-      const padLeft = 65;
-      const plotW = 840;
+      const { padLeft, plotW, width } = this.fullscreenChartDims;
       const ticks = [];
-      const steps = 7;
+      const steps = width >= 1200 ? 8 : (width >= 800 ? 6 : 4);
       for (let i = 0; i <= steps; i++) {
         const frac = i / steps;
         const x = padLeft + frac * plotW;
@@ -2684,6 +2716,7 @@ export default {
     },
     trendThresholdLines() {
       if (this.activeTrendSeries.length === 0 || this.trendScaleMode === 'normalized') return { crit: null, warn: null };
+      const { baseY, plotH } = this.trendChartDims;
       for (const s of this.activeTrendSeries) {
         const param = this.allParameters.find(p => p.param_id === s.parameterId);
         if (!param || (param.high_critical == null && param.high_warning == null)) continue;
@@ -2698,7 +2731,7 @@ export default {
         if (param.high_critical != null) {
           const frac = (param.high_critical - scale.min) / span;
           if (frac >= 0 && frac <= 1.08) {
-            const y = 170 - Math.min(Math.max(frac, 0), 1) * 146;
+            const y = baseY - Math.min(Math.max(frac, 0), 1) * plotH;
             crit = {
               y,
               val: param.high_critical,
@@ -2710,7 +2743,7 @@ export default {
         if (param.high_warning != null) {
           const frac = (param.high_warning - scale.min) / span;
           if (frac >= 0 && frac <= 1.08) {
-            const y = 170 - Math.min(Math.max(frac, 0), 1) * 146;
+            const y = baseY - Math.min(Math.max(frac, 0), 1) * plotH;
             warn = {
               y,
               val: param.high_warning,
@@ -2725,6 +2758,7 @@ export default {
     },
     fullscreenThresholdLines() {
       if (this.activeTrendSeries.length === 0 || this.trendScaleMode === 'normalized') return { crit: null, warn: null };
+      const { baseY, plotH } = this.fullscreenChartDims;
       for (const s of this.activeTrendSeries) {
         const param = this.allParameters.find(p => p.param_id === s.parameterId);
         if (!param || (param.high_critical == null && param.high_warning == null)) continue;
@@ -2739,7 +2773,7 @@ export default {
         if (param.high_critical != null) {
           const frac = (param.high_critical - scale.min) / span;
           if (frac >= 0 && frac <= 1.08) {
-            const y = 335 - Math.min(Math.max(frac, 0), 1) * 305;
+            const y = baseY - Math.min(Math.max(frac, 0), 1) * plotH;
             crit = {
               y,
               val: param.high_critical,
@@ -2751,7 +2785,7 @@ export default {
         if (param.high_warning != null) {
           const frac = (param.high_warning - scale.min) / span;
           if (frac >= 0 && frac <= 1.08) {
-            const y = 335 - Math.min(Math.max(frac, 0), 1) * 305;
+            const y = baseY - Math.min(Math.max(frac, 0), 1) * plotH;
             warn = {
               y,
               val: param.high_warning,
@@ -3130,6 +3164,7 @@ export default {
   },
   mounted() {
     this.initDashboard();
+    this.initTrendResizeObserver();
 
     // Telemetry Freshness Ticker
     this.tickerInterval = setInterval(() => {
@@ -3159,11 +3194,65 @@ export default {
     if (this.clockInterval) clearInterval(this.clockInterval);
     if (this.pollingInterval) clearInterval(this.pollingInterval);
     if (this.alarmPulseTimer) clearTimeout(this.alarmPulseTimer);
+    if (this.trendResizeObserver) {
+      this.trendResizeObserver.disconnect();
+      this.trendResizeObserver = null;
+    }
+    if (this.fullscreenResizeObserver) {
+      this.fullscreenResizeObserver.disconnect();
+      this.fullscreenResizeObserver = null;
+    }
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
   },
   methods: {
+    initTrendResizeObserver() {
+      this.$nextTick(() => {
+        if (this.$refs.scadaChartContainer) {
+          const rect = this.$refs.scadaChartContainer.getBoundingClientRect();
+          if (rect && rect.width > 0) {
+            this.trendChartWidth = Math.round(rect.width);
+            this.trendChartHeight = Math.round(rect.height) || 224;
+          }
+          if (typeof window !== 'undefined' && window.ResizeObserver && !this.trendResizeObserver) {
+            this.trendResizeObserver = new ResizeObserver((entries) => {
+              for (const entry of entries) {
+                const cr = entry.contentRect;
+                if (cr && cr.width > 0) {
+                  this.trendChartWidth = Math.round(cr.width);
+                  this.trendChartHeight = Math.round(cr.height) || 224;
+                }
+              }
+            });
+            this.trendResizeObserver.observe(this.$refs.scadaChartContainer);
+          }
+        }
+      });
+    },
+    initFullscreenResizeObserver() {
+      this.$nextTick(() => {
+        if (this.$refs.fullscreenChartContainer) {
+          const rect = this.$refs.fullscreenChartContainer.getBoundingClientRect();
+          if (rect && rect.width > 0) {
+            this.fullscreenChartWidth = Math.round(rect.width);
+            this.fullscreenChartHeight = Math.round(rect.height) || 440;
+          }
+          if (typeof window !== 'undefined' && window.ResizeObserver && !this.fullscreenResizeObserver) {
+            this.fullscreenResizeObserver = new ResizeObserver((entries) => {
+              for (const entry of entries) {
+                const cr = entry.contentRect;
+                if (cr && cr.width > 0) {
+                  this.fullscreenChartWidth = Math.round(cr.width);
+                  this.fullscreenChartHeight = Math.round(cr.height) || 440;
+                }
+              }
+            });
+            this.fullscreenResizeObserver.observe(this.$refs.fullscreenChartContainer);
+          }
+        }
+      });
+    },
     isParamDomainMismatched(param) {
       if (!param || !param.category_id) return false;
       const dom = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
@@ -3963,10 +4052,17 @@ export default {
       this.fullscreenCustomStart = this.toLocalISO(start);
       this.fullscreenCustomEnd = this.toLocalISO(now);
       this.showTrendFullscreen = true;
+      this.$nextTick(() => {
+        this.initFullscreenResizeObserver();
+      });
     },
     closeTrendFullscreen() {
       this.showTrendFullscreen = false;
       this.showTrendParamPicker = false;
+      if (this.fullscreenResizeObserver) {
+        this.fullscreenResizeObserver.disconnect();
+        this.fullscreenResizeObserver = null;
+      }
     },
     formatAxisValue(val) {
       if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return '--';
@@ -4115,12 +4211,20 @@ export default {
         this.isChartLoading = false;
       }
     },
-    generateChartPath(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
+    generateChartPath(series, bounds = null, width = null, height = null, padLeft = null, padRight = null, padTop = null, padBottom = null) {
       const pts = series.dataPoints;
       if (!pts || pts.length === 0) return '';
 
-      const plotW = width - padLeft - padRight;
-      const plotH = height - padTop - padBottom;
+      const dims = this.trendChartDims;
+      const w = width !== null && width !== undefined ? width : dims.width;
+      const h = height !== null && height !== undefined ? height : dims.height;
+      const pLeft = padLeft !== null && padLeft !== undefined ? padLeft : dims.padLeft;
+      const pRight = padRight !== null && padRight !== undefined ? padRight : dims.padRight;
+      const pTop = padTop !== null && padTop !== undefined ? padTop : dims.padTop;
+      const pBottom = padBottom !== null && padBottom !== undefined ? padBottom : dims.padBottom;
+
+      const plotW = w - pLeft - pRight;
+      const plotH = h - pTop - pBottom;
 
       const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
       const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
@@ -4166,8 +4270,8 @@ export default {
           continue;
         }
 
-        const px = padLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
-        const py = (padTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
+        const px = pLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
+        const py = (pTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
 
         if (prevX !== null && (p.x - prevX) > maxGapMs) {
           inSegment = false;
@@ -4184,15 +4288,23 @@ export default {
 
       return pathStr.trim();
     },
-    generatePrimaryAreaPath(bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
+    generatePrimaryAreaPath(bounds = null, width = null, height = null, padLeft = null, padRight = null, padTop = null, padBottom = null) {
       if (this.activeTrendSeries.length === 0) return '';
       const primary = this.activeTrendSeries[0];
       const pts = primary.dataPoints || [];
       if (pts.length === 0) return '';
 
-      const plotW = width - padLeft - padRight;
-      const plotH = height - padTop - padBottom;
-      const baseY = padTop + plotH;
+      const dims = this.trendChartDims;
+      const w = width !== null && width !== undefined ? width : dims.width;
+      const h = height !== null && height !== undefined ? height : dims.height;
+      const pLeft = padLeft !== null && padLeft !== undefined ? padLeft : dims.padLeft;
+      const pRight = padRight !== null && padRight !== undefined ? padRight : dims.padRight;
+      const pTop = padTop !== null && padTop !== undefined ? padTop : dims.padTop;
+      const pBottom = padBottom !== null && padBottom !== undefined ? padBottom : dims.padBottom;
+
+      const plotW = w - pLeft - pRight;
+      const plotH = h - pTop - pBottom;
+      const baseY = pTop + plotH;
 
       const timeStart = bounds ? bounds.start : (this.trendTimeBounds.start || pts[0].x);
       const timeEnd = bounds ? bounds.end : (this.trendTimeBounds.end || pts[pts.length - 1].x);
@@ -4250,13 +4362,13 @@ export default {
       let d = '';
       for (const seg of segments) {
         if (seg.length === 0) continue;
-        const firstPx = padLeft + Math.min(Math.max((seg[0].x - timeStart) / timeSpan, 0), 1) * plotW;
-        const lastPx = padLeft + Math.min(Math.max((seg[seg.length - 1].x - timeStart) / timeSpan, 0), 1) * plotW;
+        const firstPx = pLeft + Math.min(Math.max((seg[0].x - timeStart) / timeSpan, 0), 1) * plotW;
+        const lastPx = pLeft + Math.min(Math.max((seg[seg.length - 1].x - timeStart) / timeSpan, 0), 1) * plotW;
 
         let segD = `M ${firstPx.toFixed(1)} ${baseY}`;
         for (let i = 0; i < seg.length; i++) {
-          const px = padLeft + Math.min(Math.max((seg[i].x - timeStart) / timeSpan, 0), 1) * plotW;
-          const py = (padTop + plotH) - Math.min(Math.max((seg[i].y - minY) / spanY, 0), 1) * plotH;
+          const px = pLeft + Math.min(Math.max((seg[i].x - timeStart) / timeSpan, 0), 1) * plotW;
+          const py = (pTop + plotH) - Math.min(Math.max((seg[i].y - minY) / spanY, 0), 1) * plotH;
           segD += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
         }
         segD += ` L ${lastPx.toFixed(1)} ${baseY} Z`;
@@ -4324,12 +4436,8 @@ export default {
       if (!this.$refs.scadaChartContainer || this.activeTrendSeries.length === 0) return;
       const rect = this.$refs.scadaChartContainer.getBoundingClientRect();
       const mouseX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-      const scaleX = 560 / rect.width;
-      const chartX = mouseX * scaleX;
-
-      const padLeft = 52;
-      const plotW = 460;
-      const clampedX = Math.min(Math.max(chartX, padLeft), padLeft + plotW);
+      const { padLeft, plotW, padTop, plotH } = this.trendChartDims;
+      const clampedX = Math.min(Math.max(mouseX, padLeft), padLeft + plotW);
       const frac = (clampedX - padLeft) / plotW;
 
       const start = this.trendTimeBounds.start;
@@ -4355,7 +4463,7 @@ export default {
         let plotY = null;
         if (closest.y !== null && isFinite(closest.y)) {
           const fracY = Math.min(Math.max((closest.y - scale.min) / spanY, 0), 1);
-          plotY = 24 + 146 - fracY * 146;
+          plotY = (padTop + plotH) - fracY * plotH;
         }
 
         const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
@@ -4400,12 +4508,8 @@ export default {
       if (!this.$refs.fullscreenChartContainer || this.activeTrendSeries.length === 0) return;
       const rect = this.$refs.fullscreenChartContainer.getBoundingClientRect();
       const mouseX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-      const scaleX = 960 / rect.width;
-      const chartX = mouseX * scaleX;
-
-      const padLeft = 65;
-      const plotW = 840;
-      const clampedX = Math.min(Math.max(chartX, padLeft), padLeft + plotW);
+      const { padLeft, plotW, padTop, plotH } = this.fullscreenChartDims;
+      const clampedX = Math.min(Math.max(mouseX, padLeft), padLeft + plotW);
       const frac = (clampedX - padLeft) / plotW;
 
       const start = this.trendTimeBounds.start;
@@ -4431,7 +4535,7 @@ export default {
         let plotY = null;
         if (closest.y !== null && isFinite(closest.y)) {
           const fracY = Math.min(Math.max((closest.y - scale.min) / spanY, 0), 1);
-          plotY = 30 + 305 - fracY * 305;
+          plotY = (padTop + plotH) - fracY * plotH;
         }
 
         const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};

@@ -131,10 +131,11 @@ runTest('Test 12: Uses curated 6-color SCADA palette for dark backgrounds', () =
   assert(occContent.includes('#8B5CF6'), 'Must include crisp violet');
 });
 
-// 13. Responsive Canvas Height: ~210-224px height allocated for readable chart
-runTest('Test 13: Chart container height expanded to h-52 sm:h-56 (~208-224px)', () => {
+// 13. Responsive Canvas: Dynamic 1:1 responsive viewBox without preserveAspectRatio="none" to eliminate text stretching
+runTest('Test 13: Chart container uses dynamic responsive viewBox without preserveAspectRatio="none"', () => {
   assert(occContent.includes('h-52 sm:h-56'), 'Canvas must use h-52 sm:h-56 for comfortable operator readability');
-  assert(occContent.includes('viewBox="0 0 560 200"'), 'SVG must use spacious 560x200 viewBox');
+  assert(occContent.includes(':viewBox="`0 0 ${trendChartDims.width} ${trendChartDims.height}`"'), 'SVG must use dynamic 1:1 responsive viewBox');
+  assert(!occContent.includes('trendChartDims') || !occContent.match(/trendChartDims[\s\S]*?preserveAspectRatio="none"/), 'Trend chart SVG must NOT use preserveAspectRatio="none" which distorts text');
 });
 
 console.log('\n===============================================================');
