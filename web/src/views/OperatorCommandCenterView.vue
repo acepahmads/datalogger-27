@@ -447,6 +447,7 @@
                   v-for="param in section.parameters"
                   :key="param.param_id"
                   @click="selectParamForTrend(param)"
+                  @contextmenu.prevent="openParamContextMenu($event, param)"
                   class="scada-param-tile p-2.5 sm:p-2.5 xl:p-3 rounded-xl border transition-all duration-200 relative cursor-pointer group flex flex-col justify-between h-[114px] sm:h-[118px] lg:h-[126px] xl:h-[134px] min-w-0 sm:min-w-0 xl:min-w-[260px]"
                   :class="[
                     isParamAlarmOrStaleBad(param)
@@ -707,6 +708,7 @@
                     <tr
                       v-for="p in colParams"
                       :key="p.param_id"
+                      @contextmenu.prevent="openParamContextMenu($event, p)"
                       class="transition-colors"
                       :class="[
                         isParamAlarmOrStaleBad(p)
@@ -824,6 +826,13 @@
                         >
                           FX
                         </router-link>
+                        <button
+                          @click.stop="openParamContextMenu($event, p)"
+                          class="px-1.5 py-0.5 rounded text-4xs bg-slate-100 hover:bg-slate-200 dark:bg-[#18283E] dark:hover:bg-[#20354B] text-slate-700 dark:text-slate-300 hover:text-white font-bold"
+                          title="Menu aksi parameter (klik kanan)"
+                        >
+                          ⋮
+                        </button>
                       </td>
                     </tr>
                   </tbody>
@@ -2170,6 +2179,153 @@
       @close="isCategoryModalOpen = false"
       @saved="onCategoryConfigSaved"
     />
+
+    <!-- Custom Floating Context Menu for Parameter Cards (Right-Click) -->
+    <div
+      v-if="paramContextMenu.visible && paramContextMenu.param"
+      class="param-context-menu fixed z-50 min-w-[240px] rounded-xl bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-[#20354B] shadow-2xl overflow-hidden font-sans text-xs animate-fade-in divide-y divide-slate-100 dark:divide-[#152538]"
+      :style="{ top: paramContextMenu.y + 'px', left: paramContextMenu.x + 'px' }"
+      @click.stop
+    >
+      <!-- Context Menu Header Info -->
+      <div class="px-3.5 py-2.5 bg-slate-50 dark:bg-[#080E18] flex items-center space-x-2.5">
+        <ParameterIcon
+          :icon="paramContextMenu.param.icon"
+          :code="paramContextMenu.param.param_code"
+          :name="paramContextMenu.param.param_name"
+          :unit="paramContextMenu.param.unit"
+          size-class="w-4 h-4 flex-shrink-0"
+        />
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-slate-900 dark:text-white text-xs truncate">
+            {{ paramContextMenu.param.param_name || paramContextMenu.param.param_code }}
+          </div>
+          <div class="text-4xs font-mono text-cyan-600 dark:text-cyan-400 truncate mt-0.5">
+            {{ paramContextMenu.param.device_code }} · {{ paramContextMenu.param.param_code }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions List -->
+      <div class="py-1">
+        <!-- 1. Test Read -->
+        <button
+          type="button"
+          @click="handleContextTestRead"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500/25 flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">Test Read</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">Modbus diagnostic report</div>
+          </div>
+        </button>
+
+        <!-- 2. View Config -->
+        <button
+          type="button"
+          @click="handleContextViewConfig"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 group-hover:bg-blue-500/25 flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">View Config</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">Lihat konfigurasi parameter</div>
+          </div>
+        </button>
+
+        <!-- 3. Edit Config (Role protected for Admin/Superadmin) -->
+        <button
+          type="button"
+          @click="handleContextEditConfig"
+          :class="canEditConfig ? 'hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 cursor-pointer' : 'opacity-40 cursor-not-allowed text-slate-400'"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 transition group"
+          :title="canEditConfig ? 'Edit konfigurasi parameter' : 'Hanya untuk role Administrator / Superadmin'"
+        >
+          <span class="p-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500/25 flex-shrink-0">
+            <svg v-if="canEditConfig" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <svg v-else class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center space-x-1.5 leading-none">
+              <span class="font-semibold text-xs">Edit Config</span>
+              <span v-if="!canEditConfig" class="text-4xs font-mono text-amber-500 dark:text-amber-400 px-1 py-0.2 rounded bg-amber-500/10">Admin</span>
+            </div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {{ canEditConfig ? 'Ubah batas, rumus, dan register' : 'Perlu role admin / superadmin' }}
+            </div>
+          </div>
+        </button>
+
+        <!-- 4. 100 Data Terakhir -->
+        <button
+          type="button"
+          @click="handleContextHistory"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 group-hover:bg-purple-500/25 flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">100 Data Terakhir</div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">Riwayat & audit log telemetri</div>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <!-- 1. Test Read Diagnostic Modal -->
+    <TestReadModal
+      :is-open="isTestReadModalOpen"
+      :device="testReadTarget.device"
+      :parameter="testReadTarget.parameter"
+      @close="isTestReadModalOpen = false"
+      @read-completed="onTestReadCompleted"
+    />
+
+    <!-- 2. Parameter View Config Modal -->
+    <ParameterConfigViewModal
+      :is-open="isViewConfigModalOpen"
+      :device="viewConfigTarget.device"
+      :parameter="viewConfigTarget.parameter"
+      :can-edit="canEditConfig"
+      @close="isViewConfigModalOpen = false"
+      @edit="switchToEditModal"
+    />
+
+    <!-- 3. Parameter Edit Modal (Admin / Superadmin) -->
+    <ParameterModal
+      v-if="editParamTarget.device && editParamTarget.parameter"
+      :is-open="isEditParamModalOpen"
+      :device-id="editParamTarget.deviceId"
+      :param-to-edit="editParamTarget.parameter"
+      :source-device="editParamTarget.device"
+      @close="isEditParamModalOpen = false"
+      @saved="handleParamSaved"
+    />
+
+    <!-- 4. 100 Data Terakhir Modal -->
+    <ParameterHistoryModal
+      :is-open="isHistoryModalOpen"
+      :device="historyTarget.device"
+      :parameter="historyTarget.parameter"
+      @close="isHistoryModalOpen = false"
+    />
   </div>
 </template>
 
@@ -2180,6 +2336,10 @@ import WindRoseChart from '../components/WindRoseChart.vue';
 import PollutantDispersionMap from '../components/PollutantDispersionMap.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
 import CategoryManagementModal from '../components/CategoryManagementModal.vue';
+import TestReadModal from '../components/TestReadModal.vue';
+import ParameterConfigViewModal from '../components/ParameterConfigViewModal.vue';
+import ParameterHistoryModal from '../components/ParameterHistoryModal.vue';
+import ParameterModal from '../components/ParameterModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
 
@@ -2209,6 +2369,10 @@ export default {
     PollutantDispersionMap,
     ParameterIcon,
     CategoryManagementModal,
+    TestReadModal,
+    ParameterConfigViewModal,
+    ParameterHistoryModal,
+    ParameterModal,
   },
   props: {
     isSidebarCollapsed: {
@@ -2225,6 +2389,22 @@ export default {
       devicesList: [],
       liveMap: {},
       liveBlinks: {},
+      paramContextMenu: {
+        visible: false,
+        x: 0,
+        y: 0,
+        param: null,
+        device: null,
+        fullParam: null,
+      },
+      isTestReadModalOpen: false,
+      testReadTarget: { device: null, parameter: null },
+      isViewConfigModalOpen: false,
+      viewConfigTarget: { device: null, parameter: null },
+      isEditParamModalOpen: false,
+      editParamTarget: { deviceId: null, parameter: null, device: null },
+      isHistoryModalOpen: false,
+      historyTarget: { device: null, parameter: null },
       lastGoodTimeMap: (() => {
         try {
           return JSON.parse(localStorage.getItem('dl_last_good_time_map') || '{}');
@@ -3167,6 +3347,14 @@ export default {
       const role = (this.$store.state.user && this.$store.state.user.role) || '';
       return role === 'Administrator' || role === 'Engineer';
     },
+    canEditConfig() {
+      const u = this.$store.state.user;
+      if (!u) return false;
+      const role = typeof u.role === 'string'
+        ? u.role.toLowerCase()
+        : (u.role && u.role.name ? u.role.name.toLowerCase() : '');
+      return ['administrator', 'admin', 'superadmin', 'engineer'].includes(role);
+    },
     canViewCategories() {
       return true;
     },
@@ -3295,6 +3483,10 @@ export default {
 
     // Listen to synchronized SCADA alarm annunciator pulses (audio + visual synchronized clock)
     window.addEventListener('scada-alarm-pulse', this.handleAlarmPulse);
+
+    // Global document listeners for context menu dismissal
+    document.addEventListener('click', this.onDocumentClick);
+    document.addEventListener('contextmenu', this.onDocumentContextMenu);
   },
   beforeDestroy() {
     if (this.tickerInterval) clearInterval(this.tickerInterval);
@@ -3312,8 +3504,143 @@ export default {
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
+    document.removeEventListener('click', this.onDocumentClick);
+    document.removeEventListener('contextmenu', this.onDocumentContextMenu);
   },
   methods: {
+    openParamContextMenu(event, param) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (!param) return;
+
+      const dev = (this.devicesList || []).find(d => d.id === param.device_id) || {
+        id: param.device_id,
+        device_code: param.device_code,
+        name: param.device_name,
+      };
+      const fullParam = (dev && dev.parameters)
+        ? dev.parameters.find(p => p.id === param.param_id)
+        : null;
+
+      const menuWidth = 240;
+      const menuHeight = 250;
+      const clientX = event && event.clientX ? event.clientX : window.innerWidth / 2;
+      const clientY = event && event.clientY ? event.clientY : window.innerHeight / 2;
+      const x = Math.min(clientX, window.innerWidth - menuWidth - 12);
+      const y = Math.min(clientY, window.innerHeight - menuHeight - 12);
+
+      this.paramContextMenu = {
+        visible: true,
+        x: Math.max(12, x),
+        y: Math.max(12, y),
+        param,
+        device: dev,
+        fullParam: fullParam || param,
+      };
+    },
+    closeParamContextMenu() {
+      this.paramContextMenu.visible = false;
+    },
+    handleContextTestRead() {
+      const { device, fullParam, param } = this.paramContextMenu;
+      this.closeParamContextMenu();
+      if (!param) return;
+      this.testReadTarget = {
+        device: device || { id: param.device_id, device_code: param.device_code },
+        parameter: fullParam || param,
+      };
+      this.isTestReadModalOpen = true;
+    },
+    handleContextViewConfig() {
+      const { device, fullParam, param } = this.paramContextMenu;
+      this.closeParamContextMenu();
+      if (!param) return;
+      this.viewConfigTarget = {
+        device: device || { id: param.device_id, device_code: param.device_code },
+        parameter: fullParam || param,
+      };
+      this.isViewConfigModalOpen = true;
+    },
+    switchToEditModal() {
+      if (!this.canEditConfig) return;
+      this.isViewConfigModalOpen = false;
+      const { device, parameter } = this.viewConfigTarget;
+      this.editParamTarget = {
+        deviceId: (device && device.id) || (parameter && parameter.device_id),
+        device: device || { id: parameter.device_id, device_code: parameter.device_code },
+        parameter: parameter,
+      };
+      this.isEditParamModalOpen = true;
+    },
+    handleContextEditConfig() {
+      if (!this.canEditConfig) {
+        if (this.showAudioNotification) {
+          this.showAudioNotification('Access Denied: Only Admin or Superadmin can edit configuration.');
+        }
+        return;
+      }
+      const { device, fullParam, param } = this.paramContextMenu;
+      this.closeParamContextMenu();
+      if (!param) return;
+      this.editParamTarget = {
+        deviceId: (device && device.id) || param.device_id,
+        device: device || { id: param.device_id, device_code: param.device_code },
+        parameter: fullParam || param,
+      };
+      this.isEditParamModalOpen = true;
+    },
+    handleContextHistory() {
+      const { device, fullParam, param } = this.paramContextMenu;
+      this.closeParamContextMenu();
+      if (!param) return;
+      this.historyTarget = {
+        device: device || { id: param.device_id, device_code: param.device_code },
+        parameter: fullParam || param,
+      };
+      this.isHistoryModalOpen = true;
+    },
+    onTestReadCompleted(payload) {
+      if (payload && payload.result && payload.result.success) {
+        const val = payload.result.formula_value !== undefined ? payload.result.formula_value : payload.result.decoded_value;
+        if (val !== undefined && payload.parameter) {
+          const pid = payload.parameter.id || payload.parameter.param_id;
+          if (pid) {
+            this.$set(this.liveMap, pid, {
+              ...(this.liveMap[pid] || {}),
+              value: val,
+              quality: 'GOOD',
+              quality_reason: 'TEST_READ_PASS',
+              received_at: new Date().toISOString(),
+            });
+          }
+        }
+      }
+    },
+    async handleParamSaved() {
+      this.isEditParamModalOpen = false;
+      try {
+        const res = await apiClient.get('/devices');
+        if (res.data && res.data.data) {
+          this.devicesList = res.data.data.items || res.data.data || [];
+        }
+      } catch (err) {
+        console.error('Failed to reload devices after param saved:', err);
+      }
+    },
+    onDocumentClick(e) {
+      if (!this.paramContextMenu.visible) return;
+      if (!e.target.closest('.param-context-menu')) {
+        this.closeParamContextMenu();
+      }
+    },
+    onDocumentContextMenu(e) {
+      if (!this.paramContextMenu.visible) return;
+      if (!e.target.closest('.scada-param-tile') && !e.target.closest('.param-context-menu')) {
+        this.closeParamContextMenu();
+      }
+    },
     initTrendResizeObserver() {
       this.$nextTick(() => {
         if (this.$refs.scadaChartContainer) {
