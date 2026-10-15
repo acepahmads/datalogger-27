@@ -43,6 +43,17 @@ module.exports = {
           900: '#1e3a8a',
           950: '#0B0F19',
         },
+        skytheme: {
+          bg: '#F4FAFF',
+          tint: '#EAF5FF',
+          accent: '#D9EEFF',
+          surface: '#FFFFFF',
+          primary: '#1685E5',
+          text: '#15324F',
+          secondary: '#58718D',
+          border: '#B8D4EA',
+          borderStrong: '#94AEC5',
+        },
         status: {
           done: '#10b981',
           working: '#3b82f6',

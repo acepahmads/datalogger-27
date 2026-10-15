@@ -422,12 +422,12 @@
               v-for="section in categorySections"
               :key="section.id"
               :class="getSectionContainerSpanClass(section)"
-              class="flex flex-col space-y-1.5 sm:space-y-2 rounded-xl p-2 sm:p-2.5 lg:p-3 bg-slate-50/60 dark:bg-[#070D17]/40 border border-[#475569] dark:border-[#1A2C3F]/60"
+              class="flex flex-col space-y-1.5 sm:space-y-2 rounded-xl p-2 sm:p-2.5 lg:p-3 bg-white/80 dark:bg-[#070D17]/40 border border-[#B8D4EA] dark:border-[#1A2C3F]/60"
             >
               <!-- Section Header (shown in 'all' view when multiple categories exist) -->
               <div
                 v-if="selectedCategoryFilter === 'all'"
-                class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#0B1422]/90 border border-[#334155] dark:border-[#20354B] text-2xs font-mono"
+                class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#0B1422]/90 border border-[#B8D4EA] dark:border-[#20354B] text-2xs font-mono"
               >
                 <div class="flex items-center space-x-2 min-w-0">
                   <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(section.color_key).dot"></span>

@@ -1,5 +1,5 @@
 <template>
-  <div id="app" class="flex flex-col h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150">
+  <div id="app" class="flex flex-col h-screen overflow-hidden bg-transparent dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150">
     <!-- Top System Header (Hidden in Full-Width SCADA Mode) -->
     <Header v-show="!isTopPanelHidden" />
 
@@ -14,7 +14,7 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 overflow-y-auto transition-colors duration-150"
-        :class="isOperatorRoute ? 'p-1.5 sm:p-2.5 bg-slate-100 dark:bg-[#050B16]' : 'p-4 bg-slate-50 dark:bg-slate-950'"
+        :class="isOperatorRoute ? 'p-1.5 sm:p-2.5 bg-transparent dark:bg-[#050B16]' : 'p-4 bg-transparent dark:bg-slate-950'"
       >
         <router-view
           :is-sidebar-collapsed="isSidebarCollapsed"

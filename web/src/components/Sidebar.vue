@@ -290,18 +290,18 @@ export default {
 
 <style scoped>
 .nav-item {
-  @apply relative flex items-center px-3 py-2 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors;
+  @apply relative flex items-center px-3 py-2 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-[#1685E5] dark:hover:text-slate-100 hover:bg-[#EAF5FF] dark:hover:bg-slate-800/40 transition-colors;
 }
 .nav-active {
-  @apply bg-blue-50 dark:bg-blue-600/10 text-blue-600 dark:text-blue-400 font-semibold;
+  @apply bg-[#EAF5FF] dark:bg-blue-600/10 text-[#1685E5] dark:text-blue-400 font-semibold border border-[#B8D4EA]/80 dark:border-transparent shadow-sm;
 }
 .nav-active .nav-icon {
-  @apply text-blue-600 dark:text-blue-400;
+  @apply text-[#1685E5] dark:text-blue-400;
 }
 .active-indicator {
   @apply hidden;
 }
 .nav-active .active-indicator {
-  @apply block absolute left-0 top-2 bottom-2 w-0.5 bg-blue-600 dark:bg-blue-500 rounded-r;
+  @apply block absolute left-0 top-2 bottom-2 w-0.5 bg-[#1685E5] dark:bg-blue-500 rounded-r;
 }
 </style>

@@ -5,6 +5,18 @@
 :root {
   --font-family-ui: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-family-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+
+  /* Global Sky Blue Light Theme Tokens */
+  --theme-bg-gradient: linear-gradient(135deg, #D9EEFF 0%, #F4FAFF 45%, #EAF5FF 100%);
+  --theme-bg-main: #F4FAFF;
+  --theme-bg-tint: #EAF5FF;
+  --theme-bg-accent: #D9EEFF;
+  --theme-surface-white: #FFFFFF;
+  --theme-primary: #1685E5;
+  --theme-text-deep: #15324F;
+  --theme-text-secondary: #58718D;
+  --theme-border: #B8D4EA;
+  --theme-border-strong: #94AEC5;
 }
 
 @layer base {
@@ -50,14 +62,14 @@ svg.chart-svg text {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #B8D4EA;
   border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
   background: #1E293B;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #94AEC5;
 }
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #334155;
@@ -65,10 +77,10 @@ svg.chart-svg text {
 
 /* Modern Card Utilities */
 .saas-card {
-  @apply bg-white dark:bg-[#111827]/90 border border-slate-200 dark:border-slate-800/70 rounded-xl shadow-sm transition-all duration-200;
+  @apply bg-white dark:bg-[#111827]/90 border border-[#B8D4EA] dark:border-slate-800/70 rounded-xl shadow-sm transition-all duration-200;
 }
 .saas-card-hover {
-  @apply hover:border-slate-300 dark:hover:border-slate-700/80 hover:shadow-soft;
+  @apply hover:border-[#94AEC5] dark:hover:border-slate-700/80 hover:shadow-soft;
 }
 
 /* Semantic Badges */
@@ -99,15 +111,34 @@ svg.chart-svg text {
 }
 
 /* ========================================================
-   LIGHT THEME SYSTEM ARCHITECTURE
-   Industrial SaaS Light Mode (High Contrast & Clear Readability)
+   GLOBAL SKY BLUE GRADIENT LIGHT MODE ARCHITECTURE
+   Clean, modern sky-blue gradient aesthetic for industrial SCADA
    ======================================================== */
 
 html:not(.dark) {
   color-scheme: light;
 }
 
-/* Light Mode Backgrounds for Subcards, Canvas & Inner Panels */
+/* Global Subtle Sky Blue Gradient Background */
+html:not(.dark) body,
+html:not(.dark) #app {
+  background: var(--theme-bg-gradient) !important;
+  background-attachment: fixed !important;
+  color: #15324F;
+}
+
+/* Light Mode Card Surfaces & Panels */
+html:not(.dark) .saas-card {
+  background-color: #FFFFFF !important;
+  border-color: #B8D4EA !important;
+  box-shadow: 0 2px 10px rgba(21, 50, 79, 0.04), 0 1px 3px rgba(21, 50, 79, 0.02) !important;
+}
+html:not(.dark) .saas-card-hover:hover {
+  border-color: #94AEC5 !important;
+  box-shadow: 0 4px 14px rgba(22, 133, 229, 0.08) !important;
+}
+
+/* Dark-background elements mapped to White Surfaces in Light Mode */
 html:not(.dark) .bg-\[\#0B0F19\],
 html:not(.dark) .bg-\[\#0B0F19\]\/40,
 html:not(.dark) .bg-\[\#0B0F19\]\/60,
@@ -131,29 +162,53 @@ html:not(.dark) .bg-slate-900\/50,
 html:not(.dark) .bg-slate-900\/60,
 html:not(.dark) .bg-slate-900\/80,
 html:not(.dark) .bg-slate-950 {
-  background-color: #ffffff !important;
+  background-color: #FFFFFF !important;
 }
 
+/* Secondary light surfaces / inner panels with subtle blue tint */
 html:not(.dark) .bg-slate-50,
 html:not(.dark) .bg-slate-100 {
-  background-color: #f8fafc !important;
+  background-color: #F4FAFF !important;
 }
 
 /* Form inputs & dropdowns in Light Mode */
 html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
 html:not(.dark) select,
 html:not(.dark) textarea {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  background-color: #FFFFFF !important;
+  color: #15324F !important;
+  border-color: #B8D4EA !important;
+}
+
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):focus,
+html:not(.dark) select:focus,
+html:not(.dark) textarea:focus {
+  border-color: #1685E5 !important;
+  box-shadow: 0 0 0 1px #1685E5 !important;
 }
 
 html:not(.dark) input::placeholder,
 html:not(.dark) textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #58718D !important;
 }
 
-/* Borders in Light Mode */
+/* Tables in Light Mode: blue-tinted headers, subtle dividers, clear hover states */
+html:not(.dark) th,
+html:not(.dark) thead {
+  background-color: #EAF5FF !important;
+  color: #15324F !important;
+  border-color: #B8D4EA !important;
+}
+
+html:not(.dark) td {
+  border-color: #B8D4EA !important;
+}
+
+html:not(.dark) tr:hover td {
+  background-color: #F4FAFF !important;
+}
+
+/* Global Light Mode Borders */
 html:not(.dark) .border-slate-800,
 html:not(.dark) .border-slate-800\/40,
 html:not(.dark) .border-slate-800\/50,
@@ -162,37 +217,45 @@ html:not(.dark) .border-slate-800\/80,
 html:not(.dark) .border-slate-800\/90,
 html:not(.dark) .border-slate-700,
 html:not(.dark) .border-slate-700\/60,
-html:not(.dark) .border-slate-700\/80 {
-  border-color: #e2e8f0 !important;
+html:not(.dark) .border-slate-700\/80,
+html:not(.dark) .border-slate-200,
+html:not(.dark) .border-slate-300 {
+  border-color: #B8D4EA !important;
 }
 
 html:not(.dark) .divide-slate-800,
 html:not(.dark) .divide-slate-800\/40,
 html:not(.dark) .divide-slate-800\/50,
 html:not(.dark) .divide-slate-800\/60,
-html:not(.dark) .divide-slate-800\/80 {
-  border-color: #e2e8f0 !important;
+html:not(.dark) .divide-slate-800\/80,
+html:not(.dark) .divide-slate-200,
+html:not(.dark) .divide-slate-100 {
+  border-color: #B8D4EA !important;
+}
+
+/* Primary Operational Status Cards & Parameter Cards explicit border preservation */
+html:not(.dark) .primary-status-card:not([class*="border-rose"]):not([class*="border-amber"]) {
+  border-color: #334155 !important;
 }
 
 /* Text Hierarchy in Light Mode */
 html:not(.dark) .text-white:not(.btn-text):not(.badge-text) {
-  color: #0f172a !important;
+  color: #15324F !important;
 }
 
-html:not(.dark) .text-slate-100 {
-  color: #1e293b !important;
+html:not(.dark) .text-slate-900,
+html:not(.dark) .text-slate-800 {
+  color: #15324F !important;
 }
 
-html:not(.dark) .text-slate-200 {
-  color: #334155 !important;
+html:not(.dark) .text-slate-700,
+html:not(.dark) .text-slate-600 {
+  color: #244669 !important;
 }
 
-html:not(.dark) .text-slate-300 {
-  color: #475569 !important;
-}
-
+html:not(.dark) .text-slate-500,
 html:not(.dark) .text-slate-400 {
-  color: #64748b !important;
+  color: #58718D !important;
 }
 
 /* Explicit button text preservation */
@@ -201,35 +264,48 @@ html:not(.dark) button.bg-blue-500,
 html:not(.dark) .bg-blue-600 .text-white,
 html:not(.dark) .bg-blue-500 .text-white,
 html:not(.dark) a.bg-blue-600,
+html:not(.dark) a.bg-blue-500,
 html:not(.dark) button.bg-emerald-600,
 html:not(.dark) button.bg-emerald-500,
 html:not(.dark) button.bg-rose-600,
-html:not(.dark) button.bg-rose-500 {
-  color: #ffffff !important;
+html:not(.dark) button.bg-rose-500,
+html:not(.dark) .bg-rose-500 .text-white,
+html:not(.dark) .bg-emerald-500 .text-white {
+  color: #FFFFFF !important;
 }
 
 /* Secondary & Ghost Buttons in Light Mode */
 html:not(.dark) .bg-slate-800\/60,
 html:not(.dark) .bg-slate-800\/40,
 html:not(.dark) .bg-slate-800 {
-  background-color: #f1f5f9 !important;
-  color: #334155 !important;
-  border-color: #e2e8f0 !important;
+  background-color: #EAF5FF !important;
+  color: #15324F !important;
+  border-color: #B8D4EA !important;
 }
 html:not(.dark) .bg-slate-800:hover,
 html:not(.dark) .bg-slate-800\/60:hover {
-  background-color: #e2e8f0 !important;
-  color: #0f172a !important;
+  background-color: #D9EEFF !important;
+  color: #1685E5 !important;
+}
+
+/* Modals, Popovers & Dialogs */
+html:not(.dark) .modal-content,
+html:not(.dark) [role="dialog"] {
+  background-color: #FFFFFF !important;
+  border-color: #B8D4EA !important;
+  box-shadow: 0 20px 25px -5px rgba(21, 50, 79, 0.1), 0 10px 10px -5px rgba(21, 50, 79, 0.04) !important;
 }
 
 /* SVG Chart in Light Mode */
 html:not(.dark) .chart-svg text {
-  fill: #64748b !important;
+  fill: #58718D !important;
 }
 html:not(.dark) .chart-svg .grid-lines line {
-  stroke: #e2e8f0 !important;
+  stroke: #B8D4EA !important;
+  opacity: 0.6;
 }
 html:not(.dark) .chart-svg .time-ticks line {
-  stroke: #cbd5e1 !important;
+  stroke: #94AEC5 !important;
 }
+
 
