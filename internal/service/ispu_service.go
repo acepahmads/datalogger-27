@@ -40,6 +40,30 @@ func (s *ISPUService) SetHub(hub *websocket.Hub) {
 	s.hub = hub
 }
 
+// AlignToAggregationInterval snaps a timestamp to the exact completion boundary of the station's aggregation setup.
+// If aggregation is set to 2m (120s), boundaries will be 15:36:00, 15:38:00, 15:40:00, 15:42:00 (strictly even minutes).
+func (s *ISPUService) AlignToAggregationInterval(t time.Time, intervalSec int, loc *time.Location) time.Time {
+	if intervalSec <= 0 {
+		intervalSec = 120 // Default 2 minutes
+	}
+	localT := t.In(loc)
+
+	// If timestamp ends at :59 (closed interval end like 15:39:59), add 1 second to snap to boundary (15:40:00)
+	if localT.Second() == 59 {
+		localT = localT.Add(1 * time.Second)
+	}
+
+	if 86400%intervalSec == 0 {
+		dayStart := time.Date(localT.Year(), localT.Month(), localT.Day(), 0, 0, 0, 0, loc)
+		secIntoDay := int(localT.Sub(dayStart).Seconds())
+		bucketIndex := secIntoDay / intervalSec
+		return dayStart.Add(time.Duration(bucketIndex*intervalSec) * time.Second)
+	}
+
+	bucketIndex := localT.Unix() / int64(intervalSec)
+	return time.Unix(bucketIndex*int64(intervalSec), 0).In(loc)
+}
+
 // CalculateStationWindow performs a 24-hour regulatory ISPU evaluation for a station and persists the result.
 func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint, targetEnd time.Time) (*model.ISPUCalculationResult, error) {
 	var dev model.Device
@@ -56,22 +80,33 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		loc = time.FixedZone("WIB", 7*3600)
 	}
 
-	// Anchor periodEnd in station local time
-	periodEnd := targetEnd.In(loc)
-	if periodEnd.IsZero() {
-		periodEnd = time.Now().In(loc)
+	// 1. Determine active aggregation interval for this device (e.g. 120s = 2m even minutes)
+	var intervalSec int = 120
+	var aggDef model.AggregationDefinition
+	if err := s.db.WithContext(ctx).
+		Where("device_id = ? AND enabled = ?", deviceID, true).
+		Order("interval_seconds ASC").
+		First(&aggDef).Error; err == nil && aggDef.IntervalSeconds > 0 {
+		intervalSec = aggDef.IntervalSeconds
 	}
 
-	// Align periodEnd with the latest completed aggregation interval for this station
-	var latestBucketTime time.Time
-	_ = s.db.WithContext(ctx).Model(&model.AggregationResult{}).
-		Where("device_id = ?", deviceID).
-		Select("MAX(period_end)").
-		Scan(&latestBucketTime).Error
-
-	if !latestBucketTime.IsZero() && (targetEnd.IsZero() || time.Since(targetEnd) < 5*time.Minute) {
-		periodEnd = latestBucketTime.In(loc)
+	// 2. Anchor targetEnd in station local time
+	refTime := targetEnd.In(loc)
+	if targetEnd.IsZero() {
+		// Look up latest completed aggregation result for this station
+		var latestAgg model.AggregationResult
+		if err := s.db.WithContext(ctx).
+			Where("device_id = ?", deviceID).
+			Order("period_end DESC").
+			First(&latestAgg).Error; err == nil && !latestAgg.PeriodEnd.IsZero() {
+			refTime = latestAgg.PeriodEnd.In(loc)
+		} else {
+			refTime = time.Now().In(loc)
+		}
 	}
+
+	// 3. Align periodEnd to the exact aggregation interval boundary (e.g. 15:36:00, 15:38:00, 15:40:00)
+	periodEnd := s.AlignToAggregationInterval(refTime, intervalSec, loc)
 	periodStart := periodEnd.Add(-24 * time.Hour)
 
 	// Fetch active parameter mappings for station
@@ -328,7 +363,7 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	currentHour := now.Truncate(time.Hour)
 
 	processed := 0
-	// Step hourly backwards from current hour down to lookbackHours
+	// 1. Step hourly backwards from current hour down to lookbackHours
 	for i := lookbackHours; i >= 0; i-- {
 		targetHour := currentHour.Add(-time.Duration(i) * time.Hour)
 		if _, err := s.CalculateStationWindow(ctx, deviceID, targetHour); err == nil {
@@ -336,8 +371,47 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 		}
 	}
 
-	logger.Info("ISPU trend backfill completed for station %d [%s]: %d/%d hourly windows generated",
-		deviceID, dev.DeviceCode, processed, lookbackHours+1)
+	// 2. Fetch active aggregation interval for this station (e.g. 120s = 2m even minutes)
+	var intervalSec int = 120
+	var aggDef model.AggregationDefinition
+	if err := s.db.WithContext(ctx).
+		Where("device_id = ? AND enabled = ?", deviceID, true).
+		Order("interval_seconds ASC").
+		First(&aggDef).Error; err == nil && aggDef.IntervalSeconds > 0 {
+		intervalSec = aggDef.IntervalSeconds
+	}
+
+	// 3. Backfill recent aggregation intervals (last 2 hours) so high-frequency table is populated with even minutes
+	if intervalSec > 0 && intervalSec < 3600 {
+		recentStart := now.Add(-2 * time.Hour)
+		alignedStart := s.AlignToAggregationInterval(recentStart, intervalSec, loc)
+		alignedNow := s.AlignToAggregationInterval(now, intervalSec, loc)
+		for t := alignedStart; !t.After(alignedNow); t = t.Add(time.Duration(intervalSec) * time.Second) {
+			if _, err := s.CalculateStationWindow(ctx, deviceID, t); err == nil {
+				processed++
+			}
+		}
+	}
+
+	// 4. Clean up any unaligned historical ISPU records (e.g. odd minutes when interval is 2m even)
+	var allRes []model.ISPUCalculationResult
+	if err := s.db.WithContext(ctx).Where("device_id = ?", deviceID).Select("id, period_end").Find(&allRes).Error; err == nil {
+		var idsToDelete []uint
+		for _, r := range allRes {
+			aligned := s.AlignToAggregationInterval(r.PeriodEnd, intervalSec, loc)
+			if !aligned.Equal(r.PeriodEnd.In(loc)) {
+				idsToDelete = append(idsToDelete, r.ID)
+			}
+		}
+		if len(idsToDelete) > 0 {
+			_ = s.db.WithContext(ctx).Where("id IN (?)", idsToDelete).Delete(&model.ISPUCalculationResult{}).Error
+			_ = s.db.WithContext(ctx).Where("calculation_result_id IN (?)", idsToDelete).Delete(&model.ISPUParameterResult{}).Error
+			logger.Info("Purged %d unaligned historical ISPU records for station %d", len(idsToDelete), deviceID)
+		}
+	}
+
+	logger.Info("ISPU trend backfill completed for station %d [%s]: %d windows generated",
+		deviceID, dev.DeviceCode, processed)
 
 	return processed, nil
 }
@@ -352,8 +426,8 @@ func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint) (*mod
 		}
 	}
 
-	// Trigger calculation for now
-	calculated, calcErr := s.CalculateStationWindow(ctx, deviceID, time.Now())
+	// Trigger calculation for aligned latest interval
+	calculated, calcErr := s.CalculateStationWindow(ctx, deviceID, time.Time{})
 	if calcErr == nil && calculated != nil {
 		return s.ispuRepo.GetByID(ctx, calculated.ID)
 	}
@@ -418,10 +492,13 @@ func (s *ISPUService) GetCalculationDetail(ctx context.Context, id uint) (*model
 
 // Recalculate recalculates ISPU for station and audit logs the action.
 func (s *ISPUService) Recalculate(ctx context.Context, deviceID uint, targetTime *time.Time, actor, ipAddress string) (*model.ISPUCalculationResult, error) {
-	t := time.Now()
+	var t time.Time
 	if targetTime != nil && !targetTime.IsZero() {
 		t = *targetTime
 	}
+
+	// Purge unaligned records and backfill recent high-frequency intervals
+	_, _ = s.BackfillStationHourlyTrend(ctx, deviceID, 2)
 
 	res, err := s.CalculateStationWindow(ctx, deviceID, t)
 	if err != nil {

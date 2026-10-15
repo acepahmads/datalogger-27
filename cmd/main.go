@@ -208,8 +208,8 @@ func main() {
 					processedDevices[m.DeviceID] = true
 					// Backfill 24 hours of trend so OCC charts are immediately full
 					_, _ = ispuService.BackfillStationHourlyTrend(ctx, m.DeviceID, 24)
-					// Calculate current rolling window
-					_, _ = ispuService.CalculateStationWindow(ctx, m.DeviceID, time.Now())
+					// Calculate current rolling window (aligned to latest aggregation interval)
+					_, _ = ispuService.CalculateStationWindow(ctx, m.DeviceID, time.Time{})
 				}
 			}
 		}

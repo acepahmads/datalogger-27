@@ -329,3 +329,36 @@ func TestISPUService_CalculateFromAggregationResults(t *testing.T) {
 	}
 }
 
+func TestISPUService_AlignToAggregationInterval(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	svc := &service.ISPUService{}
+
+	// Test 2-minute interval (120s): all results MUST have even minutes (00, 02, 04 ... 36, 38, 40, 42)
+	testCases2m := []struct {
+		input    time.Time
+		expected string
+	}{
+		{time.Date(2026, 10, 15, 15, 41, 36, 0, loc), "15:40:00"},
+		{time.Date(2026, 10, 15, 15, 39, 59, 0, loc), "15:40:00"},
+		{time.Date(2026, 10, 15, 15, 40, 0, 0, loc), "15:40:00"},
+		{time.Date(2026, 10, 15, 15, 42, 0, 0, loc), "15:42:00"},
+		{time.Date(2026, 10, 15, 15, 37, 12, 0, loc), "15:36:00"},
+		{time.Date(2026, 10, 15, 15, 35, 0, 0, loc), "15:34:00"},
+	}
+
+	for _, tc := range testCases2m {
+		aligned := svc.AlignToAggregationInterval(tc.input, 120, loc)
+		actualStr := aligned.Format("15:04:05")
+		if actualStr != tc.expected {
+			t.Errorf("Input %s: expected aligned %s, got %s", tc.input.Format("15:04:05"), tc.expected, actualStr)
+		}
+		// Confirm minute is strictly even
+		if aligned.Minute()%2 != 0 {
+			t.Errorf("Aligned timestamp %s must be an even minute, got %d", actualStr, aligned.Minute())
+		}
+		if aligned.Second() != 0 {
+			t.Errorf("Aligned timestamp %s must have 00 seconds, got %d", actualStr, aligned.Second())
+		}
+	}
+}
+

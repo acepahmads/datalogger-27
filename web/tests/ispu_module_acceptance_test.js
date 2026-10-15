@@ -299,6 +299,16 @@ if (runTest('Chart displays all 5 bands with high contrast and eliminates right 
   assert(chartContent.includes('stop-opacity="0.30"'), 'Chart must have prominent band gradient opacity for dark mode visibility');
 })) passed++;
 
+// Test 19: Strict Aggregation Interval Snapping (Even Minutes Alignment)
+total++;
+if (runTest('ISPU calculation period snaps strictly to even aggregation intervals (alignToAggregationInterval)', () => {
+  const svcPath = path.join(__dirname, '..', '..', 'internal', 'service', 'ispu_service.go');
+  const svcContent = fs.readFileSync(svcPath, 'utf8');
+  assert(svcContent.includes('AlignToAggregationInterval'), 'ispu_service.go must provide AlignToAggregationInterval');
+  assert(svcContent.includes('secIntoDay / intervalSec'), 'AlignToAggregationInterval must calculate deterministic bucket indices');
+  assert(svcContent.includes('Purged'), 'ispu_service.go must purge unaligned historical records');
+})) passed++;
+
 console.log(`\n========================================`);
 console.log(`RESULTS: ${passed}/${total} TESTS PASSED (100%)`);
 console.log(`========================================\n`);
@@ -306,4 +316,5 @@ console.log(`========================================\n`);
 if (passed !== total) {
   process.exit(1);
 }
+
 
