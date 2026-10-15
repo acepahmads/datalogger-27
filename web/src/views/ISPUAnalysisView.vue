@@ -52,9 +52,9 @@
         <!-- Mode Toggle: 24-Hour (Regulatory) vs Per Agregasi (Real-time Interval) -->
         <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
           <button
-            @click="ispuMode = '24H'"
+            @click="setMode('REGULATORY')"
             class="px-2 py-1 rounded-md transition font-bold"
-            :class="ispuMode === '24H'
+            :class="ispuMode === 'REGULATORY'
               ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
             title="Perhitungan ISPU 24 Jam (Rata-rata Harian sesuai regulasi Permen LHK 14/2020)"
@@ -62,14 +62,14 @@
             📅 24-Jam (Regulasi)
           </button>
           <button
-            @click="ispuMode = 'AGGREGATION'"
+            @click="setMode('OPERATIONAL')"
             class="px-2 py-1 rounded-md transition font-bold"
-            :class="ispuMode === 'AGGREGATION'
+            :class="ispuMode === 'OPERATIONAL'
               ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
-            title="Perhitungan ISPU Per Agregasi (Interval Rollup Terkini, misal 2 Menit)"
+            :title="`Perhitungan ISPU Per Agregasi (Interval Rollup: ${aggregationIntervalLabel})`"
           >
-            ⏱️ Per Agregasi (2 Menit)
+            ⏱️ Per Agregasi ({{ aggregationIntervalLabel }})
           </button>
         </div>
 
@@ -136,7 +136,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-2">
                 <span class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {{ isOverallMode ? `LATEST STATION ISPU (${ispuMode === 'AGGREGATION' ? 'PER AGREGASI' : '24-HOUR'})` : `LATEST ISPU — ${selectedPollutant}` }}
+                  {{ isOverallMode ? (ispuMode === 'OPERATIONAL' ? `LATEST STATION ISPU — PER AGREGASI (${aggregationIntervalLabel})` : 'LATEST STATION ISPU — 24-JAM REGULASI') : `LATEST ISPU — ${selectedPollutant} (${ispuMode === 'OPERATIONAL' ? 'PER AGREGASI' : '24-JAM REGULASI'})` }}
                 </span>
                 <button
                   v-if="!isOverallMode"
@@ -151,7 +151,7 @@
                 class="px-2 py-0.5 rounded text-4xs font-mono font-bold uppercase border"
                 :class="statusBadgeClass"
               >
-                {{ latestData?.calculation_status || 'PROVISIONAL' }}
+                {{ latestData?.calculation_status || (ispuMode === 'OPERATIONAL' ? 'OPERATIONAL' : 'PROVISIONAL') }}
               </span>
             </div>
 
@@ -171,10 +171,16 @@
                 </div>
                 <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">
                   <template v-if="isOverallMode">
-                    Dominant: <strong class="text-slate-900 dark:text-white">{{ dominantPollutant }}</strong>
+                    Dominant: <strong class="text-slate-900 dark:text-white">{{ dominantPollutant === '-' ? 'None' : dominantPollutant }}</strong>
                     <span v-if="latestData?.tied_pollutants" class="text-4xs text-amber-500 ml-1">
                       (Tied: {{ latestData.tied_pollutants }})
                     </span>
+                  </template>
+                  <template v-else-if="!selectedPollutantResult">
+                    <span class="text-slate-400 italic">Sensor Tidak Terpasang / Belum Dipetakan</span>
+                  </template>
+                  <template v-else-if="selectedPollutantResult.valid_samples === 0 || selectedPollutantResult.category === 'TIDAK_TERSEDIA'">
+                    <span class="text-slate-400 italic">Tidak Tersedia (0 Data Valid)</span>
                   </template>
                   <template v-else>
                     Conc: <strong class="text-slate-900 dark:text-white">{{ activeConcentration.toFixed(1) }}</strong> µg/m³
@@ -190,26 +196,41 @@
           <!-- Measurement Period & Completeness Bar -->
           <div class="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-3xs font-mono">
             <div class="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <span>Measurement Window:</span>
+              <span>{{ ispuMode === 'OPERATIONAL' ? 'Bucket Window:' : '24h Rolling Window:' }}</span>
               <span class="font-bold text-slate-800 dark:text-slate-200">{{ formattedPeriod }}</span>
             </div>
             <div>
               <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                <span>{{ isOverallMode ? 'Data Completeness (Pasal 7 ayat 3):' : 'Hourly Data Samples:' }}</span>
-                <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
-                  {{ isOverallMode ? `${completenessPercent.toFixed(1)}% (Req: ≥ 75%)` : `${selectedPollutantResult?.valid_samples || 0}/24h (${completenessPercent.toFixed(1)}%)` }}
+                <span>
+                  {{ ispuMode === 'OPERATIONAL' ? 'Bucket Completeness:' : (isOverallMode ? 'Data Completeness (Pasal 7 ayat 3):' : 'Hourly Data Samples:') }}
+                </span>
+                <span class="font-bold" :class="ispuMode === 'OPERATIONAL' || completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
+                  <template v-if="ispuMode === 'OPERATIONAL'">
+                    100.0% (Lengkap)
+                  </template>
+                  <template v-else-if="!isOverallMode && !selectedPollutantResult">
+                    0.0% (Tidak Terpasang)
+                  </template>
+                  <template v-else-if="!isOverallMode">
+                    {{ selectedPollutantResult?.valid_samples || 0 }}/24h ({{ completenessPercent.toFixed(1) }}%)
+                  </template>
+                  <template v-else>
+                    {{ completenessPercent.toFixed(1) }}% (Req: ≥ 75%)
+                  </template>
                 </span>
               </div>
               <div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   class="h-full rounded-full transition-all duration-500"
-                  :class="completenessPercent >= 75 ? 'bg-emerald-500' : 'bg-amber-500'"
-                  :style="{ width: `${Math.min(100, completenessPercent)}%` }"
+                  :class="ispuMode === 'OPERATIONAL' || completenessPercent >= 75 ? 'bg-emerald-500' : 'bg-amber-500'"
+                  :style="{ width: `${ispuMode === 'OPERATIONAL' ? 100 : Math.min(100, completenessPercent)}%` }"
                 ></div>
               </div>
             </div>
             <div class="flex items-center justify-between text-4xs text-slate-400 dark:text-slate-500 pt-1">
-              <span>Data Source: Aggregation Rollups</span>
+              <span>
+                {{ ispuMode === 'OPERATIONAL' ? `Data Source: Single Bucket (${latestData?.source_bucket_identifier || '-'})` : `Data Source: 24h Aggregations (${latestData?.aggregation_interval_seconds || 120}s)` }}
+              </span>
               <span>Timezone: {{ latestData?.timezone || 'Asia/Jakarta' }}</span>
             </div>
           </div>
@@ -298,7 +319,7 @@
                   class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase border"
                   :class="getParameterBadgeClass(p.code)"
                 >
-                  {{ getParameterDisplayCategory(p.code) }}
+                  {{ getParameterBadgeLabel(p.code) }}
                 </span>
               </div>
 
@@ -311,7 +332,15 @@
                   <span class="text-3xs font-mono text-slate-400">ISPU</span>
                 </div>
                 <div class="text-3xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                  Conc: <strong class="text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
+                  <template v-if="!isParameterMapped(p.code)">
+                    Conc: <strong class="text-slate-400">-</strong>
+                  </template>
+                  <template v-else-if="getParameterResult(p.code)?.valid_samples === 0 || getParameterResult(p.code)?.category === 'TIDAK_TERSEDIA'">
+                    Conc: <strong class="text-slate-400">-</strong>
+                  </template>
+                  <template v-else>
+                    Conc: <strong class="text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
+                  </template>
                 </div>
               </div>
             </div>
@@ -319,15 +348,33 @@
             <!-- Footer: Breakpoints & Inspect Math -->
             <div class="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
               <span class="text-slate-400">
-                {{ getParameterResult(p.code)?.valid_samples || 0 }}/24h
+                <template v-if="!isParameterMapped(p.code)">
+                  <span class="text-slate-400 italic">Unmapped</span>
+                </template>
+                <template v-else-if="ispuMode === 'OPERATIONAL'">
+                  {{ getParameterResult(p.code)?.source_aggregation_count || 1 }} bucket
+                </template>
+                <template v-else>
+                  {{ getParameterResult(p.code)?.valid_samples || 0 }}/24h
+                </template>
               </span>
               <button
+                v-if="isParameterMapped(p.code)"
                 @click.stop="openFormulaModal(p.code)"
                 class="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
                 title="Inspect regulatory interpolation formula"
               >
                 Inspect →
               </button>
+              <button
+                v-else-if="canManageMapping"
+                @click.stop="openMappingsModal"
+                class="text-slate-400 hover:text-cyan-400 hover:underline cursor-pointer"
+                title="Map datalogger sensor to this pollutant"
+              >
+                + Map
+              </button>
+              <span v-else class="text-slate-400">—</span>
             </div>
           </div>
         </div>
@@ -393,8 +440,12 @@
           <table class="w-full text-left text-3xs font-mono select-none">
             <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#20354B]">
               <tr>
-                <th class="py-2 px-3">Period (24h)</th>
-                <th class="py-2 px-3">Source Aggregation</th>
+                <th class="py-2 px-3">
+                  {{ ispuMode === 'OPERATIONAL' ? `Bucket Period (${latestData?.aggregation_interval_seconds || 120}s)` : 'Period (24h)' }}
+                </th>
+                <th class="py-2 px-3">
+                  {{ ispuMode === 'OPERATIONAL' ? 'Bucket Identifier' : 'Source Aggregation' }}
+                </th>
                 <th class="py-2 px-3">Calculated At</th>
                 <th class="py-2 px-3" :class="{ 'text-cyan-400 font-bold': !isOverallMode }">
                   {{ isOverallMode ? 'ISPU' : `ISPU (${selectedPollutant})` }}
@@ -403,7 +454,9 @@
                   {{ isOverallMode ? 'Category' : `Category (${selectedPollutant})` }}
                 </th>
                 <th class="py-2 px-3">Dominant</th>
-                <th class="py-2 px-3">Coverage</th>
+                <th class="py-2 px-3">
+                  {{ ispuMode === 'OPERATIONAL' ? 'Bucket Coverage' : '24h Coverage' }}
+                </th>
                 <th class="py-2 px-3">Status</th>
                 <th
                   v-for="p in sevenOfficialParameters"
@@ -433,7 +486,9 @@
               >
                 <td class="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
                   <div>{{ formatDate(r.period_end) }}</div>
-                  <div class="text-4xs text-slate-400 font-normal">24h: {{ formatShortTime(r.period_start) }} → {{ formatShortTime(r.period_end) }}</div>
+                  <div class="text-4xs text-slate-400 font-normal">
+                    {{ r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL' ? `${r.aggregation_interval_seconds || 120}s: ${formatShortTime(r.period_start)} → ${formatShortTime(r.period_end)}` : `24h: ${formatShortTime(r.period_start)} → ${formatShortTime(r.period_end)}` }}
+                  </div>
                 </td>
                 <td class="py-2 px-3 font-mono">
                   <div class="font-bold text-cyan-600 dark:text-cyan-400">{{ r.source_bucket_identifier || '-' }}</div>
@@ -453,17 +508,19 @@
                   </span>
                 </td>
                 <td class="py-2 px-3 font-bold text-slate-700 dark:text-slate-300">
-                  {{ r.dominant_pollutant }}
+                  {{ r.dominant_pollutant || '-' }}
                 </td>
                 <td class="py-2 px-3 tabular-nums">
-                  {{ (r.completeness_percent || 0).toFixed(1) }}%
+                  <span :class="(r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL') || (r.completeness_percent || 0) >= 75 ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'">
+                    {{ r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL' ? '100%' : `${(r.completeness_percent || 0).toFixed(1)}%` }}
+                  </span>
                 </td>
                 <td class="py-2 px-3">
                   <span
-                    class="px-1.5 py-0.2 rounded text-4xs font-bold"
-                    :class="r.calculation_status === 'VALID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'"
+                    class="px-1.5 py-0.2 rounded text-4xs font-bold uppercase"
+                    :class="r.calculation_status === 'VALID' ? 'bg-emerald-500/20 text-emerald-400' : (r.calculation_status === 'OPERATIONAL' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-amber-500/20 text-amber-400')"
                   >
-                    {{ r.calculation_status }}
+                    {{ r.calculation_status || (r.calculation_mode === 'OPERATIONAL' ? 'OPERATIONAL' : 'PROVISIONAL') }}
                   </span>
                 </td>
                 <!-- 7 Pollutant Columns with Active Selection Highlight -->
@@ -534,9 +591,14 @@
         <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono text-xs space-y-2">
           <div class="text-2xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span class="text-cyan-600 dark:text-cyan-400 font-bold">Provenance & Traceability Metadata</span>
-            <span class="px-2 py-0.5 rounded text-4xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-              {{ selectedRecord?.trigger_reason || 'AGGREGATION_COMPLETED' }}
-            </span>
+            <div class="flex items-center space-x-1.5">
+              <span class="px-2 py-0.5 rounded text-4xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                MODE: {{ selectedRecord?.calculation_mode || ispuMode }}
+              </span>
+              <span class="px-2 py-0.5 rounded text-4xs font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30">
+                {{ selectedRecord?.trigger_reason || 'AGGREGATION_COMPLETED' }}
+              </span>
+            </div>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-3xs pt-1 border-t border-slate-200 dark:border-slate-800">
             <div>
@@ -548,7 +610,9 @@
               <span class="font-bold text-slate-800 dark:text-slate-200">{{ selectedRecord?.aggregation_interval_seconds || 120 }}s · {{ selectedRecord?.aggregation_function || 'AVG' }}</span>
             </div>
             <div>
-              <span class="text-slate-400 block">Calculation Period (24h):</span>
+              <span class="text-slate-400 block">
+                {{ (selectedRecord?.calculation_mode || ispuMode) === 'OPERATIONAL' ? 'Bucket Window:' : 'Calculation Window (24h):' }}
+              </span>
               <span class="font-bold text-slate-800 dark:text-slate-200">{{ formatDate(selectedRecord?.period_start) }} → {{ formatDate(selectedRecord?.period_end) }}</span>
             </div>
             <div>
@@ -591,17 +655,25 @@
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
               <tr v-for="pr in selectedRecord?.parameter_results || []" :key="pr.id">
                 <td class="p-2 font-bold text-slate-900 dark:text-white">{{ pr.pollutant_code }}</td>
-                <td class="p-2 tabular-nums">{{ pr.normalized_concentration.toFixed(1) }} µg/m³</td>
-                <td class="p-2 tabular-nums">{{ (pr.aggregation_concentration || 0).toFixed(1) }} µg/m³</td>
+                <td class="p-2 tabular-nums">
+                  {{ pr.valid_samples > 0 ? `${pr.normalized_concentration.toFixed(1)} µg/m³` : '-' }}
+                </td>
+                <td class="p-2 tabular-nums">
+                  {{ pr.valid_samples > 0 ? `${(pr.aggregation_concentration || pr.normalized_concentration || 0).toFixed(1)} µg/m³` : '-' }}
+                </td>
                 <td class="p-2 tabular-nums">{{ pr.source_aggregation_count || pr.valid_samples || 0 }}</td>
                 <td class="p-2 font-bold text-cyan-600 dark:text-cyan-400">{{ pr.source_latest_identifier || '-' }}</td>
                 <td class="p-2 tabular-nums">[{{ pr.xb }}, {{ pr.xa }}]</td>
                 <td class="p-2 tabular-nums">[{{ pr.ib }}, {{ pr.ia }}]</td>
                 <td class="p-2 text-4xs text-slate-400">{{ pr.formula || '-' }}</td>
                 <td class="p-2 font-bold text-sm tabular-nums" :style="{ color: getCategoryColor(pr.category) }">
-                  {{ Math.round(pr.calculated_ispu) }}
+                  {{ pr.valid_samples > 0 && pr.category !== 'TIDAK_TERSEDIA' ? Math.round(pr.calculated_ispu) : '-' }}
                 </td>
-                <td class="p-2 font-bold">{{ pr.category }}</td>
+                <td class="p-2 font-bold">
+                  <span class="px-1.5 py-0.5 rounded text-4xs" :class="getCategoryPillClass(pr.category)">
+                    {{ pr.category }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -744,8 +816,8 @@ export default {
       trendRange: '24h',
       recalculating: false,
 
-      // Calculation Mode: '24H' (regulatory rolling 24h) vs 'AGGREGATION' (instantaneous per 2-min rollup)
-      ispuMode: '24H',
+      // Calculation Mode: 'REGULATORY' (24-hour regulatory) vs 'OPERATIONAL' (per aggregation interval)
+      ispuMode: 'REGULATORY',
 
       // Selected Pollutant: 'OVERALL' or specific pollutant code ('PM25', 'PM10', etc.)
       selectedPollutant: 'OVERALL',
@@ -796,6 +868,13 @@ export default {
     currentMonitoringDomain() {
       return this.systemDomain || 'AQMS';
     },
+    aggregationIntervalLabel() {
+      const sec = this.latestData?.aggregation_interval_seconds || 120;
+      if (sec % 60 === 0) {
+        return `${sec / 60} Menit`;
+      }
+      return `${sec}s`;
+    },
     isOverallMode() {
       return !this.selectedPollutant || this.selectedPollutant === 'OVERALL';
     },
@@ -810,49 +889,31 @@ export default {
     displayISPU() {
       if (this.isOverallMode) {
         if (!this.latestData) return '-';
-        if (this.ispuMode === 'AGGREGATION') {
-          return Math.round(this.latestData.aggregation_ispu || this.latestData.overall_ispu || 0);
-        }
+        if (this.latestData.overall_category === 'TIDAK_TERSEDIA') return '-';
         return Math.round(this.latestData.overall_ispu || 0);
       }
-      const pr = this.selectedPollutantResult;
-      if (!pr) return '-';
-      if (this.ispuMode === 'AGGREGATION') {
-        return Math.round(pr.aggregation_ispu || pr.calculated_ispu || 0);
-      }
-      return Math.round(pr.calculated_ispu || 0);
+      return this.getParameterDisplayISPU(this.selectedPollutant);
     },
     ispuCategory() {
       if (this.isOverallMode) {
         if (!this.latestData) return 'TIDAK_TERSEDIA';
-        if (this.ispuMode === 'AGGREGATION') {
-          return this.latestData.aggregation_category || this.latestData.overall_category || 'TIDAK_TERSEDIA';
-        }
         return this.latestData.overall_category || 'TIDAK_TERSEDIA';
       }
-      const pr = this.selectedPollutantResult;
-      if (!pr) return 'TIDAK_TERSEDIA';
-      if (this.ispuMode === 'AGGREGATION') {
-        return pr.aggregation_category || pr.category || 'TIDAK_TERSEDIA';
-      }
-      return pr.category || 'TIDAK_TERSEDIA';
+      return this.getParameterDisplayCategory(this.selectedPollutant);
     },
     dominantPollutant() {
       if (!this.latestData) return '-';
-      if (this.ispuMode === 'AGGREGATION') {
-        return this.latestData.aggregation_dominant || this.latestData.dominant_pollutant || '-';
-      }
       return this.latestData.dominant_pollutant || '-';
     },
     activeConcentration() {
       const pr = this.selectedPollutantResult;
       if (!pr) return 0;
-      if (this.ispuMode === 'AGGREGATION') {
-        return pr.aggregation_concentration || pr.normalized_concentration || 0;
-      }
       return pr.normalized_concentration || 0;
     },
     completenessPercent() {
+      if (this.ispuMode === 'OPERATIONAL') {
+        return 100.0;
+      }
       if (this.isOverallMode) {
         return (this.latestData && this.latestData.completeness_percent) || 0;
       }
@@ -864,9 +925,14 @@ export default {
     formattedPeriod() {
       if (!this.latestData || !this.latestData.period_end) return '-';
       const end = new Date(this.latestData.period_end);
-      const start = new Date(this.latestData.period_start || end.getTime() - 24 * 3600 * 1000);
-      const fmt = d => d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-      return `${fmt(start)} - ${fmt(end)} WIB`;
+      const start = new Date(this.latestData.period_start || (end.getTime() - 24 * 3600 * 1000));
+      const fmtDate = d => d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      const fmtTime = d => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      if (this.ispuMode === 'OPERATIONAL') {
+        const sec = this.latestData.aggregation_interval_seconds || 120;
+        return `${fmtDate(end)} ${fmtTime(start)} → ${fmtTime(end)} WIB (${sec}s)`;
+      }
+      return `${fmtDate(start)} ${fmtTime(start)} → ${fmtDate(end)} ${fmtTime(end)} WIB (24 Jam)`;
     },
     kpiCardClass() {
       switch (this.ispuCategory) {
@@ -889,6 +955,9 @@ export default {
       }
     },
     statusBadgeClass() {
+      if (this.ispuMode === 'OPERATIONAL') {
+        return 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40';
+      }
       const st = this.latestData?.calculation_status;
       if (st === 'VALID') return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40';
       if (st === 'PROVISIONAL') return 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40';
@@ -915,6 +984,11 @@ export default {
     window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
   },
   methods: {
+    setMode(mode) {
+      if (this.ispuMode === mode) return;
+      this.ispuMode = mode;
+      this.loadStationData();
+    },
     selectPollutant(code) {
       this.selectedPollutant = code;
     },
@@ -958,7 +1032,7 @@ export default {
     async fetchLatestISPU() {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`/api/ispu/latest?device_id=${this.selectedDeviceId}`, {
+        const res = await axios.get(`/api/ispu/latest?device_id=${this.selectedDeviceId}&mode=${this.ispuMode}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data?.success && res.data?.data) {
@@ -972,7 +1046,7 @@ export default {
       this.trendLoading = true;
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`/api/ispu/trend?device_id=${this.selectedDeviceId}&range=${this.trendRange}`, {
+        const res = await axios.get(`/api/ispu/trend?device_id=${this.selectedDeviceId}&range=${this.trendRange}&mode=${this.ispuMode}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data?.success && res.data?.data) {
@@ -993,7 +1067,7 @@ export default {
       this.historyPage = page;
       try {
         const token = localStorage.getItem('token');
-        let url = `/api/ispu/history?device_id=${this.selectedDeviceId}&page=${page}&limit=${this.historyLimit}`;
+        let url = `/api/ispu/history?device_id=${this.selectedDeviceId}&page=${page}&limit=${this.historyLimit}&mode=${this.ispuMode}`;
         if (this.filterCategory) url += `&category=${this.filterCategory}`;
         if (this.filterStatus) url += `&status=${this.filterStatus}`;
         if (this.filterDominant) url += `&dominant_pollutant=${this.filterDominant}`;
@@ -1014,9 +1088,11 @@ export default {
     handleISPUCalculated(event) {
       const data = event.detail;
       if (data && data.device_id === this.selectedDeviceId) {
-        this.latestData = data;
-        this.fetchTrend();
-        this.fetchHistory(this.historyPage);
+        if (!data.calculation_mode || data.calculation_mode === this.ispuMode) {
+          this.latestData = data;
+          this.fetchTrend();
+          this.fetchHistory(this.historyPage);
+        }
       }
     },
     handleAggregationUpdated(event) {
@@ -1050,31 +1126,34 @@ export default {
     },
     getParameterResult(pollutantCode) {
       if (!this.latestData || !this.latestData.parameter_results) return null;
-      return this.latestData.parameter_results.find(pr => pr.pollutant_code === pollutantCode);
+      return this.latestData.parameter_results.find(pr => pr.pollutant_code === pollutantCode) || null;
+    },
+    isParameterMapped(pollutantCode) {
+      return Boolean(this.getParameterResult(pollutantCode));
     },
     getParameterDisplayISPU(pollutantCode) {
       const res = this.getParameterResult(pollutantCode);
-      if (!res) return 0;
-      if (this.ispuMode === 'AGGREGATION') {
-        return Math.round(res.aggregation_ispu || res.calculated_ispu || 0);
-      }
-      return Math.round(res.calculated_ispu || 0);
+      if (!res) return '-';
+      if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return '-';
+      return Math.round(res.calculated_ispu);
     },
     getParameterDisplayConc(pollutantCode) {
       const res = this.getParameterResult(pollutantCode);
-      if (!res) return '0.0';
-      if (this.ispuMode === 'AGGREGATION') {
-        return (res.aggregation_concentration || res.normalized_concentration || 0).toFixed(1);
-      }
+      if (!res) return '-';
+      if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return '-';
       return (res.normalized_concentration || 0).toFixed(1);
     },
     getParameterDisplayCategory(pollutantCode) {
       const res = this.getParameterResult(pollutantCode);
-      if (!res) return 'UNAVAIL';
-      if (this.ispuMode === 'AGGREGATION') {
-        return res.aggregation_category || res.category || 'UNAVAIL';
-      }
-      return res.category || 'UNAVAIL';
+      if (!res) return 'UNMEASURED';
+      if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return 'TIDAK_TERSEDIA';
+      return res.category || 'TIDAK_TERSEDIA';
+    },
+    getParameterBadgeLabel(pollutantCode) {
+      const res = this.getParameterResult(pollutantCode);
+      if (!res) return 'TIDAK TERPASANG';
+      if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return 'TIDAK TERSEDIA';
+      return res.category || 'TIDAK TERSEDIA';
     },
     getParameterCardClass(pollutantCode) {
       const isSelected = this.selectedPollutant === pollutantCode;
@@ -1082,7 +1161,9 @@ export default {
       let baseClass = '';
 
       if (!res) {
-        baseClass = 'bg-slate-50 dark:bg-[#070D18] border-slate-200 dark:border-[#1E293B] opacity-60';
+        baseClass = 'bg-slate-100/60 dark:bg-[#070D18]/60 border-dashed border-slate-300 dark:border-[#1E293B] opacity-75';
+      } else if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') {
+        baseClass = 'bg-slate-50 dark:bg-[#070D18] border-slate-200 dark:border-[#1E293B] opacity-85';
       } else {
         const cat = this.getParameterDisplayCategory(pollutantCode);
         switch (cat) {
@@ -1111,6 +1192,11 @@ export default {
         case 'TIDAK_SEHAT': return 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40';
         case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40';
         case 'BERBAHAYA': return 'bg-purple-900/40 text-purple-300 border-purple-500/50';
+        case 'UNMEASURED':
+        case 'TIDAK TERPASANG':
+          return 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700';
+        case 'TIDAK_TERSEDIA':
+          return 'bg-slate-200/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700';
         default: return 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700';
       }
     },
@@ -1127,7 +1213,9 @@ export default {
     getParamVal(record, pollutantCode) {
       if (!record || !record.parameter_results) return '-';
       const pr = record.parameter_results.find(p => p.pollutant_code === pollutantCode);
-      return pr ? Math.round(pr.calculated_ispu) : '-';
+      if (!pr) return '-';
+      if (pr.valid_samples === 0 || pr.category === 'TIDAK_TERSEDIA') return '-';
+      return Math.round(pr.calculated_ispu);
     },
     getParamCategory(record, pollutantCode) {
       if (!record || !record.parameter_results) return 'UNAVAIL';
@@ -1136,7 +1224,10 @@ export default {
     },
     getRowDisplayISPU(record) {
       if (!record) return '-';
-      if (this.isOverallMode) return Math.round(record.overall_ispu);
+      if (this.isOverallMode) {
+        if (record.overall_category === 'TIDAK_TERSEDIA') return '-';
+        return Math.round(record.overall_ispu);
+      }
       return this.getParamVal(record, this.selectedPollutant);
     },
     getRowDisplayCategory(record) {
@@ -1227,10 +1318,10 @@ export default {
     },
     exportData(type) {
       const token = localStorage.getItem('token');
-      const url = `/api/ispu/export/${type}?device_id=${this.selectedDeviceId}`;
+      const url = `/api/ispu/export/${type}?device_id=${this.selectedDeviceId}&mode=${this.ispuMode}`;
       const a = document.createElement('a');
       a.href = url + (token ? `&token=${token}` : '');
-      a.setAttribute('download', `ispu_export_${Date.now()}.${type === 'excel' ? 'csv' : 'csv'}`);
+      a.setAttribute('download', `ispu_${this.ispuMode.toLowerCase()}_export_${Date.now()}.${type === 'excel' ? 'csv' : 'csv'}`);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

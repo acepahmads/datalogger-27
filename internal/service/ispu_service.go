@@ -280,14 +280,13 @@ func (s *ISPUService) ReconcilePendingCalculations(ctx context.Context) (int, er
 
 		for _, pEnd := range completedPeriods {
 			alignedEnd := s.AlignToAggregationInterval(pEnd, intervalSec, loc)
-			alignedStart := alignedEnd.Add(-24 * time.Hour)
 
 			var count int64
 			s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-				Where("device_id = ? AND period_start = ? AND period_end = ?", deviceID, alignedStart.UTC(), alignedEnd.UTC()).
+				Where("device_id = ? AND period_end = ?", deviceID, alignedEnd.UTC()).
 				Count(&count)
 
-			if count == 0 {
+			if count < 2 {
 				logger.Info("Reconciling missing ISPU calculation for station %d period_end %v", deviceID, alignedEnd)
 				_, err := s.CalculateStationWindowWithReason(ctx, deviceID, alignedEnd, "STARTUP_RECOVERY")
 				if err == nil {
@@ -355,8 +354,9 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 
 	// 3. Align periodEnd to the exact aggregation interval boundary
 	periodEnd := s.AlignToAggregationInterval(refTime, intervalSec, loc)
-	periodStart := periodEnd.Add(-24 * time.Hour)
-	sourceBucketIdent := periodEnd.Format("20060102150405")
+	regPeriodStart := periodEnd.Add(-24 * time.Hour)
+	opPeriodStart := periodEnd.Add(-time.Duration(intervalSec) * time.Second)
+	sourceBucketIdent := periodEnd.In(loc).Format("20060102150405")
 	if reason == "" {
 		reason = "AGGREGATION_COMPLETED"
 	}
@@ -378,20 +378,10 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		return nil, fmt.Errorf("no active ISPU parameter mappings configured for station %s", dev.DeviceCode)
 	}
 
-	var paramInputs []ParameterCalculationInput
-	var paramOutputs []ParameterCalculationOutput
+	var opParamOutputs []ParameterCalculationOutput
+	var regParamOutputs []ParameterCalculationOutput
 
 	for _, m := range activeMappings {
-		input := ParameterCalculationInput{
-			PollutantCode:    m.PollutantCode,
-			ParameterID:      m.ParameterID,
-			SourceUnit:       m.SourceUnit,
-			ConversionFactor: m.ConversionFactor,
-			ConversionRule:   m.ConversionRule,
-			ExpectedSamples:  24, // 24 hourly periods in regulatory 24h window
-			MinCompleteness:  m.MinCompleteness,
-		}
-
 		// Look up specific definition for this parameter if available
 		paramInterval := intervalSec
 		paramFunc := aggFunction
@@ -405,7 +395,61 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			}
 		}
 
-		// 1. Query AggregationResult within the 24-hour window excluding BAD quality
+		// --- Mode A: Operational (Aggregation-driven for latest bucket) ---
+		var opAgg model.AggregationResult
+		hasOpAgg := false
+		alignBuffer := time.Duration(intervalSec) * time.Second
+		if err := s.db.WithContext(ctx).
+			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_end <= ? AND quality != ?",
+				deviceID, m.ParameterID, opPeriodStart.Add(-alignBuffer).UTC(), periodEnd.Add(alignBuffer).UTC(), model.QualityBad).
+			Order("period_end DESC").
+			First(&opAgg).Error; err == nil && opAgg.ID > 0 {
+			hasOpAgg = true
+		}
+
+		var opOut ParameterCalculationOutput
+		if hasOpAgg {
+			val := 0.0
+			if opAgg.AvgValue != nil {
+				val = *opAgg.AvgValue
+			} else if opAgg.Value != nil {
+				val = *opAgg.Value
+			}
+			opOut = s.calculator.CalculateParameter(ParameterCalculationInput{
+				PollutantCode:    m.PollutantCode,
+				ParameterID:      m.ParameterID,
+				SourceUnit:       m.SourceUnit,
+				RawConcentration: val,
+				ConversionFactor: m.ConversionFactor,
+				ConversionRule:   m.ConversionRule,
+				ValidSamples:     1,
+				ExpectedSamples:  1,
+				MinCompleteness:  0,
+			})
+			opOut.SourceAggregationCount = 1
+			opOut.SourceLatestIdentifier = opAgg.Identifier
+			if opOut.SourceLatestIdentifier == "" {
+				opOut.SourceLatestIdentifier = opAgg.PeriodEnd.In(loc).Format("20060102150405")
+			}
+			opOut.SourceAggregationInterval = paramInterval
+			opOut.SourceAggregationFunction = paramFunc
+		} else {
+			opOut = ParameterCalculationOutput{
+				PollutantCode:             m.PollutantCode,
+				ParameterID:               m.ParameterID,
+				SourceUnit:                m.SourceUnit,
+				Category:                  model.CategoryUnavailable,
+				ExpectedSamples:           1,
+				ValidSamples:              0,
+				IsEligible:                false,
+				SourceAggregationInterval: paramInterval,
+				SourceAggregationFunction: paramFunc,
+				ErrorMessage:              "no aggregation record for current bucket",
+			}
+		}
+		opParamOutputs = append(opParamOutputs, opOut)
+
+		// --- Mode B: Regulatory (24-hour evaluation under Permen LHK 14/2020) ---
 		var aggStats []struct {
 			Val   float64
 			Rec   time.Time
@@ -414,16 +458,12 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
 			Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
 			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
-				deviceID, m.ParameterID, periodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+				deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 			Order("period_end ASC").
 			Find(&aggStats)
 
-		var latestAggVal float64
-		latestAggIdent := ""
-		hasLatestAgg := false
-
+		var regOut ParameterCalculationOutput
 		if len(aggStats) > 0 {
-			// Bucket into 24 1-hour slots to evaluate temporal coverage (Permen LHK 14/2020: min 75% hours)
 			hoursWithData := make(map[int]bool)
 			var totalSum float64
 
@@ -435,18 +475,38 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				}
 			}
 
-			input.ValidSamples = len(hoursWithData)
-			input.RawConcentration = totalSum / float64(len(aggStats))
-
 			latest := aggStats[len(aggStats)-1]
-			latestAggVal = latest.Val
-			latestAggIdent = latest.Ident
+			latestAggIdent := latest.Ident
 			if latestAggIdent == "" {
 				latestAggIdent = latest.Rec.In(loc).Format("20060102150405")
 			}
-			hasLatestAgg = true
+
+			regInput := ParameterCalculationInput{
+				PollutantCode:    m.PollutantCode,
+				ParameterID:      m.ParameterID,
+				SourceUnit:       m.SourceUnit,
+				RawConcentration: totalSum / float64(len(aggStats)),
+				ConversionFactor: m.ConversionFactor,
+				ConversionRule:   m.ConversionRule,
+				ValidSamples:     len(hoursWithData),
+				ExpectedSamples:  24,
+				MinCompleteness:  m.MinCompleteness,
+			}
+			regOut = s.calculator.CalculateParameter(regInput)
+			regOut.SourceAggregationCount = len(aggStats)
+			regOut.SourceLatestIdentifier = latestAggIdent
+			regOut.SourceAggregationInterval = paramInterval
+			regOut.SourceAggregationFunction = paramFunc
+
+			if hasOpAgg {
+				regOut.AggregationConcentration = opOut.NormalizedConcentration
+				regOut.AggregationISPU = opOut.CalculatedISPU
+				regOut.AggregationCategory = opOut.Category
+			} else {
+				regOut.AggregationCategory = model.CategoryUnavailable
+			}
 		} else if !hasParamDef && len(aggDefs) == 0 {
-			// Fallback to RawData ONLY when NO aggregation definitions exist at all (backward-compat unit test mode)
+			// Fallback to RawData ONLY when NO aggregation definitions exist at all
 			var rawStats []struct {
 				Val float64
 				Rec time.Time
@@ -454,7 +514,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			s.db.WithContext(ctx).Model(&model.RawData{}).
 				Select("processed_value AS val, received_at AS rec").
 				Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
-					deviceID, m.ParameterID, periodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+					deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 				Order("received_at ASC").
 				Find(&rawStats)
 
@@ -470,80 +530,149 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 					}
 				}
 
-				input.ValidSamples = len(hoursWithData)
-				input.RawConcentration = totalSum / float64(len(rawStats))
-				latestAggVal = rawStats[len(rawStats)-1].Val
-				latestAggIdent = rawStats[len(rawStats)-1].Rec.In(loc).Format("20060102150405")
-				hasLatestAgg = true
+				regInput := ParameterCalculationInput{
+					PollutantCode:    m.PollutantCode,
+					ParameterID:      m.ParameterID,
+					SourceUnit:       m.SourceUnit,
+					RawConcentration: totalSum / float64(len(rawStats)),
+					ConversionFactor: m.ConversionFactor,
+					ConversionRule:   m.ConversionRule,
+					ValidSamples:     len(hoursWithData),
+					ExpectedSamples:  24,
+					MinCompleteness:  m.MinCompleteness,
+				}
+				regOut = s.calculator.CalculateParameter(regInput)
+				regOut.SourceAggregationCount = len(rawStats)
+				regOut.SourceLatestIdentifier = rawStats[len(rawStats)-1].Rec.In(loc).Format("20060102150405")
+				regOut.SourceAggregationInterval = paramInterval
+				regOut.SourceAggregationFunction = paramFunc
+				if hasOpAgg {
+					regOut.AggregationConcentration = opOut.NormalizedConcentration
+					regOut.AggregationISPU = opOut.CalculatedISPU
+					regOut.AggregationCategory = opOut.Category
+				}
 			} else {
-				input.ValidSamples = 0
-				input.RawConcentration = 0
+				regOut = ParameterCalculationOutput{
+					PollutantCode:             m.PollutantCode,
+					ParameterID:               m.ParameterID,
+					SourceUnit:                m.SourceUnit,
+					Category:                  model.CategoryUnavailable,
+					ExpectedSamples:           24,
+					ValidSamples:              0,
+					IsEligible:                false,
+					SourceAggregationInterval: paramInterval,
+					SourceAggregationFunction: paramFunc,
+				}
 			}
 		} else {
-			// Aggregation definition exists, but no aggregation records exist yet for this period
-			input.ValidSamples = 0
-			input.RawConcentration = 0
+			regOut = ParameterCalculationOutput{
+				PollutantCode:             m.PollutantCode,
+				ParameterID:               m.ParameterID,
+				SourceUnit:                m.SourceUnit,
+				Category:                  model.CategoryUnavailable,
+				ExpectedSamples:           24,
+				ValidSamples:              0,
+				IsEligible:                false,
+				SourceAggregationInterval: paramInterval,
+				SourceAggregationFunction: paramFunc,
+			}
 		}
-
-		paramInputs = append(paramInputs, input)
-
-		// Calculate 24h regulatory ISPU
-		out := s.calculator.CalculateParameter(input)
-		out.SourceAggregationCount = len(aggStats)
-		out.SourceLatestIdentifier = latestAggIdent
-		out.SourceAggregationInterval = paramInterval
-		out.SourceAggregationFunction = paramFunc
-
-		// Calculate instantaneous per-aggregation ISPU for this parameter
-		if hasLatestAgg {
-			normAgg, _, _ := s.calculator.NormalizeConcentration(latestAggVal, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
-			aggOut := s.calculator.CalculateParameter(ParameterCalculationInput{
-				PollutantCode:    m.PollutantCode,
-				ParameterID:      m.ParameterID,
-				SourceUnit:       m.SourceUnit,
-				RawConcentration: latestAggVal,
-				ConversionFactor: m.ConversionFactor,
-				ConversionRule:   m.ConversionRule,
-				ValidSamples:     1,
-				ExpectedSamples:  1,
-				MinCompleteness:  0,
-			})
-			out.AggregationConcentration = normAgg
-			out.AggregationISPU = aggOut.CalculatedISPU
-			out.AggregationCategory = aggOut.Category
-		} else {
-			out.AggregationCategory = model.CategoryUnavailable
-		}
-
-		paramOutputs = append(paramOutputs, out)
+		regParamOutputs = append(regParamOutputs, regOut)
 	}
 
-	// Calculate overall station ISPU and dominant pollutant (24-hour regulatory)
+	// 1. Persist Mode A (Operational ISPU — Aggregation Driven)
+	var maxOpISPU float64 = -1
+	maxOpCat := model.CategoryUnavailable
+	var maxOpDominant model.ISPUParameter
+	validOpCount := 0
+
+	for _, po := range opParamOutputs {
+		if po.IsEligible && po.ValidSamples > 0 {
+			validOpCount++
+			if po.CalculatedISPU > maxOpISPU {
+				maxOpISPU = po.CalculatedISPU
+				maxOpCat = po.Category
+				maxOpDominant = po.PollutantCode
+			}
+		}
+	}
+	if maxOpISPU < 0 {
+		maxOpISPU = 0
+		maxOpCat = model.CategoryUnavailable
+		maxOpDominant = "-"
+	}
+	opCompleteness := 0.0
+	opStatus := model.ISPUStatusInvalid
+	if len(activeMappings) > 0 {
+		opCompleteness = (float64(validOpCount) / float64(len(activeMappings))) * 100.0
+	}
+	if validOpCount > 0 {
+		opStatus = model.ISPUStatusValid
+	}
+
+	opCalcRes := &model.ISPUCalculationResult{
+		DeviceID:                   deviceID,
+		CalculationMode:            model.CalculationModeOperational,
+		PeriodStart:                opPeriodStart.UTC(),
+		PeriodEnd:                  periodEnd.UTC(),
+		CalculatedAt:               time.Now().UTC(),
+		OverallISPU:                maxOpISPU,
+		OverallCategory:            maxOpCat,
+		DominantPollutant:          maxOpDominant,
+		CompletenessPercent:        opCompleteness,
+		CalculationStatus:          opStatus,
+		Method:                     "PERMEN_LHK_14_2020",
+		Timezone:                   tzName,
+		AggregationISPU:            maxOpISPU,
+		AggregationCategory:        maxOpCat,
+		AggregationDominant:        maxOpDominant,
+		AggregationIntervalSeconds: intervalSec,
+		AggregationFunction:        aggFunction,
+		SourceBucketIdentifier:     sourceBucketIdent,
+		TriggerReason:              reason,
+		Notes:                      fmt.Sprintf("Operational ISPU evaluated for %ds aggregation bucket", intervalSec),
+	}
+	for _, po := range opParamOutputs {
+		opCalcRes.ParameterResults = append(opCalcRes.ParameterResults, model.ISPUParameterResult{
+			PollutantCode:             po.PollutantCode,
+			ParameterID:               po.ParameterID,
+			Concentration:             po.RawConcentration,
+			SourceUnit:                po.SourceUnit,
+			NormalizedConcentration:   po.NormalizedConcentration,
+			NormalizedUnit:            po.NormalizedUnit,
+			CalculatedISPU:            po.CalculatedISPU,
+			Category:                  po.Category,
+			AggregationConcentration:  po.NormalizedConcentration,
+			AggregationISPU:           po.CalculatedISPU,
+			AggregationCategory:       po.Category,
+			Ia:                        po.Ia,
+			Ib:                        po.Ib,
+			Xa:                        po.Xa,
+			Xb:                        po.Xb,
+			CompletenessPercent:       po.CompletenessPercent,
+			ValidSamples:              po.ValidSamples,
+			TotalExpectedSamples:      po.ExpectedSamples,
+			Formula:                   po.Formula,
+			SourceAggregationCount:    po.SourceAggregationCount,
+			SourceLatestIdentifier:    po.SourceLatestIdentifier,
+			SourceAggregationInterval: po.SourceAggregationInterval,
+			SourceAggregationFunction: po.SourceAggregationFunction,
+		})
+	}
+	if err := s.ispuRepo.UpsertCalculationResult(ctx, opCalcRes); err != nil {
+		logger.Warn("Failed to persist operational ISPU result for station %d: %v", deviceID, err)
+	}
+
+	// 2. Persist Mode B (Regulatory ISPU — Required 24-hour Measurement Window)
 	minComp := 75.0
 	if len(activeMappings) > 0 && activeMappings[0].MinCompleteness > 0 {
 		minComp = activeMappings[0].MinCompleteness
 	}
-	overall := s.calculator.CalculateOverall(paramOutputs, minComp)
-
-	// Determine overall station instantaneous per-aggregation ISPU (highest among pollutants)
-	var maxAggISPU float64 = -1
-	maxAggCat := model.CategoryUnavailable
-	var maxAggDominant model.ISPUParameter
-
-	for _, po := range paramOutputs {
-		if po.AggregationISPU > maxAggISPU {
-			maxAggISPU = po.AggregationISPU
-			maxAggCat = po.AggregationCategory
-			maxAggDominant = po.PollutantCode
-		}
-	}
-	if maxAggISPU < 0 {
-		maxAggISPU = 0
-	}
+	regOverall := s.calculator.CalculateOverall(regParamOutputs, minComp)
 
 	tiedStr := ""
-	if len(overall.TiedPollutants) > 0 {
-		for i, p := range overall.TiedPollutants {
+	if len(regOverall.TiedPollutants) > 0 {
+		for i, p := range regOverall.TiedPollutants {
 			if i > 0 {
 				tiedStr += ", "
 			}
@@ -551,32 +680,32 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		}
 	}
 
-	// Construct DB Result entity
-	calcRes := &model.ISPUCalculationResult{
+	regCalcRes := &model.ISPUCalculationResult{
 		DeviceID:                   deviceID,
-		PeriodStart:                periodStart.UTC(),
+		CalculationMode:            model.CalculationModeRegulatory,
+		PeriodStart:                regPeriodStart.UTC(),
 		PeriodEnd:                  periodEnd.UTC(),
 		CalculatedAt:               time.Now().UTC(),
-		OverallISPU:                overall.OverallISPU,
-		OverallCategory:            overall.Category,
-		DominantPollutant:          overall.DominantPollutant,
+		OverallISPU:                regOverall.OverallISPU,
+		OverallCategory:            regOverall.Category,
+		DominantPollutant:          regOverall.DominantPollutant,
 		TiedPollutants:             tiedStr,
-		CompletenessPercent:        overall.CompletenessPercent,
-		CalculationStatus:          overall.CalculationStatus,
+		CompletenessPercent:        regOverall.CompletenessPercent,
+		CalculationStatus:          regOverall.CalculationStatus,
 		Method:                     "PERMEN_LHK_14_2020",
 		Timezone:                   tzName,
-		AggregationISPU:            maxAggISPU,
-		AggregationCategory:        maxAggCat,
-		AggregationDominant:        maxAggDominant,
+		AggregationISPU:            maxOpISPU,
+		AggregationCategory:        maxOpCat,
+		AggregationDominant:        maxOpDominant,
 		AggregationIntervalSeconds: intervalSec,
 		AggregationFunction:        aggFunction,
 		SourceBucketIdentifier:     sourceBucketIdent,
 		TriggerReason:              reason,
-		Notes:                      overall.Notes,
+		Notes:                      regOverall.Notes,
 	}
 
-	for _, po := range paramOutputs {
-		calcRes.ParameterResults = append(calcRes.ParameterResults, model.ISPUParameterResult{
+	for _, po := range regParamOutputs {
+		regCalcRes.ParameterResults = append(regCalcRes.ParameterResults, model.ISPUParameterResult{
 			PollutantCode:             po.PollutantCode,
 			ParameterID:               po.ParameterID,
 			Concentration:             po.RawConcentration,
@@ -604,23 +733,29 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	}
 
 	// Persist idempotently
-	if err := s.ispuRepo.UpsertCalculationResult(ctx, calcRes); err != nil {
-		return nil, fmt.Errorf("failed to persist ISPU calculation result: %w", err)
+	if err := s.ispuRepo.UpsertCalculationResult(ctx, regCalcRes); err != nil {
+		return nil, fmt.Errorf("failed to persist regulatory ISPU calculation result: %w", err)
 	}
 
-	logger.Info("ISPU calculated for station %d [%s] (reason=%s): ISPU=%.1f (%s, Dominant=%s, Status=%s)",
-		deviceID, dev.DeviceCode, reason, calcRes.OverallISPU, calcRes.OverallCategory, calcRes.DominantPollutant, calcRes.CalculationStatus)
+	logger.Info("ISPU calculated for station %d [%s] (reason=%s): Operational=%.1f (%s, Dominant=%s), Regulatory=%.1f (%s, Dominant=%s, Status=%s)",
+		deviceID, dev.DeviceCode, reason, opCalcRes.OverallISPU, opCalcRes.OverallCategory, opCalcRes.DominantPollutant,
+		regCalcRes.OverallISPU, regCalcRes.OverallCategory, regCalcRes.DominantPollutant, regCalcRes.CalculationStatus)
 
 	// Broadcast real-time ISPU calculation over WebSocket
 	if s.hub != nil {
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "ispu.calculated",
 			Timestamp: time.Now().UTC(),
-			Data:      calcRes,
+			Data:      regCalcRes,
+		})
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "ispu.operational_calculated",
+			Timestamp: time.Now().UTC(),
+			Data:      opCalcRes,
 		})
 	}
 
-	return calcRes, nil
+	return regCalcRes, nil
 }
 
 // BackfillStationHourlyTrend retrospectively calculates and persists 24-hour rolling ISPU points
@@ -706,14 +841,23 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 
 // GetLatestSummary retrieves the latest ISPU summary for a station.
 // It strictly reads the persisted calculation result from MariaDB.
+// Mode can be REGULATORY or OPERATIONAL (defaults to REGULATORY).
 // It NEVER executes calculations on read.
-func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint) (*model.ISPUCalculationResult, error) {
-	return s.ispuRepo.GetLatestByDeviceID(ctx, deviceID)
+func (s *ISPUService) GetLatestSummary(ctx context.Context, deviceID uint, modes ...string) (*model.ISPUCalculationResult, error) {
+	mode := string(model.CalculationModeRegulatory)
+	if len(modes) > 0 && modes[0] != "" {
+		mode = modes[0]
+	}
+	return s.ispuRepo.GetLatestByDeviceID(ctx, deviceID, mode)
 }
 
-// GetTrend retrieves historical calculations for chart rendering across selected time ranges ("24h", "7d", "30d").
+// GetTrend retrieves historical calculations for chart rendering across selected time ranges ("24h", "7d", "30d") and mode.
 // It strictly reads persisted records from MariaDB without triggering calculations on read.
-func (s *ISPUService) GetTrend(ctx context.Context, deviceID uint, timeRange string) ([]model.ISPUCalculationResult, error) {
+func (s *ISPUService) GetTrend(ctx context.Context, deviceID uint, timeRange string, modes ...string) ([]model.ISPUCalculationResult, error) {
+	mode := string(model.CalculationModeRegulatory)
+	if len(modes) > 0 && modes[0] != "" {
+		mode = modes[0]
+	}
 	now := time.Now()
 	var startTime time.Time
 
@@ -726,7 +870,7 @@ func (s *ISPUService) GetTrend(ctx context.Context, deviceID uint, timeRange str
 		startTime = now.Add(-24 * time.Hour)
 	}
 
-	return s.ispuRepo.GetTrend(ctx, deviceID, startTime, now)
+	return s.ispuRepo.GetTrend(ctx, deviceID, startTime, now, mode)
 }
 
 // GetHistory retrieves paginated historical records.

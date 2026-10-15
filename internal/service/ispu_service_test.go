@@ -171,8 +171,14 @@ func TestISPUService_CalculateStationWindowAndPersistence(t *testing.T) {
 	}
 	var count int64
 	db.Model(&model.ISPUCalculationResult{}).Count(&count)
-	if count != 1 {
-		t.Errorf("Expected exactly 1 calculation result in DB after re-run, got %d", count)
+	if count != 2 {
+		t.Errorf("Expected exactly 2 calculation results in DB after re-run (1 REGULATORY + 1 OPERATIONAL), got %d", count)
+	}
+	var regCount, opCount int64
+	db.Model(&model.ISPUCalculationResult{}).Where("calculation_mode = ?", model.CalculationModeRegulatory).Count(&regCount)
+	db.Model(&model.ISPUCalculationResult{}).Where("calculation_mode = ?", model.CalculationModeOperational).Count(&opCount)
+	if regCount != 1 || opCount != 1 {
+		t.Errorf("Expected 1 REGULATORY and 1 OPERATIONAL result, got %d REGULATORY, %d OPERATIONAL", regCount, opCount)
 	}
 }
 

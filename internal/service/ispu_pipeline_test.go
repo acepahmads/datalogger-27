@@ -251,10 +251,19 @@ func TestISPUPipeline_IdempotencyAndNoDuplicates(t *testing.T) {
 		}
 	}
 
-	var count int64
-	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ?", dev.ID).Count(&count)
-	if count != 1 {
-		t.Errorf("Expected exactly 1 ISPUCalculationResult, got %d (duplicates created!)", count)
+	var regCount, opCount, totalCount int64
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeRegulatory).Count(&regCount)
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeOperational).Count(&opCount)
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ?", dev.ID).Count(&totalCount)
+
+	if regCount != 1 {
+		t.Errorf("Expected exactly 1 REGULATORY result, got %d", regCount)
+	}
+	if opCount != 1 {
+		t.Errorf("Expected exactly 1 OPERATIONAL result, got %d", opCount)
+	}
+	if totalCount != 2 {
+		t.Errorf("Expected exactly 2 ISPUCalculationResult (1 per mode), got %d (duplicates created!)", totalCount)
 	}
 }
 
@@ -460,5 +469,244 @@ func TestISPUPipeline_RestartRecoveryReconciliation(t *testing.T) {
 	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ?", dev.ID).Count(&countFinal)
 	if countFinal != countAfter {
 		t.Errorf("Duplicate records created on second recovery run! Before=%d, After=%d", countAfter, countFinal)
+	}
+}
+
+// 9. Mode A (Operational) vs Mode B (Regulatory) strict separation and period bounds
+func TestISPUPipeline_OperationalVsRegulatoryModeSeparation(t *testing.T) {
+	db, ispuSvc, _, dev := setupPipelineTestDB(t)
+	ctx := context.Background()
+
+	now := time.Date(2026, 10, 15, 17, 0, 0, 0, time.UTC)
+	val25 := 55.4 // Exactly at boundary: ISPU = 100
+	val10 := 50.0 // Exactly at boundary: ISPU = 50
+
+	var p25, p10 model.Parameter
+	db.Where("device_id = ? AND parameter_code = 'PM25'", dev.ID).First(&p25)
+	db.Where("device_id = ? AND parameter_code = 'PM10'", dev.ID).First(&p10)
+	t.Logf("DEBUG: p25 ID=%d Code=%s, p10 ID=%d Code=%s", p25.ID, p25.ParameterCode, p10.ID, p10.ParameterCode)
+
+	// Single 2-minute aggregation record (1 bucket only)
+	db.Create(&model.AggregationResult{
+		AggregationDefinitionID: 1,
+		DeviceID:                dev.ID,
+		ParameterID:             p25.ID,
+		PeriodStart:             now.Add(-2 * time.Minute),
+		PeriodEnd:               now,
+		IntervalSeconds:         120,
+		AvgValue:                &val25,
+		Quality:                 model.QualityGood,
+		Identifier:              "20261015170000",
+	})
+	db.Create(&model.AggregationResult{
+		AggregationDefinitionID: 2,
+		DeviceID:                dev.ID,
+		ParameterID:             p10.ID,
+		PeriodStart:             now.Add(-2 * time.Minute),
+		PeriodEnd:               now,
+		IntervalSeconds:         120,
+		AvgValue:                &val10,
+		Quality:                 model.QualityGood,
+		Identifier:              "20261015170000",
+	})
+
+	// Execute calculation for this period
+	_, err := ispuSvc.CalculateStationWindowWithReason(ctx, dev.ID, now, "MODE_SEPARATION_TEST")
+	if err != nil {
+		t.Fatalf("CalculateStationWindowWithReason failed: %v", err)
+	}
+
+	// 1. Fetch Mode A (Operational)
+	opRes, err := ispuSvc.GetLatestSummary(ctx, dev.ID, "OPERATIONAL")
+	if err != nil {
+		t.Fatalf("Failed to fetch OPERATIONAL summary: %v", err)
+	}
+	if opRes.CalculationMode != model.CalculationModeOperational {
+		t.Errorf("Expected CalculationMode OPERATIONAL, got %s", opRes.CalculationMode)
+	}
+	// Period duration for Operational must be exactly 120 seconds (not 24 hours!)
+	opDuration := opRes.PeriodEnd.Sub(opRes.PeriodStart)
+	if opDuration != 2*time.Minute {
+		t.Errorf("Expected Operational period duration 2m, got %v", opDuration)
+	}
+	if opRes.CalculationStatus != model.ISPUStatusValid {
+		t.Errorf("Expected Operational status VALID for complete bucket, got %s", opRes.CalculationStatus)
+	}
+	for _, pr := range opRes.ParameterResults {
+		t.Logf("OP Param: %s (id=%d) ispu=%.1f conc=%.1f valid_samples=%d cat=%s",
+			pr.PollutantCode, pr.ParameterID, pr.CalculatedISPU, pr.NormalizedConcentration, pr.ValidSamples, pr.Category)
+	}
+	if opRes.CompletenessPercent != 100.0 {
+		t.Errorf("Expected Operational completeness 100%%, got %.1f%%", opRes.CompletenessPercent)
+	}
+	if opRes.OverallISPU != 100.0 {
+		t.Errorf("Expected Operational OverallISPU 100.0, got %.1f", opRes.OverallISPU)
+	}
+	if opRes.DominantPollutant != model.PollutantPM25 {
+		t.Errorf("Expected Operational Dominant PM25, got %s", opRes.DominantPollutant)
+	}
+
+	// 2. Fetch Mode B (Regulatory)
+	regRes, err := ispuSvc.GetLatestSummary(ctx, dev.ID, "REGULATORY")
+	if err != nil {
+		t.Fatalf("Failed to fetch REGULATORY summary: %v", err)
+	}
+	if regRes.CalculationMode != model.CalculationModeRegulatory {
+		t.Errorf("Expected CalculationMode REGULATORY, got %s", regRes.CalculationMode)
+	}
+	// Period duration for Regulatory must be strictly 24 hours
+	regDuration := regRes.PeriodEnd.Sub(regRes.PeriodStart)
+	if regDuration != 24*time.Hour {
+		t.Errorf("Expected Regulatory period duration 24h, got %v", regDuration)
+	}
+	// A single 2-minute aggregation record cannot meet the 75% 24h completeness threshold: must be PROVISIONAL!
+	if regRes.CalculationStatus != model.ISPUStatusProvisional {
+		t.Errorf("Expected Regulatory status PROVISIONAL for single 2-minute record, got %s", regRes.CalculationStatus)
+	}
+	if regRes.CompletenessPercent >= 75.0 {
+		t.Errorf("Single 2-minute record must NOT have >=75%% 24h completeness! Got %.1f%%", regRes.CompletenessPercent)
+	}
+
+	// 3. Confirm both modes coexist distinctly in MariaDB
+	var totalRecords int64
+	db.Model(&model.ISPUCalculationResult{}).Where("device_id = ?", dev.ID).Count(&totalRecords)
+	if totalRecords != 2 {
+		t.Errorf("Expected exactly 2 calculation records (1 OPERATIONAL + 1 REGULATORY), got %d", totalRecords)
+	}
+}
+
+// 10. Filter semantics: Mode, Pollutant, Status queries and pure read guarantee
+func TestISPUPipeline_FilterSemantics(t *testing.T) {
+	db, ispuSvc, _, dev := setupPipelineTestDB(t)
+	ctx := context.Background()
+
+	now := time.Date(2026, 10, 15, 17, 0, 0, 0, time.UTC)
+	val25 := 60.0
+
+	var p25 model.Parameter
+	db.Where("device_id = ? AND parameter_code = 'PM25'", dev.ID).First(&p25)
+
+	db.Create(&model.AggregationResult{
+		DeviceID:        dev.ID,
+		ParameterID:     p25.ID,
+		PeriodStart:     now.Add(-2 * time.Minute),
+		PeriodEnd:       now,
+		IntervalSeconds: 120,
+		AvgValue:        &val25,
+		Quality:         model.QualityGood,
+		Identifier:      "20261015170000",
+	})
+
+	_, _ = ispuSvc.CalculateStationWindowWithReason(ctx, dev.ID, now, "FILTER_TEST")
+
+	var initialCount int64
+	db.Model(&model.ISPUCalculationResult{}).Count(&initialCount)
+
+	// Query 1: Mode = OPERATIONAL
+	opFilter := repository.ISPUHistoryFilter{
+		DeviceID:        dev.ID,
+		CalculationMode: "OPERATIONAL",
+		Page:            1,
+		PageSize:        10,
+	}
+	opRecords, opTotal, err := ispuSvc.GetHistory(ctx, opFilter)
+	if err != nil || opTotal != 1 || len(opRecords) != 1 {
+		t.Fatalf("Expected 1 OPERATIONAL record, got %d (err: %v)", opTotal, err)
+	}
+	if opRecords[0].CalculationMode != model.CalculationModeOperational {
+		t.Errorf("Expected OPERATIONAL record, got %s", opRecords[0].CalculationMode)
+	}
+
+	// Query 2: Mode = REGULATORY
+	regFilter := repository.ISPUHistoryFilter{
+		DeviceID:        dev.ID,
+		CalculationMode: "REGULATORY",
+		Page:            1,
+		PageSize:        10,
+	}
+	regRecords, regTotal, err := ispuSvc.GetHistory(ctx, regFilter)
+	if err != nil || regTotal != 1 || len(regRecords) != 1 {
+		t.Fatalf("Expected 1 REGULATORY record, got %d (err: %v)", regTotal, err)
+	}
+	if regRecords[0].CalculationMode != model.CalculationModeRegulatory {
+		t.Errorf("Expected REGULATORY record, got %s", regRecords[0].CalculationMode)
+	}
+
+	// Query 3: Pollutant filter
+	pm25Filter := repository.ISPUHistoryFilter{
+		DeviceID:          dev.ID,
+		CalculationMode:   "REGULATORY",
+		DominantPollutant: "PM25",
+		Page:              1,
+		PageSize:          10,
+	}
+	pm25Records, pm25Total, _ := ispuSvc.GetHistory(ctx, pm25Filter)
+	if pm25Total != 1 || len(pm25Records) != 1 {
+		t.Errorf("Expected 1 PM25 record, got %d", pm25Total)
+	}
+
+	// Ensure no new records created merely by querying filters
+	var postFilterCount int64
+	db.Model(&model.ISPUCalculationResult{}).Count(&postFilterCount)
+	if postFilterCount != initialCount {
+		t.Errorf("Filter queries altered database records! Before=%d, After=%d", initialCount, postFilterCount)
+	}
+}
+
+// 11. Measured zero vs Missing / Unmapped data verification
+func TestISPUPipeline_ZeroReadingVsMissingData(t *testing.T) {
+	calc := service.NewISPUCalculator()
+
+	// Case A: Sensor is mapped and measures a genuine zero (with valid samples > 0)
+	measuredZero := calc.CalculateParameter(service.ParameterCalculationInput{
+		PollutantCode:    model.PollutantPM25,
+		RawConcentration: 0.0,
+		SourceUnit:       "µg/m³",
+		ValidSamples:     24,
+		ExpectedSamples:  24,
+	})
+	if !measuredZero.IsEligible {
+		t.Errorf("Measured zero with valid samples must be ELIGIBLE")
+	}
+	if measuredZero.CalculatedISPU != 0.0 || measuredZero.Category != model.CategoryBaik {
+		t.Errorf("Measured zero must yield ISPU 0 BAIK, got %.1f %s", measuredZero.CalculatedISPU, measuredZero.Category)
+	}
+
+	// Case B: Sensor has 0 valid samples (missing data / unmeasured)
+	missingData := calc.CalculateParameter(service.ParameterCalculationInput{
+		PollutantCode:    model.PollutantCO,
+		RawConcentration: 0.0,
+		SourceUnit:       "µg/m³",
+		ValidSamples:     0,
+		ExpectedSamples:  24,
+	})
+	if missingData.IsEligible {
+		t.Errorf("Missing data (0 valid samples) must NOT be eligible")
+	}
+	if missingData.Category != model.CategoryUnavailable {
+		t.Errorf("Missing data must have Category TIDAK_TERSEDIA, got %s", missingData.Category)
+	}
+
+	// Case C: Overall dominant pollutant must ONLY be chosen from eligible contributing pollutants
+	results := []service.ParameterCalculationOutput{
+		measuredZero,
+		missingData,
+		{
+			PollutantCode:       model.PollutantPM10,
+			CalculatedISPU:      45.0,
+			Category:            model.CategoryBaik,
+			IsEligible:          true,
+			ValidSamples:        24,
+			ExpectedSamples:     24,
+			CompletenessPercent: 100.0,
+		},
+	}
+
+	overall := calc.CalculateOverall(results, 75.0)
+	if overall.DominantPollutant != model.PollutantPM10 {
+		t.Errorf("Expected dominant pollutant PM10 (ISPU 45), got %s", overall.DominantPollutant)
+	}
+	if overall.OverallISPU != 45.0 {
+		t.Errorf("Expected OverallISPU 45.0, got %.1f", overall.OverallISPU)
 	}
 }

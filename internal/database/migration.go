@@ -68,6 +68,14 @@ func RunMigrations(db *gorm.DB) error {
 		_ = db.Model(&model.Parameter{}).Where("zero_value_alarm_policy IS NULL OR zero_value_alarm_policy = ''").Update("zero_value_alarm_policy", string(model.ZeroValuePolicyNormal)).Error
 	}
 
+	// 1c. Ensure calculation_mode column is initialized and backfilled on ispu_calculation_results
+	if db.Migrator().HasTable(&model.ISPUCalculationResult{}) {
+		if !db.Migrator().HasColumn(&model.ISPUCalculationResult{}, "calculation_mode") {
+			_ = db.Migrator().AddColumn(&model.ISPUCalculationResult{}, "calculation_mode")
+		}
+		_ = db.Model(&model.ISPUCalculationResult{}).Where("calculation_mode IS NULL OR calculation_mode = ''").Update("calculation_mode", string(model.CalculationModeRegulatory)).Error
+	}
+
 	// 2. Data backfill / synchronization for existing devices from Phase 1
 	var existingDevices []model.Device
 	if err := db.Unscoped().Find(&existingDevices).Error; err == nil {

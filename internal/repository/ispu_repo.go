@@ -12,6 +12,7 @@ import (
 // ISPUHistoryFilter encapsulates query criteria for querying historical ISPU calculation records.
 type ISPUHistoryFilter struct {
 	DeviceID          uint
+	CalculationMode   string // "REGULATORY", "OPERATIONAL", or "ALL"
 	StartTime         *time.Time
 	EndTime           *time.Time
 	Category          string
@@ -33,10 +34,13 @@ func NewISPURepository(db *gorm.DB) *ISPURepository {
 
 // UpsertCalculationResult performs deterministic, idempotent upsert of an ISPU calculation and its parameter results.
 func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model.ISPUCalculationResult) error {
+	if res.CalculationMode == "" {
+		res.CalculationMode = model.CalculationModeRegulatory
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing model.ISPUCalculationResult
-		err := tx.Where("device_id = ? AND period_start = ? AND period_end = ?",
-			res.DeviceID, res.PeriodStart, res.PeriodEnd).First(&existing).Error
+		err := tx.Where("device_id = ? AND period_start = ? AND period_end = ? AND calculation_mode = ?",
+			res.DeviceID, res.PeriodStart, res.PeriodEnd, res.CalculationMode).First(&existing).Error
 
 		if err == nil {
 			// Update existing record
@@ -71,13 +75,18 @@ func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model
 }
 
 // GetLatestByDeviceID retrieves the latest calculation result for a device, preloading relations.
-func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint) (*model.ISPUCalculationResult, error) {
+// Mode can be "REGULATORY", "OPERATIONAL", or empty/ALL.
+func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint, mode string) (*model.ISPUCalculationResult, error) {
 	var res model.ISPUCalculationResult
-	err := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("ParameterResults").
 		Preload("ParameterResults.Parameter").
-		Where("device_id = ?", deviceID).
+		Where("device_id = ?", deviceID)
+	if mode != "" && mode != "ALL" {
+		query = query.Where("calculation_mode = ?", mode)
+	}
+	err := query.
 		Order("period_end DESC, calculated_at DESC").
 		First(&res).Error
 	if err != nil {
@@ -109,6 +118,9 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 
 	if filter.DeviceID > 0 {
 		query = query.Where("device_id = ?", filter.DeviceID)
+	}
+	if filter.CalculationMode != "" && filter.CalculationMode != "ALL" {
+		query = query.Where("calculation_mode = ?", filter.CalculationMode)
 	}
 	if filter.StartTime != nil {
 		query = query.Where("period_end >= ?", *filter.StartTime)
@@ -157,10 +169,14 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 }
 
 // GetTrend retrieves historical calculation series for trend analysis charts.
-func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime, endTime time.Time) ([]model.ISPUCalculationResult, error) {
+func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime, endTime time.Time, mode string) ([]model.ISPUCalculationResult, error) {
 	var results []model.ISPUCalculationResult
 	query := r.db.WithContext(ctx).
-		Where("device_id = ? AND period_end >= ? AND period_end <= ?", deviceID, startTime.UTC(), endTime.UTC()).
+		Where("device_id = ? AND period_end >= ? AND period_end <= ?", deviceID, startTime.UTC(), endTime.UTC())
+	if mode != "" && mode != "ALL" {
+		query = query.Where("calculation_mode = ?", mode)
+	}
+	query = query.
 		Preload("ParameterResults").
 		Order("period_end ASC")
 

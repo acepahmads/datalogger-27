@@ -220,7 +220,17 @@ func (c *ISPUCalculator) CalculateParameter(input ParameterCalculationInput) Par
 		return out
 	}
 
-	// Handle Xx = 0
+	// Missing / unavailable data check: expected samples > 0 but valid samples == 0
+	if input.ExpectedSamples > 0 && input.ValidSamples == 0 {
+		out.Category = model.CategoryUnavailable
+		out.CalculatedISPU = 0
+		out.DisplayISPU = 0
+		out.IsEligible = false
+		out.ErrorMessage = "no valid observations in measurement window"
+		return out
+	}
+
+	// Handle measured zero (Xx = 0 with ValidSamples > 0)
 	if normVal == 0 {
 		bp := breakpoints[0]
 		out.CalculatedISPU = 0

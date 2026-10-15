@@ -37,7 +37,8 @@ func (h *ISPUHandler) GetLatest(c *gin.Context) {
 		return
 	}
 
-	result, err := h.ispuService.GetLatestSummary(c.Request.Context(), uint(deviceID))
+	mode := c.DefaultQuery("mode", "REGULATORY")
+	result, err := h.ispuService.GetLatestSummary(c.Request.Context(), uint(deviceID), mode)
 	if err != nil {
 		response.InternalError(c, "failed to get latest ISPU: "+err.Error())
 		return
@@ -60,7 +61,8 @@ func (h *ISPUHandler) GetTrend(c *gin.Context) {
 	}
 
 	rangeStr := c.DefaultQuery("range", "24h")
-	trend, err := h.ispuService.GetTrend(c.Request.Context(), uint(deviceID), rangeStr)
+	mode := c.DefaultQuery("mode", "REGULATORY")
+	trend, err := h.ispuService.GetTrend(c.Request.Context(), uint(deviceID), rangeStr, mode)
 	if err != nil {
 		response.InternalError(c, "failed to get ISPU trend: "+err.Error())
 		return
@@ -72,6 +74,7 @@ func (h *ISPUHandler) GetTrend(c *gin.Context) {
 // GetHistory returns paginated historical ISPU calculations with multi-criteria filtering.
 func (h *ISPUHandler) GetHistory(c *gin.Context) {
 	filter := repository.ISPUHistoryFilter{
+		CalculationMode:   c.DefaultQuery("mode", "REGULATORY"),
 		Category:          c.Query("category"),
 		DominantPollutant: c.Query("dominant_pollutant"),
 		Status:            c.Query("status"),
@@ -241,6 +244,7 @@ func (h *ISPUHandler) DeleteMapping(c *gin.Context) {
 // ExportCSV exports ISPU records to CSV format.
 func (h *ISPUHandler) ExportCSV(c *gin.Context) {
 	filter := repository.ISPUHistoryFilter{
+		CalculationMode:   c.DefaultQuery("mode", "REGULATORY"),
 		Category:          c.Query("category"),
 		DominantPollutant: c.Query("dominant_pollutant"),
 		Status:            c.Query("status"),
@@ -266,6 +270,7 @@ func (h *ISPUHandler) ExportCSV(c *gin.Context) {
 // ExportExcel exports ISPU records to Excel-compatible CSV format with UTF-8 BOM.
 func (h *ISPUHandler) ExportExcel(c *gin.Context) {
 	filter := repository.ISPUHistoryFilter{
+		CalculationMode:   c.DefaultQuery("mode", "REGULATORY"),
 		Category:          c.Query("category"),
 		DominantPollutant: c.Query("dominant_pollutant"),
 		Status:            c.Query("status"),

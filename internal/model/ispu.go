@@ -68,22 +68,31 @@ type ISPUParameterMapping struct {
 	UpdatedAt        time.Time     `json:"updated_at"`
 }
 
-// ISPUCalculationResult stores the persisted regulatory calculation result for a station and period.
+// ISPUCalculationMode defines whether the calculation is Mode A (Operational per-aggregation) or Mode B (Regulatory 24h).
+type ISPUCalculationMode string
+
+const (
+	CalculationModeRegulatory  ISPUCalculationMode = "REGULATORY"
+	CalculationModeOperational ISPUCalculationMode = "OPERATIONAL"
+)
+
+// ISPUCalculationResult stores the persisted calculation result for a station, period, and mode.
 type ISPUCalculationResult struct {
-	ID                  uint                  `gorm:"primaryKey" json:"id"`
-	DeviceID            uint                  `gorm:"uniqueIndex:idx_dev_period;index;not null" json:"device_id"`
-	Device              *Device               `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
-	PeriodStart         time.Time             `gorm:"uniqueIndex:idx_dev_period;index;not null" json:"period_start"`
-	PeriodEnd           time.Time             `gorm:"uniqueIndex:idx_dev_period;index;not null" json:"period_end"`
-	CalculatedAt        time.Time             `gorm:"not null" json:"calculated_at"`
-	OverallISPU         float64               `gorm:"not null" json:"overall_ispu"`
-	OverallCategory     ISPUCategory          `gorm:"size:32;not null" json:"overall_category"`
-	DominantPollutant   ISPUParameter         `gorm:"size:16;not null" json:"dominant_pollutant"`
-	TiedPollutants      string                `gorm:"size:64" json:"tied_pollutants,omitempty"`
-	CompletenessPercent float64               `gorm:"not null;default:0" json:"completeness_percent"`
-	CalculationStatus   ISPUStatus            `gorm:"size:32;not null" json:"calculation_status"`
-	Method              string                `gorm:"size:64;default:'PERMEN_LHK_14_2020'" json:"method"`
-	Timezone            string                `gorm:"size:64;default:'Asia/Jakarta'" json:"timezone"`
+	ID                         uint                  `gorm:"primaryKey" json:"id"`
+	DeviceID                   uint                  `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"device_id"`
+	Device                     *Device               `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	CalculationMode            ISPUCalculationMode   `gorm:"size:32;default:'REGULATORY';uniqueIndex:idx_dev_period_mode;index;not null" json:"calculation_mode"`
+	PeriodStart                time.Time             `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"period_start"`
+	PeriodEnd                  time.Time             `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"period_end"`
+	CalculatedAt               time.Time             `gorm:"not null" json:"calculated_at"`
+	OverallISPU                float64               `gorm:"not null" json:"overall_ispu"`
+	OverallCategory            ISPUCategory          `gorm:"size:32;not null" json:"overall_category"`
+	DominantPollutant          ISPUParameter         `gorm:"size:16;not null" json:"dominant_pollutant"`
+	TiedPollutants             string                `gorm:"size:64" json:"tied_pollutants,omitempty"`
+	CompletenessPercent        float64               `gorm:"not null;default:0" json:"completeness_percent"`
+	CalculationStatus          ISPUStatus            `gorm:"size:32;not null" json:"calculation_status"`
+	Method                     string                `gorm:"size:64;default:'PERMEN_LHK_14_2020'" json:"method"`
+	Timezone                   string                `gorm:"size:64;default:'Asia/Jakarta'" json:"timezone"`
 	AggregationISPU            float64               `gorm:"default:0" json:"aggregation_ispu"`
 	AggregationCategory        ISPUCategory          `gorm:"size:32;default:'TIDAK_TERSEDIA'" json:"aggregation_category"`
 	AggregationDominant        ISPUParameter         `gorm:"size:16" json:"aggregation_dominant,omitempty"`
