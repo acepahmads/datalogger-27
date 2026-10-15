@@ -524,6 +524,51 @@ func TestUpdateParameterLimitsAndClear(t *testing.T) {
 	}
 }
 
+func TestUpdateParameterZeroValueAlarmPolicy(t *testing.T) {
+	_, devService, _ := setupDeviceTestDB(t)
+
+	dev, err := devService.CreateDevice(&service.CreateDeviceRequest{
+		DeviceCode: "DEV-ZERO-POLICY-01",
+		DeviceName: "Zero Policy Device",
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	param, err := devService.CreateParameter(dev.ID, &service.CreateParameterRequest{
+		ParameterCode: "WIND_SPEED",
+		ParameterName: "Wind Speed Sensor",
+		DataType:      model.DataTypeFloat32,
+	}, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("CreateParameter failed: %v", err)
+	}
+
+	if param.ZeroValueAlarmPolicy != model.ZeroValuePolicyNormal {
+		t.Errorf("Expected default policy NORMAL, got %v", param.ZeroValueAlarmPolicy)
+	}
+
+	// Update via JSON payload as sent by frontend
+	rawJSON := []byte(`{
+		"parameter_code": "WIND_SPEED",
+		"parameter_name": "Wind Speed Sensor",
+		"zero_value_alarm_policy": "SUPPRESS_THRESHOLD"
+	}`)
+	var updateReq service.UpdateParameterRequest
+	if err := json.Unmarshal(rawJSON, &updateReq); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	updated, err := devService.UpdateParameter(dev.ID, param.ID, &updateReq, "admin", "127.0.0.1", "")
+	if err != nil {
+		t.Fatalf("UpdateParameter failed: %v", err)
+	}
+
+	if updated.ZeroValueAlarmPolicy != model.ZeroValuePolicySuppressThreshold {
+		t.Errorf("Expected updated policy SUPPRESS_THRESHOLD, got %v", updated.ZeroValueAlarmPolicy)
+	}
+}
+
 func TestSingleProtocolSelectionAndSync(t *testing.T) {
 	_, devService, _ := setupDeviceTestDB(t)
 
