@@ -1878,6 +1878,8 @@ export default {
     "spatialInterpolation": "Interpolasi Spasial (IDW)",
     "windVector": "Overlay Vektor Angin",
     "allCategories": "Semua Kategori",
+    "allParameters": "Semua Parameter Monitoring",
+    "params": "parameter",
     "uncategorized": "Tanpa Kategori",
     "categories": "Kategori",
     "configureLayout": "Atur Tata Letak",

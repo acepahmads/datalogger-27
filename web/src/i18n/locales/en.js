@@ -1878,6 +1878,8 @@ export default {
     "spatialInterpolation": "Spatial Interpolation (IDW)",
     "windVector": "Wind Vector Overlay",
     "allCategories": "All Categories",
+    "allParameters": "All Monitored Parameters",
+    "params": "parameters",
     "uncategorized": "Uncategorized",
     "categories": "Categories",
     "configureLayout": "Configure Layout",
