@@ -233,11 +233,6 @@ html:not(.dark) .divide-slate-100 {
   border-color: #B8D4EA !important;
 }
 
-/* Primary Operational Status Cards & Parameter Cards explicit border preservation */
-html:not(.dark) .primary-status-card:not([class*="border-rose"]):not([class*="border-amber"]) {
-  border-color: #334155 !important;
-}
-
 /* Text Hierarchy in Light Mode */
 html:not(.dark) .text-white:not(.btn-text):not(.badge-text) {
   color: #15324F !important;

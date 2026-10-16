@@ -1,293 +1,307 @@
 <template>
   <div class="operator-command-center font-sans text-slate-800 dark:text-slate-100 select-none pb-[33px] transition-colors duration-150">
-    <!-- Sub-Header / SCADA Operational Status Bar -->
-    <div class="flex flex-wrap items-center justify-between gap-1 px-2 py-0.5 mb-1 rounded-md bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-lg transition-colors">
-      <!-- Left: Station & Console Title -->
-      <div class="flex items-center space-x-2">
-        <div class="flex items-center space-x-1.5">
-          <div class="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue flex-shrink-0">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
+    <!-- ======================================================== -->
+    <!-- UNIFIED OPERATOR DASHBOARD HEADER (SINGLE OUTER CARD)    -->
+    <!-- Wraps:                                                   -->
+    <!-- 1. Operator Command Center Header                        -->
+    <!-- 2. Device & Comm Status Card                             -->
+    <!-- 3. Active Alarms Card                                    -->
+    <!-- 4. Latest Telemetry Card                                 -->
+    <!-- 5. System Monitor Card                                   -->
+    <!-- 6. Device & Parameter Monitoring Toolbar & Categories    -->
+    <!-- ======================================================== -->
+    <div class="scada-unified-header-card rounded-lg border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0B1422] p-1.5 sm:p-2 mb-1 shadow-xs transition-colors flex flex-col space-y-1.5 select-none">
+      <!-- 1. Header: Operator Command Center Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-1 leading-none">
+        <!-- Left: Station & Console Title -->
+        <div class="flex items-center space-x-2">
+          <div class="flex items-center space-x-1.5">
+            <div class="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue flex-shrink-0">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center space-x-1.5">
+                <h1 class="text-[11px] font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center gap-1 leading-none">
+                  <span>{{ $t('operator.title') || 'OPERATOR COMMAND CENTER' }}</span>
+                  <span class="px-1 py-0.1 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                    SCADA
+                  </span>
+                </h1>
+              </div>
+              <div class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5">
+                <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.hostname || 'Edge-Node-01' }}</strong></span>
+                <span>·</span>
+                <span>{{ $t('operator.site') || 'Site' }}: <span class="text-slate-700 dark:text-slate-300">Local Autonomous Edge</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center: Live Clock in SCADA bar -->
+        <div v-if="currentTime" class="hidden md:flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-[10px] tabular-nums font-mono leading-none">
+          <span class="text-slate-400 dark:text-slate-500 text-3xs">🕒</span>
+          <span>{{ currentTime }}</span>
+        </div>
+
+        <!-- Right: Audio Controls, Theme, Language, Refresh, & Fullscreen Toggles -->
+        <div class="flex items-center space-x-1">
+          <!-- Quick Theme Toggle (☀ / 🌙) -->
+          <button
+            @click="toggleTheme"
+            class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition leading-none"
+            :title="isDark ? ($t('operator.lightMode') || 'Switch to Light Mode') : ($t('operator.darkMode') || 'Switch to Dark Mode')"
+          >
+            <span>{{ isDark ? '🌙' : '☀' }}</span>
+          </button>
+
+          <!-- Quick Language Toggle (EN / ID) -->
+          <button
+            @click="toggleLanguage"
+            class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition leading-none"
+            :title="$t('header.language') || 'Language'"
+          >
+            {{ currentLocale.toUpperCase() }}
+          </button>
+
+          <!-- Sound Mute/Unmute Toggle -->
+          <button
+            @click="toggleAudioMute"
+            class="px-2 py-0.5 rounded border text-3xs font-mono font-semibold transition-colors flex items-center space-x-1 leading-none"
+            :class="isAudioMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20'"
+            :title="isAudioMuted ? ($t('operator.audioMuted') || 'Sound Muted') : ($t('operator.audioActive') || 'Sound Active')"
+          >
+            <span>{{ isAudioMuted ? '🔇' : '🔊' }}</span>
+            <span class="hidden sm:inline">{{ isAudioMuted ? ($t('operator.audioMuted') || 'MUTED') : ($t('operator.audioActive') || 'AUDIO') }}</span>
+          </button>
+
+          <!-- Manual Refresh -->
+          <button
+            @click="refreshDashboard"
+            :disabled="isRefreshing"
+            class="p-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50 leading-none"
+            :title="$t('common.refresh') || 'Refresh All'"
+          >
+            <svg class="w-3 h-3" :class="{ 'animate-spin': isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-          </div>
-          <div>
-            <div class="flex items-center space-x-1.5">
-              <h1 class="text-[11px] font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center gap-1 leading-none">
-                <span>{{ $t('operator.title') || 'OPERATOR COMMAND CENTER' }}</span>
-                <span class="px-1 py-0.1 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-                  SCADA
-                </span>
-              </h1>
+          </button>
+
+          <!-- Fullscreen / Sidebar & Top Panel Layout Toggle -->
+          <button
+            @click="$emit('toggle-sidebar')"
+            class="px-2 py-0.5 rounded border text-3xs font-mono font-semibold transition flex items-center space-x-1 leading-none"
+            :class="isSidebarCollapsed
+              ? 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 ring-1 ring-cyan-500/30'
+              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border-slate-200 dark:border-[#20354B] text-cyan-600 dark:text-cyan-400'"
+            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Full Width (Restore Panels)') : ($t('operator.fullWidth') || 'Full Width SCADA (Hide Panels)')"
+          >
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
+            </svg>
+            <span class="hidden sm:inline">{{ isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'EXIT FULL') : ($t('operator.fullWidth') || 'FULL WIDTH') }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Divider between Header and Status Cards -->
+      <div class="border-t border-slate-100 dark:border-[#162538]"></div>
+
+      <!-- 2. Four Operational Summary Cards Grid (Nested Cards) -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-1.5">
+        <!-- 1. Device & Comm Status -->
+        <div
+          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border relative overflow-hidden transition flex flex-col justify-between h-[36px] sm:h-[38px]"
+          :class="summaryStats.offlineCount > 0
+            ? (isAlarmPulseActive
+                ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
+                : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
+            : 'border-slate-200/80 dark:border-[#1E3048] hover:border-cyan-500/50'"
+          :title="'Device Fleet: ' + summaryStats.onlineCount + '/' + summaryStats.totalDevices + ' Online · Latency: ' + (systemStatus.avg_latency_ms || 1.2) + 'ms · Success: ' + ((systemStatus.success_rate || 99.8).toFixed(1)) + '%'"
+        >
+          <!-- Line 1: Header (icon + compact title + optional state badge) -->
+          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+            <div class="flex items-center space-x-1.5 min-w-0">
+              <span
+                class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
+                :class="[
+                  summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-500',
+                  summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-500/40' : 'scale-100'
+                ]"
+              ></span>
+              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryDevices') || 'Device Status' }}</span>
             </div>
-            <div class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5">
-              <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.hostname || 'Edge-Node-01' }}</strong></span>
+            <span
+              class="text-4xs font-mono font-bold px-1 py-0.1 rounded flex-shrink-0 leading-none"
+              :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
+            >
+              {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
+            </span>
+          </div>
+
+          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+          <div class="flex items-baseline justify-between leading-none mt-0">
+            <div class="flex items-baseline space-x-1">
+              <span class="text-[13px] sm:text-[14px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+                {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
+              </span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">dev</span>
+            </div>
+            <div class="flex items-center space-x-1 text-3xs font-mono">
+              <span v-if="summaryStats.offlineCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
+                {{ summaryStats.offlineCount }} off
+              </span>
+              <span v-else class="text-emerald-600 dark:text-emerald-400 font-semibold">
+                100% active
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Active Alarms -->
+        <div
+          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[36px] sm:h-[38px]"
+          :class="activeCriticalCount > 0
+            ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
+            : activeAlarmsList.length > 0
+              ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500 dark:border-amber-500/70 transition-all duration-300')
+              : 'border-slate-200/80 dark:border-[#1E3048] hover:border-cyan-500/50'"
+          @click="$router.push('/alarm/active')"
+          :title="highestPriorityAlarm ? ('Top Incident: ' + highestPriorityAlarm.alarm_code + ' - ' + highestPriorityAlarm.message) : 'All Parameters Within Normal Operating Limits'"
+        >
+          <!-- Line 1: Header (icon + compact title + console link) -->
+          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+            <div class="flex items-center space-x-1.5 min-w-0">
+              <span
+                class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
+                :class="[
+                  activeCriticalCount > 0 ? 'bg-rose-500' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+                  activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-amber-500/40' : 'scale-100'
+                ]"
+              ></span>
+              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryAlarms') || 'Active Alarms' }}</span>
+            </div>
+            <router-link to="/alarm/active" class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono flex-shrink-0 leading-none">
+              {{ $t('operator.viewConsole') || 'Console →' }}
+            </router-link>
+          </div>
+
+          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+          <div class="flex items-baseline justify-between leading-none mt-0">
+            <div class="flex items-baseline space-x-1">
+              <span
+                class="text-[13px] sm:text-[14px] font-bold font-mono tabular-nums tracking-tight"
+                :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
+              >
+                {{ activeAlarmsList.length }}
+              </span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">active</span>
+            </div>
+            <div class="flex items-center space-x-1 text-3xs font-mono">
+              <span v-if="activeCriticalCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
+                {{ activeCriticalCount }} CRIT
+              </span>
+              <span v-if="activeWarningCount > 0" class="text-amber-600 dark:text-amber-400 font-bold">
+                {{ activeWarningCount }} WARN
+              </span>
+              <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
+                ✓ Limits Normal
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Latest Telemetry -->
+        <div
+          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border border-slate-200/80 dark:border-[#1E3048] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[36px] sm:h-[38px]"
+          :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
+        >
+          <!-- Line 1: Header (icon + compact title + status badge) -->
+          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+            <div class="flex items-center space-x-1.5 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
+              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}</span>
+            </div>
+            <span
+              class="text-4xs font-mono font-bold px-1 py-0.1 rounded flex-shrink-0 leading-none"
+              :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
+            >
+              {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
+            </span>
+          </div>
+
+          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+          <div class="flex items-baseline justify-between leading-none mt-0">
+            <div class="flex items-baseline space-x-1">
+              <span
+                class="text-[13px] sm:text-[14px] font-bold font-mono tabular-nums tracking-tight"
+                :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
+              >
+                {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
+              </span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">ago</span>
+            </div>
+            <div class="flex items-center space-x-1 text-3xs font-mono">
+              <span
+                class="font-bold"
+                :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
+              >
+                {{ summaryStats.goodSensors }}/{{ allParameters.length }}
+              </span>
+              <span class="text-slate-500 dark:text-slate-400">Good</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. System Monitor -->
+        <div
+          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border border-slate-200/80 dark:border-[#1E3048] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[36px] sm:h-[38px]"
+          :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
+        >
+          <!-- Line 1: Header (icon + compact title + status badge) -->
+          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+            <div class="flex items-center space-x-1.5 min-w-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summarySystem') || 'System Monitor' }}</span>
+            </div>
+            <span class="text-4xs font-mono font-bold px-1 py-0.1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
+              {{ systemStatus.service_status || 'RUNNING' }}
+            </span>
+          </div>
+
+          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
+          <div class="flex items-baseline justify-between leading-none mt-0">
+            <div class="flex items-baseline space-x-1">
+              <span class="text-[13px] sm:text-[14px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+                {{ Math.round(systemStatus.cpu_percent || 0) }}%
+              </span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">CPU</span>
+            </div>
+            <div class="flex items-center space-x-1.5 text-3xs font-mono text-slate-500 dark:text-slate-400">
+              <span>RAM: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.ram_percent || 0) }}%</strong></span>
               <span>·</span>
-              <span>{{ $t('operator.site') || 'Site' }}: <span class="text-slate-700 dark:text-slate-300">Local Autonomous Edge</span></span>
+              <span>Disk: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.disk_percent || 0) }}%</strong></span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Center: Live Clock in SCADA bar -->
-      <div v-if="currentTime" class="hidden md:flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-[10px] tabular-nums font-mono leading-none">
-        <span class="text-slate-400 dark:text-slate-500 text-3xs">🕒</span>
-        <span>{{ currentTime }}</span>
-      </div>
+      <!-- Divider between Status Cards and Parameter Monitoring Header -->
+      <div class="border-t border-slate-100 dark:border-[#162538]"></div>
 
-      <!-- Right: Audio Controls, Theme, Language, Refresh, & Fullscreen Toggles -->
-      <div class="flex items-center space-x-1">
-        <!-- Quick Theme Toggle (☀ / 🌙) -->
-        <button
-          @click="toggleTheme"
-          class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition leading-none"
-          :title="isDark ? ($t('operator.lightMode') || 'Switch to Light Mode') : ($t('operator.darkMode') || 'Switch to Dark Mode')"
-        >
-          <span>{{ isDark ? '🌙' : '☀' }}</span>
-        </button>
-
-        <!-- Quick Language Toggle (EN / ID) -->
-        <button
-          @click="toggleLanguage"
-          class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition leading-none"
-          :title="$t('header.language') || 'Language'"
-        >
-          {{ currentLocale.toUpperCase() }}
-        </button>
-
-        <!-- Sound Mute/Unmute Toggle -->
-        <button
-          @click="toggleAudioMute"
-          class="px-2 py-0.5 rounded border text-3xs font-mono font-semibold transition-colors flex items-center space-x-1 leading-none"
-          :class="isAudioMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20'"
-          :title="isAudioMuted ? ($t('operator.audioMuted') || 'Sound Muted') : ($t('operator.audioActive') || 'Sound Active')"
-        >
-          <span>{{ isAudioMuted ? '🔇' : '🔊' }}</span>
-          <span class="hidden sm:inline">{{ isAudioMuted ? ($t('operator.audioMuted') || 'MUTED') : ($t('operator.audioActive') || 'AUDIO') }}</span>
-        </button>
-
-        <!-- Manual Refresh -->
-        <button
-          @click="refreshDashboard"
-          :disabled="isRefreshing"
-          class="p-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50 leading-none"
-          :title="$t('common.refresh') || 'Refresh All'"
-        >
-          <svg class="w-3 h-3" :class="{ 'animate-spin': isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-
-        <!-- Fullscreen / Sidebar & Top Panel Layout Toggle -->
-        <button
-          @click="$emit('toggle-sidebar')"
-          class="px-2 py-0.5 rounded border text-3xs font-mono font-semibold transition flex items-center space-x-1 leading-none"
-          :class="isSidebarCollapsed
-            ? 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 ring-1 ring-cyan-500/30'
-            : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border-[#334155] dark:border-[#20354B] text-cyan-600 dark:text-cyan-400'"
-          :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Full Width (Restore Panels)') : ($t('operator.fullWidth') || 'Full Width SCADA (Hide Panels)')"
-        >
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
-          </svg>
-          <span class="hidden sm:inline">{{ isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'EXIT FULL') : ($t('operator.fullWidth') || 'FULL WIDTH') }}</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- C. FOUR OPERATIONAL SUMMARY CARDS -->
-    <!-- C. FOUR COMPACT OPERATIONAL STATUS CARDS (ONE ROW, TWO LINES PER CARD) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-1">
-      <!-- 1. Device & Comm Status -->
-      <div
-        class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[36px] sm:h-[38px]"
-        :class="summaryStats.offlineCount > 0
-          ? (isAlarmPulseActive
-              ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
-              : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
-          : 'border-[#334155] dark:border-[#20354B] hover:border-cyan-500/50'"
-        :title="'Device Fleet: ' + summaryStats.onlineCount + '/' + summaryStats.totalDevices + ' Online · Latency: ' + (systemStatus.avg_latency_ms || 1.2) + 'ms · Success: ' + ((systemStatus.success_rate || 99.8).toFixed(1)) + '%'"
-      >
-        <!-- Line 1: Header (icon + compact title + optional state badge) -->
-        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
-          <div class="flex items-center space-x-1.5 min-w-0">
-            <span
-              class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
-              :class="[
-                summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-500',
-                summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-500/40' : 'scale-100'
-              ]"
-            ></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryDevices') || 'Device Status' }}</span>
-          </div>
-          <span
-            class="text-4xs font-mono font-bold px-1 py-0.1 rounded flex-shrink-0 leading-none"
-            :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
-          >
-            {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
-          </span>
-        </div>
-
-        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-0">
-          <div class="flex items-baseline space-x-1">
-            <span class="text-[13px] sm:text-[14px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
-              {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
-            </span>
-            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">dev</span>
-          </div>
-          <div class="flex items-center space-x-1 text-3xs font-mono">
-            <span v-if="summaryStats.offlineCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
-              {{ summaryStats.offlineCount }} off
-            </span>
-            <span v-else class="text-emerald-600 dark:text-emerald-400 font-semibold">
-              100% active
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. Active Alarms -->
-      <div
-        class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[36px] sm:h-[38px]"
-        :class="activeCriticalCount > 0
-          ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
-          : activeAlarmsList.length > 0
-            ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500 dark:border-amber-500/70 transition-all duration-300')
-            : 'border-[#334155] dark:border-[#20354B] hover:border-cyan-500/50'"
-        @click="$router.push('/alarm/active')"
-        :title="highestPriorityAlarm ? ('Top Incident: ' + highestPriorityAlarm.alarm_code + ' - ' + highestPriorityAlarm.message) : 'All Parameters Within Normal Operating Limits'"
-      >
-        <!-- Line 1: Header (icon + compact title + console link) -->
-        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
-          <div class="flex items-center space-x-1.5 min-w-0">
-            <span
-              class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
-              :class="[
-                activeCriticalCount > 0 ? 'bg-rose-500' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
-                activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-amber-500/40' : 'scale-100'
-              ]"
-            ></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryAlarms') || 'Active Alarms' }}</span>
-          </div>
-          <router-link to="/alarm/active" class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono flex-shrink-0 leading-none">
-            {{ $t('operator.viewConsole') || 'Console →' }}
-          </router-link>
-        </div>
-
-        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-0">
-          <div class="flex items-baseline space-x-1">
-            <span
-              class="text-[13px] sm:text-[14px] font-bold font-mono tabular-nums tracking-tight"
-              :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
-            >
-              {{ activeAlarmsList.length }}
-            </span>
-            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">active</span>
-          </div>
-          <div class="flex items-center space-x-1 text-3xs font-mono">
-            <span v-if="activeCriticalCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
-              {{ activeCriticalCount }} CRIT
-            </span>
-            <span v-if="activeWarningCount > 0" class="text-amber-600 dark:text-amber-400 font-bold">
-              {{ activeWarningCount }} WARN
-            </span>
-            <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
-              ✓ Limits Normal
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. Latest Telemetry -->
-      <div
-        class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[36px] sm:h-[38px]"
-        :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
-      >
-        <!-- Line 1: Header (icon + compact title + status badge) -->
-        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
-          <div class="flex items-center space-x-1.5 min-w-0">
-            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}</span>
-          </div>
-          <span
-            class="text-4xs font-mono font-bold px-1 py-0.1 rounded flex-shrink-0 leading-none"
-            :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
-          >
-            {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
-          </span>
-        </div>
-
-        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-0">
-          <div class="flex items-baseline space-x-1">
-            <span
-              class="text-[13px] sm:text-[14px] font-bold font-mono tabular-nums tracking-tight"
-              :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
-            >
-              {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
-            </span>
-            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">ago</span>
-          </div>
-          <div class="flex items-center space-x-1 text-3xs font-mono">
-            <span
-              class="font-bold"
-              :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
-            >
-              {{ summaryStats.goodSensors }}/{{ allParameters.length }}
-            </span>
-            <span class="text-slate-500 dark:text-slate-400">Good</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 4. System Monitor -->
-      <div
-        class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[36px] sm:h-[38px]"
-        :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
-      >
-        <!-- Line 1: Header (icon + compact title + status badge) -->
-        <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
-          <div class="flex items-center space-x-1.5 min-w-0">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summarySystem') || 'System Monitor' }}</span>
-          </div>
-          <span class="text-4xs font-mono font-bold px-1 py-0.1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
-            {{ systemStatus.service_status || 'RUNNING' }}
-          </span>
-        </div>
-
-        <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-0">
-          <div class="flex items-baseline space-x-1">
-            <span class="text-[13px] sm:text-[14px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
-              {{ Math.round(systemStatus.cpu_percent || 0) }}%
-            </span>
-            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">CPU</span>
-          </div>
-          <div class="flex items-center space-x-1.5 text-3xs font-mono text-slate-500 dark:text-slate-400">
-            <span>RAM: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.ram_percent || 0) }}%</strong></span>
-            <span>·</span>
-            <span>Disk: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.disk_percent || 0) }}%</strong></span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- SECTION 1: DEVICE & PARAMETER MONITORING (FULL WIDTH)    -->
-    <!-- ======================================================== -->
-    <div class="w-full flex flex-col space-y-1">
+      <!-- 3. Device & Parameter Monitoring Toolbar Strip & Category Filters -->
+      <div class="flex flex-col space-y-1">
         <!-- Panel Header & Filter Controls Bar -->
-        <div class="px-2 py-0.5 mb-0.5 rounded-md bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs flex flex-wrap items-center justify-between gap-1 leading-none">
+        <div class="flex flex-wrap items-center justify-between gap-1 leading-none">
           <!-- Left: Title & Mode Toggle -->
           <div class="flex items-center space-x-1.5">
             <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
             <h2 class="text-[11px] font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono leading-none">
               {{ $t('operator.parameterMonitoring') || 'DEVICE & PARAMETER MONITORING' }}
             </h2>
-            <span class="text-[9px] font-mono px-1 py-0.1 rounded bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border border-[#334155] dark:border-[#20354B] leading-none">
+            <span class="text-[9px] font-mono px-1 py-0.1 rounded bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#20354B] leading-none">
               {{ filteredParameters.length }} / {{ allParameters.length }}
             </span>
             <span
@@ -305,7 +319,7 @@
             <button
               v-if="canManageCategories || canViewCategories"
               @click="openCategoryManagementModal"
-              class="px-1.5 py-0.5 rounded text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-[#334155] dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400 leading-none"
+              class="px-1.5 py-0.5 rounded text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400 leading-none"
               :title="$t('operator.categoryManagement') || 'Configure Categories & Layout'"
             >
               <span>🏷️</span>
@@ -318,7 +332,7 @@
               class="px-1.5 py-0.5 rounded text-3xs font-mono font-semibold transition border flex items-center space-x-1 leading-none"
               :class="filterPinnedOnly
                 ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
-                : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+                : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
               :title="$t('operator.pinnedOnly') || 'Show Pinned Favorites Only'"
             >
               <span>⭐</span>
@@ -326,7 +340,7 @@
             </button>
 
             <!-- Cards vs Table Switcher -->
-            <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-[#334155] dark:border-[#20354B] leading-none">
+            <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-slate-200 dark:border-[#20354B] leading-none">
               <button
                 @click="viewMode = 'cards'"
                 class="px-1.5 py-0.5 rounded text-3xs font-mono font-semibold transition flex items-center space-x-1 leading-none"
@@ -354,7 +368,7 @@
             <!-- Configurable Grid Columns Switcher (1P, 2P, 3P, 4P) for Single Parameter Panel -->
             <div
               v-if="viewMode === 'cards'"
-              class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-[#334155] dark:border-[#20354B] leading-none"
+              class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-slate-200 dark:border-[#20354B] leading-none"
             >
               <button
                 v-for="cnt in [1, 2, 3, 4]"
@@ -384,17 +398,15 @@
           </div>
         </div>
 
-
-
         <!-- Dynamic Category Tabs Filter Strip -->
-        <div class="flex items-center space-x-1 overflow-x-auto pb-0.5 mb-1 custom-scroller text-[9.5px] font-mono select-none leading-none">
+        <div class="flex items-center space-x-1 overflow-x-auto pb-0.5 custom-scroller text-[9.5px] font-mono select-none leading-none">
           <!-- All Categories Tab -->
           <button
             @click="selectedCategoryFilter = 'all'"
             class="px-1.5 py-0.5 rounded transition-colors flex items-center space-x-1 flex-shrink-0 border font-semibold leading-none"
             :class="selectedCategoryFilter === 'all'
               ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
-              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+              : 'bg-slate-50 dark:bg-[#0E1726] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
           >
             <span>🌐</span>
             <span>{{ $t('operator.allCategories') || 'All Categories' }}</span>
@@ -411,7 +423,7 @@
             class="px-1.5 py-0.5 rounded transition-colors flex items-center space-x-1 flex-shrink-0 border font-semibold leading-none"
             :class="selectedCategoryFilter === cat.id
               ? getCategoryTheme(cat.color_key).activeTab
-              : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
+              : 'bg-slate-50 dark:bg-[#0E1726] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
           >
             <span class="w-1.5 h-1.5 rounded-full" :class="getCategoryTheme(cat.color_key).dot"></span>
             <span>{{ cat.name }}</span>
@@ -430,7 +442,7 @@
             class="px-1.5 py-0.5 rounded transition-colors flex items-center space-x-1 flex-shrink-0 border font-semibold leading-none"
             :class="selectedCategoryFilter === 'uncategorized'
               ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs'
-              : 'bg-white dark:bg-[#0B1422] text-slate-500 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-300'"
+              : 'bg-slate-50 dark:bg-[#0E1726] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-300'"
           >
             <span>📦</span>
             <span>{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
@@ -439,6 +451,14 @@
             </span>
           </button>
         </div>
+      </div>
+    </div>
+    <!-- END OF SCADA UNIFIED HEADER CARD -->
+
+    <!-- ======================================================== -->
+    <!-- SECTION 1: SINGLE MAIN PARAMETER PANEL & ISPU BELOW      -->
+    <!-- ======================================================== -->
+    <div class="w-full flex flex-col space-y-1">
 
         <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Single Main Parameter Panel) -->
         <div
@@ -699,7 +719,7 @@
           <!-- Empty State -->
           <div
             v-if="categorySections.length === 0 || filteredParameters.length === 0"
-            class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-8 text-center text-slate-500 font-mono text-xs"
+            class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-8 text-center text-slate-500 font-mono text-xs"
           >
             {{ $t('operator.noParamsMatch') || 'No parameters matching current filter criteria.' }}
           </div>
@@ -713,11 +733,11 @@
             <div
               v-for="(colParams, colIdx) in tableColumns"
               :key="'telemetry-table-col-' + colIdx"
-              class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] overflow-hidden shadow-xs dark:shadow-lg flex flex-col"
+              class="scada-panel rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] overflow-hidden shadow-xs dark:shadow-lg flex flex-col"
             >
               <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs font-mono border-collapse">
-                  <thead class="bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-[#334155] dark:border-[#20354B]">
+                  <thead class="bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-[#20354B]">
                     <tr>
                       <th class="py-2 px-1 text-center w-6">⭐</th>
                       <th class="py-2 px-1.5">{{ $t('telemetry.device') || 'Device' }}</th>
@@ -792,7 +812,7 @@
                         </span>
                         <span
                           v-else
-                          class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-[#334155] dark:border-slate-700/60 font-mono"
+                          class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700/60 font-mono"
                         >
                           {{ $t('operator.uncategorized') || 'Uncategorized' }}
                         </span>
@@ -883,7 +903,7 @@
     <!-- ======================================================== -->
     <div class="w-full flex flex-col space-y-1 pt-0.5">
       <!-- 1. TREND ANALYSIS CHART PANEL -->
-        <div class="scada-panel px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#1E3048] shadow-xs flex flex-col space-y-1">
+        <div class="scada-panel px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] shadow-xs flex flex-col space-y-1">
           <!-- Chart Header & Timeframe Buttons -->
           <div class="flex items-center justify-between gap-1.5 pb-1 border-b border-slate-200 dark:border-[#1E3048]">
             <div class="flex items-center space-x-1.5">
@@ -910,7 +930,7 @@
 
             <!-- Timeframe Preset Buttons & Actions -->
             <div class="flex items-center space-x-1">
-              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-[#334155] dark:border-[#1E3048] text-3xs font-mono leading-none">
+              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-slate-200 dark:border-[#1E3048] text-3xs font-mono leading-none">
                 <button
                   v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                   :key="tf"
@@ -928,7 +948,7 @@
               <div class="relative">
                 <button
                   @click="showTrendDownloadMenu = !showTrendDownloadMenu"
-                  class="p-1 rounded border border-[#334155] dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none"
+                  class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none"
                   title="Download Data / Chart"
                 >
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -937,7 +957,7 @@
                 </button>
                 <div
                   v-if="showTrendDownloadMenu"
-                  class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
+                  class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
                 >
                   <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
                     <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -961,7 +981,7 @@
               <!-- Fullscreen Button -->
               <button
                 @click="openTrendFullscreen"
-                class="p-1 rounded border border-[#334155] dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none"
+                class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none"
                 title="Fullscreen / Expanded View"
               >
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -978,7 +998,7 @@
               <span class="text-slate-400 dark:text-slate-500 text-[9px] uppercase font-semibold">Series ({{ activeTrendSeries.length }}):</span>
               <button
                 @click="selectAllEligibleTrendSeries(true)"
-                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 text-[8.5px] border border-[#334155] dark:border-[#1E3048] transition cursor-pointer"
+                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 text-[8.5px] border border-slate-200 dark:border-[#1E3048] transition cursor-pointer"
                 title="Select all eligible parameters"
               >
                 All
@@ -986,14 +1006,14 @@
               <button
                 v-if="activeTrendSeries.length > 0"
                 @click="clearAllTrendSeries"
-                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 text-[8.5px] border border-[#334155] dark:border-[#1E3048] transition cursor-pointer"
+                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 text-[8.5px] border border-slate-200 dark:border-[#1E3048] transition cursor-pointer"
                 title="Clear all series"
               >
                 Clear
               </button>
               <button
                 @click="resetTrendSelectionToDefault"
-                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 text-[8.5px] border border-[#334155] dark:border-[#1E3048] transition cursor-pointer"
+                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 text-[8.5px] border border-slate-200 dark:border-[#1E3048] transition cursor-pointer"
                 title="Reset to default (select all eligible parameters)"
               >
                 Reset
@@ -1264,7 +1284,7 @@
               class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[210px] max-w-[290px]"
               :style="{ left: tooltipLeftPos + 'px', top: '10px' }"
             >
-              <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-[#334155] dark:border-[#1E3048] pb-1.5 mb-2 font-mono">
+              <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-slate-200 dark:border-[#1E3048] pb-1.5 mb-2 font-mono">
                 <span class="flex items-center space-x-1">
                   <span>🕒</span>
                   <span class="font-bold text-slate-700 dark:text-slate-200">{{ scrubPoint.date }}</span>
@@ -1467,8 +1487,8 @@
       v-if="showAckModal && targetAckAlarm"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
     >
-      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-[#334155] dark:border-[#20354B] pb-3">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-base">🛡️</span>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
@@ -1478,7 +1498,7 @@
           <button @click="showAckModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
         </div>
 
-        <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] space-y-1 text-2xs">
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] space-y-1 text-2xs">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-900 dark:text-white">[{{ targetAckAlarm.device ? targetAckAlarm.device.device_code : 'SYS' }}]</span>
             <span class="font-bold" :class="targetAckAlarm.severity === 'CRITICAL' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'">
@@ -1500,15 +1520,15 @@
           <textarea
             v-model="ackNotes"
             rows="3"
-            class="w-full px-3 py-2 rounded-xl border border-[#334155] dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-200 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-200 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
             :placeholder="$t('operator.notesPlaceholder') || 'Action taken, field observation...'"
           ></textarea>
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155] dark:border-[#20354B]">
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
           <button
             @click="showAckModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-[#334155] dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -1528,8 +1548,8 @@
       v-if="showExportModal"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
     >
-      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-[#334155] dark:border-[#20354B] pb-3">
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-base text-cyan-500">📦</span>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
@@ -1550,12 +1570,12 @@
               <input
                 type="datetime-local"
                 v-model="exportForm.startTime"
-                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
               />
               <input
                 type="datetime-local"
                 v-model="exportForm.endTime"
-                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 font-mono text-2xs focus:outline-none focus:border-cyan-500"
               />
             </div>
           </div>
@@ -1571,7 +1591,7 @@
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'PROCESSED'
                   ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50'
-                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
               >
                 PROCESSED
               </button>
@@ -1580,7 +1600,7 @@
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'RAW'
                   ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/50'
-                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
               >
                 RAW SENSOR
               </button>
@@ -1589,7 +1609,7 @@
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'AGGREGATED'
                   ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500/50'
-                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
               >
                 AGGREGATED
               </button>
@@ -1603,7 +1623,7 @@
             </label>
             <select
               v-model="exportForm.deviceId"
-              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
+              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
             >
               <option value="">{{ $t('operator.allDevicesSelected') || 'All Fleet Devices (Unified)' }}</option>
               <option v-for="dev in devicesList" :key="'exp-dev-' + dev.id" :value="dev.id">
@@ -1635,10 +1655,10 @@
           {{ exportStatusMessage }}
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155] dark:border-[#20354B]">
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
           <button
             @click="showExportModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-[#334155] dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -1659,8 +1679,8 @@
       v-if="showReportModal"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
     >
-      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-[#334155] dark:border-[#20354B] pb-3">
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-base text-blue-500">📊</span>
             <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
@@ -1676,7 +1696,7 @@
             <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Report Focus</label>
             <select
               v-model="reportForm.type"
-              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
+              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
             >
               <option value="COMPREHENSIVE">Comprehensive Operational (Fleet, Quality, Alarms)</option>
               <option value="TELEMETRY">Telemetry Quality & Data Gaps Focus</option>
@@ -1694,7 +1714,7 @@
                 :key="'rep-' + p"
                 @click="reportForm.preset = p"
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
-                :class="reportForm.preset === p ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B]'"
+                :class="reportForm.preset === p ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B]'"
               >
                 {{ p }}
               </button>
@@ -1717,10 +1737,10 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155] dark:border-[#20354B]">
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
           <button
             @click="showReportModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-[#334155] dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -1742,9 +1762,9 @@
       class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in"
       @keydown.esc="closeTrendFullscreen"
     >
-      <div class="w-full max-w-7xl h-[92vh] bg-white dark:bg-[#070D18] border border-[#334155] dark:border-[#20354B] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div class="w-full max-w-7xl h-[92vh] bg-white dark:bg-[#070D18] border border-slate-200 dark:border-[#20354B] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         <!-- Fullscreen Header -->
-        <div class="px-5 py-3 border-b border-[#334155] dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-[#0B1422]">
+        <div class="px-5 py-3 border-b border-slate-200 dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-[#0B1422]">
           <div class="flex items-center space-x-3">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
             <div>
@@ -1765,7 +1785,7 @@
             <!-- CSV Download -->
             <button
               @click="downloadTrendCSV"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
             >
               <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               <span>Download CSV</span>
@@ -1774,7 +1794,7 @@
             <!-- PNG Download -->
             <button
               @click="downloadTrendChart('png')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
             >
               <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
               <span>Download PNG</span>
@@ -1783,7 +1803,7 @@
             <!-- SVG Download -->
             <button
               @click="downloadTrendChart('svg')"
-              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-[#334155] dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1"
+              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1"
             >
               <span>SVG</span>
             </button>
@@ -1800,10 +1820,10 @@
         </div>
 
         <!-- Fullscreen Filter & Toolbar Controls -->
-        <div class="px-5 py-2.5 bg-slate-100/60 dark:bg-[#0B1422]/60 border-b border-[#334155] dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-3xs font-mono">
+        <div class="px-5 py-2.5 bg-slate-100/60 dark:bg-[#0B1422]/60 border-b border-slate-200 dark:border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-3xs font-mono">
           <div class="flex flex-wrap items-center gap-2">
             <!-- Timeframe Presets -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <button
                 v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                 :key="'fs-' + tf"
@@ -1818,7 +1838,7 @@
             </div>
 
             <!-- Custom Date Range Inputs -->
-            <div class="flex items-center space-x-1 bg-white dark:bg-[#101B2B] p-1 rounded-lg border border-[#334155] dark:border-[#20354B]">
+            <div class="flex items-center space-x-1 bg-white dark:bg-[#101B2B] p-1 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <input
                 type="datetime-local"
                 v-model="fullscreenCustomStart"
@@ -1839,7 +1859,7 @@
             </div>
 
             <!-- Mode Selector -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <button
                 @click="setChartMode('processed')"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -1857,7 +1877,7 @@
             </div>
 
             <!-- Scale Mode Toggle -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
+            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <button
                 @click="trendScaleMode = 'auto'"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -1875,7 +1895,7 @@
             </div>
 
             <!-- Fullscreen Spike Zoom Controls -->
-            <div v-if="hasOutlierSpike && trendScaleMode === 'auto'" class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-[#334155] dark:border-[#20354B]">
+            <div v-if="hasOutlierSpike && trendScaleMode === 'auto'" class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <button
                 @click="trendSpikeZoom = 'robust'"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -1907,9 +1927,9 @@
             <!-- Parameter Picker Dropdown -->
             <div
               v-if="showTrendParamPicker"
-              class="absolute right-0 mt-1 w-72 max-h-72 overflow-y-auto bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] rounded-xl shadow-2xl p-2 z-50 text-3xs font-mono"
+              class="absolute right-0 mt-1 w-72 max-h-72 overflow-y-auto bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-xl shadow-2xl p-2 z-50 text-3xs font-mono"
             >
-              <div class="flex items-center justify-between text-slate-400 font-bold px-2 py-1 uppercase border-b border-[#334155] dark:border-[#20354B] mb-1">
+              <div class="flex items-center justify-between text-slate-400 font-bold px-2 py-1 uppercase border-b border-slate-200 dark:border-[#20354B] mb-1">
                 <span>Toggle Series:</span>
                 <div class="flex items-center space-x-1">
                   <button @click.stop="selectAllEligibleTrendSeries(true)" class="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">All</button>
@@ -2146,7 +2166,7 @@
             class="absolute z-30 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[260px] max-w-[340px]"
             :style="{ left: Math.min(Math.max(fullscreenScrubPoint.rawPixelX ? (fullscreenScrubPoint.rawPixelX > 480 ? fullscreenScrubPoint.rawPixelX - 280 : fullscreenScrubPoint.rawPixelX + 20) : (fullscreenScrubPoint.x - 70), 20), 650) + 'px', top: '20px' }"
           >
-            <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-[#334155] dark:border-[#20354B] pb-1.5 mb-2 font-bold font-mono">
+            <div class="flex items-center justify-between text-slate-400 dark:text-slate-400 text-3xs border-b border-slate-200 dark:border-[#20354B] pb-1.5 mb-2 font-bold font-mono">
               <span class="flex items-center space-x-1">
                 <span>🕒</span>
                 <span class="text-slate-700 dark:text-slate-200">{{ fullscreenScrubPoint.date }}</span>
@@ -2188,7 +2208,7 @@
         </div>
 
         <!-- Fullscreen Bottom Statistics Cards Row -->
-        <div class="px-5 py-3 border-t border-[#334155] dark:border-[#20354B] bg-slate-50 dark:bg-[#0B1422] overflow-x-auto">
+        <div class="px-5 py-3 border-t border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0B1422] overflow-x-auto">
           <div class="flex items-center space-x-3 min-w-max">
             <div
               v-for="s in activeTrendSeries"
@@ -2201,7 +2221,7 @@
                 <div class="font-bold text-slate-900 dark:text-white text-2xs">{{ s.deviceCode }}:{{ s.paramCode }}</div>
                 <div class="text-slate-500 dark:text-slate-400">Current: <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ s.latestVal }} {{ s.unit }}</span></div>
               </div>
-              <div class="border-l border-[#334155] dark:border-[#20354B] pl-3 flex items-center space-x-3 text-slate-500 dark:text-slate-400">
+              <div class="border-l border-slate-200 dark:border-[#20354B] pl-3 flex items-center space-x-3 text-slate-500 dark:text-slate-400">
                 <div>Min: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.min ?? '--' }}</span></div>
                 <div>Max: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.max ?? '--' }}</span></div>
                 <div>Avg: <span class="font-bold text-slate-900 dark:text-white">{{ s.stats?.avg ?? '--' }}</span></div>
@@ -4287,7 +4307,7 @@ export default {
         case 'STALE':
           return 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/30';
         default:
-          return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-[#334155] dark:border-slate-700';
+          return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700';
       }
     },
     getNotifStatusClass(status) {
@@ -5905,11 +5925,4 @@ export default {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* Event-driven Synchronized SCADA Annunciator Flashing is handled via CSS utility classes on scada-alarm-pulse */
-
-/* Primary Operational Status Cards & SCADA Tiles: Dark Neutral Border in Light Mode */
-html:not(.dark) .primary-status-card:not([class*="border-rose"]):not([class*="border-amber"]),
-html:not(.dark) .scada-param-tile:not([class*="border-rose"]):not([class*="border-amber"]):not([class*="border-cyan"]) {
-  border-color: #334155;
-}
 </style>

@@ -1,7 +1,7 @@
 <template>
-  <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-col h-full select-none">
+  <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-col h-full select-none">
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#334155] dark:border-[#20354B]">
+    <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-slate-200 dark:border-[#20354B]">
       <div>
         <div class="flex items-center space-x-2">
           <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
@@ -20,7 +20,7 @@
         <select
           v-model="selectedDeviceId"
           @change="onDeviceChange"
-          class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs focus:outline-none focus:border-cyan-500"
+          class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs focus:outline-none focus:border-cyan-500"
           :title="$t('operator.selectStation') || 'Select Station'"
         >
           <option v-for="d in availableDevices" :key="d.id" :value="d.id">
@@ -29,7 +29,7 @@
         </select>
 
         <!-- Timeframe Preset Buttons -->
-        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded border border-[#334155] dark:border-[#20354B]">
+        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded border border-slate-200 dark:border-[#20354B]">
           <button
             v-for="tf in ['1h', '6h', '24h', '7d']"
             :key="tf"
@@ -623,10 +623,5 @@ export default {
 .custom-scroller::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.3);
   border-radius: 4px;
-}
-
-/* SCADA Light Mode Border Enforcement */
-html:not(.dark) .scada-panel {
-  border-color: #334155;
 }
 </style>

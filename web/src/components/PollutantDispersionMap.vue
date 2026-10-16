@@ -1,7 +1,7 @@
 <template>
-  <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-col h-full select-none">
+  <div class="scada-panel p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-col h-full select-none">
     <!-- Header -->
-    <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#334155] dark:border-[#20354B]">
+    <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-slate-200 dark:border-[#20354B]">
       <div>
         <div class="flex items-center space-x-2">
           <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
@@ -19,7 +19,7 @@
         <!-- Pollutant Selector (Only displays pollutants that actually exist) -->
         <select
           v-model="selectedPollutantCode"
-          class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs focus:outline-none focus:border-cyan-500 font-bold"
+          class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs focus:outline-none focus:border-cyan-500 font-bold"
           :title="$t('operator.selectPollutant') || 'Select Pollutant'"
         >
           <option v-for="p in availablePollutants" :key="p.code" :value="p.code">
@@ -30,7 +30,7 @@
         <!-- Station Selector -->
         <select
           v-model="selectedStationId"
-          class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs focus:outline-none focus:border-cyan-500"
+          class="px-2 py-0.5 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs focus:outline-none focus:border-cyan-500"
           :title="$t('operator.filterStation') || 'Filter Station'"
         >
           <option value="">{{ $t('operator.allStations') || 'All Stations' }}</option>
@@ -40,7 +40,7 @@
         </select>
 
         <!-- Layer Toggles -->
-        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded border border-[#334155] dark:border-[#20354B] space-x-0.5">
+        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded border border-slate-200 dark:border-[#20354B] space-x-0.5">
           <button
             @click="activeLayer = 'points'"
             class="px-1.5 py-0.5 rounded text-4xs transition font-semibold"
@@ -89,7 +89,7 @@
           <div
             v-for="st in targetStationCards"
             :key="st.deviceId"
-            class="p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-[#334155] dark:border-[#20354B] flex flex-col justify-between"
+            class="p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] flex flex-col justify-between"
           >
             <div class="flex items-center justify-between text-3xs font-mono">
               <span class="font-bold text-slate-800 dark:text-slate-200">{{ st.deviceCode }} ({{ st.deviceName }})</span>
@@ -126,7 +126,7 @@
       </div>
 
       <!-- Case 2: Stations Have Coordinates -> Tactical SCADA Map Canvas -->
-      <div v-else class="flex-1 relative w-full h-[180px] bg-slate-50 dark:bg-[#070D18] rounded-lg border border-[#334155] dark:border-[#20354B] overflow-hidden">
+      <div v-else class="flex-1 relative w-full h-[180px] bg-slate-50 dark:bg-[#070D18] rounded-lg border border-slate-200 dark:border-[#20354B] overflow-hidden">
         <!-- SVG Tactical Coordinate Grid & Markers -->
         <svg
           class="w-full h-full"
@@ -258,7 +258,7 @@
           v-if="inspectedStation"
           class="absolute top-2 right-2 z-30 p-2 rounded-lg bg-white/95 dark:bg-[#0B1422]/95 border border-cyan-500 shadow-xl text-3xs font-mono max-w-[210px]"
         >
-          <div class="flex items-center justify-between pb-1 border-b border-[#334155] dark:border-[#20354B]">
+          <div class="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-[#20354B]">
             <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ inspectedStation.deviceCode }}</span>
             <button @click="inspectedStation = null" class="text-slate-400 hover:text-white">✕</button>
           </div>
@@ -536,10 +536,5 @@ export default {
 .custom-scroller::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.3);
   border-radius: 4px;
-}
-
-/* SCADA Light Mode Border Enforcement */
-html:not(.dark) .scada-panel {
-  border-color: #334155;
 }
 </style>
