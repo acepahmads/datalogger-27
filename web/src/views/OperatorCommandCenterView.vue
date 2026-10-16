@@ -97,10 +97,10 @@
 
     <!-- C. FOUR OPERATIONAL SUMMARY CARDS -->
     <!-- C. FOUR COMPACT OPERATIONAL STATUS CARDS (ONE ROW, TWO LINES PER CARD) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-2.5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 mb-2 sm:mb-2.5">
       <!-- 1. Device & Comm Status -->
       <div
-        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[60px] sm:h-[62px]"
         :class="summaryStats.offlineCount > 0
           ? (isAlarmPulseActive
               ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
@@ -121,7 +121,7 @@
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryDevices') || 'Device Status' }}</span>
           </div>
           <span
-            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0"
+            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 leading-none"
             :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
           >
             {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
@@ -129,9 +129,9 @@
         </div>
 
         <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-1">
+        <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+            <span class="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
               {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
             </span>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">devices</span>
@@ -149,7 +149,7 @@
 
       <!-- 2. Active Alarms -->
       <div
-        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[60px] sm:h-[62px]"
         :class="activeCriticalCount > 0
           ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
           : activeAlarmsList.length > 0
@@ -170,16 +170,16 @@
             ></span>
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryAlarms') || 'Active Alarms' }}</span>
           </div>
-          <router-link to="/alarm/active" class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono flex-shrink-0">
+          <router-link to="/alarm/active" class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono flex-shrink-0 leading-none">
             {{ $t('operator.viewConsole') || 'Console →' }}
           </router-link>
         </div>
 
         <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-1">
+        <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
             <span
-              class="text-xl sm:text-2xl font-bold font-mono tabular-nums tracking-tight"
+              class="text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight"
               :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
             >
               {{ activeAlarmsList.length }}
@@ -202,7 +202,7 @@
 
       <!-- 3. Latest Telemetry -->
       <div
-        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[60px] sm:h-[62px]"
         :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
       >
         <!-- Line 1: Header (icon + compact title + status badge) -->
@@ -212,7 +212,7 @@
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}</span>
           </div>
           <span
-            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0"
+            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 leading-none"
             :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
           >
             {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
@@ -220,10 +220,10 @@
         </div>
 
         <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-1">
+        <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
             <span
-              class="text-xl sm:text-2xl font-bold font-mono tabular-nums tracking-tight"
+              class="text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight"
               :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
             >
               {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
@@ -244,7 +244,7 @@
 
       <!-- 4. System Monitor -->
       <div
-        class="scada-panel primary-status-card px-3 py-2 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[72px] sm:h-[76px]"
+        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[60px] sm:h-[62px]"
         :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
       >
         <!-- Line 1: Header (icon + compact title + status badge) -->
@@ -253,15 +253,15 @@
             <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summarySystem') || 'System Monitor' }}</span>
           </div>
-          <span class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0">
+          <span class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
             {{ systemStatus.service_status || 'RUNNING' }}
           </span>
         </div>
 
         <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-        <div class="flex items-baseline justify-between leading-none mt-1">
+        <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+            <span class="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
               {{ Math.round(systemStatus.cpu_percent || 0) }}%
             </span>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">CPU</span>

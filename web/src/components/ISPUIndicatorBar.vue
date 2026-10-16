@@ -1,35 +1,35 @@
 <template>
   <div v-if="isAqmsDomain" class="w-full flex flex-col space-y-1.5 transition-all">
-    <!-- Compact SCADA ISPU Indicator Bar -->
+    <!-- Compact Single-Row SCADA ISPU Indicator Bar -->
     <div
-      class="w-full px-3 py-2 rounded-xl border flex flex-wrap items-center justify-between gap-2.5 transition-all duration-300 shadow-xs"
+      class="w-full px-3 py-1.5 rounded-xl border flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2.5 gap-y-1.5 transition-all duration-300 shadow-xs"
       :class="barThemeClass"
     >
-      <!-- Left: ISPU Metric & Category Badge -->
-      <div class="flex items-center space-x-3">
-        <!-- Glowing Pulse Dot & Main ISPU Value -->
-        <div class="flex items-center space-x-2">
-          <span class="w-2.5 h-2.5 rounded-full" :class="categoryDotClass"></span>
-          <span class="text-3xs font-mono font-bold tracking-widest uppercase text-slate-500 dark:text-slate-400">
+      <!-- Left: ISPU Metric, Category, Dominant Pollutant & Parameter Pill -->
+      <div class="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
+        <!-- Pulse Dot, Label & Main ISPU Value -->
+        <div class="flex items-center space-x-1.5 flex-shrink-0">
+          <span class="w-2 h-2 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
+          <span class="text-3xs font-mono font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">
             ISPU:
           </span>
-          <span class="text-xl sm:text-2xl font-bold font-mono tabular-nums leading-none tracking-tight" :class="categoryTextClass">
+          <span class="text-lg sm:text-xl font-bold font-mono tabular-nums leading-none tracking-tight" :class="categoryTextClass">
             {{ displayISPU }}
           </span>
         </div>
 
         <!-- Category Badge -->
         <span
-          class="px-2 py-0.5 rounded-md text-3xs font-mono font-bold uppercase tracking-wider border shadow-xs"
+          class="px-1.5 py-0.5 rounded text-4xs sm:text-3xs font-mono font-bold uppercase tracking-wider border shadow-xs whitespace-nowrap flex-shrink-0"
           :class="categoryBadgeClass"
         >
-          {{ ispuCategory }}
+          {{ ispuCategoryDisplay }}
         </span>
 
-        <!-- Dominant Pollutant Badge -->
-        <div class="hidden sm:flex items-center space-x-1 text-3xs font-mono">
-          <span class="text-slate-500 dark:text-slate-400">Dominant:</span>
-          <span class="font-bold text-slate-900 dark:text-white px-1.5 py-0.5 rounded bg-slate-200/50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700">
+        <!-- Dominant Pollutant -->
+        <div class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
+          <span class="text-slate-500 dark:text-slate-400 hidden xl:inline">Dominant:</span>
+          <span class="font-bold text-slate-900 dark:text-white px-1.5 py-0.5 rounded bg-slate-200/50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
             {{ dominantPollutant || '-' }}
           </span>
         </div>
@@ -37,13 +37,14 @@
         <!-- Expandable Parameter Breakdown Pill -->
         <button
           @click="toggleBreakdown"
-          class="flex items-center space-x-1 px-2 py-0.5 rounded-md text-3xs font-mono font-bold transition border"
+          class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-3xs font-mono font-bold transition border flex-shrink-0"
           :class="showBreakdown
             ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
             : 'bg-slate-200/60 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-cyan-500'"
           title="Inspect All 7 Official ISPU Parameters"
         >
-          <span>📊 Params:</span>
+          <span>📊</span>
+          <span class="hidden md:inline">Params:</span>
           <span class="text-cyan-600 dark:text-cyan-400 font-extrabold">{{ activeParametersCount }}/7</span>
           <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': showBreakdown }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -51,31 +52,33 @@
         </button>
       </div>
 
-      <!-- Center: Measurement Period & Validity -->
-      <div class="flex items-center space-x-2 text-3xs font-mono text-slate-500 dark:text-slate-400">
+      <!-- Center: Measurement Period, Data Status & Validity -->
+      <div class="flex items-center space-x-2 text-3xs font-mono text-slate-500 dark:text-slate-400 min-w-0 flex-shrink">
         <!-- 24-Hour Period -->
-        <span class="hidden md:inline">
-          ⏱️ 24h Window: <strong class="text-slate-700 dark:text-slate-300">{{ formattedPeriod }}</strong>
+        <span class="truncate">
+          <span class="hidden xl:inline">⏱️ 24h Window: </span>
+          <span class="hidden md:inline xl:hidden">⏱️ 24h: </span>
+          <strong class="text-slate-700 dark:text-slate-300">{{ formattedPeriod }}</strong>
         </span>
 
-        <!-- Validity Badge -->
+        <!-- Validity Badge & Coverage Percentage -->
         <span
-          class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider border"
+          class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider border whitespace-nowrap flex-shrink-0"
           :class="validityBadgeClass"
           :title="validityTooltip"
         >
           {{ calculationStatus }}
-          <span v-if="completenessPercent > 0">({{ completenessPercent.toFixed(0) }}%)</span>
+          <span v-if="completenessPercent > 0" class="ml-0.5 font-semibold">({{ completenessPercent.toFixed(0) }}%)</span>
         </span>
 
         <!-- Recalculated / Freshness indicator -->
-        <span class="hidden lg:inline text-slate-400 dark:text-slate-500 text-4xs">
+        <span v-if="lastUpdatedStr" class="hidden 2xl:inline text-slate-400 dark:text-slate-500 text-4xs whitespace-nowrap flex-shrink-0">
           · {{ lastUpdatedStr }}
         </span>
       </div>
 
       <!-- Right: Action Controls -->
-      <div class="flex items-center space-x-1.5">
+      <div class="flex items-center space-x-1.5 flex-shrink-0">
         <!-- Setup Mappings Button -->
         <button
           @click="openMappingsModal"
@@ -105,7 +108,7 @@
           class="px-2.5 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-400 shadow-xs"
           title="Open Dedicated ISPU Analysis & Official Breakdowns"
         >
-          <span>Full ISPU →</span>
+          <span class="whitespace-nowrap">Full ISPU →</span>
         </button>
 
         <!-- Recalculate Button -->
@@ -428,6 +431,11 @@ export default {
     },
     ispuCategory() {
       return (this.ispuData && this.ispuData.overall_category) || 'TIDAK_TERSEDIA';
+    },
+    ispuCategoryDisplay() {
+      const cat = this.ispuCategory;
+      if (!cat) return '-';
+      return cat.replace(/_/g, ' ');
     },
     dominantPollutant() {
       return (this.ispuData && this.ispuData.dominant_pollutant) || '-';
