@@ -429,3 +429,69 @@ func TestISPUService_TrendResolution_OperationalVsRegulatory(t *testing.T) {
 	}
 }
 
+// TestISPUService_StartupRecovery_NoSubHourlyRegulatoryRecords verifies that service startup recovery
+// does NOT pollute regulatory ISPU with 2-minute data, and that GetLatestByDeviceID returns the hourly checkpoint.
+func TestISPUService_StartupRecovery_NoSubHourlyRegulatoryRecords(t *testing.T) {
+	db, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	// Seed 2-minute aggregation results spanning 1 hour across an hourly boundary:
+	// From 08:50 to 09:12 (12 buckets: 08:50, 08:52, ..., 09:00, ..., 09:12)
+	baseTime := time.Date(2026, 10, 16, 8, 50, 0, 0, time.FixedZone("WIB", 7*3600))
+	for i := 0; i < 12; i++ {
+		pEnd := baseTime.Add(time.Duration(i*2) * time.Minute)
+		db.Create(&model.AggregationResult{
+			DeviceID:        dev.ID,
+			PeriodStart:     pEnd.Add(-2 * time.Minute).UTC(),
+			PeriodEnd:       pEnd.UTC(),
+			IntervalSeconds: 120,
+			Quality:         model.QualityGood,
+		})
+	}
+
+	// Run startup recovery
+	reconciled, err := ispuSvc.ReconcilePendingCalculations(ctx)
+	if err != nil {
+		t.Fatalf("ReconcilePendingCalculations failed: %v", err)
+	}
+	t.Logf("Reconciled periods: %d", reconciled)
+
+	// Verify operational records: all 12 buckets must have operational ISPU
+	var opCount int64
+	db.Model(&model.ISPUCalculationResult{}).
+		Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeOperational).
+		Count(&opCount)
+	if opCount != 12 {
+		t.Errorf("Expected 12 operational records, got %d", opCount)
+	}
+
+	// Verify regulatory records: only the 09:00:00 hourly boundary may have a regulatory record!
+	var regCount int64
+	db.Model(&model.ISPUCalculationResult{}).
+		Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeRegulatory).
+		Count(&regCount)
+	if regCount != 1 {
+		t.Errorf("Expected exactly 1 regulatory record (at 09:00:00), got %d (2-minute points leaked!)", regCount)
+	}
+
+	// Verify that the regulatory record is at minute 0
+	var regResult model.ISPUCalculationResult
+	if err := db.Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeRegulatory).First(&regResult).Error; err != nil {
+		t.Fatalf("Failed to fetch regulatory result: %v", err)
+	}
+	loc := time.FixedZone("WIB", 7*3600)
+	if regResult.PeriodEnd.In(loc).Minute() != 0 {
+		t.Errorf("Expected regulatory period_end minute to be 0, got %d", regResult.PeriodEnd.In(loc).Minute())
+	}
+
+	// Verify GetLatestSummary returns the 09:00 hourly boundary, NOT 09:12
+	latestReg, err := ispuSvc.GetLatestSummary(ctx, dev.ID, "REGULATORY")
+	if err != nil {
+		t.Fatalf("GetLatestSummary REGULATORY failed: %v", err)
+	}
+	if latestReg.PeriodEnd.In(loc).Minute() != 0 {
+		t.Errorf("Expected latest regulatory ISPU to be at minute 0 (09:00), got %d", latestReg.PeriodEnd.In(loc).Minute())
+	}
+}
+
+

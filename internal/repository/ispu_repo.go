@@ -84,6 +84,20 @@ func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint,
 		Preload("ParameterResults.Parameter").
 		Where("device_id = ?", deviceID)
 	if mode != "" && mode != "ALL" {
+		if mode == string(model.CalculationModeRegulatory) {
+			// First attempt to query strictly cadence-aligned hourly regulatory checkpoint
+			var hourlyRes model.ISPUCalculationResult
+			err := r.db.WithContext(ctx).
+				Preload("Device").
+				Preload("ParameterResults").
+				Preload("ParameterResults.Parameter").
+				Where("device_id = ? AND calculation_mode = ? AND MINUTE(period_end) = 0 AND SECOND(period_end) = 0", deviceID, mode).
+				Order("period_end DESC, calculated_at DESC").
+				First(&hourlyRes).Error
+			if err == nil {
+				return &hourlyRes, nil
+			}
+		}
 		query = query.Where("calculation_mode = ?", mode)
 	}
 	err := query.
@@ -186,12 +200,10 @@ func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime,
 
 	if mode == string(model.CalculationModeRegulatory) {
 		// Filter to ensure only true regulatory cadence records are returned:
-		// Distinct hourly checkpoints or explicit recalculations, rejecting any 2-minute sub-hourly duplicates.
+		// Strictly distinct hourly checkpoints (minute == 0 && second == 0), rejecting any 2-minute sub-hourly duplicates.
 		var cadenceResults []model.ISPUCalculationResult
 		for _, res := range results {
 			if res.PeriodEnd.UTC().Minute() == 0 && res.PeriodEnd.UTC().Second() == 0 {
-				cadenceResults = append(cadenceResults, res)
-			} else if res.TriggerReason == "MANUAL_RECALCULATE" || res.TriggerReason == "STARTUP_RECOVERY" {
 				cadenceResults = append(cadenceResults, res)
 			}
 		}

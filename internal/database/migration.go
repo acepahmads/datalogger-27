@@ -75,9 +75,9 @@ func RunMigrations(db *gorm.DB) error {
 		}
 		_ = db.Model(&model.ISPUCalculationResult{}).Where("calculation_mode IS NULL OR calculation_mode = ''").Update("calculation_mode", string(model.CalculationModeRegulatory)).Error
 
-		// 1d. Clean up legacy unaligned 2-minute records that were erroneously inserted with calculation_mode = 'REGULATORY'
-		_ = db.Exec("DELETE FROM ispu_parameter_results WHERE calculation_result_id IN (SELECT id FROM ispu_calculation_results WHERE calculation_mode = 'REGULATORY' AND MINUTE(period_end) != 0 AND trigger_reason = 'AGGREGATION_COMPLETED')").Error
-		_ = db.Exec("DELETE FROM ispu_calculation_results WHERE calculation_mode = 'REGULATORY' AND MINUTE(period_end) != 0 AND trigger_reason = 'AGGREGATION_COMPLETED'").Error
+		// 1d. Clean up ALL legacy unaligned sub-hourly records erroneously tagged as 'REGULATORY'
+		_ = db.Exec("DELETE FROM ispu_parameter_results WHERE calculation_result_id IN (SELECT id FROM ispu_calculation_results WHERE calculation_mode = 'REGULATORY' AND (MINUTE(period_end) != 0 OR SECOND(period_end) != 0))").Error
+		_ = db.Exec("DELETE FROM ispu_calculation_results WHERE calculation_mode = 'REGULATORY' AND (MINUTE(period_end) != 0 OR SECOND(period_end) != 0)").Error
 	}
 
 

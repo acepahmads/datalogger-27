@@ -486,20 +486,29 @@ export default {
       if (!this.records || this.records.length === 0) return [];
 
       let sourceRecords = this.records;
-      if (this.isRegulatoryMode && !this.isOverallMode) {
-        const pCode = (this.selectedPollutant || '').toUpperCase();
-        if (pCode !== 'PM25') {
-          // Permen LHK 14/2020 Pasal 10 ayat (1)b & ayat (2):
-          // Cadence for gases/PM10: 09:00 & 15:00 WIB, or hourly when pollutant or station ISPU > 100
-          sourceRecords = this.records.filter((r, idx) => {
-            if (idx === this.records.length - 1) return true; // always show latest point
-            const d = new Date(r.period_end);
-            const hour = d.getHours();
-            if (hour === 9 || hour === 15) return true;
-            const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
-            const val = pr ? pr.calculated_ispu : r.overall_ispu;
-            return val > 100;
-          });
+      if (this.isRegulatoryMode) {
+        // Permen LHK 14/2020: Regulatory trend strictly represents hourly checkpoints.
+        // Filter out any 2-minute or sub-hourly points so they never clutter the 24-hour chart.
+        const hourlyRecords = sourceRecords.filter(r => new Date(r.period_end).getMinutes() === 0);
+        if (hourlyRecords.length > 0) {
+          sourceRecords = hourlyRecords;
+        }
+
+        if (!this.isOverallMode) {
+          const pCode = (this.selectedPollutant || '').toUpperCase();
+          if (pCode !== 'PM25') {
+            // Permen LHK 14/2020 Pasal 10 ayat (1)b & ayat (2):
+            // Cadence for gases/PM10: 09:00 & 15:00 WIB, or hourly when pollutant or station ISPU > 100
+            sourceRecords = sourceRecords.filter((r, idx) => {
+              if (idx === sourceRecords.length - 1) return true; // always show latest point
+              const d = new Date(r.period_end);
+              const hour = d.getHours();
+              if (hour === 9 || hour === 15) return true;
+              const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+              const val = pr ? pr.calculated_ispu : r.overall_ispu;
+              return val > 100;
+            });
+          }
         }
       }
 

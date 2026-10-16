@@ -280,15 +280,32 @@ func (s *ISPUService) ReconcilePendingCalculations(ctx context.Context) (int, er
 
 		for _, pEnd := range completedPeriods {
 			alignedEnd := s.AlignToAggregationInterval(pEnd, intervalSec, loc)
+			isHourly := alignedEnd.In(loc).Minute() == 0 && alignedEnd.In(loc).Second() == 0
 
-			var count int64
+			var opCount int64
 			s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-				Where("device_id = ? AND period_end = ?", deviceID, alignedEnd.UTC()).
-				Count(&count)
+				Where("device_id = ? AND period_end = ? AND calculation_mode = ?", deviceID, alignedEnd.UTC(), model.CalculationModeOperational).
+				Count(&opCount)
 
-			if count < 2 {
-				logger.Info("Reconciling missing ISPU calculation for station %d period_end %v", deviceID, alignedEnd)
-				_, err := s.CalculateStationWindowWithReason(ctx, deviceID, alignedEnd, "STARTUP_RECOVERY")
+			var regCount int64
+			if isHourly {
+				s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+					Where("device_id = ? AND period_end = ? AND calculation_mode = ?", deviceID, alignedEnd.UTC(), model.CalculationModeRegulatory).
+					Count(&regCount)
+			}
+
+			// Operational ISPU is required for every aggregation interval.
+			// Regulatory ISPU is strictly required only on hourly boundaries.
+			needsRecovery := opCount == 0 || (isHourly && regCount == 0)
+
+			if needsRecovery {
+				recoveryReason := "BACKFILL_OPERATIONAL"
+				if isHourly {
+					recoveryReason = "STARTUP_RECOVERY"
+				}
+				logger.Info("Reconciling missing ISPU calculation for station %d period_end %v (isHourly=%v, op=%d, reg=%d, reason=%s)",
+					deviceID, alignedEnd, isHourly, opCount, regCount, recoveryReason)
+				_, err := s.CalculateStationWindowWithReason(ctx, deviceID, alignedEnd, recoveryReason)
 				if err == nil {
 					totalReconciled++
 				}
@@ -736,23 +753,27 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	shouldPersistRegulatory := true
 	if reason == "BACKFILL_OPERATIONAL" {
 		shouldPersistRegulatory = false
-	} else if reason == "AGGREGATION_COMPLETED" {
+	} else if reason == "AGGREGATION_COMPLETED" || reason == "STARTUP_RECOVERY" {
 		isHourly := periodEnd.In(loc).Minute() == 0 && periodEnd.In(loc).Second() == 0
 		if !isHourly {
-			// Check if an existing regulatory record already exists for this exact period (idempotent update)
-			var existingRecordCount int64
-			_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-				Where("device_id = ? AND period_end = ? AND calculation_mode = ?", deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
-				Count(&existingRecordCount)
-
-			if existingRecordCount == 0 {
-				// Allow initial seed record if station has 0 regulatory records
-				var existingRegCount int64
+			if reason == "STARTUP_RECOVERY" {
+				shouldPersistRegulatory = false
+			} else {
+				// Check if an existing regulatory record already exists for this exact period (idempotent update)
+				var existingRecordCount int64
 				_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-					Where("device_id = ? AND calculation_mode = ?", deviceID, model.CalculationModeRegulatory).
-					Count(&existingRegCount)
-				if existingRegCount > 0 {
-					shouldPersistRegulatory = false
+					Where("device_id = ? AND period_end = ? AND calculation_mode = ?", deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
+					Count(&existingRecordCount)
+
+				if existingRecordCount == 0 {
+					// Allow initial seed record if station has 0 regulatory records across all history
+					var existingRegCount int64
+					_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+						Where("device_id = ? AND calculation_mode = ?", deviceID, model.CalculationModeRegulatory).
+						Count(&existingRegCount)
+					if existingRegCount > 0 {
+						shouldPersistRegulatory = false
+					}
 				}
 			}
 		}
@@ -852,7 +873,7 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 			aligned := s.AlignToAggregationInterval(r.PeriodEnd, intervalSec, loc)
 			if !aligned.Equal(r.PeriodEnd.In(loc)) {
 				idsToDelete = append(idsToDelete, r.ID)
-			} else if r.CalculationMode == model.CalculationModeRegulatory && r.PeriodEnd.In(loc).Minute() != 0 && r.TriggerReason == "AGGREGATION_COMPLETED" {
+			} else if r.CalculationMode == model.CalculationModeRegulatory && (r.PeriodEnd.In(loc).Minute() != 0 || r.PeriodEnd.In(loc).Second() != 0) {
 				idsToDelete = append(idsToDelete, r.ID)
 			}
 		}
