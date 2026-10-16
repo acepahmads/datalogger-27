@@ -247,6 +247,7 @@
         :records="trendRecords"
         :loading="trendLoading"
         :initial-range="trendRange"
+        :is-dark="effectiveIsDark"
         title="ISPU 24-HOUR ROLLING TREND"
         @range-change="handleRangeChange"
       />
@@ -478,6 +479,22 @@ export default {
     };
   },
   computed: {
+    effectiveIsDark() {
+      if (typeof this.isDark === 'boolean') {
+        return this.isDark;
+      }
+      const pref = this.$store && this.$store.state && this.$store.state.uiPreferences;
+      if (pref && pref.effectiveTheme) {
+        return pref.effectiveTheme === 'dark';
+      }
+      if (this.$store && this.$store.state && this.$store.state.theme) {
+        return this.$store.state.theme === 'dark';
+      }
+      if (typeof document !== 'undefined') {
+        return document.documentElement.classList.contains('dark');
+      }
+      return true;
+    },
     selectedParamResult() {
       if (this.selectedDisplayParam === 'OVERALL') return null;
       if (!this.ispuData || !this.ispuData.parameter_results) return null;
@@ -731,6 +748,9 @@ export default {
         default: return 'bg-slate-200 text-slate-500 border-slate-300';
       }
     },
+    getAuthToken() {
+      return localStorage.getItem('datalogger_token') || localStorage.getItem('token') || (this.$store?.state?.token) || '';
+    },
     toggleBreakdown() {
       this.showBreakdown = !this.showBreakdown;
     },
@@ -744,7 +764,7 @@ export default {
       if (!this.deviceId) return;
       this.loading = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const res = await axios.get(`/api/ispu/latest?device_id=${this.deviceId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -761,7 +781,7 @@ export default {
       if (!this.deviceId) return;
       this.trendLoading = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const res = await axios.get(`/api/ispu/trend?device_id=${this.deviceId}&range=${this.trendRange}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -788,7 +808,7 @@ export default {
       if (!this.deviceId || this.recalculating) return;
       this.recalculating = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         // Trigger both backfill and recalculate for immediate rich history
         await Promise.all([
           axios.post('/api/ispu/backfill', { device_id: this.deviceId, hours: 24 }, {
@@ -808,7 +828,7 @@ export default {
     async openMappingsModal() {
       this.showMappingsModal = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const [mapRes, devRes] = await Promise.all([
           axios.get(`/api/ispu/mappings?device_id=${this.deviceId}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -847,7 +867,7 @@ export default {
     async saveMapping() {
       if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         await axios.post('/api/ispu/mappings', {
           device_id: this.deviceId,
           parameter_id: this.newMapping.parameter_id,
@@ -869,7 +889,7 @@ export default {
     async deleteMapping(id) {
       if (!confirm('Are you sure you want to remove this ISPU parameter mapping?')) return;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         await axios.delete(`/api/ispu/mappings/${id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });

@@ -245,6 +245,7 @@
             :selected-pollutant="selectedPollutant"
             :pollutant-name="selectedPollutantInfo?.name"
             :mode="ispuMode"
+            :is-dark="isDark"
             :aggregation-interval-seconds="latestData?.aggregation_interval_seconds || 120"
             @range-change="handleRangeChange"
           />
@@ -899,6 +900,19 @@ export default {
     };
   },
   computed: {
+    isDark() {
+      const pref = this.$store && this.$store.state && this.$store.state.uiPreferences;
+      if (pref && pref.effectiveTheme) {
+        return pref.effectiveTheme === 'dark';
+      }
+      if (this.$store && this.$store.state && this.$store.state.theme) {
+        return this.$store.state.theme === 'dark';
+      }
+      if (typeof document !== 'undefined') {
+        return document.documentElement.classList.contains('dark');
+      }
+      return true;
+    },
     isAqmsDomain() {
       return (this.systemDomain || 'AQMS').toUpperCase() === 'AQMS';
     },
@@ -1029,6 +1043,9 @@ export default {
     selectPollutant(code) {
       this.selectedPollutant = code;
     },
+    getAuthToken() {
+      return localStorage.getItem('datalogger_token') || localStorage.getItem('token') || (this.$store?.state?.token) || '';
+    },
     async fetchDomain() {
       try {
         const res = await axios.get('/api/system/domain');
@@ -1041,12 +1058,13 @@ export default {
     },
     async fetchDevices() {
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const res = await axios.get('/api/devices', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        const items = res.data?.data || res.data || [];
-        this.devicesList = Array.isArray(items) ? items : [];
+        const raw = res.data?.data;
+        const items = Array.isArray(raw?.items) ? raw.items : (Array.isArray(raw) ? raw : []);
+        this.devicesList = items;
         if (!this.selectedDeviceId && this.devicesList.length > 0) {
           this.selectedDeviceId = this.devicesList[0].id;
         }
@@ -1068,7 +1086,7 @@ export default {
     },
     async fetchLatestISPU() {
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const res = await axios.get(`/api/ispu/latest?device_id=${this.selectedDeviceId}&mode=${this.ispuMode}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -1082,7 +1100,7 @@ export default {
     async fetchTrend() {
       this.trendLoading = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const res = await axios.get(`/api/ispu/trend?device_id=${this.selectedDeviceId}&range=${this.trendRange}&mode=${this.ispuMode}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -1103,7 +1121,7 @@ export default {
       this.historyLoading = true;
       this.historyPage = page;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         let url = `/api/ispu/history?device_id=${this.selectedDeviceId}&page=${page}&limit=${this.historyLimit}&mode=${this.ispuMode}`;
         if (this.filterCategory) url += `&category=${this.filterCategory}`;
         if (this.filterStatus) url += `&status=${this.filterStatus}`;
@@ -1362,7 +1380,7 @@ export default {
     async openMappingsModal() {
       this.showMappingsModal = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         const [mapRes, paramRes] = await Promise.all([
           axios.get(`/api/ispu/mappings?device_id=${this.selectedDeviceId}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -1387,7 +1405,7 @@ export default {
     async saveMapping() {
       if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         await axios.post('/api/ispu/mappings', {
           device_id: this.selectedDeviceId,
           parameter_id: this.newMapping.parameter_id,
