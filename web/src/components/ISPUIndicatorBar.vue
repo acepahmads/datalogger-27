@@ -2,18 +2,18 @@
   <div v-if="isAqmsDomain" class="w-full flex flex-col space-y-1.5 transition-all">
     <!-- Compact Single-Row SCADA ISPU Indicator Bar -->
     <div
-      class="w-full px-3 py-1.5 rounded-xl border flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2.5 gap-y-1.5 transition-all duration-300 shadow-xs"
+      class="w-full px-2.5 py-1 rounded-lg border flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2 gap-y-1 transition-all duration-300 shadow-xs"
       :class="barThemeClass"
     >
       <!-- Left: ISPU Metric, Category, Dominant Pollutant & Parameter Pill -->
       <div class="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
         <!-- Pulse Dot, Label & Main ISPU Value -->
         <div class="flex items-center space-x-1.5 flex-shrink-0">
-          <span class="w-2 h-2 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
+          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
           <span class="text-3xs font-mono font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">
             ISPU:
           </span>
-          <span class="text-lg sm:text-xl font-bold font-mono tabular-nums leading-none tracking-tight" :class="categoryTextClass">
+          <span class="text-base sm:text-lg font-bold font-mono tabular-nums leading-none tracking-tight" :class="categoryTextClass">
             {{ displayISPU }}
           </span>
         </div>

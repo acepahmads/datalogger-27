@@ -14,7 +14,7 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 overflow-y-auto transition-colors duration-150"
-        :class="isOperatorRoute ? 'p-1.5 sm:p-2.5 bg-transparent dark:bg-[#050B16]' : 'p-4 bg-transparent dark:bg-slate-950'"
+        :class="isOperatorRoute ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 bg-transparent dark:bg-[#050B16]' : 'p-4 bg-transparent dark:bg-slate-950'"
       >
         <router-view
           :is-sidebar-collapsed="isSidebarCollapsed"
