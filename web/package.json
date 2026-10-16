@@ -14,7 +14,8 @@
     "test:redesign": "node tests/parameter_cards_redesign_layout_test.js",
     "test:value-clipping": "node tests/parameter_value_clipping_prevention_test.js",
     "test:trend-freshness-alarm": "node tests/operator_trend_freshness_zero_alarm_test.js",
-    "test:formula": "node tests/formula_random_evaluator_test.js"
+    "test:formula": "node tests/formula_random_evaluator_test.js",
+    "test:multi-panel": "node tests/multi_panel_monitoring_layout_test.js"
   },
   "dependencies": {
     "axios": "^1.6.8",

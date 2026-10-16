@@ -351,7 +351,40 @@
               </button>
             </div>
 
-            <!-- ISPU Mode Access Button (AQMS domain only) -->
+            <!-- Configurable Multi-Panel Layout Switcher (1P, 2P, 3P, 4P) -->
+            <div
+              v-if="viewMode === 'cards'"
+              class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-[#334155] dark:border-[#20354B] leading-none"
+            >
+              <button
+                v-for="cnt in [1, 2, 3, 4]"
+                :key="'occ-panel-btn-' + cnt"
+                :id="'btn-toolbar-panel-' + cnt"
+                @click="setPanelCount(cnt)"
+                class="px-1.5 py-0.5 rounded text-3xs font-mono font-semibold transition leading-none"
+                :class="panelCount === cnt
+                  ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
+                :title="cnt + ' ' + ($t('operator.panels') || 'Panels Layout')"
+              >
+                <span>{{ cnt }}P</span>
+              </button>
+            </div>
+
+            <!-- Panel Configuration Modal Trigger -->
+            <button
+              v-if="viewMode === 'cards'"
+              id="btn-open-panel-config"
+              @click="openPanelConfigModal"
+              class="px-1.5 py-0.5 rounded text-3xs font-mono font-semibold transition flex items-center space-x-1 border shadow-xs bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-[#334155] dark:border-[#20354B] hover:border-cyan-500/50 hover:text-cyan-600 dark:hover:text-cyan-400 leading-none"
+              :title="$t('operator.panelsConfig') || 'Configure Multi-Panel Layout'"
+            >
+              <svg class="w-3 h-3 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="hidden sm:inline">{{ $t('operator.panels') || 'Panels' }}</span>
+            </button>
             <button
               v-if="isAQMSDomain"
               @click="$router.push('/monitoring/ispu')"
@@ -428,239 +461,265 @@
           </button>
         </div>
 
-        <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Categorized Grid Sections) -->
+        <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Configurable Multi-Panel Horizontal Layout) -->
         <div
           v-if="viewMode === 'cards'"
           :style="cardGridContainerStyle"
-          class="scada-cards-grid-container custom-scroller pr-0.5 pb-1"
+          class="scada-cards-grid-container custom-scroller pr-0.5 pb-0.5"
         >
-          <!-- Dense SCADA Categorized Grid with Adaptive Category Flow -->
-          <div class="flex flex-wrap gap-1.5 sm:gap-2 items-start">
+          <!-- Multi-Panel Horizontal Grid Container -->
+          <div
+            v-if="filteredParameters.length > 0"
+            class="grid gap-2 items-start"
+            :class="multiPanelGridClass"
+            :style="multiPanelContainerStyle"
+          >
             <div
-              v-for="section in categorySections"
-              :key="section.id"
-              class="flex flex-col"
-              :class="getSectionFlexClass(section)"
+              v-for="(panel, pIdx) in activePanels"
+              :key="panel.id || ('panel-' + pIdx)"
+              class="scada-monitoring-panel flex flex-col min-w-0 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-50/70 dark:bg-[#0A1220]/70 p-1.5 transition-all duration-150"
+              :style="panelBoxStyle"
             >
-              <!-- Section Header (shown in 'all' view when multiple categories exist) -->
-              <div
-                v-if="selectedCategoryFilter === 'all'"
-                class="flex items-center space-x-1.5 py-0 text-3xs font-mono select-none mb-0.5"
-              >
-                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getCategoryTheme(section.color_key).dot"></span>
-                <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[10px]">{{ section.name }}</span>
-                <span class="text-4xs font-mono px-1 py-0 rounded font-bold" :class="getCategoryTheme(section.color_key).pill">
-                  {{ section.parameters.length }}
-                </span>
-                <div class="flex-1 h-px bg-slate-200 dark:bg-[#1E3048] ml-1"></div>
+              <!-- Panel Header -->
+              <div class="flex items-center justify-between min-w-0 gap-1 pb-1 mb-1 border-b border-slate-200/80 dark:border-[#1E3048] flex-shrink-0 select-none">
+                <div class="flex items-center space-x-1.5 min-w-0 flex-1 truncate">
+                  <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getPanelAccentDot(panel.colorKey)"></span>
+                  <span class="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider text-[10.5px] truncate font-mono">
+                    {{ panel.title }}
+                  </span>
+                </div>
+                <div class="flex items-center space-x-1 flex-shrink-0">
+                  <span class="text-4xs font-mono px-1 py-0.2 rounded font-bold bg-slate-200/80 dark:bg-[#1E3048] text-slate-700 dark:text-slate-300">
+                    {{ getPanelParameters(panel, pIdx).length }}
+                  </span>
+                  <button
+                    @click.stop="openPanelConfigModal"
+                    class="text-[9px] p-0.5 rounded hover:bg-slate-200 dark:hover:bg-[#1E2E42] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition leading-none"
+                    :title="$t('operator.panelsConfig') || 'Configure Panels'"
+                  >
+                    ⚙
+                  </button>
+                </div>
               </div>
 
-              <!-- Parameters Grid for this Category Section: Dense auto-fill grid -->
+              <!-- Panel Card Grid (Scroll internal jika isi panel melebihi tinggi yang tersedia) -->
               <div
-                class="grid gap-1.5"
-                style="grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));"
+                class="custom-scroller overflow-y-auto flex-1 pr-0.5"
+                :style="panelScrollAreaStyle"
               >
                 <div
-                  v-for="param in section.parameters"
-                  :key="param.param_id"
-                  @click="selectParamForTrend(param)"
-                  @contextmenu.prevent="openParamContextMenu($event, param)"
-                  class="scada-param-tile px-2 py-1 rounded-md border transition-all duration-150 relative cursor-pointer group flex flex-col justify-between h-[58px] min-w-0 box-border"
-                  :class="[
-                    isParamAlarmOrStaleBad(param)
-                      ? (isAlarmPulseActive
-                          ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
-                              ? 'border-rose-500 bg-rose-500/15 dark:bg-rose-950/45 shadow-sm shadow-rose-500/30 transition-colors duration-75'
-                              : 'border-amber-500 bg-amber-500/15 dark:bg-amber-950/45 shadow-sm shadow-amber-500/30 transition-colors duration-75')
-                          : (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
-                              ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
-                              : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
-                      : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400/80 dark:hover:border-cyan-500/50 shadow-xs dark:shadow-none hover:shadow-sm',
-                    liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
-                  ]"
+                  v-if="getPanelParameters(panel, pIdx).length > 0"
+                  class="grid gap-1.5"
+                  :style="getPanelCardGridStyle(panel)"
                 >
-                  <!-- Area 1: Header (Height ~13px) -->
-                  <div class="flex items-center justify-between min-w-0 gap-1 leading-none select-none">
-                    <div class="flex items-center min-w-0 flex-1 gap-1 truncate">
-                      <span
-                        class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
-                        :class="[
-                          (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500',
-                          isParamAlarmOrStaleBad(param) && isAlarmPulseActive ? 'scale-125 ring-2 ring-rose-400' : 'scale-100'
-                        ]"
-                      ></span>
-                      <span
-                        class="text-[9px] font-mono font-medium text-cyan-600/90 dark:text-cyan-400/90 whitespace-nowrap flex-shrink-0 tracking-tight"
-                        :title="param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code"
-                      >
-                        {{ param.device_code }}
-                      </span>
-                      <span class="text-slate-300 dark:text-slate-600 text-[8px] font-mono select-none flex-shrink-0">·</span>
-                      <div class="flex items-center gap-0.5 min-w-0 flex-1 truncate">
-                        <ParameterIcon
-                          :icon="param.icon"
-                          :code="param.param_code"
-                          :name="param.param_name"
-                          :unit="param.unit"
-                          size-class="w-3 h-3 flex-shrink-0"
-                        />
+                  <div
+                    v-for="param in getPanelParameters(panel, pIdx)"
+                    :key="param.param_id"
+                    @click="selectParamForTrend(param)"
+                    @contextmenu.prevent="openParamContextMenu($event, param)"
+                    class="scada-param-tile px-2 py-1 rounded-md border transition-all duration-150 relative cursor-pointer group flex flex-col justify-between h-[58px] min-w-0 box-border"
+                    :class="[
+                      isParamAlarmOrStaleBad(param)
+                        ? (isAlarmPulseActive
+                            ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
+                                ? 'border-rose-500 bg-rose-500/15 dark:bg-rose-950/45 shadow-sm shadow-rose-500/30 transition-colors duration-75'
+                                : 'border-amber-500 bg-amber-500/15 dark:bg-amber-950/45 shadow-sm shadow-amber-500/30 transition-colors duration-75')
+                            : (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
+                                ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
+                                : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
+                        : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400/80 dark:hover:border-cyan-500/50 shadow-xs dark:shadow-none hover:shadow-sm',
+                      liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
+                    ]"
+                  >
+                    <!-- Area 1: Header (Height ~13px) -->
+                    <div class="flex items-center justify-between min-w-0 gap-1 leading-none select-none">
+                      <div class="flex items-center min-w-0 flex-1 gap-1 truncate">
                         <span
-                          class="text-[11px] font-bold text-slate-900 dark:text-white truncate tracking-tight"
-                          :title="(param.param_name && param.param_name !== param.param_code) ? (param.param_name + ' (' + param.param_code + ')') : param.param_code"
+                          class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
+                          :class="[
+                            (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500',
+                            isParamAlarmOrStaleBad(param) && isAlarmPulseActive ? 'scale-125 ring-2 ring-rose-400' : 'scale-100'
+                          ]"
+                        ></span>
+                        <span
+                          class="text-[9px] font-mono font-medium text-cyan-600/90 dark:text-cyan-400/90 whitespace-nowrap flex-shrink-0 tracking-tight"
+                          :title="param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code"
                         >
-                          {{ param.param_name || param.param_code }}
+                          {{ param.device_code }}
+                        </span>
+                        <span class="text-slate-300 dark:text-slate-600 text-[8px] font-mono select-none flex-shrink-0">·</span>
+                        <div class="flex items-center gap-0.5 min-w-0 flex-1 truncate">
+                          <ParameterIcon
+                            :icon="param.icon"
+                            :code="param.param_code"
+                            :name="param.param_name"
+                            :unit="param.unit"
+                            size-class="w-3 h-3 flex-shrink-0"
+                          />
+                          <span
+                            class="text-[11px] font-bold text-slate-900 dark:text-white truncate tracking-tight"
+                            :title="(param.param_name && param.param_name !== param.param_code) ? (param.param_name + ' (' + param.param_code + ')') : param.param_code"
+                          >
+                            {{ param.param_name || param.param_code }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Header Right: Alarm tag, Quality badge, Pin button -->
+                      <div class="flex items-center gap-1 flex-shrink-0">
+                        <span
+                          v-if="param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING'"
+                          class="px-1 py-0 rounded text-[7.5px] font-mono font-bold uppercase leading-none"
+                          :class="param.alarm_status === 'CRITICAL'
+                            ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 animate-pulse'
+                            : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
+                          :title="'Active alarm: ' + param.alarm_status"
+                        >
+                          {{ param.alarm_status === 'CRITICAL' ? 'CRIT' : 'WARN' }}
+                        </span>
+                        <span
+                          v-if="isParamDomainMismatched(param)"
+                          class="px-1 py-0 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 cursor-help"
+                          :title="'Category domain mismatch (' + (param.category ? param.category.domain : 'Other') + ' vs active ' + currentMonitoringDomain + '). Preserved safely.'"
+                        >
+                          MISMATCH
+                        </span>
+                        <span
+                          class="px-1 py-0 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider leading-none"
+                          :class="qualityBadgeClass(param.quality)"
+                        >
+                          {{ param.quality || 'GOOD' }}
+                        </span>
+                        <button
+                          @click.stop="togglePin(param.param_id)"
+                          class="text-[10px] transition hover:scale-110 p-0 leading-none"
+                          :class="isPinned(param.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'"
+                          :title="isPinned(param.param_id) ? 'Unpin' : 'Pin to top'"
+                        >
+                          ★
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Area 2: Content (Sensor Value, Unit, Meta, Mini Sparkline) -->
+                    <div class="flex items-center justify-between min-w-0 gap-1.5 my-auto leading-none">
+                      <!-- Left: Sensor Value and Unit -->
+                      <div class="flex items-baseline min-w-0 leading-none truncate flex-1">
+                        <span
+                          class="font-bold font-mono tracking-tight whitespace-nowrap tabular-nums select-all leading-none"
+                          style="font-variant-numeric: tabular-nums;"
+                          :class="[paramValueColorClass(param), getParamValueFontSizeClass(param)]"
+                          :title="formatParamValue(param)"
+                        >
+                          {{ formatParamValue(param) }}
+                        </span>
+                        <span
+                          v-if="param.unit"
+                          class="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-0.5 flex-shrink-0 whitespace-nowrap leading-none"
+                          :title="param.unit"
+                        >
+                          {{ param.unit }}
+                        </span>
+                        <span
+                          v-if="param.is_held_value || param.formula"
+                          class="ml-1 px-1 py-0 rounded text-[7px] font-mono font-bold flex-shrink-0"
+                          :class="param.is_held_value ? 'bg-amber-500/15 text-amber-500' : 'bg-blue-500/15 text-blue-400'"
+                        >
+                          {{ param.is_held_value ? 'HELD' : 'FX' }}
                         </span>
                       </div>
-                    </div>
 
-                    <!-- Header Right: Alarm tag, Quality badge, Pin button -->
-                    <div class="flex items-center gap-1 flex-shrink-0">
-                      <span
-                        v-if="param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING'"
-                        class="px-1 py-0 rounded text-[7.5px] font-mono font-bold uppercase leading-none"
-                        :class="param.alarm_status === 'CRITICAL'
-                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 animate-pulse'
-                          : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
-                        :title="'Active alarm: ' + param.alarm_status"
-                      >
-                        {{ param.alarm_status === 'CRITICAL' ? 'CRIT' : 'WARN' }}
-                      </span>
-                      <span
-                        v-if="isParamDomainMismatched(param)"
-                        class="px-1 py-0 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 cursor-help"
-                        :title="'Category domain mismatch (' + (param.category ? param.category.domain : 'Other') + ' vs active ' + currentMonitoringDomain + '). Preserved safely.'"
-                      >
-                        MISMATCH
-                      </span>
-                      <span
-                        class="px-1 py-0 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider leading-none"
-                        :class="qualityBadgeClass(param.quality)"
-                      >
-                        {{ param.quality || 'GOOD' }}
-                      </span>
-                      <button
-                        @click.stop="togglePin(param.param_id)"
-                        class="text-[10px] transition hover:scale-110 p-0 leading-none"
-                        :class="isPinned(param.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'"
-                        :title="isPinned(param.param_id) ? 'Unpin' : 'Pin to top'"
-                      >
-                        ★
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Area 2: Content (Sensor Value, Unit, Meta, Mini Sparkline) -->
-                  <div class="flex items-center justify-between min-w-0 gap-1.5 my-auto leading-none">
-                    <!-- Left: Sensor Value and Unit -->
-                    <div class="flex items-baseline min-w-0 leading-none truncate flex-1">
-                      <span
-                        class="font-bold font-mono tracking-tight whitespace-nowrap tabular-nums select-all leading-none"
-                        style="font-variant-numeric: tabular-nums;"
-                        :class="[paramValueColorClass(param), getParamValueFontSizeClass(param)]"
-                        :title="formatParamValue(param)"
-                      >
-                        {{ formatParamValue(param) }}
-                      </span>
-                      <span
-                        v-if="param.unit"
-                        class="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-0.5 flex-shrink-0 whitespace-nowrap leading-none"
-                        :title="param.unit"
-                      >
-                        {{ param.unit }}
-                      </span>
-                      <span
-                        v-if="param.is_held_value || param.formula"
-                        class="ml-1 px-1 py-0 rounded text-[7px] font-mono font-bold flex-shrink-0"
-                        :class="param.is_held_value ? 'bg-amber-500/15 text-amber-500' : 'bg-blue-500/15 text-blue-400'"
-                      >
-                        {{ param.is_held_value ? 'HELD' : 'FX' }}
-                      </span>
-                    </div>
-
-                    <!-- Right: Flexible Mini Sparkline -->
-                    <div class="w-[52px] sm:w-[56px] h-[19px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative">
-                      <svg
-                        v-if="getSparkline(param.param_id).hasHistory"
-                        class="w-full h-full"
-                        viewBox="0 0 100 20"
-                        preserveAspectRatio="none"
-                      >
-                        <defs>
-                          <linearGradient :id="'sparkGrad-' + param.param_id" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" :stop-color="getSparklineColor(param)" stop-opacity="0.22" />
-                            <stop offset="100%" :stop-color="getSparklineColor(param)" stop-opacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        <path
-                          v-for="(areaD, aIdx) in getSparkline(param.param_id).areaPaths"
-                          :key="'a-' + param.param_id + '-' + aIdx"
-                          :d="areaD"
-                          :fill="'url(#sparkGrad-' + param.param_id + ')'"
-                        />
-                        <path
-                          v-for="(strokeD, sIdx) in getSparkline(param.param_id).strokePaths"
-                          :key="'s-' + param.param_id + '-' + sIdx"
-                          :d="strokeD"
-                          fill="none"
-                          :stroke="getSparklineColor(param)"
-                          stroke-width="1.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                      <!-- Empty state: Awaiting history samples -->
-                      <div
-                        v-else
-                        class="w-full h-full flex items-center justify-center font-mono text-[7.5px] text-slate-400 dark:text-slate-600 tracking-wider select-none px-0.5 text-center"
-                      >
-                        <span class="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-600 opacity-60 mr-0.5"></span>
-                        <span class="opacity-60 truncate">Hist</span>
+                      <!-- Right: Flexible Mini Sparkline -->
+                      <div class="w-[52px] sm:w-[56px] h-[19px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative">
+                        <svg
+                          v-if="getSparkline(param.param_id).hasHistory"
+                          class="w-full h-full"
+                          viewBox="0 0 100 20"
+                          preserveAspectRatio="none"
+                        >
+                          <defs>
+                            <linearGradient :id="'sparkGrad-' + param.param_id" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" :stop-color="getSparklineColor(param)" stop-opacity="0.22" />
+                              <stop offset="100%" :stop-color="getSparklineColor(param)" stop-opacity="0.0" />
+                            </linearGradient>
+                          </defs>
+                          <path
+                            v-for="(areaD, aIdx) in getSparkline(param.param_id).areaPaths"
+                            :key="'a-' + param.param_id + '-' + aIdx"
+                            :d="areaD"
+                            :fill="'url(#sparkGrad-' + param.param_id + ')'"
+                          />
+                          <path
+                            v-for="(strokeD, sIdx) in getSparkline(param.param_id).strokePaths"
+                            :key="'s-' + param.param_id + '-' + sIdx"
+                            :d="strokeD"
+                            fill="none"
+                            :stroke="getSparklineColor(param)"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                        <!-- Empty state: Awaiting history samples -->
+                        <div
+                          v-else
+                          class="w-full h-full flex items-center justify-center font-mono text-[7.5px] text-slate-400 dark:text-slate-600 tracking-wider select-none px-0.5 text-center"
+                        >
+                          <span class="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-600 opacity-60 mr-0.5"></span>
+                          <span class="opacity-60 truncate">Hist</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <!-- Area 3: Footer (Timestamp with ellipsis protection & Action Link) -->
-                  <div class="flex items-center justify-between min-w-0 gap-1 pt-0.5 border-t border-slate-100 dark:border-[#132235] text-[8px] font-mono leading-none mt-auto">
-                    <!-- Left: Timestamp / Status duration -->
-                    <div
-                      class="flex items-center min-w-0 flex-1 truncate space-x-0.5"
-                      :title="getParamTimingTitle(param)"
-                    >
-                      <span
-                        v-if="isParamAlarmOrStaleBad(param)"
-                        class="flex items-center space-x-0.5 font-bold truncate min-w-0"
-                        :class="paramTimingColorClass(param)"
+                    <!-- Area 3: Footer (Timestamp with ellipsis protection & Action Link) -->
+                    <div class="flex items-center justify-between min-w-0 gap-1 pt-0.5 border-t border-slate-100 dark:border-[#132235] text-[8px] font-mono leading-none mt-auto">
+                      <!-- Left: Timestamp / Status duration -->
+                      <div
+                        class="flex items-center min-w-0 flex-1 truncate space-x-0.5"
+                        :title="getParamTimingTitle(param)"
                       >
-                        <span class="flex-shrink-0">{{ getParamTimingIcon(param) }}</span>
-                        <span class="truncate">{{ getParamTimingLabel(param) }}</span>
-                        <span v-if="param.received_at" class="opacity-80 whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
-                      </span>
-                      <span v-else class="text-slate-400 dark:text-slate-500 flex items-center space-x-0.5 truncate min-w-0">
-                        <span class="text-emerald-500 font-bold flex-shrink-0">✓</span>
-                        <span class="truncate">{{ param.received_at ? formatTimeShort(param.received_at) : ($t('operator.waitingData') || 'Waiting') }}</span>
-                        <span v-if="param.received_at" class="text-slate-400 dark:text-slate-500 font-mono whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
+                        <span
+                          v-if="isParamAlarmOrStaleBad(param)"
+                          class="flex items-center space-x-0.5 font-bold truncate min-w-0"
+                          :class="paramTimingColorClass(param)"
+                        >
+                          <span class="flex-shrink-0">{{ getParamTimingIcon(param) }}</span>
+                          <span class="truncate">{{ getParamTimingLabel(param) }}</span>
+                          <span v-if="param.received_at" class="opacity-80 whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
+                        </span>
+                        <span v-else class="text-slate-400 dark:text-slate-500 flex items-center space-x-0.5 truncate min-w-0">
+                          <span class="text-emerald-500 font-bold flex-shrink-0">✓</span>
+                          <span class="truncate">{{ param.received_at ? formatTimeShort(param.received_at) : ($t('operator.waitingData') || 'Waiting') }}</span>
+                          <span v-if="param.received_at" class="text-slate-400 dark:text-slate-500 font-mono whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
+                        </span>
+                      </div>
+
+                      <!-- Right: Quick Action Link / Selection indicator -->
+                      <span
+                        class="flex-shrink-0 flex items-center space-x-1 whitespace-nowrap text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer font-semibold select-none transition-colors ml-1"
+                        :style="isParamSelectedForTrend(param) ? { color: getTrendSeriesColor(param) } : {}"
+                      >
+                        <span
+                          v-if="isParamSelectedForTrend(param)"
+                          class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          :style="{ backgroundColor: getTrendSeriesColor(param) }"
+                        ></span>
+                        <span>{{ isParamSelectedForTrend(param) ? cleanInChartLabel : ($t('operator.plotTrend') || '+ Plot') }}</span>
                       </span>
                     </div>
-
-                    <!-- Right: Quick Action Link / Selection indicator -->
-                    <span
-                      class="flex-shrink-0 flex items-center space-x-1 whitespace-nowrap text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer font-semibold select-none transition-colors ml-1"
-                      :style="isParamSelectedForTrend(param) ? { color: getTrendSeriesColor(param) } : {}"
-                    >
-                      <span
-                        v-if="isParamSelectedForTrend(param)"
-                        class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                        :style="{ backgroundColor: getTrendSeriesColor(param) }"
-                      ></span>
-                      <span>{{ isParamSelectedForTrend(param) ? cleanInChartLabel : ($t('operator.plotTrend') || '+ Plot') }}</span>
-                    </span>
                   </div>
+                </div>
+                <div
+                  v-else
+                  class="py-4 text-center font-mono text-[10px] text-slate-400 dark:text-slate-500 italic select-none"
+                >
+                  {{ $t('operator.noParamsInPanel') || 'No parameters assigned to this panel' }}
                 </div>
               </div>
             </div>
           </div>
 
-          <div v-if="categorySections.length === 0" class="col-span-full p-8 text-center text-slate-500 font-mono text-xs">
+          <div v-else class="col-span-full p-8 text-center text-slate-500 font-mono text-xs">
             {{ $t('operator.noParamsMatch') || 'No parameters matching current filter criteria.' }}
           </div>
         </div>
@@ -2334,6 +2393,18 @@
       :parameter="historyTarget.parameter"
       @close="isHistoryModalOpen = false"
     />
+
+    <!-- 5. Configurable Multi-Panel Monitoring Layout Modal -->
+    <MultiPanelConfigModal
+      :is-open="isPanelConfigModalOpen"
+      :panel-count="panelCount"
+      :panels="panelLayoutConfigs"
+      :categories="activeCategoriesList"
+      :all-parameters="allParameters"
+      :is-dark="isDark"
+      @save="handlePanelConfigSaved"
+      @close="isPanelConfigModalOpen = false"
+    />
   </div>
 </template>
 
@@ -2349,6 +2420,7 @@ import ParameterConfigViewModal from '../components/ParameterConfigViewModal.vue
 import ParameterHistoryModal from '../components/ParameterHistoryModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ISPUIndicatorBar from '../components/ISPUIndicatorBar.vue';
+import MultiPanelConfigModal from '../components/MultiPanelConfigModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
 
@@ -2383,6 +2455,7 @@ export default {
     ParameterHistoryModal,
     ParameterModal,
     ISPUIndicatorBar,
+    MultiPanelConfigModal,
   },
   props: {
     isSidebarCollapsed: {
@@ -2396,6 +2469,9 @@ export default {
   },
   data() {
     return {
+      panelCount: 2,
+      panelLayoutConfigs: [],
+      isPanelConfigModalOpen: false,
       devicesList: [],
       liveMap: {},
       liveBlinks: {},
@@ -3141,6 +3217,41 @@ export default {
     cardGridClass() {
       return 'grid gap-1.5 sm:gap-2';
     },
+    activePanels() {
+      if (Array.isArray(this.panelLayoutConfigs) && this.panelLayoutConfigs.length > 0) {
+        return this.panelLayoutConfigs;
+      }
+      return this.buildDefaultPanels(this.panelCount || 2);
+    },
+    multiPanelGridClass() {
+      const count = (this.activePanels && this.activePanels.length) || this.panelCount || 2;
+      if (count <= 1) return 'grid-cols-1';
+      if (count === 2) return 'grid-cols-1 md:grid-cols-2';
+      if (count === 3) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+      return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+    },
+    multiPanelContainerStyle() {
+      const overhead = this.isTopPanelHidden ? 390 : 515;
+      return {
+        maxHeight: `calc(100vh - ${overhead}px)`,
+        width: '100%',
+      };
+    },
+    panelBoxStyle() {
+      const overhead = this.isTopPanelHidden ? 390 : 515;
+      return {
+        maxHeight: `calc(100vh - ${overhead}px)`,
+        display: 'flex',
+        flexDirection: 'column',
+      };
+    },
+    panelScrollAreaStyle() {
+      const overhead = this.isTopPanelHidden ? 390 : 515;
+      return {
+        maxHeight: `calc(100vh - ${overhead + 32}px)`,
+        overflowY: 'auto',
+      };
+    },
     cardGridContainerStyle() {
       // Bounded height ensuring internal scroll if parameter count exceeds viewport capacity
       // On 1366x768, overhead from 100vh is ~515px with top header, ~390px in full-width mode
@@ -3464,6 +3575,7 @@ export default {
   mounted() {
     this.initDashboard();
     this.initTrendResizeObserver();
+    this.loadPanelLayoutConfig();
 
     // Telemetry Freshness Ticker
     this.tickerInterval = setInterval(() => {
@@ -3512,6 +3624,258 @@ export default {
     document.removeEventListener('contextmenu', this.onDocumentContextMenu);
   },
   methods: {
+    loadPanelLayoutConfig() {
+      try {
+        const saved = localStorage.getItem('occ_multipanel_layout_config');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.panels) && parsed.panels.length > 0) {
+            this.panelCount = parsed.panelCount || parsed.panels.length;
+            this.panelLayoutConfigs = parsed.panels;
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load multi-panel configuration from localStorage:', err);
+      }
+      this.panelCount = 2;
+      this.panelLayoutConfigs = this.buildDefaultPanels(2);
+    },
+    savePanelLayoutConfig() {
+      try {
+        const payload = {
+          panelCount: this.panelCount,
+          panels: this.panelLayoutConfigs,
+        };
+        localStorage.setItem('occ_multipanel_layout_config', JSON.stringify(payload));
+      } catch (err) {
+        console.error('Failed to save multi-panel config to localStorage:', err);
+      }
+    },
+    setPanelCount(count) {
+      this.panelCount = count;
+      this.panelLayoutConfigs = this.buildDefaultPanels(count);
+      this.savePanelLayoutConfig();
+    },
+    openPanelConfigModal() {
+      this.isPanelConfigModalOpen = true;
+    },
+    handlePanelConfigSaved(config) {
+      if (config && Array.isArray(config.panels)) {
+        this.panelCount = config.panelCount || config.panels.length;
+        this.panelLayoutConfigs = config.panels;
+        this.savePanelLayoutConfig();
+      }
+    },
+    buildDefaultPanels(count) {
+      const categories = this.activeCategoriesList || [];
+      const gasCat = categories.find(c => /gas|pollutant|udara/i.test(c.name)) || categories[0];
+      const partCat = categories.find(c => /particul|debu|pm/i.test(c.name));
+      const weatherCat = categories.find(c => /weather|cuaca|meteo/i.test(c.name)) || (categories.length > 1 ? categories[1] : null);
+
+      if (count === 1) {
+        return [
+          {
+            id: 'panel-1',
+            title: this.$t('operator.allCategories') || 'All Monitoring Parameters',
+            colorKey: 'cyan',
+            assignmentMode: 'category',
+            categoryIds: categories.map(c => c.id).concat(['uncategorized']),
+            parameterIds: [],
+            allowDuplicates: false,
+          },
+        ];
+      }
+
+      if (count === 2) {
+        const p1Cats = gasCat ? [gasCat.id] : (categories[0] ? [categories[0].id] : [1]);
+        const p2Cats = categories.filter(c => !p1Cats.includes(c.id)).map(c => c.id).concat(['uncategorized']);
+        return [
+          {
+            id: 'panel-1',
+            title: (gasCat && gasCat.name) || 'Gas & Pollutants',
+            colorKey: 'cyan',
+            assignmentMode: 'category',
+            categoryIds: p1Cats,
+            parameterIds: [],
+            allowDuplicates: false,
+          },
+          {
+            id: 'panel-2',
+            title: (weatherCat && weatherCat.name) || 'Weather & Meteorology',
+            colorKey: 'blue',
+            assignmentMode: 'category',
+            categoryIds: p2Cats,
+            parameterIds: [],
+            allowDuplicates: false,
+          },
+        ];
+      }
+
+      if (count === 3) {
+        const p1Cats = gasCat ? [gasCat.id] : [1];
+        const p2Cats = partCat ? [partCat.id] : (categories.length > 2 ? [categories[2].id] : [3]);
+        const p3Cats = categories.filter(c => !p1Cats.includes(c.id) && !p2Cats.includes(c.id)).map(c => c.id).concat(['uncategorized']);
+        return [
+          {
+            id: 'panel-1',
+            title: (gasCat && gasCat.name) || 'Gas & Pollutants',
+            colorKey: 'cyan',
+            assignmentMode: 'category',
+            categoryIds: p1Cats,
+            parameterIds: [],
+            allowDuplicates: false,
+          },
+          {
+            id: 'panel-2',
+            title: (partCat && partCat.name) || 'Particulate Matter',
+            colorKey: 'amber',
+            assignmentMode: 'category',
+            categoryIds: p2Cats,
+            parameterIds: [],
+            allowDuplicates: false,
+          },
+          {
+            id: 'panel-3',
+            title: (weatherCat && weatherCat.name) || 'Weather & Meteorology',
+            colorKey: 'blue',
+            assignmentMode: 'category',
+            categoryIds: p3Cats,
+            parameterIds: [],
+            allowDuplicates: false,
+          },
+        ];
+      }
+
+      // count >= 4
+      const p1Cats = gasCat ? [gasCat.id] : [1];
+      const p2Cats = partCat ? [partCat.id] : [3];
+      const p3Cats = weatherCat ? [weatherCat.id] : [2];
+      const p4Cats = categories.filter(c => !p1Cats.includes(c.id) && !p2Cats.includes(c.id) && !p3Cats.includes(c.id)).map(c => c.id).concat(['uncategorized']);
+      return [
+        {
+          id: 'panel-1',
+          title: (gasCat && gasCat.name) || 'Gas & Pollutants',
+          colorKey: 'cyan',
+          assignmentMode: 'category',
+          categoryIds: p1Cats,
+          parameterIds: [],
+          allowDuplicates: false,
+        },
+        {
+          id: 'panel-2',
+          title: (partCat && partCat.name) || 'Particulate Matter',
+          colorKey: 'amber',
+          assignmentMode: 'category',
+          categoryIds: p2Cats,
+          parameterIds: [],
+          allowDuplicates: false,
+        },
+        {
+          id: 'panel-3',
+          title: (weatherCat && weatherCat.name) || 'Weather & Meteorology',
+          colorKey: 'blue',
+          assignmentMode: 'category',
+          categoryIds: p3Cats,
+          parameterIds: [],
+          allowDuplicates: false,
+        },
+        {
+          id: 'panel-4',
+          title: 'Custom & Environmental Parameters',
+          colorKey: 'emerald',
+          assignmentMode: 'category',
+          categoryIds: p4Cats.length > 0 ? p4Cats : ['uncategorized'],
+          parameterIds: [],
+          allowDuplicates: false,
+        },
+      ];
+    },
+    getPrecedingClaimedIds(currentIndex) {
+      const claimed = new Set();
+      const pool = this.filteredParameters || [];
+      for (let i = 0; i < currentIndex; i++) {
+        const p = this.activePanels[i];
+        if (p) {
+          if (p.assignmentMode === 'custom') {
+            (p.parameterIds || []).forEach(id => claimed.add(String(id)));
+          } else {
+            const catSet = new Set((p.categoryIds || []).map(c => String(c).toLowerCase()));
+            pool.forEach(param => {
+              if (!param.category_id || param.category_id === 'uncategorized') {
+                if (catSet.has('uncategorized')) claimed.add(String(param.param_id));
+              } else if (catSet.has(String(param.category_id).toLowerCase())) {
+                claimed.add(String(param.param_id));
+              }
+            });
+          }
+        }
+      }
+      return claimed;
+    },
+    getPanelParameters(panel, panelIndex = -1) {
+      if (!panel) return [];
+      const pool = this.filteredParameters;
+      if (!pool || pool.length === 0) return [];
+
+      const actualIdx = panelIndex >= 0 ? panelIndex : this.activePanels.indexOf(panel);
+
+      let matched = [];
+      if (panel.assignmentMode === 'custom') {
+        const idSet = new Set((panel.parameterIds || []).map(String));
+        matched = pool.filter(p => idSet.has(String(p.param_id)));
+      } else {
+        const catSet = new Set((panel.categoryIds || []).map(c => String(c).toLowerCase()));
+        matched = pool.filter(p => {
+          if (!p.category_id || p.category_id === 'uncategorized') {
+            return catSet.has('uncategorized');
+          }
+          return catSet.has(String(p.category_id).toLowerCase());
+        });
+      }
+
+      // Deduplication check: if panel does NOT allow duplicates, exclude parameters already claimed
+      if (!panel.allowDuplicates && actualIdx > 0) {
+        const precedingClaimedIds = this.getPrecedingClaimedIds(actualIdx);
+        matched = matched.filter(p => !precedingClaimedIds.has(String(p.param_id)));
+      }
+
+      // Safety guard: Last panel sweeps in any unassigned parameters so zero parameters are lost
+      if (actualIdx === this.activePanels.length - 1) {
+        const claimedByOthers = this.getPrecedingClaimedIds(actualIdx);
+        const matchedSet = new Set(matched.map(p => String(p.param_id)));
+        const unassigned = pool.filter(p => !claimedByOthers.has(String(p.param_id)) && !matchedSet.has(String(p.param_id)));
+        if (unassigned.length > 0) {
+          matched = matched.concat(unassigned);
+        }
+      }
+
+      return matched;
+    },
+    getPanelCardGridStyle(panel) {
+      const count = (this.activePanels && this.activePanels.length) || this.panelCount || 2;
+      let minCardWidth = 175;
+      if (count === 1) minCardWidth = 185;
+      else if (count === 2) minCardWidth = 175;
+      else if (count === 3) minCardWidth = 155;
+      else minCardWidth = 145;
+      return {
+        gridTemplateColumns: `repeat(auto-fill, minmax(${minCardWidth}px, 1fr))`,
+      };
+    },
+    getPanelAccentDot(colorKey) {
+      const map = {
+        cyan: 'bg-cyan-500 shadow-xs shadow-cyan-500/50',
+        blue: 'bg-blue-500 shadow-xs shadow-blue-500/50',
+        emerald: 'bg-emerald-500 shadow-xs shadow-emerald-500/50',
+        amber: 'bg-amber-500 shadow-xs shadow-amber-500/50',
+        purple: 'bg-purple-500 shadow-xs shadow-purple-500/50',
+        rose: 'bg-rose-500 shadow-xs shadow-rose-500/50',
+        indigo: 'bg-indigo-500 shadow-xs shadow-indigo-500/50',
+        slate: 'bg-slate-400 shadow-xs shadow-slate-400/50',
+      };
+      return map[colorKey] || map.cyan;
+    },
     openParamContextMenu(event, param) {
       if (event) {
         event.preventDefault();
