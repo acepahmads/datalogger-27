@@ -1338,12 +1338,20 @@
               <router-link to="/monitoring/analysis" class="text-cyan-600 dark:text-cyan-400 hover:underline">
                 Deep Analysis →
               </router-link>
+              <span>·</span>
+              <button
+                @click="toggleEnvironmentalVisualizations"
+                class="hover:text-cyan-500 transition text-slate-400 dark:text-slate-500"
+                :title="showEnvironmentalVisualizations ? ($t('operator.hideWindAndMap') || 'Hide Wind & Map') : ($t('operator.showWindAndMap') || 'Show Wind & Map')"
+              >
+                {{ showEnvironmentalVisualizations ? ($t('operator.hideWindAndMap') || 'Hide Wind & Map') : ($t('operator.showWindAndMap') || 'Show Wind & Map') }}
+              </button>
             </div>
           </div>
         </div>
 
         <!-- 2. OPERATIONAL ENVIRONMENTAL VISUALIZATIONS (WIND ROSE & POLLUTANT DISPERSION MAP) -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-2 flex-1">
+        <div v-if="showEnvironmentalVisualizations" class="grid grid-cols-1 lg:grid-cols-12 gap-2 flex-1">
           <!-- Left: Wind Rose (approx 40% -> 5 cols out of 12) -->
           <div class="lg:col-span-5 min-h-[300px] flex flex-col">
             <WindRoseChart
@@ -2446,6 +2454,9 @@ export default {
       isCategoryModalOpen: false,
       filterPinnedOnly: false,
       viewMode: 'cards', // 'cards' | 'table'
+
+      // Environmental Visualizations (Wind Rose & Pollutant Map) Visibility
+      showEnvironmentalVisualizations: localStorage.getItem('dl_show_environmental_viz') === 'true',
 
       // Trend Chart State
       currentTimeframe: '15m',
@@ -5469,6 +5480,12 @@ export default {
       const timeIso = param.received_at ? new Date(param.received_at).toISOString() : 'N/A';
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
       return `Last Reading: ${timeFull} (${timeIso}) [${rel}] | Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status}`;
+    },
+    toggleEnvironmentalVisualizations() {
+      this.showEnvironmentalVisualizations = !this.showEnvironmentalVisualizations;
+      try {
+        localStorage.setItem('dl_show_environmental_viz', this.showEnvironmentalVisualizations ? 'true' : 'false');
+      } catch (e) {}
     },
   },
 };

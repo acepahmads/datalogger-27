@@ -1863,6 +1863,8 @@ export default {
     "testAudioWarning": "Test Warning Sound",
     "testAudioCritical": "Test Critical Sound",
     "recordsLoaded": "records loaded",
+    "showWindAndMap": "Show Wind & Map",
+    "hideWindAndMap": "Hide Wind & Map",
     "windRoseTitle": "Wind Rose",
     "windRoseSubtitle": "Wind direction and speed distribution",
     "selectStation": "Select Station",

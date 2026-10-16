@@ -1863,6 +1863,8 @@ export default {
     "testAudioWarning": "Uji Suara Peringatan",
     "testAudioCritical": "Uji Suara Kritis",
     "recordsLoaded": "catatan dimuat",
+    "showWindAndMap": "Tampilkan Wind Rose & Peta",
+    "hideWindAndMap": "Sembunyikan Wind Rose & Peta",
     "windRoseTitle": "Wind Rose (Mawar Angin)",
     "windRoseSubtitle": "Distribusi arah dan kecepatan angin",
     "selectStation": "Pilih Stasiun",
