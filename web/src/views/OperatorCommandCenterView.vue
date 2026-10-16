@@ -1,12 +1,12 @@
 <template>
   <div class="operator-command-center font-sans text-slate-800 dark:text-slate-100 select-none pb-20 transition-colors duration-150">
     <!-- Sub-Header / SCADA Operational Status Bar -->
-    <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 mb-2 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-lg transition-colors">
+    <div class="flex flex-wrap items-center justify-between gap-1.5 px-2.5 py-1 mb-1 rounded-lg bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-lg transition-colors">
       <!-- Left: Station & Console Title -->
       <div class="flex items-center space-x-3">
         <div class="flex items-center space-x-2">
-          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+          <div class="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
             </svg>
           </div>
@@ -97,10 +97,10 @@
 
     <!-- C. FOUR OPERATIONAL SUMMARY CARDS -->
     <!-- C. FOUR COMPACT OPERATIONAL STATUS CARDS (ONE ROW, TWO LINES PER CARD) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 mb-2 sm:mb-2.5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-1">
       <!-- 1. Device & Comm Status -->
       <div
-        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[60px] sm:h-[62px]"
+        class="scada-panel primary-status-card px-2 py-0.5 sm:py-1 rounded-lg bg-white dark:bg-[#0B1422] border relative overflow-hidden transition flex flex-col justify-between h-[48px] sm:h-[50px]"
         :class="summaryStats.offlineCount > 0
           ? (isAlarmPulseActive
               ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
@@ -112,7 +112,7 @@
         <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
           <div class="flex items-center space-x-1.5 min-w-0">
             <span
-              class="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
+              class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
               :class="[
                 summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-500',
                 summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-500/40' : 'scale-100'
@@ -121,7 +121,7 @@
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryDevices') || 'Device Status' }}</span>
           </div>
           <span
-            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 leading-none"
+            class="text-4xs font-mono font-bold px-1.5 py-0.2 rounded flex-shrink-0 leading-none"
             :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
           >
             {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
@@ -131,7 +131,7 @@
         <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
         <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+            <span class="text-base sm:text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
               {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
             </span>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">devices</span>
@@ -149,7 +149,7 @@
 
       <!-- 2. Active Alarms -->
       <div
-        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[60px] sm:h-[62px]"
+        class="scada-panel primary-status-card px-2 py-0.5 sm:py-1 rounded-lg bg-white dark:bg-[#0B1422] border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[48px] sm:h-[50px]"
         :class="activeCriticalCount > 0
           ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
           : activeAlarmsList.length > 0
@@ -162,7 +162,7 @@
         <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
           <div class="flex items-center space-x-1.5 min-w-0">
             <span
-              class="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
+              class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
               :class="[
                 activeCriticalCount > 0 ? 'bg-rose-500' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
                 activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-amber-500/40' : 'scale-100'
@@ -179,7 +179,7 @@
         <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
             <span
-              class="text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight"
+              class="text-base sm:text-lg font-bold font-mono tabular-nums tracking-tight"
               :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
             >
               {{ activeAlarmsList.length }}
@@ -202,17 +202,17 @@
 
       <!-- 3. Latest Telemetry -->
       <div
-        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[60px] sm:h-[62px]"
+        class="scada-panel primary-status-card px-2 py-0.5 sm:py-1 rounded-lg bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[48px] sm:h-[50px]"
         :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
       >
         <!-- Line 1: Header (icon + compact title + status badge) -->
         <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
           <div class="flex items-center space-x-1.5 min-w-0">
-            <span class="w-2 h-2 rounded-full flex-shrink-0" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}</span>
           </div>
           <span
-            class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 leading-none"
+            class="text-4xs font-mono font-bold px-1.5 py-0.2 rounded flex-shrink-0 leading-none"
             :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
           >
             {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
@@ -223,7 +223,7 @@
         <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
             <span
-              class="text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight"
+              class="text-base sm:text-lg font-bold font-mono tabular-nums tracking-tight"
               :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
             >
               {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
@@ -244,16 +244,16 @@
 
       <!-- 4. System Monitor -->
       <div
-        class="scada-panel primary-status-card px-3 py-1.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[60px] sm:h-[62px]"
+        class="scada-panel primary-status-card px-2 py-0.5 sm:py-1 rounded-lg bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[48px] sm:h-[50px]"
         :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
       >
         <!-- Line 1: Header (icon + compact title + status badge) -->
         <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
           <div class="flex items-center space-x-1.5 min-w-0">
-            <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
             <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summarySystem') || 'System Monitor' }}</span>
           </div>
-          <span class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
+          <span class="text-4xs font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
             {{ systemStatus.service_status || 'RUNNING' }}
           </span>
         </div>
@@ -261,7 +261,7 @@
         <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
         <div class="flex items-baseline justify-between leading-none mt-0.5">
           <div class="flex items-baseline space-x-1.5">
-            <span class="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+            <span class="text-base sm:text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
               {{ Math.round(systemStatus.cpu_percent || 0) }}%
             </span>
             <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">CPU</span>
@@ -278,9 +278,9 @@
     <!-- ======================================================== -->
     <!-- SECTION 1: DEVICE & PARAMETER MONITORING (FULL WIDTH)    -->
     <!-- ======================================================== -->
-    <div class="w-full flex flex-col space-y-2.5">
+    <div class="w-full flex flex-col space-y-1 sm:space-y-1.5">
         <!-- Panel Header & Filter Controls Bar -->
-        <div class="p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-wrap items-center justify-between gap-2">
+        <div class="px-2.5 py-1 mb-1 rounded-lg bg-white dark:bg-[#0B1422] border border-[#334155] dark:border-[#20354B] shadow-xs dark:shadow-md flex flex-wrap items-center justify-between gap-1.5">
           <!-- Left: Title & Mode Toggle -->
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
@@ -375,11 +375,11 @@
 
 
         <!-- Dynamic Category Tabs Filter Strip -->
-        <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 custom-scroller text-3xs font-mono select-none">
+        <div class="flex items-center space-x-1.5 overflow-x-auto pb-0.5 mb-1 custom-scroller text-3xs font-mono select-none">
           <!-- All Categories Tab -->
           <button
             @click="selectedCategoryFilter = 'all'"
-            class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
+            class="px-2 py-0.5 rounded-md transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
             :class="selectedCategoryFilter === 'all'
               ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
               : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
@@ -396,7 +396,7 @@
             v-for="cat in activeCategoriesList"
             :key="cat.id"
             @click="selectedCategoryFilter = cat.id"
-            class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
+            class="px-2 py-0.5 rounded-md transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
             :class="selectedCategoryFilter === cat.id
               ? getCategoryTheme(cat.color_key).activeTab
               : 'bg-white dark:bg-[#0B1422] text-slate-600 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-900 dark:hover:text-slate-200'"
@@ -415,7 +415,7 @@
           <button
             v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
             @click="selectedCategoryFilter = 'uncategorized'"
-            class="px-2.5 py-1 rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
+            class="px-2 py-0.5 rounded-md transition-colors flex items-center space-x-1.5 flex-shrink-0 border font-semibold"
             :class="selectedCategoryFilter === 'uncategorized'
               ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs'
               : 'bg-white dark:bg-[#0B1422] text-slate-500 dark:text-slate-400 border-[#334155] dark:border-[#20354B] hover:text-slate-300'"
@@ -433,41 +433,42 @@
         <div
           v-if="viewMode === 'cards'"
           :style="cardGridContainerStyle"
-          class="custom-scroller pb-2 sm:pb-3"
+          class="scada-cards-grid-container custom-scroller pr-1 pb-2"
         >
-          <!-- 12-Column Responsive Category Grid across the full available desktop width -->
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-3.5">
+          <!-- Dense SCADA Categorized Grid across full container width -->
+          <div class="flex flex-col space-y-1.5 sm:space-y-2">
             <div
               v-for="section in categorySections"
               :key="section.id"
-              :class="getSectionContainerSpanClass(section)"
-              class="flex flex-col space-y-1.5 rounded-xl p-2 sm:p-2.5 bg-white/80 dark:bg-[#070D17]/40 border border-[#B8D4EA] dark:border-[#1A2C3F]/60"
+              class="flex flex-col space-y-1"
             >
               <!-- Section Header (shown in 'all' view when multiple categories exist) -->
               <div
                 v-if="selectedCategoryFilter === 'all'"
-                class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/90 dark:bg-[#0B1422]/90 border border-[#B8D4EA] dark:border-[#20354B] text-2xs font-mono"
+                class="flex items-center space-x-2 py-0.5 text-3xs font-mono select-none"
               >
-                <div class="flex items-center space-x-2 min-w-0">
-                  <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(section.color_key).dot"></span>
-                  <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-3xs truncate">{{ section.name }}</span>
-                  <span v-if="section.description" class="hidden md:inline text-4xs text-slate-400 font-sans italic truncate max-w-xs">
-                    — {{ section.description }}
-                  </span>
-                </div>
-                <span class="text-4xs font-mono px-2 py-0.5 rounded-full font-bold flex-shrink-0" :class="getCategoryTheme(section.color_key).pill">
+                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getCategoryTheme(section.color_key).dot"></span>
+                <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">{{ section.name }}</span>
+                <span v-if="section.description" class="hidden md:inline text-4xs text-slate-400 font-sans italic truncate max-w-sm">
+                  — {{ section.description }}
+                </span>
+                <span class="text-4xs font-mono px-1 py-0.2 rounded font-bold" :class="getCategoryTheme(section.color_key).pill">
                   {{ section.parameters.length }}
                 </span>
+                <div class="flex-1 h-px bg-slate-200 dark:bg-[#1E3048] ml-2"></div>
               </div>
 
-              <!-- Parameters Grid for this Category Section -->
-              <div :class="getSectionGridClass(section)">
+              <!-- Parameters Grid for this Category Section: Dense auto-fill grid -->
+              <div
+                class="grid gap-1.5 sm:gap-2"
+                style="grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));"
+              >
                 <div
                   v-for="param in section.parameters"
                   :key="param.param_id"
                   @click="selectParamForTrend(param)"
                   @contextmenu.prevent="openParamContextMenu($event, param)"
-                  class="scada-param-tile px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border transition-all duration-200 relative cursor-pointer group flex flex-col justify-between h-[88px] sm:h-[90px] min-w-0 sm:min-w-0 xl:min-w-[260px]"
+                  class="scada-param-tile px-2 py-1.5 rounded-lg border transition-all duration-150 relative cursor-pointer group flex flex-col justify-between h-[64px] min-w-0"
                   :class="[
                     isParamAlarmOrStaleBad(param)
                       ? (isAlarmPulseActive
@@ -483,7 +484,7 @@
                 >
                   <!-- Row 1: Header (Device code, Parameter icon & prominent name, Alarm tag, Quality badge, Pin button) -->
                   <div class="flex items-center justify-between min-w-0 leading-none">
-                    <div class="flex items-center space-x-1 sm:space-x-1.5 min-w-0 flex-1 truncate mr-1.5 sm:mr-2">
+                    <div class="flex items-center space-x-1 sm:space-x-1.5 min-w-0 flex-1 truncate mr-1">
                       <span
                         class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                         :class="[
@@ -492,22 +493,22 @@
                         ]"
                       ></span>
                       <span
-                        class="text-[10.5px] sm:text-[11px] font-mono font-medium text-cyan-600/75 dark:text-cyan-400/75 whitespace-nowrap flex-shrink-0 tracking-tight"
+                        class="text-4xs sm:text-[9.5px] font-mono font-medium text-cyan-600/80 dark:text-cyan-400/80 whitespace-nowrap flex-shrink-0 tracking-tight"
                         :title="param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code"
                       >
                         {{ param.device_code }}
                       </span>
-                      <span class="text-slate-300 dark:text-slate-600 text-xs font-mono select-none flex-shrink-0">·</span>
-                      <div class="flex items-center space-x-1 sm:space-x-1.5 min-w-0 flex-1 truncate">
+                      <span class="text-slate-300 dark:text-slate-600 text-3xs font-mono select-none flex-shrink-0">·</span>
+                      <div class="flex items-center space-x-1 min-w-0 flex-1 truncate">
                         <ParameterIcon
                           :icon="param.icon"
                           :code="param.param_code"
                           :name="param.param_name"
                           :unit="param.unit"
-                          size-class="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
+                          size-class="w-3 h-3 flex-shrink-0"
                         />
                         <span
-                          class="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white truncate tracking-tight leading-none"
+                          class="text-[11.5px] sm:text-xs font-bold text-slate-900 dark:text-white truncate tracking-tight leading-none"
                           :title="(param.param_name && param.param_name !== param.param_code) ? (param.param_name + ' (' + param.param_code + ')') : param.param_code"
                         >
                           {{ param.param_name || param.param_code }}
@@ -516,10 +517,10 @@
                     </div>
 
                     <!-- Header Right: Alarm tag, Quality badge, Pin button -->
-                    <div class="flex items-center space-x-1 sm:space-x-1.5 flex-shrink-0">
+                    <div class="flex items-center space-x-1 flex-shrink-0">
                       <span
                         v-if="param.alarm_status === 'CRITICAL' || param.alarm_status === 'WARNING'"
-                        class="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold uppercase leading-none"
+                        class="px-1 py-0.2 rounded text-[7.5px] font-mono font-bold uppercase leading-none"
                         :class="param.alarm_status === 'CRITICAL'
                           ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 animate-pulse'
                           : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
@@ -529,20 +530,20 @@
                       </span>
                       <span
                         v-if="isParamDomainMismatched(param)"
-                        class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 cursor-help"
+                        class="px-1 py-0.2 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 cursor-help"
                         :title="'Category domain mismatch (' + (param.category ? param.category.domain : 'Other') + ' vs active ' + currentMonitoringDomain + '). Preserved safely.'"
                       >
                         MISMATCH
                       </span>
                       <span
-                        class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider"
+                        class="px-1 py-0.2 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider leading-none"
                         :class="qualityBadgeClass(param.quality)"
                       >
                         {{ param.quality || 'GOOD' }}
                       </span>
                       <button
                         @click.stop="togglePin(param.param_id)"
-                        class="text-xs transition hover:scale-110 p-0.5 leading-none"
+                        class="text-3xs transition hover:scale-110 p-0.5 leading-none"
                         :class="isPinned(param.param_id) ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'"
                         :title="isPinned(param.param_id) ? 'Unpin' : 'Pin to top'"
                       >
@@ -551,10 +552,10 @@
                     </div>
                   </div>
 
-                  <!-- Row 2: Main Row (Value-First Layout: Prominent Numeric Value + Unit, Flexible Mini Sparkline) -->
-                  <div class="flex items-center justify-between gap-2 sm:gap-2.5 my-auto min-w-0">
-                    <!-- Left: Value and Unit (Value-First Priority, Never Truncated with Ellipsis) -->
-                    <div class="flex flex-col justify-center min-w-0 flex-shrink-0 max-w-[65%]">
+                  <!-- Row 2: Main Row (Value + Unit + Sparkline) -->
+                  <div class="flex items-center justify-between gap-1.5 my-auto min-w-0">
+                    <!-- Left: Value and Unit -->
+                    <div class="flex flex-col justify-center min-w-0 flex-shrink-0 max-w-[62%]">
                       <div class="flex items-baseline flex-shrink-0 min-w-0">
                         <span
                           class="font-bold font-mono tracking-tight leading-none whitespace-nowrap tabular-nums select-all"
@@ -566,13 +567,16 @@
                         </span>
                         <span
                           v-if="param.unit"
-                          class="text-xs sm:text-[13px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1.5 flex-shrink-0 whitespace-nowrap"
+                          class="text-3xs sm:text-[10.5px] font-mono text-slate-500 dark:text-slate-400 font-semibold ml-1 flex-shrink-0 whitespace-nowrap"
                           :title="param.unit"
                         >
                           {{ param.unit }}
                         </span>
                       </div>
-                      <div class="flex items-center space-x-1.5 mt-0.5 sm:mt-1 text-4xs font-mono text-slate-400 dark:text-slate-500 leading-none truncate max-w-[140px] sm:max-w-[170px]">
+                      <div
+                        v-if="(param.low_limit != null || param.high_limit != null) || param.is_held_value || param.formula"
+                        class="flex items-center space-x-1 mt-0.5 text-[8px] font-mono text-slate-400 dark:text-slate-500 leading-none truncate max-w-[130px]"
+                      >
                         <span
                           v-if="param.low_limit != null || param.high_limit != null"
                           class="truncate"
@@ -597,12 +601,12 @@
                       </div>
                     </div>
 
-                    <!-- Right: Flexible Mini Sparkline (Adapts to remaining space, height ~32px, gap-aware) -->
-                    <div class="flex-1 min-w-[50px] max-w-[136px] h-8 flex-shrink relative bg-slate-50/70 dark:bg-[#070D17]/70 border border-slate-100 dark:border-slate-800/40 rounded-md overflow-hidden ml-auto">
+                    <!-- Right: Flexible Mini Sparkline -->
+                    <div class="w-14 sm:w-16 h-5 rounded bg-slate-50/70 dark:bg-[#070D17]/70 border border-slate-100 dark:border-slate-800/40 overflow-hidden ml-auto flex-shrink-0 relative">
                       <svg
                         v-if="getSparkline(param.param_id).hasHistory"
                         class="w-full h-full"
-                        viewBox="0 0 100 28"
+                        viewBox="0 0 100 24"
                         preserveAspectRatio="none"
                       >
                         <defs>
@@ -623,7 +627,7 @@
                           :d="strokeD"
                           fill="none"
                           :stroke="getSparklineColor(param)"
-                          stroke-width="1.8"
+                          stroke-width="1.6"
                           stroke-linecap="round"
                           stroke-linejoin="round"
                         />
@@ -631,24 +635,24 @@
                       <!-- Empty state: Awaiting history samples -->
                       <div
                         v-else
-                        class="w-full h-full flex items-center justify-center font-mono text-[9px] text-slate-400 dark:text-slate-600 tracking-wider space-x-1 select-none px-1 text-center"
+                        class="w-full h-full flex items-center justify-center font-mono text-[8px] text-slate-400 dark:text-slate-600 tracking-wider space-x-1 select-none px-0.5 text-center"
                       >
-                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-600 opacity-60"></span>
-                        <span class="opacity-60 truncate">{{ $t('operator.awaitingSamples') || 'Awaiting history' }}</span>
+                        <span class="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-600 opacity-60"></span>
+                        <span class="opacity-60 truncate">Hist...</span>
                       </div>
                     </div>
                   </div>
 
                   <!-- Row 3: Footer (Timestamp / Alarm duration & Quick Action Link) -->
-                  <div class="flex items-center justify-between text-4xs font-mono pt-1 border-t border-slate-100 dark:border-[#132235] leading-none">
+                  <div class="flex items-center justify-between text-[8px] sm:text-[8.5px] font-mono pt-0.5 border-t border-slate-100 dark:border-[#132235] leading-none mt-auto">
                     <div
-                      class="flex items-center space-x-1 truncate max-w-[65%]"
+                      class="flex items-center space-x-1 truncate max-w-[62%]"
                       :title="getParamTimingTitle(param)"
                     >
                       <!-- When in alarm, bad, stale, or offline -->
                       <span
                         v-if="isParamAlarmOrStaleBad(param)"
-                        class="flex items-center space-x-1 font-bold truncate"
+                        class="flex items-center space-x-0.5 font-bold truncate"
                         :class="paramTimingColorClass(param)"
                       >
                         <span>{{ getParamTimingIcon(param) }}</span>
@@ -657,16 +661,16 @@
                       </span>
 
                       <!-- When healthy and normal -->
-                      <span v-else class="text-slate-400 dark:text-slate-500 flex items-center space-x-1 truncate">
+                      <span v-else class="text-slate-400 dark:text-slate-500 flex items-center space-x-0.5 truncate">
                         <span class="text-emerald-500 font-bold">✓</span>
-                        <span>{{ param.received_at ? formatTimeShort(param.received_at) : ($t('operator.waitingData') || 'Waiting data') }}</span>
+                        <span>{{ param.received_at ? formatTimeShort(param.received_at) : ($t('operator.waitingData') || 'Waiting') }}</span>
                         <span v-if="param.received_at" class="text-slate-400 dark:text-slate-500 font-mono">({{ formatRelative(param.received_at) }})</span>
                       </span>
                     </div>
 
                     <!-- Quick Action Link / Selection indicator -->
                     <span
-                      class="text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer whitespace-nowrap ml-1 font-semibold flex items-center space-x-1"
+                      class="text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer whitespace-nowrap ml-1 font-semibold flex items-center space-x-0.5"
                       :style="isParamSelectedForTrend(param) ? { color: getTrendSeriesColor(param) } : {}"
                     >
                       <span
@@ -674,7 +678,7 @@
                         class="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         :style="{ backgroundColor: getTrendSeriesColor(param) }"
                       ></span>
-                      <span>{{ isParamSelectedForTrend(param) ? cleanInChartLabel : ($t('operator.plotTrend') || '+ Plot Trend') }}</span>
+                      <span>{{ isParamSelectedForTrend(param) ? cleanInChartLabel : ($t('operator.plotTrend') || '+ Plot') }}</span>
                     </span>
                   </div>
                 </div>
@@ -3158,26 +3162,13 @@ export default {
       return 10000;
     },
     cardGridClass() {
-      const count = this.filteredParameters.length;
-      if (count <= 2) {
-        return 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5';
-      }
-      if (count <= 6) {
-        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5';
-      }
-      return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2 sm:gap-2.5';
+      return 'grid gap-1.5 sm:gap-2';
     },
     cardGridContainerStyle() {
-      const count = this.filteredParameters.length;
-      if (count <= 16) {
-        return {
-          maxHeight: 'none',
-          minHeight: '140px',
-        };
-      }
+      // Calibrated to leave clear space above bottom footer (405px overhead accounts for top headers + bottom fixed dock)
+      const overhead = this.isTopPanelHidden ? 320 : 405;
       return {
-        maxHeight: 'calc(100vh - 215px)',
-        minHeight: '200px',
+        maxHeight: `calc(100vh - ${overhead}px)`,
         overflowY: 'auto',
       };
     },
@@ -3738,22 +3729,10 @@ export default {
       return this.allParameters.filter(p => Number(p.category_id) === Number(catId)).length;
     },
     getSectionContainerSpanClass(section) {
-      if (this.selectedCategoryFilter !== 'all') {
-        return 'col-span-12';
-      }
-      const span = section?.default_column_span || 1;
-      if (span === 1 || span === 2 || span === 6) {
-        return 'col-span-12 lg:col-span-6';
-      }
-      return 'col-span-12';
+      return 'w-full';
     },
     getSectionGridClass(section) {
-      const span = section?.default_column_span || 1;
-      const isHalfWidth = (this.selectedCategoryFilter === 'all') && (span === 1 || span === 2 || span === 6);
-      if (isHalfWidth) {
-        return 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5';
-      }
-      return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 sm:gap-2.5';
+      return 'grid gap-1.5 sm:gap-2';
     },
     openCategoryManagementModal() {
       this.isCategoryModalOpen = true;
@@ -3863,22 +3842,22 @@ export default {
       return num.toFixed(2);
     },
     getParamValueFontSizeClass(param) {
-      if (!param) return 'text-2xl sm:text-[28px]';
+      if (!param) return 'text-sm sm:text-base';
       const formatted = this.formatParamValue(param);
       const str = String(formatted);
       const len = str.length;
       if (len <= 5) {
         // e.g. "2.00", "39.00", "--"
-        return 'text-2xl sm:text-[28px]';
+        return 'text-sm sm:text-base';
       } else if (len <= 7) {
         // e.g. "912.00", "-12.34"
-        return 'text-xl sm:text-[23px]';
+        return 'text-[12.5px] sm:text-sm';
       } else if (len <= 9) {
         // e.g. "-1234.56", "1013.25"
-        return 'text-lg sm:text-[19px]';
+        return 'text-xs sm:text-[12.5px]';
       } else {
         // e.g. "-1234.567", "101325.00"
-        return 'text-base sm:text-[16px]';
+        return 'text-[11px] sm:text-xs';
       }
     },
     paramValueColorClass(param) {
