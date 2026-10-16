@@ -40,33 +40,12 @@
           <span class="text-4xs text-amber-500 font-mono hidden xl:inline" :title="'Polutan kritis stasiun saat ini adalah ' + dominantPollutant">
             (⭐ Kritis: {{ dominantPollutant }} [{{ dominantISPU }}])
           </span>
-        </div>
-
-        <!-- Parameter Display Selector Switcher -->
-        <div class="flex items-center space-x-0.5 bg-slate-200/60 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono flex-shrink-0">
           <button
             @click="selectDisplayParameter('OVERALL')"
-            class="px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-1"
-            :class="selectedDisplayParam === 'OVERALL'
-              ? 'bg-cyan-500 text-slate-950 shadow-xs ring-1 ring-cyan-400'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-            title="Tampilkan Polutan Kritis/Dominan Stasiun (Default)"
+            class="text-4xs text-slate-400 hover:text-cyan-500 underline ml-1 cursor-pointer"
+            title="Kembali ke nilai ISPU Dominan/Kritis"
           >
-            <span>★ Kritis</span>
-            <span v-if="dominantPollutant && dominantPollutant !== '-'" class="ml-0.5 text-4xs opacity-80 font-bold hidden sm:inline">({{ dominantPollutant }})</span>
-          </button>
-          <button
-            v-for="p in sevenOfficialParameters"
-            :key="p.code"
-            @click="selectDisplayParameter(p.code)"
-            class="px-1 py-0.5 rounded font-bold transition flex items-center space-x-0.5"
-            :class="selectedDisplayParam === p.code
-              ? 'bg-cyan-500 text-slate-950 shadow-xs ring-1 ring-cyan-400'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-            :title="`Tampilkan ISPU ${p.code} (${p.name})`"
-          >
-            <span>{{ p.code }}</span>
-            <span v-if="isDominant(p.code)" class="text-[8px] text-amber-500" title="Kritis/Dominan">●</span>
+            ✕ Reset
           </button>
         </div>
 
@@ -178,6 +157,14 @@
           <span class="text-slate-500 dark:text-slate-400 text-4xs">
             Dominant parameter determines overall ISPU
           </span>
+          <button
+            v-if="selectedDisplayParam !== 'OVERALL'"
+            @click="selectDisplayParameter('OVERALL')"
+            class="px-1.5 py-0.5 rounded text-4xs font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition cursor-pointer"
+            title="Kembali ke nilai ISPU Dominan / Kritis Stasiun"
+          >
+            ★ Reset ke Dominant
+          </button>
           <button
             @click="openMappingsModal"
             class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline flex items-center space-x-0.5"
