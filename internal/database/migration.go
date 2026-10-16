@@ -80,6 +80,40 @@ func RunMigrations(db *gorm.DB) error {
 		_ = db.Exec("DELETE FROM ispu_calculation_results WHERE calculation_mode = 'REGULATORY' AND (MINUTE(period_end) != 0 OR SECOND(period_end) != 0)").Error
 	}
 
+	// 1e. Automatically ensure 120s AggregationDefinition exists for all mapped ISPU parameters
+	if db.Migrator().HasTable(&model.ISPUParameterMapping{}) && db.Migrator().HasTable(&model.AggregationDefinition{}) {
+		var ispuMappings []model.ISPUParameterMapping
+		if err := db.Where("enabled = ?", true).Find(&ispuMappings).Error; err == nil {
+			for _, m := range ispuMappings {
+				var count int64
+				db.Model(&model.AggregationDefinition{}).
+					Where("device_id = ? AND parameter_id = ?", m.DeviceID, m.ParameterID).
+					Count(&count)
+				if count == 0 {
+					var p model.Parameter
+					if err := db.First(&p, m.ParameterID).Error; err == nil {
+						def := model.AggregationDefinition{
+							Name:               fmt.Sprintf("ISPU Rollup 2m - %s", p.ParameterName),
+							Code:               fmt.Sprintf("AGG_%d_%s_120S", m.DeviceID, m.PollutantCode),
+							SourceType:         model.SourceCustomerProcessed,
+							DeviceID:           m.DeviceID,
+							ParameterID:        m.ParameterID,
+							Function:           model.FunctionAvg,
+							IntervalSeconds:    120,
+							Timezone:           "Asia/Jakarta",
+							Enabled:            true,
+							QualityPolicy:      "STANDARD",
+							IdentifierFormat:   "YYYYMMDDHHmmss",
+							DestinationType:    "INTERNAL",
+							GracePeriodSeconds: 5,
+						}
+						_ = db.Create(&def).Error
+					}
+				}
+			}
+		}
+	}
+
 
 	// 2. Data backfill / synchronization for existing devices from Phase 1
 	var existingDevices []model.Device

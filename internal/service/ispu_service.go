@@ -424,6 +424,36 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			hasOpAgg = true
 		}
 
+		if !hasOpAgg {
+			// Fallback: Query raw_data for the bucket if no pre-aggregated result exists yet
+			var rawAvg *float64
+			var rawCount int64
+			s.db.WithContext(ctx).Model(&model.RawData{}).
+				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
+					deviceID, m.ParameterID, opPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+				Select("AVG(value)").
+				Row().Scan(&rawAvg)
+
+			s.db.WithContext(ctx).Model(&model.RawData{}).
+				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
+					deviceID, m.ParameterID, opPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+				Count(&rawCount)
+
+			if rawCount > 0 && rawAvg != nil {
+				hasOpAgg = true
+				opAgg = model.AggregationResult{
+					DeviceID:        deviceID,
+					ParameterID:     m.ParameterID,
+					PeriodStart:     opPeriodStart.UTC(),
+					PeriodEnd:       periodEnd.UTC(),
+					IntervalSeconds: intervalSec,
+					Value:           rawAvg,
+					Quality:         model.QualityGood,
+					Identifier:      sourceBucketIdent,
+				}
+			}
+		}
+
 		var opOut ParameterCalculationOutput
 		if hasOpAgg {
 			val := 0.0
@@ -459,6 +489,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				ExpectedSamples:           1,
 				ValidSamples:              0,
 				IsEligible:                false,
+				Formula:                   "Tidak ada data agregasi pada interval ini",
 				SourceAggregationInterval: paramInterval,
 				SourceAggregationFunction: paramFunc,
 				ErrorMessage:              "no aggregation record for current bucket",
@@ -478,6 +509,25 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 			Order("period_end ASC").
 			Find(&aggStats)
+
+		if len(aggStats) == 0 {
+			// Fallback: Check raw_data hourly averages across 24h window
+			var rawHourly []struct {
+				Val   float64
+				Rec   time.Time
+				Ident string
+			}
+			s.db.WithContext(ctx).Model(&model.RawData{}).
+				Select("AVG(value) AS val, MAX(timestamp) AS rec, DATE_FORMAT(timestamp, '%Y%m%d%H0000') AS ident").
+				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
+					deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+				Group("DATE(timestamp), HOUR(timestamp)").
+				Find(&rawHourly)
+
+			if len(rawHourly) > 0 {
+				aggStats = rawHourly
+			}
+		}
 
 		var regOut ParameterCalculationOutput
 		if len(aggStats) > 0 {
@@ -1077,6 +1127,32 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 
 	if err := s.ispuRepo.SaveMapping(ctx, mapping); err != nil {
 		return err
+	}
+
+	// Ensure 120s aggregation definition exists for this parameter
+	var aggDefCount int64
+	s.db.WithContext(ctx).Model(&model.AggregationDefinition{}).
+		Where("device_id = ? AND parameter_id = ?", mapping.DeviceID, mapping.ParameterID).
+		Count(&aggDefCount)
+	if aggDefCount == 0 {
+		var p model.Parameter
+		if err := s.db.WithContext(ctx).First(&p, mapping.ParameterID).Error; err == nil {
+			_ = s.db.WithContext(ctx).Create(&model.AggregationDefinition{
+				Name:               fmt.Sprintf("ISPU Rollup 2m - %s", p.ParameterName),
+				Code:               fmt.Sprintf("AGG_%d_%s_120S", mapping.DeviceID, mapping.PollutantCode),
+				SourceType:         model.SourceCustomerProcessed,
+				DeviceID:           mapping.DeviceID,
+				ParameterID:        mapping.ParameterID,
+				Function:           model.FunctionAvg,
+				IntervalSeconds:    120,
+				Timezone:           "Asia/Jakarta",
+				Enabled:            true,
+				QualityPolicy:      "STANDARD",
+				IdentifierFormat:   "YYYYMMDDHHmmss",
+				DestinationType:    "INTERNAL",
+				GracePeriodSeconds: 5,
+			}).Error
+		}
 	}
 
 	if s.systemRepo != nil {

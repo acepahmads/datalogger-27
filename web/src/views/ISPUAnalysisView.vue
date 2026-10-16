@@ -353,6 +353,9 @@
                 <template v-if="!isParameterMapped(p.code)">
                   <span class="text-slate-400 italic">Unmapped</span>
                 </template>
+                <template v-else-if="getParameterResult(p.code)?.valid_samples === 0 || getParameterResult(p.code)?.category === 'TIDAK_TERSEDIA'">
+                  <span class="text-amber-500 font-semibold" title="Data agregasi belum tersedia untuk parameter ini">0 Data Agregasi</span>
+                </template>
                 <template v-else-if="ispuMode === 'OPERATIONAL'">
                   {{ getParameterResult(p.code)?.source_aggregation_count || 1 }} bucket
                 </template>
@@ -470,7 +473,7 @@
                 >
                   {{ p.code }}
                 </th>
-                <th class="py-2 px-3 text-right">Action</th>
+                <th class="py-2 px-3 text-right">Status / Action</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -535,12 +538,22 @@
                   {{ getParamVal(r, p.code) }}
                 </td>
                 <td class="py-2 px-3 text-right">
-                  <button
-                    @click.stop="openDetailModal(r)"
-                    class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-400 transition"
-                  >
-                    Detail
-                  </button>
+                  <div class="flex items-center justify-end space-x-1.5">
+                    <span
+                      v-if="getRowReason(r)"
+                      class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold max-w-[150px] truncate"
+                      :class="getRowReasonClass(r)"
+                      :title="getRowReasonTooltip(r)"
+                    >
+                      {{ getRowReason(r) }}
+                    </span>
+                    <button
+                      @click.stop="openDetailModal(r)"
+                      class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-400 text-3xs font-mono font-semibold transition"
+                    >
+                      Detail
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -667,7 +680,14 @@
                 <td class="p-2 font-bold text-cyan-600 dark:text-cyan-400">{{ pr.source_latest_identifier || '-' }}</td>
                 <td class="p-2 tabular-nums">[{{ pr.xb }}, {{ pr.xa }}]</td>
                 <td class="p-2 tabular-nums">[{{ pr.ib }}, {{ pr.ia }}]</td>
-                <td class="p-2 text-4xs text-slate-400">{{ pr.formula || '-' }}</td>
+                <td class="p-2 text-4xs font-mono">
+                  <span v-if="pr.valid_samples === 0 || pr.category === 'TIDAK_TERSEDIA'" class="text-amber-500 dark:text-amber-400 font-semibold">
+                    {{ pr.formula || '⚠️ Belum ada data agregasi pada interval ini' }}
+                  </span>
+                  <span v-else class="text-slate-500 dark:text-slate-400">
+                    {{ pr.formula || '-' }}
+                  </span>
+                </td>
                 <td class="p-2 font-bold text-sm tabular-nums" :style="{ color: getCategoryColor(pr.category) }">
                   {{ pr.valid_samples > 0 && pr.category !== 'TIDAK_TERSEDIA' ? Math.round(pr.calculated_ispu) : '-' }}
                 </td>
@@ -1258,6 +1278,67 @@ export default {
     openFormulaModal(pollutantCode) {
       this.selectedRecord = this.latestData;
       this.showDetailModal = true;
+    },
+    getRowReason(r) {
+      if (!r) return '';
+      if (!this.isOverallMode) {
+        const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+        if (!pr) return 'Belum Dipetakan';
+        if (pr.category !== 'TIDAK_TERSEDIA' && pr.valid_samples > 0) {
+          return `Valid (${Math.round(pr.calculated_ispu)})`;
+        }
+        if (pr.formula && (pr.formula.includes('Tidak ada') || pr.formula.includes('0 data'))) {
+          return pr.formula;
+        }
+        if (pr.valid_samples === 0) {
+          return '0 Data Agregasi';
+        }
+        if (pr.completeness_percent < 75) {
+          return `< 75% Data (${pr.completeness_percent.toFixed(0)}%)`;
+        }
+        return 'Tidak Tersedia';
+      }
+      if (r.calculation_status === 'VALID') {
+        return `Valid (${r.dominant_pollutant || '-'})`;
+      }
+      if (r.calculation_status === 'INVALID' || r.overall_category === 'TIDAK_TERSEDIA') {
+        return 'Data Tidak Lengkap';
+      }
+      return r.calculation_status || 'Provisional';
+    },
+    getRowReasonClass(r) {
+      if (!this.isOverallMode) {
+        const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+        if (!pr) return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+        if (pr.category !== 'TIDAK_TERSEDIA' && pr.valid_samples > 0) {
+          return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+        }
+        return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30';
+      }
+      if (r.calculation_status === 'VALID') {
+        return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+      }
+      if (r.calculation_status === 'INVALID' || r.overall_category === 'TIDAK_TERSEDIA') {
+        return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30';
+      }
+      return 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30';
+    },
+    getRowReasonTooltip(r) {
+      if (!this.isOverallMode) {
+        const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+        if (!pr) return `Parameter ${this.selectedPollutant} belum dipetakan ke sensor stasiun ini.`;
+        if (pr.category !== 'TIDAK_TERSEDIA' && pr.valid_samples > 0) {
+          return `Nilai ISPU ${this.selectedPollutant}: ${Math.round(pr.calculated_ispu)} (${(pr.category || '').replace('_', ' ')}). Konsentrasi: ${(pr.normalized_concentration || 0).toFixed(1)} µg/m³.`;
+        }
+        if (pr.valid_samples === 0) {
+          return `Tidak ada data agregasi ${this.selectedPollutant} pada interval ini. Periksa apakah sensor aktif mengirim data dan definisi agregasi telah terkonfigurasi.`;
+        }
+        if (pr.completeness_percent < 75) {
+          return `Data ${this.selectedPollutant} hanya terkumpul ${pr.completeness_percent.toFixed(1)}% (syarat Permen LHK No. 14/2020 minimal 75%).`;
+        }
+        return `Data ${this.selectedPollutant} tidak tersedia untuk periode ini.`;
+      }
+      return `Status kalkulasi stasiun: ${r.calculation_status || 'PROVISIONAL'} dengan polutan dominan ${r.dominant_pollutant || '-'}.`;
     },
     openDetailModal(record) {
       this.selectedRecord = record;
