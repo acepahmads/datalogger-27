@@ -26,12 +26,48 @@
           {{ ispuCategoryDisplay }}
         </span>
 
-        <!-- Dominant Pollutant -->
-        <div class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
+        <!-- Dominant Pollutant (when OVERALL) or Selected Parameter Detail Pill -->
+        <div v-if="selectedDisplayParam === 'OVERALL'" class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
           <span class="text-slate-500 dark:text-slate-400 hidden xl:inline">Dominant:</span>
           <span class="font-bold text-slate-900 dark:text-white px-1.5 py-0.5 rounded bg-slate-200/50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
             {{ dominantPollutant || '-' }}
           </span>
+        </div>
+        <div v-else class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
+          <span class="font-bold text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 whitespace-nowrap">
+            {{ selectedParamLabel }}
+          </span>
+          <span class="text-4xs text-amber-500 font-mono hidden xl:inline" :title="'Polutan kritis stasiun saat ini adalah ' + dominantPollutant">
+            (⭐ Kritis: {{ dominantPollutant }} [{{ dominantISPU }}])
+          </span>
+        </div>
+
+        <!-- Parameter Display Selector Switcher -->
+        <div class="flex items-center space-x-0.5 bg-slate-200/60 dark:bg-slate-800/80 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono flex-shrink-0">
+          <button
+            @click="selectDisplayParameter('OVERALL')"
+            class="px-1.5 py-0.5 rounded font-bold transition flex items-center space-x-1"
+            :class="selectedDisplayParam === 'OVERALL'
+              ? 'bg-cyan-500 text-slate-950 shadow-xs ring-1 ring-cyan-400'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+            title="Tampilkan Polutan Kritis/Dominan Stasiun (Default)"
+          >
+            <span>★ Kritis</span>
+            <span v-if="dominantPollutant && dominantPollutant !== '-'" class="ml-0.5 text-4xs opacity-80 font-bold hidden sm:inline">({{ dominantPollutant }})</span>
+          </button>
+          <button
+            v-for="p in sevenOfficialParameters"
+            :key="p.code"
+            @click="selectDisplayParameter(p.code)"
+            class="px-1 py-0.5 rounded font-bold transition flex items-center space-x-0.5"
+            :class="selectedDisplayParam === p.code
+              ? 'bg-cyan-500 text-slate-950 shadow-xs ring-1 ring-cyan-400'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+            :title="`Tampilkan ISPU ${p.code} (${p.name})`"
+          >
+            <span>{{ p.code }}</span>
+            <span v-if="isDominant(p.code)" class="text-[8px] text-amber-500" title="Kritis/Dominan">●</span>
+          </button>
         </div>
 
         <!-- Expandable Parameter Breakdown Pill -->
@@ -156,14 +192,25 @@
         <div
           v-for="pollutant in sevenOfficialParameters"
           :key="pollutant.code"
-          class="p-2 rounded-lg border transition-all flex flex-col justify-between"
-          :class="getCardClass(pollutant.code)"
+          @click="selectDisplayParameter(pollutant.code)"
+          class="p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer hover:border-cyan-400 select-none"
+          :class="[
+            getCardClass(pollutant.code),
+            selectedDisplayParam === pollutant.code ? 'ring-2 ring-cyan-400 shadow-md bg-cyan-500/10' : ''
+          ]"
+          :title="`Klik untuk menampilkan ISPU ${pollutant.code} pada bar utama`"
         >
           <!-- Card Header -->
           <div class="flex items-center justify-between text-3xs font-mono mb-1">
             <span class="font-bold text-slate-900 dark:text-white">{{ pollutant.code }}</span>
             <span
-              v-if="isDominant(pollutant.code)"
+              v-if="selectedDisplayParam === pollutant.code"
+              class="px-1 py-0.2 rounded text-4xs font-bold bg-cyan-500 text-slate-950 uppercase"
+            >
+              Active
+            </span>
+            <span
+              v-else-if="isDominant(pollutant.code)"
               class="px-1 py-0.2 rounded text-4xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40"
               title="Dominant Pollutant"
             >
@@ -261,6 +308,7 @@
                     <th class="p-2">Source Sensor / Channel</th>
                     <th class="p-2">Source Unit</th>
                     <th class="p-2">Factor</th>
+                    <th class="p-2">Jam Mulai</th>
                     <th class="p-2">Min Completeness</th>
                     <th class="p-2 text-right">Action</th>
                   </tr>
@@ -275,6 +323,7 @@
                     </td>
                     <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.source_unit }}</td>
                     <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.conversion_factor }}</td>
+                    <td class="p-2 text-cyan-600 dark:text-cyan-400 font-bold font-mono">{{ formatStartHour(m.daily_start_hour) }}</td>
                     <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.min_completeness }}%</td>
                     <td class="p-2 text-right">
                       <button
@@ -287,7 +336,7 @@
                     </td>
                   </tr>
                   <tr v-if="stationMappings.length === 0">
-                    <td colspan="6" class="p-3 text-center text-slate-400 italic">
+                    <td colspan="7" class="p-3 text-center text-slate-400 italic">
                       No parameter mappings configured yet. Add one below.
                     </td>
                   </tr>
@@ -301,7 +350,7 @@
             <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Add or Map Parameter
             </h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-3xs font-mono">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-3xs font-mono">
               <div>
                 <label class="block text-slate-500 dark:text-slate-400 mb-1">Official Pollutant</label>
                 <select
@@ -345,6 +394,19 @@
                   placeholder="1.0"
                   class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
                 />
+              </div>
+
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">Jam Mulai Harian</label>
+                <select
+                  v-model.number="newMapping.daily_start_hour"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white font-mono"
+                  title="Jam acuan dimulainya siklus perhitungan harian 24 jam"
+                >
+                  <option v-for="h in 24" :key="h-1" :value="h-1">
+                    {{ (h-1 < 10 ? '0' : '') + (h-1) }}:00 WIB {{ (h-1 === 9 ? '(09:00 Pagi)' : (h-1 === 15 ? '(15:00 Sore)' : (h-1 === 0 ? '(00:00 Malam)' : ''))) }}
+                  </option>
+                </select>
               </div>
             </div>
 
@@ -410,6 +472,9 @@ export default {
         { code: 'HC', name: 'Hidrokarbon (24h)' }
       ],
 
+      // Selected Display Parameter: 'OVERALL' (Default) or specific pollutant code ('PM25', 'CO', etc.)
+      selectedDisplayParam: 'OVERALL',
+
       // Mapping Modal State
       showMappingsModal: false,
       stationMappings: [],
@@ -420,17 +485,34 @@ export default {
         source_unit: 'µg/m³',
         conversion_factor: 1.0,
         min_completeness: 75.0,
+        daily_start_hour: 0,
         enabled: true
       }
     };
   },
   computed: {
+    selectedParamResult() {
+      if (this.selectedDisplayParam === 'OVERALL') return null;
+      if (!this.ispuData || !this.ispuData.parameter_results) return null;
+      return this.ispuData.parameter_results.find(p => p.pollutant_code === this.selectedDisplayParam);
+    },
     displayISPU() {
-      if (!this.ispuData || this.ispuData.overall_ispu === undefined) return '-';
-      return Math.round(this.ispuData.overall_ispu);
+      if (this.selectedDisplayParam === 'OVERALL') {
+        if (!this.ispuData || this.ispuData.overall_ispu === undefined) return '-';
+        return Math.round(this.ispuData.overall_ispu);
+      }
+      const pr = this.selectedParamResult;
+      if (!pr || pr.valid_samples === 0 || pr.category === 'TIDAK_TERSEDIA' || pr.calculated_ispu === undefined) {
+        return '-';
+      }
+      return Math.round(pr.calculated_ispu);
     },
     ispuCategory() {
-      return (this.ispuData && this.ispuData.overall_category) || 'TIDAK_TERSEDIA';
+      if (this.selectedDisplayParam === 'OVERALL') {
+        return (this.ispuData && this.ispuData.overall_category) || 'TIDAK_TERSEDIA';
+      }
+      const pr = this.selectedParamResult;
+      return (pr && pr.category) || 'TIDAK_TERSEDIA';
     },
     ispuCategoryDisplay() {
       const cat = this.ispuCategory;
@@ -439,6 +521,16 @@ export default {
     },
     dominantPollutant() {
       return (this.ispuData && this.ispuData.dominant_pollutant) || '-';
+    },
+    dominantISPU() {
+      if (!this.ispuData || this.ispuData.overall_ispu === undefined) return '-';
+      return Math.round(this.ispuData.overall_ispu);
+    },
+    selectedParamLabel() {
+      const pr = this.selectedParamResult;
+      if (!pr) return `${this.selectedDisplayParam} (Unmapped)`;
+      const conc = pr.concentration !== undefined ? pr.concentration.toFixed(1) : (pr.normalized_concentration !== undefined ? pr.normalized_concentration.toFixed(1) : '-');
+      return `${this.selectedDisplayParam}: ${conc} ${pr.source_unit || 'µg/m³'}`;
     },
     calculationStatus() {
       return (this.ispuData && this.ispuData.calculation_status) || 'PROVISIONAL';
@@ -546,6 +638,10 @@ export default {
       immediate: true,
       handler(newId) {
         if (newId && this.isAqmsDomain) {
+          try {
+            const saved = localStorage.getItem(`scada_ispu_selected_param_${newId}`);
+            this.selectedDisplayParam = saved || 'OVERALL';
+          } catch (e) {}
           this.fetchLatestISPU();
           if (this.showTrend) {
             this.fetchTrend();
@@ -555,6 +651,13 @@ export default {
     }
   },
   mounted() {
+    try {
+      const saved = localStorage.getItem(`scada_ispu_selected_param_${this.deviceId}`);
+      if (saved) {
+        this.selectedDisplayParam = saved;
+      }
+    } catch (e) {}
+
     // 1. Polling fallback every 30 seconds
     this.pollTimer = setInterval(() => {
       if (this.deviceId && this.isAqmsDomain) {
@@ -740,6 +843,20 @@ export default {
         console.error('Failed to load mappings:', err);
       }
     },
+    selectDisplayParameter(code) {
+      if (this.selectedDisplayParam === code && code !== 'OVERALL') {
+        this.selectedDisplayParam = 'OVERALL';
+      } else {
+        this.selectedDisplayParam = code;
+      }
+      try {
+        localStorage.setItem(`scada_ispu_selected_param_${this.deviceId}`, this.selectedDisplayParam);
+      } catch (e) {}
+    },
+    formatStartHour(h) {
+      const hour = Number(h) || 0;
+      return `${hour < 10 ? '0' : ''}${hour}:00 WIB`;
+    },
     async saveMapping() {
       if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
       try {
@@ -751,6 +868,7 @@ export default {
           source_unit: this.newMapping.source_unit || 'µg/m³',
           conversion_factor: Number(this.newMapping.conversion_factor) || 1.0,
           min_completeness: Number(this.newMapping.min_completeness) || 75.0,
+          daily_start_hour: Number(this.newMapping.daily_start_hour) || 0,
           enabled: true
         }, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}

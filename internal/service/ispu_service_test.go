@@ -373,7 +373,8 @@ func TestISPUService_TrendResolution_OperationalVsRegulatory(t *testing.T) {
 	ctx := context.Background()
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
-	baseTime := time.Date(2026, 10, 15, 10, 0, 0, 0, loc)
+	now := time.Now().In(loc)
+	baseTime := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, loc).Add(-1 * time.Hour)
 
 	// Simulate 10 aggregation buckets arriving at 2-minute intervals from 10:00 to 10:18
 	// 10:00 is an hourly boundary (minute=0). 10:02 .. 10:18 are sub-hourly 2-minute ticks.

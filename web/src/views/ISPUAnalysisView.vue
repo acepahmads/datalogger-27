@@ -742,6 +742,7 @@
                 <th class="p-2">Mapped Parameter</th>
                 <th class="p-2">Unit</th>
                 <th class="p-2">Factor</th>
+                <th class="p-2">Jam Mulai</th>
                 <th class="p-2">Min Coverage</th>
                 <th class="p-2">Status</th>
                 <th class="p-2 text-right">Actions</th>
@@ -749,13 +750,14 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
               <tr v-if="stationMappings.length === 0">
-                <td colspan="7" class="p-4 text-center text-slate-400">No parameter mappings configured yet</td>
+                <td colspan="8" class="p-4 text-center text-slate-400">No parameter mappings configured yet</td>
               </tr>
               <tr v-for="m in stationMappings" :key="m.id">
                 <td class="p-2 font-bold text-cyan-400">{{ m.pollutant_code }}</td>
                 <td class="p-2">{{ m.parameter?.parameter_name || m.parameter?.parameter_code || m.parameter_id }}</td>
                 <td class="p-2">{{ m.source_unit }}</td>
                 <td class="p-2">{{ m.conversion_factor }}</td>
+                <td class="p-2 text-cyan-400 font-bold font-mono">{{ formatStartHour(m.daily_start_hour) }}</td>
                 <td class="p-2">{{ m.min_completeness }}%</td>
                 <td class="p-2">
                   <span class="px-1.5 py-0.2 rounded text-4xs font-bold" :class="m.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'">
@@ -773,7 +775,7 @@
         <!-- Add Mapping Form -->
         <div class="p-3 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] space-y-3 font-mono text-3xs">
           <div class="font-bold text-slate-800 dark:text-slate-200 uppercase">Add / Update Parameter Mapping</div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <div>
               <label class="block text-slate-400 mb-1">Official Pollutant</label>
               <select v-model="newMapping.pollutant_code" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700">
@@ -793,6 +795,18 @@
             <div>
               <label class="block text-slate-400 mb-1">Source Unit</label>
               <input v-model="newMapping.source_unit" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700" placeholder="µg/m³" />
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Jam Mulai Harian</label>
+              <select
+                v-model.number="newMapping.daily_start_hour"
+                class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 font-mono"
+                title="Jam acuan dimulainya siklus perhitungan harian 24 jam"
+              >
+                <option v-for="h in 24" :key="h-1" :value="h-1">
+                  {{ (h-1 < 10 ? '0' : '') + (h-1) }}:00 WIB {{ (h-1 === 9 ? '(09:00 Pagi)' : (h-1 === 15 ? '(15:00 Sore)' : (h-1 === 0 ? '(00:00 Malam)' : ''))) }}
+                </option>
+              </select>
             </div>
           </div>
 
@@ -877,6 +891,7 @@ export default {
         source_unit: 'µg/m³',
         conversion_factor: 1.0,
         min_completeness: 75.0,
+        daily_start_hour: 0,
         enabled: true
       },
 
@@ -1365,6 +1380,10 @@ export default {
         console.error('Failed to load mappings:', err);
       }
     },
+    formatStartHour(h) {
+      const hour = Number(h) || 0;
+      return `${hour < 10 ? '0' : ''}${hour}:00 WIB`;
+    },
     async saveMapping() {
       if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
       try {
@@ -1376,6 +1395,7 @@ export default {
           source_unit: this.newMapping.source_unit || 'µg/m³',
           conversion_factor: Number(this.newMapping.conversion_factor) || 1.0,
           min_completeness: Number(this.newMapping.min_completeness) || 75.0,
+          daily_start_hour: Number(this.newMapping.daily_start_hour) || 0,
           enabled: true
         }, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}

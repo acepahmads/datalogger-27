@@ -498,6 +498,29 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		opParamOutputs = append(opParamOutputs, opOut)
 
 		// --- Mode B: Regulatory (24-hour evaluation under Permen LHK 14/2020) ---
+		// Determine parameter-specific evaluation window anchored by DailyStartHour
+		paramRegStart := regPeriodStart
+		paramRegEnd := periodEnd
+
+		if m.DailyStartHour >= 0 && m.DailyStartHour <= 23 {
+			refLocal := periodEnd.In(loc)
+			anchorTime := time.Date(refLocal.Year(), refLocal.Month(), refLocal.Day(), m.DailyStartHour, 0, 0, 0, loc)
+			if refLocal.Before(anchorTime) {
+				anchorTime = anchorTime.Add(-24 * time.Hour)
+			}
+			// Evaluasi siklus 24 jam dengan acuan daily start hour
+			if refLocal.Equal(anchorTime) {
+				paramRegStart = anchorTime.Add(-24 * time.Hour)
+				paramRegEnd = anchorTime
+			} else {
+				paramRegStart = anchorTime.Add(-24 * time.Hour)
+				if periodEnd.Sub(paramRegStart) > 24*time.Hour {
+					paramRegStart = periodEnd.Add(-24 * time.Hour)
+				}
+				paramRegEnd = periodEnd
+			}
+		}
+
 		var aggStats []struct {
 			Val   float64
 			Rec   time.Time
@@ -506,7 +529,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
 			Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
 			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
-				deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+				deviceID, m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad).
 			Order("period_end ASC").
 			Find(&aggStats)
 
@@ -520,7 +543,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			s.db.WithContext(ctx).Model(&model.RawData{}).
 				Select("AVG(value) AS val, MAX(timestamp) AS rec, DATE_FORMAT(timestamp, '%Y%m%d%H0000') AS ident").
 				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
-					deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+					deviceID, m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad).
 				Group("DATE(timestamp), HOUR(timestamp)").
 				Find(&rawHourly)
 
@@ -535,7 +558,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			var totalSum float64
 
 			for _, as := range aggStats {
-				hoursDiff := int(periodEnd.Sub(as.Rec).Hours())
+				hoursDiff := int(paramRegEnd.Sub(as.Rec).Hours())
 				if hoursDiff >= 0 && hoursDiff < 24 {
 					hoursWithData[hoursDiff] = true
 					totalSum += as.Val
@@ -1161,8 +1184,8 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 			Action:    action,
 			Resource:  fmt.Sprintf("station_%d_pollutant_%s", mapping.DeviceID, mapping.PollutantCode),
 			IPAddress: ipAddress,
-			Details: fmt.Sprintf("ISPU mapping saved: Station=%d, Param=%d, Pollutant=%s, Unit=%s, Factor=%.3f, Enabled=%v",
-				mapping.DeviceID, mapping.ParameterID, mapping.PollutantCode, mapping.SourceUnit, mapping.ConversionFactor, mapping.Enabled),
+			Details: fmt.Sprintf("ISPU mapping saved: Station=%d, Param=%d, Pollutant=%s, Unit=%s, Factor=%.3f, DailyStartHour=%d, Enabled=%v",
+				mapping.DeviceID, mapping.ParameterID, mapping.PollutantCode, mapping.SourceUnit, mapping.ConversionFactor, mapping.DailyStartHour, mapping.Enabled),
 			CreatedAt: time.Now().UTC(),
 		})
 	}

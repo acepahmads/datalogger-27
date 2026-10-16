@@ -63,6 +63,7 @@ type ISPUParameterMapping struct {
 	ConversionFactor float64       `gorm:"default:1.0" json:"conversion_factor"`
 	ConversionRule   string        `gorm:"size:64;default:'DIRECT'" json:"conversion_rule"` // DIRECT, PPM_TO_UGM3, PPB_TO_UGM3, MG_TO_UGM3
 	MinCompleteness  float64       `gorm:"default:75.0" json:"min_completeness"`           // Permen LHK 14/2020: 75%
+	DailyStartHour   int           `gorm:"default:0" json:"daily_start_hour"`               // Jam mulai hitung harian (0-23, misal 00:00 atau 09:00)
 	Enabled          bool          `gorm:"default:true" json:"enabled"`
 	CreatedAt        time.Time     `json:"created_at"`
 	UpdatedAt        time.Time     `json:"updated_at"`

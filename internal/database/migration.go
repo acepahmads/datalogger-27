@@ -114,6 +114,12 @@ func RunMigrations(db *gorm.DB) error {
 		}
 	}
 
+	// 1f. Automatically ensure daily_start_hour column exists on ispu_parameter_mappings
+	if db.Migrator().HasTable(&model.ISPUParameterMapping{}) {
+		if !db.Migrator().HasColumn(&model.ISPUParameterMapping{}, "DailyStartHour") {
+			_ = db.Migrator().AddColumn(&model.ISPUParameterMapping{}, "DailyStartHour")
+		}
+	}
 
 	// 2. Data backfill / synchronization for existing devices from Phase 1
 	var existingDevices []model.Device
