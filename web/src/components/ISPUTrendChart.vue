@@ -201,7 +201,7 @@
         <!-- Circular Data Point Markers (Intelligently spaced to prevent overlapping clutter) -->
         <g class="data-markers">
           <g v-for="(p, idx) in points" :key="`pt-${idx}`">
-            <template v-if="shouldShowMarker(idx)">
+            <template v-if="p.isAvailable && p.y !== null && shouldShowMarker(idx)">
               <!-- Ripple Effect on the Latest Point -->
               <circle
                 v-if="idx === points.length - 1"
@@ -238,6 +238,7 @@
             class="opacity-80"
           />
           <circle
+            v-if="hoveredPoint.isAvailable && hoveredPoint.y !== null"
             :cx="hoveredPoint.x"
             :cy="hoveredPoint.y"
             r="6"
@@ -271,12 +272,22 @@
 
           <span class="text-slate-400">ISPU:</span>
           <span class="font-bold text-[#00F2FE]">
-            {{ Math.round(hoveredPoint.value) }} ({{ (hoveredPoint.category || '').replace('_', ' ') }})
+            <template v-if="hoveredPoint.isAvailable && hoveredPoint.value !== null">
+              {{ Math.round(hoveredPoint.value) }} ({{ (hoveredPoint.category || '').replace('_', ' ') }})
+            </template>
+            <template v-else>
+              <span class="text-slate-400 font-normal">Tidak Tersedia / Missing</span>
+            </template>
           </span>
 
           <span v-if="!isOverallMode" class="text-slate-400">Concentration:</span>
           <span v-if="!isOverallMode" class="font-bold text-white">
-            {{ hoveredPoint.concentration != null ? hoveredPoint.concentration.toFixed(1) : '-' }} {{ hoveredPoint.unit }}
+            <template v-if="hoveredPoint.isAvailable && hoveredPoint.concentration != null">
+              {{ hoveredPoint.concentration.toFixed(1) }} {{ hoveredPoint.unit }}
+            </template>
+            <template v-else>
+              <span class="text-slate-400">-</span>
+            </template>
           </span>
 
           <span class="text-slate-400">Dominant:</span>
@@ -366,7 +377,14 @@ export default {
       if (this.mode === 'OPERATIONAL') {
         return `Resolusi Bucket Operasional (${this.aggIntervalLabel}) · Nilai Agregasi Real-time`;
       }
-      return 'Permen LHK No. 14 Tahun 2020 · Jendela Pengukuran 24 Jam (Cadence: 1 Jam)';
+      if (this.selectedPollutant && this.selectedPollutant !== 'OVERALL' && this.selectedPollutant !== 'ALL') {
+        const pCode = this.selectedPollutant.toUpperCase();
+        if (pCode === 'PM25') {
+          return 'Permen LHK No. 14/2020 Pasal 10 ayat (1)a · Jendela 24 Jam (Pelaporan Setiap Jam)';
+        }
+        return 'Permen LHK No. 14/2020 Pasal 10 ayat (1)b & (2) · Jendela 24 Jam (Jadwal 09.00 & 15.00 WIB / 1 Jam jika >100)';
+      }
+      return 'Permen LHK No. 14 Tahun 2020 · Jendela Pengukuran 24 Jam (Cadence: 1 Jam · Pasal 10 ayat 1a)';
     },
     plotWidth() {
       return Math.max(10, this.chartWidth - this.padLeft - this.padRight);
@@ -466,11 +484,32 @@ export default {
     },
     extractedRawPoints() {
       if (!this.records || this.records.length === 0) return [];
-      return this.records.map(r => {
+
+      let sourceRecords = this.records;
+      if (this.isRegulatoryMode && !this.isOverallMode) {
+        const pCode = (this.selectedPollutant || '').toUpperCase();
+        if (pCode !== 'PM25') {
+          // Permen LHK 14/2020 Pasal 10 ayat (1)b & ayat (2):
+          // Cadence for gases/PM10: 09:00 & 15:00 WIB, or hourly when pollutant or station ISPU > 100
+          sourceRecords = this.records.filter((r, idx) => {
+            if (idx === this.records.length - 1) return true; // always show latest point
+            const d = new Date(r.period_end);
+            const hour = d.getHours();
+            if (hour === 9 || hour === 15) return true;
+            const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+            const val = pr ? pr.calculated_ispu : r.overall_ispu;
+            return val > 100;
+          });
+        }
+      }
+
+      return sourceRecords.map(r => {
         if (this.isOverallMode) {
+          const isAvail = r.overall_category !== 'TIDAK_TERSEDIA' && r.calculation_status !== 'INVALID';
           return {
             raw: r,
-            value: Number(r.overall_ispu || 0),
+            isAvailable: isAvail,
+            value: isAvail ? Number(r.overall_ispu || 0) : null,
             category: r.overall_category || 'TIDAK_TERSEDIA',
             concentration: 0,
             unit: 'µg/m³'
@@ -478,9 +517,13 @@ export default {
         }
         const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
         if (pr) {
+          const isAvail = pr.category !== 'TIDAK_TERSEDIA' &&
+                          pr.category !== 'UNAVAILABLE' &&
+                          (pr.valid_samples === undefined || pr.valid_samples > 0);
           return {
             raw: r,
-            value: Number(pr.calculated_ispu || 0),
+            isAvailable: isAvail,
+            value: isAvail ? Number(pr.calculated_ispu || 0) : null,
             category: pr.category || 'TIDAK_TERSEDIA',
             concentration: Number(pr.normalized_concentration || 0),
             unit: pr.normalized_unit || 'µg/m³'
@@ -488,7 +531,8 @@ export default {
         }
         return {
           raw: r,
-          value: 0,
+          isAvailable: false,
+          value: null,
           category: 'TIDAK_TERSEDIA',
           concentration: 0,
           unit: 'µg/m³'
@@ -523,11 +567,12 @@ export default {
         }
         const clampedFraction = Math.max(0, Math.min(1, fraction));
         const x = this.padLeft + clampedFraction * this.plotWidth;
-        const y = this.getY(item.value);
+        const y = item.isAvailable && item.value !== null ? this.getY(item.value) : null;
         return {
           x,
           y,
           timeMs,
+          isAvailable: item.isAvailable,
           value: item.value,
           category: item.category,
           concentration: item.concentration,
@@ -540,24 +585,36 @@ export default {
       if (!this.points || this.points.length <= 1) return '';
 
       // Break path across gaps where missing data exists:
-      // In regulatory mode: gap > 2.5 hours
+      // In regulatory mode: for bi-daily (09:00 & 15:00) max gap is 19h (from 15:00 to 09:00 is 18h)
+      // For hourly mode: gap > 2.5 hours
       // In operational mode: gap > 3 buckets
+      const pCode = (this.selectedPollutant || '').toUpperCase();
+      const isDailyCadence = this.isRegulatoryMode && !this.isOverallMode && pCode !== 'PM25';
       const maxGapMs = this.isRegulatoryMode
-        ? 2.5 * 3600 * 1000
+        ? (isDailyCadence ? 19 * 3600 * 1000 : 2.5 * 3600 * 1000)
         : Math.max(180, 3 * this.aggregationIntervalSeconds) * 1000;
 
       const segments = [];
       let currentSeg = [];
 
       for (let i = 0; i < this.points.length; i++) {
-        if (i > 0) {
-          const gap = this.points[i].timeMs - this.points[i - 1].timeMs;
+        const pt = this.points[i];
+        if (!pt.isAvailable || pt.y === null) {
+          if (currentSeg.length > 0) {
+            segments.push(currentSeg);
+            currentSeg = [];
+          }
+          continue;
+        }
+        if (currentSeg.length > 0) {
+          const lastPt = currentSeg[currentSeg.length - 1];
+          const gap = pt.timeMs - lastPt.timeMs;
           if (gap > maxGapMs) {
-            if (currentSeg.length > 0) segments.push(currentSeg);
+            segments.push(currentSeg);
             currentSeg = [];
           }
         }
-        currentSeg.push(this.points[i]);
+        currentSeg.push(pt);
       }
       if (currentSeg.length > 0) segments.push(currentSeg);
 
@@ -618,7 +675,8 @@ export default {
     },
     tooltipTop() {
       if (!this.hoveredPoint) return 0;
-      return Math.max(14, this.hoveredPoint.clientY - 14);
+      const cy = (this.hoveredPoint.clientY != null) ? this.hoveredPoint.clientY : (this.padTop + this.plotHeight / 2);
+      return Math.max(14, cy - 14);
     }
   },
   mounted() {

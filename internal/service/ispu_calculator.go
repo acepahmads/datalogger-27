@@ -374,16 +374,17 @@ func (c *ISPUCalculator) CalculateOverall(results []ParameterCalculationOutput, 
 	return out
 }
 
-// GetCategoryFromISPU returns the official category from Lampiran II.
+// GetCategoryFromISPU returns the official category from Lampiran II based on rounded integer ISPU.
 func GetCategoryFromISPU(ispu float64) model.ISPUCategory {
+	rounded := math.Round(ispu)
 	switch {
-	case ispu <= 50:
+	case rounded <= 50:
 		return model.CategoryBaik
-	case ispu <= 100:
+	case rounded <= 100:
 		return model.CategorySedang
-	case ispu <= 200:
+	case rounded <= 200:
 		return model.CategoryTidakSehat
-	case ispu <= 300:
+	case rounded <= 300:
 		return model.CategorySangatTidakSehat
 	default:
 		return model.CategoryBerbahaya

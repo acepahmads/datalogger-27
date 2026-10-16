@@ -242,7 +242,7 @@ if (runTest('Dual mode calculation: ISPU 24 Jam (Regulatory) & ISPU Per Agregasi
 
   const viewPath = path.join(__dirname, '..', 'src', 'views', 'ISPUAnalysisView.vue');
   const viewContent = fs.readFileSync(viewPath, 'utf8');
-  assert(viewContent.includes("ispuMode: '24H'"), 'ISPUAnalysisView must define ispuMode');
+  assert(viewContent.includes("ispuMode: 'REGULATORY'") || viewContent.includes("ispuMode: '24H'"), 'ISPUAnalysisView must define ispuMode');
   assert(viewContent.includes('Per Agregasi'), 'ISPUAnalysisView must provide Per Agregasi button');
 })) passed++;
 

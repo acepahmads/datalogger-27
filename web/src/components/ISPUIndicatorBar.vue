@@ -530,9 +530,12 @@ export default {
     },
     validityTooltip() {
       if (this.calculationStatus === 'VALID') {
-        return 'Regulatory Valid: Data completeness meets or exceeds the 75% threshold (Permen LHK No. 14/2020)';
+        return 'Regulatory Valid: Kelengkapan data pemantauan ≥ 75% sesuai Permen LHK No. 14/2020 Pasal 7 ayat (3)';
       }
-      return 'Provisional calculation: Insufficient temporal coverage (< 75%) or partial data window';
+      if (this.calculationStatus === 'PROVISIONAL') {
+        return 'Kalkulasi Provisori: Cakupan data < 75% (belum memenuhi batas penjaminan mutu penuh Permen LHK No. 14/2020 Pasal 7 ayat 3)';
+      }
+      return 'Kalkulasi Tidak Valid: Data telemetri tidak tersedia atau terjadi error sensor (0% coverage)';
     },
     canRecalculate() {
       return true;
