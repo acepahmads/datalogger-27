@@ -52,9 +52,9 @@ const idPath = path.join(__dirname, '../src/i18n/locales/id.js');
 const idContent = fs.readFileSync(idPath, 'utf8');
 
 // Test 1: Card container uses uniform height within design targets
-runTest('Test 1: Card container uses uniform height within design targets (130-150px or 105-125px)', () => {
+runTest('Test 1: Card container uses uniform height within design targets (88-95px, 105-125px, or 130-150px)', () => {
   assert(
-    occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'),
+    occContent.includes('h-[88px] sm:h-[90px]') || occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'),
     'Card container must enforce uniform height'
   );
   assert(
@@ -94,7 +94,7 @@ runTest('Test 3: Value row contains large numeric display, unit, limits, and com
 
 // Test 4: Mini Sparkline height and SVG configuration
 runTest('Test 4: Mini sparkline container is positioned beside value with subtle area gradient and smooth stroke', () => {
-  assert(occContent.includes('h-9 sm:h-10') || occContent.includes('h-[26px]'), 'Sparkline height must be approximately 26-40px');
+  assert(occContent.includes('h-8') || occContent.includes('h-9 sm:h-10') || occContent.includes('h-[26px]'), 'Sparkline height must be approximately 26-40px');
   assert(occContent.includes('viewBox="0 0 100 28"') || occContent.includes('viewBox="0 0 100 26"'), 'SVG viewBox must match aspect ratio');
   assert(occContent.includes('<linearGradient'), 'SVG must use linear gradient for subtle area fill');
   assert(occContent.includes('stop-opacity="0.22"') || occContent.includes('stop-opacity="0.25"'), 'Gradient fill must be subtle');

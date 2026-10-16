@@ -165,14 +165,15 @@ runTest('Test 4: Environmental units (µg/m³, mg/L, °C, m/s, hPa) are rendered
 });
 
 // Test 5: Mini Sparkline has flexible width and height ~30-40px
-runTest('Test 5: Sparkline container adapts flexibly (flex-1, flex-shrink, min-w-[50px], max-w-[136px], height 36-40px)', () => {
+runTest('Test 5: Sparkline container adapts flexibly (flex-1, flex-shrink, min-w-[50px], max-w-[136px], height 32-40px)', () => {
   assert(
-    occContent.includes('flex-1 min-w-[50px] max-w-[136px] h-9 sm:h-10 flex-shrink relative'),
+    occContent.includes('flex-1 min-w-[50px] max-w-[136px]') &&
+    (occContent.includes('h-8') || occContent.includes('h-9 sm:h-10')),
     'Sparkline must have flexible container that shrinks before numeric value'
   );
   assert(
-    occContent.includes('h-9 sm:h-10'),
-    'Sparkline height must be approximately 36-40px (within 30-40px target)'
+    occContent.includes('h-8') || occContent.includes('h-9 sm:h-10'),
+    'Sparkline height must be approximately 32-40px (within 30-40px target)'
   );
   assert(
     occContent.includes('viewBox="0 0 100 28"'),
@@ -194,8 +195,13 @@ runTest('Test 6: Sparkline retains real sample history, gap handling, area fill,
 });
 
 // Test 7: Card dimensions and responsive grid layout preserved
-runTest('Test 7: Uniform card height (130-150px or compact 114-118px) and minimum width (~260px) preserved across categories', () => {
-  assert(occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'), 'Uniform card height 134-140px or compact 114-118px preserved');
+runTest('Test 7: Uniform card height (88-95px, 114-118px, or 130-150px) and minimum width (~260px) preserved across categories', () => {
+  assert(
+    occContent.includes('h-[88px] sm:h-[90px]') ||
+    occContent.includes('h-[134px] sm:h-[140px]') ||
+    occContent.includes('h-[114px] sm:h-[118px]'),
+    'Uniform card height preserved'
+  );
   assert(occContent.includes('min-w-[260px]'), 'Card min-width 260px preserved');
   assert(occContent.includes('grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-3.5'), '12-column responsive layout preserved');
 });

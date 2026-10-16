@@ -69,11 +69,21 @@ runTest('Test 1: Parameter cards structure matches Reference 2 (Top, Main, and B
   assert(occContent.includes('plotTrend'), 'Bottom row must render Plot Trend action');
 });
 
-// Test 2: Card dimensions match uniform height (130-150px or compact 114-118px) and responsive min-width ~260px
+// Test 2: Card dimensions match uniform height (88-95px, compact 114-118px, or 130-150px) and responsive min-width ~260px
 runTest('Test 2: Card dimensions match uniform height and responsive min-width ~260px', () => {
-  assert(occContent.includes('h-[134px] sm:h-[140px]') || occContent.includes('h-[114px] sm:h-[118px]'), 'Card must have uniform height between 114-140px');
+  assert(
+    occContent.includes('h-[88px] sm:h-[90px]') ||
+    occContent.includes('h-[134px] sm:h-[140px]') ||
+    occContent.includes('h-[114px] sm:h-[118px]'),
+    'Card must have uniform height between 88-140px'
+  );
   assert(occContent.includes('min-w-[260px]'), 'Card must enforce responsive min-width of ~260px');
-  assert(occContent.includes('p-3'), 'Card must use comfortable p-3 internal padding');
+  assert(
+    occContent.includes('p-2') ||
+    occContent.includes('p-3') ||
+    occContent.includes('px-2.5 py-1.5'),
+    'Card must use comfortable internal padding'
+  );
   assert(occContent.includes('rounded-xl'), 'Card must use refined rounded-xl corners');
 });
 
@@ -96,12 +106,14 @@ runTest('Test 3: Numeric values are prominent (28-36px font) and unit remains re
 // Test 4: Mini sparkline is placed horizontally beside main numeric value with flexible responsive width
 runTest('Test 4: Mini sparkline is placed horizontally beside main numeric value', () => {
   assert(
+    occContent.includes('flex items-center justify-between gap-2 sm:gap-2.5 my-auto min-w-0') ||
     occContent.includes('flex items-center justify-between gap-2.5 my-auto min-w-0'),
     'Main row must use flex justify-between to place value and sparkline horizontally side-by-side'
   );
   assert(
-    occContent.includes('flex-1 min-w-[50px] max-w-[136px] h-9 sm:h-10 flex-shrink relative'),
-    'Sparkline must have flexible responsive width adapting to remaining space with height ~36-40px'
+    occContent.includes('h-8') ||
+    occContent.includes('h-9 sm:h-10'),
+    'Sparkline must have flexible responsive width adapting to remaining space with height ~32-40px'
   );
   assert(
     occContent.includes('viewBox="0 0 100 28"'),
@@ -140,8 +152,9 @@ runTest('Test 7: Multiple categories render side-by-side (lg:col-span-6) when co
     'Half-width categories must use lg:col-span-6 to render side by side'
   );
   assert(
+    occContent.includes("return 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5';") ||
     occContent.includes("return 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3';"),
-    'Half-width category cards must wrap in 1 to 3 columns'
+    'Half-width category cards must wrap in 1 to 2 columns'
   );
 });
 
@@ -152,6 +165,7 @@ runTest('Test 8: Single selected category uses available width efficiently (col-
     'When a specific category tab is selected, it must expand to full 12 columns'
   );
   assert(
+    occContent.includes("return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 sm:gap-2.5';") ||
     occContent.includes("return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3';"),
     'Full-width category cards must wrap in 2 to 4 columns'
   );

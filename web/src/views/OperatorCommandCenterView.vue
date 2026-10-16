@@ -433,7 +433,7 @@
         <div
           v-if="viewMode === 'cards'"
           :style="cardGridContainerStyle"
-          class="custom-scroller pb-8 sm:pb-10"
+          class="custom-scroller pb-2 sm:pb-3"
         >
           <!-- 12-Column Responsive Category Grid across the full available desktop width -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-3.5">
@@ -441,7 +441,7 @@
               v-for="section in categorySections"
               :key="section.id"
               :class="getSectionContainerSpanClass(section)"
-              class="flex flex-col space-y-1.5 sm:space-y-2 rounded-xl p-2 sm:p-2.5 lg:p-3 bg-white/80 dark:bg-[#070D17]/40 border border-[#B8D4EA] dark:border-[#1A2C3F]/60"
+              class="flex flex-col space-y-1.5 rounded-xl p-2 sm:p-2.5 bg-white/80 dark:bg-[#070D17]/40 border border-[#B8D4EA] dark:border-[#1A2C3F]/60"
             >
               <!-- Section Header (shown in 'all' view when multiple categories exist) -->
               <div
@@ -467,7 +467,7 @@
                   :key="param.param_id"
                   @click="selectParamForTrend(param)"
                   @contextmenu.prevent="openParamContextMenu($event, param)"
-                  class="scada-param-tile p-2.5 sm:p-2.5 xl:p-3 rounded-xl border transition-all duration-200 relative cursor-pointer group flex flex-col justify-between h-[114px] sm:h-[118px] lg:h-[126px] xl:h-[134px] min-w-0 sm:min-w-0 xl:min-w-[260px]"
+                  class="scada-param-tile px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border transition-all duration-200 relative cursor-pointer group flex flex-col justify-between h-[88px] sm:h-[90px] min-w-0 sm:min-w-0 xl:min-w-[260px]"
                   :class="[
                     isParamAlarmOrStaleBad(param)
                       ? (isAlarmPulseActive
@@ -552,7 +552,7 @@
                   </div>
 
                   <!-- Row 2: Main Row (Value-First Layout: Prominent Numeric Value + Unit, Flexible Mini Sparkline) -->
-                  <div class="flex items-center justify-between gap-2.5 my-auto min-w-0">
+                  <div class="flex items-center justify-between gap-2 sm:gap-2.5 my-auto min-w-0">
                     <!-- Left: Value and Unit (Value-First Priority, Never Truncated with Ellipsis) -->
                     <div class="flex flex-col justify-center min-w-0 flex-shrink-0 max-w-[65%]">
                       <div class="flex items-baseline flex-shrink-0 min-w-0">
@@ -597,8 +597,8 @@
                       </div>
                     </div>
 
-                    <!-- Right: Flexible Mini Sparkline (Adapts to remaining space, height ~36-40px, gap-aware) -->
-                    <div class="flex-1 min-w-[50px] max-w-[136px] h-9 sm:h-10 flex-shrink relative bg-slate-50/70 dark:bg-[#070D17]/70 border border-slate-100 dark:border-slate-800/40 rounded-lg overflow-hidden ml-auto">
+                    <!-- Right: Flexible Mini Sparkline (Adapts to remaining space, height ~32px, gap-aware) -->
+                    <div class="flex-1 min-w-[50px] max-w-[136px] h-8 flex-shrink relative bg-slate-50/70 dark:bg-[#070D17]/70 border border-slate-100 dark:border-slate-800/40 rounded-md overflow-hidden ml-auto">
                       <svg
                         v-if="getSparkline(param.param_id).hasHistory"
                         class="w-full h-full"
@@ -640,7 +640,7 @@
                   </div>
 
                   <!-- Row 3: Footer (Timestamp / Alarm duration & Quick Action Link) -->
-                  <div class="flex items-center justify-between text-4xs font-mono pt-1.5 border-t border-slate-100 dark:border-[#132235] leading-none">
+                  <div class="flex items-center justify-between text-4xs font-mono pt-1 border-t border-slate-100 dark:border-[#132235] leading-none">
                     <div
                       class="flex items-center space-x-1 truncate max-w-[65%]"
                       :title="getParamTimingTitle(param)"
@@ -3158,7 +3158,7 @@ export default {
     },
     cardGridContainerStyle() {
       const count = this.filteredParameters.length;
-      if (count <= 6) {
+      if (count <= 16) {
         return {
           maxHeight: 'none',
           minHeight: '140px',
@@ -3740,9 +3740,9 @@ export default {
       const span = section?.default_column_span || 1;
       const isHalfWidth = (this.selectedCategoryFilter === 'all') && (span === 1 || span === 2 || span === 6);
       if (isHalfWidth) {
-        return 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3';
+        return 'grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5';
       }
-      return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3';
+      return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-2 sm:gap-2.5';
     },
     openCategoryManagementModal() {
       this.isCategoryModalOpen = true;
