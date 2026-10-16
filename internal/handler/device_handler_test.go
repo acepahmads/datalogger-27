@@ -540,3 +540,77 @@ func TestParameterQualityEndpoints(t *testing.T) {
 	}
 }
 
+func TestValidateFormulaEndpointWithRandom(t *testing.T) {
+	env := setupDeviceTestRouter(t)
+
+	t.Run("Valid formula with value + random(0.01, 0.09)", func(t *testing.T) {
+		sampleVal := 2.0
+		body, _ := json.Marshal(map[string]interface{}{
+			"formula":      "value + random(0.01, 0.09)",
+			"sample_value": sampleVal,
+		})
+		req, _ := http.NewRequest("POST", "/api/devices/parameters/validate-formula", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+env.AdminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		env.Router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("Expected 200 OK, got %d: %s", w.Code, w.Body.String())
+		}
+
+		var res struct {
+			Success bool `json:"success"`
+			Data    struct {
+				Valid   bool     `json:"valid"`
+				Formula string   `json:"formula"`
+				Result  *float64 `json:"result"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+		if !res.Data.Valid || res.Data.Result == nil {
+			t.Fatalf("Expected valid result, got: %+v", res)
+		}
+		val := *res.Data.Result
+		if val < 2.01 || val > 2.09 {
+			t.Errorf("Result %f not in range [2.01, 2.09]", val)
+		}
+	})
+
+	t.Run("Valid formula with x, raw and random", func(t *testing.T) {
+		sampleVal := 10.0
+		sampleRaw := 50.0
+		body, _ := json.Marshal(map[string]interface{}{
+			"formula":      "raw + random(0.1, 0.5)",
+			"sample_value": sampleVal,
+			"sample_raw":   sampleRaw,
+		})
+		req, _ := http.NewRequest("POST", "/api/devices/parameters/validate-formula", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+env.AdminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		env.Router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("Expected 200 OK, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("Invalid formula with min > max returns 400 without panic", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]interface{}{
+			"formula": "value + random(10, 2)",
+		})
+		req, _ := http.NewRequest("POST", "/api/devices/parameters/validate-formula", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+env.AdminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		env.Router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("Expected 400 Bad Request, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+

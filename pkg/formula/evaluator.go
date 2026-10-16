@@ -3,6 +3,7 @@ package formula
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 	"unicode"
@@ -423,6 +424,28 @@ func evalFunction(fn string, args []float64) (float64, error) {
 			return 0, fmt.Errorf("tan() requires 1 argument")
 		}
 		return math.Tan(args[0]), nil
+	case "random":
+		if len(args) != 2 {
+			return 0, fmt.Errorf("random() requires 2 arguments: random(min, max)")
+		}
+		minVal := args[0]
+		maxVal := args[1]
+		if math.IsNaN(minVal) || math.IsNaN(maxVal) || math.IsInf(minVal, 0) || math.IsInf(maxVal, 0) {
+			return 0, fmt.Errorf("random() arguments must be finite numbers")
+		}
+		if minVal > maxVal {
+			return 0, fmt.Errorf("random() min (%v) cannot be greater than max (%v)", minVal, maxVal)
+		}
+		if minVal == maxVal {
+			return minVal, nil
+		}
+		val := minVal + rand.Float64()*(maxVal-minVal)
+		if val < minVal {
+			val = minVal
+		} else if val > maxVal {
+			val = maxVal
+		}
+		return val, nil
 	default:
 		return 0, fmt.Errorf("unknown function '%s'", fn)
 	}
@@ -430,6 +453,7 @@ func evalFunction(fn string, args []float64) (float64, error) {
 
 // Evaluate evaluates a mathematical formula with given variables.
 // Common variables supported: x, val, value, raw.
+// Supported functions: abs, round, floor, ceil, sqrt, min, max, pow, log, ln, log10, exp, sin, cos, tan, random.
 func Evaluate(expr string, vars map[string]float64) (float64, error) {
 	expr = strings.TrimSpace(expr)
 	if expr == "" {

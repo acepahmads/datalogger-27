@@ -488,6 +488,14 @@
             >
               W➔kW (x/1000)
             </button>
+            <button
+              type="button"
+              @click="form.formula = 'value + random(0.01, 0.09)'"
+              class="px-2 py-0.5 rounded text-3xs font-mono bg-blue-900/40 hover:bg-blue-850/60 border border-blue-500/40 text-blue-300 transition"
+              title="Add random jitter simulation [min, max]"
+            >
+              +random(0.01, 0.09)
+            </button>
           </div>
 
           <!-- Live Preview Banner -->
@@ -833,38 +841,110 @@ export default {
       if (!this.form.formula || !this.form.formula.trim()) return null;
       try {
         const formStr = this.form.formula.trim();
-        const x = this.previewSampleX;
-        const raw = 100.0;
-        const expr = formStr
-          .replace(/\b(pi)\b/gi, 'Math.PI')
-          .replace(/\b(e)\b/gi, 'Math.E')
-          .replace(/\b(abs)\b/gi, 'Math.abs')
-          .replace(/\b(round)\b/gi, 'Math.round')
-          .replace(/\b(floor)\b/gi, 'Math.floor')
-          .replace(/\b(ceil)\b/gi, 'Math.ceil')
-          .replace(/\b(sqrt)\b/gi, 'Math.sqrt')
-          .replace(/\b(min)\b/gi, 'Math.min')
-          .replace(/\b(max)\b/gi, 'Math.max')
-          .replace(/\b(log|ln)\b/gi, 'Math.log')
-          .replace(/\b(exp)\b/gi, 'Math.exp')
-          .replace(/\b(sin)\b/gi, 'Math.sin')
-          .replace(/\b(cos)\b/gi, 'Math.cos')
-          .replace(/\b(tan)\b/gi, 'Math.tan')
-          .replace(/\^/g, '**')
-          .replace(/\b(x|val|value)\b/gi, `(${x})`)
-          .replace(/\b(raw)\b/gi, `(${raw})`);
+        const xVal = this.previewSampleX;
+        const rawVal = 100.0;
 
-        if (/[^0-9\.\+\-\*\/\(\)\,\sMathPIEabseroundfloceilsqrtminxlgexpstnc]/.test(expr)) {
-          return { valid: false, error: 'Invalid syntax or unsupported characters' };
+        // Basic character safety check: reject dangerous characters
+        if (/[;{}[\]"'`\\$]|(?<!=)=(?!=)|=>/.test(formStr)) {
+          return { valid: false, error: 'Invalid syntax or disallowed characters' };
         }
-        const fn = new Function(`return (${expr})`);
-        const res = fn();
+
+        // Allowed identifiers: variables, constants, and math functions
+        const allowedIdentifiers = new Set([
+          'x', 'val', 'value', 'raw',
+          'pi', 'e',
+          'abs', 'round', 'floor', 'ceil', 'sqrt', 'min', 'max',
+          'pow', 'log', 'ln', 'log10', 'exp', 'sin', 'cos', 'tan',
+          'random'
+        ]);
+
+        const identMatches = formStr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+        for (const ident of identMatches) {
+          if (!allowedIdentifiers.has(ident.toLowerCase())) {
+            return { valid: false, error: `Unknown identifier '${ident}'` };
+          }
+        }
+
+        // Helpers matching Go backend formula evaluator
+        const roundFn = (val, prec) => {
+          if (val === undefined || isNaN(val)) throw new Error('round() requires at least 1 valid number');
+          if (prec === undefined) return Math.round(val);
+          const factor = Math.pow(10, Math.trunc(prec));
+          return Math.round(val * factor) / factor;
+        };
+
+        const randomFn = (min, max) => {
+          if (min === undefined || max === undefined) {
+            throw new Error('random() requires 2 arguments: random(min, max)');
+          }
+          if (isNaN(min) || isNaN(max) || !isFinite(min) || !isFinite(max)) {
+            throw new Error('random() arguments must be finite numbers');
+          }
+          if (min > max) {
+            throw new Error(`min (${min}) cannot be greater than max (${max})`);
+          }
+          if (min === max) return min;
+          return min + Math.random() * (max - min);
+        };
+
+        const sqrtFn = (v) => {
+          if (v < 0) throw new Error('sqrt() of negative number');
+          return Math.sqrt(v);
+        };
+
+        const logFn = (v) => {
+          if (v <= 0) throw new Error('log() argument must be positive');
+          return Math.log(v);
+        };
+
+        const log10Fn = (v) => {
+          if (v <= 0) throw new Error('log10() argument must be positive');
+          return Math.log10(v);
+        };
+
+        const context = {
+          x: xVal,
+          val: xVal,
+          value: xVal,
+          raw: rawVal,
+          pi: Math.PI,
+          e: Math.E,
+          abs: Math.abs,
+          round: roundFn,
+          floor: Math.floor,
+          ceil: Math.ceil,
+          sqrt: sqrtFn,
+          min: Math.min,
+          max: Math.max,
+          pow: Math.pow,
+          log: logFn,
+          ln: logFn,
+          log10: log10Fn,
+          exp: Math.exp,
+          sin: Math.sin,
+          cos: Math.cos,
+          tan: Math.tan,
+          random: randomFn
+        };
+
+        // Replace ^ with ** for exponents
+        let expr = formStr.replace(/\^/g, '**');
+
+        // Lowercase identifiers for case-insensitivity
+        expr = expr.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, m => m.toLowerCase());
+
+        const paramNames = Object.keys(context);
+        const paramValues = Object.values(context);
+
+        const fn = new Function(...paramNames, `"use strict"; return (${expr});`);
+        const res = fn(...paramValues);
+
         if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
           return { valid: true, value: Number(res.toFixed(4)) };
         }
         return { valid: false, error: 'Result is NaN or infinite' };
       } catch (e) {
-        return { valid: false, error: e.message };
+        return { valid: false, error: e.message || 'Invalid formula' };
       }
     },
     hardLimitWarning() {

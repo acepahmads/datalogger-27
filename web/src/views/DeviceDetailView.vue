@@ -4201,25 +4201,30 @@ export default {
       try {
         const x = this.getTestReadModbusValNum();
         const raw = this.testReadResult.raw_value !== undefined ? this.testReadResult.raw_value : x;
-        const expr = formulaStr
-          .replace(/\b(pi)\b/gi, 'Math.PI')
-          .replace(/\b(e)\b/gi, 'Math.E')
-          .replace(/\b(abs)\b/gi, 'Math.abs')
-          .replace(/\b(round)\b/gi, 'Math.round')
-          .replace(/\b(floor)\b/gi, 'Math.floor')
-          .replace(/\b(ceil)\b/gi, 'Math.ceil')
-          .replace(/\b(sqrt)\b/gi, 'Math.sqrt')
-          .replace(/\b(min)\b/gi, 'Math.min')
-          .replace(/\b(max)\b/gi, 'Math.max')
-          .replace(/\b(log|ln)\b/gi, 'Math.log')
-          .replace(/\b(exp)\b/gi, 'Math.exp')
-          .replace(/\b(sin)\b/gi, 'Math.sin')
-          .replace(/\b(cos)\b/gi, 'Math.cos')
-          .replace(/\b(tan)\b/gi, 'Math.tan')
-          .replace(/\^/g, '**')
-          .replace(/\b(x|val|value)\b/gi, `(${x})`)
-          .replace(/\b(raw)\b/gi, `(${raw})`);
-        const res = Function(`"use strict"; return (${expr});`)();
+        const roundFn = (val, prec) => {
+          if (prec === undefined) return Math.round(val);
+          const factor = Math.pow(10, Math.trunc(prec));
+          return Math.round(val * factor) / factor;
+        };
+        const randomFn = (min, max) => {
+          if (min === undefined || max === undefined || min > max) return min !== undefined ? min : 0;
+          return min + Math.random() * (max - min);
+        };
+        const context = {
+          x, val: x, value: x, raw,
+          pi: Math.PI, e: Math.E,
+          abs: Math.abs, round: roundFn, floor: Math.floor, ceil: Math.ceil,
+          sqrt: Math.sqrt, min: Math.min, max: Math.max, pow: Math.pow,
+          log: Math.log, ln: Math.log, log10: Math.log10, exp: Math.exp,
+          sin: Math.sin, cos: Math.cos, tan: Math.tan,
+          random: randomFn
+        };
+        let expr = formulaStr.replace(/\^/g, '**');
+        expr = expr.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, m => m.toLowerCase());
+        const paramNames = Object.keys(context);
+        const paramValues = Object.values(context);
+        const fn = new Function(...paramNames, `"use strict"; return (${expr});`);
+        const res = fn(...paramValues);
         if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
           return res;
         }
