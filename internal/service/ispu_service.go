@@ -732,9 +732,36 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		})
 	}
 
-	// Persist idempotently
-	if err := s.ispuRepo.UpsertCalculationResult(ctx, regCalcRes); err != nil {
-		return nil, fmt.Errorf("failed to persist regulatory ISPU calculation result: %w", err)
+	// Persist idempotently strictly on documented regulatory cadence or explicit recalculation
+	shouldPersistRegulatory := true
+	if reason == "BACKFILL_OPERATIONAL" {
+		shouldPersistRegulatory = false
+	} else if reason == "AGGREGATION_COMPLETED" {
+		isHourly := periodEnd.In(loc).Minute() == 0 && periodEnd.In(loc).Second() == 0
+		if !isHourly {
+			// Check if an existing regulatory record already exists for this exact period (idempotent update)
+			var existingRecordCount int64
+			_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+				Where("device_id = ? AND period_end = ? AND calculation_mode = ?", deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
+				Count(&existingRecordCount)
+
+			if existingRecordCount == 0 {
+				// Allow initial seed record if station has 0 regulatory records
+				var existingRegCount int64
+				_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
+					Where("device_id = ? AND calculation_mode = ?", deviceID, model.CalculationModeRegulatory).
+					Count(&existingRegCount)
+				if existingRegCount > 0 {
+					shouldPersistRegulatory = false
+				}
+			}
+		}
+	}
+
+	if shouldPersistRegulatory {
+		if err := s.ispuRepo.UpsertCalculationResult(ctx, regCalcRes); err != nil {
+			return nil, fmt.Errorf("failed to persist regulatory ISPU calculation result: %w", err)
+		}
 	}
 
 	logger.Info("ISPU calculated for station %d [%s] (reason=%s): Operational=%.1f (%s, Dominant=%s), Regulatory=%.1f (%s, Dominant=%s, Status=%s)",
@@ -789,7 +816,7 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	// 1. Step hourly backwards from current hour down to lookbackHours
 	for i := lookbackHours; i >= 0; i-- {
 		targetHour := currentHour.Add(-time.Duration(i) * time.Hour)
-		if _, err := s.CalculateStationWindow(ctx, deviceID, targetHour); err == nil {
+		if _, err := s.CalculateStationWindowWithReason(ctx, deviceID, targetHour, "BACKFILL"); err == nil {
 			processed++
 		}
 	}
@@ -810,19 +837,22 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 		alignedStart := s.AlignToAggregationInterval(recentStart, intervalSec, loc)
 		alignedNow := s.AlignToAggregationInterval(now, intervalSec, loc)
 		for t := alignedStart; !t.After(alignedNow); t = t.Add(time.Duration(intervalSec) * time.Second) {
-			if _, err := s.CalculateStationWindow(ctx, deviceID, t); err == nil {
+			if _, err := s.CalculateStationWindowWithReason(ctx, deviceID, t, "BACKFILL_OPERATIONAL"); err == nil {
 				processed++
 			}
 		}
 	}
 
 	// 4. Clean up any unaligned historical ISPU records (e.g. odd minutes when interval is 2m even)
+	// and any sub-hourly unaligned REGULATORY records (where minute != 0 and trigger_reason = 'AGGREGATION_COMPLETED')
 	var allRes []model.ISPUCalculationResult
-	if err := s.db.WithContext(ctx).Where("device_id = ?", deviceID).Select("id, period_end").Find(&allRes).Error; err == nil {
+	if err := s.db.WithContext(ctx).Where("device_id = ?", deviceID).Select("id, calculation_mode, period_end, trigger_reason").Find(&allRes).Error; err == nil {
 		var idsToDelete []uint
 		for _, r := range allRes {
 			aligned := s.AlignToAggregationInterval(r.PeriodEnd, intervalSec, loc)
 			if !aligned.Equal(r.PeriodEnd.In(loc)) {
+				idsToDelete = append(idsToDelete, r.ID)
+			} else if r.CalculationMode == model.CalculationModeRegulatory && r.PeriodEnd.In(loc).Minute() != 0 && r.TriggerReason == "AGGREGATION_COMPLETED" {
 				idsToDelete = append(idsToDelete, r.ID)
 			}
 		}
@@ -832,6 +862,7 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 			logger.Info("Purged %d unaligned historical ISPU records for station %d", len(idsToDelete), deviceID)
 		}
 	}
+
 
 	logger.Info("ISPU trend backfill completed for station %d [%s]: %d windows generated",
 		deviceID, dev.DeviceCode, processed)

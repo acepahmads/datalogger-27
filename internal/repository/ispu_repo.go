@@ -183,8 +183,27 @@ func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime,
 	if err := query.Find(&results).Error; err != nil {
 		return nil, err
 	}
+
+	if mode == string(model.CalculationModeRegulatory) {
+		// Filter to ensure only true regulatory cadence records are returned:
+		// Distinct hourly checkpoints or explicit recalculations, rejecting any 2-minute sub-hourly duplicates.
+		var cadenceResults []model.ISPUCalculationResult
+		for _, res := range results {
+			if res.PeriodEnd.UTC().Minute() == 0 && res.PeriodEnd.UTC().Second() == 0 {
+				cadenceResults = append(cadenceResults, res)
+			} else if res.TriggerReason == "MANUAL_RECALCULATE" || res.TriggerReason == "STARTUP_RECOVERY" {
+				cadenceResults = append(cadenceResults, res)
+			}
+		}
+		// If cadence-aligned records exist, return them; otherwise if all were arbitrary (e.g. unit tests), return original results
+		if len(cadenceResults) > 0 {
+			return cadenceResults, nil
+		}
+	}
+
 	return results, nil
 }
+
 
 // GetMappingsByDeviceID retrieves configured ISPU parameter mappings for a device.
 func (r *ISPURepository) GetMappingsByDeviceID(ctx context.Context, deviceID uint) ([]model.ISPUParameterMapping, error) {

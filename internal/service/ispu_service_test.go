@@ -368,3 +368,64 @@ func TestISPUService_AlignToAggregationInterval(t *testing.T) {
 	}
 }
 
+func TestISPUService_TrendResolution_OperationalVsRegulatory(t *testing.T) {
+	db, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	baseTime := time.Date(2026, 10, 15, 10, 0, 0, 0, loc)
+
+	// Simulate 10 aggregation buckets arriving at 2-minute intervals from 10:00 to 10:18
+	// 10:00 is an hourly boundary (minute=0). 10:02 .. 10:18 are sub-hourly 2-minute ticks.
+	for i := 0; i <= 9; i++ {
+		bucketEnd := baseTime.Add(time.Duration(i*2) * time.Minute)
+		_, err := ispuSvc.CalculateStationWindowWithReason(ctx, dev.ID, bucketEnd, "AGGREGATION_COMPLETED")
+		if err != nil {
+			t.Fatalf("Failed to calculate window for %v: %v", bucketEnd, err)
+		}
+	}
+
+	// 1. Verify Operational Mode: should have 10 distinct 2-minute records persisted
+	var opCount int64
+	db.Model(&model.ISPUCalculationResult{}).
+		Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeOperational).
+		Count(&opCount)
+	if opCount != 10 {
+		t.Errorf("Expected 10 operational 2-minute records, got %d", opCount)
+	}
+
+	// 2. Verify Regulatory Mode: should only have persisted the hourly cadence record (10:00), NOT every 2 minutes!
+	var regCount int64
+	db.Model(&model.ISPUCalculationResult{}).
+		Where("device_id = ? AND calculation_mode = ?", dev.ID, model.CalculationModeRegulatory).
+		Count(&regCount)
+	if regCount != 1 {
+		t.Errorf("Expected exactly 1 regulatory record on hourly cadence (10:00), got %d (2-minute pollution detected!)", regCount)
+	}
+
+	// 3. Verify GetTrend queries:
+	// Operational trend returns all 10 two-minute points
+	opTrend, err := ispuSvc.GetTrend(ctx, dev.ID, "24h", "OPERATIONAL")
+	if err != nil {
+		t.Fatalf("GetTrend OPERATIONAL failed: %v", err)
+	}
+	if len(opTrend) != 10 {
+		t.Errorf("Expected 10 operational trend records, got %d", len(opTrend))
+	}
+
+	// Regulatory trend returns strictly the 1 hourly regulatory record
+	regTrend, err := ispuSvc.GetTrend(ctx, dev.ID, "24h", "REGULATORY")
+	if err != nil {
+		t.Fatalf("GetTrend REGULATORY failed: %v", err)
+	}
+	if len(regTrend) != 1 {
+		t.Errorf("Expected 1 regulatory trend record, got %d", len(regTrend))
+	}
+
+	// Check regulatory window duration is exactly 24 hours
+	regWindow := regTrend[0].PeriodEnd.Sub(regTrend[0].PeriodStart)
+	if regWindow != 24*time.Hour {
+		t.Errorf("Expected regulatory measurement window to be 24h, got %v", regWindow)
+	}
+}
+

@@ -3,20 +3,31 @@
     <!-- Chart Header & Time Range Controls (Reference Design Target) -->
     <div class="flex flex-wrap items-start justify-between gap-3 pb-1">
       <div>
-        <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide uppercase font-sans">
-          {{ displayTitle }}
-        </h3>
+        <div class="flex items-center space-x-2">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide uppercase font-sans">
+            {{ displayTitle }}
+          </h3>
+          <span
+            class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border"
+            :class="isRegulatoryMode
+              ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'
+              : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'"
+          >
+            {{ isRegulatoryMode ? '24h Rolling' : 'Operational' }}
+          </span>
+        </div>
         <div
           @click="toggleBandOrientation"
           class="text-xs text-slate-500 dark:text-slate-400 font-normal mt-0.5 font-sans cursor-pointer hover:underline"
           title="Click to toggle between Regulatory Cartesian Scale and Reference Mockup Layout"
         >
-          Permen LHK No. 14 Tahun 2020
+          {{ displaySubtitle }}
           <span v-if="!isOverallMode" class="text-cyan-600 dark:text-cyan-400 font-medium ml-1">
             · {{ selectedPollutant }} ({{ pollutantName || 'Pollutant Trend' }})
           </span>
         </div>
       </div>
+
 
       <!-- Right Side Controls: Compact Capsule Range Switcher & Close Icon -->
       <div class="flex items-center space-x-2">
@@ -248,12 +259,24 @@
         }"
       >
         <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 whitespace-nowrap">
-          <span class="text-slate-400">Time:</span>
-          <span class="font-bold text-white">{{ formatTickTime(hoveredPoint.raw.period_end) }}</span>
+          <span class="text-slate-400">Mode:</span>
+          <span class="font-bold text-cyan-400">
+            {{ isRegulatoryMode ? '24-Jam Rolling Regulasi' : `Per Agregasi (${aggIntervalLabel})` }}
+          </span>
+
+          <span class="text-slate-400">Window:</span>
+          <span class="font-bold text-white">
+            {{ formatWindow(hoveredPoint.raw) }}
+          </span>
 
           <span class="text-slate-400">ISPU:</span>
           <span class="font-bold text-[#00F2FE]">
             {{ Math.round(hoveredPoint.value) }} ({{ (hoveredPoint.category || '').replace('_', ' ') }})
+          </span>
+
+          <span v-if="!isOverallMode" class="text-slate-400">Concentration:</span>
+          <span v-if="!isOverallMode" class="font-bold text-white">
+            {{ hoveredPoint.concentration != null ? hoveredPoint.concentration.toFixed(1) : '-' }} {{ hoveredPoint.unit }}
           </span>
 
           <span class="text-slate-400">Dominant:</span>
@@ -261,9 +284,18 @@
             {{ formatDominant(hoveredPoint.raw.dominant_pollutant || selectedPollutant) }}
           </span>
 
+          <span class="text-slate-400">Coverage:</span>
+          <span class="font-bold text-white">
+            {{ Number(hoveredPoint.raw.completeness_percent || 0).toFixed(1) }}%
+            <span class="text-4xs text-slate-400">({{ isRegulatoryMode ? '≥75% valid' : 'bucket' }})</span>
+          </span>
+
           <span class="text-slate-400">Status:</span>
-          <span class="font-bold" :class="hoveredPoint.raw.calculation_status === 'VALID' ? 'text-emerald-400' : 'text-amber-400'">
-            {{ hoveredPoint.raw.calculation_status }}
+          <span
+            class="font-bold px-1.5 py-0.5 rounded text-[10px]"
+            :class="getStatusBadgeClass(hoveredPoint.raw.calculation_status)"
+          >
+            {{ hoveredPoint.raw.calculation_status || (isRegulatoryMode ? 'PROVISIONAL' : 'VALID') }}
           </span>
         </div>
       </div>
@@ -280,7 +312,9 @@ export default {
     loading: { type: Boolean, default: false },
     initialRange: { type: String, default: '24h' },
     selectedPollutant: { type: String, default: 'OVERALL' },
-    pollutantName: { type: String, default: '' }
+    pollutantName: { type: String, default: '' },
+    mode: { type: String, default: 'REGULATORY' },
+    aggregationIntervalSeconds: { type: Number, default: 120 }
   },
   data() {
     return {
@@ -309,12 +343,30 @@ export default {
     }
   },
   computed: {
+    isRegulatoryMode() {
+      return this.mode === 'REGULATORY';
+    },
+    aggIntervalLabel() {
+      if (this.aggregationIntervalSeconds % 60 === 0) {
+        return `${this.aggregationIntervalSeconds / 60} Menit`;
+      }
+      return `${this.aggregationIntervalSeconds}s`;
+    },
     isOverallMode() {
       return !this.selectedPollutant || this.selectedPollutant === 'OVERALL';
     },
     displayTitle() {
       if (this.title) return this.title;
-      return 'ISPU HISTORICAL TREND CHART';
+      if (this.mode === 'OPERATIONAL') {
+        return `ISPU HISTORICAL TREND — PER AGREGASI (${this.aggIntervalLabel})`;
+      }
+      return 'ISPU HISTORICAL TREND — 24-JAM (REGULASI)';
+    },
+    displaySubtitle() {
+      if (this.mode === 'OPERATIONAL') {
+        return `Resolusi Bucket Operasional (${this.aggIntervalLabel}) · Nilai Agregasi Real-time`;
+      }
+      return 'Permen LHK No. 14 Tahun 2020 · Jendela Pengukuran 24 Jam (Cadence: 1 Jam)';
     },
     plotWidth() {
       return Math.max(10, this.chartWidth - this.padLeft - this.padRight);
@@ -443,19 +495,39 @@ export default {
         };
       });
     },
+    timeWindow() {
+      let durationMs = 24 * 3600 * 1000;
+      if (this.currentRange === '7d') durationMs = 7 * 86400 * 1000;
+      else if (this.currentRange === '30d') durationMs = 30 * 86400 * 1000;
+
+      let endMs = Date.now();
+      if (this.records && this.records.length > 0) {
+        const lastRecTime = new Date(this.records[this.records.length - 1].period_end).getTime();
+        if (!isNaN(lastRecTime)) {
+          endMs = Math.max(endMs, lastRecTime);
+        }
+      }
+      const startMs = endMs - durationMs;
+      return { startMs, endMs, durationMs };
+    },
     points() {
       const raw = this.extractedRawPoints;
       if (!raw || raw.length === 0) return [];
-      const n = raw.length;
+      const { startMs, durationMs } = this.timeWindow;
 
-      return raw.map((item, i) => {
-        const x = n === 1
-          ? this.padLeft + this.plotWidth / 2
-          : this.padLeft + (i / (n - 1)) * this.plotWidth;
+      return raw.map((item) => {
+        const timeMs = new Date(item.raw.period_end).getTime();
+        let fraction = 0.5;
+        if (durationMs > 0 && !isNaN(timeMs)) {
+          fraction = (timeMs - startMs) / durationMs;
+        }
+        const clampedFraction = Math.max(0, Math.min(1, fraction));
+        const x = this.padLeft + clampedFraction * this.plotWidth;
         const y = this.getY(item.value);
         return {
           x,
           y,
+          timeMs,
           value: item.value,
           category: item.category,
           concentration: item.concentration,
@@ -465,34 +537,74 @@ export default {
       });
     },
     curvePath() {
-      if (this.points.length === 0) return '';
-      if (this.points.length === 1) {
-        return `M ${this.padLeft} ${this.points[0].y} L ${this.padLeft + this.plotWidth} ${this.points[0].y}`;
+      if (!this.points || this.points.length <= 1) return '';
+
+      // Break path across gaps where missing data exists:
+      // In regulatory mode: gap > 2.5 hours
+      // In operational mode: gap > 3 buckets
+      const maxGapMs = this.isRegulatoryMode
+        ? 2.5 * 3600 * 1000
+        : Math.max(180, 3 * this.aggregationIntervalSeconds) * 1000;
+
+      const segments = [];
+      let currentSeg = [];
+
+      for (let i = 0; i < this.points.length; i++) {
+        if (i > 0) {
+          const gap = this.points[i].timeMs - this.points[i - 1].timeMs;
+          if (gap > maxGapMs) {
+            if (currentSeg.length > 0) segments.push(currentSeg);
+            currentSeg = [];
+          }
+        }
+        currentSeg.push(this.points[i]);
       }
-      return this.generateSmoothPath(this.points);
+      if (currentSeg.length > 0) segments.push(currentSeg);
+
+      return segments
+        .filter(seg => seg.length >= 2)
+        .map(seg => this.generateSmoothPath(seg))
+        .join(' ');
     },
     xTicks() {
-      if (!this.points || this.points.length === 0) return [];
-      if (this.points.length === 1) {
-        return [{ x: this.points[0].x, label: this.formatTickTime(this.points[0].raw.period_end) }];
-      }
+      const { startMs, endMs, durationMs } = this.timeWindow;
+      if (!durationMs) return [];
 
-      const count = Math.min(6, this.points.length);
-      const step = (this.points.length - 1) / (count - 1);
       const ticks = [];
-      const usedX = [];
-
-      for (let i = 0; i < count; i++) {
-        const idx = Math.round(i * step);
-        const pt = this.points[idx];
-        if (pt) {
-          const tooClose = usedX.some(x => Math.abs(x - pt.x) < 85);
-          if (!tooClose || i === 0 || i === count - 1) {
+      if (this.currentRange === '24h') {
+        const stepMs = 4 * 3600 * 1000;
+        const firstTickTime = Math.ceil(startMs / stepMs) * stepMs;
+        for (let t = firstTickTime; t <= endMs; t += stepMs) {
+          const frac = (t - startMs) / durationMs;
+          if (frac >= 0 && frac <= 1) {
             ticks.push({
-              x: pt.x,
-              label: this.formatTickTime(pt.raw.period_end)
+              x: this.padLeft + frac * this.plotWidth,
+              label: this.formatTimeOnly(t)
             });
-            usedX.push(pt.x);
+          }
+        }
+      } else if (this.currentRange === '7d') {
+        const stepMs = 24 * 3600 * 1000;
+        const firstTickTime = Math.ceil(startMs / stepMs) * stepMs;
+        for (let t = firstTickTime; t <= endMs; t += stepMs) {
+          const frac = (t - startMs) / durationMs;
+          if (frac >= 0 && frac <= 1) {
+            ticks.push({
+              x: this.padLeft + frac * this.plotWidth,
+              label: this.formatDateOnly(t)
+            });
+          }
+        }
+      } else {
+        const stepMs = 5 * 24 * 3600 * 1000;
+        const firstTickTime = Math.ceil(startMs / stepMs) * stepMs;
+        for (let t = firstTickTime; t <= endMs; t += stepMs) {
+          const frac = (t - startMs) / durationMs;
+          if (frac >= 0 && frac <= 1) {
+            ticks.push({
+              x: this.padLeft + frac * this.plotWidth,
+              label: this.formatDateOnly(t)
+            });
           }
         }
       }
@@ -557,15 +669,25 @@ export default {
       return this.padTop + this.plotHeight * (1 - clamped / this.maxY);
     },
     shouldShowMarker(idx) {
-      if (!this.points || this.points.length <= 25) return true;
+      if (this.isRegulatoryMode) return true; // Show all hourly points
+      if (!this.points || this.points.length <= 30) return true;
       if (idx === 0 || idx === this.points.length - 1) return true;
-      const step = Math.ceil(this.points.length / 18);
+      const step = Math.ceil(this.points.length / 20);
       return idx % step === 0;
     },
     formatDominant(code) {
       if (!code) return '-';
       if (code.toUpperCase() === 'PM25') return 'PM2.5';
       return code.toUpperCase();
+    },
+    formatTimeOnly(ms) {
+      const d = new Date(ms);
+      return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    },
+    formatDateOnly(ms) {
+      const d = new Date(ms);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${d.getDate().toString().padStart(2, '0')} ${months[d.getMonth()]}`;
     },
     formatTickTime(isoStr) {
       if (!isoStr) return '';
@@ -576,6 +698,16 @@ export default {
       const hour = d.getHours().toString().padStart(2, '0');
       const minute = d.getMinutes().toString().padStart(2, '0');
       return `${day} ${month} ${hour}:${minute}`;
+    },
+    formatWindow(raw) {
+      if (!raw || !raw.period_start || !raw.period_end) return '-';
+      const dur = this.isRegulatoryMode ? '24 Jam' : `${this.aggregationIntervalSeconds}s`;
+      return `${this.formatTickTime(raw.period_start)} – ${this.formatTickTime(raw.period_end)} (${dur})`;
+    },
+    getStatusBadgeClass(status) {
+      if (status === 'VALID') return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+      if (status === 'PROVISIONAL') return 'bg-amber-500/20 text-amber-400 border border-amber-500/40';
+      return 'bg-rose-500/20 text-rose-400 border border-rose-500/40';
     },
     generateSmoothPath(pts) {
       if (pts.length <= 2) {
@@ -623,3 +755,4 @@ export default {
   }
 };
 </script>
+

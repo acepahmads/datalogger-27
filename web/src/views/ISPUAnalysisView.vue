@@ -244,9 +244,11 @@
             :initial-range="trendRange"
             :selected-pollutant="selectedPollutant"
             :pollutant-name="selectedPollutantInfo?.name"
-            title="ISPU HISTORICAL TREND CHART"
+            :mode="ispuMode"
+            :aggregation-interval-seconds="latestData?.aggregation_interval_seconds || 120"
             @range-change="handleRangeChange"
           />
+
         </div>
       </div>
 
