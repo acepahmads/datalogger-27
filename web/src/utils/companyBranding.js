@@ -1,7 +1,8 @@
 /**
- * Company Branding & Logo Persistence Utility
+ * Company Branding & Organization Persistence Utility
  * 
- * Provides robust client-side persistence for company logo & name using IndexedDB.
+ * Provides robust client-side persistence for both Customer (Client) and Maker (Vendor)
+ * branding using IndexedDB for image blobs and localStorage for lightweight metadata.
  * Ensures large images are NOT stored as base64 in localStorage (preventing quota exhaustion).
  * Performs client-side image validation and downscaling to compact high-DPI dimensions.
  */
@@ -9,21 +10,37 @@
 const DB_NAME = 'datalogger_storage';
 const DB_VERSION = 1;
 const STORE_NAME = 'branding';
-const LOGO_KEY = 'company_logo';
+const CUSTOMER_LOGO_KEY = 'customer_logo';
+const MAKER_LOGO_KEY = 'maker_logo';
+const LEGACY_LOGO_KEY = 'company_logo';
 const METADATA_KEY = 'datalogger.company_branding_meta';
+const ORGANIZATION_BRANDING_KEY = 'datalogger.organization_branding';
 
 // Max dimensions for compact header logo (preserving aspect ratio)
 const MAX_LOGO_WIDTH = 256;
 const MAX_LOGO_HEIGHT = 96;
 const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1 MB limit before compression
 
+export const DEFAULT_BRANDING = {
+  customer: {
+    name: 'PT. Mitra Industri Enviro',
+    subtitle: 'Local Autonomous Edge',
+    hasLogo: false
+  },
+  maker: {
+    name: 'PT. Centra Biotech Indonesia',
+    subtitle: 'CBI Industrial IoT',
+    hasLogo: false
+  }
+};
+
 /**
  * Open or initialize the IndexedDB database
  */
 function openDB() {
   return new Promise((resolve, reject) => {
-    if (!window.indexedDB) {
-      reject(new Error('IndexedDB is not supported in this browser.'));
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      reject(new Error('IndexedDB is not supported in this environment.'));
       return;
     }
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
@@ -91,142 +108,348 @@ function optimizeImage(file) {
 }
 
 /**
- * Save company logo to IndexedDB and update lightweight metadata
+ * Read blob from IndexedDB for a given key
  */
-export async function saveCompanyLogo(file, companyName = '') {
-  if (!file) throw new Error('No file provided.');
-
-  const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
-  if (!allowedTypes.includes(file.type)) {
-    throw new Error('Unsupported format. Please upload PNG, JPG, SVG, or WebP.');
+async function getBlobFromDB(key) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn(`Could not read ${key} from IndexedDB:`, e);
+    return null;
   }
+}
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error('File size exceeds 1 MB limit.');
-  }
-
-  const { blob, dataUrl, width, height } = await optimizeImage(file);
+/**
+ * Save blob into IndexedDB for a given key
+ */
+async function putBlobIntoDB(key, blob) {
   const db = await openDB();
-
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const req = store.put(blob, LOGO_KEY);
+    const req = store.put(blob, key);
     req.onsuccess = resolve;
     req.onerror = () => reject(req.error);
   });
-
-  const metadata = {
-    hasLogo: true,
-    companyName: companyName.trim() || 'CBI Industrial',
-    fileName: file.name,
-    mimeType: file.type,
-    width,
-    height,
-    updatedAt: new Date().toISOString()
-  };
-
-  try {
-    localStorage.setItem(METADATA_KEY, JSON.stringify(metadata));
-  } catch (e) {
-    console.warn('Could not save metadata to localStorage', e);
-  }
-
-  return { dataUrl, metadata };
 }
 
 /**
- * Load company logo from IndexedDB
+ * Delete blob from IndexedDB for a given key
  */
-export async function loadCompanyLogo() {
-  try {
-    const rawMeta = localStorage.getItem(METADATA_KEY);
-    const metadata = rawMeta ? JSON.parse(rawMeta) : { hasLogo: false, companyName: 'CBI Industrial' };
-
-    const db = await openDB();
-    const blob = await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(LOGO_KEY);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-
-    if (!blob) {
-      return { dataUrl: null, metadata: { ...metadata, hasLogo: false } };
-    }
-
-    const dataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-
-    return { dataUrl, metadata };
-  } catch (err) {
-    console.warn('Error loading company logo from IndexedDB:', err);
-    return { dataUrl: null, metadata: { hasLogo: false, companyName: 'CBI Industrial' } };
-  }
-}
-
-/**
- * Remove company logo from IndexedDB
- */
-export async function removeCompanyLogo() {
+async function deleteBlobFromDB(key) {
   try {
     const db = await openDB();
-    await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.delete(LOGO_KEY);
+      const req = store.delete(key);
       req.onsuccess = resolve;
       req.onerror = () => reject(req.error);
     });
-  } catch (err) {
-    console.warn('Could not delete logo from IndexedDB:', err);
+  } catch (e) {
+    console.warn(`Could not delete ${key} from IndexedDB:`, e);
+  }
+}
+
+/**
+ * Helper to convert Blob to dataUrl
+ */
+function blobToDataUrl(blob) {
+  return new Promise((resolve) => {
+    if (!blob) return resolve(null);
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Read current organization metadata from localStorage with fallback defaults
+ */
+export function getOrganizationBrandingMeta() {
+  try {
+    if (typeof localStorage === 'undefined') return JSON.parse(JSON.stringify(DEFAULT_BRANDING));
+    const raw = localStorage.getItem(ORGANIZATION_BRANDING_KEY);
+    if (!raw) {
+      // Check legacy single company metadata
+      const legacyRaw = localStorage.getItem(METADATA_KEY);
+      if (legacyRaw) {
+        const legacy = JSON.parse(legacyRaw);
+        return {
+          customer: { ...DEFAULT_BRANDING.customer },
+          maker: {
+            name: legacy.companyName || DEFAULT_BRANDING.maker.name,
+            subtitle: DEFAULT_BRANDING.maker.subtitle,
+            hasLogo: !!legacy.hasLogo
+          }
+        };
+      }
+      return JSON.parse(JSON.stringify(DEFAULT_BRANDING));
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      customer: {
+        name: (parsed.customer && parsed.customer.name) || DEFAULT_BRANDING.customer.name,
+        subtitle: (parsed.customer && parsed.customer.subtitle) || DEFAULT_BRANDING.customer.subtitle,
+        hasLogo: !!(parsed.customer && parsed.customer.hasLogo)
+      },
+      maker: {
+        name: (parsed.maker && parsed.maker.name) || DEFAULT_BRANDING.maker.name,
+        subtitle: (parsed.maker && parsed.maker.subtitle) || DEFAULT_BRANDING.maker.subtitle,
+        hasLogo: !!(parsed.maker && parsed.maker.hasLogo)
+      }
+    };
+  } catch (e) {
+    return JSON.parse(JSON.stringify(DEFAULT_BRANDING));
+  }
+}
+
+/**
+ * Notify all components of branding change
+ */
+function notifyBrandingChanged() {
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('organization-branding-updated', {
+        detail: getOrganizationBrandingMeta()
+      }));
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
+/**
+ * Load complete organization branding (Customer + Maker) including logo data URLs
+ */
+export async function loadOrganizationBranding() {
+  const meta = getOrganizationBrandingMeta();
+
+  // Load customer logo
+  let customerBlob = await getBlobFromDB(CUSTOMER_LOGO_KEY);
+  let customerLogoUrl = await blobToDataUrl(customerBlob);
+
+  // Load maker logo (with fallback to legacy key)
+  let makerBlob = await getBlobFromDB(MAKER_LOGO_KEY);
+  if (!makerBlob) {
+    makerBlob = await getBlobFromDB(LEGACY_LOGO_KEY);
+  }
+  let makerLogoUrl = await blobToDataUrl(makerBlob);
+
+  return {
+    customer: {
+      name: meta.customer.name,
+      subtitle: meta.customer.subtitle,
+      hasLogo: !!customerLogoUrl,
+      logoUrl: customerLogoUrl
+    },
+    maker: {
+      name: meta.maker.name,
+      subtitle: meta.maker.subtitle,
+      hasLogo: !!makerLogoUrl,
+      logoUrl: makerLogoUrl
+    }
+  };
+}
+
+/**
+ * Save Customer Logo & Name
+ */
+export async function saveCustomerBranding({ file = null, name = '', subtitle = '' }) {
+  const meta = getOrganizationBrandingMeta();
+  let logoUrl = null;
+
+  if (file) {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Unsupported format. Please upload PNG, JPG, SVG, or WebP.');
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error('File size exceeds 1 MB limit.');
+    }
+    const optimized = await optimizeImage(file);
+    await putBlobIntoDB(CUSTOMER_LOGO_KEY, optimized.blob);
+    logoUrl = optimized.dataUrl;
+    meta.customer.hasLogo = true;
   }
 
+  if (name.trim()) meta.customer.name = name.trim();
+  if (subtitle.trim()) meta.customer.subtitle = subtitle.trim();
+  meta.customer.updatedAt = new Date().toISOString();
+
   try {
-    const rawMeta = localStorage.getItem(METADATA_KEY);
-    const prev = rawMeta ? JSON.parse(rawMeta) : {};
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+  } catch (e) {
+    console.warn('Could not save organization branding to localStorage', e);
+  }
+
+  notifyBrandingChanged();
+  return { customer: meta.customer, logoUrl };
+}
+
+/**
+ * Remove Customer Logo
+ */
+export async function removeCustomerLogo() {
+  await deleteBlobFromDB(CUSTOMER_LOGO_KEY);
+  const meta = getOrganizationBrandingMeta();
+  meta.customer.hasLogo = false;
+  meta.customer.updatedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+  } catch (e) {
+    // ignore
+  }
+  notifyBrandingChanged();
+}
+
+/**
+ * Save Maker Logo & Name
+ */
+export async function saveMakerBranding({ file = null, name = '', subtitle = '' }) {
+  const meta = getOrganizationBrandingMeta();
+  let logoUrl = null;
+
+  if (file) {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Unsupported format. Please upload PNG, JPG, SVG, or WebP.');
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error('File size exceeds 1 MB limit.');
+    }
+    const optimized = await optimizeImage(file);
+    await putBlobIntoDB(MAKER_LOGO_KEY, optimized.blob);
+    logoUrl = optimized.dataUrl;
+    meta.maker.hasLogo = true;
+  }
+
+  if (name.trim()) meta.maker.name = name.trim();
+  if (subtitle.trim()) meta.maker.subtitle = subtitle.trim();
+  meta.maker.updatedAt = new Date().toISOString();
+
+  try {
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+    // Also sync legacy company name for any existing dependencies
     localStorage.setItem(METADATA_KEY, JSON.stringify({
-      ...prev,
+      hasLogo: meta.maker.hasLogo,
+      companyName: meta.maker.name,
+      updatedAt: meta.maker.updatedAt
+    }));
+  } catch (e) {
+    console.warn('Could not save organization branding to localStorage', e);
+  }
+
+  notifyBrandingChanged();
+  return { maker: meta.maker, logoUrl };
+}
+
+/**
+ * Remove Maker Logo
+ */
+export async function removeMakerLogo() {
+  await deleteBlobFromDB(MAKER_LOGO_KEY);
+  await deleteBlobFromDB(LEGACY_LOGO_KEY);
+  const meta = getOrganizationBrandingMeta();
+  meta.maker.hasLogo = false;
+  meta.maker.updatedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+    localStorage.setItem(METADATA_KEY, JSON.stringify({
       hasLogo: false,
-      updatedAt: new Date().toISOString()
+      companyName: meta.maker.name,
+      updatedAt: meta.maker.updatedAt
     }));
   } catch (e) {
     // ignore
   }
+  notifyBrandingChanged();
 }
 
 /**
- * Update company name in metadata
+ * Save All Organization Text Branding (Both Customer & Maker)
  */
+export function saveOrganizationTextBranding({ customerName, customerSubtitle, makerName, makerSubtitle }) {
+  const meta = getOrganizationBrandingMeta();
+  if (customerName != null) meta.customer.name = customerName.trim() || DEFAULT_BRANDING.customer.name;
+  if (customerSubtitle != null) meta.customer.subtitle = customerSubtitle.trim() || DEFAULT_BRANDING.customer.subtitle;
+  if (makerName != null) meta.maker.name = makerName.trim() || DEFAULT_BRANDING.maker.name;
+  if (makerSubtitle != null) meta.maker.subtitle = makerSubtitle.trim() || DEFAULT_BRANDING.maker.subtitle;
+  meta.updatedAt = new Date().toISOString();
+
+  try {
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+    localStorage.setItem(METADATA_KEY, JSON.stringify({
+      hasLogo: meta.maker.hasLogo,
+      companyName: meta.maker.name,
+      updatedAt: meta.updatedAt
+    }));
+  } catch (e) {
+    console.warn('Could not save organization branding to localStorage', e);
+  }
+
+  notifyBrandingChanged();
+  return meta;
+}
+
+/**
+ * Reset Organization Branding to Default
+ */
+export async function resetOrganizationBranding() {
+  await deleteBlobFromDB(CUSTOMER_LOGO_KEY);
+  await deleteBlobFromDB(MAKER_LOGO_KEY);
+  await deleteBlobFromDB(LEGACY_LOGO_KEY);
+  try {
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(DEFAULT_BRANDING));
+    localStorage.removeItem(METADATA_KEY);
+  } catch (e) {
+    // ignore
+  }
+  notifyBrandingChanged();
+  return JSON.parse(JSON.stringify(DEFAULT_BRANDING));
+}
+
+// ---------------------------------------------------------------------------
+// BACKWARDS-COMPATIBILITY EXPORTS
+// ---------------------------------------------------------------------------
+
+export async function saveCompanyLogo(file, companyName = '') {
+  const res = await saveMakerBranding({ file, name: companyName });
+  return { dataUrl: res.logoUrl, metadata: { ...res.maker, companyName: res.maker.name } };
+}
+
+export async function loadCompanyLogo() {
+  const branding = await loadOrganizationBranding();
+  return {
+    dataUrl: branding.maker.logoUrl,
+    metadata: {
+      hasLogo: branding.maker.hasLogo,
+      companyName: branding.maker.name
+    }
+  };
+}
+
+export async function removeCompanyLogo() {
+  return removeMakerLogo();
+}
+
 export function updateCompanyName(companyName) {
-  try {
-    const rawMeta = localStorage.getItem(METADATA_KEY);
-    const prev = rawMeta ? JSON.parse(rawMeta) : { hasLogo: false };
-    const updated = {
-      ...prev,
-      companyName: companyName.trim() || 'CBI Industrial',
-      updatedAt: new Date().toISOString()
-    };
-    localStorage.setItem(METADATA_KEY, JSON.stringify(updated));
-    return updated;
-  } catch (e) {
-    return { companyName };
-  }
+  const meta = saveOrganizationTextBranding({ makerName: companyName });
+  return { companyName: meta.maker.name };
 }
 
-/**
- * Get current company branding metadata synchronously
- */
 export function getCompanyBrandingMeta() {
-  try {
-    const rawMeta = localStorage.getItem(METADATA_KEY);
-    return rawMeta ? JSON.parse(rawMeta) : { hasLogo: false, companyName: 'CBI Industrial' };
-  } catch (e) {
-    return { hasLogo: false, companyName: 'CBI Industrial' };
-  }
+  const meta = getOrganizationBrandingMeta();
+  return {
+    hasLogo: meta.maker.hasLogo,
+    companyName: meta.maker.name
+  };
 }

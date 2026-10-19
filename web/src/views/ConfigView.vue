@@ -33,6 +33,13 @@
             <span>🌍</span>
             <span>{{ $t('config.tabDomain') || 'Monitoring Domain' }}</span>
           </button>
+          <button @click="activeTab = 'branding'"
+                  id="tab-btn-branding"
+                  class="px-3 py-1.5 rounded-md transition-colors flex items-center space-x-1.5"
+                  :class="activeTab === 'branding' ? 'bg-cyan-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+            <span>🏢</span>
+            <span>{{ $t('config.tabBranding') || 'Organization & Branding' }}</span>
+          </button>
           <button @click="activeTab = 'database'"
                   class="px-3 py-1.5 rounded-md transition-colors"
                   :class="activeTab === 'database' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
@@ -250,6 +257,254 @@
               <span>Switch to CUSTOM</span>
               <span>→</span>
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Organization & Branding Setup (#Admin Customer & Maker Branding) -->
+    <div v-else-if="activeTab === 'branding'" class="space-y-5 max-w-5xl font-sans">
+      <!-- Overview Card -->
+      <div class="saas-card p-5 space-y-4 bg-gradient-to-br from-[#111827] to-[#131E35] border border-cyan-500/30">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div class="flex items-center space-x-3">
+            <span class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-lg">
+              🏢
+            </span>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h2 class="text-sm font-bold text-white tracking-tight">{{ $t('config.branding.title') || 'Organization & Branding Configuration' }}</h2>
+                <span class="text-3xs font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  SYSTEM ADMIN SETUP
+                </span>
+              </div>
+              <p class="text-2xs text-slate-400 mt-0.5">
+                {{ $t('config.branding.subtitle') || 'Customize customer client identity (left header) and maker developer branding (right header)' }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button
+              type="button"
+              @click="resetBrandingToDefault"
+              class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+            >
+              {{ $t('config.branding.resetButton') || 'Reset to Default' }}
+            </button>
+            <button
+              type="button"
+              @click="saveBrandingConfig"
+              :disabled="brandingSaving"
+              class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 text-xs font-bold transition shadow-sm disabled:opacity-50"
+            >
+              {{ brandingSaving ? 'Saving...' : ($t('config.branding.saveButton') || 'Save All Branding') }}
+            </button>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Nama dan icon perusahaan customer ditampilkan di sebelah kiri header Operator Dashboard, sedangkan nama dan icon perusahaan pembuat (vendor) ditampilkan di sebelah kanan. Pengaturan ini tersimpan di sistem lokal dan langsung tersinkronisasi ke seluruh dashboard operator.
+        </p>
+
+        <!-- Feedback Alert -->
+        <div v-if="brandingSuccessMsg" class="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center space-x-2">
+          <span>✓</span>
+          <span>{{ brandingSuccessMsg }}</span>
+        </div>
+        <div v-if="brandingErrorMsg" class="p-3 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-mono flex items-center space-x-2">
+          <span>⚠️</span>
+          <span>{{ brandingErrorMsg }}</span>
+        </div>
+      </div>
+
+      <!-- Live Dashboard Header Preview -->
+      <div class="p-4 rounded-xl border border-slate-800 bg-[#0B1422] space-y-2">
+        <div class="flex items-center justify-between text-2xs font-mono text-slate-400 uppercase tracking-wider">
+          <span>{{ $t('config.branding.preview') || 'Live Operator Header Preview' }}</span>
+          <span class="text-cyan-400">Scale: 100%</span>
+        </div>
+        <div class="p-2.5 rounded-lg border border-[#20354B] bg-[#0E1726] flex items-center justify-between gap-2 select-none">
+          <!-- Customer Side (Left) -->
+          <div class="flex items-center space-x-2 min-w-0">
+            <div class="h-7 px-1.5 rounded border border-[#20354B] bg-[#101B2B] flex items-center justify-center shrink-0">
+              <img v-if="customerLogoPreview" :src="customerLogoPreview" class="h-5 max-w-[80px] object-contain rounded-xs" alt="Customer Logo" />
+              <div v-else class="w-5 h-5 rounded bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-3xs font-bold">
+                🌿
+              </div>
+            </div>
+            <div class="leading-none">
+              <div class="text-[11px] font-bold text-white font-mono flex items-center gap-1">
+                <span>{{ branding.customer.name || 'PT. Mitra Industri Enviro' }}</span>
+                <span class="px-1 py-0.2 rounded text-[7.5px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">SCADA</span>
+              </div>
+              <div class="text-[9px] text-slate-400 font-mono mt-0.5">
+                Station: cbi · {{ branding.customer.subtitle || 'Local Autonomous Edge' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Centered Clock -->
+          <div class="px-2.5 py-1 rounded bg-[#101B2B] border border-[#20354B] text-[9.5px] font-mono font-bold text-slate-300">
+            🕒 12:00:00
+          </div>
+
+          <!-- Maker Side (Right) -->
+          <div class="flex items-center space-x-2 shrink-0 text-right">
+            <div class="leading-none hidden sm:block">
+              <div class="text-[10px] font-bold text-white font-mono uppercase tracking-tight">
+                {{ branding.maker.name || 'PT. Centra Biotech Indonesia' }}
+              </div>
+              <div class="text-[8px] text-slate-400 font-mono mt-0.5">
+                {{ branding.maker.subtitle || 'CBI Industrial IoT' }}
+              </div>
+            </div>
+            <div class="h-7 px-1.5 rounded border border-[#20354B] bg-[#101B2B] flex items-center justify-center shrink-0">
+              <img v-if="makerLogoPreview" :src="makerLogoPreview" class="h-5 max-w-[80px] object-contain rounded-xs" alt="Maker Logo" />
+              <div v-else class="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-3xs font-bold">
+                ⚡
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two Setup Columns: Customer (Left) vs Maker (Right) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 1. Customer Organization (Left Header) -->
+        <div class="p-5 rounded-xl border border-slate-800 bg-[#111827] space-y-4">
+          <div class="flex items-center space-x-2.5 border-b border-slate-800 pb-3">
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-bold">
+              🏢
+            </div>
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-white">
+                {{ $t('config.branding.customerSection') || 'Perusahaan Customer (Header Kiri)' }}
+              </h3>
+              <p class="text-3xs text-slate-400">Identitas klien / pemilik fasilitas pemantauan</p>
+            </div>
+          </div>
+
+          <!-- Customer Company Name -->
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('config.branding.customerName') || 'Nama Perusahaan Customer' }}
+            </label>
+            <input
+              v-model="branding.customer.name"
+              type="text"
+              class="w-full px-3 py-2 rounded-lg bg-[#0B1422] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              placeholder="e.g. PT. Mitra Industri Enviro"
+            />
+          </div>
+
+          <!-- Customer Subtitle / Site -->
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('config.branding.customerSubtitle') || 'Lokasi / Subtitle Customer' }}
+            </label>
+            <input
+              v-model="branding.customer.subtitle"
+              type="text"
+              class="w-full px-3 py-2 rounded-lg bg-[#0B1422] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              placeholder="e.g. Local Autonomous Edge"
+            />
+          </div>
+
+          <!-- Customer Logo Upload & Preview -->
+          <div class="space-y-2">
+            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+              Logo Perusahaan Customer
+            </label>
+            <div class="flex items-center space-x-3">
+              <div class="w-24 h-14 rounded-lg bg-[#0B1422] border border-slate-700 flex items-center justify-center p-1 overflow-hidden">
+                <img v-if="customerLogoPreview" :src="customerLogoPreview" class="max-h-full max-w-full object-contain" alt="Customer Logo Preview" />
+                <span v-else class="text-4xs text-slate-500 font-mono text-center">No Logo (Default Icon)</span>
+              </div>
+              <div class="flex flex-col space-y-1.5 flex-1">
+                <label class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-3xs font-mono font-bold cursor-pointer transition text-center flex items-center justify-center space-x-1">
+                  <span>📁</span>
+                  <span>{{ customerLogoPreview ? 'Ganti Logo...' : 'Upload Logo...' }}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" @change="handleCustomerLogoUpload" />
+                </label>
+                <button
+                  v-if="customerLogoPreview"
+                  type="button"
+                  @click="deleteCustomerLogo"
+                  class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-4xs font-mono transition text-center"
+                >
+                  Hapus Logo (Gunakan Icon)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Maker Company (Right Header) -->
+        <div class="p-5 rounded-xl border border-slate-800 bg-[#111827] space-y-4">
+          <div class="flex items-center space-x-2.5 border-b border-slate-800 pb-3">
+            <div class="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center text-sm font-bold">
+              ⚙️
+            </div>
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-white">
+                {{ $t('config.branding.makerSection') || 'Perusahaan Pembuat (Header Kanan)' }}
+              </h3>
+              <p class="text-3xs text-slate-400">Identitas pengembang sistem & vendor perangkat keras</p>
+            </div>
+          </div>
+
+          <!-- Maker Company Name -->
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('config.branding.makerName') || 'Nama Perusahaan Pembuat' }}
+            </label>
+            <input
+              v-model="branding.maker.name"
+              type="text"
+              class="w-full px-3 py-2 rounded-lg bg-[#0B1422] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              placeholder="e.g. PT. Centra Biotech Indonesia"
+            />
+          </div>
+
+          <!-- Maker Subtitle / Tagline -->
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+              {{ $t('config.branding.makerSubtitle') || 'Tagline / Subtitle Pembuat' }}
+            </label>
+            <input
+              v-model="branding.maker.subtitle"
+              type="text"
+              class="w-full px-3 py-2 rounded-lg bg-[#0B1422] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              placeholder="e.g. CBI Industrial IoT"
+            />
+          </div>
+
+          <!-- Maker Logo Upload & Preview -->
+          <div class="space-y-2">
+            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+              Logo Perusahaan Pembuat
+            </label>
+            <div class="flex items-center space-x-3">
+              <div class="w-24 h-14 rounded-lg bg-[#0B1422] border border-slate-700 flex items-center justify-center p-1 overflow-hidden">
+                <img v-if="makerLogoPreview" :src="makerLogoPreview" class="max-h-full max-w-full object-contain" alt="Maker Logo Preview" />
+                <span v-else class="text-4xs text-slate-500 font-mono text-center">No Logo (Default Icon)</span>
+              </div>
+              <div class="flex flex-col space-y-1.5 flex-1">
+                <label class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-3xs font-mono font-bold cursor-pointer transition text-center flex items-center justify-center space-x-1">
+                  <span>📁</span>
+                  <span>{{ makerLogoPreview ? 'Ganti Logo...' : 'Upload Logo...' }}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" @change="handleMakerLogoUpload" />
+                </label>
+                <button
+                  v-if="makerLogoPreview"
+                  type="button"
+                  @click="deleteMakerLogo"
+                  class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-4xs font-mono transition text-center"
+                >
+                  Hapus Logo (Gunakan Icon)
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -787,12 +1042,31 @@
 
 <script>
 import axios from 'axios';
+import {
+  loadOrganizationBranding,
+  saveCustomerBranding,
+  removeCustomerLogo,
+  saveMakerBranding,
+  removeMakerLogo,
+  resetOrganizationBranding
+} from '../utils/companyBranding';
 
 export default {
   name: 'ConfigView',
   data() {
     return {
       activeTab: 'domain',
+      branding: {
+        customer: { name: '', subtitle: '', logoUrl: null },
+        maker: { name: '', subtitle: '', logoUrl: null }
+      },
+      customerLogoFile: null,
+      customerLogoPreview: null,
+      makerLogoFile: null,
+      makerLogoPreview: null,
+      brandingSaving: false,
+      brandingSuccessMsg: '',
+      brandingErrorMsg: '',
       testing: false,
       saving: false,
       testResult: null,
@@ -850,10 +1124,85 @@ export default {
     },
   },
   mounted() {
+    if (this.$route.query && this.$route.query.tab) {
+      this.activeTab = this.$route.query.tab;
+    }
     this.fetchDbStatus();
     this.fetchConfig();
+    this.loadBrandingConfig();
   },
   methods: {
+    async loadBrandingConfig() {
+      try {
+        const data = await loadOrganizationBranding();
+        this.branding = data;
+        this.customerLogoPreview = data.customer.logoUrl;
+        this.makerLogoPreview = data.maker.logoUrl;
+      } catch (e) {
+        console.warn('Could not load branding:', e);
+      }
+    },
+    handleCustomerLogoUpload(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      this.customerLogoFile = file;
+      this.customerLogoPreview = URL.createObjectURL(file);
+    },
+    async deleteCustomerLogo() {
+      await removeCustomerLogo();
+      this.customerLogoFile = null;
+      this.customerLogoPreview = null;
+      this.branding.customer.logoUrl = null;
+      this.branding.customer.hasLogo = false;
+    },
+    handleMakerLogoUpload(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      this.makerLogoFile = file;
+      this.makerLogoPreview = URL.createObjectURL(file);
+    },
+    async deleteMakerLogo() {
+      await removeMakerLogo();
+      this.makerLogoFile = null;
+      this.makerLogoPreview = null;
+      this.branding.maker.logoUrl = null;
+      this.branding.maker.hasLogo = false;
+    },
+    async saveBrandingConfig() {
+      this.brandingSaving = true;
+      this.brandingSuccessMsg = '';
+      this.brandingErrorMsg = '';
+      try {
+        await saveCustomerBranding({
+          file: this.customerLogoFile,
+          name: this.branding.customer.name,
+          subtitle: this.branding.customer.subtitle
+        });
+        await saveMakerBranding({
+          file: this.makerLogoFile,
+          name: this.branding.maker.name,
+          subtitle: this.branding.maker.subtitle
+        });
+        this.customerLogoFile = null;
+        this.makerLogoFile = null;
+        await this.loadBrandingConfig();
+        this.brandingSuccessMsg = 'Organization & Branding updated successfully!';
+        setTimeout(() => { this.brandingSuccessMsg = ''; }, 4000);
+      } catch (err) {
+        this.brandingErrorMsg = err.message || 'Failed to save branding.';
+      } finally {
+        this.brandingSaving = false;
+      }
+    },
+    async resetBrandingToDefault() {
+      if (!confirm('Reset company branding to standard defaults?')) return;
+      await resetOrganizationBranding();
+      this.customerLogoFile = null;
+      this.makerLogoFile = null;
+      await this.loadBrandingConfig();
+      this.brandingSuccessMsg = 'Branding reset to default.';
+      setTimeout(() => { this.brandingSuccessMsg = ''; }, 4000);
+    },
     openSetupWizard() {
       this.wizardStep = 1;
       this.wizardDomain = this.form.monitoring_domain || 'AQMS';

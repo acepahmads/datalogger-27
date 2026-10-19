@@ -2053,7 +2053,25 @@ export default {
       "stationLocation": "Deployment Location / Site",
       "organization": "Operating Organization",
       "completeButton": "Complete Setup & Launch"
-    }
+    },
+    "tabBranding": "Organization & Branding",
+    "branding": {
+      "title": "Organization & Branding Configuration",
+      "subtitle": "Customize customer client identity (left header) and maker developer branding (right header)",
+      "customerSection": "Customer Organization (Left Header)",
+      "makerSection": "System Maker & Vendor (Right Header)",
+      "customerName": "Customer Company Name",
+      "customerSubtitle": "Customer Site / Subtitle",
+      "makerName": "Maker Company Name",
+      "makerSubtitle": "Maker Tagline / Subtitle",
+      "uploadLogo": "Upload Logo",
+      "removeLogo": "Remove Logo",
+      "preview": "Header Live Preview",
+      "saveButton": "Save Organization Branding",
+      "resetButton": "Reset to Default"
+    },
+    "customerCompany": "Customer Organization",
+    "makerCompany": "System Maker & Developer"
   }
 };
 

@@ -2053,7 +2053,25 @@ export default {
       "stationLocation": "Lokasi Pemasangan / Site",
       "organization": "Organisasi Pengelola",
       "completeButton": "Selesaikan Pengaturan & Luncurkan"
-    }
+    },
+    "tabBranding": "Organisasi & Branding",
+    "branding": {
+      "title": "Konfigurasi Organisasi & Branding",
+      "subtitle": "Kustomisasi identitas perusahaan customer (header kiri) dan identitas perusahaan pembuat (header kanan)",
+      "customerSection": "Perusahaan Customer (Header Kiri)",
+      "makerSection": "Perusahaan Pembuat / Vendor (Header Kanan)",
+      "customerName": "Nama Perusahaan Customer",
+      "customerSubtitle": "Lokasi / Subtitle Customer",
+      "makerName": "Nama Perusahaan Pembuat",
+      "makerSubtitle": "Tagline / Subtitle Pembuat",
+      "uploadLogo": "Unggah Logo",
+      "removeLogo": "Hapus Logo",
+      "preview": "Pratinjau Header",
+      "saveButton": "Simpan Pengaturan Branding",
+      "resetButton": "Kembalikan ke Default"
+    },
+    "customerCompany": "Perusahaan Customer",
+    "makerCompany": "Perusahaan Pembuat & Pengembang"
   }
 };
 

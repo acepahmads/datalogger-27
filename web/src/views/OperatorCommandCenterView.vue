@@ -11,30 +11,48 @@
     <!-- 6. Device & Parameter Monitoring Toolbar & Categories    -->
     <!-- ======================================================== -->
     <div class="scada-unified-header-card rounded-lg border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0B1422] p-2 sm:p-2.5 mb-1.5 shadow-xs transition-colors flex flex-col space-y-1.5 select-none relative z-30">
-      <!-- 1. Row 1 — Main Header (Identity, Centered Clock, Company Logo & Controls) -->
-      <div class="relative flex items-center justify-between gap-1.5 leading-none w-full min-h-[32px]">
-        <!-- Area 1 (Left): Station & Console Title (App Icon, Operator Command Center, Station Info) -->
+      <!-- 1. Row 1 — Main Header: Customer Branding (Left), Centered Clock (Center), Maker Branding (Right) -->
+      <div class="relative flex items-center justify-between gap-1.5 leading-none w-full min-h-[34px]">
+        <!-- Area 1 (Left): Customer Company Branding (Icon/Logo, Name, Subtitle & Station Info) -->
         <div class="flex items-center space-x-2 z-0 min-w-0 pr-2">
-          <div class="flex items-center space-x-1.5 min-w-0 truncate">
-            <div class="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue flex-shrink-0">
+          <!-- Customer Logo / Icon Button (Clickable to configure Customer Branding) -->
+          <button
+            type="button"
+            @click="openBrandingModal('customer')"
+            class="h-7 px-1.5 rounded transition flex items-center justify-center border flex-shrink-0"
+            :class="customerLogoUrl
+              ? 'border-transparent hover:border-cyan-500/40 bg-slate-50/50 dark:bg-[#101B2B]/60'
+              : 'border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-blue-600/10 text-cyan-500 hover:border-cyan-400 dark:hover:border-cyan-400 shadow-glow-blue/20'"
+            :title="(customerCompanyName || 'Customer Organization') + ' · Click to configure'"
+            aria-label="Configure Customer Company Logo"
+          >
+            <img
+              v-if="customerLogoUrl"
+              :src="customerLogoUrl"
+              :alt="customerCompanyName || 'Customer Logo'"
+              class="h-5 sm:h-6 max-w-[110px] w-auto object-contain rounded-xs"
+            />
+            <div v-else class="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue flex-shrink-0">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
               </svg>
             </div>
-            <div class="min-w-0 truncate">
-              <div class="flex items-center space-x-1.5">
-                <h1 class="text-[11px] font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center gap-1 leading-none">
-                  <span class="truncate">{{ $t('operator.title') || 'OPERATOR COMMAND CENTER' }}</span>
-                  <span class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex-shrink-0">
-                    SCADA
-                  </span>
-                </h1>
-              </div>
-              <div class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5 truncate">
-                <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.hostname || 'Edge-Node-01' }}</strong></span>
-                <span class="hidden lg:inline">·</span>
-                <span class="hidden lg:inline">{{ $t('operator.site') || 'Site' }}: <span class="text-slate-700 dark:text-slate-300">Local Autonomous Edge</span></span>
-              </div>
+          </button>
+
+          <!-- Customer Company Name & Subtitle / Station Details -->
+          <div class="min-w-0 truncate">
+            <div class="flex items-center space-x-1.5">
+              <h1 class="text-[11px] font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center gap-1 leading-none truncate">
+                <span class="truncate" :title="customerCompanyName">{{ customerCompanyName || 'PT. Mitra Industri Enviro' }}</span>
+                <span class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex-shrink-0">
+                  SCADA
+                </span>
+              </h1>
+            </div>
+            <div class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5 truncate">
+              <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.hostname || 'cbi' }}</strong></span>
+              <span class="hidden sm:inline">·</span>
+              <span class="hidden sm:inline truncate text-slate-700 dark:text-slate-300">{{ customerSubtitle || 'Local Autonomous Edge' }}</span>
             </div>
           </div>
         </div>
@@ -47,30 +65,40 @@
           </div>
         </div>
 
-        <!-- Area 3 (Right): Configurable Company Logo & Quick Controls -->
-        <div class="flex items-center space-x-1.5 z-0 flex-shrink-0 pl-2">
-          <!-- Configurable Company Logo Button -->
+        <!-- Area 3 (Right): Maker Company Branding (Name, Subtitle, Icon/Logo Button) -->
+        <div class="flex items-center space-x-2 z-0 flex-shrink-0 pl-2">
+          <!-- Maker Info (Right-aligned text) -->
+          <div class="hidden sm:flex flex-col items-end text-right min-w-0">
+            <span class="text-[10px] font-bold text-slate-800 dark:text-slate-200 font-mono tracking-tight leading-none truncate max-w-[170px]" :title="makerCompanyName">
+              {{ makerCompanyName || 'PT. Centra Biotech Indonesia' }}
+            </span>
+            <span class="text-[8.5px] text-slate-400 dark:text-slate-500 font-mono tracking-wider leading-none mt-0.5 truncate max-w-[170px]">
+              {{ makerSubtitle || 'CBI Industrial IoT' }}
+            </span>
+          </div>
+
+          <!-- Maker Logo / Icon Button -->
           <button
             type="button"
-            @click="openLogoModal"
-            class="h-7 px-1.5 rounded transition flex items-center justify-center border"
-            :class="companyLogoUrl
+            @click="openBrandingModal('maker')"
+            class="h-7 px-1.5 rounded transition flex items-center justify-center border flex-shrink-0"
+            :class="makerLogoUrl
               ? 'border-transparent hover:border-cyan-500/40 bg-slate-50/50 dark:bg-[#101B2B]/60'
-              : 'border-dashed border-slate-300 dark:border-[#20354B] hover:border-cyan-500 text-slate-500 dark:text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 bg-slate-50 dark:bg-[#101B2B]'"
-            :title="(companyName ? companyName + ' · ' : '') + 'Configure Company Logo'"
-            aria-label="Configure Company Logo"
+              : 'border border-dashed border-slate-300 dark:border-[#20354B] hover:border-cyan-500 text-slate-500 dark:text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 bg-slate-50 dark:bg-[#101B2B]'"
+            :title="(makerCompanyName || 'Maker / Solution Provider') + ' · Click to configure'"
+            aria-label="Configure Maker Company Logo"
           >
             <img
-              v-if="companyLogoUrl"
-              :src="companyLogoUrl"
-              :alt="companyName || 'Company Logo'"
+              v-if="makerLogoUrl"
+              :src="makerLogoUrl"
+              :alt="makerCompanyName || 'Maker Logo'"
               class="h-5 sm:h-6 max-w-[110px] w-auto object-contain rounded-xs"
             />
-            <div v-else class="flex items-center space-x-1 text-3xs font-mono font-bold leading-none">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <div v-else class="flex items-center space-x-1 text-3xs font-mono font-bold leading-none px-1">
+              <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
-              <span class="hidden xl:inline text-[9px]">{{ companyName || 'LOGO' }}</span>
+              <span class="hidden md:inline text-[9px]">{{ makerCompanyName || 'MAKER' }}</span>
             </div>
           </button>
         </div>
@@ -2411,123 +2439,255 @@
       </div>
     </div>
 
-    <!-- MODAL: COMPANY BRANDING & LOGO CONFIGURATION -->
+    <!-- MODAL: DUAL ORGANIZATION BRANDING SETUP (CUSTOMER & MAKER) -->
     <div
-      v-if="showLogoModal"
+      v-if="showBrandingModal || showLogoModal"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
-      @click.self="closeLogoModal"
+      @click.self="closeBrandingModal"
     >
-      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
         <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
           <div class="flex items-center space-x-2">
             <span class="text-cyan-500 text-sm">🏢</span>
             <h3 class="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs">
-              Company Branding & Logo
+              {{ $t('branding.title') || 'Organization & Company Branding' }}
             </h3>
           </div>
-          <button @click="closeLogoModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition">✕</button>
+          <button @click="closeBrandingModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition">✕</button>
         </div>
 
         <!-- Error Message Banner -->
-        <div v-if="logoErrorMsg" class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-3xs font-semibold flex items-center space-x-1.5">
+        <div v-if="brandingErrorMsg || logoErrorMsg" class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-3xs font-semibold flex items-center space-x-1.5">
           <span>⚠️</span>
-          <span>{{ logoErrorMsg }}</span>
+          <span>{{ brandingErrorMsg || logoErrorMsg }}</span>
         </div>
 
-        <!-- Company Name Field -->
-        <div class="space-y-1">
-          <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-            Company / Organization Name
-          </label>
+        <!-- Tab Selection (Customer Left Header vs Maker Right Header) -->
+        <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-[#101B2B] rounded-lg border border-slate-200 dark:border-[#20354B]">
+          <button
+            type="button"
+            @click="activeBrandingTab = 'customer'"
+            class="py-1.5 px-3 rounded text-3xs font-bold transition flex items-center justify-center space-x-1.5"
+            :class="activeBrandingTab === 'customer'
+              ? 'bg-cyan-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>🏢</span>
+            <span>Customer (Left Header)</span>
+          </button>
+          <button
+            type="button"
+            @click="activeBrandingTab = 'maker'"
+            class="py-1.5 px-3 rounded text-3xs font-bold transition flex items-center justify-center space-x-1.5"
+            :class="activeBrandingTab === 'maker'
+              ? 'bg-cyan-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>⚙️</span>
+            <span>Maker / Provider (Right Header)</span>
+          </button>
+        </div>
+
+        <!-- TAB 1: CUSTOMER COMPANY SETUP -->
+        <div v-if="activeBrandingTab === 'customer'" class="space-y-3">
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+              Customer Company Name (Appears Top-Left)
+            </label>
+            <input
+              v-model="modalCustomerName"
+              type="text"
+              maxlength="50"
+              placeholder="e.g. PT. Mitra Industri Enviro"
+              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            />
+          </div>
+
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+              Customer Location / Subtitle
+            </label>
+            <input
+              v-model="modalCustomerSubtitle"
+              type="text"
+              maxlength="50"
+              placeholder="e.g. Local Autonomous Edge"
+              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            />
+          </div>
+
+          <!-- Customer Logo Live Preview (Dark & Light) -->
+          <div class="space-y-1.5">
+            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+              Customer Logo Preview (Header Scale)
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="p-3 rounded-lg bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[64px]">
+                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Dark Header</span>
+                <img
+                  v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                  :src="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                  alt="Customer Logo preview"
+                  class="max-h-7 max-w-[120px] object-contain"
+                />
+                <span v-else class="text-[9px] text-slate-500 italic">Default SCADA Icon</span>
+              </div>
+              <div class="p-3 rounded-lg bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[64px]">
+                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Light Header</span>
+                <img
+                  v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                  :src="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                  alt="Customer Logo preview"
+                  class="max-h-7 max-w-[120px] object-contain"
+                />
+                <span v-else class="text-[9px] text-slate-400 italic">Default SCADA Icon</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Customer File Upload Actions -->
           <input
-            v-model="modalCompanyName"
-            type="text"
-            maxlength="40"
-            placeholder="e.g. Acme Air Monitoring"
-            class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            ref="customerLogoFileInput"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+            class="hidden"
+            @change="onCustomerFileSelected"
           />
-        </div>
-
-        <!-- Logo Live Preview (Dark & Light modes) -->
-        <div class="space-y-1.5">
-          <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-            Live Preview (Header Scale)
-          </label>
-          <div class="grid grid-cols-2 gap-2">
-            <!-- Dark Theme Preview -->
-            <div class="p-3 rounded-lg bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[64px]">
-              <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Dark Header</span>
-              <img
-                v-if="logoPreviewUrl"
-                :src="logoPreviewUrl"
-                alt="Logo preview"
-                class="max-h-7 max-w-[120px] object-contain"
-              />
-              <span v-else class="text-[9px] text-slate-500 italic">No logo configured</span>
-            </div>
-            <!-- Light Theme Preview -->
-            <div class="p-3 rounded-lg bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[64px]">
-              <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Light Header</span>
-              <img
-                v-if="logoPreviewUrl"
-                :src="logoPreviewUrl"
-                alt="Logo preview"
-                class="max-h-7 max-w-[120px] object-contain"
-              />
-              <span v-else class="text-[9px] text-slate-400 italic">No logo configured</span>
-            </div>
+          <div class="flex items-center space-x-2 pt-1">
+            <button
+              type="button"
+              @click="triggerCustomerFileInput"
+              class="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] font-bold text-3xs flex items-center justify-center space-x-1.5 transition"
+            >
+              <span>📁</span>
+              <span>{{ (modalCustomerLogoPreviewUrl || customerLogoUrl) ? 'Change Customer Logo...' : 'Upload Customer Logo...' }}</span>
+            </button>
+            <button
+              v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
+              type="button"
+              @click="handleRemoveCustomerLogo"
+              class="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-3xs flex items-center justify-center space-x-1 transition"
+            >
+              <span>🗑️</span>
+              <span>Remove</span>
+            </button>
           </div>
         </div>
 
-        <!-- Hidden File Input -->
-        <input
-          ref="logoFileInput"
-          type="file"
-          accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
-          class="hidden"
-          @change="onLogoFileSelected"
-        />
+        <!-- TAB 2: MAKER COMPANY SETUP -->
+        <div v-else-if="activeBrandingTab === 'maker'" class="space-y-3">
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+              Maker / Provider Company Name (Appears Top-Right)
+            </label>
+            <input
+              v-model="modalMakerName"
+              type="text"
+              maxlength="50"
+              placeholder="e.g. PT. Centra Biotech Indonesia"
+              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            />
+          </div>
 
-        <!-- Upload & Remove Actions -->
-        <div class="flex items-center space-x-2 pt-1">
-          <button
-            type="button"
-            @click="triggerLogoFileInput"
-            class="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] font-bold text-3xs flex items-center justify-center space-x-1.5 transition"
-          >
-            <span>📁</span>
-            <span>{{ logoPreviewUrl ? 'Change Image...' : 'Upload Image...' }}</span>
-          </button>
-          <button
-            v-if="logoPreviewUrl"
-            type="button"
-            @click="handleRemoveLogo"
-            class="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-3xs flex items-center justify-center space-x-1 transition"
-          >
-            <span>🗑️</span>
-            <span>Remove</span>
-          </button>
+          <div class="space-y-1">
+            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+              Maker Tagline / Subtitle
+            </label>
+            <input
+              v-model="modalMakerSubtitle"
+              type="text"
+              maxlength="50"
+              placeholder="e.g. CBI Industrial IoT"
+              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+            />
+          </div>
+
+          <!-- Maker Logo Live Preview (Dark & Light) -->
+          <div class="space-y-1.5">
+            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+              Maker Logo Preview (Header Scale)
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="p-3 rounded-lg bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[64px]">
+                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Dark Header</span>
+                <img
+                  v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
+                  :src="modalMakerLogoPreviewUrl || makerLogoUrl"
+                  alt="Maker Logo preview"
+                  class="max-h-7 max-w-[120px] object-contain"
+                />
+                <span v-else class="text-[9px] text-slate-500 italic">No logo configured</span>
+              </div>
+              <div class="p-3 rounded-lg bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[64px]">
+                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Light Header</span>
+                <img
+                  v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
+                  :src="modalMakerLogoPreviewUrl || makerLogoUrl"
+                  alt="Maker Logo preview"
+                  class="max-h-7 max-w-[120px] object-contain"
+                />
+                <span v-else class="text-[9px] text-slate-400 italic">No logo configured</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Maker File Upload Actions -->
+          <input
+            ref="makerLogoFileInput"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+            class="hidden"
+            @change="onMakerFileSelected"
+          />
+          <div class="flex items-center space-x-2 pt-1">
+            <button
+              type="button"
+              @click="triggerMakerFileInput"
+              class="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] font-bold text-3xs flex items-center justify-center space-x-1.5 transition"
+            >
+              <span>📁</span>
+              <span>{{ (modalMakerLogoPreviewUrl || makerLogoUrl) ? 'Change Maker Logo...' : 'Upload Maker Logo...' }}</span>
+            </button>
+            <button
+              v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
+              type="button"
+              @click="handleRemoveMakerLogo"
+              class="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-3xs flex items-center justify-center space-x-1 transition"
+            >
+              <span>🗑️</span>
+              <span>Remove</span>
+            </button>
+          </div>
         </div>
-        <div class="text-[8.5px] text-slate-500 dark:text-slate-400">
-          Supported formats: PNG, JPG, SVG, WebP. Maximum file size: 1 MB. Stored securely in client database.
+
+        <!-- System Admin Configuration Deep Link -->
+        <div class="p-2 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] flex items-center justify-between text-3xs">
+          <span class="text-slate-500 dark:text-slate-400">Advanced settings available in System Admin:</span>
+          <router-link
+            to="/administration/config?tab=branding"
+            @click.native="closeBrandingModal"
+            class="text-cyan-600 dark:text-cyan-400 font-bold hover:underline flex items-center space-x-1"
+          >
+            <span>⚙️ System Admin Setup →</span>
+          </router-link>
         </div>
 
         <!-- Footer Actions -->
         <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-[#20354B]">
           <button
             type="button"
-            @click="closeLogoModal"
+            @click="closeBrandingModal"
             class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
           <button
             type="button"
-            @click="saveLogoConfig"
-            :disabled="logoSaving"
+            @click="saveBrandingFromModal"
+            :disabled="brandingSaving || logoSaving"
             class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-xs transition"
           >
-            <span v-if="logoSaving">Saving...</span>
+            <span v-if="brandingSaving || logoSaving">Saving...</span>
             <span v-else>Save Configuration</span>
           </button>
         </div>
@@ -3492,7 +3652,20 @@ import ParameterConfigViewModal from '../components/ParameterConfigViewModal.vue
 import ParameterHistoryModal from '../components/ParameterHistoryModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ISPUIndicatorBar from '../components/ISPUIndicatorBar.vue';
-import { saveCompanyLogo, loadCompanyLogo, removeCompanyLogo, updateCompanyName, getCompanyBrandingMeta } from '../utils/companyBranding';
+import {
+  loadOrganizationBranding,
+  saveCustomerBranding,
+  removeCustomerLogo,
+  saveMakerBranding,
+  removeMakerLogo,
+  saveOrganizationTextBranding,
+  getOrganizationBrandingMeta,
+  DEFAULT_BRANDING,
+  saveCompanyLogo,
+  loadCompanyLogo,
+  removeCompanyLogo,
+  updateCompanyName
+} from '../utils/companyBranding';
 import MultiPanelConfigModal from '../components/MultiPanelConfigModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
@@ -3586,8 +3759,17 @@ export default {
       filterPinnedOnly: false,
       viewMode: 'cards', // 'cards' | 'table'
       activeToolbarPopover: null,
-      // Company Branding & Logo State
-      showLogoModal: false,
+      // Dual Organization & Company Branding State (Customer Left, Maker Right)
+      showBrandingModal: false,
+      showLogoModal: false, // legacy alias
+      activeBrandingTab: 'customer', // 'customer' | 'maker'
+      customerCompanyName: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.name) || 'PT. Mitra Industri Enviro',
+      customerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.subtitle) || 'Local Autonomous Edge',
+      customerLogoUrl: null,
+      makerCompanyName: (DEFAULT_BRANDING && DEFAULT_BRANDING.maker && DEFAULT_BRANDING.maker.name) || 'PT. Centra Biotech Indonesia',
+      makerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.maker && DEFAULT_BRANDING.maker.subtitle) || 'CBI Industrial IoT',
+      makerLogoUrl: null,
+      // Legacy aliases for company logo & name
       companyLogoUrl: null,
       companyName: '',
       modalCompanyName: '',
@@ -3595,6 +3777,17 @@ export default {
       logoTempFile: null,
       logoErrorMsg: '',
       logoSaving: false,
+      // Modal temporary inputs
+      modalCustomerName: '',
+      modalCustomerSubtitle: '',
+      modalCustomerLogoPreviewUrl: null,
+      modalCustomerLogoFile: null,
+      modalMakerName: '',
+      modalMakerSubtitle: '',
+      modalMakerLogoPreviewUrl: null,
+      modalMakerLogoFile: null,
+      brandingErrorMsg: '',
+      brandingSaving: false,
       showTrendSettingsMenu: false, // 'categories' | 'pinned' | 'displayMode' | 'panelLayout' | 'systemSetup' | 'ispuSettings' | null
       isIspuBarVisible: localStorage.getItem('operator_ispu_bar_visible') !== 'false',
 
@@ -4683,6 +4876,7 @@ export default {
   },
   mounted() {
     this.initCompanyBranding();
+    window.addEventListener('organization-branding-updated', this.onOrganizationBrandingUpdated);
     this.initDashboard();
     this.initTrendResizeObserver();
     this.loadPanelLayoutConfig();
@@ -4732,6 +4926,7 @@ export default {
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
+    window.removeEventListener('organization-branding-updated', this.onOrganizationBrandingUpdated);
     document.removeEventListener('click', this.onDocumentClick);
     document.removeEventListener('contextmenu', this.onDocumentContextMenu);
     document.removeEventListener('keydown', this.onDocumentKeyDown);
@@ -5184,6 +5379,7 @@ export default {
         if (this.showTrendSettingsMenu) this.showTrendSettingsMenu = false;
         if (this.showTrendDownloadMenu) this.showTrendDownloadMenu = false;
         if (this.showLogoModal) this.closeLogoModal();
+        if (this.showBrandingModal) this.closeBrandingModal();
       }
     },
     toggleToolbarPopover(popoverName) {
@@ -5193,86 +5389,203 @@ export default {
         this.activeToolbarPopover = popoverName;
       }
     },
-    initCompanyBranding() {
-      loadCompanyLogo().then(data => {
+    async initCompanyBranding() {
+      try {
+        const data = await loadOrganizationBranding();
         if (data) {
-          this.companyLogoUrl = data.objectUrl || (data.meta && data.meta.dataUrl) || null;
-          this.companyName = (data.meta && data.meta.companyName) || '';
-        } else {
-          const meta = getCompanyBrandingMeta();
-          if (meta && meta.companyName) {
-            this.companyName = meta.companyName;
+          if (data.customer) {
+            this.customerCompanyName = data.customer.name || DEFAULT_BRANDING.customer.name;
+            this.customerSubtitle = data.customer.subtitle || DEFAULT_BRANDING.customer.subtitle;
+            this.customerLogoUrl = data.customer.logoUrl || null;
+          }
+          if (data.maker) {
+            this.makerCompanyName = data.maker.name || DEFAULT_BRANDING.maker.name;
+            this.makerSubtitle = data.maker.subtitle || DEFAULT_BRANDING.maker.subtitle;
+            this.makerLogoUrl = data.maker.logoUrl || null;
+            // Legacy aliases
+            this.companyLogoUrl = this.makerLogoUrl;
+            this.companyName = this.makerCompanyName;
           }
         }
-      }).catch(e => {
-        console.warn('Failed to load company branding:', e);
-      });
-    },
-    openLogoModal() {
-      this.logoPreviewUrl = this.companyLogoUrl;
-      this.modalCompanyName = this.companyName;
-      this.logoTempFile = null;
-      this.logoErrorMsg = '';
-      this.showLogoModal = true;
-    },
-    closeLogoModal() {
-      this.showLogoModal = false;
-      this.logoTempFile = null;
-      this.logoErrorMsg = '';
-    },
-    triggerLogoFileInput() {
-      if (this.$refs.logoFileInput) {
-        this.$refs.logoFileInput.click();
+      } catch (e) {
+        console.warn('Failed to load organization branding:', e);
       }
     },
-    onLogoFileSelected(e) {
+    onOrganizationBrandingUpdated(e) {
+      if (e && e.detail) {
+        if (e.detail.customer) {
+          this.customerCompanyName = e.detail.customer.name || this.customerCompanyName;
+          this.customerSubtitle = e.detail.customer.subtitle || this.customerSubtitle;
+        }
+        if (e.detail.maker) {
+          this.makerCompanyName = e.detail.maker.name || this.makerCompanyName;
+          this.makerSubtitle = e.detail.maker.subtitle || this.makerSubtitle;
+          this.companyName = this.makerCompanyName;
+        }
+      }
+      this.initCompanyBranding();
+    },
+    openBrandingModal(tab = 'customer') {
+      this.activeBrandingTab = tab;
+      this.modalCustomerName = this.customerCompanyName;
+      this.modalCustomerSubtitle = this.customerSubtitle;
+      this.modalCustomerLogoPreviewUrl = this.customerLogoUrl;
+      this.modalCustomerLogoFile = null;
+
+      this.modalMakerName = this.makerCompanyName;
+      this.modalMakerSubtitle = this.makerSubtitle;
+      this.modalMakerLogoPreviewUrl = this.makerLogoUrl;
+      this.modalMakerLogoFile = null;
+
+      // Legacy fallback
+      this.modalCompanyName = tab === 'customer' ? this.customerCompanyName : this.makerCompanyName;
+      this.logoPreviewUrl = tab === 'customer' ? this.customerLogoUrl : this.makerLogoUrl;
+      this.logoTempFile = null;
+      this.logoErrorMsg = '';
+
+      this.brandingErrorMsg = '';
+      this.showBrandingModal = true;
+      this.showLogoModal = true;
+    },
+    closeBrandingModal() {
+      this.showBrandingModal = false;
+      this.showLogoModal = false;
+      this.modalCustomerLogoFile = null;
+      this.modalMakerLogoFile = null;
+      this.logoTempFile = null;
+      this.brandingErrorMsg = '';
+      this.logoErrorMsg = '';
+    },
+    openLogoModal(target) {
+      this.openBrandingModal(target || 'customer');
+    },
+    closeLogoModal() {
+      this.closeBrandingModal();
+    },
+    triggerCustomerFileInput() {
+      if (this.$refs.customerLogoFileInput) {
+        this.$refs.customerLogoFileInput.click();
+      }
+    },
+    onCustomerFileSelected(e) {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      this.logoErrorMsg = '';
+      this.brandingErrorMsg = '';
       if (file.size > 1024 * 1024) {
-        this.logoErrorMsg = 'File size exceeds 1 MB limit.';
+        this.brandingErrorMsg = 'File size exceeds 1 MB limit.';
         return;
       }
       const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
       if (!allowed.includes(file.type)) {
-        this.logoErrorMsg = 'Invalid image type. Please select PNG, JPG, SVG, or WebP.';
+        this.brandingErrorMsg = 'Invalid image type. Please select PNG, JPG, SVG, or WebP.';
         return;
       }
-      this.logoTempFile = file;
+      this.modalCustomerLogoFile = file;
       const reader = new FileReader();
       reader.onload = (ev) => {
-        this.logoPreviewUrl = ev.target.result;
+        this.modalCustomerLogoPreviewUrl = ev.target.result;
       };
       reader.readAsDataURL(file);
     },
-    async saveLogoConfig() {
-      this.logoSaving = true;
-      this.logoErrorMsg = '';
+    async handleRemoveCustomerLogo() {
       try {
-        if (this.logoTempFile) {
-          const res = await saveCompanyLogo(this.logoTempFile, this.modalCompanyName);
-          this.companyLogoUrl = res.dataUrl;
-          this.companyName = res.meta.companyName;
-        } else {
-          const res = updateCompanyName(this.modalCompanyName);
-          this.companyName = res.companyName;
-        }
-        this.closeLogoModal();
+        await removeCustomerLogo();
+        this.customerLogoUrl = null;
+        this.modalCustomerLogoPreviewUrl = null;
+        this.modalCustomerLogoFile = null;
+        if (this.$refs.customerLogoFileInput) this.$refs.customerLogoFileInput.value = '';
       } catch (err) {
-        this.logoErrorMsg = err.message || 'Failed to save company branding.';
+        this.brandingErrorMsg = err.message || 'Failed to remove customer logo.';
+      }
+    },
+    triggerMakerFileInput() {
+      if (this.$refs.makerLogoFileInput) {
+        this.$refs.makerLogoFileInput.click();
+      }
+    },
+    onMakerFileSelected(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      this.brandingErrorMsg = '';
+      if (file.size > 1024 * 1024) {
+        this.brandingErrorMsg = 'File size exceeds 1 MB limit.';
+        return;
+      }
+      const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+      if (!allowed.includes(file.type)) {
+        this.brandingErrorMsg = 'Invalid image type. Please select PNG, JPG, SVG, or WebP.';
+        return;
+      }
+      this.modalMakerLogoFile = file;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        this.modalMakerLogoPreviewUrl = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    },
+    async handleRemoveMakerLogo() {
+      try {
+        await removeMakerLogo();
+        this.makerLogoUrl = null;
+        this.modalMakerLogoPreviewUrl = null;
+        this.modalMakerLogoFile = null;
+        this.companyLogoUrl = null;
+        if (this.$refs.makerLogoFileInput) this.$refs.makerLogoFileInput.value = '';
+      } catch (err) {
+        this.brandingErrorMsg = err.message || 'Failed to remove maker logo.';
+      }
+    },
+    async saveBrandingFromModal() {
+      this.brandingSaving = true;
+      this.logoSaving = true;
+      this.brandingErrorMsg = '';
+      try {
+        // Save Customer Branding
+        await saveCustomerBranding({
+          file: this.modalCustomerLogoFile,
+          name: this.modalCustomerName,
+          subtitle: this.modalCustomerSubtitle
+        });
+
+        // Save Maker Branding
+        await saveMakerBranding({
+          file: this.modalMakerLogoFile,
+          name: this.modalMakerName,
+          subtitle: this.modalMakerSubtitle
+        });
+
+        await this.initCompanyBranding();
+        this.closeBrandingModal();
+      } catch (err) {
+        this.brandingErrorMsg = err.message || 'Failed to save organization branding.';
+        this.logoErrorMsg = this.brandingErrorMsg;
       } finally {
+        this.brandingSaving = false;
         this.logoSaving = false;
       }
     },
+    async saveLogoConfig() {
+      return this.saveBrandingFromModal();
+    },
     async handleRemoveLogo() {
-      try {
-        await removeCompanyLogo();
-        this.companyLogoUrl = null;
-        this.logoPreviewUrl = null;
-        this.logoTempFile = null;
-        if (this.$refs.logoFileInput) this.$refs.logoFileInput.value = '';
-      } catch (err) {
-        this.logoErrorMsg = err.message || 'Failed to remove logo.';
+      if (this.activeBrandingTab === 'customer') {
+        return this.handleRemoveCustomerLogo();
+      } else {
+        return this.handleRemoveMakerLogo();
+      }
+    },
+    triggerLogoFileInput() {
+      if (this.activeBrandingTab === 'customer') {
+        this.triggerCustomerFileInput();
+      } else {
+        this.triggerMakerFileInput();
+      }
+    },
+    onLogoFileSelected(e) {
+      if (this.activeBrandingTab === 'customer') {
+        this.onCustomerFileSelected(e);
+      } else {
+        this.onMakerFileSelected(e);
       }
     },
     hasDuplicateTrendParamName(s) {
