@@ -1288,8 +1288,8 @@
           <button
             type="button"
             id="btn-operator-sidebar-autohide"
-            @click="toggleSidebarAutoHide"
-            class="w-8 h-8 flex items-center justify-center rounded transition border"
+            @click.stop="toggleSidebarAutoHide"
+            class="w-8 h-8 flex items-center justify-center rounded transition border cursor-pointer"
             :class="sidebarAutoHide
               ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-xs'
               : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'"
@@ -4882,7 +4882,7 @@ export default {
       return sections;
     },
     sidebarAutoHide() {
-      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+      return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },
   },
   watch: {
@@ -4961,7 +4961,7 @@ export default {
   methods: {
     toggleSidebarAutoHide() {
       this.$store.dispatch('toggleSidebarAutoHide');
-      this.$emit('toggle-autohide');
+      this.$emit('toggle-autohide', this.sidebarAutoHide);
     },
     loadGridColumnsConfig() {
       try {

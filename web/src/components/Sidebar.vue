@@ -1,7 +1,7 @@
 <template>
   <aside
     :class="isCollapsed ? 'hidden' : 'w-60 flex flex-col'"
-    class="bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800/60 flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-all duration-150"
+    class="bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800/60 flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-all duration-150 h-full"
   >
     <!-- Brand Header -->
     <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800/40 flex items-start justify-between">
@@ -16,8 +16,9 @@
       <!-- Setup / Auto-Hide Pin Icon Button -->
       <button
         type="button"
-        @click="toggleAutoHide"
-        class="p-1.5 rounded-lg border transition-all flex items-center justify-center mt-0.5 flex-shrink-0"
+        id="btn-sidebar-autohide-setup"
+        @click.stop="toggleAutoHide"
+        class="p-1.5 rounded-lg border transition-all flex items-center justify-center mt-0.5 flex-shrink-0 cursor-pointer"
         :class="sidebarAutoHide
           ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/30 ring-1 ring-cyan-500/30'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-slate-200 dark:border-slate-700/60'"
@@ -315,7 +316,7 @@ export default {
   },
   computed: {
     sidebarAutoHide() {
-      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+      return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },
     progress() {
       return this.$store.state.progress;
@@ -327,7 +328,7 @@ export default {
   methods: {
     toggleAutoHide() {
       this.$store.dispatch('toggleSidebarAutoHide');
-      this.$emit('toggle-autohide');
+      this.$emit('toggle-autohide', this.sidebarAutoHide);
     },
     onNavClick() {
       this.$emit('navigate');

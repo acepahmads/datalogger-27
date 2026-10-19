@@ -21,8 +21,8 @@
       <button
         type="button"
         id="btn-sidebar-autohide-toggle"
-        @click="toggleSidebarAutoHide"
-        class="relative w-8 h-8 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
+        @click.stop="toggleSidebarAutoHide"
+        class="relative w-8 h-8 rounded-lg border transition-colors flex items-center justify-center shadow-xs cursor-pointer"
         :class="sidebarAutoHide
           ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700/60'"
@@ -156,7 +156,7 @@ export default {
       return this.$store.state.user;
     },
     sidebarAutoHide() {
-      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+      return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },
     themeSetting() {
       return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.theme) || 'system';
@@ -216,7 +216,7 @@ export default {
   methods: {
     toggleSidebarAutoHide() {
       this.$store.dispatch('toggleSidebarAutoHide');
-      this.$emit('toggle-autohide');
+      this.$emit('toggle-autohide', this.sidebarAutoHide);
     },
     toggleLanguage() {
       const next = this.language === 'id' ? 'en' : 'id';

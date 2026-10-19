@@ -4,7 +4,7 @@
     <Header
       v-show="!isTopPanelHidden"
       @toggle-sidebar="toggleSidebar"
-      @toggle-autohide="toggleSidebarAutoHide"
+      @toggle-autohide="onSidebarAutoHideToggle"
     />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
@@ -17,18 +17,19 @@
         v-if="!sidebarAutoHide"
         :is-collapsed="isSidebarCollapsed"
         :is-auto-hide="false"
-        @toggle-autohide="toggleSidebarAutoHide"
+        @toggle-autohide="onSidebarAutoHideToggle"
       />
 
       <!-- 2. Auto-Hide Edge Hover Trigger Zone (rendered when auto-hide is TRUE) -->
       <div
         v-if="sidebarAutoHide"
         @mouseenter="openSidebarHover"
-        class="fixed left-0 top-12 bottom-0 w-3 z-40 cursor-pointer group flex items-center justify-start pointer-events-auto"
+        @click="openSidebarHover"
+        class="fixed left-0 top-0 bottom-0 w-4 z-40 cursor-pointer group flex items-center justify-start pointer-events-auto"
         :title="$t('navigation.sidebarHoverTitle') || 'Hover to view navigation sidebar (Auto-Hide active)'"
       >
         <!-- Subtle cyan indicator beacon on edge -->
-        <div class="h-16 w-1 rounded-r bg-slate-300/80 dark:bg-slate-700/80 group-hover:bg-cyan-500 group-hover:w-1.5 group-hover:shadow-glow-cyan transition-all duration-200"></div>
+        <div class="h-20 w-1 rounded-r bg-slate-400/60 dark:bg-slate-700/80 group-hover:bg-cyan-500 group-hover:w-1.5 group-hover:shadow-glow-cyan transition-all duration-200"></div>
       </div>
 
       <!-- 3. Auto-Hide Sliding Drawer (rendered over content with smooth transition) -->
@@ -37,12 +38,12 @@
           v-if="sidebarAutoHide && isSidebarHovered"
           @mouseleave="scheduleCloseSidebarHover"
           @mouseenter="cancelCloseSidebarHover"
-          class="fixed left-0 top-0 bottom-0 z-50 w-64 shadow-2xl flex flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800"
+          class="fixed left-0 top-0 bottom-0 z-50 w-60 shadow-2xl flex flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800"
         >
           <Sidebar
             :is-collapsed="false"
             :is-auto-hide="true"
-            @toggle-autohide="toggleSidebarAutoHide"
+            @toggle-autohide="onSidebarAutoHideToggle"
             @navigate="closeSidebarHoverImmediate"
           />
         </div>
@@ -68,7 +69,7 @@
           :is-sidebar-auto-hide="sidebarAutoHide"
           @toggle-sidebar="toggleSidebar"
           @toggle-fullwidth="toggleSidebar"
-          @toggle-autohide="toggleSidebarAutoHide"
+          @toggle-autohide="onSidebarAutoHideToggle"
         />
       </main>
     </div>
@@ -100,7 +101,7 @@ export default {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
     },
     sidebarAutoHide() {
-      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+      return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },
   },
   watch: {
@@ -118,6 +119,11 @@ export default {
         this.isTopPanelHidden = this.isSidebarCollapsed;
       } else {
         this.isTopPanelHidden = false;
+      }
+    },
+    onSidebarAutoHideToggle() {
+      if (!this.sidebarAutoHide) {
+        this.closeSidebarHoverImmediate();
       }
     },
     toggleSidebarAutoHide() {

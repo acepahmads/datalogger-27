@@ -8,6 +8,7 @@
  * 4. Header.vue sidebar auto-hide icon button and reactive toggle
  * 5. OperatorCommandCenterView.vue toolbar sidebar auto-hide icon button
  * 6. Localization keys in English and Indonesian
+ * 7. Double-toggle prevention (event listeners do not cancel state toggle)
  */
 
 const assert = require('assert');
@@ -66,9 +67,9 @@ runTest('1.1: Store initializes sidebarAutoHide in uiPreferences with localStora
 
 // 2. Sidebar.vue Setup Icon & Event Handling
 runTest('2.1: Sidebar.vue provides setup / pin button in brand header with toggle-autohide', () => {
-  assert(sidebarContent.includes('@click="toggleAutoHide"'), 'Sidebar header must have toggleAutoHide button');
+  assert(sidebarContent.includes('toggleAutoHide'), 'Sidebar header must have toggleAutoHide button');
   assert(sidebarContent.includes('toggleSidebarAutoHide'), 'Sidebar method must dispatch toggleSidebarAutoHide');
-  assert(sidebarContent.includes("this.$emit('toggle-autohide')"), 'Sidebar method must emit toggle-autohide');
+  assert(sidebarContent.includes("this.$emit('toggle-autohide'"), 'Sidebar method must emit toggle-autohide');
   assert(sidebarContent.includes('isCollapsed'), 'Sidebar must preserve isCollapsed prop compatibility');
   assert(sidebarContent.includes('sidebarAutoHide'), 'Sidebar must have sidebarAutoHide computed property');
 });
@@ -86,7 +87,7 @@ runTest('3.1: App.vue provides normal pinned sidebar and auto-hide edge trigger 
 // 4. Header.vue Setup Icon
 runTest('4.1: Header.vue includes Sidebar Auto-Hide setup icon button and toggle handler', () => {
   assert(headerContent.includes('id="btn-sidebar-autohide-toggle"'), 'Header must contain btn-sidebar-autohide-toggle');
-  assert(headerContent.includes('@click="toggleSidebarAutoHide"'), 'Header button must call toggleSidebarAutoHide');
+  assert(headerContent.includes('toggleSidebarAutoHide'), 'Header button must call toggleSidebarAutoHide');
   assert(headerContent.includes('sidebarAutoHide()'), 'Header must provide sidebarAutoHide computed property');
   assert(headerContent.includes('toggleSidebarAutoHide()'), 'Header must provide toggleSidebarAutoHide method');
 });
@@ -94,7 +95,7 @@ runTest('4.1: Header.vue includes Sidebar Auto-Hide setup icon button and toggle
 // 5. OperatorCommandCenterView.vue Setup Icon
 runTest('5.1: OperatorCommandCenterView.vue provides Sidebar Auto-Hide setup button in toolbar', () => {
   assert(occContent.includes('id="btn-operator-sidebar-autohide"'), 'Operator view must contain btn-operator-sidebar-autohide');
-  assert(occContent.includes('@click="toggleSidebarAutoHide"'), 'Operator button must call toggleSidebarAutoHide');
+  assert(occContent.includes('toggleSidebarAutoHide'), 'Operator button must call toggleSidebarAutoHide');
   assert(occContent.includes('sidebarAutoHide()'), 'Operator view must provide sidebarAutoHide computed property');
   assert(occContent.includes('toggleSidebarAutoHide()'), 'Operator view must provide toggleSidebarAutoHide method');
 });
@@ -110,6 +111,12 @@ runTest('6.1: English and Indonesian localization files define sidebar auto-hide
   assert(idContent.includes('"sidebarAutoHideOff"'), 'id.js must define sidebarAutoHideOff');
   assert(idContent.includes('"sidebarHoverTitle"'), 'id.js must define sidebarHoverTitle');
   assert(idContent.includes('"edgeSystem"'), 'id.js must define edgeSystem');
+});
+
+// 7. Double-Toggle Prevention
+runTest('7.1: Double-toggle prevention: App.vue does not re-dispatch on child toggle-autohide event', () => {
+  assert(appContent.includes('onSidebarAutoHideToggle'), 'App.vue must provide onSidebarAutoHideToggle handler');
+  assert(!appContent.includes('@toggle-autohide="toggleSidebarAutoHide"'), 'App.vue must NOT re-dispatch on child toggle-autohide');
 });
 
 console.log('===============================================================');

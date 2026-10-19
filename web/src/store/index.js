@@ -24,6 +24,7 @@ export default new Vuex.Store({
     },
     theme: resolveEffectiveTheme(getStoredTheme()),
     language: i18nState.locale,
+    sidebarAutoHide: localStorage.getItem('datalogger_sidebar_autohide') === 'true',
     wsConnected: false,
     systemStatus: {
       cpu_percent: 0,
@@ -106,14 +107,23 @@ export default new Vuex.Store({
       state.language = lang;
     },
     SET_SIDEBAR_AUTOHIDE(state, autoHide) {
-      if (!state.uiPreferences) state.uiPreferences = {};
-      state.uiPreferences.sidebarAutoHide = !!autoHide;
-      localStorage.setItem('datalogger_sidebar_autohide', state.uiPreferences.sidebarAutoHide ? 'true' : 'false');
+      const val = !!autoHide;
+      if (!state.uiPreferences) Vue.set(state, 'uiPreferences', {});
+      Vue.set(state.uiPreferences, 'sidebarAutoHide', val);
+      state.sidebarAutoHide = val;
+      try {
+        localStorage.setItem('datalogger_sidebar_autohide', val ? 'true' : 'false');
+      } catch (e) {}
     },
     TOGGLE_SIDEBAR_AUTOHIDE(state) {
-      if (!state.uiPreferences) state.uiPreferences = {};
-      state.uiPreferences.sidebarAutoHide = !state.uiPreferences.sidebarAutoHide;
-      localStorage.setItem('datalogger_sidebar_autohide', state.uiPreferences.sidebarAutoHide ? 'true' : 'false');
+      const current = (state.uiPreferences && state.uiPreferences.sidebarAutoHide) ?? state.sidebarAutoHide ?? false;
+      const next = !current;
+      if (!state.uiPreferences) Vue.set(state, 'uiPreferences', {});
+      Vue.set(state.uiPreferences, 'sidebarAutoHide', next);
+      state.sidebarAutoHide = next;
+      try {
+        localStorage.setItem('datalogger_sidebar_autohide', next ? 'true' : 'false');
+      } catch (e) {}
     },
     SET_WS_CONNECTED(state, connected) {
       state.wsConnected = connected;
