@@ -10,9 +10,9 @@
     <!-- 5. System Monitor Card                                   -->
     <!-- 6. Device & Parameter Monitoring Toolbar & Categories    -->
     <!-- ======================================================== -->
-    <div class="scada-unified-header-card rounded-lg border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0B1422] p-1.5 sm:p-2 mb-1 shadow-xs transition-colors flex flex-col space-y-1.5 select-none">
+    <div class="scada-unified-header-card rounded-lg border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0B1422] p-2 sm:p-2.5 mb-1.5 shadow-xs transition-colors flex flex-col space-y-1.5 select-none">
       <!-- 1. Header: Operator Command Center Bar -->
-      <div class="flex flex-wrap items-center justify-between gap-1 leading-none">
+      <div class="flex flex-wrap items-center justify-between gap-1.5 leading-none">
         <!-- Left: Station & Console Title -->
         <div class="flex items-center space-x-2">
           <div class="flex items-center space-x-1.5">
@@ -25,7 +25,7 @@
               <div class="flex items-center space-x-1.5">
                 <h1 class="text-[11px] font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center gap-1 leading-none">
                   <span>{{ $t('operator.title') || 'OPERATOR COMMAND CENTER' }}</span>
-                  <span class="px-1 py-0.1 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                  <span class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
                     SCADA
                   </span>
                 </h1>
@@ -39,36 +39,19 @@
           </div>
         </div>
 
-        <!-- Center: Live Clock in SCADA bar -->
-        <div v-if="currentTime" class="hidden md:flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-[10px] tabular-nums font-mono leading-none">
-          <span class="text-slate-400 dark:text-slate-500 text-3xs">🕒</span>
-          <span>{{ currentTime }}</span>
-        </div>
-
-        <!-- Right: Audio Controls, Theme, Language, Refresh, & Fullscreen Toggles -->
-        <div class="flex items-center space-x-1">
-          <!-- Quick Theme Toggle (☀ / 🌙) -->
-          <button
-            @click="toggleTheme"
-            class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition leading-none"
-            :title="isDark ? ($t('operator.lightMode') || 'Switch to Light Mode') : ($t('operator.darkMode') || 'Switch to Dark Mode')"
-          >
-            <span>{{ isDark ? '🌙' : '☀' }}</span>
-          </button>
-
-          <!-- Quick Language Toggle (EN / ID) -->
-          <button
-            @click="toggleLanguage"
-            class="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition leading-none"
-            :title="$t('header.language') || 'Language'"
-          >
-            {{ currentLocale.toUpperCase() }}
-          </button>
+        <!-- Right: Live Clock & Control Buttons in One Neat Row with Equal Height -->
+        <div class="flex items-center space-x-1.5 flex-shrink-0">
+          <!-- Live Clock in SCADA bar -->
+          <div v-if="currentTime" class="h-7 hidden md:flex items-center space-x-1.5 px-2.5 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-[10px] tabular-nums font-mono leading-none">
+            <span class="text-slate-400 dark:text-slate-500 text-3xs">🕒</span>
+            <span>{{ currentTime }}</span>
+          </div>
 
           <!-- Sound Mute/Unmute Toggle -->
           <button
+            type="button"
             @click="toggleAudioMute"
-            class="px-2 py-0.5 rounded border text-3xs font-mono font-semibold transition-colors flex items-center space-x-1 leading-none"
+            class="h-7 px-2.5 rounded border text-3xs font-mono font-semibold transition-colors flex items-center space-x-1.5 leading-none"
             :class="isAudioMuted ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20'"
             :title="isAudioMuted ? ($t('operator.audioMuted') || 'Sound Muted') : ($t('operator.audioActive') || 'Sound Active')"
           >
@@ -76,28 +59,50 @@
             <span class="hidden sm:inline">{{ isAudioMuted ? ($t('operator.audioMuted') || 'MUTED') : ($t('operator.audioActive') || 'AUDIO') }}</span>
           </button>
 
+          <!-- Quick Language Toggle (EN / ID) -->
+          <button
+            type="button"
+            @click="toggleLanguage"
+            class="h-7 px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition flex items-center justify-center leading-none"
+            :title="$t('header.language') || 'Language'"
+          >
+            {{ currentLocale.toUpperCase() }}
+          </button>
+
+          <!-- Quick Theme Toggle (☀ / 🌙) -->
+          <button
+            type="button"
+            @click="toggleTheme"
+            class="h-7 w-7 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition flex items-center justify-center leading-none"
+            :title="isDark ? ($t('operator.lightMode') || 'Switch to Light Mode') : ($t('operator.darkMode') || 'Switch to Dark Mode')"
+          >
+            <span>{{ isDark ? '🌙' : '☀' }}</span>
+          </button>
+
           <!-- Manual Refresh -->
           <button
+            type="button"
             @click="refreshDashboard"
             :disabled="isRefreshing"
-            class="p-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50 leading-none"
+            class="h-7 w-7 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50 flex items-center justify-center leading-none"
             :title="$t('common.refresh') || 'Refresh All'"
           >
-            <svg class="w-3 h-3" :class="{ 'animate-spin': isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
 
           <!-- Fullscreen / Sidebar & Top Panel Layout Toggle -->
           <button
+            type="button"
             @click="$emit('toggle-sidebar')"
-            class="px-2 py-0.5 rounded border text-3xs font-mono font-semibold transition flex items-center space-x-1 leading-none"
+            class="h-7 px-2.5 rounded border text-3xs font-mono font-semibold transition flex items-center space-x-1.5 leading-none"
             :class="isSidebarCollapsed
               ? 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 ring-1 ring-cyan-500/30'
               : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border-slate-200 dark:border-[#20354B] text-cyan-600 dark:text-cyan-400'"
             :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Full Width (Restore Panels)') : ($t('operator.fullWidth') || 'Full Width SCADA (Hide Panels)')"
           >
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
               <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
             </svg>
@@ -106,52 +111,49 @@
         </div>
       </div>
 
-      <!-- Divider between Header and Status Cards -->
-      <div class="border-t border-slate-100 dark:border-[#162538]"></div>
+      <!-- Divider between Header and Status Section -->
+      <div class="border-t border-slate-200/70 dark:border-[#1E3048]"></div>
 
-      <!-- 2. Four Operational Summary Cards Grid (Nested Cards) -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-1.5">
+      <!-- 2. Four Operational Status Areas (Balanced Unified Strip with Hairline Dividers) -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 rounded bg-slate-50/40 dark:bg-[#070E1A]/40 overflow-hidden">
         <!-- 1. Device & Comm Status -->
         <div
-          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border relative overflow-hidden transition flex flex-col justify-between h-[36px] sm:h-[38px]"
-          :class="summaryStats.offlineCount > 0
-            ? (isAlarmPulseActive
-                ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75'
-                : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
-            : 'border-slate-200/80 dark:border-[#1E3048] hover:border-cyan-500/50'"
+          class="primary-status-area px-3 py-1.5 sm:py-2 flex flex-col justify-between min-h-[48px] sm:min-h-[50px] border-r border-b lg:border-b-0 border-slate-200/70 dark:border-[#1E3048] transition-colors"
           :title="'Device Fleet: ' + summaryStats.onlineCount + '/' + summaryStats.totalDevices + ' Online · Latency: ' + (systemStatus.avg_latency_ms || 1.2) + 'ms · Success: ' + ((systemStatus.success_rate || 99.8).toFixed(1)) + '%'"
         >
-          <!-- Line 1: Header (icon + compact title + optional state badge) -->
-          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <!-- Line 1: Header (icon dot + title + status badge) -->
+          <div class="flex items-center justify-between leading-none">
             <div class="flex items-center space-x-1.5 min-w-0">
               <span
                 class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                 :class="[
                   summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-500',
-                  summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-rose-500/40' : 'scale-100'
+                  summaryStats.offlineCount > 0 && isAlarmPulseActive ? 'scale-125 ring-2 ring-rose-500/40' : 'scale-100'
                 ]"
               ></span>
-              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryDevices') || 'Device Status' }}</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate font-mono">
+                {{ $t('operator.summaryDevices') || 'Device & Comm Status' }}
+              </span>
             </div>
             <span
-              class="text-4xs font-mono font-bold px-1 py-0.1 rounded flex-shrink-0 leading-none"
+              class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 leading-none"
               :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
             >
               {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
             </span>
           </div>
 
-          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-          <div class="flex items-baseline justify-between leading-none mt-0">
+          <!-- Line 2: Prominent Primary Metric (17px) + Concise Secondary Indicator / Active % -->
+          <div class="flex items-baseline justify-between leading-none mt-1">
             <div class="flex items-baseline space-x-1">
-              <span class="text-[13px] sm:text-[14px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+              <span class="text-[17px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
                 {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
               </span>
-              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">dev</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">dev</span>
             </div>
-            <div class="flex items-center space-x-1 text-3xs font-mono">
+            <div class="flex items-center space-x-1 text-[9.5px] font-mono">
               <span v-if="summaryStats.offlineCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
-                {{ summaryStats.offlineCount }} off
+                {{ summaryStats.offlineCount }} off ({{ Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) }}%)
               </span>
               <span v-else class="text-emerald-600 dark:text-emerald-400 font-semibold">
                 100% active
@@ -162,52 +164,55 @@
 
         <!-- 2. Active Alarms -->
         <div
-          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border relative overflow-hidden transition cursor-pointer flex flex-col justify-between h-[36px] sm:h-[38px]"
-          :class="activeCriticalCount > 0
-            ? (isAlarmPulseActive ? 'border-rose-500 shadow-sm shadow-rose-500/30 transition-all duration-75' : 'border-rose-500 dark:border-rose-500/70 transition-all duration-300')
-            : activeAlarmsList.length > 0
-              ? (isAlarmPulseActive ? 'border-amber-500 shadow-sm shadow-amber-500/30 transition-all duration-75' : 'border-amber-500 dark:border-amber-500/70 transition-all duration-300')
-              : 'border-slate-200/80 dark:border-[#1E3048] hover:border-cyan-500/50'"
+          class="primary-status-area px-3 py-1.5 sm:py-2 flex flex-col justify-between min-h-[48px] sm:min-h-[50px] border-b lg:border-b-0 lg:border-r border-slate-200/70 dark:border-[#1E3048] transition-colors cursor-pointer hover:bg-slate-100/40 dark:hover:bg-[#0F1C2E]/40"
           @click="$router.push('/alarm/active')"
           :title="highestPriorityAlarm ? ('Top Incident: ' + highestPriorityAlarm.alarm_code + ' - ' + highestPriorityAlarm.message) : 'All Parameters Within Normal Operating Limits'"
         >
-          <!-- Line 1: Header (icon + compact title + console link) -->
-          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <!-- Line 1: Header (icon dot + title + console button) -->
+          <div class="flex items-center justify-between leading-none">
             <div class="flex items-center space-x-1.5 min-w-0">
               <span
                 class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                 :class="[
                   activeCriticalCount > 0 ? 'bg-rose-500' : activeAlarmsList.length > 0 ? 'bg-amber-500' : 'bg-emerald-500',
-                  activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-150 ring-2 ring-amber-500/40' : 'scale-100'
+                  activeAlarmsList.length > 0 && isAlarmPulseActive ? 'scale-125 ring-2 ring-amber-500/40' : 'scale-100'
                 ]"
               ></span>
-              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryAlarms') || 'Active Alarms' }}</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate font-mono">
+                {{ $t('operator.summaryAlarms') || 'Active Alarms' }}
+              </span>
             </div>
-            <router-link to="/alarm/active" class="text-4xs text-cyan-600 dark:text-cyan-400 hover:underline font-mono flex-shrink-0 leading-none">
-              {{ $t('operator.viewConsole') || 'Console →' }}
+            <router-link
+              to="/alarm/active"
+              @click.native.stop
+              class="text-[9.5px] font-mono font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 hover:underline flex items-center space-x-0.5 flex-shrink-0 leading-none"
+              :title="$t('operator.viewConsole') || 'View Alarm Console'"
+            >
+              <span>{{ $t('operator.viewConsole') || 'Console' }}</span>
+              <span>→</span>
             </router-link>
           </div>
 
-          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-          <div class="flex items-baseline justify-between leading-none mt-0">
+          <!-- Line 2: Prominent Primary Metric (17px) + Concise Limit Indicator -->
+          <div class="flex items-baseline justify-between leading-none mt-1">
             <div class="flex items-baseline space-x-1">
               <span
-                class="text-[13px] sm:text-[14px] font-bold font-mono tabular-nums tracking-tight"
+                class="text-[17px] font-bold font-mono tabular-nums tracking-tight"
                 :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
               >
                 {{ activeAlarmsList.length }}
               </span>
-              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">active</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">active</span>
             </div>
-            <div class="flex items-center space-x-1 text-3xs font-mono">
+            <div class="flex items-center space-x-1 text-[9.5px] font-mono">
               <span v-if="activeCriticalCount > 0" class="text-rose-600 dark:text-rose-400 font-bold">
                 {{ activeCriticalCount }} CRIT
               </span>
               <span v-if="activeWarningCount > 0" class="text-amber-600 dark:text-amber-400 font-bold">
-                {{ activeWarningCount }} WARN
+                <span v-if="activeCriticalCount > 0">· </span>{{ activeWarningCount }} WARN
               </span>
               <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
-                ✓ Limits Normal
+                ✓ Normal Limits
               </span>
             </div>
           </div>
@@ -215,71 +220,75 @@
 
         <!-- 3. Latest Telemetry -->
         <div
-          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border border-slate-200/80 dark:border-[#1E3048] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[36px] sm:h-[38px]"
+          class="primary-status-area px-3 py-1.5 sm:py-2 flex flex-col justify-between min-h-[48px] sm:min-h-[50px] border-r border-slate-200/70 dark:border-[#1E3048] transition-colors"
           :title="'Latest Telemetry: ' + (lastTelemetryTimeStr || 'Just now') + ' (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ') · ' + summaryStats.goodSensors + '/' + allParameters.length + ' Sensors Healthy · ' + summaryStats.staleSensors + ' Timed out'"
         >
-          <!-- Line 1: Header (icon + compact title + status badge) -->
-          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <!-- Line 1: Header (icon dot + title + status badge) -->
+          <div class="flex items-center justify-between leading-none">
             <div class="flex items-center space-x-1.5 min-w-0">
               <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500 animate-ping'"></span>
-              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate font-mono">
+                {{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}
+              </span>
             </div>
             <span
-              class="text-4xs font-mono font-bold px-1 py-0.1 rounded flex-shrink-0 leading-none"
+              class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 leading-none"
               :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
             >
               {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
             </span>
           </div>
 
-          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-          <div class="flex items-baseline justify-between leading-none mt-0">
+          <!-- Line 2: Prominent Primary Metric (17px) + Valid Sensors Indicator -->
+          <div class="flex items-baseline justify-between leading-none mt-1">
             <div class="flex items-baseline space-x-1">
               <span
-                class="text-[13px] sm:text-[14px] font-bold font-mono tabular-nums tracking-tight"
+                class="text-[17px] font-bold font-mono tabular-nums tracking-tight"
                 :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
               >
                 {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
               </span>
-              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">ago</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ago</span>
             </div>
-            <div class="flex items-center space-x-1 text-3xs font-mono">
+            <div class="flex items-center space-x-1 text-[9.5px] font-mono">
               <span
                 class="font-bold"
                 :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
               >
                 {{ summaryStats.goodSensors }}/{{ allParameters.length }}
               </span>
-              <span class="text-slate-500 dark:text-slate-400">Good</span>
+              <span class="text-slate-500 dark:text-slate-400 font-normal">Valid</span>
             </div>
           </div>
         </div>
 
         <!-- 4. System Monitor -->
         <div
-          class="scada-panel primary-status-card px-2 py-0.5 rounded-md bg-slate-50/70 dark:bg-[#070D18]/70 border border-slate-200/80 dark:border-[#1E3048] relative overflow-hidden group hover:border-cyan-500/50 transition flex flex-col justify-between h-[36px] sm:h-[38px]"
+          class="primary-status-area px-3 py-1.5 sm:py-2 flex flex-col justify-between min-h-[48px] sm:min-h-[50px] transition-colors"
           :title="'System Node: CPU ' + Math.round(systemStatus.cpu_percent || 0) + '% · RAM ' + Math.round(systemStatus.ram_percent || 0) + '% · Disk ' + Math.round(systemStatus.disk_percent || 0) + '% · DB Latency: ' + (systemStatus.db_latency_ms != null ? systemStatus.db_latency_ms + 'ms' : '0.8ms') + ' · WAL: ' + (systemStatus.queue_status || 'HEALTHY')"
         >
-          <!-- Line 1: Header (icon + compact title + status badge) -->
-          <div class="flex items-center justify-between text-3xs font-mono uppercase tracking-wider leading-none">
+          <!-- Line 1: Header (icon dot + title + status badge) -->
+          <div class="flex items-center justify-between leading-none">
             <div class="flex items-center space-x-1.5 min-w-0">
-              <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
-              <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ $t('operator.summarySystem') || 'System Monitor' }}</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 flex-shrink-0"></span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate font-mono">
+                {{ $t('operator.summarySystem') || 'System Monitor' }}
+              </span>
             </div>
-            <span class="text-4xs font-mono font-bold px-1 py-0.1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
+            <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0 leading-none">
               {{ systemStatus.service_status || 'RUNNING' }}
             </span>
           </div>
 
-          <!-- Line 2: Prominent Primary Metric + Concise Secondary Indicator -->
-          <div class="flex items-baseline justify-between leading-none mt-0">
+          <!-- Line 2: Prominent Primary Metric (17px) + RAM / Disk Indicators -->
+          <div class="flex items-baseline justify-between leading-none mt-1">
             <div class="flex items-baseline space-x-1">
-              <span class="text-[13px] sm:text-[14px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
+              <span class="text-[17px] font-bold font-mono text-slate-900 dark:text-white tabular-nums tracking-tight">
                 {{ Math.round(systemStatus.cpu_percent || 0) }}%
               </span>
-              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">CPU</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">CPU</span>
             </div>
-            <div class="flex items-center space-x-1.5 text-3xs font-mono text-slate-500 dark:text-slate-400">
+            <div class="flex items-center space-x-1.5 text-[9.5px] font-mono text-slate-500 dark:text-slate-400">
               <span>RAM: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.ram_percent || 0) }}%</strong></span>
               <span>·</span>
               <span>Disk: <strong class="text-slate-700 dark:text-slate-300 font-bold">{{ Math.round(systemStatus.disk_percent || 0) }}%</strong></span>
@@ -288,8 +297,8 @@
         </div>
       </div>
 
-      <!-- Divider between Status Cards and Parameter Monitoring Header -->
-      <div class="border-t border-slate-100 dark:border-[#162538]"></div>
+      <!-- Divider between Status Section and Parameter Monitoring Toolbar -->
+      <div class="border-t border-slate-200/70 dark:border-[#1E3048]"></div>
 
       <!-- 3. Device & Parameter Monitoring Toolbar with Icon-Based Settings -->
       <div class="flex flex-wrap items-center justify-between gap-1.5 leading-none">
@@ -346,7 +355,7 @@
             <button
               type="button"
               @click.stop="toggleToolbarPopover('categories')"
-              class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded transition border relative"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
               :class="[
                 activeToolbarPopover === 'categories'
                   ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
@@ -357,7 +366,7 @@
               aria-label="Parameter Categories"
               :aria-expanded="activeToolbarPopover === 'categories'"
             >
-              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="14" width="7" height="7" rx="1" />
@@ -488,7 +497,7 @@
             <button
               type="button"
               @click.stop="toggleToolbarPopover('pinned')"
-              class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded transition border relative"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
               :class="[
                 activeToolbarPopover === 'pinned'
                   ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500 shadow-xs'
@@ -501,7 +510,7 @@
               aria-label="Pinned Parameters"
               :aria-expanded="activeToolbarPopover === 'pinned'"
             >
-              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <line x1="12" y1="17" x2="12" y2="22" stroke-linecap="round" />
                 <path d="M5 17h14v-2l-2-2V5a1 1 0 00-1-1H8a1 1 0 00-1 1v8l-2 2v2z" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
@@ -618,7 +627,7 @@
             <button
               type="button"
               @click.stop="toggleToolbarPopover('displayMode')"
-              class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded transition border"
+              class="w-8 h-8 flex items-center justify-center rounded transition border"
               :class="[
                 activeToolbarPopover === 'displayMode'
                   ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
@@ -628,13 +637,13 @@
               aria-label="Display Mode"
               :aria-expanded="activeToolbarPopover === 'displayMode'"
             >
-              <svg v-if="viewMode === 'cards'" class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg v-if="viewMode === 'cards'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="14" width="7" height="7" rx="1" />
                 <rect x="3" y="14" width="7" height="7" rx="1" />
               </svg>
-              <svg v-else class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <line x1="3" y1="6" x2="21" y2="6" stroke-linecap="round" />
                 <line x1="3" y1="12" x2="21" y2="12" stroke-linecap="round" />
                 <line x1="3" y1="18" x2="21" y2="18" stroke-linecap="round" />
@@ -736,7 +745,7 @@
             <button
               type="button"
               @click.stop="toggleToolbarPopover('panelLayout')"
-              class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded transition border relative"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
               :class="[
                 activeToolbarPopover === 'panelLayout'
                   ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
@@ -746,11 +755,11 @@
               aria-label="Panel Layout"
               :aria-expanded="activeToolbarPopover === 'panelLayout'"
             >
-              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <path d="M12 3v18" stroke-linecap="round" />
               </svg>
-              <span class="absolute -bottom-1 -right-1 text-[8px] font-bold font-mono px-0.5 rounded bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] leading-none">
+              <span class="absolute -top-1.5 -right-1.5 text-[8px] font-bold font-mono px-1 py-0.2 rounded-full bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] ring-1 ring-white dark:ring-[#0B1422] leading-none pointer-events-none">
                 {{ gridColumns }}P
               </span>
             </button>
@@ -822,7 +831,7 @@
             <button
               type="button"
               @click.stop="toggleToolbarPopover('systemSetup')"
-              class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded transition border"
+              class="w-8 h-8 flex items-center justify-center rounded transition border"
               :class="[
                 activeToolbarPopover === 'systemSetup'
                   ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
@@ -832,7 +841,7 @@
               aria-label="Configuration and System Setup"
               :aria-expanded="activeToolbarPopover === 'systemSetup'"
             >
-              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <line x1="4" y1="21" x2="4" y2="14" stroke-linecap="round" />
                 <line x1="4" y1="10" x2="4" y2="3" stroke-linecap="round" />
                 <line x1="12" y1="21" x2="12" y2="12" stroke-linecap="round" />
@@ -988,7 +997,7 @@
             <button
               type="button"
               @click.stop="toggleToolbarPopover('ispuSettings')"
-              class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded transition border relative"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
               :class="[
                 activeToolbarPopover === 'ispuSettings'
                   ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500 shadow-xs'
@@ -1000,7 +1009,7 @@
               aria-label="ISPU Settings"
               :aria-expanded="activeToolbarPopover === 'ispuSettings'"
             >
-              <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2" />
               </svg>
               <span
