@@ -23,7 +23,8 @@
     "test:sidebar": "node tests/sidebar_autohide_test.js",
     "test:trend-refine": "node tests/trend_timeframe_axis_quickactions_test.js",
     "test:station-card": "node tests/station_domain_clean_card_test.js",
-    "test:trend-5s": "node tests/trend_five_second_polling_points_test.js"
+    "test:trend-5s": "node tests/trend_five_second_polling_points_test.js",
+    "test:operator-sound": "node tests/operator_sound_setup_test.js"
   },
   "dependencies": {
     "axios": "^1.6.8",

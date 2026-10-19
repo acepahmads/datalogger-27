@@ -510,6 +510,20 @@ class AudioAlertEngine {
   }
 
   /**
+   * Compatibility alias for setMute
+   */
+  setMuted(muted, durationMinutes = null) {
+    this.setMute(muted, durationMinutes);
+  }
+
+  /**
+   * Compatibility alias for previewSound
+   */
+  playChime(severity = 'WARNING') {
+    this.previewSound(severity);
+  }
+
+  /**
    * Update volume (0.0 to 1.0)
    */
   setVolume(vol) {

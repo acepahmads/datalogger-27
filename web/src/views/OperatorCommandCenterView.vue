@@ -2438,16 +2438,172 @@
           {{ $t('operator.systemHealthAction') || 'System Health' }}
         </router-link>
 
-        <!-- Audio Indicator Badge / Toggle -->
-        <button
-          @click="toggleAudioMute"
-          class="h-[22px] px-2 rounded border text-[9px] font-mono font-bold flex items-center space-x-1 leading-none transition-colors cursor-pointer"
-          :class="isAudioMuted ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'"
-          :title="isAudioMuted ? 'Unmute Audio' : 'Mute Audio'"
-        >
-          <span>{{ isAudioMuted ? '🔇' : '🔊' }}</span>
-          <span>{{ isAudioMuted ? 'MUTED' : 'SOUND ON' }}</span>
-        </button>
+        <!-- Audio Indicator Badge / Toggle & Setup Control -->
+        <div class="relative audio-setup-anchor flex items-center">
+          <button
+            type="button"
+            @click="toggleAudioSetupPopover"
+            class="h-[22px] px-2 rounded border text-[9px] font-mono font-bold flex items-center space-x-1 leading-none transition-colors cursor-pointer"
+            :class="isAudioMuted || !isSoundEnabled ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'"
+            :title="isAudioMuted ? 'Audio Muted · Click for Setup & Unmute' : 'Audio Active · Click for Setup & Volume'"
+          >
+            <span>{{ isAudioMuted ? '🔇' : (isSoundEnabled ? '🔊' : '🔈') }}</span>
+            <span>{{ isAudioMuted ? 'MUTED' : (isSoundEnabled ? 'SOUND ON' : 'SOUND OFF') }}</span>
+            <span class="text-slate-400 dark:text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-300 ml-0.5 text-[8px]">⚙️</span>
+          </button>
+
+          <!-- Upward Docked Audio Setup Popover -->
+          <div
+            v-if="showAudioSetupPopover"
+            class="absolute right-0 bottom-full mb-2 z-50 w-72 sm:w-80 rounded-xl shadow-2xl p-3 border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0B1422] text-slate-800 dark:text-slate-100 select-none font-mono text-xs animate-fadeIn"
+            @click.stop
+          >
+            <!-- Popover Header -->
+            <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
+              <div class="flex items-center space-x-1.5">
+                <span class="text-cyan-500 text-sm">🔊</span>
+                <span class="text-xs font-bold uppercase tracking-wider font-mono">
+                  Audio & Alarm Setup
+                </span>
+              </div>
+              <button
+                type="button"
+                @click="showAudioSetupPopover = false"
+                class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <!-- 1. Master Status & Quick Mute Toggle -->
+            <div class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5">
+              <div>
+                <div class="text-[10.5px] font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
+                  <span>{{ isAudioMuted ? '🔇 Audio Muted' : '🔊 Audio Active' }}</span>
+                </div>
+                <div class="text-[9px] text-slate-500 dark:text-slate-400">
+                  {{ isAudioMuted ? 'Alarm chimes currently silenced' : 'Alarm chimes will sound on incidents' }}
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="toggleAudioMute"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                :class="!isAudioMuted ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                role="switch"
+                :aria-checked="!isAudioMuted"
+              >
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="!isAudioMuted ? 'translate-x-4' : 'translate-x-0'"
+                ></span>
+              </button>
+            </div>
+
+            <!-- 2. Volume Slider -->
+            <div class="p-2.5 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5 space-y-1.5">
+              <div class="flex items-center justify-between text-[10px]">
+                <span class="font-bold text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                  <span>🔈</span>
+                  <span>Alert Volume</span>
+                </span>
+                <span class="font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                  {{ Math.round(audioVolume * 100) }}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                v-model.number="audioVolume"
+                @input="onAudioVolumeChange"
+                class="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+              <div class="flex justify-between text-[8px] text-slate-400 font-mono">
+                <span>0% (Silent)</span>
+                <span>50%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
+            <!-- 3. Test Audio Chimes (Audio Pattern Preview) -->
+            <div class="p-2.5 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5 space-y-1.5">
+              <div class="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Test Audio Chimes
+              </div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  @click="testAlarmChime('WARNING')"
+                  class="px-2 py-1.5 rounded border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold text-[9.5px] transition flex items-center justify-center space-x-1 cursor-pointer active:scale-95"
+                >
+                  <span>🔔</span>
+                  <span>Warning</span>
+                </button>
+                <button
+                  type="button"
+                  @click="testAlarmChime('CRITICAL')"
+                  class="px-2 py-1.5 rounded border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 font-bold text-[9.5px] transition flex items-center justify-center space-x-1 cursor-pointer active:scale-95"
+                >
+                  <span>🚨</span>
+                  <span>Critical</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 4. Repeat Policy & Mute Duration Grid -->
+            <div class="grid grid-cols-2 gap-2 mb-2 text-[9.5px]">
+              <div>
+                <label class="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Repeat Interval
+                </label>
+                <select
+                  v-model.number="audioRepeatInterval"
+                  @change="onAudioRepeatIntervalChange"
+                  class="w-full px-1.5 py-1 rounded bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-[9.5px] focus:outline-none focus:border-cyan-500"
+                >
+                  <option :value="1">Every 1s</option>
+                  <option :value="3">Every 3s</option>
+                  <option :value="5">Every 5s (Default)</option>
+                  <option :value="10">Every 10s</option>
+                  <option :value="15">Every 15s</option>
+                  <option :value="30">Every 30s</option>
+                  <option :value="0">Once Only</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[8.5px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Mute Timer
+                </label>
+                <select
+                  v-model.number="audioMuteDuration"
+                  @change="onAudioMuteDurationChange"
+                  class="w-full px-1.5 py-1 rounded bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-[9.5px] focus:outline-none focus:border-cyan-500"
+                >
+                  <option :value="0">Normal (Unmuted)</option>
+                  <option :value="5">Mute 5m</option>
+                  <option :value="15">Mute 15m</option>
+                  <option :value="30">Mute 30m</option>
+                  <option :value="60">Mute 1h</option>
+                  <option :value="-1">Mute Indefinite</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Footer Link: Advanced Notification Settings Modal Trigger -->
+            <div class="pt-2 border-t border-slate-100 dark:border-[#1E3048]">
+              <button
+                type="button"
+                @click="openFullAlarmSettingsModal"
+                class="w-full py-1.5 px-2 rounded text-[9.5px] font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400 cursor-pointer"
+              >
+                <span>⚙️</span>
+                <span>Open Full Notification Settings</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -3665,6 +3821,12 @@
       @save="handlePanelConfigSaved"
       @close="isPanelConfigModalOpen = false"
     />
+
+    <!-- 6. Alarm & Audio Notification Settings Modal -->
+    <AlarmNotificationModal
+      :is-open="showAlarmNotificationModal"
+      @close="showAlarmNotificationModal = false; initAudioPreferences()"
+    />
   </div>
 </template>
 
@@ -3695,6 +3857,12 @@ import {
   updateCompanyName
 } from '../utils/companyBranding';
 import MultiPanelConfigModal from '../components/MultiPanelConfigModal.vue';
+import AlarmNotificationModal from '../components/AlarmNotificationModal.vue';
+import {
+  getStoredAlarmPreferences,
+  saveAlarmPreferences,
+  applyAlarmPreferences,
+} from '../utils/alarmPreferences';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
 
@@ -3730,6 +3898,7 @@ export default {
     ParameterModal,
     ISPUIndicatorBar,
     MultiPanelConfigModal,
+    AlarmNotificationModal,
   },
   props: {
     isSidebarCollapsed: {
@@ -3907,6 +4076,14 @@ export default {
         preset: '24h',
         format: 'html',
       },
+
+      // Audio & Alarm Sound Setup State
+      showAudioSetupPopover: false,
+      showAlarmNotificationModal: false,
+      audioVolume: 0.7,
+      audioRepeatInterval: 5,
+      audioSoundEnabled: true,
+      audioMuteDuration: 0,
     };
   },
   computed: {
@@ -4522,6 +4699,10 @@ export default {
       const prefs = this.$store.state.alarmPreferences;
       return prefs ? prefs.isMuted : audioAlert.isMuted;
     },
+    isSoundEnabled() {
+      const prefs = this.$store.state.alarmPreferences;
+      return prefs && prefs.soundEnabled !== undefined ? prefs.soundEnabled : audioAlert.soundEnabled;
+    },
     overallAppHealth() {
       if (this.systemStatus.database_status && String(this.systemStatus.database_status).toLowerCase().includes('fail')) {
         return 'FAILURE';
@@ -4923,6 +5104,7 @@ export default {
   },
   mounted() {
     this.initCompanyBranding();
+    this.initAudioPreferences();
     window.addEventListener('organization-branding-updated', this.onOrganizationBrandingUpdated);
     this.initDashboard();
     this.initTrendResizeObserver();
@@ -5422,6 +5604,9 @@ export default {
       if (this.showTrendDownloadMenu && !e.target.closest('.trend-download-anchor')) {
         this.showTrendDownloadMenu = false;
       }
+      if (this.showAudioSetupPopover && !e.target.closest('.audio-setup-anchor')) {
+        this.showAudioSetupPopover = false;
+      }
     },
     onDocumentKeyDown(e) {
       if (e.key === 'Escape') {
@@ -5429,6 +5614,7 @@ export default {
         if (this.activeToolbarPopover) this.closeToolbarPopover();
         if (this.showTrendSettingsMenu) this.showTrendSettingsMenu = false;
         if (this.showTrendDownloadMenu) this.showTrendDownloadMenu = false;
+        if (this.showAudioSetupPopover) this.showAudioSetupPopover = false;
         if (this.showLogoModal) this.closeLogoModal();
         if (this.showBrandingModal) this.closeBrandingModal();
       }
@@ -6575,12 +6761,84 @@ export default {
       }, 250);
     },
     toggleAudioMute() {
+      audioAlert.unlockAudio().catch(() => {});
       const nextMuted = !this.isAudioMuted;
-      audioAlert.setMuted(nextMuted);
-      this.$store.commit('SET_ALARM_PREFERENCES', { isMuted: audioAlert.isMuted });
+      audioAlert.setMute(nextMuted);
+      const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+      const updated = {
+        ...current,
+        isMuted: nextMuted,
+        muteUntil: null,
+        muteDurationMinutes: nextMuted ? -1 : 0,
+      };
+      saveAlarmPreferences(updated, this.currentUserIdentifier);
+      this.$store.commit('SET_ALARM_PREFERENCES', updated);
+      this.audioMuteDuration = updated.muteDurationMinutes;
+      if (!nextMuted) {
+        audioAlert.previewSound('WARNING');
+      }
+    },
+    initAudioPreferences() {
+      const prefs = getStoredAlarmPreferences(this.currentUserIdentifier);
+      applyAlarmPreferences(prefs);
+      this.$store.commit('SET_ALARM_PREFERENCES', prefs);
+      this.audioVolume = prefs.volume !== undefined ? prefs.volume : 0.7;
+      this.audioRepeatInterval = prefs.repeatIntervalSeconds !== undefined ? prefs.repeatIntervalSeconds : 5;
+      this.audioSoundEnabled = prefs.soundEnabled !== undefined ? prefs.soundEnabled : true;
+      this.audioMuteDuration = prefs.muteDurationMinutes !== undefined ? prefs.muteDurationMinutes : 0;
+    },
+    toggleAudioSetupPopover() {
+      this.showAudioSetupPopover = !this.showAudioSetupPopover;
+      if (this.showAudioSetupPopover) {
+        audioAlert.unlockAudio().catch(() => {});
+        const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+        this.audioVolume = current.volume !== undefined ? current.volume : this.audioVolume;
+        this.audioRepeatInterval = current.repeatIntervalSeconds !== undefined ? current.repeatIntervalSeconds : this.audioRepeatInterval;
+        this.audioMuteDuration = current.muteDurationMinutes !== undefined ? current.muteDurationMinutes : this.audioMuteDuration;
+      }
+    },
+    openFullAlarmSettingsModal() {
+      this.showAudioSetupPopover = false;
+      this.showAlarmNotificationModal = true;
+    },
+    onAudioVolumeChange() {
+      audioAlert.unlockAudio().catch(() => {});
+      audioAlert.setVolume(this.audioVolume);
+      const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+      const updated = { ...current, volume: this.audioVolume };
+      saveAlarmPreferences(updated, this.currentUserIdentifier);
+      this.$store.commit('SET_ALARM_PREFERENCES', updated);
+    },
+    onAudioRepeatIntervalChange() {
+      audioAlert.setRepeatInterval(this.audioRepeatInterval);
+      const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+      const updated = { ...current, repeatIntervalSeconds: this.audioRepeatInterval };
+      saveAlarmPreferences(updated, this.currentUserIdentifier);
+      this.$store.commit('SET_ALARM_PREFERENCES', updated);
+    },
+    onAudioMuteDurationChange() {
+      audioAlert.unlockAudio().catch(() => {});
+      const dur = Number(this.audioMuteDuration);
+      const nextMuted = dur !== 0;
+      const durMins = dur > 0 ? dur : null;
+      audioAlert.setMute(nextMuted, durMins);
+      const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+      const updated = {
+        ...current,
+        isMuted: nextMuted,
+        muteDurationMinutes: dur,
+        muteUntil: dur > 0 ? (Date.now() + dur * 60 * 1000) : null,
+      };
+      saveAlarmPreferences(updated, this.currentUserIdentifier);
+      this.$store.commit('SET_ALARM_PREFERENCES', updated);
+      if (!nextMuted) {
+        audioAlert.previewSound('WARNING');
+      }
     },
     testAlarmChime(severity) {
-      audioAlert.playChime(severity || 'CRITICAL');
+      audioAlert.unlockAudio().then(() => {
+        audioAlert.previewSound(severity || 'WARNING');
+      });
     },
 
     // ----------------------------------------------------
