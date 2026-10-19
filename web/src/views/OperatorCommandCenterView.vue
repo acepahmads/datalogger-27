@@ -1784,12 +1784,12 @@
 
             <!-- Timeframe Preset Buttons & Actions -->
             <div class="flex items-center space-x-1">
-              <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.2 rounded border border-slate-200 dark:border-[#1E3048] text-3xs font-mono leading-none">
+              <div class="h-[24px] flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded border border-slate-200 dark:border-[#1E3048] text-3xs font-mono leading-none">
                 <button
                   v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
                   :key="tf"
                   @click="setTimeframe(tf)"
-                  class="px-1.5 py-0.5 rounded transition font-semibold leading-none"
+                  class="h-full px-2 flex items-center justify-center rounded transition font-semibold leading-none cursor-pointer"
                   :class="currentTimeframe === tf
                     ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
@@ -1802,10 +1802,10 @@
               <div class="relative">
                 <button
                   @click="showTrendDownloadMenu = !showTrendDownloadMenu"
-                  class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none"
+                  class="w-[24px] h-[24px] flex items-center justify-center rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none cursor-pointer"
                   title="Download Data / Chart"
                 >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                 </button>
@@ -1813,19 +1813,19 @@
                   v-if="showTrendDownloadMenu"
                   class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
                 >
-                  <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                  <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
                     <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <span>CSV Data</span>
                   </button>
-                  <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                  <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
                     <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                     <span>JSON Data</span>
                   </button>
-                  <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                  <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
                     <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     <span>PNG Graphic</span>
                   </button>
-                  <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition">
+                  <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
                     <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
                     <span>SVG Graphic</span>
                   </button>
@@ -1835,10 +1835,10 @@
               <!-- Fullscreen Button -->
               <button
                 @click="openTrendFullscreen"
-                class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none"
+                class="w-[24px] h-[24px] flex items-center justify-center rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none cursor-pointer"
                 title="Fullscreen / Expanded View"
               >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                 </svg>
               </button>
@@ -2188,12 +2188,12 @@
               <!-- X-Axis Time Ticks & Timestamps -->
               <g class="time-ticks">
                 <g v-for="(tick, idx) in trendXTicks" :key="'xtick-' + idx">
-                  <line :x1="tick.x" :y1="trendChartDims.baseY" :x2="tick.x" :y2="trendChartDims.baseY + 4" :stroke="axisStroke" stroke-width="1" />
+                  <line :x1="tick.x" :y1="trendChartDims.baseY" :x2="tick.x" :y2="trendChartDims.baseY + 3.5" :stroke="axisStroke" stroke-width="1" />
                   <text
                     :x="tick.x"
-                    :y="trendChartDims.baseY + 16"
+                    :y="trendChartDims.baseY + 15"
                     text-anchor="middle"
-                    font-size="10"
+                    font-size="9.5"
                     font-family="monospace"
                     :fill="isDark ? '#7E8B9B' : '#475569'"
                   >{{ tick.label }}</text>
@@ -2386,19 +2386,19 @@
       </div>
 
     <!-- I. QUICK ACTIONS & EXPORT BAR (Docked SCADA Footer) -->
-    <div class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-[#0B1422]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#20354B] px-2.5 sm:px-4 py-0.5 flex items-center justify-between gap-1.5 shadow-lg transition-colors h-[34px] select-none">
+    <div class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-[#0B1422]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#20354B] px-2 sm:px-3 py-0.5 flex items-center justify-between gap-1 shadow-lg transition-colors h-[28px] select-none">
       <!-- Left: Quick Operational Commands -->
-      <div class="flex items-center gap-1.5 flex-shrink-0">
-        <span class="text-[9.5px] uppercase font-mono font-bold text-cyan-600 dark:text-cyan-400 hidden sm:inline mr-1 tracking-wider leading-none">
+      <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        <span class="text-[8.5px] uppercase font-mono font-bold text-cyan-600 dark:text-cyan-400 hidden sm:inline mr-0.5 tracking-wider leading-none">
           {{ $t('operator.quickActions') || 'QUICK ACTIONS' }}:
         </span>
 
         <!-- Export Data -->
         <button
           @click="openExportModal"
-          class="h-[28px] px-2 sm:px-2.5 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-[10.5px] font-mono transition-colors shadow-xs flex items-center space-x-1.5 leading-none"
+          class="h-[22px] px-2 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-[9.5px] font-mono transition-colors shadow-xs flex items-center space-x-1 leading-none cursor-pointer"
         >
-          <svg class="w-3 h-3 text-slate-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-2.5 h-2.5 text-slate-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           <span>{{ $t('operator.exportData') || 'Export Data' }}</span>
@@ -2407,9 +2407,9 @@
         <!-- Generate Report -->
         <button
           @click="openReportModal"
-          class="h-[28px] px-2 sm:px-2.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10.5px] font-mono transition-colors flex items-center space-x-1.5 shadow-xs leading-none"
+          class="h-[22px] px-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[9.5px] font-mono transition-colors flex items-center space-x-1 shadow-xs leading-none cursor-pointer"
         >
-          <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           <span>{{ $t('operator.generateReport') || 'Operational Report' }}</span>
@@ -2418,7 +2418,7 @@
         <!-- Alarm History -->
         <router-link
           to="/alarm/history"
-          class="h-[28px] px-2 sm:px-2.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] text-[10.5px] font-mono font-medium transition hidden md:flex items-center space-x-1 leading-none"
+          class="h-[22px] px-1.5 sm:px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] text-[9.5px] font-mono font-medium transition hidden md:flex items-center space-x-1 leading-none"
         >
           <span class="text-3xs">📋</span>
           <span>{{ $t('operator.alarmHistory') || 'Alarm History' }}</span>
@@ -2426,22 +2426,22 @@
       </div>
 
       <!-- Right: Navigation Shortcuts & Audio State -->
-      <div class="flex items-center gap-1.5 flex-shrink-0 text-[10.5px] font-mono leading-none">
+      <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 text-[9.5px] font-mono leading-none">
         <router-link
           to="/monitoring/devices"
-          class="h-[28px] px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
+          class="h-[22px] px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
         >
           {{ $t('operator.deviceMonitoring') || 'Devices' }}
         </router-link>
         <router-link
           to="/monitoring/analysis"
-          class="h-[28px] px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
+          class="h-[22px] px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
         >
           {{ $t('operator.telemetryAnalysis') || 'Analysis' }}
         </router-link>
         <router-link
           to="/monitoring/system"
-          class="h-[28px] px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
+          class="h-[22px] px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
         >
           {{ $t('operator.systemHealthAction') || 'System Health' }}
         </router-link>
@@ -2449,7 +2449,7 @@
         <!-- Audio Indicator Badge / Toggle -->
         <button
           @click="toggleAudioMute"
-          class="h-[28px] px-2 sm:px-2.5 rounded border text-[10px] font-mono font-bold flex items-center space-x-1 leading-none transition-colors cursor-pointer"
+          class="h-[22px] px-2 rounded border text-[9px] font-mono font-bold flex items-center space-x-1 leading-none transition-colors cursor-pointer"
           :class="isAudioMuted ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'"
           :title="isAudioMuted ? 'Unmute Audio' : 'Mute Audio'"
         >
@@ -3954,11 +3954,11 @@ export default {
     },
     trendChartDims() {
       const width = this.trendChartWidth || 800;
-      const height = this.trendChartHeight || 102;
+      const height = this.trendChartHeight || 135;
       const padLeft = 44;
       const padRight = this.trendScales?.isDual ? 44 : 28;
       const padTop = 10;
-      const padBottom = 14;
+      const padBottom = 24;
       const plotW = Math.max(width - padLeft - padRight, 100);
       const plotH = Math.max(height - padTop - padBottom, 40);
       const baseY = height - padBottom;
