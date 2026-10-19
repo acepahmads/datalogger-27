@@ -73,26 +73,6 @@
               <span class="hidden xl:inline text-[9px]">{{ companyName || 'LOGO' }}</span>
             </div>
           </button>
-
-          <!-- Quick Language Toggle (EN / ID) -->
-          <button
-            type="button"
-            @click="toggleLanguage"
-            class="h-7 px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono font-bold transition flex items-center justify-center leading-none"
-            :title="$t('header.language') || 'Language'"
-          >
-            {{ currentLocale.toUpperCase() }}
-          </button>
-
-          <!-- Quick Theme Toggle (☀ / 🌙) -->
-          <button
-            type="button"
-            @click="toggleTheme"
-            class="h-7 w-7 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 text-3xs font-mono transition flex items-center justify-center leading-none"
-            :title="isDark ? ($t('operator.lightMode') || 'Switch to Light Mode') : ($t('operator.darkMode') || 'Switch to Dark Mode')"
-          >
-            <span>{{ isDark ? '🌙' : '☀' }}</span>
-          </button>
         </div>
       </div>
 
@@ -2331,40 +2311,6 @@
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <!-- Chart Minimal Status & Quick Controls Anchor -->
-          <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 pt-0.5 leading-none">
-            <div class="flex items-center space-x-1.5">
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span class="uppercase font-semibold tracking-wider text-slate-500 dark:text-slate-400">
-                LIVE · {{ chartMode.toUpperCase() }} · {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'DUAL-AXIS' : 'ACTUAL') : 'NORM %' }}
-              </span>
-              <template v-if="hasOutlierSpike && trendScaleMode === 'auto'">
-                <span>·</span>
-                <button
-                  type="button"
-                  @click="toggleTrendSpikeZoom"
-                  class="hover:text-amber-500 dark:hover:text-amber-400 font-bold transition flex items-center space-x-0.5 cursor-pointer"
-                  :title="trendSpikeZoom === 'full' ? 'Click to focus normal telemetry variation' : 'Click to show full spike span'"
-                >
-                  <span>⚡ {{ trendSpikeZoom === 'full' ? 'SPIKE: FULL SPAN' : 'SPIKE: FOCUSED' }}</span>
-                </button>
-              </template>
-            </div>
-            <div class="flex items-center space-x-2">
-              <button
-                type="button"
-                @click="showTrendSettingsMenu = !showTrendSettingsMenu"
-                class="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center space-x-1 cursor-pointer"
-                title="Chart Setup & Controls"
-              >
-                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                </svg>
-                <span>Controls & Setup</span>
-              </button>
             </div>
           </div>
         </div>

@@ -167,13 +167,14 @@ runTest('4.2: Menu options display active state on current selection', () => {
   assert(occContent.includes("trendScaleMode === 'normalized' ? 'bg-cyan-500 text-slate-950 shadow-xs'"), 'Norm scale must show active state');
 });
 
-runTest('4.3: Bottom footer row is uncluttered with minimal SCADA status line', () => {
-  assert(occContent.includes('<!-- Chart Minimal Status & Quick Controls Anchor -->'), 'Chart footer must be minimal');
-  assert(occContent.includes('LIVE · {{ chartMode.toUpperCase() }}'), 'Must display live mode status');
+runTest('4.3: Redundant bottom footer line (Live Processed Actual and Controls & Setup) is removed', () => {
+  assert(!occContent.includes('<!-- Chart Minimal Status & Quick Controls Anchor -->'), 'Chart footer must be removed');
+  assert(!occContent.includes('LIVE · {{ chartMode.toUpperCase() }}'), 'Must not display redundant bottom status text');
+  assert(!occContent.includes('<span>Controls & Setup</span>'), 'Must not display redundant Controls & Setup text');
 });
 
 // -------------------------------------------------------------
-// REQUIREMENT 5: LOCALIZATION
+// REQUIREMENT 5: LOCALIZATION & HEADER CONTROLS CLEANUP
 // -------------------------------------------------------------
 
 runTest('5.1: chartSetup translation exists in English and Indonesian', () => {
@@ -188,6 +189,14 @@ runTest('5.2: Manual refresh icon is removed from the top header panel', () => {
 runTest('5.3: System setup icon and popover are removed from the dashboard toolbar panel', () => {
   assert(!occContent.includes("toggleToolbarPopover('systemSetup')"), 'Dashboard toolbar must not contain systemSetup button');
   assert(!occContent.includes("activeToolbarPopover === 'systemSetup'"), 'Dashboard toolbar must not contain systemSetup popover');
+});
+
+runTest('5.4: Day/night theme toggle icon is removed from the operator dashboard header', () => {
+  assert(!occContent.includes('@click="toggleTheme"'), 'Dashboard header must not contain theme toggle button');
+});
+
+runTest('5.5: Language (EN/IND) toggle button is removed from the operator dashboard header', () => {
+  assert(!occContent.includes('@click="toggleLanguage"'), 'Dashboard header must not contain language toggle button');
 });
 
 console.log('===============================================================');
