@@ -1753,10 +1753,13 @@
           <!-- Chart Header & Timeframe Buttons -->
           <div class="flex items-center justify-between gap-1.5 pb-1 border-b border-slate-200 dark:border-[#1E3048]">
             <div class="flex items-center space-x-1.5">
-              <span class="w-2 h-2 rounded-full bg-cyan-500 shadow-glow-cyan"></span>
+              <span class="w-2 h-2 rounded-full bg-cyan-500 shadow-glow-cyan animate-pulse"></span>
               <h3 class="text-2xs sm:text-xs font-bold tracking-wider uppercase text-slate-900 dark:text-white font-mono leading-none">
                 {{ $t('operator.trendAnalysis') || 'TREND ANALYSIS' }}
               </h3>
+              <span class="text-[8px] font-mono text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 leading-none" title="Trend data automatically updates every 1 minute">
+                AUTO 1M
+              </span>
 
               <!-- Outlier Spike Alert Pill (When isolated spike detected) -->
               <button
@@ -4042,6 +4045,7 @@ export default {
       currentTimeMs: Date.now(),
       tickerInterval: null,
       pollingInterval: null,
+      trendAutoRefreshInterval: null,
       devicePollCycles: 0,
       clockInterval: null,
       currentTime: new Date().toLocaleTimeString('en-GB'),
@@ -5127,6 +5131,9 @@ export default {
     // Background Poll Interval for Telemetry & Alarms (configured dynamically to device interval)
     this.setupPollingTimer();
 
+    // Auto-refresh Trend Analysis every 1 minute (silent background update)
+    this.setupTrendAutoRefresh();
+
     // Listen to real WebSocket Telemetry & Communication events
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.addEventListener('device-comm-event', this.onDeviceCommEvent);
@@ -5143,6 +5150,7 @@ export default {
     if (this.tickerInterval) clearInterval(this.tickerInterval);
     if (this.clockInterval) clearInterval(this.clockInterval);
     if (this.pollingInterval) clearInterval(this.pollingInterval);
+    if (this.trendAutoRefreshInterval) clearInterval(this.trendAutoRefreshInterval);
     if (this.alarmPulseTimer) clearTimeout(this.alarmPulseTimer);
     if (this.trendResizeObserver) {
       this.trendResizeObserver.disconnect();
@@ -6473,6 +6481,19 @@ export default {
         await this.pollDashboardCycle();
       }, intervalMs);
     },
+    setupTrendAutoRefresh() {
+      if (this.trendAutoRefreshInterval) {
+        clearInterval(this.trendAutoRefreshInterval);
+        this.trendAutoRefreshInterval = null;
+      }
+      // Auto-refresh Trend Analysis every 1 minute (60,000 ms)
+      this.trendAutoRefreshInterval = setInterval(() => {
+        // Only refresh automatically when not in custom historical inspection and when series exist
+        if (!this.fullscreenIsCustom && this.activeTrendSeries && this.activeTrendSeries.length > 0) {
+          this.fetchTrendData(true);
+        }
+      }, 60000);
+    },
     async pollDashboardCycle() {
       await this.refreshLatestOnly();
       await this.fetchActiveAlarms();
@@ -7131,9 +7152,11 @@ export default {
         return val.toFixed(3);
       }
     },
-    async fetchTrendData() {
+    async fetchTrendData(silent = false) {
       if (this.activeTrendSeries.length === 0) return;
-      this.isChartLoading = true;
+      if (!silent) {
+        this.isChartLoading = true;
+      }
       try {
         const now = new Date();
         let startTime = new Date(now.getTime() - 24 * 3600 * 1000);
@@ -7278,7 +7301,11 @@ export default {
           }
         }));
       } finally {
-        this.isChartLoading = false;
+        if (!silent) {
+          this.isChartLoading = false;
+        }
+        // Reschedule next auto-refresh 1 minute after any fetch completes
+        this.setupTrendAutoRefresh();
       }
     },
     generateChartPath(series, bounds = null, width = null, height = null, padLeft = null, padRight = null, padTop = null, padBottom = null) {
