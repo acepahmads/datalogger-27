@@ -1900,6 +1900,7 @@ export default {
     "testAudioWarning": "Uji Suara Peringatan",
     "testAudioCritical": "Uji Suara Kritis",
     "recordsLoaded": "catatan dimuat",
+    "chartSetup": "Pengaturan Grafik & Kontrol",
     "showWindAndMap": "Tampilkan Wind Rose & Peta",
     "hideWindAndMap": "Sembunyikan Wind Rose & Peta",
     "windRoseTitle": "Wind Rose (Mawar Angin)",

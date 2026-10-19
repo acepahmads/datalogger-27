@@ -1644,17 +1644,17 @@
                     </span>
                   </div>
 
-                  <!-- Right: Mini Sparkline -->
-                  <div class="w-[52px] sm:w-[56px] h-[18px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative">
+                  <!-- Right: Mini Sparkline (Vertically centered, consistent 20px height) -->
+                  <div class="w-[52px] sm:w-[56px] h-[20px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative my-auto flex items-center justify-center">
                     <svg
                       v-if="getSparkline(param.param_id).hasHistory"
-                      class="w-full h-full"
+                      class="w-full h-full block"
                       viewBox="0 0 100 20"
                       preserveAspectRatio="none"
                     >
                       <defs>
                         <linearGradient :id="'sparkGrad-' + param.param_id" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" :stop-color="getSparklineColor(param)" stop-opacity="0.22" />
+                          <stop offset="0%" :stop-color="getSparklineColor(param)" stop-opacity="0.25" />
                           <stop offset="100%" :stop-color="getSparklineColor(param)" stop-opacity="0.0" />
                         </linearGradient>
                       </defs>
@@ -1675,13 +1675,12 @@
                         stroke-linejoin="round"
                       />
                     </svg>
-                    <!-- Empty state: Awaiting history samples -->
+                    <!-- Empty state: Centered subtle indicator -->
                     <div
                       v-else
                       class="w-full h-full flex items-center justify-center font-mono text-[7.5px] text-slate-400 dark:text-slate-600 tracking-wider select-none px-0.5 text-center"
                     >
-                      <span class="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-600 opacity-60 mr-0.5"></span>
-                      <span class="opacity-60 truncate">Hist</span>
+                      <span class="w-2.5 h-0.5 rounded-full bg-slate-300 dark:bg-slate-700 opacity-70"></span>
                     </div>
                   </div>
                 </div>
@@ -1950,133 +1949,6 @@
                 </button>
               </div>
 
-              <!-- Chart Settings Popover (Consolidated Settings) -->
-              <div class="relative trend-settings-anchor">
-                <button
-                  type="button"
-                  @click="showTrendSettingsMenu = !showTrendSettingsMenu"
-                  class="p-1 rounded border transition leading-none"
-                  :class="showTrendSettingsMenu
-                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                    : 'border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400'"
-                  title="Chart Settings & Modes"
-                  aria-label="Chart Settings"
-                >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-
-                <div
-                  v-if="showTrendSettingsMenu"
-                  class="absolute right-0 mt-1 w-64 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl p-2.5 z-40 text-3xs font-mono select-none"
-                  @click.stop
-                >
-                  <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                    <span class="font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-1.5">
-                      <span>⚙️</span>
-                      <span>Chart Settings</span>
-                    </span>
-                    <button @click="showTrendSettingsMenu = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition">✕</button>
-                  </div>
-
-                  <!-- Data Mode: Processed vs Raw -->
-                  <div class="mb-2">
-                    <div class="text-[9px] text-slate-400 mb-1 font-semibold uppercase">Telemetry Data Mode</div>
-                    <div class="grid grid-cols-2 gap-1 p-0.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
-                      <button
-                        type="button"
-                        @click="chartMode = 'processed'"
-                        class="py-1 rounded text-center font-bold transition"
-                        :class="chartMode === 'processed' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
-                      >
-                        PROCESSED
-                      </button>
-                      <button
-                        type="button"
-                        @click="chartMode = 'raw'"
-                        class="py-1 rounded text-center font-bold transition"
-                        :class="chartMode === 'raw' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
-                      >
-                        RAW SENSOR
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Scale Mode: Native / Dual vs Normalized -->
-                  <div class="mb-2">
-                    <div class="text-[9px] text-slate-400 mb-1 font-semibold uppercase">Y-Axis Scale Mode</div>
-                    <div class="grid grid-cols-2 gap-1 p-0.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
-                      <button
-                        type="button"
-                        @click="trendScaleMode = 'auto'"
-                        class="py-1 rounded text-center font-bold transition"
-                        :class="trendScaleMode === 'auto' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
-                      >
-                        {{ trendScales.isDual ? 'DUAL-AXIS' : 'NATIVE UNITS' }}
-                      </button>
-                      <button
-                        type="button"
-                        @click="trendScaleMode = 'normalized'"
-                        class="py-1 rounded text-center font-bold transition"
-                        :class="trendScaleMode === 'normalized' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
-                      >
-                        NORM % (0-100)
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Spike Zoom (if spike present) -->
-                  <div v-if="hasOutlierSpike && trendScaleMode === 'auto'" class="mb-2">
-                    <div class="text-[9px] text-slate-400 mb-1 font-semibold uppercase">Spike Zoom Behavior</div>
-                    <div class="grid grid-cols-2 gap-1 p-0.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
-                      <button
-                        type="button"
-                        @click="trendSpikeZoom = 'robust'"
-                        class="py-1 rounded text-center font-bold transition"
-                        :class="trendSpikeZoom === 'robust' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
-                      >
-                        SMART ROBUST
-                      </button>
-                      <button
-                        type="button"
-                        @click="trendSpikeZoom = 'full'"
-                        class="py-1 rounded text-center font-bold transition"
-                        :class="trendSpikeZoom === 'full' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
-                      >
-                        FULL SPAN
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Environmental Visualizations Toggle -->
-                  <div class="pt-1.5 border-t border-slate-100 dark:border-[#1E3048] flex items-center justify-between">
-                    <span class="text-slate-600 dark:text-slate-300">Wind Rose & Map:</span>
-                    <button
-                      type="button"
-                      @click="toggleEnvironmentalVisualizations"
-                      class="px-2 py-0.5 rounded text-3xs font-bold border transition"
-                      :class="showEnvironmentalVisualizations
-                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/40'
-                        : 'bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-slate-200 dark:border-[#1E3048]'"
-                    >
-                      {{ showEnvironmentalVisualizations ? 'VISIBLE' : 'HIDDEN' }}
-                    </button>
-                  </div>
-
-                  <!-- Deep Analysis Link -->
-                  <div class="pt-2">
-                    <router-link
-                      to="/monitoring/analysis"
-                      class="w-full py-1 px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-cyan-600 dark:text-cyan-400 border border-slate-200 dark:border-[#1E3048] flex items-center justify-center space-x-1 font-bold text-center transition"
-                    >
-                      <span>Deep Telemetry Analysis →</span>
-                    </router-link>
-                  </div>
-                </div>
-              </div>
-
               <!-- Download Menu -->
               <div class="relative">
                 <button
@@ -2124,68 +1996,254 @@
             </div>
           </div>
 
-          <!-- Series Selector Chips Bar -->
-          <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0 max-w-full text-3xs font-mono leading-none">
-            <!-- Compact Selection Controls -->
-            <div class="flex items-center space-x-1 shrink-0 mr-1">
-              <span class="text-slate-400 dark:text-slate-500 text-[9px] uppercase font-semibold">Series ({{ activeTrendSeries.length }}):</span>
+          <!-- Series Selector & Toolbar Row -->
+          <div class="flex items-center space-x-1 max-w-full text-3xs font-mono leading-none relative">
+            <!-- Compact Toolbar Group: Chart Setup, All, Clear, Reset -->
+            <div class="flex items-center space-x-1 shrink-0 mr-1 z-30">
+              <!-- 1. Chart Setup (sliders-horizontal icon) with Unified Controls Popover -->
+              <div class="relative trend-settings-anchor">
+                <button
+                  type="button"
+                  @click="showTrendSettingsMenu = !showTrendSettingsMenu"
+                  class="p-1 rounded border transition leading-none flex items-center justify-center cursor-pointer"
+                  :class="showTrendSettingsMenu
+                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                    : 'border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400'"
+                  :title="$t('operator.chartSetup') || 'Chart Setup & Controls'"
+                  aria-label="Chart Setup"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </button>
+
+                <!-- Unified Controls Popover (Mode, Scale, Spike, Wind & Map, Fullscreen, Deep Analysis) -->
+                <div
+                  v-if="showTrendSettingsMenu"
+                  class="absolute left-0 top-full mt-1.5 w-64 sm:w-72 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-2xl p-2.5 z-40 text-3xs font-mono select-none"
+                  @click.stop
+                >
+                  <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+                    <span class="font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-1.5 text-[10px]">
+                      <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      <span>Chart Setup & Controls</span>
+                    </span>
+                    <button
+                      type="button"
+                      @click="showTrendSettingsMenu = false"
+                      class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition p-0.5 leading-none cursor-pointer"
+                      title="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div class="space-y-2">
+                    <!-- 1. Mode: Processed vs Raw -->
+                    <div>
+                      <div class="text-[9px] text-slate-400 dark:text-slate-500 mb-1 font-semibold uppercase flex items-center justify-between">
+                        <span>1. Mode</span>
+                        <span class="text-[8px] font-bold text-cyan-600 dark:text-cyan-400 uppercase">{{ chartMode }}</span>
+                      </div>
+                      <div class="grid grid-cols-2 gap-1 p-0.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
+                        <button
+                          type="button"
+                          @click="setChartMode('processed')"
+                          class="py-1 rounded text-center font-bold transition text-[9px] cursor-pointer"
+                          :class="chartMode === 'processed' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                        >
+                          PROCESSED
+                        </button>
+                        <button
+                          type="button"
+                          @click="setChartMode('raw')"
+                          class="py-1 rounded text-center font-bold transition text-[9px] cursor-pointer"
+                          :class="chartMode === 'raw' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                        >
+                          RAW SENSOR
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 2. Scale: Actual Value vs Norm % -->
+                    <div>
+                      <div class="text-[9px] text-slate-400 dark:text-slate-500 mb-1 font-semibold uppercase flex items-center justify-between">
+                        <span>2. Scale</span>
+                        <span class="text-[8px] font-bold text-cyan-600 dark:text-cyan-400 uppercase">
+                          {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'Dual-Axis' : 'Actual Value') : 'Norm %' }}
+                        </span>
+                      </div>
+                      <div class="grid grid-cols-2 gap-1 p-0.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
+                        <button
+                          type="button"
+                          @click="trendScaleMode = 'auto'"
+                          class="py-1 rounded text-center font-bold transition text-[9px] cursor-pointer"
+                          :class="trendScaleMode === 'auto' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                        >
+                          {{ trendScales.isDual ? 'DUAL-AXIS' : 'ACTUAL VALUE' }}
+                        </button>
+                        <button
+                          type="button"
+                          @click="trendScaleMode = 'normalized'"
+                          class="py-1 rounded text-center font-bold transition text-[9px] cursor-pointer"
+                          :class="trendScaleMode === 'normalized' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                        >
+                          NORM %
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Spike Zoom (if spike present) -->
+                    <div v-if="hasOutlierSpike && trendScaleMode === 'auto'">
+                      <div class="text-[9px] text-slate-400 dark:text-slate-500 mb-1 font-semibold uppercase flex items-center justify-between">
+                        <span>Spike Zoom</span>
+                        <span class="text-[8px] font-bold text-amber-500 uppercase">{{ trendSpikeZoom }}</span>
+                      </div>
+                      <div class="grid grid-cols-2 gap-1 p-0.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
+                        <button
+                          type="button"
+                          @click="trendSpikeZoom = 'robust'"
+                          class="py-1 rounded text-center font-bold transition text-[9px] cursor-pointer"
+                          :class="trendSpikeZoom === 'robust' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                        >
+                          SMART ROBUST
+                        </button>
+                        <button
+                          type="button"
+                          @click="trendSpikeZoom = 'full'"
+                          class="py-1 rounded text-center font-bold transition text-[9px] cursor-pointer"
+                          :class="trendSpikeZoom === 'full' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'"
+                        >
+                          FULL SPAN
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- 3. Show Wind & Map -->
+                    <div class="pt-1.5 border-t border-slate-100 dark:border-[#1E3048] flex items-center justify-between">
+                      <span class="text-slate-700 dark:text-slate-300 font-semibold text-[9px]">Show Wind & Map:</span>
+                      <button
+                        type="button"
+                        @click="toggleEnvironmentalVisualizations"
+                        class="px-2 py-0.5 rounded text-[8.5px] font-bold border transition cursor-pointer"
+                        :class="showEnvironmentalVisualizations
+                          ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/40'
+                          : 'bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-slate-200 dark:border-[#1E3048]'"
+                      >
+                        {{ showEnvironmentalVisualizations ? 'VISIBLE' : 'HIDDEN' }}
+                      </button>
+                    </div>
+
+                    <!-- 4. Expand Fullscreen & 5. Deep Analysis -->
+                    <div class="pt-1.5 border-t border-slate-100 dark:border-[#1E3048] grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        @click="openTrendFullscreen(); showTrendSettingsMenu = false"
+                        class="py-1 px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1E3048] flex items-center justify-center space-x-1 font-bold text-center transition text-[8.5px] cursor-pointer"
+                        title="Expand Fullscreen"
+                      >
+                        <svg class="w-3 h-3 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                        <span>Fullscreen</span>
+                      </button>
+
+                      <router-link
+                        to="/monitoring/analysis"
+                        @click.native="showTrendSettingsMenu = false"
+                        class="py-1 px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-cyan-600 dark:text-cyan-400 border border-slate-200 dark:border-[#1E3048] flex items-center justify-center space-x-1 font-bold text-center transition text-[8.5px]"
+                        title="Deep Telemetry Analysis"
+                      >
+                        <span>Deep Analysis →</span>
+                      </router-link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. All (check-check icon) -->
               <button
+                type="button"
                 @click="selectAllEligibleTrendSeries(true)"
-                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 text-[8.5px] border border-slate-200 dark:border-[#1E3048] transition cursor-pointer"
-                title="Select all eligible parameters"
+                class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition cursor-pointer flex items-center justify-center leading-none"
+                title="Select all eligible parameters (All)"
+                aria-label="All"
               >
-                All
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </button>
+
+              <!-- 3. Clear (x-circle icon) -->
               <button
                 v-if="activeTrendSeries.length > 0"
+                type="button"
                 @click="clearAllTrendSeries"
-                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 text-[8.5px] border border-slate-200 dark:border-[#1E3048] transition cursor-pointer"
-                title="Clear all series"
+                class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 transition cursor-pointer flex items-center justify-center leading-none"
+                title="Clear all series (Clear)"
+                aria-label="Clear"
               >
-                Clear
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </button>
+
+              <!-- 4. Reset (rotate-ccw icon) -->
               <button
+                type="button"
                 @click="resetTrendSelectionToDefault"
-                class="px-1 py-0.2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 text-[8.5px] border border-slate-200 dark:border-[#1E3048] transition cursor-pointer"
-                title="Reset to default (select all eligible parameters)"
+                class="p-1 rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-amber-500 dark:hover:text-amber-400 transition cursor-pointer flex items-center justify-center leading-none"
+                title="Reset to default (Reset)"
+                aria-label="Reset"
               >
-                Reset
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
               </button>
+
+              <!-- Series Count Badge -->
+              <span class="text-slate-400 dark:text-slate-500 text-[8.5px] font-semibold pl-0.5">({{ activeTrendSeries.length }}):</span>
             </div>
-            <div
-              v-for="s in activeTrendSeries"
-              :key="s.id"
-              @mouseenter="hoveredTrendSeriesId = s.id"
-              @mouseleave="hoveredTrendSeriesId = null"
-              class="flex items-center space-x-1 px-1.5 py-0.5 rounded border shrink-0 bg-slate-100/90 dark:bg-[#101B2B] text-slate-800 dark:text-slate-200 shadow-xs transition cursor-pointer text-[9.5px]"
-              :class="{ 'ring-1 ring-cyan-500/50 shadow-sm': hoveredTrendSeriesId === s.id }"
-              :style="{ borderColor: s.color + '55' }"
-              :title="(s.deviceCode ? s.deviceCode + ' · ' : '') + (s.paramName || s.paramCode) + (s.latestVal != null && s.latestVal !== '--' ? ' (' + s.latestVal + ' ' + (s.unit || '') + ')' : '')"
-            >
-              <!-- Series Color Indicator Dot -->
-              <span class="w-2 h-2 rounded-full shrink-0 shadow-xs" :style="{ backgroundColor: s.color }"></span>
 
-              <!-- Parameter Display Name (Device discriminator only if duplicates) -->
-              <span class="font-bold text-slate-900 dark:text-white">{{ s.paramName || s.paramCode }}</span>
-              <span v-if="hasDuplicateTrendParamName(s)" class="text-slate-500 dark:text-slate-400 text-[8px] font-medium ml-0.5">({{ s.deviceCode }})</span>
+            <!-- Compact Series Chips -->
+            <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0 flex-1 min-w-0">
+              <div
+                v-for="s in activeTrendSeries"
+                :key="s.id"
+                @mouseenter="hoveredTrendSeriesId = s.id"
+                @mouseleave="hoveredTrendSeriesId = null"
+                class="flex items-center space-x-1 px-1.5 py-0.5 rounded border shrink-0 bg-slate-100/90 dark:bg-[#101B2B] text-slate-800 dark:text-slate-200 shadow-xs transition cursor-pointer text-[9px] select-none"
+                :class="{ 'ring-1 ring-cyan-500/50 shadow-sm': hoveredTrendSeriesId === s.id }"
+                :style="{ borderColor: s.color + '55' }"
+                :title="(s.deviceCode ? s.deviceCode + ' · ' : '') + (s.paramName || s.paramCode) + (s.latestVal != null && s.latestVal !== '--' ? ' (' + s.latestVal + ' ' + (s.unit || '') + ')' : '')"
+              >
+                <!-- Series Color Indicator Dot -->
+                <span class="w-1.5 h-1.5 rounded-full shrink-0 shadow-xs" :style="{ backgroundColor: s.color }"></span>
 
-              <!-- Quick Remove Action -->
+                <!-- Compact Parameter Display Name -->
+                <span class="font-bold text-slate-900 dark:text-white tracking-tight">{{ getCompactTrendParamName(s) || (s.paramName || s.paramCode) }}</span>
+                <span v-if="hasDuplicateTrendParamName(s)" class="text-slate-500 dark:text-slate-400 text-[7.5px] font-medium ml-0.5">({{ s.deviceCode }})</span>
+
+                <!-- Quick Remove Action -->
+                <button
+                  @click.stop="removeTrendSeries(s.id)"
+                  class="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 ml-0.5 transition p-0.2 leading-none cursor-pointer"
+                  title="Remove series"
+                >
+                  ✕
+                </button>
+              </div>
+
               <button
-                @click.stop="removeTrendSeries(s.id)"
-                class="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 ml-0.5 transition p-0.2"
-                title="Remove series"
+                v-if="activeTrendSeries.length === 0"
+                @click="resetTrendSelectionToDefault"
+                class="text-cyan-600 dark:text-cyan-400 text-3xs hover:underline shrink-0"
               >
-                ✕
+                + Click to restore all parameters or click any parameter card to plot
               </button>
             </div>
-
-            <button
-              v-if="activeTrendSeries.length === 0"
-              @click="resetTrendSelectionToDefault"
-              class="text-cyan-600 dark:text-cyan-400 text-3xs hover:underline shrink-0"
-            >
-              + Click to restore all parameters or click any parameter card to plot
-            </button>
           </div>
 
           <!-- SVG Industrial Chart Canvas (Height: ~96-102px) -->
@@ -2455,36 +2513,19 @@
             </div>
           </div>
 
-          <!-- Chart Footer Controls -->
-          <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 pt-0.5">
-            <div class="flex items-center space-x-2">
-              <span class="text-slate-400 dark:text-slate-500">Mode:</span>
-              <button
-                @click="setChartMode('processed')"
-                :class="chartMode === 'processed' ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
-              >
-                PROCESSED
-              </button>
-              <span>·</span>
-              <button
-                @click="setChartMode('raw')"
-                :class="chartMode === 'raw' ? 'text-cyan-600 dark:text-cyan-400 font-bold' : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
-              >
-                RAW
-              </button>
-              <span>·</span>
-              <button
-                @click="toggleTrendScaleMode"
-                class="hover:text-cyan-500 transition"
-                :title="'Current Scale: ' + (trendScaleMode === 'auto' ? 'Native units' : 'Normalized 0-100%')"
-              >
-                SCALE: {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'DUAL-AXIS' : 'NATIVE') : 'NORM %' }}
-              </button>
+          <!-- Chart Minimal Status & Quick Controls Anchor -->
+          <div class="flex items-center justify-between text-4xs font-mono text-slate-500 dark:text-slate-400 pt-0.5 leading-none">
+            <div class="flex items-center space-x-1.5">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="uppercase font-semibold tracking-wider text-slate-500 dark:text-slate-400">
+                LIVE · {{ chartMode.toUpperCase() }} · {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'DUAL-AXIS' : 'ACTUAL') : 'NORM %' }}
+              </span>
               <template v-if="hasOutlierSpike && trendScaleMode === 'auto'">
                 <span>·</span>
                 <button
+                  type="button"
                   @click="toggleTrendSpikeZoom"
-                  class="hover:text-amber-500 dark:hover:text-amber-400 font-bold transition flex items-center space-x-1"
+                  class="hover:text-amber-500 dark:hover:text-amber-400 font-bold transition flex items-center space-x-0.5 cursor-pointer"
                   :title="trendSpikeZoom === 'full' ? 'Click to focus normal telemetry variation' : 'Click to show full spike span'"
                 >
                   <span>⚡ {{ trendSpikeZoom === 'full' ? 'SPIKE: FULL SPAN' : 'SPIKE: FOCUSED' }}</span>
@@ -2492,20 +2533,16 @@
               </template>
             </div>
             <div class="flex items-center space-x-2">
-              <button @click="openTrendFullscreen" class="text-cyan-600 dark:text-cyan-400 hover:underline">
-                Expand Fullscreen ⛶
-              </button>
-              <span>·</span>
-              <router-link to="/monitoring/analysis" class="text-cyan-600 dark:text-cyan-400 hover:underline">
-                Deep Analysis →
-              </router-link>
-              <span>·</span>
               <button
-                @click="toggleEnvironmentalVisualizations"
-                class="hover:text-cyan-500 transition text-slate-400 dark:text-slate-500"
-                :title="showEnvironmentalVisualizations ? ($t('operator.hideWindAndMap') || 'Hide Wind & Map') : ($t('operator.showWindAndMap') || 'Show Wind & Map')"
+                type="button"
+                @click="showTrendSettingsMenu = !showTrendSettingsMenu"
+                class="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                title="Chart Setup & Controls"
               >
-                {{ showEnvironmentalVisualizations ? ($t('operator.hideWindAndMap') || 'Hide Wind & Map') : ($t('operator.showWindAndMap') || 'Show Wind & Map') }}
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <span>Controls & Setup</span>
               </button>
             </div>
           </div>
@@ -5476,6 +5513,62 @@ export default {
       const name = s.paramName || s.paramCode;
       return this.activeTrendSeries.filter(item => (item.paramName || item.paramCode) === name).length > 1;
     },
+    getCompactTrendParamName(s) {
+      if (!s) return '';
+      const raw = String(s.paramName || s.paramCode || '').trim();
+      const upper = raw.toUpperCase();
+
+      // Common acronyms and short codes to return directly
+      if (['O3', 'SO2', 'NO2', 'CO', 'HC', 'NO', 'NOX', 'VOC', 'PM1', 'TSP', 'TVOC', 'CH4', 'NMHC', 'NH3', 'H2S'].includes(upper)) {
+        return upper;
+      }
+      // PM mappings
+      if (upper.includes('PM 2.5') || upper.includes('PM2.5') || upper === 'PM25') {
+        return 'PM2.5';
+      }
+      if (upper.includes('PM 10') || upper.includes('PM10')) {
+        return 'PM10';
+      }
+      // Temperature
+      if (upper.includes('TEMPERATUR') || upper.includes('SUHU') || upper === 'TEMP') {
+        return 'TEMP';
+      }
+      // Pressure
+      if (upper.includes('PRESSURE') || upper.includes('TEKANAN') || upper === 'PRESS' || upper === 'BP') {
+        return 'PRESS';
+      }
+      // Solar Radiation
+      if (upper.includes('SOLAR') || upper.includes('RADIASI') || upper === 'SR') {
+        return 'SOLAR';
+      }
+      // Wind Speed
+      if (upper.includes('WIND SPEED') || upper.includes('KECEPATAN ANGIN') || upper === 'WS') {
+        return 'WIND';
+      }
+      // Wind Direction / Angle
+      if (upper.includes('WIND DIRECTION') || upper.includes('WIND ANGLE') || upper.includes('ARAH ANGIN') || upper === 'WD' || upper === 'WDIR' || upper === 'W-DIR') {
+        return 'W-DIR';
+      }
+      // Humidity
+      if (upper.includes('HUMIDIT') || upper.includes('KELEMBAPAN') || upper === 'HUM' || upper === 'RH') {
+        return 'HUM';
+      }
+      // Battery / Power
+      if (upper.includes('BATTERY') || upper === 'BATTV') {
+        return 'BATTV';
+      }
+      // Flow Rate
+      if (upper.includes('FLOW')) {
+        return 'FLOW';
+      }
+      // Opacity
+      if (upper.includes('OPACITY')) {
+        return 'OPACITY';
+      }
+      // Fallback: If length <= 6 characters, keep it; else truncate to 6
+      if (raw.length <= 6) return raw;
+      return raw.slice(0, 5).toUpperCase();
+    },
     closeToolbarPopover() {
       this.activeToolbarPopover = null;
     },
@@ -5863,14 +5956,35 @@ export default {
       const rawList = this.sparklinesMap[paramId] || [];
       const validItems = rawList.filter(item => item && item.val !== null && item.val !== undefined && isFinite(item.val));
 
-      if (validItems.length < 2) {
+      if (validItems.length === 0) {
         this.$set(this.sparklineMetaCache, paramId, {
           hasHistory: false,
-          validCount: validItems.length,
+          validCount: 0,
           strokePaths: [],
           areaPaths: [],
           min: 0,
           max: 0,
+        });
+        return;
+      }
+
+      const W = 100;
+      const H = 20;
+      const topPad = 3.5;
+      const bottomPad = 3.5;
+      const plotH = H - topPad - bottomPad; // 13.0
+
+      // Single item: Show clean centered horizontal line
+      if (validItems.length === 1) {
+        const val = validItems[0].val;
+        const y = 10.0;
+        this.$set(this.sparklineMetaCache, paramId, {
+          hasHistory: true,
+          validCount: 1,
+          strokePaths: [`M 0,${y} L 100,${y}`],
+          areaPaths: [`M 0,${H} L 0,${y} L 100,${y} L 100,${H} Z`],
+          min: Number(val.toFixed(2)),
+          max: Number(val.toFixed(2)),
         });
         return;
       }
@@ -5883,23 +5997,19 @@ export default {
       }
 
       let span = max - min;
-      if (span === 0) {
+      const isConstant = span === 0;
+
+      if (isConstant) {
         min = min - 1;
         max = max + 1;
         span = 2;
       } else {
-        // Add 8% vertical padding so peaks don't clip at top/bottom border
-        const pad = span * 0.08;
+        // Generous vertical padding (18%) so peaks and troughs never sink or clip
+        const pad = Math.max(span * 0.18, 0.01);
         min -= pad;
         max += pad;
         span = max - min;
       }
-
-      const W = 100;
-      const H = 28;
-      const topPad = 2;
-      const bottomPad = 2;
-      const plotH = H - topPad - bottomPad;
 
       const total = rawList.length;
       const stepX = total > 1 ? W / (total - 1) : W;
@@ -5922,7 +6032,7 @@ export default {
 
         if (isValValid && !isTimeGap) {
           const x = i * stepX;
-          const norm = (item.val - min) / span;
+          const norm = isConstant ? 0.5 : (item.val - min) / span;
           const y = (H - bottomPad) - norm * plotH;
           currentSegment.push({ x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), raw: item });
         } else {
@@ -5932,7 +6042,7 @@ export default {
           }
           if (isValValid) {
             const x = i * stepX;
-            const norm = (item.val - min) / span;
+            const norm = isConstant ? 0.5 : (item.val - min) / span;
             const y = (H - bottomPad) - norm * plotH;
             currentSegment.push({ x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), raw: item });
           }
@@ -5948,7 +6058,8 @@ export default {
       for (const seg of segments) {
         if (seg.length === 1) {
           const p = seg[0];
-          strokePaths.push(`M ${p.x - 1},${p.y} L ${p.x + 1},${p.y}`);
+          strokePaths.push(`M 0,${p.y} L 100,${p.y}`);
+          areaPaths.push(`M 0,${H} L 0,${p.y} L 100,${p.y} L 100,${H} Z`);
         } else if (seg.length > 1) {
           const strokeD = seg.map((p, idx) => (idx === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`)).join(' ');
           strokePaths.push(strokeD);

@@ -1900,6 +1900,7 @@ export default {
     "testAudioWarning": "Test Warning Sound",
     "testAudioCritical": "Test Critical Sound",
     "recordsLoaded": "records loaded",
+    "chartSetup": "Chart Setup & Controls",
     "showWindAndMap": "Show Wind & Map",
     "hideWindAndMap": "Hide Wind & Map",
     "windRoseTitle": "Wind Rose",
