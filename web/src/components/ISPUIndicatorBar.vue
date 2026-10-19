@@ -7,24 +7,91 @@
     >
       <!-- Left: ISPU Metric, Category, Dominant Pollutant & Parameter Pill -->
       <div class="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
-        <!-- Pulse Dot, Label & Main ISPU Value -->
-        <div class="flex items-center space-x-1.5 flex-shrink-0">
-          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
-          <span class="text-3xs font-mono font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">
-            ISPU:
-          </span>
-          <span class="text-base sm:text-lg font-bold font-mono tabular-nums leading-none tracking-tight" :class="categoryTextClass">
-            {{ displayISPU }}
-          </span>
-        </div>
-
-        <!-- Category Badge -->
-        <span
-          class="px-1.5 py-0.5 rounded text-4xs sm:text-3xs font-mono font-bold uppercase tracking-wider border shadow-xs whitespace-nowrap flex-shrink-0"
-          :class="categoryBadgeClass"
+        <!-- Interactive ISPU Metric & Category with Popover -->
+        <div
+          class="relative ispu-popover-anchor cursor-pointer flex items-center space-x-1.5"
+          @click="toggleWindowPopover"
+          @mouseenter="showWindowPopover = true"
+          @mouseleave="showWindowPopover = false"
+          title="Click or hover to view 24-Hour ISPU Window & Regulatory Calculation Details"
         >
-          {{ ispuCategoryDisplay }}
-        </span>
+          <!-- Pulse Dot, Label & Main ISPU Value -->
+          <div class="flex items-center space-x-1.5 flex-shrink-0">
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
+            <span class="text-3xs font-mono font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">
+              ISPU:
+            </span>
+            <span class="text-base sm:text-lg font-bold font-mono tabular-nums leading-none tracking-tight" :class="categoryTextClass">
+              {{ displayISPU }}
+            </span>
+          </div>
+
+          <!-- Category Badge -->
+          <span
+            class="px-1.5 py-0.5 rounded text-4xs sm:text-3xs font-mono font-bold uppercase tracking-wider border shadow-xs whitespace-nowrap flex-shrink-0"
+            :class="categoryBadgeClass"
+          >
+            {{ ispuCategoryDisplay }}
+          </span>
+
+          <!-- 24h Window & Validity Popover -->
+          <div
+            v-if="showWindowPopover"
+            class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-32px)] rounded-lg shadow-2xl p-3 bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-100 font-mono text-[10px] animate-fadeIn select-none text-left"
+            @click.stop
+          >
+            <!-- Popover Header -->
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+              <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
+                <div>
+                  <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                    24-Hour ISPU Window
+                  </h4>
+                  <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                    Permen LHK No. 14 / 2020 Standard
+                  </div>
+                </div>
+              </div>
+              <span
+                class="px-1.5 py-0.5 rounded text-[8.5px] font-bold leading-none uppercase"
+                :class="validityBadgeClass"
+              >
+                {{ calculationStatus }}
+              </span>
+            </div>
+
+            <!-- Detail Rows -->
+            <div class="space-y-2">
+              <div class="p-2 rounded bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] space-y-1 text-[9.5px]">
+                <div class="flex items-start justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Time Window:</span>
+                  <span class="font-bold text-right text-slate-900 dark:text-white">{{ formattedPeriod }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Timezone:</span>
+                  <span class="font-bold text-slate-700 dark:text-slate-300">WIB (UTC+7)</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Data Coverage:</span>
+                  <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'">
+                    {{ completenessPercent.toFixed(1) }}% {{ completenessPercent >= 75 ? '(Meets ≥75% rule)' : '(Provisional <75%)' }}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Dominant Pollutant:</span>
+                  <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ dominantPollutant || '-' }} (Index: {{ dominantISPU || '-' }})</span>
+                </div>
+              </div>
+
+              <!-- Regulatory Validity Status & Reason -->
+              <div class="text-[9px] text-slate-600 dark:text-slate-400 leading-snug p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/60 dark:border-[#1E3048]">
+                <div class="font-bold text-slate-700 dark:text-slate-300 mb-0.5">Calculation Assessment:</div>
+                <div>{{ validityTooltip }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Dominant Pollutant (when OVERALL) or Selected Parameter Detail Pill -->
         <div v-if="selectedDisplayParam === 'OVERALL'" class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
@@ -67,27 +134,22 @@
         </button>
       </div>
 
-      <!-- Center: Measurement Period, Data Status & Validity -->
+      <!-- Center: Data Status & Validity (Compact without long 24h period text) -->
       <div class="flex items-center space-x-2 text-3xs font-mono text-slate-500 dark:text-slate-400 min-w-0 flex-shrink">
-        <!-- 24-Hour Period -->
-        <span class="truncate">
-          <span class="hidden xl:inline">⏱️ 24h Window: </span>
-          <span class="hidden md:inline xl:hidden">⏱️ 24h: </span>
-          <strong class="text-slate-700 dark:text-slate-300">{{ formattedPeriod }}</strong>
-        </span>
-
-        <!-- Validity Badge & Coverage Percentage -->
-        <span
-          class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider border whitespace-nowrap flex-shrink-0"
+        <!-- Validity Badge & Coverage Percentage (Click/Tap to view 24h window details) -->
+        <button
+          type="button"
+          @click="toggleWindowPopover"
+          class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider border whitespace-nowrap flex-shrink-0 transition hover:opacity-90 cursor-pointer"
           :class="validityBadgeClass"
-          :title="validityTooltip"
+          :title="'24h: ' + formattedPeriod + ' · ' + validityTooltip"
         >
           {{ calculationStatus }}
           <span v-if="completenessPercent > 0" class="ml-0.5 font-semibold">({{ completenessPercent.toFixed(0) }}%)</span>
-        </span>
+        </button>
 
         <!-- Recalculated / Freshness indicator -->
-        <span v-if="lastUpdatedStr" class="hidden 2xl:inline text-slate-400 dark:text-slate-500 text-4xs whitespace-nowrap flex-shrink-0">
+        <span v-if="lastUpdatedStr" class="hidden sm:inline text-slate-400 dark:text-slate-500 text-4xs whitespace-nowrap flex-shrink-0">
           · {{ lastUpdatedStr }}
         </span>
       </div>
@@ -448,6 +510,7 @@ export default {
       trendRecords: [],
       trendLoading: false,
       pollTimer: null,
+      showWindowPopover: false,
 
       // Seven official parameters defined in Permen LHK 14/2020
       sevenOfficialParameters: [
@@ -672,6 +735,8 @@ export default {
     // 2. Real-time WebSocket Listeners
     window.addEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.addEventListener('aggregation-result-event', this.handleAggregationUpdated);
+    document.addEventListener('click', this.handleDocumentClick);
+    document.addEventListener('keydown', this.handleDocumentKeydown);
   },
   beforeDestroy() {
     if (this.pollTimer) {
@@ -679,8 +744,30 @@ export default {
     }
     window.removeEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
+    document.removeEventListener('click', this.handleDocumentClick);
+    document.removeEventListener('keydown', this.handleDocumentKeydown);
   },
   methods: {
+    toggleWindowPopover(e) {
+      if (e) e.stopPropagation();
+      this.showWindowPopover = !this.showWindowPopover;
+    },
+    closeWindowPopover() {
+      this.showWindowPopover = false;
+    },
+    handleDocumentClick(e) {
+      if (this.showWindowPopover) {
+        const anchor = this.$el && this.$el.querySelector('.ispu-popover-anchor');
+        if (anchor && !anchor.contains(e.target)) {
+          this.closeWindowPopover();
+        }
+      }
+    },
+    handleDocumentKeydown(e) {
+      if (e.key === 'Escape' && this.showWindowPopover) {
+        this.closeWindowPopover();
+      }
+    },
     handleISPUCalculated(event) {
       const data = event.detail;
       if (data && data.device_id === this.deviceId) {
