@@ -1515,7 +1515,7 @@
                 :key="param.param_id"
                 @click="selectParamForTrend(param)"
                 @contextmenu.prevent="openParamContextMenu($event, param)"
-                class="scada-param-tile px-2 py-1 rounded-md border transition-all duration-150 relative cursor-pointer group flex flex-col justify-between h-[58px] min-w-0 box-border"
+                class="scada-param-tile px-2 py-1 rounded-md border transition-all duration-150 relative cursor-pointer group flex flex-col justify-between h-[58px] min-w-0 box-border overflow-hidden"
                 :class="[
                   isParamAlarmOrStaleBad(param)
                     ? (isAlarmPulseActive
@@ -1525,9 +1525,12 @@
                         : (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
                             ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
                             : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
-                    : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-cyan-400/80 dark:hover:border-cyan-500/50 shadow-xs dark:shadow-none hover:shadow-sm',
+                    : (isParamSelectedForTrend(param)
+                        ? 'bg-white dark:bg-[#0B1422] border-cyan-500/75 dark:border-cyan-400/65 ring-1 ring-cyan-500/25 dark:ring-cyan-400/20 shadow-xs hover:border-cyan-500 dark:hover:border-cyan-400'
+                        : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-[#334b66] shadow-xs dark:shadow-none'),
                   liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
                 ]"
+                :title="getParamTimingTitle(param)"
               >
                 <!-- Area 1: Header (Device ID, Icon & Name, Category, Quality, Alarm) -->
                 <div class="flex items-center justify-between min-w-0 gap-1 leading-none select-none">
@@ -1683,40 +1686,26 @@
                   </div>
                 </div>
 
-                <!-- Area 3: Footer (Timestamp left, Trend indicator right) -->
-                <div class="flex items-center justify-between min-w-0 gap-1 pt-0.5 border-t border-slate-100 dark:border-[#132235] text-[8px] font-mono leading-none mt-auto">
-                  <!-- Left: Timestamp / Status duration -->
+                <!-- Area 3: Data Quality Issue / Stale / Offline Alert (Hidden on normal cards) -->
+                <div
+                  v-if="isParamDataQualityIssue(param)"
+                  class="flex items-center justify-between min-w-0 gap-1 text-[8px] font-mono leading-none mt-auto pt-0.5 truncate"
+                  :title="getParamTimingTitle(param)"
+                >
                   <div
-                    class="flex items-center min-w-0 flex-1 truncate space-x-0.5"
-                    :title="getParamTimingTitle(param)"
+                    class="flex items-center space-x-0.5 font-bold truncate min-w-0"
+                    :class="paramTimingColorClass(param)"
                   >
-                    <span
-                      v-if="isParamAlarmOrStaleBad(param)"
-                      class="flex items-center space-x-0.5 font-bold truncate min-w-0"
-                      :class="paramTimingColorClass(param)"
-                    >
-                      <span class="flex-shrink-0">{{ getParamTimingIcon(param) }}</span>
-                      <span class="truncate">{{ getParamTimingLabel(param) }}</span>
-                      <span v-if="param.received_at" class="opacity-80 whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
-                    </span>
-                    <span v-else class="text-slate-400 dark:text-slate-500 flex items-center space-x-0.5 truncate min-w-0">
-                      <span class="text-emerald-500 font-bold flex-shrink-0">✓</span>
-                      <span class="truncate">{{ param.received_at ? formatTimeShort(param.received_at) : ($t('operator.waitingData') || 'Waiting') }}</span>
-                      <span v-if="param.received_at" class="text-slate-400 dark:text-slate-500 font-mono whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
-                    </span>
+                    <span class="flex-shrink-0">{{ getParamTimingIcon(param) }}</span>
+                    <span class="truncate">{{ getParamTimingLabel(param) }}</span>
+                    <span v-if="param.received_at" class="opacity-80 whitespace-nowrap flex-shrink-0 ml-0.5">({{ formatRelative(param.received_at) }})</span>
                   </div>
-
-                  <!-- Right: Quick Action Link / Selection indicator -->
                   <span
-                    class="flex-shrink-0 flex items-center space-x-1 whitespace-nowrap text-cyan-600 dark:text-cyan-400 group-hover:underline cursor-pointer font-semibold select-none transition-colors ml-1"
-                    :style="isParamSelectedForTrend(param) ? { color: getTrendSeriesColor(param) } : {}"
+                    v-if="getParamQualityReasonText(param)"
+                    class="text-[7.5px] px-1 py-0.2 rounded font-mono font-medium truncate flex-shrink-0"
+                    :class="param.quality === 'BAD' || param.device_status === 'OFFLINE' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'"
                   >
-                    <span
-                      v-if="isParamSelectedForTrend(param)"
-                      class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      :style="{ backgroundColor: getTrendSeriesColor(param) }"
-                    ></span>
-                    <span>{{ isParamSelectedForTrend(param) ? cleanInChartLabel : ($t('operator.plotTrend') || '+ Plot') }}</span>
+                    {{ getParamQualityReasonText(param) }}
                   </span>
                 </div>
               </div>
@@ -3533,6 +3522,27 @@
 
       <!-- Actions List -->
       <div class="py-1">
+        <!-- 0. Plot / Remove from Trend Analysis -->
+        <button
+          type="button"
+          @click="selectParamForTrend(paramContextMenu.param); closeParamContextMenu()"
+          class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
+        >
+          <span class="p-1 rounded-md bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 group-hover:bg-cyan-500/25 flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-xs leading-none">
+              {{ isParamSelectedForTrend(paramContextMenu.param) ? ($t('operator.removeFromTrend') || 'Remove from Trend') : ($t('operator.plotTrend') || 'Plot Trend') }}
+            </div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {{ isParamSelectedForTrend(paramContextMenu.param) ? 'Hapus parameter dari grafik Trend Analysis' : 'Tampilkan grafik time-series di Trend Analysis' }}
+            </div>
+          </div>
+        </button>
+
         <!-- 1. Test Read -->
         <button
           type="button"
@@ -4722,10 +4732,6 @@ export default {
         list.slice(mid),
       ];
     },
-    cleanInChartLabel() {
-      const raw = this.$t('operator.inChart') || 'In Chart';
-      return raw.replace(/^[●•\s]+/, '');
-    },
     summaryStats() {
       const devs = this.devicesList || [];
       const totalDevs = devs.length;
@@ -5651,6 +5657,55 @@ export default {
       }
       return false;
     },
+    isParamDataQualityIssue(param) {
+      if (!param) return false;
+      // 1. Device communication offline / error
+      if (param.device_status === 'OFFLINE' || param.device_status === 'ERROR' || param.device_status === 'DISCONNECTED') {
+        return true;
+      }
+      // 2. Data quality is not GOOD
+      if (param.quality && param.quality !== 'GOOD') {
+        if (param.quality === 'UNCERTAIN' && param.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD') {
+          return false;
+        }
+        return true;
+      }
+      // 3. Telemetry value missing / null / empty
+      if (param.value == null || param.value === '') {
+        return true;
+      }
+      // 4. Parameter marked stale
+      if (param.is_stale) {
+        return true;
+      }
+      // 5. Explicit data-quality alarm from alarms list (COMMUNICATION, SENSOR_FAULT, etc. - NOT high/low limit alarms)
+      if (this.activeAlarmsList && this.activeAlarmsList.length > 0) {
+        const hasDataQualityAlarm = this.activeAlarmsList.some(a => {
+          if (a.status !== 'ACTIVE') return false;
+          const matchParam = (a.parameter_id && a.parameter_id === param.param_id) ||
+            (a.parameter && (a.parameter.parameter_code === param.param_code || a.parameter.code === param.param_code) && (a.device_id === param.device_id));
+          if (!matchParam) return false;
+          const type = (a.alarm_type || a.type || '').toUpperCase();
+          return type.includes('COMM') || type.includes('STALE') || type.includes('QUALITY') || type.includes('TIMEOUT') || type.includes('OFFLINE') || type.includes('DISCONNECT');
+        });
+        if (hasDataQualityAlarm) return true;
+      }
+      return false;
+    },
+    getParamQualityReasonText(param) {
+      if (!param) return '';
+      if (param.device_status === 'OFFLINE' || param.device_status === 'ERROR') {
+        return 'Dev Offline';
+      }
+      if (param.quality_reason) {
+        return param.quality_reason;
+      }
+      if (param.quality === 'BAD') return 'Bad Quality';
+      if (param.quality === 'STALE') return 'Stale Data';
+      if (param.quality === 'UNCERTAIN') return 'Uncertain';
+      if (param.value == null || param.value === '') return 'No Data';
+      return '';
+    },
     formatParamValue(param) {
       if (!param || param.value == null || param.value === '') return '--';
       if (param.value_text) return String(param.value_text);
@@ -6284,7 +6339,8 @@ export default {
     // TREND ANALYSIS TIME-SERIES MAPPING & RENDERING
     // ----------------------------------------------------
     selectParamForTrend(param) {
-      const existingIdx = this.activeTrendSeries.findIndex(s => s.parameterId === param.param_id);
+      if (!param) return;
+      const existingIdx = this.activeTrendSeries.findIndex(s => s.parameterId === param.param_id && (!s.deviceId || !param.device_id || s.deviceId === param.device_id));
       if (existingIdx !== -1) {
         this.activeTrendSeries.splice(existingIdx, 1);
         if (this.trendSelectionRestored) {
@@ -6319,7 +6375,8 @@ export default {
       }
     },
     isParamSelectedForTrend(param) {
-      return this.activeTrendSeries.some(s => s.parameterId === param.param_id);
+      if (!param) return false;
+      return this.activeTrendSeries.some(s => s.parameterId === param.param_id && (!s.deviceId || !param.device_id || s.deviceId === param.device_id));
     },
     removeTrendSeries(id) {
       this.activeTrendSeries = this.activeTrendSeries.filter(s => s.id !== id);
@@ -7307,7 +7364,9 @@ export default {
       const timeFull = param.received_at ? new Date(param.received_at).toLocaleString() : 'N/A';
       const timeIso = param.received_at ? new Date(param.received_at).toISOString() : 'N/A';
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
-      return `Last Reading: ${timeFull} (${timeIso}) [${rel}] | Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status}`;
+      const isPlotted = this.isParamSelectedForTrend(param);
+      const trendHint = isPlotted ? ' • Plotted in Trend Analysis (Click to remove)' : ' • Click to Plot Trend';
+      return `Last Reading: ${timeFull} (${timeIso}) [${rel}] | Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status}${trendHint}`;
     },
     toggleEnvironmentalVisualizations() {
       this.showEnvironmentalVisualizations = !this.showEnvironmentalVisualizations;

@@ -1842,6 +1842,7 @@ export default {
     "awaitingSamples": "Menunggu riwayat",
     "inChart": "● Di Grafik",
     "plotTrend": "+ Plot Tren",
+    "removeFromTrend": "Hapus dari Tren",
     "trendAnalysis": "Analisis Tren",
     "timeframe": "Rentang Waktu",
     "modeProcessed": "Diproses",

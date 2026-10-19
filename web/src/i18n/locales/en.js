@@ -1842,6 +1842,7 @@ export default {
     "awaitingSamples": "Awaiting history",
     "inChart": "● In Chart",
     "plotTrend": "+ Plot Trend",
+    "removeFromTrend": "Remove from Trend",
     "trendAnalysis": "Trend Analysis",
     "timeframe": "Timeframe",
     "modeProcessed": "Processed",
