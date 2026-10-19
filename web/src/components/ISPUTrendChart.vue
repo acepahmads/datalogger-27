@@ -23,14 +23,30 @@
         >
           {{ displaySubtitle }}
           <span v-if="!isOverallMode" class="text-cyan-600 dark:text-cyan-400 font-medium ml-1">
-            · {{ selectedPollutant }} ({{ pollutantName || 'Pollutant Trend' }})
+            · {{ activePollutantCode }} ({{ activePollutantName || 'Pollutant Trend' }})
           </span>
         </div>
       </div>
 
 
-      <!-- Right Side Controls: Compact Capsule Range Switcher & Close Icon -->
-      <div class="flex items-center space-x-2">
+      <!-- Right Side Controls: Parameter Selector, Capsule Range Switcher & Close Icon -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Parameter Selector Capsule Buttons (★ Dominant | PM2.5 | PM10 | SO2 | CO | O3 | NO2 | HC) -->
+        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] shadow-xs overflow-x-auto no-scrollbar">
+          <button
+            v-for="p in availablePollutantOptions"
+            :key="p.code"
+            @click="selectPollutant(p.code)"
+            class="px-2 py-1 rounded-md text-xs font-semibold transition cursor-pointer select-none whitespace-nowrap"
+            :class="activePollutantCode === p.code
+              ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+            :title="`Tampilkan grafik tren ${p.label}`"
+          >
+            {{ p.label }}
+          </button>
+        </div>
+
         <!-- Time Range Selector Capsule Buttons (24 Hours | 7 Days | 30 Days) -->
         <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] shadow-xs">
           <button
@@ -385,6 +401,7 @@ export default {
   data() {
     return {
       currentRange: this.initialRange,
+      internalSelectedPollutant: this.selectedPollutant || 'OVERALL',
       // Default to standard regulatory Cartesian scale; toggleable to reference mockup layout
       invertBands: false,
       isAdaptiveScale: false,
@@ -408,6 +425,9 @@ export default {
   watch: {
     initialRange(newVal) {
       if (newVal) this.currentRange = newVal;
+    },
+    selectedPollutant(newVal) {
+      if (newVal) this.internalSelectedPollutant = newVal;
     }
   },
   computed: {
@@ -433,8 +453,38 @@ export default {
       }
       return `${this.aggregationIntervalSeconds}s`;
     },
+    activePollutantCode() {
+      return this.internalSelectedPollutant || this.selectedPollutant || 'OVERALL';
+    },
+    availablePollutantOptions() {
+      return [
+        { code: 'OVERALL', label: '★ Dominant' },
+        { code: 'PM25', label: 'PM2.5' },
+        { code: 'PM10', label: 'PM10' },
+        { code: 'SO2', label: 'SO2' },
+        { code: 'CO', label: 'CO' },
+        { code: 'O3', label: 'O3' },
+        { code: 'NO2', label: 'NO2' },
+        { code: 'HC', label: 'HC' }
+      ];
+    },
+    activePollutantName() {
+      if (this.pollutantName && this.activePollutantCode === this.selectedPollutant) {
+        return this.pollutantName;
+      }
+      const names = {
+        PM25: 'Partikulat PM2.5 (24h)',
+        PM10: 'Partikulat PM10 (24h)',
+        SO2: 'Sulfur Dioksida (24h)',
+        CO: 'Karbon Monoksida (24h)',
+        O3: 'Ozon (24h)',
+        NO2: 'Nitrogen Dioksida (24h)',
+        HC: 'Hidrokarbon (24h)'
+      };
+      return names[this.activePollutantCode] || '';
+    },
     isOverallMode() {
-      return !this.selectedPollutant || this.selectedPollutant === 'OVERALL';
+      return !this.activePollutantCode || this.activePollutantCode === 'OVERALL';
     },
     displayTitle() {
       if (this.title) return this.title;
@@ -447,8 +497,8 @@ export default {
       if (this.mode === 'OPERATIONAL') {
         return `Resolusi Bucket Operasional (${this.aggIntervalLabel}) · Nilai Agregasi Real-time`;
       }
-      if (this.selectedPollutant && this.selectedPollutant !== 'OVERALL' && this.selectedPollutant !== 'ALL') {
-        const pCode = this.selectedPollutant.toUpperCase();
+      if (this.activePollutantCode && this.activePollutantCode !== 'OVERALL' && this.activePollutantCode !== 'ALL') {
+        const pCode = this.activePollutantCode.toUpperCase();
         if (pCode === 'PM25') {
           return 'Permen LHK No. 14/2020 Pasal 10 ayat (1)a · Jendela 24 Jam (Pelaporan Setiap Jam)';
         }
@@ -570,7 +620,7 @@ export default {
         }
 
         if (!this.isOverallMode) {
-          const pCode = (this.selectedPollutant || '').toUpperCase();
+          const pCode = (this.activePollutantCode || '').toUpperCase();
           if (pCode !== 'PM25') {
             // Permen LHK 14/2020 Pasal 10 ayat (1)b & ayat (2):
             // Cadence for gases/PM10: 09:00 & 15:00 WIB, or hourly when pollutant or station ISPU > 100
@@ -579,7 +629,7 @@ export default {
               const d = new Date(r.period_end);
               const hour = d.getHours();
               if (hour === 9 || hour === 15) return true;
-              const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+              const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.activePollutantCode);
               const val = pr ? pr.calculated_ispu : r.overall_ispu;
               return val > 100;
             });
@@ -599,7 +649,7 @@ export default {
             unit: 'µg/m³'
           };
         }
-        const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
+        const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.activePollutantCode);
         if (pr) {
           const isAvail = pr.category !== 'TIDAK_TERSEDIA' &&
                           pr.category !== 'UNAVAILABLE' &&
@@ -813,6 +863,14 @@ export default {
     selectRange(r) {
       this.currentRange = r;
       this.$emit('range-change', r);
+    },
+    selectPollutant(code) {
+      if (this.internalSelectedPollutant === code && code !== 'OVERALL') {
+        this.internalSelectedPollutant = 'OVERALL';
+      } else {
+        this.internalSelectedPollutant = code;
+      }
+      this.$emit('pollutant-change', this.internalSelectedPollutant);
     },
     getY(val) {
       const clamped = Math.max(0, Math.min(val, this.maxY));

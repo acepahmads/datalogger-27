@@ -296,9 +296,12 @@
         :records="trendRecords"
         :loading="trendLoading"
         :initial-range="trendRange"
+        :selected-pollutant="selectedDisplayParam"
+        :pollutant-name="selectedPollutantName"
         :is-dark="effectiveIsDark"
         title="ISPU 24-HOUR ROLLING TREND"
         @range-change="handleRangeChange"
+        @pollutant-change="selectDisplayParameter"
       />
     </div>
 
@@ -586,6 +589,11 @@ export default {
       const conc = pr.concentration !== undefined ? pr.concentration.toFixed(1) : (pr.normalized_concentration !== undefined ? pr.normalized_concentration.toFixed(1) : '-');
       return `${this.selectedDisplayParam}: ${conc} ${pr.source_unit || 'µg/m³'}`;
     },
+    selectedPollutantName() {
+      if (!this.selectedDisplayParam || this.selectedDisplayParam === 'OVERALL') return '';
+      const p = this.sevenOfficialParameters.find(item => item.code === this.selectedDisplayParam);
+      return p ? p.name : '';
+    },
     calculationStatus() {
       return (this.ispuData && this.ispuData.calculation_status) || 'PROVISIONAL';
     },
@@ -615,17 +623,17 @@ export default {
     barThemeClass() {
       switch (this.ispuCategory) {
         case 'BAIK':
-          return 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30';
+          return 'bg-emerald-500/10 dark:bg-emerald-950/20 border-emerald-500/35 shadow-xs';
         case 'SEDANG':
-          return 'bg-blue-500/5 dark:bg-blue-950/20 border-blue-500/30';
+          return 'bg-blue-500/10 dark:bg-blue-950/20 border-blue-500/35 shadow-xs';
         case 'TIDAK_SEHAT':
-          return 'bg-amber-500/5 dark:bg-amber-950/20 border-amber-500/30';
+          return 'bg-amber-500/10 dark:bg-amber-950/20 border-amber-500/35 shadow-xs';
         case 'SANGAT_TIDAK_SEHAT':
-          return 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30';
+          return 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/35 shadow-xs';
         case 'BERBAHAYA':
-          return 'bg-purple-900/10 dark:bg-[#1E1B4B]/40 border-purple-500/40';
+          return 'bg-purple-900/15 dark:bg-[#1E1B4B]/40 border-purple-500/40 shadow-xs';
         default:
-          return 'bg-slate-100/80 dark:bg-[#0B1422] border-slate-300 dark:border-[#20354B]';
+          return 'bg-[#EAF4FB] dark:bg-[#0B1422] border-[#B7D8EC] dark:border-[#20354B] shadow-xs';
       }
     },
     categoryDotClass() {

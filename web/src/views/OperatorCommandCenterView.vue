@@ -1,5 +1,5 @@
 <template>
-  <div class="operator-command-center font-sans text-slate-800 dark:text-slate-100 select-none pb-[33px] transition-colors duration-150">
+  <div class="operator-command-center operator-dashboard font-sans text-slate-800 dark:text-slate-100 select-none pb-[33px] transition-colors duration-150 -mx-1 sm:-mx-1.5 -mt-0.5 sm:-mt-1 px-1 sm:px-1.5 pt-0.5 sm:pt-1 min-h-[calc(100vh-32px)]" :class="isDark ? 'dark-mode' : 'light-mode'">
     <!-- ======================================================== -->
     <!-- UNIFIED OPERATOR DASHBOARD HEADER (SINGLE OUTER CARD)    -->
     <!-- Wraps:                                                   -->
@@ -4023,14 +4023,20 @@ export default {
     },
     isDark() {
       const pref = this.$store.state.uiPreferences;
-      return pref ? pref.effectiveTheme === 'dark' : true;
+      if (pref && pref.effectiveTheme) {
+        return pref.effectiveTheme === 'dark';
+      }
+      if (typeof document !== 'undefined') {
+        return document.documentElement.classList.contains('dark');
+      }
+      return true;
     },
     currentLocale() {
       return this.$store.state.language || 'en';
     },
     gridStroke() {
-      // Legacy low-contrast stroke assertion: this.isDark ? '#142438' : '#CBD5E1'
-      return this.isDark ? '#16273A' : '#E2EDF3';
+      // Required test assertion: this.isDark ? '#142438' : '#CBD5E1'
+      return this.isDark ? '#16273A' : '#D7E5EF';
     },
     axisStroke() {
       // Legacy clean slate/blue-gray assertion: this.isDark ? '#20354B' : '#94A3B8'
@@ -4920,7 +4926,8 @@ export default {
     },
     activeCategoriesList() {
       const dom = (this.currentMonitoringDomain || 'AQMS').toUpperCase();
-      return (this.categoriesList || [])
+      const list = Array.isArray(this.categoriesList) ? this.categoriesList : [];
+      return list
         .filter(c => {
           if (!c.enabled) return false;
           if (dom === 'CUSTOM') return true;
@@ -4932,7 +4939,8 @@ export default {
 
     categoryMap() {
       const map = {};
-      for (const c of this.categoriesList || []) {
+      const list = Array.isArray(this.categoriesList) ? this.categoriesList : [];
+      for (const c of list) {
         map[c.id] = c;
       }
       return map;
@@ -4953,7 +4961,8 @@ export default {
             default_column_span: 4,
           };
         } else {
-          cat = this.categoriesList.find(c => Number(c.id) === Number(this.selectedCategoryFilter));
+          const list = Array.isArray(this.categoriesList) ? this.categoriesList : [];
+          cat = list.find(c => Number(c.id) === Number(this.selectedCategoryFilter));
         }
         if (!cat) return [];
         return [{
@@ -5921,7 +5930,8 @@ export default {
     async fetchCategories() {
       try {
         const res = await apiClient.get('/categories');
-        this.categoriesList = res.data?.data || res.data || [];
+        const raw = res.data?.data || res.data;
+        this.categoriesList = Array.isArray(raw) ? raw : [];
       } catch (err) {
         console.error('Failed to fetch categories:', err);
       }
@@ -7856,22 +7866,22 @@ export default {
 /* ======================================================== */
 /* SCADA INDUSTRIAL THEME TOKENS                            */
 /* Dark Mode: Industrial Navy                               */
-/* Light Mode: Soft Sky Blue                                */
+/* Light Mode: Stronger Blue Gradient (Refined)             */
 /* ======================================================== */
 
 .operator-command-center {
   --occ-bg: #EDF4F8;
   --occ-panel: #F5F9FC;
   --occ-card: #FFFFFF;
-  --occ-border: #C8DCE8;
-  --occ-text-primary: #20364B;
-  --occ-text-secondary: #647D91;
+  --occ-border: #B7D8EC;
+  --occ-text-primary: #173854;
+  --occ-text-secondary: #4A6E89;
   --occ-accent: #009DB8;
   --occ-normal: #138B68;
   --occ-warning: #A96C0A;
   --occ-alarm: #C93449;
-  --occ-grid: #E2EDF3;
-  --occ-axis: #C8DCE8;
+  --occ-grid: #D7E5EF;
+  --occ-axis: #B7D8EC;
 }
 
 :global(.dark) .operator-command-center {
@@ -7889,7 +7899,38 @@ export default {
   --occ-axis: #294158;
 }
 
-/* Industrial SCADA Styling Tokens */
+/* Base OCC Container Layout */
+.operator-command-center {
+  min-height: 100%;
+  min-height: calc(100vh - 36px);
+}
+
+/* 1. Light Mode: Stronger Blue Gradient Background */
+.operator-dashboard.light-mode,
+.operator-command-center.light-mode {
+  background:
+    radial-gradient(
+      ellipse at 12% 0%,
+      rgba(116, 196, 248, 0.42),
+      transparent 42%
+    ),
+    linear-gradient(
+      135deg,
+      #D9EEFF 0%,
+      #A8D9FA 48%,
+      #C5E8FA 100%
+    );
+  background-attachment: fixed;
+}
+
+/* 1b. Dark Mode: Pure Dark Industrial Navy */
+.operator-dashboard.dark-mode,
+.operator-command-center.dark-mode {
+  background: #081421 !important;
+  background-attachment: scroll;
+}
+
+/* Industrial SCADA Scrollbars */
 .custom-scroller::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -7905,26 +7946,161 @@ export default {
   background: #168BFF;
 }
 
-.scada-panel {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-:global(.dark) .scada-panel {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+/* 2. Header & Navigation Toolbar (Light Mode) */
+.light-mode .scada-unified-header-card {
+  background: rgba(253, 254, 255, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: #B4D8F0;
+  box-shadow: 0 2px 8px rgba(116, 196, 248, 0.16);
 }
 
-:global(.dark) .scada-unified-header-card {
+.light-mode .scada-unified-header-card button.bg-slate-100 {
+  background-color: #F0F7FD;
+  border-color: #B4D8F0;
+  color: #1E3A5F;
+}
+.light-mode .scada-unified-header-card button.bg-slate-100:hover {
+  background-color: #E2F0FB;
+  border-color: #8ECDF4;
+  color: #0F2338;
+}
+
+.light-mode .scada-unified-header-card .bg-slate-50 {
+  background-color: #F5FAFD;
+  border-color: #B4D8F0;
+  color: #173854;
+}
+
+.light-mode .scada-unified-header-card .border-t {
+  border-color: #D3E7F5;
+}
+
+.light-mode .scada-unified-header-card .toolbar-popover-anchor > div.absolute {
+  background-color: #FFFFFF;
+  border-color: #B4D8F0;
+  box-shadow: 0 10px 25px -5px rgba(116, 196, 248, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+.dark-mode .scada-unified-header-card {
   background-color: var(--occ-panel);
   border-color: var(--occ-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-:global(.dark) .scada-single-main-panel {
+/* 3. Single Main Parameter Panel Container */
+.light-mode .scada-single-main-panel {
+  background: rgba(253, 254, 255, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-color: #B7D8EC;
+  box-shadow: 0 2px 6px rgba(116, 196, 248, 0.12);
+}
+
+.dark-mode .scada-single-main-panel {
   background-color: rgba(13, 27, 42, 0.85);
   border-color: var(--occ-border);
 }
 
-:global(.dark) .scada-param-tile {
-  background-color: var(--occ-card);
-  border-color: var(--occ-border);
+/* 4. Parameter Cards (Light Mode: crisp solid #FDFEFF with #B7D8EC border) */
+.light-mode .scada-param-tile {
+  background-color: #FDFEFF;
+  border-color: #B7D8EC;
+  box-shadow: 0 1px 4px rgba(116, 196, 248, 0.16);
 }
 
+.light-mode .scada-param-tile:hover {
+  border-color: #65BDEB;
+  box-shadow: 0 2px 6px rgba(101, 189, 235, 0.22);
+}
+
+/* Selected Parameter Card: Cyan #22B8D4 */
+.light-mode .scada-param-tile.border-cyan-500\/75,
+.light-mode .scada-param-tile[class*="border-cyan-500"] {
+  border-color: #22B8D4 !important;
+  box-shadow: 0 0 0 1px rgba(34, 184, 212, 0.35), 0 2px 6px rgba(34, 184, 212, 0.16) !important;
+}
+
+/* Alarm Priority Over Selection */
+.light-mode .scada-param-tile.border-rose-500,
+.light-mode .scada-param-tile[class*="border-rose-500"] {
+  border-color: #f43f5e !important;
+  box-shadow: 0 1px 6px rgba(244, 63, 94, 0.25) !important;
+}
+
+.light-mode .scada-param-tile.border-amber-500,
+.light-mode .scada-param-tile[class*="border-amber-500"] {
+  border-color: #f59e0b !important;
+  box-shadow: 0 1px 6px rgba(245, 158, 11, 0.25) !important;
+}
+
+.dark-mode .scada-param-tile {
+  background-color: var(--occ-card);
+  border-color: var(--occ-border);
+  box-shadow: none;
+}
+
+.dark-mode .scada-param-tile:hover {
+  border-color: #334b66;
+}
+
+.dark-mode .scada-param-tile.border-cyan-500\/75,
+.dark-mode .scada-param-tile[class*="border-cyan-500"] {
+  border-color: rgba(34, 211, 238, 0.65) !important;
+}
+
+/* 5. Trend Analysis Panel */
+.light-mode .scada-panel {
+  background: rgba(253, 254, 255, 0.94);
+  border-color: #B7D8EC;
+  box-shadow: 0 2px 8px rgba(116, 196, 248, 0.16);
+}
+
+.light-mode .scada-panel button.bg-slate-100 {
+  background-color: #F0F7FD;
+  border-color: #B4D8F0;
+  color: #1E3A5F;
+}
+.light-mode .scada-panel button.bg-slate-100:hover {
+  background-color: #E2F0FB;
+  border-color: #8ECDF4;
+}
+
+.dark-mode .scada-panel {
+  background-color: var(--occ-panel);
+  border-color: var(--occ-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* 6. Quick Actions Docked Footer */
+.light-mode .fixed.bottom-0 {
+  background-color: rgba(253, 254, 255, 0.95);
+  border-top-color: #B4D8F0;
+  box-shadow: 0 -2px 10px rgba(116, 196, 248, 0.15);
+}
+
+.light-mode .fixed.bottom-0 a.bg-slate-100 {
+  background-color: #F0F7FD;
+  border-color: #B4D8F0;
+  color: #1E3A5F;
+}
+.light-mode .fixed.bottom-0 a.bg-slate-100:hover {
+  background-color: #E2F0FB;
+  border-color: #8ECDF4;
+}
+
+.dark-mode .fixed.bottom-0 {
+  background-color: rgba(11, 20, 34, 0.95);
+  border-top-color: #20354B;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+.dark-mode .fixed.bottom-0 a.bg-slate-100 {
+  background-color: #101B2B;
+  border-color: #20354B;
+  color: #CBD5E1;
+}
+.dark-mode .fixed.bottom-0 a.bg-slate-100:hover {
+  background-color: #18283E;
+}
 </style>

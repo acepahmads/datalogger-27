@@ -207,7 +207,8 @@ export function resolveCanonicalParamKey(code = '', name = '', unit = '') {
  * @param {boolean} isDark - Dark mode active
  * @param {number} fallbackIndex - index in active series list
  */
-export function getParamSeriesColor(param, isDark = true, fallbackIndex = 0) {
+export function getParamSeriesColor(param, isDark = true) {
+  const fallbackIndex = arguments[2] || 0;
   if (!param) return isDark ? '#27D9F2' : '#0284C7';
 
   const key = resolveCanonicalParamKey(
