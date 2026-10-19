@@ -463,10 +463,10 @@ func Seed(db *gorm.DB) error {
 	db.Create(&dev2)
 	db.Create(&dev3)
 
-	// Connections
-	db.Create(&model.DeviceConnection{DeviceID: dev1.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.101", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 1000, Enabled: true})
-	db.Create(&model.DeviceConnection{DeviceID: dev2.ID, Protocol: model.ProtocolModbusRTU, ConnectionType: "SERIAL", SerialPort: "COM3", BaudRate: 9600, DataBits: 8, StopBits: 1, Parity: "N", Timeout: 1000, RetryCount: 3, PollingInterval: 2000, Enabled: true})
-	db.Create(&model.DeviceConnection{DeviceID: dev3.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.103", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 1000, Enabled: true})
+	// Connections (Standard 5-second polling cycle)
+	db.Create(&model.DeviceConnection{DeviceID: dev1.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.101", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
+	db.Create(&model.DeviceConnection{DeviceID: dev2.ID, Protocol: model.ProtocolModbusRTU, ConnectionType: "SERIAL", SerialPort: "COM3", BaudRate: 9600, DataBits: 8, StopBits: 1, Parity: "N", Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
+	db.Create(&model.DeviceConnection{DeviceID: dev3.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.103", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
 
 	// Sample Parameters
 	v := 220.5

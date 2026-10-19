@@ -682,7 +682,7 @@ func (s *AggregationService) GetDownsampledHistory(
 
 	// Intelligent Resolution Selection (Section 3.3.21)
 	if resolution == "" || resolution == "auto" {
-		if duration <= 1*time.Hour {
+		if duration <= 6*time.Hour {
 			resolution = "raw"
 		} else if duration <= 24*time.Hour {
 			resolution = "5m"

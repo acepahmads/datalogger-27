@@ -4562,7 +4562,7 @@ export default {
       if (intervals.length > 0) {
         return Math.min(...intervals);
       }
-      return 10000;
+      return 5000;
     },
     cardGridClass() {
       return 'grid gap-1.5 sm:gap-2';
@@ -6969,16 +6969,34 @@ export default {
             .filter(p => p.x && !isNaN(p.x))
             .sort((a, b) => a.x - b.x);
 
-          // Deduplicate consecutive points with identical timestamps
-          const deduplicated = [];
-          for (let i = 0; i < validPoints.length; i++) {
-            if (i === 0 || validPoints[i].x !== validPoints[i - 1].x) {
-              deduplicated.push(validPoints[i]);
-            } else {
-              deduplicated[deduplicated.length - 1] = validPoints[i];
+          // For all filters from 1m to 6h, enforce 5-second polling interval alignment matching hardware setup
+          const timeSpan = endTime.getTime() - startTime.getTime();
+          const isUnderOrEqual6h = timeSpan <= (6 * 3600 * 1000 + 1000);
+          const pollStepMs = isUnderOrEqual6h ? 5000 : null;
+
+          let processed = [];
+          if (pollStepMs) {
+            // Group and align points strictly into 5-second polling buckets (:00, :05, :10, :15...)
+            const bucketMap = new Map();
+            for (const pt of validPoints) {
+              const alignedX = Math.round(pt.x / pollStepMs) * pollStepMs;
+              bucketMap.set(alignedX, {
+                ...pt,
+                x: alignedX,
+              });
+            }
+            processed = Array.from(bucketMap.values()).sort((a, b) => a.x - b.x);
+          } else {
+            // Deduplicate consecutive points with identical timestamps
+            for (let i = 0; i < validPoints.length; i++) {
+              if (i === 0 || validPoints[i].x !== validPoints[i - 1].x) {
+                processed.push(validPoints[i]);
+              } else {
+                processed[processed.length - 1] = validPoints[i];
+              }
             }
           }
-          s.dataPoints = deduplicated;
+          s.dataPoints = processed;
 
           // Calculate statistics over window using only valid numeric values
           const yVals = s.dataPoints.map(p => p.y).filter(v => v !== null && typeof v === 'number' && isFinite(v));
@@ -7210,15 +7228,24 @@ export default {
 
       const start = this.trendTimeBounds.start;
       const end = this.trendTimeBounds.end;
-      const hoverTime = start + frac * (end - start);
+      const timeSpan = Math.max(end - start, 1000);
+      const isUnderOrEqual6h = timeSpan <= (6 * 3600 * 1000 + 1000);
+
+      const hoverTime = start + frac * timeSpan;
+      let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;
+      if (isUnderOrEqual6h) {
+        effectiveTime = Math.max(Math.floor(start / 5000) * 5000, Math.min(Math.ceil(end / 5000) * 5000, effectiveTime));
+      }
+      const snappedFrac = Math.min(Math.max((effectiveTime - start) / timeSpan, 0), 1);
+      const scrubX = isUnderOrEqual6h ? (padLeft + snappedFrac * plotW) : clampedX;
 
       const seriesValues = [];
       for (const s of this.activeTrendSeries) {
         if (!s.dataPoints || s.dataPoints.length === 0) continue;
         let closest = s.dataPoints[0];
-        let minDiff = Math.abs(closest.x - hoverTime);
+        let minDiff = Math.abs(closest.x - effectiveTime);
         for (let i = 1; i < s.dataPoints.length; i++) {
-          const diff = Math.abs(s.dataPoints[i].x - hoverTime);
+          const diff = Math.abs(s.dataPoints[i].x - effectiveTime);
           if (diff < minDiff) {
             minDiff = diff;
             closest = s.dataPoints[i];
@@ -7253,9 +7280,9 @@ export default {
       }
 
       const firstSeries = seriesValues[0] || { deviceCode: 'AQMS', paramCode: 'val', paramName: 'Param', val: '--', unit: '' };
-      const d = new Date(hoverTime);
+      const d = new Date(effectiveTime);
       this.scrubPoint = {
-        x: clampedX,
+        x: scrubX,
         rawPixelX: mouseX,
         y: 85,
         time: d.toLocaleTimeString('en-GB'),
@@ -7276,15 +7303,24 @@ export default {
 
       const start = this.trendTimeBounds.start;
       const end = this.trendTimeBounds.end;
-      const hoverTime = start + frac * (end - start);
+      const timeSpan = Math.max(end - start, 1000);
+      const isUnderOrEqual6h = timeSpan <= (6 * 3600 * 1000 + 1000);
+
+      const hoverTime = start + frac * timeSpan;
+      let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;
+      if (isUnderOrEqual6h) {
+        effectiveTime = Math.max(Math.floor(start / 5000) * 5000, Math.min(Math.ceil(end / 5000) * 5000, effectiveTime));
+      }
+      const snappedFrac = Math.min(Math.max((effectiveTime - start) / timeSpan, 0), 1);
+      const scrubX = isUnderOrEqual6h ? (padLeft + snappedFrac * plotW) : clampedX;
 
       const seriesValues = [];
       for (const s of this.activeTrendSeries) {
         if (!s.dataPoints || s.dataPoints.length === 0) continue;
         let closest = s.dataPoints[0];
-        let minDiff = Math.abs(closest.x - hoverTime);
+        let minDiff = Math.abs(closest.x - effectiveTime);
         for (let i = 1; i < s.dataPoints.length; i++) {
-          const diff = Math.abs(s.dataPoints[i].x - hoverTime);
+          const diff = Math.abs(s.dataPoints[i].x - effectiveTime);
           if (diff < minDiff) {
             minDiff = diff;
             closest = s.dataPoints[i];
@@ -7318,9 +7354,9 @@ export default {
         });
       }
 
-      const d = new Date(hoverTime);
+      const d = new Date(effectiveTime);
       this.fullscreenScrubPoint = {
-        x: clampedX,
+        x: scrubX,
         rawPixelX: mouseX,
         time: d.toLocaleTimeString('en-GB'),
         date: d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
