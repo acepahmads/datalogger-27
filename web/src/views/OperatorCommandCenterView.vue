@@ -1281,8 +1281,28 @@
             </div>
           </div>
 
-          <!-- Thin Vertical Divider before Fullscreen Control -->
+          <!-- Thin Vertical Divider before Fullscreen & Layout Controls -->
           <div class="h-4 w-px bg-slate-200 dark:bg-[#1E3048] mx-0.5 flex-shrink-0"></div>
+
+          <!-- Sidebar Auto-Hide Setup Toggle Button -->
+          <button
+            type="button"
+            id="btn-operator-sidebar-autohide"
+            @click="toggleSidebarAutoHide"
+            class="w-8 h-8 flex items-center justify-center rounded transition border"
+            :class="sidebarAutoHide
+              ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-xs'
+              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'"
+            :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
+            aria-label="Toggle Sidebar Auto-Hide"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18" />
+              <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
+              <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
 
           <!-- Fullscreen / Sidebar & Top Panel Layout Toggle (Icon Only) -->
           <button
@@ -3712,6 +3732,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    isSidebarAutoHide: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -4857,6 +4881,9 @@ export default {
 
       return sections;
     },
+    sidebarAutoHide() {
+      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+    },
   },
   watch: {
     allParameters: {
@@ -4932,6 +4959,10 @@ export default {
     document.removeEventListener('keydown', this.onDocumentKeyDown);
   },
   methods: {
+    toggleSidebarAutoHide() {
+      this.$store.dispatch('toggleSidebarAutoHide');
+      this.$emit('toggle-autohide');
+    },
     loadGridColumnsConfig() {
       try {
         const saved = localStorage.getItem('operator_monitoring_grid_cols') || localStorage.getItem('operator_console_grid_columns');

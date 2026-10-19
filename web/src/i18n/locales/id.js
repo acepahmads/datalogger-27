@@ -27,11 +27,16 @@ export default {
     "usersRoles": "Pengguna & RBAC",
     "edgeDatabase": "Database MariaDB Edge",
     "operatorConsole": "Konsol Operator",
-    "ispuAnalysis": "Analisis ISPU"
+    "ispuAnalysis": "Analisis ISPU",
+    "edgeSystem": "Sistem Edge Aktif",
+    "sidebarHoverTitle": "Arahkan kursor untuk membuka menu navigasi (Auto-Hide aktif)"
   },
   "header": {
     "appTitle": "Aplikasi Analisis Datalogger",
     "version": "v1.0.0",
+    "sidebarAutoHideOn": "Sidebar: Auto-Hide Aktif (Klik untuk Pin)",
+    "sidebarAutoHideOff": "Sidebar: Dipin (Klik untuk Auto-Hide)",
+    "sidebarSetup": "Pengaturan Sidebar Auto-Hide",
     "host": "Host",
     "status": "Status",
     "time": "Waktu",

@@ -17,6 +17,26 @@
 
     <!-- Right: Controls & User -->
     <div class="flex items-center space-x-2 sm:space-x-2.5">
+      <!-- 0. Sidebar Auto-Hide Setup Icon Button -->
+      <button
+        type="button"
+        id="btn-sidebar-autohide-toggle"
+        @click="toggleSidebarAutoHide"
+        class="relative w-8 h-8 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
+        :class="sidebarAutoHide
+          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
+          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-slate-700/60'"
+        :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
+        aria-label="Toggle Sidebar Auto-Hide"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M9 3v18" />
+          <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
+          <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+
       <!-- 1. Operator Console Quick Icon Button -->
       <router-link
         to="/monitoring/operator"
@@ -135,6 +155,9 @@ export default {
     user() {
       return this.$store.state.user;
     },
+    sidebarAutoHide() {
+      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+    },
     themeSetting() {
       return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.theme) || 'system';
     },
@@ -191,6 +214,10 @@ export default {
     }
   },
   methods: {
+    toggleSidebarAutoHide() {
+      this.$store.dispatch('toggleSidebarAutoHide');
+      this.$emit('toggle-autohide');
+    },
     toggleLanguage() {
       const next = this.language === 'id' ? 'en' : 'id';
       this.$store.dispatch('setLanguage', next);

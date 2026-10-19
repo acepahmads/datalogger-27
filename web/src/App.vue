@@ -1,15 +1,61 @@
 <template>
-  <div id="app" class="flex flex-col h-screen overflow-hidden bg-transparent dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150">
+  <div id="app" class="flex flex-col h-screen overflow-hidden bg-transparent dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150 relative">
     <!-- Top System Header (Hidden in Full-Width SCADA Mode) -->
-    <Header v-show="!isTopPanelHidden" />
+    <Header
+      v-show="!isTopPanelHidden"
+      @toggle-sidebar="toggleSidebar"
+      @toggle-autohide="toggleSidebarAutoHide"
+    />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
     <GlobalAlarmBanner v-show="!isTopPanelHidden" />
 
     <!-- Main Content Area with Sidebar -->
-    <div class="flex flex-1 overflow-hidden">
-      <!-- Sidebar Navigation -->
-      <Sidebar :is-collapsed="isSidebarCollapsed" />
+    <div class="flex flex-1 overflow-hidden relative">
+      <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE) -->
+      <Sidebar
+        v-if="!sidebarAutoHide"
+        :is-collapsed="isSidebarCollapsed"
+        :is-auto-hide="false"
+        @toggle-autohide="toggleSidebarAutoHide"
+      />
+
+      <!-- 2. Auto-Hide Edge Hover Trigger Zone (rendered when auto-hide is TRUE) -->
+      <div
+        v-if="sidebarAutoHide"
+        @mouseenter="openSidebarHover"
+        class="fixed left-0 top-12 bottom-0 w-3 z-40 cursor-pointer group flex items-center justify-start pointer-events-auto"
+        :title="$t('navigation.sidebarHoverTitle') || 'Hover to view navigation sidebar (Auto-Hide active)'"
+      >
+        <!-- Subtle cyan indicator beacon on edge -->
+        <div class="h-16 w-1 rounded-r bg-slate-300/80 dark:bg-slate-700/80 group-hover:bg-cyan-500 group-hover:w-1.5 group-hover:shadow-glow-cyan transition-all duration-200"></div>
+      </div>
+
+      <!-- 3. Auto-Hide Sliding Drawer (rendered over content with smooth transition) -->
+      <transition name="sidebar-slide">
+        <div
+          v-if="sidebarAutoHide && isSidebarHovered"
+          @mouseleave="scheduleCloseSidebarHover"
+          @mouseenter="cancelCloseSidebarHover"
+          class="fixed left-0 top-0 bottom-0 z-50 w-64 shadow-2xl flex flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800"
+        >
+          <Sidebar
+            :is-collapsed="false"
+            :is-auto-hide="true"
+            @toggle-autohide="toggleSidebarAutoHide"
+            @navigate="closeSidebarHoverImmediate"
+          />
+        </div>
+      </transition>
+
+      <!-- 4. Subtle backdrop when auto-hide sidebar is popped open -->
+      <transition name="fade">
+        <div
+          v-if="sidebarAutoHide && isSidebarHovered"
+          @click="closeSidebarHoverImmediate"
+          class="fixed inset-0 z-40 bg-black/20 dark:bg-black/40 backdrop-blur-xs transition-opacity"
+        ></div>
+      </transition>
 
       <!-- Viewport / Route Views -->
       <main
@@ -17,10 +63,12 @@
         :class="isOperatorRoute ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 bg-transparent dark:bg-[#050B16]' : 'p-4 bg-transparent dark:bg-slate-950'"
       >
         <router-view
-          :is-sidebar-collapsed="isSidebarCollapsed"
+          :is-sidebar-collapsed="isSidebarCollapsed || sidebarAutoHide"
           :is-top-panel-hidden="isTopPanelHidden"
+          :is-sidebar-auto-hide="sidebarAutoHide"
           @toggle-sidebar="toggleSidebar"
           @toggle-fullwidth="toggleSidebar"
+          @toggle-autohide="toggleSidebarAutoHide"
         />
       </main>
     </div>
@@ -43,11 +91,16 @@ export default {
     return {
       isSidebarCollapsed: false,
       isTopPanelHidden: false,
+      isSidebarHovered: false,
+      hoverCloseTimer: null,
     };
   },
   computed: {
     isOperatorRoute() {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
+    },
+    sidebarAutoHide() {
+      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
     },
   },
   watch: {
@@ -55,6 +108,7 @@ export default {
       if (to.path !== '/monitoring/operator' && to.path !== '/operator') {
         this.isTopPanelHidden = false;
       }
+      this.closeSidebarHoverImmediate();
     },
   },
   methods: {
@@ -66,6 +120,32 @@ export default {
         this.isTopPanelHidden = false;
       }
     },
+    toggleSidebarAutoHide() {
+      this.$store.dispatch('toggleSidebarAutoHide');
+      if (!this.sidebarAutoHide) {
+        this.closeSidebarHoverImmediate();
+      }
+    },
+    openSidebarHover() {
+      this.cancelCloseSidebarHover();
+      this.isSidebarHovered = true;
+    },
+    scheduleCloseSidebarHover() {
+      this.cancelCloseSidebarHover();
+      this.hoverCloseTimer = setTimeout(() => {
+        this.isSidebarHovered = false;
+      }, 250);
+    },
+    cancelCloseSidebarHover() {
+      if (this.hoverCloseTimer) {
+        clearTimeout(this.hoverCloseTimer);
+        this.hoverCloseTimer = null;
+      }
+    },
+    closeSidebarHoverImmediate() {
+      this.cancelCloseSidebarHover();
+      this.isSidebarHovered = false;
+    },
   },
 };
 </script>
@@ -76,5 +156,23 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sidebar-slide-enter,
+.sidebar-slide-leave-to {
+  transform: translateX(-100%);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

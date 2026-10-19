@@ -20,6 +20,7 @@ export default new Vuex.Store({
       theme: getStoredTheme(), // 'light' | 'dark' | 'system'
       effectiveTheme: resolveEffectiveTheme(getStoredTheme()), // 'light' | 'dark'
       language: i18nState.locale, // 'en' | 'id'
+      sidebarAutoHide: localStorage.getItem('datalogger_sidebar_autohide') === 'true',
     },
     theme: resolveEffectiveTheme(getStoredTheme()),
     language: i18nState.locale,
@@ -103,6 +104,16 @@ export default new Vuex.Store({
       setLocale(lang);
       state.uiPreferences.language = lang;
       state.language = lang;
+    },
+    SET_SIDEBAR_AUTOHIDE(state, autoHide) {
+      if (!state.uiPreferences) state.uiPreferences = {};
+      state.uiPreferences.sidebarAutoHide = !!autoHide;
+      localStorage.setItem('datalogger_sidebar_autohide', state.uiPreferences.sidebarAutoHide ? 'true' : 'false');
+    },
+    TOGGLE_SIDEBAR_AUTOHIDE(state) {
+      if (!state.uiPreferences) state.uiPreferences = {};
+      state.uiPreferences.sidebarAutoHide = !state.uiPreferences.sidebarAutoHide;
+      localStorage.setItem('datalogger_sidebar_autohide', state.uiPreferences.sidebarAutoHide ? 'true' : 'false');
     },
     SET_WS_CONNECTED(state, connected) {
       state.wsConnected = connected;
@@ -215,10 +226,18 @@ export default new Vuex.Store({
     setLanguage({ commit }, lang) {
       commit('SET_LANGUAGE', lang);
     },
+    setSidebarAutoHide({ commit }, autoHide) {
+      commit('SET_SIDEBAR_AUTOHIDE', autoHide);
+    },
+    toggleSidebarAutoHide({ commit }) {
+      commit('TOGGLE_SIDEBAR_AUTOHIDE');
+    },
     initializePreferences({ commit }) {
       const currentTheme = getStoredTheme();
       commit('SET_THEME', currentTheme);
       commit('SET_LANGUAGE', i18nState.locale);
+      const autoHide = localStorage.getItem('datalogger_sidebar_autohide') === 'true';
+      commit('SET_SIDEBAR_AUTOHIDE', autoHide);
     },
     async fetchSystemStatus({ commit }) {
       try {

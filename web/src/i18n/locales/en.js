@@ -27,11 +27,16 @@ export default {
     "usersRoles": "Users & RBAC",
     "edgeDatabase": "MariaDB Edge",
     "operatorConsole": "Operator Console",
-    "ispuAnalysis": "ISPU Analysis"
+    "ispuAnalysis": "ISPU Analysis",
+    "edgeSystem": "Edge System Active",
+    "sidebarHoverTitle": "Hover to reveal navigation sidebar (Auto-Hide active)"
   },
   "header": {
     "appTitle": "Datalogger Analysis Application",
     "version": "v1.0.0",
+    "sidebarAutoHideOn": "Sidebar: Auto-Hide Enabled (Click to Pin)",
+    "sidebarAutoHideOff": "Sidebar: Pinned (Click for Auto-Hide)",
+    "sidebarSetup": "Sidebar Auto-Hide Setup",
     "host": "Host",
     "status": "Status",
     "time": "Time",

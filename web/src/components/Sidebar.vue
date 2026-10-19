@@ -4,17 +4,37 @@
     class="bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800/60 flex-shrink-0 select-none text-slate-700 dark:text-slate-300 font-sans transition-all duration-150"
   >
     <!-- Brand Header -->
-    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800/40">
-      <div class="text-sm font-black text-slate-900 dark:text-white tracking-wider">DATALOGGER</div>
-      <div class="text-2xs text-slate-500 dark:text-slate-400 font-medium">Analysis Application</div>
-      <div class="flex items-center space-x-1.5 mt-2">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">{{ $t('navigation.edgeSystem') }}</span>
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800/40 flex items-start justify-between">
+      <div class="min-w-0 pr-2">
+        <div class="text-sm font-black text-slate-900 dark:text-white tracking-wider truncate">DATALOGGER</div>
+        <div class="text-2xs text-slate-500 dark:text-slate-400 font-medium truncate">Analysis Application</div>
+        <div class="flex items-center space-x-1.5 mt-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">{{ $t('navigation.edgeSystem') }}</span>
+        </div>
       </div>
+      <!-- Setup / Auto-Hide Pin Icon Button -->
+      <button
+        type="button"
+        @click="toggleAutoHide"
+        class="p-1.5 rounded-lg border transition-all flex items-center justify-center mt-0.5 flex-shrink-0"
+        :class="sidebarAutoHide
+          ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 hover:bg-cyan-500/30 ring-1 ring-cyan-500/30'
+          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-slate-200 dark:border-slate-700/60'"
+        :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
+        aria-label="Toggle Sidebar Auto-Hide"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M9 3v18" stroke-linecap="round" />
+          <path v-if="!sidebarAutoHide" stroke-linecap="round" stroke-linejoin="round" d="m14 9-3 3 3 3" />
+          <path v-else stroke-linecap="round" stroke-linejoin="round" d="m12 9 3 3-3 3" />
+        </svg>
+      </button>
     </div>
 
     <!-- Navigation List -->
-    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6" @click="onNavClick">
       <!-- DEVELOPMENT -->
       <div>
         <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans">
@@ -288,13 +308,29 @@ export default {
       type: Boolean,
       default: false,
     },
+    isAutoHide: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
+    sidebarAutoHide() {
+      return (this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || false;
+    },
     progress() {
       return this.$store.state.progress;
     },
     systemStatus() {
       return this.$store.state.systemStatus;
+    },
+  },
+  methods: {
+    toggleAutoHide() {
+      this.$store.dispatch('toggleSidebarAutoHide');
+      this.$emit('toggle-autohide');
+    },
+    onNavClick() {
+      this.$emit('navigate');
     },
   },
 };
