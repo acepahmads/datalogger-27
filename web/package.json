@@ -18,7 +18,8 @@
     "test:multi-panel": "node tests/multi_panel_monitoring_layout_test.js",
     "test:clean-cards": "node tests/clean_parameter_cards_subtle_selection_test.js",
     "test:trend-compact": "node tests/trend_compact_selector_sparkline_center_test.js",
-    "test:branding": "node tests/organization_branding_setup_test.js"
+    "test:branding": "node tests/organization_branding_setup_test.js",
+    "test:header": "node tests/global_header_refinement_test.js"
   },
   "dependencies": {
     "axios": "^1.6.8",
