@@ -181,6 +181,15 @@ runTest('5.1: chartSetup translation exists in English and Indonesian', () => {
   assert(idContent.includes('"chartSetup"'), 'id.js must have chartSetup translation');
 });
 
+runTest('5.2: Manual refresh icon is removed from the top header panel', () => {
+  assert(!occContent.includes('@click="refreshDashboard"'), 'Top header panel must not contain manual refresh button');
+});
+
+runTest('5.3: System setup icon and popover are removed from the dashboard toolbar panel', () => {
+  assert(!occContent.includes("toggleToolbarPopover('systemSetup')"), 'Dashboard toolbar must not contain systemSetup button');
+  assert(!occContent.includes("activeToolbarPopover === 'systemSetup'"), 'Dashboard toolbar must not contain systemSetup popover');
+});
+
 console.log('===============================================================');
 console.log(`TEST SUMMARY: ${passedTests} PASSED, ${totalTests - passedTests} FAILED (TOTAL: ${totalTests})`);
 console.log('===============================================================');

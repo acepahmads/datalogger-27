@@ -93,19 +93,6 @@
           >
             <span>{{ isDark ? '🌙' : '☀' }}</span>
           </button>
-
-          <!-- Manual Refresh -->
-          <button
-            type="button"
-            @click="refreshDashboard"
-            :disabled="isRefreshing"
-            class="h-7 w-7 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition disabled:opacity-50 flex items-center justify-center leading-none"
-            :title="$t('common.refresh') || 'Refresh All'"
-          >
-            <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': isRefreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -700,7 +687,7 @@
           </div>
         </div>
 
-        <!-- Right: 6 Workspace Settings Icons + Fullscreen Control -->
+        <!-- Right: Workspace Settings Icons + Fullscreen Control -->
         <div class="flex items-center space-x-1.5 flex-shrink-0" ref="toolbarContainer">
           <!-- A. Categories Settings Popover -->
           <div class="relative toolbar-popover-anchor">
@@ -1174,172 +1161,6 @@
 
               <div class="mt-2 pt-2 border-t border-slate-100 dark:border-[#1E3048] text-[8.5px] font-mono text-slate-400 text-center">
                 Preference saved automatically (Default: 4P)
-              </div>
-            </div>
-          </div>
-
-          <!-- E. Parameter & System Setup Settings Popover -->
-          <div class="relative toolbar-popover-anchor">
-            <button
-              type="button"
-              @click.stop="toggleToolbarPopover('systemSetup')"
-              class="w-8 h-8 flex items-center justify-center rounded transition border"
-              :class="[
-                activeToolbarPopover === 'systemSetup'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                  : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
-              ]"
-              :title="$t('operator.toolbarSystemSetupTooltip') || 'Configuration & System Setup'"
-              aria-label="Configuration and System Setup"
-              :aria-expanded="activeToolbarPopover === 'systemSetup'"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <line x1="4" y1="21" x2="4" y2="14" stroke-linecap="round" />
-                <line x1="4" y1="10" x2="4" y2="3" stroke-linecap="round" />
-                <line x1="12" y1="21" x2="12" y2="12" stroke-linecap="round" />
-                <line x1="12" y1="8" x2="12" y2="3" stroke-linecap="round" />
-                <line x1="20" y1="21" x2="20" y2="16" stroke-linecap="round" />
-                <line x1="20" y1="12" x2="20" y2="3" stroke-linecap="round" />
-                <line x1="1" y1="14" x2="7" y2="14" stroke-linecap="round" />
-                <line x1="9" y1="8" x2="15" y2="8" stroke-linecap="round" />
-                <line x1="17" y1="16" x2="23" y2="16" stroke-linecap="round" />
-              </svg>
-            </button>
-
-            <!-- System Setup Popover Panel -->
-            <div
-              v-if="activeToolbarPopover === 'systemSetup'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
-              @click.stop
-            >
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <line x1="4" y1="21" x2="4" y2="14" stroke-linecap="round" />
-                    <line x1="4" y1="10" x2="4" y2="3" stroke-linecap="round" />
-                    <line x1="12" y1="21" x2="12" y2="12" stroke-linecap="round" />
-                    <line x1="12" y1="8" x2="12" y2="3" stroke-linecap="round" />
-                    <line x1="20" y1="21" x2="20" y2="16" stroke-linecap="round" />
-                    <line x1="20" y1="12" x2="20" y2="3" stroke-linecap="round" />
-                    <line x1="1" y1="14" x2="7" y2="14" stroke-linecap="round" />
-                    <line x1="9" y1="8" x2="15" y2="8" stroke-linecap="round" />
-                    <line x1="17" y1="16" x2="23" y2="16" stroke-linecap="round" />
-                  </svg>
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.systemSetup') || 'Parameter & System Setup' }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                  title="Close"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-              </div>
-
-              <!-- Setup Links -->
-              <div class="space-y-1 font-mono text-[10.5px]">
-                <!-- 1. Device & Parameter Configuration -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/monitoring/devices')"
-                  class="w-full flex items-center justify-between p-2 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0E1726] hover:bg-cyan-500/10 dark:hover:bg-[#162538] hover:border-cyan-500/40 text-left transition group"
-                >
-                  <div class="flex items-center space-x-2.5 min-w-0">
-                    <span class="text-sm">🖥️</span>
-                    <div class="truncate">
-                      <div class="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
-                        {{ $t('operator.deviceParamConfig') || 'Device & Parameter Configuration' }}
-                      </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 truncate">
-                        {{ $t('operator.deviceParamConfigDesc') || 'Sensors, addresses, and acquisition rules' }}
-                      </div>
-                    </div>
-                  </div>
-                  <span class="text-slate-400 group-hover:text-cyan-500 font-bold ml-1">→</span>
-                </button>
-
-                <!-- 2. Data Processing and Aggregation -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/monitoring/analysis')"
-                  class="w-full flex items-center justify-between p-2 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0E1726] hover:bg-cyan-500/10 dark:hover:bg-[#162538] hover:border-cyan-500/40 text-left transition group"
-                >
-                  <div class="flex items-center space-x-2.5 min-w-0">
-                    <span class="text-sm">📊</span>
-                    <div class="truncate">
-                      <div class="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
-                        {{ $t('operator.dataProcessing') || 'Data Processing & Aggregation' }}
-                      </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 truncate">
-                        {{ $t('operator.dataProcessingDesc') || 'Virtual calculations and averaging' }}
-                      </div>
-                    </div>
-                  </div>
-                  <span class="text-slate-400 group-hover:text-cyan-500 font-bold ml-1">→</span>
-                </button>
-
-                <!-- 3. Alarm & Notification Setup -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/alarm/active')"
-                  class="w-full flex items-center justify-between p-2 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0E1726] hover:bg-cyan-500/10 dark:hover:bg-[#162538] hover:border-cyan-500/40 text-left transition group"
-                >
-                  <div class="flex items-center space-x-2.5 min-w-0">
-                    <span class="text-sm">🔔</span>
-                    <div class="truncate">
-                      <div class="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
-                        {{ $t('operator.alarmNotification') || 'Alarm & Notification' }}
-                      </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 truncate">
-                        {{ $t('operator.alarmNotificationDesc') || 'Threshold limits, escalation, and sirens' }}
-                      </div>
-                    </div>
-                  </div>
-                  <span class="text-slate-400 group-hover:text-cyan-500 font-bold ml-1">→</span>
-                </button>
-
-                <!-- 4. Storage & Retention -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/administration/retention')"
-                  class="w-full flex items-center justify-between p-2 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0E1726] hover:bg-cyan-500/10 dark:hover:bg-[#162538] hover:border-cyan-500/40 text-left transition group"
-                >
-                  <div class="flex items-center space-x-2.5 min-w-0">
-                    <span class="text-sm">💾</span>
-                    <div class="truncate">
-                      <div class="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
-                        {{ $t('operator.storageRetention') || 'Storage & Retention' }}
-                      </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 truncate">
-                        {{ $t('operator.storageRetentionDesc') || 'Database size, purge cycles, and backups' }}
-                      </div>
-                    </div>
-                  </div>
-                  <span class="text-slate-400 group-hover:text-cyan-500 font-bold ml-1">→</span>
-                </button>
-
-                <!-- 5. System Settings & Health -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/monitoring/system')"
-                  class="w-full flex items-center justify-between p-2 rounded-md border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#0E1726] hover:bg-cyan-500/10 dark:hover:bg-[#162538] hover:border-cyan-500/40 text-left transition group"
-                >
-                  <div class="flex items-center space-x-2.5 min-w-0">
-                    <span class="text-sm">⚡</span>
-                    <div class="truncate">
-                      <div class="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
-                        {{ $t('operator.systemSettings') || 'System Monitor & Health' }}
-                      </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 truncate">
-                        {{ $t('operator.systemSettingsDesc') || 'Host diagnostics, CPU, RAM, and disk status' }}
-                      </div>
-                    </div>
-                  </div>
-                  <span class="text-slate-400 group-hover:text-cyan-500 font-bold ml-1">→</span>
-                </button>
               </div>
             </div>
           </div>
