@@ -122,30 +122,30 @@
             />
           </filter>
 
-          <!-- Adaptive linear gradients for solid bands (Dark Mode) or subtle pastel tints (Light Mode) -->
+          <!-- Adaptive linear gradients for solid bands (Dark Mode) or rich, vibrant tints (Light Mode) -->
           <linearGradient id="bandBaik" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#1B873F' : '#10B981'" :stop-opacity="resolvedIsDark ? 0.92 : 0.14" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#166534' : '#059669'" :stop-opacity="resolvedIsDark ? 0.92 : 0.09" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#1B873F' : '#22C55E'" :stop-opacity="resolvedIsDark ? 0.92 : 0.44" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#166534' : '#16A34A'" :stop-opacity="resolvedIsDark ? 0.92 : 0.36" />
           </linearGradient>
 
           <linearGradient id="bandSedang" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#1D63B8' : '#3B82F6'" :stop-opacity="resolvedIsDark ? 0.92 : 0.14" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#1E40AF' : '#1D4ED8'" :stop-opacity="resolvedIsDark ? 0.92 : 0.09" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#1D63B8' : '#3B82F6'" :stop-opacity="resolvedIsDark ? 0.92 : 0.44" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#1E40AF' : '#2563EB'" :stop-opacity="resolvedIsDark ? 0.92 : 0.36" />
           </linearGradient>
 
           <linearGradient id="bandTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#C49000' : '#F59E0B'" :stop-opacity="resolvedIsDark ? 0.92 : 0.16" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#B45309' : '#D97706'" :stop-opacity="resolvedIsDark ? 0.92 : 0.10" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#C49000' : '#FBBF24'" :stop-opacity="resolvedIsDark ? 0.92 : 0.46" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#B45309' : '#F59E0B'" :stop-opacity="resolvedIsDark ? 0.92 : 0.38" />
           </linearGradient>
 
           <linearGradient id="bandSangatTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#B91C1C' : '#EF4444'" :stop-opacity="resolvedIsDark ? 0.92 : 0.16" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#991B1B' : '#DC2626'" :stop-opacity="resolvedIsDark ? 0.92 : 0.10" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#B91C1C' : '#F87171'" :stop-opacity="resolvedIsDark ? 0.92 : 0.46" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#991B1B' : '#EF4444'" :stop-opacity="resolvedIsDark ? 0.92 : 0.38" />
           </linearGradient>
 
           <linearGradient id="bandBerbahaya" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#4A0D15' : '#881337'" :stop-opacity="resolvedIsDark ? 0.95 : 0.18" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#3B080F' : '#4C0519'" :stop-opacity="resolvedIsDark ? 0.95 : 0.12" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#4A0D15' : '#991B1B'" :stop-opacity="resolvedIsDark ? 0.95 : 0.50" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#3B080F' : '#7F1D1D'" :stop-opacity="resolvedIsDark ? 0.95 : 0.42" />
           </linearGradient>
 
           <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -190,7 +190,7 @@
         </g>
 
         <!-- Category Horizontal Boundary Lines -->
-        <g :stroke="resolvedIsDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.08)'" stroke-width="1.2">
+        <g :stroke="resolvedIsDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.16)'" stroke-width="1.2">
           <line
             v-for="(b, idx) in computedBands.slice(0, 4)"
             :key="`line-${idx}`"
@@ -202,7 +202,7 @@
         </g>
 
         <!-- Category Labels Inside the Left Side of Each Band (Adaptive Contrast) -->
-        <g class="band-labels text-[11px] font-mono font-bold select-none">
+        <g class="band-labels text-[11px] font-mono font-black select-none">
           <text
             v-for="b in computedBands"
             :key="`lbl-${b.key}`"
@@ -210,7 +210,8 @@
             :x="padLeft + 12"
             :y="b.y + b.height / 2 + 4"
             :fill="resolvedIsDark ? '#FFFFFF' : (b.colorLight || '#1E293B')"
-            letter-spacing="0.5"
+            letter-spacing="0.6"
+            :style="resolvedIsDark ? 'text-shadow: 0 1px 3px rgba(0,0,0,0.8);' : 'text-shadow: 0 1px 1px rgba(255,255,255,0.8);'"
           >
             {{ b.label }}
           </text>
@@ -240,12 +241,23 @@
           </text>
         </g>
 
+        <!-- Underlay Halo for Curve to Pop Sharply Over Colored Category Bands -->
+        <path
+          :d="curvePath"
+          fill="none"
+          :stroke="resolvedIsDark ? 'rgba(8, 15, 32, 0.85)' : '#FFFFFF'"
+          stroke-width="4.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          opacity="0.9"
+        />
+
         <!-- Smooth Bright Cyan / Deep Cyan Trend Curve -->
         <path
           :d="curvePath"
           fill="none"
           :stroke="resolvedIsDark ? '#00F2FE' : '#0284C7'"
-          stroke-width="2.5"
+          stroke-width="2.6"
           stroke-linecap="round"
           stroke-linejoin="round"
           filter="url(#neonGlow)"
@@ -479,11 +491,11 @@ export default {
         // Reference Mockup visual layout: Green at top, Blue 2nd, Yellow 3rd, Red 4th, Dark Red at bottom
         const h5 = this.plotHeight / 5;
         return [
-          { key: 'baik', id: 'bandBaik', label: 'BAIK (0-50)', colorLight: '#166534', y: this.padTop, height: h5 },
-          { key: 'sedang', id: 'bandSedang', label: 'SEDANG (51-100)', colorLight: '#1E40AF', y: this.padTop + h5, height: h5 },
-          { key: 'tidak_sehat', id: 'bandTidakSehat', label: 'TIDAK SEHAT (101-200)', colorLight: '#B45309', y: this.padTop + 2 * h5, height: h5 },
-          { key: 'sangat_tidak_sehat', id: 'bandSangatTidakSehat', label: 'SANGAT TIDAK SEHAT (201-300)', colorLight: '#991B1B', y: this.padTop + 3 * h5, height: h5 },
-          { key: 'berbahaya', id: 'bandBerbahaya', label: 'BERBAHAYA (>300)', colorLight: '#7F1D1D', y: this.padTop + 4 * h5, height: h5 }
+          { key: 'baik', id: 'bandBaik', label: 'BAIK (0-50)', colorLight: '#064E3B', y: this.padTop, height: h5 },
+          { key: 'sedang', id: 'bandSedang', label: 'SEDANG (51-100)', colorLight: '#1E3A8A', y: this.padTop + h5, height: h5 },
+          { key: 'tidak_sehat', id: 'bandTidakSehat', label: 'TIDAK SEHAT (101-200)', colorLight: '#78350F', y: this.padTop + 2 * h5, height: h5 },
+          { key: 'sangat_tidak_sehat', id: 'bandSangatTidakSehat', label: 'SANGAT TIDAK SEHAT (201-300)', colorLight: '#7F1D1D', y: this.padTop + 3 * h5, height: h5 },
+          { key: 'berbahaya', id: 'bandBerbahaya', label: 'BERBAHAYA (>300)', colorLight: '#450A0A', y: this.padTop + 4 * h5, height: h5 }
         ];
       }
 
@@ -500,7 +512,7 @@ export default {
           key: 'berbahaya',
           id: 'bandBerbahaya',
           label: 'BERBAHAYA (>300)',
-          colorLight: '#7F1D1D',
+          colorLight: '#450A0A',
           y: yTop,
           height: Math.max(0, y300 - yTop)
         },
@@ -508,7 +520,7 @@ export default {
           key: 'sangat_tidak_sehat',
           id: 'bandSangatTidakSehat',
           label: 'SANGAT TIDAK SEHAT (201-300)',
-          colorLight: '#991B1B',
+          colorLight: '#7F1D1D',
           y: y300,
           height: Math.max(0, y200 - y300)
         },
@@ -516,7 +528,7 @@ export default {
           key: 'tidak_sehat',
           id: 'bandTidakSehat',
           label: 'TIDAK SEHAT (101-200)',
-          colorLight: '#B45309',
+          colorLight: '#78350F',
           y: y200,
           height: Math.max(0, y100 - y200)
         },
@@ -524,7 +536,7 @@ export default {
           key: 'sedang',
           id: 'bandSedang',
           label: 'SEDANG (51-100)',
-          colorLight: '#1E40AF',
+          colorLight: '#1E3A8A',
           y: y100,
           height: Math.max(0, y50 - y100)
         },
@@ -532,7 +544,7 @@ export default {
           key: 'baik',
           id: 'bandBaik',
           label: 'BAIK (0-50)',
-          colorLight: '#166534',
+          colorLight: '#064E3B',
           y: y50,
           height: Math.max(0, y0 - y50)
         }
