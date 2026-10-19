@@ -101,3 +101,23 @@ type SystemStatusOverview struct {
 	CriticalAlarms      int `json:"critical_alarms"`
 	AcknowledgedAlarms  int `json:"acknowledged_alarms"`
 }
+
+// SystemBranding stores persistent customer and maker/provider organization branding in the database
+type SystemBranding struct {
+	ID               uint      `gorm:"primaryKey" json:"id"`
+	CustomerName     string    `gorm:"size:255" json:"customer_name"`
+	CustomerSubtitle string    `gorm:"size:255" json:"customer_subtitle"`
+	CustomerLogo     string    `gorm:"type:longtext" json:"customer_logo,omitempty"`
+	CustomerHasLogo  bool      `gorm:"default:false" json:"customer_has_logo"`
+	MakerName        string    `gorm:"size:255" json:"maker_name"`
+	MakerSubtitle    string    `gorm:"size:255" json:"maker_subtitle"`
+	MakerLogo        string    `gorm:"type:longtext" json:"maker_logo,omitempty"`
+	MakerHasLogo     bool      `gorm:"default:false" json:"maker_has_logo"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+func (SystemBranding) TableName() string {
+	return "system_brandings"
+}
+

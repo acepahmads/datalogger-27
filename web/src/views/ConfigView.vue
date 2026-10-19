@@ -386,8 +386,8 @@
                 <span>{{ branding.customer.name || 'PT. Mitra Industri Enviro' }}</span>
                 <span class="px-1 py-0.2 rounded text-[7.5px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">SCADA</span>
               </div>
-              <div class="text-[9px] text-slate-400 font-mono mt-0.5">
-                Station: <strong class="text-cyan-400">{{ (branding.customer.subtitle && branding.customer.subtitle !== 'Local Autonomous Edge') ? branding.customer.subtitle : (form.monitoring_domain || 'AQMS') }}</strong>
+              <div v-if="branding.customer.subtitle && branding.customer.subtitle !== 'Local Autonomous Edge'" class="text-[9px] text-slate-400 font-mono mt-0.5">
+                Station: <strong class="text-cyan-400">{{ branding.customer.subtitle }}</strong>
               </div>
             </div>
           </div>
@@ -399,12 +399,12 @@
 
           <!-- Maker Side (Right) -->
           <div class="flex items-center space-x-2 shrink-0 text-right">
-            <div class="leading-none hidden sm:block">
-              <div class="text-[10px] font-bold text-white font-mono uppercase tracking-tight">
-                {{ branding.maker.name || 'PT. Centra Biotech Indonesia' }}
+            <div v-if="branding.maker.name || branding.maker.subtitle" class="leading-none hidden sm:block">
+              <div v-if="branding.maker.name" class="text-[10px] font-bold text-white font-mono uppercase tracking-tight">
+                {{ branding.maker.name }}
               </div>
-              <div class="text-[8px] text-slate-400 font-mono mt-0.5">
-                {{ branding.maker.subtitle || 'CBI Industrial IoT' }}
+              <div v-if="branding.maker.subtitle" class="text-[8px] text-slate-400 font-mono mt-0.5">
+                {{ branding.maker.subtitle }}
               </div>
             </div>
             <div class="h-7 px-1.5 rounded border border-[#20354B] bg-[#101B2B] flex items-center justify-center shrink-0">

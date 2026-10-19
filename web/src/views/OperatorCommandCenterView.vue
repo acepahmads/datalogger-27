@@ -49,7 +49,7 @@
                 </span>
               </h1>
             </div>
-            <div class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5 truncate">
+            <div v-if="stationTypeLabel" class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5 truncate">
               <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400 font-bold tracking-wide">{{ stationTypeLabel }}</strong></span>
             </div>
           </div>
@@ -66,12 +66,12 @@
         <!-- Area 3 (Right): Maker Company Branding (Name, Subtitle, Icon/Logo Button) -->
         <div class="flex items-center space-x-2 z-0 flex-shrink-0 pl-2">
           <!-- Maker Info (Right-aligned text) -->
-          <div class="hidden sm:flex flex-col items-end text-right min-w-0">
-            <span class="text-[10px] font-bold text-slate-800 dark:text-slate-200 font-mono tracking-tight leading-none truncate max-w-[170px]" :title="makerCompanyName">
-              {{ makerCompanyName || 'PT. Centra Biotech Indonesia' }}
+          <div v-if="makerCompanyName || makerSubtitle" class="hidden sm:flex flex-col items-end text-right min-w-0">
+            <span v-if="makerCompanyName" class="text-[10px] font-bold text-slate-800 dark:text-slate-200 font-mono tracking-tight leading-none truncate max-w-[170px]" :title="makerCompanyName">
+              {{ makerCompanyName }}
             </span>
-            <span class="text-[8.5px] text-slate-400 dark:text-slate-500 font-mono tracking-wider leading-none mt-0.5 truncate max-w-[170px]">
-              {{ makerSubtitle || 'CBI Industrial IoT' }}
+            <span v-if="makerSubtitle" class="text-[8.5px] text-slate-400 dark:text-slate-500 font-mono tracking-wider leading-none mt-0.5 truncate max-w-[170px]">
+              {{ makerSubtitle }}
             </span>
           </div>
 
@@ -96,7 +96,7 @@
               <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
-              <span class="hidden md:inline text-[9px]">{{ makerCompanyName || 'MAKER' }}</span>
+              <span v-if="makerCompanyName" class="hidden md:inline text-[9px]">{{ makerCompanyName }}</span>
             </div>
           </button>
         </div>
@@ -2641,7 +2641,7 @@
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
           >
             <span>🏢</span>
-            <span>Customer (Left Header)</span>
+            <span>{{ $t('branding.customerTab') || 'Customer (Left Header)' }}</span>
           </button>
           <button
             type="button"
@@ -2652,7 +2652,7 @@
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
           >
             <span>⚙️</span>
-            <span>Maker / Provider (Right Header)</span>
+            <span>{{ $t('branding.makerTab') || 'Maker / Provider (Right Header)' }}</span>
           </button>
         </div>
 
@@ -2660,7 +2660,7 @@
         <div v-if="activeBrandingTab === 'customer'" class="space-y-3">
           <div class="space-y-1">
             <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              Customer Company Name (Appears Top-Left)
+              {{ $t('branding.customerName') || 'Customer Company Name (Appears Top-Left)' }}
             </label>
             <input
               v-model="modalCustomerName"
@@ -2674,7 +2674,7 @@
           <div class="space-y-1">
             <div class="flex items-center justify-between">
               <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-                Jenis Stasiun / Domain Pemantauan
+                {{ $t('branding.stationDomain') || 'Jenis Stasiun / Domain Pemantauan' }}
               </label>
               <div class="flex items-center space-x-1">
                 <button
@@ -2762,7 +2762,7 @@
         <div v-else-if="activeBrandingTab === 'maker'" class="space-y-3">
           <div class="space-y-1">
             <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              Maker / Provider Company Name (Appears Top-Right)
+              {{ $t('branding.makerName') || 'Maker / Provider Company Name (Appears Top-Right)' }}
             </label>
             <input
               v-model="modalMakerName"
@@ -2775,7 +2775,7 @@
 
           <div class="space-y-1">
             <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              Maker Tagline / Subtitle
+              {{ $t('branding.makerSubtitle') || 'Maker Tagline / Subtitle' }}
             </label>
             <input
               v-model="modalMakerSubtitle"
@@ -2789,7 +2789,7 @@
           <!-- Maker Logo Live Preview (Dark & Light) -->
           <div class="space-y-1.5">
             <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              Maker Logo Preview (Header Scale)
+              {{ $t('branding.makerLogoPreview') || 'Maker Logo Preview (Header Scale)' }}
             </label>
             <div class="grid grid-cols-2 gap-2">
               <div class="p-3 rounded-lg bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[64px]">
@@ -2830,7 +2830,7 @@
               class="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] font-bold text-3xs flex items-center justify-center space-x-1.5 transition"
             >
               <span>📁</span>
-              <span>{{ (modalMakerLogoPreviewUrl || makerLogoUrl) ? 'Change Maker Logo...' : 'Upload Maker Logo...' }}</span>
+              <span>{{ (modalMakerLogoPreviewUrl || makerLogoUrl) ? ($t('branding.changeMakerLogo') || 'Change Maker Logo...') : ($t('branding.uploadMakerLogo') || 'Upload Maker Logo...') }}</span>
             </button>
             <button
               v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
@@ -2839,7 +2839,7 @@
               class="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-3xs flex items-center justify-center space-x-1 transition"
             >
               <span>🗑️</span>
-              <span>Remove</span>
+              <span>{{ $t('branding.remove') || 'Remove' }}</span>
             </button>
           </div>
         </div>
@@ -2872,7 +2872,7 @@
             class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-xs transition"
           >
             <span v-if="brandingSaving || logoSaving">Saving...</span>
-            <span v-else>Save Configuration</span>
+            <span v-else>{{ $t('branding.saveConfig') || 'Save Configuration' }}</span>
           </button>
         </div>
       </div>
@@ -3964,11 +3964,11 @@ export default {
       showBrandingModal: false,
       showLogoModal: false, // legacy alias
       activeBrandingTab: 'customer', // 'customer' | 'maker'
-      customerCompanyName: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.name) || 'PT. Mitra Industri Enviro',
-      customerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.subtitle && DEFAULT_BRANDING.customer.subtitle !== 'Local Autonomous Edge') ? DEFAULT_BRANDING.customer.subtitle : 'AQMS',
+      customerCompanyName: (getOrganizationBrandingMeta() && getOrganizationBrandingMeta().customer && getOrganizationBrandingMeta().customer.name !== undefined) ? getOrganizationBrandingMeta().customer.name : 'PT. Mitra Industri Enviro',
+      customerSubtitle: (getOrganizationBrandingMeta() && getOrganizationBrandingMeta().customer && getOrganizationBrandingMeta().customer.subtitle !== undefined) ? (getOrganizationBrandingMeta().customer.subtitle === 'Local Autonomous Edge' ? '' : getOrganizationBrandingMeta().customer.subtitle) : 'AQMS',
       customerLogoUrl: null,
-      makerCompanyName: (DEFAULT_BRANDING && DEFAULT_BRANDING.maker && DEFAULT_BRANDING.maker.name) || 'PT. Centra Biotech Indonesia',
-      makerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.maker && DEFAULT_BRANDING.maker.subtitle) || 'CBI Industrial IoT',
+      makerCompanyName: (getOrganizationBrandingMeta() && getOrganizationBrandingMeta().maker && getOrganizationBrandingMeta().maker.name !== undefined) ? getOrganizationBrandingMeta().maker.name : '',
+      makerSubtitle: (getOrganizationBrandingMeta() && getOrganizationBrandingMeta().maker && getOrganizationBrandingMeta().maker.subtitle !== undefined) ? getOrganizationBrandingMeta().maker.subtitle : '',
       makerLogoUrl: null,
       // Legacy aliases for company logo & name
       companyLogoUrl: null,
@@ -4128,16 +4128,16 @@ export default {
       return this.isDark ? '#20354B' : '#94A3B8';
     },
     stationTypeLabel() {
-      const sub = this.customerSubtitle;
-      if (sub && sub.trim() && sub !== 'Local Autonomous Edge') {
-        return sub.trim();
+      if (this.customerSubtitle !== undefined && this.customerSubtitle !== null) {
+        if (this.customerSubtitle === 'Local Autonomous Edge') return '';
+        return this.customerSubtitle.trim();
       }
       const dom = (this.systemStatus && this.systemStatus.monitoring_domain) || this.$store.state.systemStatus?.monitoring_domain;
       if (dom) {
         if (dom.toUpperCase() === 'SPARING') return 'Sparing';
         return dom.toUpperCase();
       }
-      return 'AQMS';
+      return '';
     },
     currentUserIdentifier() {
       const u = this.$store.state.user;
@@ -5631,15 +5631,15 @@ export default {
         const data = await loadOrganizationBranding();
         if (data) {
           if (data.customer) {
-            this.customerCompanyName = data.customer.name || DEFAULT_BRANDING.customer.name;
-            this.customerSubtitle = (data.customer.subtitle && data.customer.subtitle !== 'Local Autonomous Edge')
-              ? data.customer.subtitle
-              : ((this.systemStatus && this.systemStatus.monitoring_domain) || DEFAULT_BRANDING.customer.subtitle || 'AQMS');
+            this.customerCompanyName = data.customer.name !== undefined ? data.customer.name : DEFAULT_BRANDING.customer.name;
+            this.customerSubtitle = (data.customer.subtitle !== undefined && data.customer.subtitle !== null)
+              ? (data.customer.subtitle === 'Local Autonomous Edge' ? '' : data.customer.subtitle)
+              : '';
             this.customerLogoUrl = data.customer.logoUrl || null;
           }
           if (data.maker) {
-            this.makerCompanyName = data.maker.name || DEFAULT_BRANDING.maker.name;
-            this.makerSubtitle = data.maker.subtitle || DEFAULT_BRANDING.maker.subtitle;
+            this.makerCompanyName = data.maker.name !== undefined ? data.maker.name : '';
+            this.makerSubtitle = data.maker.subtitle !== undefined ? data.maker.subtitle : '';
             this.makerLogoUrl = data.maker.logoUrl || null;
             // Legacy aliases
             this.companyLogoUrl = this.makerLogoUrl;
@@ -5653,14 +5653,14 @@ export default {
     onOrganizationBrandingUpdated(e) {
       if (e && e.detail) {
         if (e.detail.customer) {
-          this.customerCompanyName = e.detail.customer.name || this.customerCompanyName;
-          this.customerSubtitle = (e.detail.customer.subtitle && e.detail.customer.subtitle !== 'Local Autonomous Edge')
-            ? e.detail.customer.subtitle
-            : this.customerSubtitle;
+          if (e.detail.customer.name !== undefined) this.customerCompanyName = e.detail.customer.name;
+          if (e.detail.customer.subtitle !== undefined) {
+            this.customerSubtitle = e.detail.customer.subtitle === 'Local Autonomous Edge' ? '' : e.detail.customer.subtitle;
+          }
         }
         if (e.detail.maker) {
-          this.makerCompanyName = e.detail.maker.name || this.makerCompanyName;
-          this.makerSubtitle = e.detail.maker.subtitle || this.makerSubtitle;
+          if (e.detail.maker.name !== undefined) this.makerCompanyName = e.detail.maker.name;
+          if (e.detail.maker.subtitle !== undefined) this.makerSubtitle = e.detail.maker.subtitle;
           this.companyName = this.makerCompanyName;
         }
       }
@@ -5668,15 +5668,15 @@ export default {
     },
     openBrandingModal(tab = 'customer') {
       this.activeBrandingTab = tab;
-      this.modalCustomerName = this.customerCompanyName;
-      this.modalCustomerSubtitle = (this.customerSubtitle && this.customerSubtitle !== 'Local Autonomous Edge')
-        ? this.customerSubtitle
-        : (this.stationTypeLabel || 'AQMS');
+      this.modalCustomerName = this.customerCompanyName !== undefined ? this.customerCompanyName : '';
+      this.modalCustomerSubtitle = (this.customerSubtitle !== undefined && this.customerSubtitle !== null)
+        ? (this.customerSubtitle === 'Local Autonomous Edge' ? '' : this.customerSubtitle)
+        : '';
       this.modalCustomerLogoPreviewUrl = this.customerLogoUrl;
       this.modalCustomerLogoFile = null;
 
-      this.modalMakerName = this.makerCompanyName;
-      this.modalMakerSubtitle = this.makerSubtitle;
+      this.modalMakerName = this.makerCompanyName !== undefined ? this.makerCompanyName : '';
+      this.modalMakerSubtitle = this.makerSubtitle !== undefined ? this.makerSubtitle : '';
       this.modalMakerLogoPreviewUrl = this.makerLogoUrl;
       this.modalMakerLogoFile = null;
 

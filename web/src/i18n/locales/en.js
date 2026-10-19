@@ -2077,6 +2077,28 @@ export default {
     },
     "customerCompany": "Customer Organization",
     "makerCompany": "System Maker & Developer"
-  }
+  },
+  "branding": {
+    "title": "Organization & Company Branding",
+    "customerTab": "Customer (Left Header)",
+    "makerTab": "Maker / Provider (Right Header)",
+    "customerName": "Customer Company Name (Appears Top-Left)",
+    "stationDomain": "Station Type / Monitoring Domain",
+    "customerLogoPreview": "Customer Logo Preview (Header Scale)",
+    "makerName": "Maker / Provider Company Name (Appears Top-Right)",
+    "makerSubtitle": "Maker Tagline / Subtitle",
+    "makerLogoPreview": "Maker Logo Preview (Header Scale)",
+    "uploadCustomerLogo": "Upload Customer Logo...",
+    "changeCustomerLogo": "Change Customer Logo...",
+    "uploadMakerLogo": "Upload Maker Logo...",
+    "changeMakerLogo": "Change Maker Logo...",
+    "remove": "Remove",
+    "saveSuccess": "Organization branding saved successfully!",
+    "saveError": "Failed to save organization branding.",
+    "saveConfig": "Save Configuration"
+  },
+  "customerCompany": "Customer Organization",
+  "makerCompany": "System Maker & Developer"
 };
+
 

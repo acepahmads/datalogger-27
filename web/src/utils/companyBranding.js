@@ -172,6 +172,42 @@ function blobToDataUrl(blob) {
 }
 
 /**
+ * Helper to fetch database branding from backend REST API
+ */
+export async function fetchBrandingFromDatabase() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/system/branding');
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json && json.success && json.data) {
+      return json.data;
+    }
+    return json.data || json;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Helper to sync branding changes to backend database REST API
+ */
+export async function syncBrandingToDatabase(payload) {
+  if (typeof window === 'undefined') return;
+  try {
+    await fetch('/api/system/branding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    console.warn('Could not sync branding to database API:', e);
+  }
+}
+
+/**
  * Read current organization metadata from localStorage with fallback defaults
  */
 export function getOrganizationBrandingMeta() {
@@ -186,7 +222,7 @@ export function getOrganizationBrandingMeta() {
         return {
           customer: { ...DEFAULT_BRANDING.customer },
           maker: {
-            name: legacy.companyName || DEFAULT_BRANDING.maker.name,
+            name: legacy.companyName !== undefined ? legacy.companyName : DEFAULT_BRANDING.maker.name,
             subtitle: DEFAULT_BRANDING.maker.subtitle,
             hasLogo: !!legacy.hasLogo
           }
@@ -197,13 +233,13 @@ export function getOrganizationBrandingMeta() {
     const parsed = JSON.parse(raw);
     return {
       customer: {
-        name: (parsed.customer && parsed.customer.name) || DEFAULT_BRANDING.customer.name,
-        subtitle: (parsed.customer && parsed.customer.subtitle && parsed.customer.subtitle !== 'Local Autonomous Edge') ? parsed.customer.subtitle : DEFAULT_BRANDING.customer.subtitle,
+        name: (parsed.customer && parsed.customer.name !== undefined) ? parsed.customer.name : DEFAULT_BRANDING.customer.name,
+        subtitle: (parsed.customer && parsed.customer.subtitle !== undefined) ? (parsed.customer.subtitle === 'Local Autonomous Edge' ? '' : parsed.customer.subtitle) : DEFAULT_BRANDING.customer.subtitle,
         hasLogo: !!(parsed.customer && parsed.customer.hasLogo)
       },
       maker: {
-        name: (parsed.maker && parsed.maker.name) || DEFAULT_BRANDING.maker.name,
-        subtitle: (parsed.maker && parsed.maker.subtitle) || DEFAULT_BRANDING.maker.subtitle,
+        name: (parsed.maker && parsed.maker.name !== undefined) ? parsed.maker.name : DEFAULT_BRANDING.maker.name,
+        subtitle: (parsed.maker && parsed.maker.subtitle !== undefined) ? parsed.maker.subtitle : DEFAULT_BRANDING.maker.subtitle,
         hasLogo: !!(parsed.maker && parsed.maker.hasLogo)
       }
     };
@@ -229,11 +265,12 @@ function notifyBrandingChanged() {
 
 /**
  * Load complete organization branding (Customer + Maker) including logo data URLs
+ * Synchronizes with backend database while maintaining local cached copy for zero-latency paint.
  */
 export async function loadOrganizationBranding() {
-  const meta = getOrganizationBrandingMeta();
+  let meta = getOrganizationBrandingMeta();
 
-  // Load customer logo
+  // Load customer logo from local cache
   let customerBlob = await getBlobFromDB(CUSTOMER_LOGO_KEY);
   let customerLogoUrl = await blobToDataUrl(customerBlob);
 
@@ -243,6 +280,56 @@ export async function loadOrganizationBranding() {
     makerBlob = await getBlobFromDB(LEGACY_LOGO_KEY);
   }
   let makerLogoUrl = await blobToDataUrl(makerBlob);
+
+  // Attempt database sync from backend API
+  try {
+    const remote = await fetchBrandingFromDatabase();
+    if (remote) {
+      let changed = false;
+      if (remote.customer_name !== undefined && remote.customer_name !== meta.customer.name) {
+        meta.customer.name = remote.customer_name;
+        changed = true;
+      }
+      if (remote.customer_subtitle !== undefined && remote.customer_subtitle !== meta.customer.subtitle) {
+        meta.customer.subtitle = remote.customer_subtitle === 'Local Autonomous Edge' ? '' : remote.customer_subtitle;
+        changed = true;
+      }
+      if (remote.customer_has_logo !== undefined && remote.customer_has_logo !== meta.customer.hasLogo) {
+        meta.customer.hasLogo = !!remote.customer_has_logo;
+        changed = true;
+      }
+      if (remote.customer_logo && remote.customer_logo !== customerLogoUrl) {
+        customerLogoUrl = remote.customer_logo;
+      }
+
+      if (remote.maker_name !== undefined && remote.maker_name !== meta.maker.name) {
+        meta.maker.name = remote.maker_name;
+        changed = true;
+      }
+      if (remote.maker_subtitle !== undefined && remote.maker_subtitle !== meta.maker.subtitle) {
+        meta.maker.subtitle = remote.maker_subtitle;
+        changed = true;
+      }
+      if (remote.maker_has_logo !== undefined && remote.maker_has_logo !== meta.maker.hasLogo) {
+        meta.maker.hasLogo = !!remote.maker_has_logo;
+        changed = true;
+      }
+      if (remote.maker_logo && remote.maker_logo !== makerLogoUrl) {
+        makerLogoUrl = remote.maker_logo;
+      }
+
+      if (changed) {
+        try {
+          localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+        } catch (e) {
+          // ignore
+        }
+        notifyBrandingChanged();
+      }
+    }
+  } catch (err) {
+    // Graceful offline fallback
+  }
 
   return {
     customer: {
@@ -261,7 +348,7 @@ export async function loadOrganizationBranding() {
 }
 
 /**
- * Save Customer Logo & Name
+ * Save Customer Logo & Name (persists locally and to database)
  */
 export async function saveCustomerBranding({ file = null, name = '', subtitle = '' }) {
   const meta = getOrganizationBrandingMeta();
@@ -281,8 +368,8 @@ export async function saveCustomerBranding({ file = null, name = '', subtitle = 
     meta.customer.hasLogo = true;
   }
 
-  if (name.trim()) meta.customer.name = name.trim();
-  if (subtitle.trim()) meta.customer.subtitle = subtitle.trim();
+  if (name !== undefined) meta.customer.name = (name || '').trim();
+  if (subtitle !== undefined) meta.customer.subtitle = (subtitle || '').trim();
   meta.customer.updatedAt = new Date().toISOString();
 
   try {
@@ -290,6 +377,17 @@ export async function saveCustomerBranding({ file = null, name = '', subtitle = 
   } catch (e) {
     console.warn('Could not save organization branding to localStorage', e);
   }
+
+  // Persist to backend database API
+  const dbPayload = {
+    customer_name: meta.customer.name,
+    customer_subtitle: meta.customer.subtitle,
+    customer_has_logo: meta.customer.hasLogo
+  };
+  if (logoUrl) {
+    dbPayload.customer_logo = logoUrl;
+  }
+  await syncBrandingToDatabase(dbPayload);
 
   notifyBrandingChanged();
   return { customer: meta.customer, logoUrl };
@@ -308,11 +406,15 @@ export async function removeCustomerLogo() {
   } catch (e) {
     // ignore
   }
+  await syncBrandingToDatabase({
+    customer_has_logo: false,
+    customer_logo: ''
+  });
   notifyBrandingChanged();
 }
 
 /**
- * Save Maker Logo & Name
+ * Save Maker Logo & Name (persists locally and to database)
  */
 export async function saveMakerBranding({ file = null, name = '', subtitle = '' }) {
   const meta = getOrganizationBrandingMeta();
@@ -332,8 +434,8 @@ export async function saveMakerBranding({ file = null, name = '', subtitle = '' 
     meta.maker.hasLogo = true;
   }
 
-  if (name.trim()) meta.maker.name = name.trim();
-  if (subtitle.trim()) meta.maker.subtitle = subtitle.trim();
+  if (name !== undefined) meta.maker.name = (name || '').trim();
+  if (subtitle !== undefined) meta.maker.subtitle = (subtitle || '').trim();
   meta.maker.updatedAt = new Date().toISOString();
 
   try {
@@ -347,6 +449,17 @@ export async function saveMakerBranding({ file = null, name = '', subtitle = '' 
   } catch (e) {
     console.warn('Could not save organization branding to localStorage', e);
   }
+
+  // Persist to backend database API
+  const dbPayload = {
+    maker_name: meta.maker.name,
+    maker_subtitle: meta.maker.subtitle,
+    maker_has_logo: meta.maker.hasLogo
+  };
+  if (logoUrl) {
+    dbPayload.maker_logo = logoUrl;
+  }
+  await syncBrandingToDatabase(dbPayload);
 
   notifyBrandingChanged();
   return { maker: meta.maker, logoUrl };
@@ -371,18 +484,22 @@ export async function removeMakerLogo() {
   } catch (e) {
     // ignore
   }
+  await syncBrandingToDatabase({
+    maker_has_logo: false,
+    maker_logo: ''
+  });
   notifyBrandingChanged();
 }
 
 /**
  * Save All Organization Text Branding (Both Customer & Maker)
  */
-export function saveOrganizationTextBranding({ customerName, customerSubtitle, makerName, makerSubtitle }) {
+export async function saveOrganizationTextBranding({ customerName, customerSubtitle, makerName, makerSubtitle }) {
   const meta = getOrganizationBrandingMeta();
-  if (customerName != null) meta.customer.name = customerName.trim() || DEFAULT_BRANDING.customer.name;
-  if (customerSubtitle != null) meta.customer.subtitle = customerSubtitle.trim() || DEFAULT_BRANDING.customer.subtitle;
-  if (makerName != null) meta.maker.name = makerName.trim() || DEFAULT_BRANDING.maker.name;
-  if (makerSubtitle != null) meta.maker.subtitle = makerSubtitle.trim() || DEFAULT_BRANDING.maker.subtitle;
+  if (customerName !== undefined) meta.customer.name = (customerName || '').trim();
+  if (customerSubtitle !== undefined) meta.customer.subtitle = (customerSubtitle || '').trim();
+  if (makerName !== undefined) meta.maker.name = (makerName || '').trim();
+  if (makerSubtitle !== undefined) meta.maker.subtitle = (makerSubtitle || '').trim();
   meta.updatedAt = new Date().toISOString();
 
   try {
@@ -395,6 +512,13 @@ export function saveOrganizationTextBranding({ customerName, customerSubtitle, m
   } catch (e) {
     console.warn('Could not save organization branding to localStorage', e);
   }
+
+  await syncBrandingToDatabase({
+    customer_name: meta.customer.name,
+    customer_subtitle: meta.customer.subtitle,
+    maker_name: meta.maker.name,
+    maker_subtitle: meta.maker.subtitle
+  });
 
   notifyBrandingChanged();
   return meta;
@@ -413,6 +537,7 @@ export async function resetOrganizationBranding() {
   } catch (e) {
     // ignore
   }
+  await syncBrandingToDatabase({ reset: true });
   notifyBrandingChanged();
   return JSON.parse(JSON.stringify(DEFAULT_BRANDING));
 }

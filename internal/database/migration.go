@@ -55,6 +55,7 @@ func RunMigrations(db *gorm.DB) error {
 		&model.ISPUParameterMapping{},
 		&model.ISPUCalculationResult{},
 		&model.ISPUParameterResult{},
+		&model.SystemBranding{},
 	)
 	if err != nil {
 		return err

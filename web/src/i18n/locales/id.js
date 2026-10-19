@@ -2077,6 +2077,28 @@ export default {
     },
     "customerCompany": "Perusahaan Customer",
     "makerCompany": "Perusahaan Pembuat & Pengembang"
-  }
+  },
+  "branding": {
+    "title": "Organisasi & Branding Perusahaan",
+    "customerTab": "Customer (Header Kiri)",
+    "makerTab": "Pembuat / Provider (Header Kanan)",
+    "customerName": "Nama Perusahaan Customer (Tampil Kiri Atas)",
+    "stationDomain": "Jenis Stasiun / Domain Pemantauan",
+    "customerLogoPreview": "Preview Logo Customer (Skala Header)",
+    "makerName": "Nama Perusahaan Pembuat / Provider (Tampil Kanan Atas)",
+    "makerSubtitle": "Tagline / Subtitle Pembuat",
+    "makerLogoPreview": "Preview Logo Pembuat (Skala Header)",
+    "uploadCustomerLogo": "Unggah Logo Customer...",
+    "changeCustomerLogo": "Ganti Logo Customer...",
+    "uploadMakerLogo": "Unggah Logo Pembuat...",
+    "changeMakerLogo": "Ganti Logo Pembuat...",
+    "remove": "Hapus",
+    "saveSuccess": "Branding organisasi berhasil disimpan!",
+    "saveError": "Gagal menyimpan branding organisasi.",
+    "saveConfig": "Simpan Konfigurasi"
+  },
+  "customerCompany": "Perusahaan Customer",
+  "makerCompany": "Perusahaan Pembuat & Pengembang"
 };
+
 

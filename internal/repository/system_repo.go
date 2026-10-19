@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -449,4 +450,46 @@ func (r *SystemRepository) GetRolePermissionCodes(roleName string) ([]string, er
 	}
 	return codes, nil
 }
+
+// Branding & Organization Persistence
+func (r *SystemRepository) GetBranding() (*model.SystemBranding, error) {
+	var branding model.SystemBranding
+	err := r.db.First(&branding).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			defaultBranding := model.SystemBranding{
+				CustomerName:     "PT. Mitra Industri Enviro",
+				CustomerSubtitle: "AQMS",
+				CustomerHasLogo:  false,
+				MakerName:        "PT. Centra Biotech Indonesia",
+				MakerSubtitle:    "CBI Industrial IoT",
+				MakerHasLogo:     false,
+				CreatedAt:        time.Now(),
+				UpdatedAt:        time.Now(),
+			}
+			_ = r.db.Create(&defaultBranding)
+			return &defaultBranding, nil
+		}
+		return nil, err
+	}
+	return &branding, nil
+}
+
+func (r *SystemRepository) SaveBranding(b *model.SystemBranding) error {
+	var existing model.SystemBranding
+	err := r.db.First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			b.CreatedAt = time.Now()
+			b.UpdatedAt = time.Now()
+			return r.db.Create(b).Error
+		}
+		return err
+	}
+	b.ID = existing.ID
+	b.CreatedAt = existing.CreatedAt
+	b.UpdatedAt = time.Now()
+	return r.db.Save(b).Error
+}
+
 

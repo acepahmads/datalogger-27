@@ -243,6 +243,9 @@ func main() {
 		api.GET("/system/serial-ports/details", systemHandler.GetDetailedSerialPorts)
 		api.GET("/devices/serial-ports", systemHandler.GetSerialPorts)
 		api.GET("/devices/serial-ports/details", systemHandler.GetDetailedSerialPorts)
+		api.GET("/system/branding", systemHandler.GetBranding)
+		api.POST("/system/branding", systemHandler.SaveBranding)
+		api.PUT("/system/branding", systemHandler.SaveBranding)
 
 		// Phase 2.1 — Device Management & Parameters (Authenticated & Authorized)
 		devicesGroup := api.Group("/devices")

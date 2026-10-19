@@ -899,6 +899,33 @@ func (h *SystemHandler) CheckDomainCompatibility(c *gin.Context) {
 	response.OK(c, report)
 }
 
+// GetBranding retrieves database-persisted organization branding (customer + maker)
+func (h *SystemHandler) GetBranding(c *gin.Context) {
+	branding, err := h.systemService.GetBranding()
+	if err != nil {
+		response.InternalError(c, "Failed to load branding: "+err.Error())
+		return
+	}
+	response.OK(c, branding)
+}
+
+// SaveBranding updates database-persisted organization branding (customer + maker)
+func (h *SystemHandler) SaveBranding(c *gin.Context) {
+	var req service.UpdateSystemBrandingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid branding payload: "+err.Error())
+		return
+	}
+
+	branding, err := h.systemService.SaveBranding(req)
+	if err != nil {
+		response.InternalError(c, "Failed to save branding: "+err.Error())
+		return
+	}
+	response.OK(c, branding)
+}
+
+
 
 func formatAlarmDuration(seconds int64) string {
 	if seconds < 0 {

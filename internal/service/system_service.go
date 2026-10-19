@@ -806,4 +806,74 @@ func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCo
 	}, nil
 }
 
+// UpdateSystemBrandingRequest DTO for updating branding
+type UpdateSystemBrandingRequest struct {
+	CustomerName     *string `json:"customer_name"`
+	CustomerSubtitle *string `json:"customer_subtitle"`
+	CustomerLogo     *string `json:"customer_logo"`
+	CustomerHasLogo  *bool   `json:"customer_has_logo"`
+	MakerName        *string `json:"maker_name"`
+	MakerSubtitle    *string `json:"maker_subtitle"`
+	MakerLogo        *string `json:"maker_logo"`
+	MakerHasLogo     *bool   `json:"maker_has_logo"`
+	Reset            bool    `json:"reset"`
+}
+
+func (s *SystemService) GetBranding() (*model.SystemBranding, error) {
+	return s.systemRepo.GetBranding()
+}
+
+func (s *SystemService) SaveBranding(req UpdateSystemBrandingRequest) (*model.SystemBranding, error) {
+	current, err := s.systemRepo.GetBranding()
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Reset {
+		current.CustomerName = "PT. Mitra Industri Enviro"
+		current.CustomerSubtitle = "AQMS"
+		current.CustomerLogo = ""
+		current.CustomerHasLogo = false
+		current.MakerName = "PT. Centra Biotech Indonesia"
+		current.MakerSubtitle = "CBI Industrial IoT"
+		current.MakerLogo = ""
+		current.MakerHasLogo = false
+		if err := s.systemRepo.SaveBranding(current); err != nil {
+			return nil, err
+		}
+		return current, nil
+	}
+
+	if req.CustomerName != nil {
+		current.CustomerName = strings.TrimSpace(*req.CustomerName)
+	}
+	if req.CustomerSubtitle != nil {
+		current.CustomerSubtitle = strings.TrimSpace(*req.CustomerSubtitle)
+	}
+	if req.CustomerLogo != nil {
+		current.CustomerLogo = *req.CustomerLogo
+	}
+	if req.CustomerHasLogo != nil {
+		current.CustomerHasLogo = *req.CustomerHasLogo
+	}
+	if req.MakerName != nil {
+		current.MakerName = strings.TrimSpace(*req.MakerName)
+	}
+	if req.MakerSubtitle != nil {
+		current.MakerSubtitle = strings.TrimSpace(*req.MakerSubtitle)
+	}
+	if req.MakerLogo != nil {
+		current.MakerLogo = *req.MakerLogo
+	}
+	if req.MakerHasLogo != nil {
+		current.MakerHasLogo = *req.MakerHasLogo
+	}
+
+	if err := s.systemRepo.SaveBranding(current); err != nil {
+		return nil, err
+	}
+	return current, nil
+}
+
+
 
