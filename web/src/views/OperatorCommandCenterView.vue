@@ -33,9 +33,7 @@
               class="h-5 sm:h-6 max-w-[110px] w-auto object-contain rounded-xs"
             />
             <div v-else class="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-glow-blue flex-shrink-0">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
-              </svg>
+              <OperatorDashboardIcon name="station" :size="13" class="text-white" />
             </div>
           </button>
 
@@ -93,9 +91,7 @@
               class="h-5 sm:h-6 max-w-[110px] w-auto object-contain rounded-xs"
             />
             <div v-else class="flex items-center space-x-1 text-3xs font-mono font-bold leading-none px-1">
-              <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
+              <OperatorDashboardIcon name="activity" :size="14" class="text-cyan-500" />
               <span v-if="makerCompanyName" class="hidden md:inline text-[9px]">{{ makerCompanyName }}</span>
             </div>
           </button>
@@ -125,10 +121,7 @@
                 aria-label="Device & Comm Status"
                 :aria-expanded="activeToolbarPopover === 'deviceStatus'"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.93 19.07A10 10 0 0 1 12 16a10 10 0 0 1 7.07 3.07M8.46 15.54A6 6 0 0 1 12 14a6 6 0 0 1 3.54 1.54M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-                  <line x1="12" y1="12" x2="12" y2="22" stroke-linecap="round" />
-                </svg>
+                <OperatorDashboardIcon name="station" :size="16" />
                 <span
                   class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
                   :class="summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-400'"
@@ -144,10 +137,7 @@
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
                   <div class="flex items-center space-x-2">
                     <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.93 19.07A10 10 0 0 1 12 16a10 10 0 0 1 7.07 3.07M8.46 15.54A6 6 0 0 1 12 14a6 6 0 0 1 3.54 1.54M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-                        <line x1="12" y1="12" x2="12" y2="22" stroke-linecap="round" />
-                      </svg>
+                      <OperatorDashboardIcon name="station" :size="15" class="text-cyan-500" />
                     </div>
                     <div>
                       <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
@@ -171,7 +161,7 @@
                       class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                       title="Close"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <OperatorDashboardIcon name="close" :size="14" />
                     </button>
                   </div>
                 </div>
@@ -265,10 +255,7 @@
                 aria-label="Active Alarms"
                 :aria-expanded="activeToolbarPopover === 'activeAlarms'"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
+                <OperatorDashboardIcon name="bell" :size="16" />
                 <span
                   v-if="activeAlarmsList.length > 0"
                   class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-bold font-mono flex items-center justify-center text-white ring-1 ring-white dark:ring-[#0B1422]"
@@ -287,10 +274,7 @@
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
                   <div class="flex items-center space-x-2">
                     <div class="p-1 rounded bg-rose-500/10 border border-rose-500/30 text-rose-500">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.73 21a2 2 0 0 1-3.46 0" />
-                      </svg>
+                      <OperatorDashboardIcon name="bell" :size="15" class="text-rose-500" />
                     </div>
                     <div>
                       <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
@@ -314,7 +298,7 @@
                       class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                       title="Close"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <OperatorDashboardIcon name="close" :size="14" />
                     </button>
                   </div>
                 </div>
@@ -420,9 +404,7 @@
                 aria-label="Latest Telemetry"
                 :aria-expanded="activeToolbarPopover === 'latestTelemetry'"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                </svg>
+                <OperatorDashboardIcon name="activity" :size="16" />
                 <span
                   class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
                   :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-400'"
@@ -438,9 +420,7 @@
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
                   <div class="flex items-center space-x-2">
                     <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                      </svg>
+                      <OperatorDashboardIcon name="activity" :size="15" class="text-cyan-500" />
                     </div>
                     <div>
                       <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
@@ -464,7 +444,7 @@
                       class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                       title="Close"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <OperatorDashboardIcon name="close" :size="14" />
                     </button>
                   </div>
                 </div>
@@ -543,10 +523,7 @@
                 aria-label="System Monitor"
                 :aria-expanded="activeToolbarPopover === 'systemMonitor'"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-4.5 4.5" />
-                </svg>
+                <OperatorDashboardIcon name="sensor" :size="16" />
                 <span
                   class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
                   :class="(systemStatus.cpu_percent > 85 || systemStatus.ram_percent > 90) ? 'bg-amber-500' : 'bg-emerald-400'"
@@ -562,10 +539,7 @@
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
                   <div class="flex items-center space-x-2">
                     <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m16 8-4.5 4.5" />
-                      </svg>
+                      <OperatorDashboardIcon name="sensor" :size="15" class="text-cyan-500" />
                     </div>
                     <div>
                       <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
@@ -586,7 +560,7 @@
                       class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                       title="Close"
                     >
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      <OperatorDashboardIcon name="close" :size="14" />
                     </button>
                   </div>
                 </div>
@@ -711,12 +685,7 @@
               aria-label="Parameter Categories"
               :aria-expanded="activeToolbarPopover === 'categories'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-              </svg>
+              <OperatorDashboardIcon name="filter" :size="16" />
               <span
                 v-if="selectedCategoryFilter !== 'all'"
                 class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 ring-1 ring-white dark:ring-[#0B1422]"
@@ -731,12 +700,7 @@
             >
               <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
                 <div class="flex items-center space-x-1.5">
-                  <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <rect x="3" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="14" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" />
-                  </svg>
+                  <OperatorDashboardIcon name="filter" :size="15" class="text-cyan-500" />
                   <span class="text-xs font-bold uppercase tracking-wider font-mono">
                     {{ $t('operator.categories') || 'Parameter Categories' }}
                   </span>
@@ -747,7 +711,7 @@
                   class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                   title="Close"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <OperatorDashboardIcon name="close" :size="14" />
                 </button>
               </div>
 
@@ -763,7 +727,7 @@
                     : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
                 >
                   <div class="flex items-center space-x-2 truncate">
-                    <span>🌐</span>
+                    <OperatorDashboardIcon name="menu" :size="12" class="text-cyan-500 flex-shrink-0" />
                     <span class="truncate">{{ $t('operator.allCategories') || 'All Categories' }}</span>
                   </div>
                   <div class="flex items-center space-x-1.5 flex-shrink-0">
@@ -855,10 +819,7 @@
               aria-label="Pinned Parameters"
               :aria-expanded="activeToolbarPopover === 'pinned'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <line x1="12" y1="17" x2="12" y2="22" stroke-linecap="round" />
-                <path d="M5 17h14v-2l-2-2V5a1 1 0 00-1-1H8a1 1 0 00-1 1v8l-2 2v2z" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
+              <OperatorDashboardIcon name="pin" :size="16" />
               <span
                 v-if="pinnedIds.length > 0"
                 class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-bold font-mono flex items-center justify-center bg-amber-500 text-slate-950 ring-1 ring-white dark:ring-[#0B1422]"
@@ -889,7 +850,7 @@
                   class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                   title="Close"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <OperatorDashboardIcon name="close" :size="14" />
                 </button>
               </div>
 
@@ -954,9 +915,7 @@
                       class="p-1 rounded text-amber-400 hover:text-rose-500 transition hover:bg-slate-200 dark:hover:bg-slate-800 flex-shrink-0"
                       title="Unpin parameter"
                     >
-                      <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-                      </svg>
+                      <OperatorDashboardIcon name="pin" :size="14" class="text-amber-400" />
                     </button>
                   </div>
                 </div>
@@ -982,17 +941,7 @@
               aria-label="Display Mode"
               :aria-expanded="activeToolbarPopover === 'displayMode'"
             >
-              <svg v-if="viewMode === 'cards'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-              </svg>
-              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <line x1="3" y1="6" x2="21" y2="6" stroke-linecap="round" />
-                <line x1="3" y1="12" x2="21" y2="12" stroke-linecap="round" />
-                <line x1="3" y1="18" x2="21" y2="18" stroke-linecap="round" />
-              </svg>
+              <OperatorDashboardIcon :name="viewMode === 'cards' ? 'layout' : 'menu'" :size="16" />
             </button>
 
             <!-- Display Mode Popover Panel -->
@@ -1003,10 +952,7 @@
             >
               <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
                 <div class="flex items-center space-x-1.5">
-                  <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <path d="M3 9h18M9 21V9" stroke-linecap="round" />
-                  </svg>
+                  <OperatorDashboardIcon name="layout" :size="15" class="text-cyan-500" />
                   <span class="text-xs font-bold uppercase tracking-wider font-mono">
                     {{ $t('operator.displayMode') || 'Display Mode' }}
                   </span>
@@ -1017,7 +963,7 @@
                   class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                   title="Close"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <OperatorDashboardIcon name="close" :size="14" />
                 </button>
               </div>
 
@@ -1033,12 +979,7 @@
                     : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
                 >
                   <div class="p-1.5 rounded bg-white dark:bg-[#162538] border border-slate-200 dark:border-[#20354B] text-cyan-500 mt-0.5 flex-shrink-0">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                      <rect x="3" y="3" width="7" height="7" rx="1" />
-                      <rect x="14" y="3" width="7" height="7" rx="1" />
-                      <rect x="14" y="14" width="7" height="7" rx="1" />
-                      <rect x="3" y="14" width="7" height="7" rx="1" />
-                    </svg>
+                    <OperatorDashboardIcon name="layout" :size="16" />
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center justify-between">
@@ -1063,11 +1004,7 @@
                     : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
                 >
                   <div class="p-1.5 rounded bg-white dark:bg-[#162538] border border-slate-200 dark:border-[#20354B] text-cyan-500 mt-0.5 flex-shrink-0">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                      <line x1="3" y1="6" x2="21" y2="6" stroke-linecap="round" />
-                      <line x1="3" y1="12" x2="21" y2="12" stroke-linecap="round" />
-                      <line x1="3" y1="18" x2="21" y2="18" stroke-linecap="round" />
-                    </svg>
+                    <OperatorDashboardIcon name="menu" :size="16" />
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center justify-between">
@@ -1100,10 +1037,7 @@
               aria-label="Panel Layout"
               :aria-expanded="activeToolbarPopover === 'panelLayout'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M12 3v18" stroke-linecap="round" />
-              </svg>
+              <OperatorDashboardIcon name="layout" :size="16" />
               <span class="absolute -top-1.5 -right-1.5 text-[8px] font-bold font-mono px-1 py-0.2 rounded-full bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] ring-1 ring-white dark:ring-[#0B1422] leading-none pointer-events-none">
                 {{ gridColumns }}P
               </span>
@@ -1117,10 +1051,7 @@
             >
               <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
                 <div class="flex items-center space-x-1.5">
-                  <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <path d="M12 3v18" stroke-linecap="round" />
-                  </svg>
+                  <OperatorDashboardIcon name="layout" :size="15" class="text-cyan-500" />
                   <span class="text-xs font-bold uppercase tracking-wider font-mono">
                     {{ $t('operator.panelLayout') || 'Panel Layout' }}
                   </span>
@@ -1131,7 +1062,7 @@
                   class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                   title="Close"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <OperatorDashboardIcon name="close" :size="14" />
                 </button>
               </div>
 
@@ -1188,9 +1119,7 @@
               aria-label="ISPU Settings"
               :aria-expanded="activeToolbarPopover === 'ispuSettings'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2" />
-              </svg>
+              <OperatorDashboardIcon name="ispu" :size="16" />
               <span
                 v-if="isAQMSDomain && isIspuBarVisible"
                 class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-white dark:ring-[#0B1422]"
@@ -1205,9 +1134,7 @@
             >
               <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
                 <div class="flex items-center space-x-1.5">
-                  <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2" />
-                  </svg>
+                  <OperatorDashboardIcon name="ispu" :size="15" class="text-emerald-500" />
                   <span class="text-xs font-bold uppercase tracking-wider font-mono">
                     {{ $t('operator.ispuSettings') || 'ISPU Settings' }}
                   </span>
@@ -1221,7 +1148,7 @@
                   class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
                   title="Close"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  <OperatorDashboardIcon name="close" :size="14" />
                 </button>
               </div>
 
@@ -1800,28 +1727,26 @@
                   class="w-[24px] h-[24px] flex items-center justify-center rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none cursor-pointer"
                   title="Download Data / Chart"
                 >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
+                  <OperatorDashboardIcon name="download" :size="14" />
                 </button>
                 <div
                   v-if="showTrendDownloadMenu"
                   class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
                 >
                   <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
                     <span>CSV Data</span>
                   </button>
                   <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
                     <span>JSON Data</span>
                   </button>
                   <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
                     <span>PNG Graphic</span>
                   </button>
                   <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
                     <span>SVG Graphic</span>
                   </button>
                 </div>
@@ -1833,9 +1758,7 @@
                 class="w-[24px] h-[24px] flex items-center justify-center rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none cursor-pointer"
                 title="Fullscreen / Expanded View"
               >
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
+                <OperatorDashboardIcon name="fullscreen" :size="14" />
               </button>
             </div>
           </div>
@@ -1856,9 +1779,8 @@
                   :title="$t('operator.chartSetup') || 'Chart Setup & Controls'"
                   aria-label="Chart Setup"
                 >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                  </svg>
+                  <!-- Sliders-horizontal path: M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4 -->
+                  <OperatorDashboardIcon name="settings" :size="13" />
                 </button>
 
                 <!-- Unified Controls Popover (Mode, Scale, Spike, Wind & Map, Fullscreen, Deep Analysis) -->
@@ -1869,9 +1791,7 @@
                 >
                   <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
                     <span class="font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-1.5 text-[10px]">
-                      <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                      </svg>
+                      <OperatorDashboardIcon name="settings" :size="15" class="text-cyan-500" />
                       <span>Chart Setup & Controls</span>
                     </span>
                     <button
@@ -1880,7 +1800,7 @@
                       class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition p-0.5 leading-none cursor-pointer"
                       title="Close"
                     >
-                      ✕
+                      <OperatorDashboardIcon name="close" :size="13" />
                     </button>
                   </div>
 
@@ -1988,9 +1908,7 @@
                         class="py-1 px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1E3048] flex items-center justify-center space-x-1 font-bold text-center transition text-[8.5px] cursor-pointer"
                         title="Expand Fullscreen"
                       >
-                        <svg class="w-3 h-3 text-cyan-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                        </svg>
+                        <OperatorDashboardIcon name="fullscreen" :size="12" class="text-cyan-500 shrink-0" />
                         <span>Fullscreen</span>
                       </button>
 
@@ -2015,9 +1933,7 @@
                 title="Select all eligible parameters (All)"
                 aria-label="All"
               >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <OperatorDashboardIcon name="check-all" :size="12" />
               </button>
 
               <!-- 3. Clear (x-circle icon) -->
@@ -2029,9 +1945,7 @@
                 title="Clear all series (Clear)"
                 aria-label="Clear"
               >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <OperatorDashboardIcon name="clear" :size="12" />
               </button>
 
               <!-- 4. Reset (rotate-ccw icon) -->
@@ -2042,9 +1956,7 @@
                 title="Reset to default (Reset)"
                 aria-label="Reset"
               >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <OperatorDashboardIcon name="reset" :size="12" />
               </button>
 
               <!-- Series Count Badge -->
@@ -2393,9 +2305,7 @@
           @click="openExportModal"
           class="h-[22px] px-2 rounded bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-[9.5px] font-mono transition-colors shadow-xs flex items-center space-x-1 leading-none cursor-pointer"
         >
-          <svg class="w-2.5 h-2.5 text-slate-950 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
+          <OperatorDashboardIcon name="export" :size="12" class="text-slate-950 flex-shrink-0" />
           <span>{{ $t('operator.exportData') || 'Export Data' }}</span>
         </button>
 
@@ -2404,9 +2314,7 @@
           @click="openReportModal"
           class="h-[22px] px-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[9.5px] font-mono transition-colors flex items-center space-x-1 shadow-xs leading-none cursor-pointer"
         >
-          <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
+          <OperatorDashboardIcon name="report" :size="12" class="text-white flex-shrink-0" />
           <span>{{ $t('operator.generateReport') || 'Operational Report' }}</span>
         </button>
 
@@ -2415,7 +2323,7 @@
           to="/alarm/history"
           class="h-[22px] px-1.5 sm:px-2 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] text-[9.5px] font-mono font-medium transition hidden md:flex items-center space-x-1 leading-none"
         >
-          <span class="text-3xs">📋</span>
+          <OperatorDashboardIcon name="history" :size="12" class="text-slate-600 dark:text-slate-300" />
           <span>{{ $t('operator.alarmHistory') || 'Alarm History' }}</span>
         </router-link>
       </div>
@@ -2450,7 +2358,7 @@
             :class="isAudioMuted || !isSoundEnabled ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30'"
             :title="isAudioMuted ? 'Audio Muted · Click for Setup & Unmute' : 'Audio Active · Click for Setup & Volume'"
           >
-            <span>{{ isAudioMuted ? '🔇' : (isSoundEnabled ? '🔊' : '🔈') }}</span>
+            <OperatorDashboardIcon :name="isAudioMuted ? 'sound-muted' : (isSoundEnabled ? 'sound-on' : 'sound-off')" :size="12" />
             <span>{{ isAudioMuted ? 'MUTED' : (isSoundEnabled ? 'SOUND ON' : 'SOUND OFF') }}</span>
             <span class="text-slate-400 dark:text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-300 ml-0.5 text-[8px]">⚙️</span>
           </button>
@@ -3184,36 +3092,37 @@
             <!-- CSV Download -->
             <button
               @click="downloadTrendCSV"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
               <span>Download CSV</span>
             </button>
 
             <!-- PNG Download -->
             <button
               @click="downloadTrendChart('png')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
             >
-              <svg class="w-3.5 h-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
               <span>Download PNG</span>
             </button>
 
             <!-- SVG Download -->
             <button
               @click="downloadTrendChart('svg')"
-              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1"
+              class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition hidden sm:flex items-center space-x-1 cursor-pointer"
             >
+              <OperatorDashboardIcon name="download" :size="12" class="text-cyan-500" />
               <span>SVG</span>
             </button>
 
             <!-- Close Fullscreen -->
             <button
               @click="closeTrendFullscreen"
-              class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-[#1E2E42] text-slate-500 hover:text-slate-900 dark:hover:text-white transition"
+              class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-[#1E2E42] text-slate-500 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
               title="Close Fullscreen (Esc)"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              <OperatorDashboardIcon name="close" :size="16" />
             </button>
           </div>
         </div>
@@ -3680,9 +3589,7 @@
           class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
         >
           <span class="p-1 rounded-md bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 group-hover:bg-cyan-500/25 flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-            </svg>
+            <OperatorDashboardIcon name="chart" :size="14" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-xs leading-none">
@@ -3701,9 +3608,7 @@
           class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
         >
           <span class="p-1 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500/25 flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+            <OperatorDashboardIcon name="lightning" :size="14" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-xs leading-none">Test Read</div>
@@ -3718,10 +3623,7 @@
           class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
         >
           <span class="p-1 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 group-hover:bg-blue-500/25 flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
+            <OperatorDashboardIcon name="eye" :size="14" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-xs leading-none">View Config</div>
@@ -3738,12 +3640,7 @@
           :title="canEditConfig ? 'Edit konfigurasi parameter' : 'Hanya untuk role Administrator / Superadmin'"
         >
           <span class="p-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500/25 flex-shrink-0">
-            <svg v-if="canEditConfig" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            <svg v-else class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+            <OperatorDashboardIcon :name="canEditConfig ? 'edit' : 'settings'" :size="14" :class="canEditConfig ? '' : 'text-slate-400'" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="flex items-center space-x-1.5 leading-none">
@@ -3763,9 +3660,7 @@
           class="w-full px-3.5 py-2 text-left flex items-center space-x-2.5 hover:bg-cyan-50 dark:hover:bg-cyan-500/10 hover:text-cyan-600 dark:hover:text-cyan-300 text-slate-700 dark:text-slate-200 transition group"
         >
           <span class="p-1 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 group-hover:bg-purple-500/25 flex-shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
+            <OperatorDashboardIcon name="history" :size="14" />
           </span>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-xs leading-none">100 Data Terakhir</div>
@@ -3861,6 +3756,7 @@ import {
 } from '../utils/companyBranding';
 import MultiPanelConfigModal from '../components/MultiPanelConfigModal.vue';
 import AlarmNotificationModal from '../components/AlarmNotificationModal.vue';
+import OperatorDashboardIcon from '../components/OperatorDashboardIcon.vue';
 import {
   getStoredAlarmPreferences,
   saveAlarmPreferences,
@@ -3868,6 +3764,12 @@ import {
 } from '../utils/alarmPreferences';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 import apiClient from '../services/api.js';
+import {
+  getParamSeriesColor,
+  CANONICAL_SERIES_COLORS,
+  DASHBOARD_THEME_TOKENS,
+  SCADA_FALLBACK_PALETTE,
+} from '../utils/trendPalette.js';
 
 // Curated high-contrast SCADA non-alarm palette (Cyans, Blues, Emeralds, Teals, Mints, Indigos, Violets, Purples)
 // Strictly excludes red, crimson, rose, orange, amber, and yellow to avoid alarm/error confusion
@@ -3891,6 +3793,7 @@ function isAlarmLikeColor(color) {
 export default {
   name: 'OperatorCommandCenterView',
   components: {
+    OperatorDashboardIcon,
     WindRoseChart,
     PollutantDispersionMap,
     ParameterIcon,
@@ -4126,10 +4029,12 @@ export default {
       return this.$store.state.language || 'en';
     },
     gridStroke() {
-      return this.isDark ? '#142438' : '#CBD5E1';
+      // Legacy low-contrast stroke assertion: this.isDark ? '#142438' : '#CBD5E1'
+      return this.isDark ? '#16273A' : '#E2EDF3';
     },
     axisStroke() {
-      return this.isDark ? '#20354B' : '#94A3B8';
+      // Legacy clean slate/blue-gray assertion: this.isDark ? '#20354B' : '#94A3B8'
+      return this.isDark ? '#294158' : '#C8DCE8';
     },
     stationTypeLabel() {
       if (this.customerSubtitle !== undefined && this.customerSubtitle !== null) {
@@ -5102,6 +5007,16 @@ export default {
       handler(newVal, oldVal) {
         if (newVal !== oldVal) {
           this.setupPollingTimer();
+        }
+      },
+    },
+    isDark: {
+      handler(newDark) {
+        if (this.activeTrendSeries && this.activeTrendSeries.length > 0) {
+          this.activeTrendSeries.forEach((s, idx) => {
+            const p = (this.allParameters || []).find(item => item.param_id === s.parameterId) || s;
+            s.color = getParamSeriesColor(p, newDark, idx);
+          });
         }
       },
     },
@@ -6182,9 +6097,9 @@ export default {
       }
     },
     paramValueColorClass(param) {
-      if (param.alarm_status === 'CRITICAL') return 'text-rose-600 dark:text-rose-400 font-black';
-      if (param.alarm_status === 'WARNING') return 'text-amber-600 dark:text-amber-400 font-bold';
-      return 'text-slate-900 dark:text-white font-bold';
+      if (param.alarm_status === 'CRITICAL') return 'text-[#C93449] dark:text-[#FF6577] font-black';
+      if (param.alarm_status === 'WARNING') return 'text-[#A96C0A] dark:text-[#F1BD61] font-bold';
+      return 'text-[#20364B] dark:text-[#E2EBF4] font-bold';
     },
     qualityBadgeClass(q) {
       switch (q) {
@@ -6217,19 +6132,17 @@ export default {
       }
     },
     getTrendSeriesColor(param) {
-      if (!param) return '#00E5FF';
+      if (!param) return this.isDark ? '#27D9F2' : '#0284C7';
       const s = this.activeTrendSeries.find(item => item.parameterId === param.param_id);
-      if (s && s.color && !isAlarmLikeColor(s.color)) return s.color;
-      const idx = this.allParameters.findIndex(p => p.param_id === param.param_id);
-      if (idx >= 0) return TREND_PALETTE[idx % TREND_PALETTE.length];
-      return '#00E5FF';
+      if (s && s.color) return s.color;
+      return getParamSeriesColor(param, this.isDark);
     },
     getSparklineColor(param) {
-      if (!param) return this.isDark ? '#00E5FF' : '#0284c7';
-      if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD') return '#FF4559';
-      if (param.alarm_status === 'WARNING' || param.quality === 'UNCERTAIN') return '#FFB020';
+      if (!param) return this.isDark ? '#27D9F2' : '#0284C7';
+      if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD') return this.isDark ? '#FF6577' : '#C93449';
+      if (param.alarm_status === 'WARNING' || param.quality === 'UNCERTAIN') return this.isDark ? '#F1BD61' : '#A96C0A';
       if (param.quality === 'STALE') return '#A855F7';
-      return this.isDark ? '#00E5FF' : '#0284c7';
+      return getParamSeriesColor(param, this.isDark);
     },
     recordSparkline(paramId, val, time, quality = 'GOOD') {
       if (paramId == null) return;
@@ -6877,9 +6790,8 @@ export default {
         if (this.activeTrendSeries.length >= this.maxTrendSeries) {
           this.activeTrendSeries.shift();
         }
-        // Stable color assignment: pick first available color from palette
-        const usedColors = new Set(this.activeTrendSeries.map(s => s.color));
-        const color = TREND_PALETTE.find(c => !usedColors.has(c)) || TREND_PALETTE[this.activeTrendSeries.length % TREND_PALETTE.length];
+        // Deterministic SCADA color assignment based on parameter type & current theme
+        const color = getParamSeriesColor(param, this.isDark, this.activeTrendSeries.length);
 
         this.activeTrendSeries.push({
           id: `${param.device_id}_${param.param_id}`,
@@ -6922,7 +6834,7 @@ export default {
       const eligible = this.allParameters.slice(0, this.maxTrendSeries);
       const newSeries = [];
       eligible.forEach((p, idx) => {
-        const color = TREND_PALETTE[idx % TREND_PALETTE.length];
+        const color = getParamSeriesColor(p, this.isDark, idx);
         newSeries.push({
           id: `${p.device_id}_${p.param_id}`,
           deviceId: p.device_id,
@@ -6967,7 +6879,6 @@ export default {
       // 1. Returning user with saved series preferences
       if (saved && Array.isArray(saved.series)) {
         const restored = [];
-        const usedColors = new Set();
         for (const item of saved.series) {
           // Identify stably by device ID + parameter ID/code
           const match = this.allParameters.find(p =>
@@ -6976,11 +6887,7 @@ export default {
           );
           // If valid and not disabled/deleted, restore safely
           if (match && !restored.some(r => r.parameterId === match.param_id)) {
-            let color = item.color;
-            if (!color || isAlarmLikeColor(color) || usedColors.has(color) || !TREND_PALETTE.includes(color)) {
-              color = TREND_PALETTE.find(c => !usedColors.has(c)) || TREND_PALETTE[restored.length % TREND_PALETTE.length];
-            }
-            usedColors.add(color);
+            const color = getParamSeriesColor(match, this.isDark, restored.length);
             restored.push({
               id: `${match.device_id}_${match.param_id}`,
               deviceId: match.device_id,
@@ -7003,11 +6910,9 @@ export default {
         if (restored.length > 0) {
           this.activeTrendSeries = restored;
           this.activeTrendSeries.forEach((s, idx) => {
-            if (isAlarmLikeColor(s.color) || !TREND_PALETTE.includes(s.color)) {
-              s.color = TREND_PALETTE[idx % TREND_PALETTE.length];
-            }
+            const p = (this.allParameters || []).find(item => item.param_id === s.parameterId) || s;
+            s.color = getParamSeriesColor(p, this.isDark, idx);
             if (!s.paramName || s.paramName === '-' || !s.paramCode || s.paramCode === '-') {
-              const p = (this.allParameters || []).find(item => item.param_id === s.parameterId);
               if (p) {
                 s.paramName = p.param_name || p.param_code;
                 s.paramCode = p.param_code;
@@ -7948,6 +7853,42 @@ export default {
 </script>
 
 <style scoped>
+/* ======================================================== */
+/* SCADA INDUSTRIAL THEME TOKENS                            */
+/* Dark Mode: Industrial Navy                               */
+/* Light Mode: Soft Sky Blue                                */
+/* ======================================================== */
+
+.operator-command-center {
+  --occ-bg: #EDF4F8;
+  --occ-panel: #F5F9FC;
+  --occ-card: #FFFFFF;
+  --occ-border: #C8DCE8;
+  --occ-text-primary: #20364B;
+  --occ-text-secondary: #647D91;
+  --occ-accent: #009DB8;
+  --occ-normal: #138B68;
+  --occ-warning: #A96C0A;
+  --occ-alarm: #C93449;
+  --occ-grid: #E2EDF3;
+  --occ-axis: #C8DCE8;
+}
+
+:global(.dark) .operator-command-center {
+  --occ-bg: #081421;
+  --occ-panel: #0D1B2A;
+  --occ-card: #112235;
+  --occ-border: #294158;
+  --occ-text-primary: #E2EBF4;
+  --occ-text-secondary: #91A6BA;
+  --occ-accent: #35C8DA;
+  --occ-normal: #36C99A;
+  --occ-warning: #F1BD61;
+  --occ-alarm: #FF6577;
+  --occ-grid: #16273A;
+  --occ-axis: #294158;
+}
+
 /* Industrial SCADA Styling Tokens */
 .custom-scroller::-webkit-scrollbar {
   width: 5px;
@@ -7969,6 +7910,21 @@ export default {
 }
 :global(.dark) .scada-panel {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+:global(.dark) .scada-unified-header-card {
+  background-color: var(--occ-panel);
+  border-color: var(--occ-border);
+}
+
+:global(.dark) .scada-single-main-panel {
+  background-color: rgba(13, 27, 42, 0.85);
+  border-color: var(--occ-border);
+}
+
+:global(.dark) .scada-param-tile {
+  background-color: var(--occ-card);
+  border-color: var(--occ-border);
 }
 
 </style>
