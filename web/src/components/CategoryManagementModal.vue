@@ -346,6 +346,7 @@
                   >
                     <option value="AQMS">AQMS (Air Quality)</option>
                     <option value="WQMS">WQMS (Water Quality)</option>
+                    <option value="SPARING">SPARING (Wastewater / Air Limbah)</option>
                     <option value="CUSTOM">CUSTOM (Configurable)</option>
                     <option value="ALL">ALL (Universal)</option>
                   </select>

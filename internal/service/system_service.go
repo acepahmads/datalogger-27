@@ -579,8 +579,8 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 	// Monitoring Domain
 	if req.MonitoringDomain != "" {
 		dom := strings.ToUpper(strings.TrimSpace(req.MonitoringDomain))
-		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" {
-			return nil, errors.New("monitoring domain must be 'AQMS', 'WQMS', or 'CUSTOM'")
+		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" {
+			return nil, errors.New("monitoring domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
 		}
 		if dom != cfg.MonitoringDomain {
 			changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> %s", cfg.MonitoringDomain, dom))

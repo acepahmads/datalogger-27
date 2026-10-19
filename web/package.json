@@ -21,7 +21,8 @@
     "test:branding": "node tests/organization_branding_setup_test.js",
     "test:header": "node tests/global_header_refinement_test.js",
     "test:sidebar": "node tests/sidebar_autohide_test.js",
-    "test:trend-refine": "node tests/trend_timeframe_axis_quickactions_test.js"
+    "test:trend-refine": "node tests/trend_timeframe_axis_quickactions_test.js",
+    "test:station-card": "node tests/station_domain_clean_card_test.js"
   },
   "dependencies": {
     "axios": "^1.6.8",

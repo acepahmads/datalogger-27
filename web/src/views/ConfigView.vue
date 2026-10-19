@@ -112,7 +112,7 @@
       </div>
 
       <!-- Domain Selection Cards Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- 1. AQMS Card -->
         <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
              :class="form.monitoring_domain === 'AQMS'
@@ -212,7 +212,56 @@
           </div>
         </div>
 
-        <!-- 3. CUSTOM Card -->
+        <!-- 3. SPARING Card -->
+        <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
+             :class="form.monitoring_domain === 'SPARING'
+               ? 'bg-teal-950/20 border-teal-500/50 shadow-lg shadow-teal-950/30 ring-1 ring-teal-500/30'
+               : 'bg-[#111827] border-slate-800 hover:border-slate-700'">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl p-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400">🌊</span>
+              <span v-if="form.monitoring_domain === 'SPARING'" class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                ACTIVE DOMAIN
+              </span>
+              <span v-else class="text-4xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                READY
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-bold text-white font-sans flex items-center gap-1.5">
+                SPARING
+                <span class="text-2xs text-slate-400 font-normal">Air Limbah KLHK</span>
+              </h3>
+              <p class="text-3xs text-slate-400 mt-1 leading-normal">
+                Sistem Pemantauan Kualitas Air Limbah Terus Menerus dan Dalam Jaringan sesuai regulasi KLHK.
+              </p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-800/80">
+              <span class="text-4xs uppercase tracking-wider text-slate-400 font-bold block">Relevant Categories:</span>
+              <div class="flex flex-wrap gap-1 text-3xs font-mono">
+                <span class="px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">Wastewater</span>
+                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">Flow & Debit</span>
+                <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">Effluent pH & COD</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button v-if="form.monitoring_domain === 'SPARING'" disabled
+                    class="w-full py-1.5 px-3 rounded-lg bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold cursor-default text-center">
+              ✓ Active Domain
+            </button>
+            <button v-else @click="initiateDomainSwitch('SPARING')"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-teal-600 hover:text-white text-slate-200 border border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1">
+              <span>Switch to SPARING</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. CUSTOM Card -->
         <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
              :class="form.monitoring_domain === 'CUSTOM'
                ? 'bg-purple-950/20 border-purple-500/50 shadow-lg shadow-purple-950/30 ring-1 ring-purple-500/30'
@@ -338,7 +387,7 @@
                 <span class="px-1 py-0.2 rounded text-[7.5px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">SCADA</span>
               </div>
               <div class="text-[9px] text-slate-400 font-mono mt-0.5">
-                Station: cbi · {{ branding.customer.subtitle || 'Local Autonomous Edge' }}
+                Station: <strong class="text-cyan-400">{{ (branding.customer.subtitle && branding.customer.subtitle !== 'Local Autonomous Edge') ? branding.customer.subtitle : (form.monitoring_domain || 'AQMS') }}</strong>
               </div>
             </div>
           </div>
@@ -397,16 +446,32 @@
             />
           </div>
 
-          <!-- Customer Subtitle / Site -->
+          <!-- Customer Subtitle / Station Type -->
           <div class="space-y-1">
-            <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
-              {{ $t('config.branding.customerSubtitle') || 'Lokasi / Subtitle Customer' }}
-            </label>
+            <div class="flex items-center justify-between">
+              <label class="block text-3xs font-semibold text-slate-300 uppercase tracking-wider">
+                Jenis Stasiun / Domain Pemantauan
+              </label>
+              <div class="flex items-center space-x-1">
+                <button
+                  type="button"
+                  v-for="st in ['AQMS', 'WQMS', 'Sparing']"
+                  :key="st"
+                  @click="branding.customer.subtitle = st"
+                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold transition border cursor-pointer"
+                  :class="branding.customer.subtitle === st
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-cyan-400'"
+                >
+                  {{ st }}
+                </button>
+              </div>
+            </div>
             <input
               v-model="branding.customer.subtitle"
               type="text"
               class="w-full px-3 py-2 rounded-lg bg-[#0B1422] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-              placeholder="e.g. Local Autonomous Edge"
+              placeholder="e.g. AQMS, WQMS, Sparing"
             />
           </div>
 
@@ -1120,6 +1185,7 @@ export default {
       const d = (this.form.monitoring_domain || 'AQMS').toUpperCase();
       if (d === 'AQMS') return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
       if (d === 'WQMS') return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
+      if (d === 'SPARING') return 'bg-teal-500/10 text-teal-400 border border-teal-500/30';
       return 'bg-purple-500/10 text-purple-400 border border-purple-500/30';
     },
   },

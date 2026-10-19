@@ -24,7 +24,7 @@ const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1 MB limit before compression
 export const DEFAULT_BRANDING = {
   customer: {
     name: 'PT. Mitra Industri Enviro',
-    subtitle: 'Local Autonomous Edge',
+    subtitle: 'AQMS',
     hasLogo: false
   },
   maker: {
@@ -198,7 +198,7 @@ export function getOrganizationBrandingMeta() {
     return {
       customer: {
         name: (parsed.customer && parsed.customer.name) || DEFAULT_BRANDING.customer.name,
-        subtitle: (parsed.customer && parsed.customer.subtitle) || DEFAULT_BRANDING.customer.subtitle,
+        subtitle: (parsed.customer && parsed.customer.subtitle && parsed.customer.subtitle !== 'Local Autonomous Edge') ? parsed.customer.subtitle : DEFAULT_BRANDING.customer.subtitle,
         hasLogo: !!(parsed.customer && parsed.customer.hasLogo)
       },
       maker: {

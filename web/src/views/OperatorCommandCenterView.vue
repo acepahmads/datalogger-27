@@ -50,9 +50,7 @@
               </h1>
             </div>
             <div class="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 leading-none mt-0.5 truncate">
-              <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.hostname || 'cbi' }}</strong></span>
-              <span class="hidden sm:inline">·</span>
-              <span class="hidden sm:inline truncate text-slate-700 dark:text-slate-300">{{ customerSubtitle || 'Local Autonomous Edge' }}</span>
+              <span>{{ $t('operator.station') || 'Station' }}: <strong class="text-cyan-600 dark:text-cyan-400 font-bold tracking-wide">{{ stationTypeLabel }}</strong></span>
             </div>
           </div>
         </div>
@@ -1383,22 +1381,16 @@
               >
                 <!-- Area 1: Header (Device ID, Icon & Name, Category, Quality, Alarm) -->
                 <div class="flex items-center justify-between min-w-0 gap-1 leading-none select-none">
-                  <!-- Left: Device ID + Dot + Parameter Icon & Name -->
-                  <div class="flex items-center min-w-0 flex-1 gap-1 truncate">
+                  <!-- Left: Status Dot + Parameter Icon & Name (Device ID removed, shifted left) -->
+                  <div class="flex items-center min-w-0 flex-1 gap-1 truncate" :data-device="param.device_code">
                     <span
                       class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                       :class="[
                         (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500',
                         isParamAlarmOrStaleBad(param) && isAlarmPulseActive ? 'scale-125 ring-2 ring-rose-400' : 'scale-100'
                       ]"
+                      :title="(param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code) + ' · ' + (param.device_status || 'UNKNOWN')"
                     ></span>
-                    <span
-                      class="text-[9px] font-mono font-medium text-cyan-600/90 dark:text-cyan-400/90 whitespace-nowrap flex-shrink-0 tracking-tight"
-                      :title="param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code"
-                    >
-                      {{ param.device_code }}
-                    </span>
-                    <span class="text-slate-300 dark:text-slate-600 text-[8px] font-mono select-none flex-shrink-0">·</span>
                     <div class="flex items-center gap-0.5 min-w-0 flex-1 truncate">
                       <ParameterIcon
                         :icon="param.icon"
@@ -1408,7 +1400,7 @@
                         size-class="w-3 h-3 flex-shrink-0"
                       />
                       <span
-                        class="text-[10.5px] font-bold text-slate-900 dark:text-white truncate tracking-tight"
+                        class="text-[10px] sm:text-[10.5px] font-bold text-cyan-600 dark:text-cyan-400 truncate tracking-tight font-mono"
                         :title="(param.param_name && param.param_name !== param.param_code) ? (param.param_name + ' (' + param.param_code + ')') : param.param_code"
                       >
                         {{ param.param_name || param.param_code }}
@@ -1445,12 +1437,13 @@
                     >
                       MISMATCH
                     </span>
-                    <!-- Data Quality Badge -->
+                    <!-- Data Quality Badge (Only shown when not GOOD, e.g. BAD, STALE, ALARM) -->
                     <span
+                      v-if="param.quality && param.quality !== 'GOOD'"
                       class="px-1 py-0.2 rounded text-[7.5px] font-mono font-bold uppercase tracking-wider leading-none flex-shrink-0"
                       :class="qualityBadgeClass(param.quality)"
                     >
-                      {{ param.quality || 'GOOD' }}
+                      {{ param.quality }}
                     </span>
                     <!-- Pin Star Button -->
                     <button
@@ -1485,11 +1478,10 @@
                       {{ param.unit }}
                     </span>
                     <span
-                      v-if="param.is_held_value || param.formula"
-                      class="ml-1 px-1 py-0.2 rounded text-[7px] font-mono font-bold flex-shrink-0 leading-none"
-                      :class="param.is_held_value ? 'bg-amber-500/15 text-amber-500' : 'bg-blue-500/15 text-blue-400'"
+                      v-if="param.is_held_value"
+                      class="ml-1 px-1 py-0.2 rounded text-[7px] font-mono font-bold flex-shrink-0 leading-none bg-amber-500/15 text-amber-500"
                     >
-                      {{ param.is_held_value ? 'HELD' : 'FX' }}
+                      HELD
                     </span>
                   </div>
 
@@ -2524,15 +2516,31 @@
           </div>
 
           <div class="space-y-1">
-            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              Customer Location / Subtitle
-            </label>
+            <div class="flex items-center justify-between">
+              <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
+                Jenis Stasiun / Domain Pemantauan
+              </label>
+              <div class="flex items-center space-x-1">
+                <button
+                  type="button"
+                  v-for="st in ['AQMS', 'WQMS', 'Sparing']"
+                  :key="st"
+                  @click="modalCustomerSubtitle = st"
+                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold transition border cursor-pointer"
+                  :class="modalCustomerSubtitle === st
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs'
+                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:text-cyan-500'"
+                >
+                  {{ st }}
+                </button>
+              </div>
+            </div>
             <input
               v-model="modalCustomerSubtitle"
               type="text"
               maxlength="50"
-              placeholder="e.g. Local Autonomous Edge"
-              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
+              placeholder="e.g. AQMS, WQMS, Sparing"
+              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none font-mono"
             />
           </div>
 
@@ -3788,7 +3796,7 @@ export default {
       showLogoModal: false, // legacy alias
       activeBrandingTab: 'customer', // 'customer' | 'maker'
       customerCompanyName: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.name) || 'PT. Mitra Industri Enviro',
-      customerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.subtitle) || 'Local Autonomous Edge',
+      customerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.customer && DEFAULT_BRANDING.customer.subtitle && DEFAULT_BRANDING.customer.subtitle !== 'Local Autonomous Edge') ? DEFAULT_BRANDING.customer.subtitle : 'AQMS',
       customerLogoUrl: null,
       makerCompanyName: (DEFAULT_BRANDING && DEFAULT_BRANDING.maker && DEFAULT_BRANDING.maker.name) || 'PT. Centra Biotech Indonesia',
       makerSubtitle: (DEFAULT_BRANDING && DEFAULT_BRANDING.maker && DEFAULT_BRANDING.maker.subtitle) || 'CBI Industrial IoT',
@@ -3941,6 +3949,18 @@ export default {
     },
     axisStroke() {
       return this.isDark ? '#20354B' : '#94A3B8';
+    },
+    stationTypeLabel() {
+      const sub = this.customerSubtitle;
+      if (sub && sub.trim() && sub !== 'Local Autonomous Edge') {
+        return sub.trim();
+      }
+      const dom = (this.systemStatus && this.systemStatus.monitoring_domain) || this.$store.state.systemStatus?.monitoring_domain;
+      if (dom) {
+        if (dom.toUpperCase() === 'SPARING') return 'Sparing';
+        return dom.toUpperCase();
+      }
+      return 'AQMS';
     },
     currentUserIdentifier() {
       const u = this.$store.state.user;
@@ -5426,7 +5446,9 @@ export default {
         if (data) {
           if (data.customer) {
             this.customerCompanyName = data.customer.name || DEFAULT_BRANDING.customer.name;
-            this.customerSubtitle = data.customer.subtitle || DEFAULT_BRANDING.customer.subtitle;
+            this.customerSubtitle = (data.customer.subtitle && data.customer.subtitle !== 'Local Autonomous Edge')
+              ? data.customer.subtitle
+              : ((this.systemStatus && this.systemStatus.monitoring_domain) || DEFAULT_BRANDING.customer.subtitle || 'AQMS');
             this.customerLogoUrl = data.customer.logoUrl || null;
           }
           if (data.maker) {
@@ -5446,7 +5468,9 @@ export default {
       if (e && e.detail) {
         if (e.detail.customer) {
           this.customerCompanyName = e.detail.customer.name || this.customerCompanyName;
-          this.customerSubtitle = e.detail.customer.subtitle || this.customerSubtitle;
+          this.customerSubtitle = (e.detail.customer.subtitle && e.detail.customer.subtitle !== 'Local Autonomous Edge')
+            ? e.detail.customer.subtitle
+            : this.customerSubtitle;
         }
         if (e.detail.maker) {
           this.makerCompanyName = e.detail.maker.name || this.makerCompanyName;
@@ -5459,7 +5483,9 @@ export default {
     openBrandingModal(tab = 'customer') {
       this.activeBrandingTab = tab;
       this.modalCustomerName = this.customerCompanyName;
-      this.modalCustomerSubtitle = this.customerSubtitle;
+      this.modalCustomerSubtitle = (this.customerSubtitle && this.customerSubtitle !== 'Local Autonomous Edge')
+        ? this.customerSubtitle
+        : (this.stationTypeLabel || 'AQMS');
       this.modalCustomerLogoPreviewUrl = this.customerLogoUrl;
       this.modalCustomerLogoFile = null;
 
