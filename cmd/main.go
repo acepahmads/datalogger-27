@@ -525,6 +525,7 @@ func main() {
 			destinationsGroup.GET("/:id/payload-config", middleware.RequirePermission("integration.view"), outboundHandler.GetPayloadConfig)
 			destinationsGroup.PUT("/:id/payload-config", middleware.RequirePermission("integration.manage"), outboundHandler.UpdatePayloadConfig)
 			destinationsGroup.GET("/:id/preview", middleware.RequirePermission("integration.view"), outboundHandler.GeneratePreview)
+			destinationsGroup.POST("/:id/preview", middleware.RequirePermission("integration.view"), outboundHandler.GeneratePreview)
 			destinationsGroup.POST("/:id/test", middleware.RequirePermission("integration.test"), outboundHandler.TestPayload)
 		}
 

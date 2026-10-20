@@ -70,14 +70,17 @@ type OutputDestination struct {
 type DestinationPayloadConfig struct {
 	ID                    uint      `gorm:"primaryKey" json:"id"`
 	DestinationID         uint      `gorm:"uniqueIndex;not null" json:"destination_id"`
-	TemplateType          string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_SPARING, NESTED_SCADA, CUSTOM
+	TemplateType          string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_SPARING, NESTED_SCADA, MULTI_DEVICE, CUSTOM
 	StationIDField        string    `gorm:"size:64;default:'station_id'" json:"station_id_field"`
 	StationIDValue        string    `gorm:"size:64" json:"station_id_value,omitempty"` // optional override
 	TimestampField        string    `gorm:"size:64;default:'timestamp'" json:"timestamp_field"`
 	TimestampFormat       string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"` // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
 	IntervalField         string    `gorm:"size:64;default:'interval_minutes'" json:"interval_field"`
-	Structure             string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED
+	Structure             string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE
 	NestedDataKey         string    `gorm:"size:64;default:'data'" json:"nested_data_key"`
+	IncludeDeviceIdentity bool      `gorm:"default:false" json:"include_device_identity"` // true: include device code/name in payload
+	DeviceIdentityMode    string    `gorm:"size:32;default:'NONE'" json:"device_identity_mode"` // NONE, PREFIX, NESTED, TAG
+	ConflictResolution    string    `gorm:"size:32;default:'FAIL_ON_CONFLICT'" json:"conflict_resolution"` // FAIL_ON_CONFLICT, CUSTOM_MAPPING, ARRAY, PRIORITY_PRIMARY, AVERAGE
 	IncludeUnits          bool      `gorm:"default:false" json:"include_units"`
 	IncludeQuality        bool      `gorm:"default:false" json:"include_quality"`
 	IncludeMetadata       bool      `gorm:"default:true" json:"include_metadata"`
@@ -91,6 +94,8 @@ type DestinationPayloadConfig struct {
 
 // ParameterMappingItem configures external aliasing and inclusion per parameter
 type ParameterMappingItem struct {
+	DeviceID      uint   `json:"device_id,omitempty"`      // 0 = wildcard across all devices, or specific device ID
+	DeviceCode    string `json:"device_code,omitempty"`    // e.g. "AQMS-01"
 	ParameterID   uint   `json:"parameter_id"`
 	ParameterCode string `json:"parameter_code"`
 	ParameterName string `json:"parameter_name"`
@@ -101,11 +106,13 @@ type ParameterMappingItem struct {
 // OutboundDeliveryQueue stores persistent pending, sending, retrying, and delivered telemetry batches
 type OutboundDeliveryQueue struct {
 	ID                   uint64                 `gorm:"primaryKey;autoIncrement" json:"id"`
-	BatchID              string                 `gorm:"size:64;not null;index" json:"batch_id"` // deterministic: BATCH-<device_id>-<interval>-<identifier>
+	BatchID              string                 `gorm:"size:64;not null;index" json:"batch_id"` // deterministic: BATCH-DEST<dest_id>-<interval>-<period_end>
 	DestinationID        uint                   `gorm:"not null;index" json:"destination_id"`
 	Destination          *OutputDestination     `gorm:"foreignKey:DestinationID" json:"destination,omitempty"`
-	DeviceID             uint                   `gorm:"not null;index" json:"device_id"`
+	DeviceID             *uint                  `gorm:"index" json:"device_id,omitempty"` // nullable: nil for unified multi-device batch
 	Device               *Device                `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	DeviceCount          int                    `gorm:"default:1" json:"device_count"`
+	DevicesSummary       string                 `gorm:"size:255;default:''" json:"devices_summary"` // e.g. "AQMS-01, AQMS-02"
 	PeriodStart          time.Time              `gorm:"not null;index" json:"period_start"`
 	PeriodEnd            time.Time              `gorm:"not null;index" json:"period_end"`
 	IntervalSeconds      int                    `gorm:"not null;index" json:"interval_seconds"`
@@ -114,7 +121,7 @@ type OutboundDeliveryQueue struct {
 	SourceValuesJSON     string                 `gorm:"type:text" json:"source_values_json"`     // JSON array of SourceAggregationValueItem
 	PayloadSnapshot      string                 `gorm:"type:text;not null" json:"payload_snapshot"`
 	PayloadVersion       int                    `gorm:"default:1" json:"payload_version"`
-	IdempotencyKey       string                 `gorm:"size:160;not null;uniqueIndex" json:"idempotency_key"` // DEST<id>_<batch_id>
+	IdempotencyKey       string                 `gorm:"size:160;not null;uniqueIndex" json:"idempotency_key"` // DEST<id>_INT<interval>_<period_end_unix>
 	Status               OutboundDeliveryStatus `gorm:"size:32;not null;default:'PENDING';index" json:"status"`
 	Attempts             int                    `gorm:"default:0" json:"attempts"`
 	MaxRetries           int                    `gorm:"default:5" json:"max_retries"`
@@ -132,6 +139,9 @@ type OutboundDeliveryQueue struct {
 
 // SourceAggregationValueItem represents actual unmodified aggregation values before payload serialization
 type SourceAggregationValueItem struct {
+	DeviceID             uint      `json:"device_id"`
+	DeviceCode           string    `json:"device_code"`
+	DeviceName           string    `json:"device_name"`
 	ParameterID          uint      `json:"parameter_id"`
 	ParameterCode        string    `json:"parameter_code"`
 	ParameterName        string    `json:"parameter_name"`

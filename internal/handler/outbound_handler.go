@@ -174,7 +174,7 @@ func (h *OutboundHandler) UpdatePayloadConfig(c *gin.Context) {
 	response.OK(c, cfg)
 }
 
-// GeneratePreview handles GET /api/destinations/:id/preview
+// GeneratePreview handles GET and POST /api/destinations/:id/preview
 func (h *OutboundHandler) GeneratePreview(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
@@ -191,7 +191,15 @@ func (h *OutboundHandler) GeneratePreview(c *gin.Context) {
 		}
 	}
 
-	preview, err := h.service.GeneratePreview(c.Request.Context(), uint(id), deviceID)
+	var customCfg *model.DestinationPayloadConfig
+	if c.Request.ContentLength > 0 {
+		var cfg model.DestinationPayloadConfig
+		if err := c.ShouldBindJSON(&cfg); err == nil {
+			customCfg = &cfg
+		}
+	}
+
+	preview, err := h.service.GeneratePreviewWithConfig(c.Request.Context(), uint(id), deviceID, customCfg)
 	if err != nil {
 		response.BadRequest(c, "Failed to generate preview: "+err.Error())
 		return

@@ -25,7 +25,9 @@ type OutboundRepository interface {
 
 	// Aggregation Results Query for Outbound Batching
 	GetCustomerAggregationResults(ctx context.Context, deviceID uint, bucketEnd time.Time, intervalSeconds int) ([]model.AggregationResult, error)
+	GetCustomerAggregationResultsForWindow(ctx context.Context, bucketEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error)
 	GetLatestAggregationResults(ctx context.Context, deviceID uint) ([]model.AggregationResult, error)
+	GetLatestAggregationResultsMultiDevice(ctx context.Context, deviceIDs []uint) ([]model.AggregationResult, error)
 
 	// Delivery Queue
 	EnqueueDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) error
@@ -134,7 +136,7 @@ func (r *outboundRepository) UpsertPayloadConfig(ctx context.Context, cfg *model
 	return r.db.WithContext(ctx).Create(cfg).Error
 }
 
-// GetCustomerAggregationResults queries strictly persisted CUSTOMER_PROCESSED aggregation records
+// GetCustomerAggregationResults queries strictly persisted CUSTOMER_PROCESSED aggregation records for a single device
 func (r *outboundRepository) GetCustomerAggregationResults(ctx context.Context, deviceID uint, bucketEnd time.Time, intervalSeconds int) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
 	query := r.db.WithContext(ctx).
@@ -149,6 +151,26 @@ func (r *outboundRepository) GetCustomerAggregationResults(ctx context.Context, 
 	}
 
 	err := query.Order("parameter_id ASC").Find(&results).Error
+	return results, err
+}
+
+// GetCustomerAggregationResultsForWindow queries strictly persisted CUSTOMER_PROCESSED aggregation records across all relevant devices for a window
+func (r *outboundRepository) GetCustomerAggregationResultsForWindow(ctx context.Context, bucketEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error) {
+	var results []model.AggregationResult
+	query := r.db.WithContext(ctx).
+		Preload("Parameter").
+		Preload("Device").
+		Where("source_type = ?", model.SourceCustomerProcessed).
+		Where("period_end = ?", bucketEnd)
+
+	if intervalSeconds > 0 {
+		query = query.Where("interval_seconds = ?", intervalSeconds)
+	}
+	if len(deviceIDs) > 0 {
+		query = query.Where("device_id IN (?)", deviceIDs)
+	}
+
+	err := query.Order("device_id ASC, parameter_id ASC").Find(&results).Error
 	return results, err
 }
 
@@ -174,18 +196,57 @@ func (r *outboundRepository) GetLatestAggregationResults(ctx context.Context, de
 	return results, err
 }
 
-// EnqueueDelivery persists a new delivery queue entry with idempotency check
+// GetLatestAggregationResultsMultiDevice fetches latest customer aggregation values across all relevant devices for live payload preview
+func (r *outboundRepository) GetLatestAggregationResultsMultiDevice(ctx context.Context, deviceIDs []uint) ([]model.AggregationResult, error) {
+	var results []model.AggregationResult
+	// Find latest period_end overall
+	var latest model.AggregationResult
+	q := r.db.WithContext(ctx).Where("source_type = ?", model.SourceCustomerProcessed)
+	if len(deviceIDs) > 0 {
+		q = q.Where("device_id IN (?)", deviceIDs)
+	}
+	err := q.Order("period_end DESC").First(&latest).Error
+	if err != nil {
+		return nil, err
+	}
+
+	query := r.db.WithContext(ctx).
+		Preload("Parameter").
+		Preload("Device").
+		Where("source_type = ?", model.SourceCustomerProcessed).
+		Where("period_end = ?", latest.PeriodEnd)
+
+	if len(deviceIDs) > 0 {
+		query = query.Where("device_id IN (?)", deviceIDs)
+	}
+
+	err = query.Order("device_id ASC, parameter_id ASC").Find(&results).Error
+	return results, err
+}
+
+// EnqueueDelivery persists a new delivery queue entry with idempotency check and pending batch merge
 func (r *outboundRepository) EnqueueDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) error {
-	// Check if already queued with identical idempotency key
-	var count int64
-	r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).
-		Where("idempotency_key = ?", item.IdempotencyKey).
-		Count(&count)
-	if count > 0 {
-		// Idempotent duplicate: silently ignore unless replay
-		if !item.IsReplay {
-			return nil
+	var existing model.OutboundDeliveryQueue
+	err := r.db.WithContext(ctx).Where("idempotency_key = ?", item.IdempotencyKey).First(&existing).Error
+	if err == nil {
+		// Existing item with this idempotency key
+		if item.IsReplay {
+			return r.db.WithContext(ctx).Create(item).Error
 		}
+		// If still pending, allow updating with additional unified devices / parameters
+		if existing.Status == model.DeliveryPending {
+			existing.DeviceCount = item.DeviceCount
+			existing.DevicesSummary = item.DevicesSummary
+			existing.ParameterCount = item.ParameterCount
+			existing.SourceAggregationIDs = item.SourceAggregationIDs
+			existing.SourceValuesJSON = item.SourceValuesJSON
+			existing.PayloadSnapshot = item.PayloadSnapshot
+			existing.PayloadVersion = item.PayloadVersion
+			existing.UpdatedAt = time.Now()
+			return r.db.WithContext(ctx).Save(&existing).Error
+		}
+		// If already claimed (SENDING) or DELIVERED, do not duplicate
+		return nil
 	}
 	return r.db.WithContext(ctx).Create(item).Error
 }

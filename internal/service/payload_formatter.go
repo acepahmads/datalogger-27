@@ -18,13 +18,26 @@ type PayloadFormatter interface {
 
 // OutboundBatchData encapsulates the aggregation data for a single destination dispatch
 type OutboundBatchData struct {
-	DeviceID        uint
-	DeviceCode      string
-	DeviceName      string
+	DestinationID   uint
+	DestinationName string
 	IntervalSeconds int
 	PeriodStart     time.Time
 	PeriodEnd       time.Time
+	DeviceCount     int
+	DevicesSummary  string
+	Devices         []BatchDeviceSummary
 	Values          []model.SourceAggregationValueItem
+
+	// Single device backward compatibility
+	DeviceID   uint
+	DeviceCode string
+	DeviceName string
+}
+
+type BatchDeviceSummary struct {
+	DeviceID   uint   `json:"device_id"`
+	DeviceCode string `json:"device_code"`
+	DeviceName string `json:"device_name"`
 }
 
 // ConfigurablePayloadFormatter implements safe, deterministic JSON payload formatting
@@ -53,7 +66,13 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	if cfg.Structure == "" {
 		cfg.Structure = "FLAT"
 	}
-	if cfg.Structure == "NESTED" && cfg.NestedDataKey == "" {
+	if cfg.ConflictResolution == "" {
+		cfg.ConflictResolution = "FAIL_ON_CONFLICT"
+	}
+	if cfg.DeviceIdentityMode == "" {
+		cfg.DeviceIdentityMode = "NONE"
+	}
+	if (cfg.Structure == "NESTED" || cfg.Structure == "NESTED_BY_DEVICE" || cfg.Structure == "ARRAY_BY_DEVICE") && cfg.NestedDataKey == "" {
 		cfg.NestedDataKey = "data"
 	}
 
@@ -91,17 +110,19 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	}
 	if cfg == nil {
 		cfg = &model.DestinationPayloadConfig{
-			StationIDField:  "station_id",
-			TimestampField:  "timestamp",
-			TimestampFormat: "ISO8601",
-			IntervalField:   "interval_minutes",
-			Structure:       "FLAT",
+			StationIDField:     "station_id",
+			TimestampField:     "timestamp",
+			TimestampFormat:    "ISO8601",
+			IntervalField:      "interval_minutes",
+			Structure:          "FLAT",
+			ConflictResolution: "FAIL_ON_CONFLICT",
+			DeviceIdentityMode: "NONE",
 		}
 	}
 
-	// 1. Build parameter mapping index and filter
-	paramAliasMap := make(map[string]string)     // parameter_code -> external_name
-	paramEnabledMap := make(map[string]bool)     // parameter_code -> enabled
+	// 1. Build parameter mapping index and filter (supporting device-specific and generic rules)
+	paramAliasMap := make(map[string]string)     // key -> external_name
+	paramEnabledMap := make(map[string]bool)     // key -> enabled
 	hasExplicitMappings := false
 
 	if strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
@@ -109,13 +130,27 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		if err := json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings); err == nil && len(mappings) > 0 {
 			hasExplicitMappings = true
 			for _, m := range mappings {
-				codeKey := strings.ToUpper(strings.TrimSpace(m.ParameterCode))
-				paramEnabledMap[codeKey] = m.Enabled
-				if m.ExternalName != "" {
-					paramAliasMap[codeKey] = strings.TrimSpace(m.ExternalName)
-				} else {
-					paramAliasMap[codeKey] = m.ParameterCode
+				code := strings.ToUpper(strings.TrimSpace(m.ParameterCode))
+				extName := strings.TrimSpace(m.ExternalName)
+				if extName == "" {
+					extName = m.ParameterCode
 				}
+
+				// Device-specific key e.g. "DEV:5:PM25" or "AQMS-01:PM25"
+				if m.DeviceID > 0 {
+					devKey := fmt.Sprintf("DEV:%d:%s", m.DeviceID, code)
+					paramEnabledMap[devKey] = m.Enabled
+					paramAliasMap[devKey] = extName
+				}
+				if m.DeviceCode != "" {
+					devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(m.DeviceCode)), code)
+					paramEnabledMap[devCodeKey] = m.Enabled
+					paramAliasMap[devCodeKey] = extName
+				}
+
+				// Generic fallback key
+				paramEnabledMap[code] = m.Enabled
+				paramAliasMap[code] = extName
 			}
 		}
 	}
@@ -127,15 +162,22 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	}
 
 	// 3. Resolve station ID
-	stationID := batch.DeviceCode
-	if strings.TrimSpace(cfg.StationIDValue) != "" {
-		stationID = strings.TrimSpace(cfg.StationIDValue)
-	}
+	stationID := strings.TrimSpace(cfg.StationIDValue)
 	if stationID == "" {
-		stationID = fmt.Sprintf("STATION_%d", batch.DeviceID)
+		if batch.DeviceCount > 1 && batch.DevicesSummary != "" {
+			stationID = batch.DevicesSummary
+		} else if batch.DeviceCode != "" {
+			stationID = batch.DeviceCode
+		} else if len(batch.Devices) > 0 {
+			stationID = batch.Devices[0].DeviceCode
+		} else if batch.DeviceID > 0 {
+			stationID = fmt.Sprintf("STATION_%d", batch.DeviceID)
+		} else {
+			stationID = "STATION_EDGE"
+		}
 	}
 
-	// 4. Construct payload map
+	// 4. Construct root payload map
 	rootMap := make(map[string]interface{})
 
 	// Base identification
@@ -162,12 +204,15 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	}
 	rootMap[intervalKey] = intervalMinutes
 
-	// Optional metadata
+	// Optional metadata headers
 	if cfg.IncludeMetadata {
 		rootMap["period_start"] = batch.PeriodStart.Format(time.RFC3339)
 		rootMap["period_end"] = batch.PeriodEnd.Format(time.RFC3339)
 		rootMap["interval_seconds"] = batch.IntervalSeconds
-		rootMap["device_name"] = batch.DeviceName
+		rootMap["device_count"] = batch.DeviceCount
+		if batch.DevicesSummary != "" {
+			rootMap["devices"] = batch.DevicesSummary
+		}
 	}
 
 	// Static metadata
@@ -180,32 +225,22 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		}
 	}
 
-	// 5. Build telemetry parameters map
-	measurements := make(map[string]interface{})
+	// 5. Structure measurements based on Structure & DeviceIdentityMode
+	structure := strings.ToUpper(strings.TrimSpace(cfg.Structure))
+	deviceMode := strings.ToUpper(strings.TrimSpace(cfg.DeviceIdentityMode))
+	conflictResolution := strings.ToUpper(strings.TrimSpace(cfg.ConflictResolution))
+	if conflictResolution == "" {
+		conflictResolution = "FAIL_ON_CONFLICT"
+	}
 
-	for _, item := range batch.Values {
-		codeKey := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
-
-		// Check filter if explicit mappings exist
-		if hasExplicitMappings {
-			enabled, exists := paramEnabledMap[codeKey]
-			if exists && !enabled {
-				continue // parameter filtered out for this destination
-			}
-		}
-
-		targetFieldName := item.ParameterCode
-		if alias, exists := paramAliasMap[codeKey]; exists && alias != "" {
-			targetFieldName = alias
-		}
-
-		// Handle complex value (with units / quality) vs scalar value
+	// Helper to extract measurement value (scalar vs unit/quality dictionary)
+	extractVal := func(item model.SourceAggregationValueItem) interface{} {
 		if cfg.IncludeUnits || cfg.IncludeQuality {
 			detail := make(map[string]interface{})
 			if item.Value != nil {
 				detail["value"] = *item.Value
 			} else {
-				detail["value"] = nil // Do not fabricate or zero
+				detail["value"] = nil
 			}
 			if cfg.IncludeUnits && item.Unit != "" {
 				detail["unit"] = item.Unit
@@ -213,27 +248,226 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 			if cfg.IncludeQuality && item.Quality != "" {
 				detail["quality"] = item.Quality
 			}
-			measurements[targetFieldName] = detail
-		} else {
-			if item.Value != nil {
-				measurements[targetFieldName] = *item.Value
-			} else {
-				measurements[targetFieldName] = nil // Missing data stays null, not fabricated 0
+			if cfg.IncludeDeviceIdentity && item.DeviceCode != "" {
+				detail["device"] = item.DeviceCode
 			}
+			return detail
 		}
+		if item.Value != nil {
+			return *item.Value
+		}
+		return nil
 	}
 
-	// 6. Merge measurements into root (FLAT vs NESTED)
-	if strings.ToUpper(cfg.Structure) == "NESTED" {
+	switch {
+	case structure == "NESTED_BY_DEVICE" || deviceMode == "NESTED":
+		// Nested by Device: data[DeviceCode][FieldName] = Value
+		deviceGroups := make(map[string]map[string]interface{})
+
+		for _, item := range batch.Values {
+			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
+			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
+			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
+
+			// Check filtering
+			if hasExplicitMappings {
+				enabled := true
+				if en, exists := paramEnabledMap[devKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[code]; exists {
+					enabled = en
+				}
+				if !enabled {
+					continue
+				}
+			}
+
+			targetFieldName := item.ParameterCode
+			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
+				targetFieldName = alias
+			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
+				targetFieldName = alias
+			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
+				targetFieldName = alias
+			}
+
+			devName := item.DeviceCode
+			if devName == "" {
+				devName = fmt.Sprintf("DEV_%d", item.DeviceID)
+			}
+
+			if _, ok := deviceGroups[devName]; !ok {
+				deviceGroups[devName] = make(map[string]interface{})
+			}
+			deviceGroups[devName][targetFieldName] = extractVal(item)
+		}
+
 		nestedKey := cfg.NestedDataKey
 		if nestedKey == "" {
 			nestedKey = "data"
 		}
-		rootMap[nestedKey] = measurements
-	} else {
-		// FLAT structure: measurements placed directly in root
-		for k, v := range measurements {
-			rootMap[k] = v
+		rootMap[nestedKey] = deviceGroups
+
+	case structure == "ARRAY_BY_DEVICE":
+		// Array of devices: devices: [ { "device": "AQMS-01", ... }, ... ]
+		deviceMap := make(map[string]map[string]interface{})
+		var deviceOrder []string
+
+		for _, item := range batch.Values {
+			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
+			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
+			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
+
+			if hasExplicitMappings {
+				enabled := true
+				if en, exists := paramEnabledMap[devKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[code]; exists {
+					enabled = en
+				}
+				if !enabled {
+					continue
+				}
+			}
+
+			targetFieldName := item.ParameterCode
+			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
+				targetFieldName = alias
+			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
+				targetFieldName = alias
+			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
+				targetFieldName = alias
+			}
+
+			devName := item.DeviceCode
+			if devName == "" {
+				devName = fmt.Sprintf("DEV_%d", item.DeviceID)
+			}
+
+			if _, ok := deviceMap[devName]; !ok {
+				deviceMap[devName] = map[string]interface{}{
+					"device_code": devName,
+					"device_name": item.DeviceName,
+				}
+				deviceOrder = append(deviceOrder, devName)
+			}
+			deviceMap[devName][targetFieldName] = extractVal(item)
+		}
+
+		var deviceList []map[string]interface{}
+		for _, devName := range deviceOrder {
+			deviceList = append(deviceList, deviceMap[devName])
+		}
+
+		nestedKey := cfg.NestedDataKey
+		if nestedKey == "" || nestedKey == "data" {
+			nestedKey = "devices"
+		}
+		rootMap[nestedKey] = deviceList
+
+	default:
+		// FLAT or NESTED flat measurements map
+		measurements := make(map[string]interface{})
+		keySourceDevice := make(map[string]string)     // targetKey -> DeviceCode
+		keyValuesList := make(map[string][]float64)     // targetKey -> []float64 (for AVERAGE)
+
+		for _, item := range batch.Values {
+			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
+			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
+			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
+
+			if hasExplicitMappings {
+				enabled := true
+				if en, exists := paramEnabledMap[devKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[code]; exists {
+					enabled = en
+				}
+				if !enabled {
+					continue
+				}
+			}
+
+			targetFieldName := item.ParameterCode
+			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
+				targetFieldName = alias
+			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
+				targetFieldName = alias
+			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
+				targetFieldName = alias
+			}
+
+			// Apply PREFIX mode if configured or includeDeviceIdentity or conflictResolution == PREFIX
+			if deviceMode == "PREFIX" || conflictResolution == "PREFIX" || (cfg.IncludeDeviceIdentity && deviceMode != "TAG") {
+				if item.DeviceCode != "" {
+					targetFieldName = fmt.Sprintf("%s_%s", strings.ToLower(item.DeviceCode), strings.ToLower(targetFieldName))
+				}
+			}
+
+			val := extractVal(item)
+
+			// Conflict Handling: check if key already populated by another device
+			prevDev, conflict := keySourceDevice[targetFieldName]
+			if conflict && prevDev != item.DeviceCode {
+				switch conflictResolution {
+				case "PREFIX":
+					prefixedKey := fmt.Sprintf("%s_%s", strings.ToLower(item.DeviceCode), strings.ToLower(targetFieldName))
+					measurements[prefixedKey] = val
+					keySourceDevice[prefixedKey] = item.DeviceCode
+				case "ARRAY":
+					// Store as value array
+					switch existing := measurements[targetFieldName].(type) {
+					case []interface{}:
+						measurements[targetFieldName] = append(existing, val)
+					default:
+						measurements[targetFieldName] = []interface{}{existing, val}
+					}
+				case "PRIORITY_PRIMARY":
+					// Keep first device, ignore second
+					continue
+				case "AVERAGE":
+					// Average numeric values
+					if item.Value != nil {
+						keyValuesList[targetFieldName] = append(keyValuesList[targetFieldName], *item.Value)
+						sum := 0.0
+						for _, v := range keyValuesList[targetFieldName] {
+							sum += v
+						}
+						avg := sum / float64(len(keyValuesList[targetFieldName]))
+						measurements[targetFieldName] = avg
+					}
+				case "CUSTOM_MAPPING":
+					// If custom mapping was chosen but still collides:
+					return nil, fmt.Errorf("parameter key collision on '%s' between device %s and %s; please specify distinct external aliases per device", targetFieldName, prevDev, item.DeviceCode)
+				default: // FAIL_ON_CONFLICT
+					return nil, fmt.Errorf("parameter key collision on '%s' between device %s and %s; configure distinct external aliases or enable device grouping", targetFieldName, prevDev, item.DeviceCode)
+				}
+			} else {
+				measurements[targetFieldName] = val
+				keySourceDevice[targetFieldName] = item.DeviceCode
+				if item.Value != nil {
+					keyValuesList[targetFieldName] = []float64{*item.Value}
+				}
+			}
+		}
+
+		if structure == "NESTED" {
+			nestedKey := cfg.NestedDataKey
+			if nestedKey == "" {
+				nestedKey = "data"
+			}
+			rootMap[nestedKey] = measurements
+		} else {
+			// FLAT structure: measurements placed directly in root
+			for k, v := range measurements {
+				rootMap[k] = v
+			}
 		}
 	}
 
@@ -248,8 +482,12 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 				}
 				if _, ok := rootMap[rf]; !ok {
 					// Check inside nested data if structure is nested
-					if strings.ToUpper(cfg.Structure) == "NESTED" {
-						if _, inNested := measurements[rf]; inNested {
+					nestedKey := cfg.NestedDataKey
+					if nestedKey == "" {
+						nestedKey = "data"
+					}
+					if nestedMap, ok := rootMap[nestedKey].(map[string]interface{}); ok {
+						if _, inNested := nestedMap[rf]; inNested {
 							continue
 						}
 					}

@@ -37,6 +37,7 @@ type OutboundService interface {
 	GetPayloadConfig(ctx context.Context, destID uint) (*model.DestinationPayloadConfig, error)
 	UpdatePayloadConfig(ctx context.Context, cfg *model.DestinationPayloadConfig) error
 	GeneratePreview(ctx context.Context, destID uint, deviceID *uint) (string, error)
+	GeneratePreviewWithConfig(ctx context.Context, destID uint, deviceID *uint, customCfg *model.DestinationPayloadConfig) (string, error)
 	TestPayload(ctx context.Context, destID uint) (*TestPayloadResult, error)
 
 	// Queue Inspection & Management
@@ -383,7 +384,7 @@ func calculateBackoff(attempts int) time.Duration {
 }
 
 // HandleBucketCompleted is triggered when an aggregation bucket finishes.
-// It strictly queries persisted CUSTOMER_PROCESSED aggregation results and enqueues deliveries.
+// It generates unified batches per destination and aggregation window across all relevant devices.
 func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID uint, bucketEnd time.Time) error {
 	// 1. Fetch enabled destinations
 	destinations, err := s.repo.GetAllDestinations(ctx, true)
@@ -391,92 +392,131 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 		return nil // No active outbound destinations
 	}
 
-	// 2. Fetch device details
-	device, err := s.deviceRepo.GetByID(deviceID)
-	if err != nil || device == nil {
-		return fmt.Errorf("device %d not found for outbound aggregation", deviceID)
-	}
-
-	// 3. Query strictly persisted CUSTOMER_PROCESSED aggregation records
-	results, err := s.repo.GetCustomerAggregationResults(ctx, deviceID, bucketEnd, 0)
-	if err != nil {
-		return fmt.Errorf("failed to fetch aggregation results: %w", err)
-	}
-	if len(results) == 0 {
-		return nil // Nothing to dispatch
-	}
-
-	// 4. Group results by IntervalSeconds
-	resultsByInterval := make(map[int][]model.AggregationResult)
-	for _, res := range results {
-		resultsByInterval[res.IntervalSeconds] = append(resultsByInterval[res.IntervalSeconds], res)
-	}
-
-	for intervalSec, group := range resultsByInterval {
-		if len(group) == 0 {
+	for _, dest := range destinations {
+		// Check station filter: if destination is restricted to a single device and it's not this device, skip
+		if dest.DeviceID != nil && *dest.DeviceID != deviceID {
 			continue
 		}
 
-		intervalMinutes := intervalSec / 60
-		if intervalMinutes <= 0 {
-			intervalMinutes = 1
+		var queryDeviceIDs []uint
+		if dest.DeviceID != nil {
+			queryDeviceIDs = []uint{*dest.DeviceID}
 		}
 
-		periodStart := group[0].PeriodStart
-		periodEnd := group[0].PeriodEnd
-
-		// Deterministic Batch ID
-		batchID := fmt.Sprintf("BATCH-DEV%d-%dM-%s", deviceID, intervalMinutes, periodEnd.Format("20060102150405"))
-
-		// Build SourceAggregationIDs and SourceValuesJSON
-		var sourceIDs []uint64
-		var sourceItems []model.SourceAggregationValueItem
-
-		for _, item := range group {
-			sourceIDs = append(sourceIDs, item.ID)
-			paramCode := ""
-			paramName := ""
-			unit := ""
-			if item.Parameter != nil {
-				paramCode = item.Parameter.ParameterCode
-				paramName = item.Parameter.ParameterName
-				unit = item.Parameter.Unit
-			}
-			sourceItems = append(sourceItems, model.SourceAggregationValueItem{
-				ParameterID:         item.ParameterID,
-				ParameterCode:       paramCode,
-				ParameterName:       paramName,
-				Value:               item.Value,
-				Unit:                unit,
-				Quality:             string(item.Quality),
-				AggregationResultID: item.ID,
-				PeriodStart:         item.PeriodStart,
-				PeriodEnd:           item.PeriodEnd,
-			})
+		// Query strictly persisted CUSTOMER_PROCESSED aggregation records for this window and destination
+		results, err := s.repo.GetCustomerAggregationResultsForWindow(ctx, bucketEnd, dest.IntervalSeconds, queryDeviceIDs)
+		if err != nil {
+			logger.Error("[Outbound] Failed to fetch aggregation results for window %s dest %d: %v", bucketEnd.Format(time.RFC3339), dest.ID, err)
+			continue
+		}
+		if len(results) == 0 {
+			continue
 		}
 
-		sourceIDsJSON, _ := json.Marshal(sourceIDs)
-		sourceValuesJSON, _ := json.Marshal(sourceItems)
-
-		batchData := &OutboundBatchData{
-			DeviceID:        device.ID,
-			DeviceCode:      device.DeviceCode,
-			DeviceName:      device.DeviceName,
-			IntervalSeconds: intervalSec,
-			PeriodStart:     periodStart,
-			PeriodEnd:       periodEnd,
-			Values:          sourceItems,
+		// Group results by IntervalSeconds
+		resultsByInterval := make(map[int][]model.AggregationResult)
+		for _, res := range results {
+			resultsByInterval[res.IntervalSeconds] = append(resultsByInterval[res.IntervalSeconds], res)
 		}
 
-		// Dispatch to each eligible destination
-		for _, dest := range destinations {
-			// Check station filter
-			if dest.DeviceID != nil && *dest.DeviceID != deviceID {
+		for intervalSec, group := range resultsByInterval {
+			if len(group) == 0 {
 				continue
 			}
-			// Check interval filter
-			if dest.IntervalSeconds > 0 && dest.IntervalSeconds != intervalSec {
-				continue
+
+			intervalMinutes := intervalSec / 60
+			if intervalMinutes <= 0 {
+				intervalMinutes = 1
+			}
+
+			periodStart := group[0].PeriodStart
+			periodEnd := group[0].PeriodEnd
+
+			// Stable batch identity per destination and window
+			batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, periodEnd.Format("20060102150405"))
+			idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, intervalSec, periodEnd.Unix())
+
+			// Collect unique devices in stable order
+			deviceMap := make(map[uint]BatchDeviceSummary)
+			var deviceOrder []uint
+			for _, item := range group {
+				if _, exists := deviceMap[item.DeviceID]; !exists {
+					devCode := fmt.Sprintf("DEV-%d", item.DeviceID)
+					devName := fmt.Sprintf("Device %d", item.DeviceID)
+					if item.Device != nil {
+						if item.Device.DeviceCode != "" {
+							devCode = item.Device.DeviceCode
+						}
+						if item.Device.DeviceName != "" {
+							devName = item.Device.DeviceName
+						}
+					}
+					deviceMap[item.DeviceID] = BatchDeviceSummary{
+						DeviceID:   item.DeviceID,
+						DeviceCode: devCode,
+						DeviceName: devName,
+					}
+					deviceOrder = append(deviceOrder, item.DeviceID)
+				}
+			}
+
+			var devicesList []BatchDeviceSummary
+			var devCodes []string
+			for _, dID := range deviceOrder {
+				dev := deviceMap[dID]
+				devicesList = append(devicesList, dev)
+				devCodes = append(devCodes, dev.DeviceCode)
+			}
+			devicesSummary := strings.Join(devCodes, ", ")
+			deviceCount := len(devicesList)
+
+			// Collect all parameters across devices
+			var sourceIDs []uint64
+			var sourceItems []model.SourceAggregationValueItem
+
+			for _, item := range group {
+				sourceIDs = append(sourceIDs, item.ID)
+				paramCode := ""
+				paramName := ""
+				unit := ""
+				if item.Parameter != nil {
+					paramCode = item.Parameter.ParameterCode
+					paramName = item.Parameter.ParameterName
+					unit = item.Parameter.Unit
+				}
+				devInfo := deviceMap[item.DeviceID]
+				sourceItems = append(sourceItems, model.SourceAggregationValueItem{
+					DeviceID:            item.DeviceID,
+					DeviceCode:          devInfo.DeviceCode,
+					DeviceName:          devInfo.DeviceName,
+					ParameterID:         item.ParameterID,
+					ParameterCode:       paramCode,
+					ParameterName:       paramName,
+					Value:               item.Value,
+					Unit:                unit,
+					Quality:             string(item.Quality),
+					AggregationResultID: item.ID,
+					PeriodStart:         item.PeriodStart,
+					PeriodEnd:           item.PeriodEnd,
+				})
+			}
+
+			sourceIDsJSON, _ := json.Marshal(sourceIDs)
+			sourceValuesJSON, _ := json.Marshal(sourceItems)
+
+			batchData := &OutboundBatchData{
+				DeviceCount:     deviceCount,
+				DevicesSummary:  devicesSummary,
+				Devices:         devicesList,
+				IntervalSeconds: intervalSec,
+				PeriodStart:     periodStart,
+				PeriodEnd:       periodEnd,
+				Values:          sourceItems,
+			}
+			if deviceCount == 1 {
+				batchData.DeviceID = devicesList[0].DeviceID
+				batchData.DeviceCode = devicesList[0].DeviceCode
+				batchData.DeviceName = devicesList[0].DeviceName
 			}
 
 			// Format payload according to destination config
@@ -498,12 +538,20 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 				continue
 			}
 
-			idempotencyKey := fmt.Sprintf("DEST%d_%s", dest.ID, batchID)
+			var queueDeviceID *uint
+			if deviceCount == 1 {
+				dID := devicesList[0].DeviceID
+				queueDeviceID = &dID
+			} else if dest.DeviceID != nil {
+				queueDeviceID = dest.DeviceID
+			}
 
 			queueItem := &model.OutboundDeliveryQueue{
 				BatchID:              batchID,
 				DestinationID:        dest.ID,
-				DeviceID:             device.ID,
+				DeviceID:             queueDeviceID,
+				DeviceCount:          deviceCount,
+				DevicesSummary:       devicesSummary,
 				PeriodStart:          periodStart,
 				PeriodEnd:            periodEnd,
 				IntervalSeconds:      intervalSec,
@@ -585,18 +633,19 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 
 	// Create default payload config for this destination
 	cfg := &model.DestinationPayloadConfig{
-		DestinationID:   dest.ID,
-		TemplateType:    "STANDARD",
-		StationIDField:  "station_id",
-		TimestampField:  "timestamp",
-		TimestampFormat: "ISO8601",
-		IntervalField:   "interval_minutes",
-		Structure:       "FLAT",
-		NestedDataKey:   "data",
-		IncludeUnits:    false,
-		IncludeQuality:  false,
-		IncludeMetadata: true,
-		Version:         1,
+		DestinationID:      dest.ID,
+		TemplateType:       "STANDARD",
+		StationIDField:     "station_id",
+		TimestampField:     "timestamp",
+		TimestampFormat:    "ISO8601",
+		IntervalField:      "interval_minutes",
+		Structure:          "FLAT",
+		NestedDataKey:      "data",
+		ConflictResolution: "PREFIX",
+		IncludeUnits:       false,
+		IncludeQuality:     false,
+		IncludeMetadata:    true,
+		Version:            1,
 	}
 	_ = s.repo.UpsertPayloadConfig(ctx, cfg)
 	return nil
@@ -641,38 +690,73 @@ func (s *outboundService) UpdatePayloadConfig(ctx context.Context, cfg *model.De
 	return s.repo.UpsertPayloadConfig(ctx, cfg)
 }
 
-// GeneratePreview builds a real or sample preview payload matching current config
+// GeneratePreview builds a real or sample preview payload matching stored config
 func (s *outboundService) GeneratePreview(ctx context.Context, destID uint, deviceID *uint) (string, error) {
-	cfg, err := s.repo.GetPayloadConfigByDestinationID(ctx, destID)
-	if err != nil {
-		cfg = &model.DestinationPayloadConfig{
-			DestinationID:   destID,
-			StationIDField:  "station_id",
-			TimestampField:  "timestamp",
-			TimestampFormat: "ISO8601",
-			IntervalField:   "interval_minutes",
-			Structure:       "FLAT",
-			Version:         1,
+	return s.GeneratePreviewWithConfig(ctx, destID, deviceID, nil)
+}
+
+// GeneratePreviewWithConfig builds a real or sample preview payload matching provided or stored config
+func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID uint, deviceID *uint, customCfg *model.DestinationPayloadConfig) (string, error) {
+	cfg := customCfg
+	if cfg == nil {
+		var err error
+		cfg, err = s.repo.GetPayloadConfigByDestinationID(ctx, destID)
+		if err != nil {
+			cfg = &model.DestinationPayloadConfig{
+				DestinationID:   destID,
+				StationIDField:  "station_id",
+				TimestampField:  "timestamp",
+				TimestampFormat: "ISO8601",
+				IntervalField:   "interval_minutes",
+				Structure:       "FLAT",
+				Version:         1,
+			}
 		}
 	}
 
 	var batch *OutboundBatchData
 
-	// Attempt to use real persisted aggregation results if available
-	targetDevID := uint(1)
-	if deviceID != nil && *deviceID > 0 {
-		targetDevID = *deviceID
+	dest, _ := s.repo.GetDestinationByID(ctx, destID)
+	var targetDeviceIDs []uint
+	if dest != nil && dest.DeviceID != nil {
+		targetDeviceIDs = []uint{*dest.DeviceID}
+	} else if deviceID != nil && *deviceID > 0 {
+		targetDeviceIDs = []uint{*deviceID}
 	}
 
-	realResults, err := s.repo.GetLatestAggregationResults(ctx, targetDevID)
+	realResults, err := s.repo.GetLatestAggregationResultsMultiDevice(ctx, targetDeviceIDs)
 	if err == nil && len(realResults) > 0 {
-		dev := realResults[0].Device
-		devCode := "AQMS-001"
-		devName := "Sample Station"
-		if dev != nil {
-			devCode = dev.DeviceCode
-			devName = dev.DeviceName
+		deviceMap := make(map[uint]BatchDeviceSummary)
+		var deviceOrder []uint
+		for _, r := range realResults {
+			if _, exists := deviceMap[r.DeviceID]; !exists {
+				devCode := fmt.Sprintf("DEV-%d", r.DeviceID)
+				devName := fmt.Sprintf("Device %d", r.DeviceID)
+				if r.Device != nil {
+					if r.Device.DeviceCode != "" {
+						devCode = r.Device.DeviceCode
+					}
+					if r.Device.DeviceName != "" {
+						devName = r.Device.DeviceName
+					}
+				}
+				deviceMap[r.DeviceID] = BatchDeviceSummary{
+					DeviceID:   r.DeviceID,
+					DeviceCode: devCode,
+					DeviceName: devName,
+				}
+				deviceOrder = append(deviceOrder, r.DeviceID)
+			}
 		}
+
+		var devicesList []BatchDeviceSummary
+		var devCodes []string
+		for _, dID := range deviceOrder {
+			d := deviceMap[dID]
+			devicesList = append(devicesList, d)
+			devCodes = append(devCodes, d.DeviceCode)
+		}
+
 		var items []model.SourceAggregationValueItem
 		for _, r := range realResults {
 			pCode := ""
@@ -683,7 +767,11 @@ func (s *outboundService) GeneratePreview(ctx context.Context, destID uint, devi
 				pName = r.Parameter.ParameterName
 				unit = r.Parameter.Unit
 			}
+			devInfo := deviceMap[r.DeviceID]
 			items = append(items, model.SourceAggregationValueItem{
+				DeviceID:            r.DeviceID,
+				DeviceCode:          devInfo.DeviceCode,
+				DeviceName:          devInfo.DeviceName,
 				ParameterID:         r.ParameterID,
 				ParameterCode:       pCode,
 				ParameterName:       pName,
@@ -695,30 +783,46 @@ func (s *outboundService) GeneratePreview(ctx context.Context, destID uint, devi
 				PeriodEnd:           r.PeriodEnd,
 			})
 		}
+
 		batch = &OutboundBatchData{
-			DeviceID:        targetDevID,
-			DeviceCode:      devCode,
-			DeviceName:      devName,
+			DeviceCount:     len(devicesList),
+			DevicesSummary:  strings.Join(devCodes, ", "),
+			Devices:         devicesList,
 			IntervalSeconds: realResults[0].IntervalSeconds,
 			PeriodStart:     realResults[0].PeriodStart,
 			PeriodEnd:       realResults[0].PeriodEnd,
 			Values:          items,
 		}
+		if len(devicesList) == 1 {
+			batch.DeviceID = devicesList[0].DeviceID
+			batch.DeviceCode = devicesList[0].DeviceCode
+			batch.DeviceName = devicesList[0].DeviceName
+		}
 	} else {
-		// Construct identified realistic sample batch
+		// Construct realistic multi-device sample batch (AQMS-01 and AQMS-02)
 		now := time.Now()
-		v1, v2, v3 := 28.5, 45.0, 1.2
+		vPm25_1, vPm10_1, vTemp, vHum := 45.2, 62.4, 27.5, 68.2
+		vPm25_2, vPm10_2, vSO2, vCO := 48.1, 65.0, 2.03, 615.0
+
 		batch = &OutboundBatchData{
-			DeviceID:        1,
-			DeviceCode:      "AQMS-SAMPLE",
-			DeviceName:      "Air Quality Monitoring Station (Sample)",
-			IntervalSeconds: 300,
-			PeriodStart:     now.Add(-5 * time.Minute),
+			DeviceCount:    2,
+			DevicesSummary: "AQMS-01, AQMS-02",
+			Devices: []BatchDeviceSummary{
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01"},
+				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02"},
+			},
+			IntervalSeconds: 120,
+			PeriodStart:     now.Add(-2 * time.Minute),
 			PeriodEnd:       now,
 			Values: []model.SourceAggregationValueItem{
-				{ParameterID: 1, ParameterCode: "pm25", ParameterName: "PM2.5", Value: &v1, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 101},
-				{ParameterID: 2, ParameterCode: "pm10", ParameterName: "PM10", Value: &v2, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 102},
-				{ParameterID: 3, ParameterCode: "co", ParameterName: "Carbon Monoxide", Value: &v3, Unit: "ppm", Quality: "GOOD", AggregationResultID: 103},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 1, ParameterCode: "pm25", ParameterName: "PM2.5", Value: &vPm25_1, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 101},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 2, ParameterCode: "pm10", ParameterName: "PM10", Value: &vPm10_1, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 102},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 3, ParameterCode: "temperature", ParameterName: "Temperature", Value: &vTemp, Unit: "°C", Quality: "GOOD", AggregationResultID: 103},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 4, ParameterCode: "humidity", ParameterName: "Humidity", Value: &vHum, Unit: "%", Quality: "GOOD", AggregationResultID: 104},
+				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 5, ParameterCode: "pm25", ParameterName: "PM2.5", Value: &vPm25_2, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 201},
+				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 6, ParameterCode: "pm10", ParameterName: "PM10", Value: &vPm10_2, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 202},
+				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 7, ParameterCode: "so2", ParameterName: "Sulfur Dioxide", Value: &vSO2, Unit: "ppm", Quality: "GOOD", AggregationResultID: 203},
+				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 8, ParameterCode: "co", ParameterName: "Carbon Monoxide", Value: &vCO, Unit: "ppm", Quality: "GOOD", AggregationResultID: 204},
 			},
 		}
 	}

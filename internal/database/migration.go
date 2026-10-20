@@ -125,6 +125,29 @@ func RunMigrations(db *gorm.DB) error {
 		}
 	}
 
+	// 1g. Non-destructive migration for Phase 8 Unified Multi-Device Outbound Batches
+	if db.Migrator().HasTable(&model.OutboundDeliveryQueue{}) {
+		if !db.Migrator().HasColumn(&model.OutboundDeliveryQueue{}, "device_count") {
+			_ = db.Migrator().AddColumn(&model.OutboundDeliveryQueue{}, "device_count")
+		}
+		if !db.Migrator().HasColumn(&model.OutboundDeliveryQueue{}, "devices_summary") {
+			_ = db.Migrator().AddColumn(&model.OutboundDeliveryQueue{}, "devices_summary")
+		}
+		// Backfill existing legacy single-device queue items so their device_count is 1
+		_ = db.Model(&model.OutboundDeliveryQueue{}).Where("device_count IS NULL OR device_count = 0").Update("device_count", 1).Error
+	}
+	if db.Migrator().HasTable(&model.DestinationPayloadConfig{}) {
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "include_device_identity") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "include_device_identity")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "device_identity_mode") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "device_identity_mode")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "conflict_resolution") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "conflict_resolution")
+		}
+	}
+
 	// 2. Data backfill / synchronization for existing devices from Phase 1
 	var existingDevices []model.Device
 	if err := db.Unscoped().Find(&existingDevices).Error; err == nil {
@@ -3590,24 +3613,24 @@ func updatePhase8Tracking(db *gorm.DB) {
 			TaskName:   "External System Integration",
 			Status:     model.StatusDone,
 			Progress:   100.0,
-			TestResult: "PASSED: Configurable JSON payload engine verified with FLAT/NESTED structures, timestamp formatting (ISO8601/UNIX_MS/UNIX_SEC/CUSTOM), parameter aliasing, units/quality inclusion, schema validation, live preview, and test payload.",
-			Notes:      "Verified with 100% pure deterministic Go logic, zero unsafe expressions, and real aggregation value mapping.",
+			TestResult: "PASSED: Unified multi-device configurable JSON payload engine verified with FLAT, NESTED_BY_DEVICE, ARRAY_BY_DEVICE, and PREFIX modes. Supports parameter aliasing, conflict resolution (PREFIX, CUSTOM_MAPPING, ARRAY, PRIORITY_PRIMARY, AVERAGE), units/quality metadata, schema validation, and real aggregation preview.",
+			Notes:      "Verified with 100% pure deterministic Go logic, multi-device schema templates, duplicate key conflict prevention, and identical worker payload output.",
 		},
 		{
 			TaskID:     90,
 			TaskName:   "Data Routing",
 			Status:     model.StatusDone,
 			Progress:   100.0,
-			TestResult: "PASSED: Aggregation-based data routing verified. Strictly sources telemetry from persisted processed/aggregated rollups (intervals 2, 5, 30, 60m). Internal raw telemetry is strictly excluded from customer outbound pipeline.",
-			Notes:      "Verified onBucketCompleted pipeline hook and destination interval/parameter filtering.",
+			TestResult: "PASSED: Unified aggregation-based data routing verified. Batches formed per destination and aggregation window across all matching devices (e.g. AQMS-01 and AQMS-02). Strictly sources telemetry from persisted processed/aggregated rollups. Internal raw telemetry is strictly excluded.",
+			Notes:      "Verified multi-device window queries, onBucketCompleted pipeline hook, and destination interval/parameter filtering without duplicate queue entries.",
 		},
 		{
 			TaskID:     91,
 			TaskName:   "Delivery Queue",
 			Status:     model.StatusDone,
 			Progress:   100.0,
-			TestResult: "PASSED: Persistent MariaDB offline delivery queue verified with deterministic Batch IDs, idempotency keys, payload snapshots, atomic concurrency claiming (PENDING -> SENDING), and restart survival.",
-			Notes:      "Verified with persistent queue storage, summary KPI counters, and deep queue inspection.",
+			TestResult: "PASSED: Unified multi-device persistent MariaDB delivery queue verified. One queue item represents one destination and aggregation window with Devices badge/summary and aggregated parameter counts. Concurrency claiming, atomic merging of pending batches, and full source traceability verified.",
+			Notes:      "Verified with persistent queue storage, Devices badge & summary, multi-device source traceability, and deep queue inspection.",
 		},
 		{
 			TaskID:     92,

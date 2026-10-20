@@ -244,7 +244,7 @@
             <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
               <tr>
                 <th class="py-2.5 px-3">Batch ID / Key</th>
-                <th class="py-2.5 px-3">Station</th>
+                <th class="py-2.5 px-3">Devices</th>
                 <th class="py-2.5 px-3">Destination</th>
                 <th class="py-2.5 px-3">Window (UTC)</th>
                 <th class="py-2.5 px-3 text-center">Interval</th>
@@ -282,10 +282,18 @@
                   </div>
                 </td>
 
-                <!-- Station -->
+                <!-- Devices (Unified Multi-Device Support) -->
                 <td class="py-2.5 px-3">
-                  <span class="px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    {{ item.device ? item.device.device_code : ('Station #' + item.device_id) }}
+                  <div v-if="item.device_count > 1 || (item.devices_summary && item.devices_summary.includes(','))">
+                    <span class="px-2 py-0.5 rounded-md font-bold bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-3xs" :title="item.devices_summary">
+                      {{ item.device_count || 2 }} Devices
+                    </span>
+                    <div class="text-4xs text-slate-400 truncate max-w-[150px] mt-0.5" :title="item.devices_summary">
+                      {{ item.devices_summary }}
+                    </div>
+                  </div>
+                  <span v-else class="px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-3xs">
+                    {{ item.devices_summary || (item.device ? item.device.device_code : (item.device_id ? 'Station #' + item.device_id : 'All Devices')) }}
                   </span>
                 </td>
 
@@ -653,24 +661,81 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
               >
                 <option value="STANDARD">Standard Datalogger</option>
+                <option value="MULTI_DEVICE_FLAT">Multi-Device Unified Flat</option>
+                <option value="MULTI_DEVICE_NESTED">Multi-Device Nested by Device</option>
+                <option value="MULTI_DEVICE_ARRAY">Multi-Device Array of Devices</option>
                 <option value="KLHK_SPARING">KLHK SPARING (Flat Standard)</option>
                 <option value="NESTED_SCADA">Nested SCADA Telemetry</option>
                 <option value="CUSTOM">Custom Schema</option>
               </select>
             </div>
 
-            <!-- Structure Toggle (FLAT vs NESTED) -->
+            <!-- Structure Toggle -->
             <div>
               <label class="block text-slate-500 mb-1">JSON Structure</label>
               <select
                 v-model="payloadConfig.structure"
                 @change="triggerLivePreview"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-cyan-600 dark:text-cyan-400"
               >
                 <option value="FLAT">FLAT (Root Key-Value)</option>
-                <option value="NESTED">NESTED (Hierarchical Sub-Object)</option>
+                <option value="NESTED">NESTED (Sub-Object under key)</option>
+                <option value="NESTED_BY_DEVICE">NESTED_BY_DEVICE (Grouped by Device)</option>
+                <option value="ARRAY_BY_DEVICE">ARRAY_BY_DEVICE (Array of Devices)</option>
               </select>
             </div>
+          </div>
+
+          <!-- Multi-Device Identity & Collision Handling -->
+          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-slate-700 dark:text-slate-300 text-2xs uppercase tracking-wider">Multi-Device Identity & Conflicts</span>
+              <label class="flex items-center space-x-1.5 cursor-pointer text-3xs font-semibold text-cyan-600 dark:text-cyan-400">
+                <input
+                  v-model="payloadConfig.include_device_identity"
+                  @change="triggerLivePreview"
+                  type="checkbox"
+                  class="rounded border-slate-700 text-cyan-500 focus:ring-0"
+                />
+                <span>Include Device Identity in Payload</span>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-2xs">
+              <div>
+                <label class="block text-slate-500 mb-1">Device Identity Mode</label>
+                <select
+                  v-model="payloadConfig.device_identity_mode"
+                  @change="triggerLivePreview"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono"
+                >
+                  <option value="NONE">NONE (Omit from external JSON)</option>
+                  <option value="FIELD">FIELD (Top-level Station ID field)</option>
+                  <option value="NESTED_BY_DEVICE">NESTED_BY_DEVICE (Keyed by Device Code)</option>
+                  <option value="ARRAY_BY_DEVICE">ARRAY_BY_DEVICE (List of Device Records)</option>
+                  <option value="PREFIX">PREFIX (Prefix keys: aqms01_pm25)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-500 mb-1">Parameter Collision Handling</label>
+                <select
+                  v-model="payloadConfig.conflict_resolution"
+                  @change="triggerLivePreview"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono font-bold text-amber-500"
+                >
+                  <option value="FAIL_ON_CONFLICT">FAIL_ON_CONFLICT (Validate & Error)</option>
+                  <option value="PREFIX">PREFIX (Auto-prefix: aqms01_pm25)</option>
+                  <option value="CUSTOM_MAPPING">CUSTOM_MAPPING (Explicit Aliases)</option>
+                  <option value="ARRAY">ARRAY (Keep both in array [v1, v2])</option>
+                  <option value="PRIORITY_PRIMARY">PRIORITY_PRIMARY (Primary device only)</option>
+                  <option value="AVERAGE">AVERAGE (Cross-device mean average)</option>
+                </select>
+              </div>
+            </div>
+            <p class="text-4xs text-slate-400">
+              * Internal aggregation ID, device ID, and parameter ID are always stored in DB audit records regardless of external JSON format.
+            </p>
           </div>
 
           <!-- Nested Key Name (if NESTED) -->
@@ -897,6 +962,7 @@
               <table class="w-full text-left text-3xs">
                 <thead class="bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase">
                   <tr>
+                    <th class="p-2">Device</th>
                     <th class="p-2">Param Code</th>
                     <th class="p-2">Name</th>
                     <th class="p-2 text-right">Aggregated Value</th>
@@ -906,7 +972,10 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                  <tr v-for="val in inspectDetail.source_values" :key="val.parameter_id">
+                  <tr v-for="val in inspectDetail.source_values" :key="val.aggregation_result_id + '-' + val.parameter_id">
+                    <td class="p-2 font-bold text-cyan-600 dark:text-cyan-400">
+                      {{ val.device_code || ('Device #' + val.device_id) }}
+                    </td>
                     <td class="p-2 font-bold text-slate-900 dark:text-white">{{ val.parameter_code }}</td>
                     <td class="p-2 text-slate-600 dark:text-slate-300">{{ val.parameter_name }}</td>
                     <td class="p-2 text-right font-bold" :class="val.value !== null ? 'text-cyan-500' : 'text-slate-400'">
@@ -1206,6 +1275,9 @@ export default {
         interval_field: 'interval_minutes',
         structure: 'FLAT',
         nested_data_key: 'data',
+        include_device_identity: false,
+        device_identity_mode: 'NONE',
+        conflict_resolution: 'FAIL_ON_CONFLICT',
         include_units: false,
         include_quality: false,
         include_metadata: true,
@@ -1431,12 +1503,13 @@ export default {
     async triggerLivePreview() {
       if (!this.selectedDestinationId) return;
       try {
-        const res = await axios.get(`/api/destinations/${this.selectedDestinationId}/preview`);
+        this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
+        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/preview`, this.payloadConfig);
         if (res.data && res.data.success) {
           this.previewJSON = res.data.data.preview;
         }
       } catch (err) {
-        this.previewJSON = '// Error: ' + err.message;
+        this.previewJSON = '// Preview validation error:\n' + (err.response?.data?.error || err.message);
       }
     },
     async savePayloadConfig() {
@@ -1528,12 +1601,51 @@ export default {
     },
     applyTemplatePreset() {
       const p = this.payloadConfig.template_type;
-      if (p === 'KLHK_SPARING') {
+      if (p === 'MULTI_DEVICE_FLAT') {
         this.payloadConfig.station_id_field = 'station_id';
         this.payloadConfig.timestamp_field = 'timestamp';
         this.payloadConfig.timestamp_format = 'ISO8601';
         this.payloadConfig.interval_field = 'interval_minutes';
         this.payloadConfig.structure = 'FLAT';
+        this.payloadConfig.nested_data_key = 'data';
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        this.payloadConfig.conflict_resolution = 'PREFIX';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+      } else if (p === 'MULTI_DEVICE_NESTED') {
+        this.payloadConfig.station_id_field = 'station_id';
+        this.payloadConfig.timestamp_field = 'timestamp';
+        this.payloadConfig.timestamp_format = 'ISO8601';
+        this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.structure = 'NESTED_BY_DEVICE';
+        this.payloadConfig.nested_data_key = 'data';
+        this.payloadConfig.include_device_identity = true;
+        this.payloadConfig.device_identity_mode = 'NESTED_BY_DEVICE';
+        this.payloadConfig.conflict_resolution = 'FAIL_ON_CONFLICT';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+      } else if (p === 'MULTI_DEVICE_ARRAY') {
+        this.payloadConfig.station_id_field = 'station_id';
+        this.payloadConfig.timestamp_field = 'timestamp';
+        this.payloadConfig.timestamp_format = 'ISO8601';
+        this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.structure = 'ARRAY_BY_DEVICE';
+        this.payloadConfig.nested_data_key = 'devices';
+        this.payloadConfig.include_device_identity = true;
+        this.payloadConfig.device_identity_mode = 'ARRAY_BY_DEVICE';
+        this.payloadConfig.conflict_resolution = 'FAIL_ON_CONFLICT';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+      } else if (p === 'KLHK_SPARING') {
+        this.payloadConfig.station_id_field = 'station_id';
+        this.payloadConfig.timestamp_field = 'timestamp';
+        this.payloadConfig.timestamp_format = 'ISO8601';
+        this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.structure = 'FLAT';
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        this.payloadConfig.conflict_resolution = 'PREFIX';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
       } else if (p === 'NESTED_SCADA') {
@@ -1543,6 +1655,9 @@ export default {
         this.payloadConfig.interval_field = 'periodMin';
         this.payloadConfig.structure = 'NESTED';
         this.payloadConfig.nested_data_key = 'measurements';
+        this.payloadConfig.include_device_identity = true;
+        this.payloadConfig.device_identity_mode = 'FIELD';
+        this.payloadConfig.conflict_resolution = 'PREFIX';
         this.payloadConfig.include_units = true;
         this.payloadConfig.include_quality = true;
       } else {
