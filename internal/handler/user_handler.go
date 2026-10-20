@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -18,7 +19,7 @@ func NewUserHandler(authService *service.AuthService) *UserHandler {
 	return &UserHandler{authService: authService}
 }
 
-func (h *UserHandler) getActorInfo(c *gin.Context) (uint, string, string, string) {
+func (h *UserHandler) getActorInfo(c *gin.Context) (uint, string, string, string, string) {
 	var actorID uint
 	if uid, exists := c.Get("userID"); exists {
 		if id, ok := uid.(uint); ok {
@@ -31,9 +32,15 @@ func (h *UserHandler) getActorInfo(c *gin.Context) (uint, string, string, string
 			actorUsername = un
 		}
 	}
+	actorRole := ""
+	if r, exists := c.Get("role"); exists {
+		if rs, ok := r.(string); ok {
+			actorRole = rs
+		}
+	}
 	ip := c.ClientIP()
 	ua := c.Request.UserAgent()
-	return actorID, actorUsername, ip, ua
+	return actorID, actorUsername, actorRole, ip, ua
 }
 
 // ListUsers returns paginated users with optional search and status filtering
@@ -99,9 +106,13 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	actorID, actorUsername, ip, ua := h.getActorInfo(c)
-	user, err := h.authService.CreateUser(req, actorID, actorUsername, ip, ua)
+	actorID, actorUsername, actorRole, ip, ua := h.getActorInfo(c)
+	user, err := h.authService.CreateUser(req, actorID, actorUsername, actorRole, ip, ua)
 	if err != nil {
+		if strings.HasPrefix(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -124,9 +135,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	actorID, actorUsername, ip, ua := h.getActorInfo(c)
-	user, err := h.authService.UpdateUser(uint(id), req, actorID, actorUsername, ip, ua)
+	actorID, actorUsername, actorRole, ip, ua := h.getActorInfo(c)
+	user, err := h.authService.UpdateUser(uint(id), req, actorID, actorUsername, actorRole, ip, ua)
 	if err != nil {
+		if strings.HasPrefix(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -151,8 +166,12 @@ func (h *UserHandler) ToggleUserActive(c *gin.Context) {
 		return
 	}
 
-	actorID, actorUsername, ip, ua := h.getActorInfo(c)
-	if err := h.authService.SetUserActive(uint(id), req.IsActive, actorID, actorUsername, ip, ua); err != nil {
+	actorID, actorUsername, actorRole, ip, ua := h.getActorInfo(c)
+	if err := h.authService.SetUserActive(uint(id), req.IsActive, actorID, actorUsername, actorRole, ip, ua); err != nil {
+		if strings.HasPrefix(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -181,8 +200,12 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	actorID, actorUsername, ip, ua := h.getActorInfo(c)
-	if err := h.authService.ResetPassword(uint(id), req.Password, actorID, actorUsername, ip, ua); err != nil {
+	actorID, actorUsername, actorRole, ip, ua := h.getActorInfo(c)
+	if err := h.authService.ResetPassword(uint(id), req.Password, actorID, actorUsername, actorRole, ip, ua); err != nil {
+		if strings.HasPrefix(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -202,8 +225,12 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	actorID, actorUsername, ip, ua := h.getActorInfo(c)
-	if err := h.authService.DeleteUser(uint(id), actorID, actorUsername, ip, ua); err != nil {
+	actorID, actorUsername, actorRole, ip, ua := h.getActorInfo(c)
+	if err := h.authService.DeleteUser(uint(id), actorID, actorUsername, actorRole, ip, ua); err != nil {
+		if strings.HasPrefix(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}

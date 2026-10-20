@@ -37,6 +37,7 @@
         </button>
 
         <button id="tab-roles"
+                v-if="isSuperAdmin"
                 @click="activeTab = 'roles'"
                 class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
                 :class="activeTab === 'roles' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-white font-semibold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
@@ -182,7 +183,7 @@
 
                 <!-- Actions -->
                 <td class="px-4 py-3 text-right">
-                  <div class="flex items-center justify-end gap-1.5">
+                  <div v-if="canManageUser(u)" class="flex items-center justify-end gap-1.5">
                     <!-- Edit Button -->
                     <button @click="openEditUserModal(u)"
                             class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-500 transition-colors"
@@ -226,6 +227,9 @@
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       </svg>
                     </button>
+                  </div>
+                  <div v-else class="text-3xs font-mono text-slate-400 italic">
+                    Protected
                   </div>
                 </td>
               </tr>
@@ -398,7 +402,7 @@
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Assign Role *</label>
             <select v-model="userForm.role_id" required
                     class="w-full bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200">
-              <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }}</option>
+              <option v-for="r in assignableRoles" :key="r.id" :value="r.id">{{ r.name }}</option>
             </select>
           </div>
 
@@ -440,7 +444,7 @@
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Role</label>
             <select v-model="editUserForm.role_id" required
                     class="w-full bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200">
-              <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }}</option>
+              <option v-for="r in assignableRoles" :key="r.id" :value="r.id">{{ r.name }}</option>
             </select>
           </div>
 
@@ -565,6 +569,27 @@ export default {
       },
     };
   },
+  computed: {
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    isAdmin() {
+      return this.userRole === 'ADMIN';
+    },
+    assignableRoles() {
+      if (this.isSuperAdmin) {
+        return this.roles;
+      }
+      return this.roles.filter(r => {
+        const name = (r.name || '').toUpperCase();
+        return name !== 'SUPERADMIN' && name !== 'ADMINISTRATOR';
+      });
+    },
+  },
   mounted() {
     this.fetchUsers();
     this.fetchRoles();
@@ -636,18 +661,32 @@ export default {
       this.userStatusFilter = status;
       this.fetchUsers();
     },
+    canManageUser(u) {
+      if (this.isSuperAdmin) return true;
+      if (!u) return false;
+      const roleName = (u.role ? u.role.name : '').toUpperCase();
+      return roleName !== 'SUPERADMIN' && roleName !== 'ADMINISTRATOR';
+    },
     openCreateUserModal() {
+      const defaultRole = this.assignableRoles.length > 0 ? this.assignableRoles[0].id : 1;
       this.userForm = {
         username: '',
         full_name: '',
         email: '',
         password: '',
-        role_id: this.roles.length > 0 ? this.roles[0].id : 1,
+        role_id: defaultRole,
         is_active: true,
       };
       this.showCreateUserModal = true;
     },
     async submitCreateUser() {
+      if (!this.isSuperAdmin) {
+        const targetRole = this.roles.find(r => r.id === this.userForm.role_id);
+        if (targetRole && (targetRole.name.toUpperCase() === 'SUPERADMIN' || targetRole.name.toUpperCase() === 'ADMINISTRATOR')) {
+          this.showToast('You do not have permission to assign the SUPERADMIN role.', 'error');
+          return;
+        }
+      }
       try {
         const res = await axios.post('/api/users', this.userForm);
         if (res.data && res.data.success) {
@@ -669,6 +708,13 @@ export default {
       this.showEditUserModal = true;
     },
     async submitEditUser() {
+      if (!this.isSuperAdmin) {
+        const targetRole = this.roles.find(r => r.id === this.editUserForm.role_id);
+        if (targetRole && (targetRole.name.toUpperCase() === 'SUPERADMIN' || targetRole.name.toUpperCase() === 'ADMINISTRATOR')) {
+          this.showToast('You do not have permission to assign the SUPERADMIN role.', 'error');
+          return;
+        }
+      }
       try {
         const res = await axios.put(`/api/users/${this.editingUser.id}`, this.editUserForm);
         if (res.data && res.data.success) {

@@ -5003,6 +5003,13 @@ export default {
     sidebarAutoHide() {
       return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
   },
   watch: {
     allParameters: {
@@ -7704,7 +7711,14 @@ export default {
         const endISO = new Date(this.exportForm.endTime).toISOString();
 
         let endpoint = '/api/telemetry/history';
-        if (this.exportForm.mode === 'RAW') endpoint = '/api/telemetry/raw';
+        if (this.exportForm.mode === 'RAW') {
+          if (!this.isSuperAdmin) {
+            this.exportForm.mode = 'PROCESSED';
+            endpoint = '/api/telemetry/history';
+          } else {
+            endpoint = '/api/telemetry/raw';
+          }
+        }
         else if (this.exportForm.mode === 'AGGREGATED') endpoint = '/api/aggregations/results';
 
         const params = {

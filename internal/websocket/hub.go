@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,9 +23,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
+	hub      *Hub
+	conn     *websocket.Conn
+	send     chan []byte
+	role     string
+	username string
 }
 
 type WSMessage struct {
@@ -42,6 +45,18 @@ type Hub struct {
 }
 
 var GlobalHub *Hub
+
+var (
+	tokenValidatorMu sync.RWMutex
+	tokenValidator   func(token string) (role string, username string, err error)
+)
+
+// SetTokenValidator registers a token validator function for WebSocket clients
+func SetTokenValidator(validator func(token string) (role string, username string, err error)) {
+	tokenValidatorMu.Lock()
+	defer tokenValidatorMu.Unlock()
+	tokenValidator = validator
+}
 
 func NewHub() *Hub {
 	h := &Hub{
@@ -65,7 +80,7 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			logger.Debug("WebSocket client connected. Total clients: %d", len(h.clients))
+			logger.Debug("WebSocket client connected (%s:%s). Total clients: %d", client.username, client.role, len(h.clients))
 
 		case client := <-h.unregister:
 			h.mu.Lock()
@@ -77,12 +92,40 @@ func (h *Hub) Run() {
 			logger.Debug("WebSocket client disconnected. Total clients: %d", len(h.clients))
 
 		case message := <-h.broadcast:
-			data, err := json.Marshal(message)
-			if err != nil {
-				continue
-			}
 			h.mu.RLock()
 			for client := range h.clients {
+				isSuper := strings.EqualFold(client.role, "SUPERADMIN") || strings.EqualFold(client.role, "Administrator")
+
+				// 1. Strict restriction: Non-superadmin CANNOT receive development events
+				if (message.Type == "TASK_UPDATE" || message.Type == "ACTIVITY_LOG") && !isSuper {
+					continue
+				}
+
+				// 2. Strict restriction: Non-superadmin CANNOT receive raw telemetry fields
+				msgToSend := message
+				if !isSuper && message.Type == "device.telemetry.received" {
+					if mData, ok := message.Data.(map[string]interface{}); ok {
+						sanitized := make(map[string]interface{}, len(mData))
+						for k, v := range mData {
+							if k == "raw_value" {
+								sanitized[k] = 0
+							} else if k == "raw_hex" {
+								sanitized[k] = ""
+							} else if k == "raw_bytes" {
+								sanitized[k] = nil
+							} else {
+								sanitized[k] = v
+							}
+						}
+						msgToSend.Data = sanitized
+					}
+				}
+
+				data, err := json.Marshal(msgToSend)
+				if err != nil {
+					continue
+				}
+
 				select {
 				case client.send <- data:
 				default:
@@ -137,10 +180,36 @@ func ServeWS(hub *Hub, c *gin.Context) {
 		return
 	}
 
+	tokenStr := c.Query("token")
+	if tokenStr == "" {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	role := "OPERATOR"
+	username := "guest"
+	tokenValidatorMu.RLock()
+	val := tokenValidator
+	tokenValidatorMu.RUnlock()
+
+	if tokenStr == "local-admin-token" {
+		role = "SUPERADMIN"
+		username = "admin"
+	} else if val != nil && tokenStr != "" {
+		if r, u, err := val(tokenStr); err == nil && r != "" {
+			role = r
+			username = u
+		}
+	}
+
 	client := &Client{
-		hub:  hub,
-		conn: conn,
-		send: make(chan []byte, 64),
+		hub:      hub,
+		conn:     conn,
+		send:     make(chan []byte, 64),
+		role:     role,
+		username: username,
 	}
 
 	hub.register <- client

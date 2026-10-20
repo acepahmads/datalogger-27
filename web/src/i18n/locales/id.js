@@ -2098,7 +2098,21 @@ export default {
     "saveConfig": "Simpan Konfigurasi"
   },
   "customerCompany": "Perusahaan Customer",
-  "makerCompany": "Perusahaan Pembuat & Pengembang"
+  "makerCompany": "Perusahaan Pembuat & Pengembang",
+  "accessDenied": {
+    "title": "Akses Ditolak (HTTP 403)",
+    "subtitle": "Anda tidak memiliki izin yang diperlukan untuk mengakses sumber daya atau fitur ini.",
+    "currentUser": "Akun Saat Ini",
+    "assignedRole": "Peran Ditugaskan",
+    "requestedPath": "Jalur Target",
+    "policyNotice": "Berdasarkan kebijakan Kontrol Akses Berbasis Peran (RBAC) Tahap 7, pelacakan Pengembangan dan inspeksi telemetri mentah secara ketat hanya dapat diakses oleh SUPERADMIN. Modul operasional dan teknik diizinkan berdasarkan kapabilitas peran yang sesuai."
+  },
+  "roles": {
+    "superadmin": "SUPERADMIN",
+    "admin": "ADMIN",
+    "engineer": "ENGINEER",
+    "operator": "OPERATOR"
+  }
 };
 
 

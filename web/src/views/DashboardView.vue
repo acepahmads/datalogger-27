@@ -17,7 +17,7 @@
           <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 mr-1.5 animate-pulse"></span>
           {{ $t('navigation.operatorConsole') || 'Operator Console' }}
         </router-link>
-        <button @click="showNewTaskModal = true"
+        <button v-if="isSuperAdmin" @click="showNewTaskModal = true"
                 class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
           <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -184,8 +184,8 @@
 
     <!-- Main Content: Dual-Column (Development Progress Left, Runtime Edge Monitoring Right) -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-      <!-- Left 7 cols: Development Snapshot & Quick Tasks -->
-      <div class="lg:col-span-7 space-y-5">
+      <!-- Left 7 cols: Development Snapshot & Quick Tasks (SUPERADMIN ONLY) -->
+      <div v-if="isSuperAdmin" class="lg:col-span-7 space-y-5">
         <!-- Development Summary Card -->
         <div class="saas-card p-5 space-y-4">
           <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-3">
@@ -251,8 +251,8 @@
         </div>
       </div>
 
-      <!-- Right 5 cols: Edge Runtime & MariaDB Monitoring -->
-      <div class="lg:col-span-5 space-y-5">
+      <!-- Right cols: Edge Runtime & MariaDB Monitoring (Takes 5 cols if superadmin, 12 cols if not) -->
+      <div :class="isSuperAdmin ? 'lg:col-span-5' : 'lg:col-span-12'" class="space-y-5">
         <!-- Hardware Diagnostics Card -->
         <div class="saas-card p-5 space-y-4">
           <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-3">
@@ -403,6 +403,13 @@ export default {
     };
   },
   computed: {
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
     progress() {
       return this.$store.state.progress;
     },
@@ -417,12 +424,15 @@ export default {
     async refreshAll() {
       this.refreshing = true;
       try {
-        await Promise.all([
-          this.$store.dispatch('fetchSystemStatus'),
-          this.$store.dispatch('fetchProgress'),
-          this.$store.dispatch('fetchTasks'),
-          this.$store.dispatch('fetchActivity'),
-        ]);
+        const dispatches = [this.$store.dispatch('fetchSystemStatus')];
+        if (this.isSuperAdmin) {
+          dispatches.push(
+            this.$store.dispatch('fetchProgress'),
+            this.$store.dispatch('fetchTasks'),
+            this.$store.dispatch('fetchActivity')
+          );
+        }
+        await Promise.all(dispatches);
       } finally {
         setTimeout(() => {
           this.refreshing = false;

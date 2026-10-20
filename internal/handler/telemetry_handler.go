@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -22,6 +23,30 @@ func NewTelemetryHandler(telemetryService *service.TelemetryService) *TelemetryH
 	return &TelemetryHandler{telemetryService: telemetryService}
 }
 
+func isSuperAdmin(c *gin.Context) bool {
+	roleVal, exists := c.Get("role")
+	if !exists {
+		return false
+	}
+	role, ok := roleVal.(string)
+	return ok && (strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator"))
+}
+
+func sanitizeRawData(records []model.RawData) {
+	for i := range records {
+		records[i].RawValue = 0
+		records[i].RawHex = ""
+		records[i].RawBytes = nil
+	}
+}
+
+func sanitizeLatest(items []service.LatestTelemetry) {
+	for i := range items {
+		items[i].RawValue = 0
+		items[i].RawHex = ""
+	}
+}
+
 // GetLatestForDevice handles GET /api/devices/:id/telemetry/latest
 func (h *TelemetryHandler) GetLatestForDevice(c *gin.Context) {
 	idVal, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -34,6 +59,10 @@ func (h *TelemetryHandler) GetLatestForDevice(c *gin.Context) {
 	if err != nil {
 		response.InternalError(c, "Failed to retrieve latest telemetry: "+err.Error())
 		return
+	}
+
+	if !isSuperAdmin(c) {
+		sanitizeLatest(results)
 	}
 
 	response.OK(c, results)
@@ -57,6 +86,11 @@ func (h *TelemetryHandler) GetLatestForParameter(c *gin.Context) {
 	if err != nil {
 		response.NotFound(c, "Parameter telemetry not found: "+err.Error())
 		return
+	}
+
+	if !isSuperAdmin(c) && result != nil {
+		result.RawValue = 0
+		result.RawHex = ""
 	}
 
 	response.OK(c, result)
@@ -141,6 +175,10 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 		return
 	}
 
+	if !isSuperAdmin(c) {
+		sanitizeRawData(records)
+	}
+
 	response.OK(c, response.PaginatedData{
 		Total:    total,
 		Page:     params.Page,
@@ -158,6 +196,10 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 		return
 	}
 
+	if !isSuperAdmin(c) {
+		sanitizeRawData(records)
+	}
+
 	response.OK(c, response.PaginatedData{
 		Total:    total,
 		Page:     params.Page,
@@ -168,6 +210,11 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 
 // GetRawTelemetry handles GET /api/devices/:id/telemetry/raw for diagnostic telemetry inspection
 func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
+	if !isSuperAdmin(c) {
+		response.Forbidden(c, "Access denied: raw telemetry inspection requires SUPERADMIN privileges")
+		return
+	}
+
 	devID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID format")
@@ -191,6 +238,11 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 
 // GetAllRawTelemetry handles GET /api/telemetry/raw for unified multi-device raw telemetry inspection
 func (h *TelemetryHandler) GetAllRawTelemetry(c *gin.Context) {
+	if !isSuperAdmin(c) {
+		response.Forbidden(c, "Access denied: raw telemetry inspection requires SUPERADMIN privileges")
+		return
+	}
+
 	params := h.parseTelemetryFilterParams(c, 0)
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {

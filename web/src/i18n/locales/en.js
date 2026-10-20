@@ -2098,7 +2098,21 @@ export default {
     "saveConfig": "Save Configuration"
   },
   "customerCompany": "Customer Organization",
-  "makerCompany": "System Maker & Developer"
+  "makerCompany": "System Maker & Developer",
+  "accessDenied": {
+    "title": "Access Restricted (HTTP 403)",
+    "subtitle": "You do not have the required permissions to access this resource or feature.",
+    "currentUser": "Current Account",
+    "assignedRole": "Assigned Role",
+    "requestedPath": "Target Path",
+    "policyNotice": "Under the Phase 7 Role-Based Access Control policy, Development tracking and raw telemetry inspection are strictly reserved for SUPERADMIN. Operational and engineering modules are provisioned based on explicit role capability."
+  },
+  "roles": {
+    "superadmin": "SUPERADMIN",
+    "admin": "ADMIN",
+    "engineer": "ENGINEER",
+    "operator": "OPERATOR"
+  }
 };
 
 

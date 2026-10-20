@@ -75,6 +75,13 @@ func main() {
 	// 6. Initialize Services
 	authService := service.NewAuthService(systemRepo, cfg)
 	middleware.SetPermissionChecker(authService.HasPermission)
+	websocket.SetTokenValidator(func(token string) (string, string, error) {
+		claims, err := authService.ValidateToken(token)
+		if err != nil || claims == nil {
+			return "", "", err
+		}
+		return claims.Role, claims.Username, nil
+	})
 	deviceService := service.NewDeviceService(deviceRepo, systemRepo)
 	phaseService := service.NewPhaseService(phaseRepo, systemRepo)
 	systemService := service.NewSystemService(systemRepo, phaseRepo, cfg)
@@ -225,16 +232,20 @@ func main() {
 		api.GET("/auth/me", middleware.JWTAuth(authService), authHandler.Me)
 		api.GET("/users/me", middleware.JWTAuth(authService), authHandler.Me)
 
-		// Development Phases & Tasks
-		api.GET("/phases", devHandler.GetPhases)
-		api.GET("/phases/:id", devHandler.GetPhaseByID)
-		api.GET("/progress", devHandler.GetProgress)
-		api.GET("/tasks", devHandler.GetTasks)
-		api.POST("/tasks", devHandler.CreateTask)
-		api.GET("/tasks/:id", devHandler.GetTaskByID)
-		api.PUT("/tasks/:id", devHandler.UpdateTask)
-		api.DELETE("/tasks/:id", devHandler.DeleteTask)
-		api.GET("/activity", devHandler.GetActivity)
+		// Development Phases & Tasks (Protected & Authorized — SUPERADMIN only)
+		devGroup := api.Group("")
+		devGroup.Use(middleware.JWTAuth(authService))
+		{
+			devGroup.GET("/phases", middleware.RequirePermission("development.view"), devHandler.GetPhases)
+			devGroup.GET("/phases/:id", middleware.RequirePermission("development.view"), devHandler.GetPhaseByID)
+			devGroup.GET("/progress", middleware.RequirePermission("development.view"), devHandler.GetProgress)
+			devGroup.GET("/tasks", middleware.RequirePermission("development.view"), devHandler.GetTasks)
+			devGroup.POST("/tasks", middleware.RequirePermission("development.manage"), devHandler.CreateTask)
+			devGroup.GET("/tasks/:id", middleware.RequirePermission("development.view"), devHandler.GetTaskByID)
+			devGroup.PUT("/tasks/:id", middleware.RequirePermission("development.manage"), devHandler.UpdateTask)
+			devGroup.DELETE("/tasks/:id", middleware.RequirePermission("development.manage"), devHandler.DeleteTask)
+			devGroup.GET("/activity", middleware.RequirePermission("development.view"), devHandler.GetActivity)
+		}
 
 		// System Diagnostics & Health
 		api.GET("/system/status", systemHandler.GetStatus)
@@ -293,7 +304,7 @@ func main() {
 			devicesGroup.GET("/:id/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForDevice)
 			devicesGroup.GET("/:id/parameters/:paramId/telemetry/latest", middleware.RequirePermission("device.view"), telemetryHandler.GetLatestForParameter)
 			devicesGroup.GET("/:id/telemetry/history", middleware.RequirePermission("device.view"), telemetryHandler.GetHistorical)
-			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetRawTelemetry)
+			devicesGroup.GET("/:id/telemetry/raw", middleware.RequirePermission("telemetry.raw"), telemetryHandler.GetRawTelemetry)
 			devicesGroup.GET("/:id/telemetry/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetDeviceQualitySummary)
 
 			// Phase 3.3 — Historical Downsampling
@@ -342,7 +353,7 @@ func main() {
 		telemetryGroup.Use(middleware.JWTAuth(authService))
 		{
 			telemetryGroup.GET("/history", middleware.RequirePermission("device.view"), telemetryHandler.GetAllHistorical)
-			telemetryGroup.GET("/raw", middleware.RequirePermission("device.view"), telemetryHandler.GetAllRawTelemetry)
+			telemetryGroup.GET("/raw", middleware.RequirePermission("telemetry.raw"), telemetryHandler.GetAllRawTelemetry)
 			telemetryGroup.GET("/downsampled", middleware.RequirePermission("device.view"), aggHandler.GetDownsampledHistory)
 			telemetryGroup.GET("/metrics", middleware.RequirePermission("device.view"), telemetryHandler.GetMetrics)
 			telemetryGroup.GET("/quality-summary", middleware.RequirePermission("device.view"), telemetryHandler.GetQualitySummary)

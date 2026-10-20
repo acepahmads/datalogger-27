@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
 
@@ -35,9 +37,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	roleName := "Viewer"
+	roleName := "OPERATOR"
 	if user.Role != nil {
-		roleName = user.Role.Name
+		uName := strings.ToUpper(user.Role.Name)
+		if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
+			roleName = uName
+		} else {
+			roleName = user.Role.Name
+		}
 	}
 
 	response.OK(c, gin.H{

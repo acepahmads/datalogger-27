@@ -438,7 +438,9 @@ func TestISPUService_StartupRecovery_NoSubHourlyRegulatoryRecords(t *testing.T) 
 
 	// Seed 2-minute aggregation results spanning 1 hour across an hourly boundary:
 	// From 08:50 to 09:12 (12 buckets: 08:50, 08:52, ..., 09:00, ..., 09:12)
-	baseTime := time.Date(2026, 10, 16, 8, 50, 0, 0, time.FixedZone("WIB", 7*3600))
+	nowWIB := time.Now().In(time.FixedZone("WIB", 7*3600))
+	targetHour := nowWIB.Truncate(time.Hour)
+	baseTime := targetHour.Add(-10 * time.Minute)
 	for i := 0; i < 12; i++ {
 		pEnd := baseTime.Add(time.Duration(i*2) * time.Minute)
 		db.Create(&model.AggregationResult{

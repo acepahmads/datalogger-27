@@ -169,6 +169,7 @@
         <span>{{ $t('deviceDetail.historical') }}</span>
       </button>
       <button
+        v-if="isSuperAdmin"
         @click="switchTab('raw')"
         :class="activeTab === 'raw' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -1690,8 +1691,8 @@
       </div>
     </div>
 
-    <!-- TAB 8: RAW TELEMETRY (Phase 3.1) -->
-    <div v-if="device && activeTab === 'raw'" class="space-y-4">
+    <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - SUPERADMIN ONLY) -->
+    <div v-if="device && activeTab === 'raw' && isSuperAdmin" class="space-y-4">
       <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
         <div>
           <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.rawInspectionTitle') }}</h3>
@@ -3152,6 +3153,13 @@ export default {
     };
   },
   computed: {
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
     timeRangeOptions() {
       return [
         { label: '15m', value: '15m' },
@@ -3906,6 +3914,10 @@ export default {
       }
     },
     switchTab(tab) {
+      if (tab === 'raw' && !this.isSuperAdmin) {
+        this.activeTab = 'telemetry';
+        return;
+      }
       this.activeTab = tab;
       if (tab === 'activity') {
         this.loadActivity();

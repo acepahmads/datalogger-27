@@ -189,9 +189,9 @@ func setupPackageCTestEnv(t *testing.T) *PackageCTestEnv {
 
 	// Create test users
 	var adminRole, engRole, opRole model.Role
-	db.Where("name = ?", "Administrator").First(&adminRole)
-	db.Where("name = ?", "Engineer").First(&engRole)
-	db.Where("name = ?", "Operator").First(&opRole)
+	db.Where("name = ? OR name = ?", "Administrator", "SUPERADMIN").First(&adminRole)
+	db.Where("name = ? OR name = ?", "Engineer", "ENGINEER").First(&engRole)
+	db.Where("name = ? OR name = ?", "Operator", "OPERATOR").First(&opRole)
 
 	passHash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
@@ -417,7 +417,7 @@ func TestPackageC2_UserCreateUpdateTogglePasswordAndAudit(t *testing.T) {
 	env := setupPackageCTestEnv(t)
 
 	var opRole model.Role
-	env.DB.Where("name = ?", "Operator").First(&opRole)
+	env.DB.Where("name = ? OR name = ?", "Operator", "OPERATOR").First(&opRole)
 
 	// 1. Create User
 	createPayload := map[string]interface{}{
@@ -515,7 +515,7 @@ func TestPackageC2_LastAdministratorProtection(t *testing.T) {
 
 	// Count admins
 	var adminRole model.Role
-	env.DB.Where("name = ?", "Administrator").First(&adminRole)
+	env.DB.Where("name = ? OR name = ?", "Administrator", "SUPERADMIN").First(&adminRole)
 
 	// Ensure there is only 1 admin
 	env.DB.Where("role_id = ? AND username != ?", adminRole.ID, "admin").Delete(&model.User{})
@@ -649,7 +649,7 @@ func TestPackageC3_RoleAndPermissionMatrixManagement(t *testing.T) {
 
 	// 6. Protection: Cannot delete system Administrator role
 	var adminRole model.Role
-	env.DB.Where("name = ?", "Administrator").First(&adminRole)
+	env.DB.Where("name = ? OR name = ?", "Administrator", "SUPERADMIN").First(&adminRole)
 	delAdminReq, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/roles/%d", adminRole.ID), nil)
 	delAdminReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
 	wDelAdmin := httptest.NewRecorder()

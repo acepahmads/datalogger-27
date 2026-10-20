@@ -62,7 +62,7 @@ axios.interceptors.response.use(
       try {
         const res = await axios.post('/api/auth/login', {
           username: 'admin',
-          password: 'admin123',
+          password: 'Password123!',
         });
         const newToken = res.data && res.data.data && res.data.data.token;
         if (newToken) {

@@ -123,14 +123,111 @@
         </div>
       </button>
 
-      <!-- 5. User Profile Badge -->
-      <div class="flex items-center space-x-2 pl-3 border-l border-slate-200 dark:border-slate-800">
-        <div class="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-3xs font-bold text-blue-500 dark:text-blue-400 font-sans">
-          {{ user.username ? user.username.charAt(0).toUpperCase() : 'A' }}
-        </div>
-        <div class="hidden sm:block text-left font-sans">
-          <div class="text-xs font-medium text-slate-800 dark:text-slate-200 leading-tight">{{ user.username }}</div>
-          <div class="text-3xs text-slate-500 dark:text-slate-400 leading-tight">{{ user.role || $t('header.userRole') }}</div>
+      <!-- 5. User Profile Badge & Quick Role Switcher -->
+      <div class="relative pl-3 border-l border-slate-200 dark:border-slate-800" ref="userDropdown">
+        <button
+          type="button"
+          @click="isUserMenuOpen = !isUserMenuOpen"
+          class="flex items-center space-x-2 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors cursor-pointer text-left"
+          title="Switch User Role / Account"
+        >
+          <div class="w-7 h-7 rounded-full flex items-center justify-center text-3xs font-bold font-sans ring-1"
+               :class="roleAvatarClass">
+            {{ user.username ? user.username.charAt(0).toUpperCase() : 'A' }}
+          </div>
+          <div class="hidden sm:block text-left font-sans">
+            <div class="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">@{{ user.username }}</div>
+            <div class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-4xs font-mono font-bold mt-0.5"
+                 :class="roleBadgeClass">
+              <span class="w-1.5 h-1.5 rounded-full" :class="roleDotClass"></span>
+              {{ userRole }}
+            </div>
+          </div>
+          <svg class="w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        <!-- Dropdown Menu -->
+        <div
+          v-if="isUserMenuOpen"
+          class="absolute right-0 mt-2 w-64 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs font-sans animate-fade-in"
+        >
+          <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+            <div class="text-2xs text-slate-400 font-semibold uppercase tracking-wider">Active Session</div>
+            <div class="font-bold text-slate-900 dark:text-white mt-0.5">{{ user.full_name || user.username }}</div>
+            <div class="text-3xs font-mono text-slate-400">@{{ user.username }} &bull; {{ userRole }}</div>
+          </div>
+
+          <div class="py-1">
+            <div class="px-3 py-1.5 text-3xs text-slate-400 font-semibold uppercase tracking-wider">
+              Quick Role Switch (Phase 7 RBAC)
+            </div>
+
+            <!-- Role 1: SUPERADMIN -->
+            <button
+              @click="switchAccount('admin', 'Password123!')"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              :class="userRole === 'SUPERADMIN' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
+            >
+              <div>
+                <div class="font-semibold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                  SUPERADMIN
+                </div>
+                <div class="text-4xs text-slate-400 font-mono">@admin (Full Dev + Raw Access)</div>
+              </div>
+              <span v-if="userRole === 'SUPERADMIN'" class="text-xs">&check;</span>
+            </button>
+
+            <!-- Role 2: ADMIN -->
+            <button
+              @click="switchAccount('admin_user', 'Password123!')"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              :class="userRole === 'ADMIN' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
+            >
+              <div>
+                <div class="font-semibold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                  ADMIN
+                </div>
+                <div class="text-4xs text-slate-400 font-mono">@admin_user (Ops Admin, No Dev/Raw)</div>
+              </div>
+              <span v-if="userRole === 'ADMIN'" class="text-xs">&check;</span>
+            </button>
+
+            <!-- Role 3: ENGINEER -->
+            <button
+              @click="switchAccount('engineer_user', 'Password123!')"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              :class="userRole === 'ENGINEER' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
+            >
+              <div>
+                <div class="font-semibold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                  ENGINEER
+                </div>
+                <div class="text-4xs text-slate-400 font-mono">@engineer_user (Sensors/Params, No Dev/Raw)</div>
+              </div>
+              <span v-if="userRole === 'ENGINEER'" class="text-xs">&check;</span>
+            </button>
+
+            <!-- Role 4: OPERATOR -->
+            <button
+              @click="switchAccount('operator_user', 'Password123!')"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              :class="userRole === 'OPERATOR' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
+            >
+              <div>
+                <div class="font-semibold text-xs flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  OPERATOR
+                </div>
+                <div class="text-4xs text-slate-400 font-mono">@operator_user (Console/Alarms, No Dev/Raw)</div>
+              </div>
+              <span v-if="userRole === 'OPERATOR'" class="text-xs">&check;</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -146,6 +243,7 @@ export default {
       clockInterval: null,
       isLangMenuOpen: false,
       isThemeMenuOpen: false,
+      isUserMenuOpen: false,
     };
   },
   computed: {
@@ -153,7 +251,40 @@ export default {
       return this.$store.state.systemStatus;
     },
     user() {
-      return this.$store.state.user;
+      return this.$store.state.user || {};
+    },
+    userRole() {
+      return ((this.user && this.user.role) || 'SUPERADMIN').toUpperCase();
+    },
+    roleBadgeClass() {
+      if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') {
+        return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30';
+      }
+      if (this.userRole === 'ADMIN') {
+        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30';
+      }
+      if (this.userRole === 'ENGINEER') {
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30';
+      }
+      return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+    },
+    roleDotClass() {
+      if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') return 'bg-purple-500';
+      if (this.userRole === 'ADMIN') return 'bg-blue-500';
+      if (this.userRole === 'ENGINEER') return 'bg-amber-500';
+      return 'bg-emerald-500';
+    },
+    roleAvatarClass() {
+      if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') {
+        return 'bg-purple-600/20 text-purple-600 dark:text-purple-400 ring-purple-500/40';
+      }
+      if (this.userRole === 'ADMIN') {
+        return 'bg-blue-600/20 text-blue-600 dark:text-blue-400 ring-blue-500/40';
+      }
+      if (this.userRole === 'ENGINEER') {
+        return 'bg-amber-600/20 text-amber-600 dark:text-amber-400 ring-amber-500/40';
+      }
+      return 'bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 ring-emerald-500/40';
     },
     sidebarAutoHide() {
       return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
@@ -187,7 +318,6 @@ export default {
       if (s.database_status && typeof s.database_status === 'string' && s.database_status.toLowerCase().includes('fail')) {
         return 'FAILURE';
       }
-      // Distinguishes application health from systemStatus.online_devices communication health
       if (s.offline_devices > 0 || this.activeAlarmsCount > 0 || (s.critical_alarms && s.critical_alarms > 0) || (this.systemStatus && this.systemStatus.online_devices === 0)) {
         return 'DEGRADED';
       }
@@ -207,11 +337,13 @@ export default {
     this.clockInterval = setInterval(() => {
       this.currentTime = new Date().toLocaleTimeString('en-GB');
     }, 1000);
+    document.addEventListener('click', this.handleOutsideClick);
   },
   beforeDestroy() {
     if (this.clockInterval) {
       clearInterval(this.clockInterval);
     }
+    document.removeEventListener('click', this.handleOutsideClick);
   },
   methods: {
     toggleSidebarAutoHide() {
@@ -226,12 +358,6 @@ export default {
       const next = this.isDarkMode ? 'light' : 'dark';
       this.$store.dispatch('setTheme', next);
     },
-    toggleLangMenu() {
-      this.toggleLanguage();
-    },
-    toggleThemeMenu() {
-      this.toggleTheme();
-    },
     selectLanguage(lang) {
       this.$store.dispatch('setLanguage', lang);
       this.isLangMenuOpen = false;
@@ -240,12 +366,27 @@ export default {
       this.$store.dispatch('setTheme', theme);
       this.isThemeMenuOpen = false;
     },
-    handleOutsideClick(event) {
-      if (this.$refs.langDropdown && !this.$refs.langDropdown.contains(event.target)) {
-        this.isLangMenuOpen = false;
+    async switchAccount(username, password) {
+      this.isUserMenuOpen = false;
+      try {
+        await this.$store.dispatch('login', { username, password });
+        const meta = this.$route.meta || {};
+        const roles = meta.roles || [];
+        const currentRole = (this.$store.state.user?.role || '').toUpperCase();
+        if (roles.length > 0 && !roles.includes(currentRole)) {
+          this.$router.push('/dashboard');
+        } else {
+          // Re-trigger router refresh
+          this.$router.replace({ path: this.$route.path, query: { ...this.$route.query, _r: Date.now() } }).catch(() => {});
+        }
+      } catch (err) {
+        console.error('Failed to switch account:', err);
+        alert('Failed to switch user account: ' + (err.message || 'Error'));
       }
-      if (this.$refs.themeDropdown && !this.$refs.themeDropdown.contains(event.target)) {
-        this.isThemeMenuOpen = false;
+    },
+    handleOutsideClick(event) {
+      if (this.$refs.userDropdown && !this.$refs.userDropdown.contains(event.target)) {
+        this.isUserMenuOpen = false;
       }
     },
   },

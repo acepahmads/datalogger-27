@@ -86,9 +86,16 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 
 		role, _ := roleVal.(string)
 
-		// Administrator always has full system permissions
-		if strings.EqualFold(role, "Administrator") || strings.EqualFold(role, "admin") {
+		// SUPERADMIN (and legacy Administrator) always has full system permissions
+		if strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator") {
 			c.Next()
+			return
+		}
+
+		// Strict restriction: Non-superadmin CANNOT access development.* or telemetry.raw
+		if strings.HasPrefix(permissionCode, "development.") || permissionCode == "telemetry.raw" {
+			response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")
+			c.Abort()
 			return
 		}
 
@@ -101,37 +108,76 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Engineer has permissions for creating, updating, managing, viewing devices, backup operations, viewing retention, and notification/alarm management
-		if strings.EqualFold(role, "Engineer") {
-			if permissionCode == "device.view" || permissionCode == "device.create" ||
-				permissionCode == "device.update" || permissionCode == "device.manage" ||
-				permissionCode == "device.communication.view" || permissionCode == "device.communication.manage" ||
-				permissionCode == "device.communication.test" ||
-				permissionCode == "backup.view" || permissionCode == "backup.create" || permissionCode == "backup.validate" ||
-				permissionCode == "retention.view" ||
-				permissionCode == "notification.view" || permissionCode == "notification.manage" ||
-				permissionCode == "alarm.view" || permissionCode == "alarm.manage" || permissionCode == "alarm.acknowledge" ||
-				permissionCode == "report.view" || permissionCode == "report.generate" ||
-				permissionCode == "config.view" || permissionCode == "user.view" || permissionCode == "role.view" ||
-				permissionCode == "category.view" || permissionCode == "category.manage" || permissionCode == "category.assign" {
+		// ADMIN fallback: Operational & administrative permissions (strictly no dev, raw, or role.manage)
+		if strings.EqualFold(role, "ADMIN") {
+			if !strings.HasPrefix(permissionCode, "development.") && permissionCode != "telemetry.raw" && permissionCode != "role.manage" {
 				c.Next()
 				return
 			}
 		}
 
-		// Operator has operational read/view, report preview/generate, and alarm acknowledgement permissions
-		if strings.EqualFold(role, "Operator") {
-			if permissionCode == "device.view" || permissionCode == "device.communication.view" ||
-				permissionCode == "notification.view" || permissionCode == "alarm.view" ||
-				permissionCode == "alarm.acknowledge" ||
-				permissionCode == "report.view" || permissionCode == "report.generate" ||
-				permissionCode == "category.view" {
+		// ENGINEER fallback
+		if strings.EqualFold(role, "ENGINEER") || strings.EqualFold(role, "Engineer") {
+			engAllowed := map[string]bool{
+				"device.view": true, "device.create": true, "device.update": true, "device.manage": true,
+				"device.communication.view": true, "device.communication.manage": true, "device.communication.test": true,
+				"telemetry.view": true,
+				"category.view": true, "category.manage": true, "category.assign": true,
+				"backup.view": true, "backup.create": true, "backup.validate": true,
+				"retention.view": true,
+				"alarm.view": true, "alarm.acknowledge": true, "alarm.manage": true,
+				"notification.view": true, "notification.manage": true,
+				"report.view": true, "report.generate": true,
+				"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
+				"config.view": true,
+			}
+			if engAllowed[permissionCode] {
+				c.Next()
+				return
+			}
+		}
+
+		// OPERATOR fallback
+		if strings.EqualFold(role, "OPERATOR") || strings.EqualFold(role, "Operator") {
+			opAllowed := map[string]bool{
+				"device.view": true, "device.communication.view": true,
+				"telemetry.view": true,
+				"category.view": true,
+				"alarm.view": true, "alarm.acknowledge": true,
+				"notification.view": true,
+				"report.view": true, "report.generate": true,
+				"ispu.view": true, "ispu.export": true,
+			}
+			if opAllowed[permissionCode] {
 				c.Next()
 				return
 			}
 		}
 
 		response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")
+		c.Abort()
+	}
+}
+
+// RequireRole checks if the authenticated user has one of the specified roles
+func RequireRole(allowedRoles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleVal, exists := c.Get("role")
+		if !exists {
+			response.Unauthorized(c, "Authentication required")
+			c.Abort()
+			return
+		}
+
+		role, _ := roleVal.(string)
+		for _, allowed := range allowedRoles {
+			if strings.EqualFold(role, allowed) || (strings.EqualFold(allowed, "SUPERADMIN") && strings.EqualFold(role, "Administrator")) {
+				c.Next()
+				return
+			}
+		}
+
+		response.Forbidden(c, "Access denied: role '"+role+"' is not authorized for this resource")
 		c.Abort()
 	}
 }

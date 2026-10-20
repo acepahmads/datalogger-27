@@ -699,11 +699,11 @@ func TestPhase7PackageCReconciliation(t *testing.T) {
 		}
 	}
 
-	if activeCount != 29 {
-		t.Errorf("Expected 29 active tasks in Phase 7 (17 general + 12 ISPU), got %d", activeCount)
+	if activeCount != 36 {
+		t.Errorf("Expected 36 active tasks in Phase 7 (17 general + 12 ISPU + 7 RBAC), got %d", activeCount)
 	}
-	if doneCount != 29 {
-		t.Errorf("Expected 29 DONE tasks in Phase 7 (5 Package C + 4 Package B + 4 Package A + 4 Preserved + 12 ISPU), got %d", doneCount)
+	if doneCount != 36 {
+		t.Errorf("Expected 36 DONE tasks in Phase 7 (5 Package C + 4 Package B + 4 Package A + 4 Preserved + 12 ISPU + 7 RBAC), got %d", doneCount)
 	}
 
 	expectedProgress := sum / float64(activeCount)

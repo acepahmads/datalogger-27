@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -64,6 +65,13 @@ func (h *RoleHandler) GetRole(c *gin.Context) {
 
 // CreateRole creates a new role with optional permission IDs
 func (h *RoleHandler) CreateRole(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	actorRole, _ := roleVal.(string)
+	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+		response.Forbidden(c, "Access denied: only SUPERADMIN can manage system roles and permissions")
+		return
+	}
+
 	var input service.RoleInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.BadRequest(c, "Invalid request payload: "+err.Error())
@@ -81,6 +89,13 @@ func (h *RoleHandler) CreateRole(c *gin.Context) {
 
 // UpdateRole updates role name and description
 func (h *RoleHandler) UpdateRole(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	actorRole, _ := roleVal.(string)
+	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+		response.Forbidden(c, "Access denied: only SUPERADMIN can manage system roles and permissions")
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
@@ -105,6 +120,13 @@ func (h *RoleHandler) UpdateRole(c *gin.Context) {
 
 // UpdateRolePermissions updates the permission matrix assignment for a role
 func (h *RoleHandler) UpdateRolePermissions(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	actorRole, _ := roleVal.(string)
+	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+		response.Forbidden(c, "Access denied: only SUPERADMIN can manage system roles and permissions")
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
@@ -135,6 +157,13 @@ func (h *RoleHandler) UpdateRolePermissions(c *gin.Context) {
 
 // DeleteRole deletes a custom role
 func (h *RoleHandler) DeleteRole(c *gin.Context) {
+	roleVal, _ := c.Get("role")
+	actorRole, _ := roleVal.(string)
+	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+		response.Forbidden(c, "Access denied: only SUPERADMIN can manage system roles and permissions")
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {

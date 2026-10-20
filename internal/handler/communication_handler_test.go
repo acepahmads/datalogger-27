@@ -71,8 +71,8 @@ func setupCommTestEnv(t *testing.T) *CommTestEnv {
 	// Fetch seeded roles & permissions
 	hash, _ := bcrypt.GenerateFromPassword([]byte("pass"), bcrypt.DefaultCost)
 	var adminRole, opRole model.Role
-	db.Where("name = ?", "Administrator").First(&adminRole)
-	db.Where("name = ?", "Operator").First(&opRole)
+	db.Where("name = ? OR name = ?", "Administrator", "SUPERADMIN").First(&adminRole)
+	db.Where("name = ? OR name = ?", "Operator", "OPERATOR").First(&opRole)
 
 	var allPerms []model.Permission
 	db.Find(&allPerms)

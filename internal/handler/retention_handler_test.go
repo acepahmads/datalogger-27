@@ -86,8 +86,8 @@ func setupTestRetentionRouter(t *testing.T) (*gin.Engine, *gorm.DB, string, stri
 
 	// Create operator and engineer test users
 	var opRole, engRole model.Role
-	db.Where("name = ?", "Operator").First(&opRole)
-	db.Where("name = ?", "Engineer").First(&engRole)
+	db.Where("name = ? OR name = ?", "Operator", "OPERATOR").First(&opRole)
+	db.Where("name = ? OR name = ?", "Engineer", "ENGINEER").First(&engRole)
 
 	opHash, _ := bcrypt.GenerateFromPassword([]byte("operator123"), bcrypt.DefaultCost)
 	db.Create(&model.User{

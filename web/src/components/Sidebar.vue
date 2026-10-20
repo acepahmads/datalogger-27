@@ -36,8 +36,8 @@
 
     <!-- Navigation List -->
     <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6" @click="onNavClick">
-      <!-- DEVELOPMENT -->
-      <div>
+      <!-- DEVELOPMENT (Strictly SUPERADMIN Only) -->
+      <div v-if="isSuperAdmin">
         <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans">
           {{ $t('navigation.development') }}
         </div>
@@ -233,7 +233,7 @@
             <span>{{ $t('navigation.systemLogs') }}</span>
           </router-link>
 
-          <router-link to="/administration/config" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/config' }">
+          <router-link v-if="!isOperator" to="/administration/config" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/config' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <circle cx="12" cy="12" r="3"></circle>
@@ -242,7 +242,7 @@
             <span>{{ $t('navigation.configuration') }}</span>
           </router-link>
 
-          <router-link to="/administration/backup" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/backup' }">
+          <router-link v-if="!isOperator" to="/administration/backup" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/backup' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16m-8 4v6m0 0l-3-3m3 3l3-3"></path>
@@ -250,7 +250,7 @@
             <span>{{ $t('navigation.backupRestore') }}</span>
           </router-link>
 
-          <router-link to="/administration/retention" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/retention' }">
+          <router-link v-if="!isOperator" to="/administration/retention" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/retention' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -258,7 +258,7 @@
             <span>{{ $t('navigation.retentionStorage') }}</span>
           </router-link>
 
-          <router-link to="/administration/users" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/users') || $route.path.startsWith('/administration/roles') }">
+          <router-link v-if="isSuperAdmin || isAdmin" to="/administration/users" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/users') || $route.path.startsWith('/administration/roles') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -269,7 +269,7 @@
             <span>{{ $t('navigation.usersRoles') || 'Users & RBAC' }}</span>
           </router-link>
 
-          <router-link to="/administration/config" class="nav-item">
+          <router-link v-if="!isOperator" to="/administration/config" class="nav-item">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <circle cx="18" cy="5" r="3"></circle>
@@ -315,6 +315,22 @@ export default {
     },
   },
   computed: {
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    isAdmin() {
+      return this.userRole === 'ADMIN';
+    },
+    isEngineer() {
+      return this.userRole === 'ENGINEER';
+    },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
+    },
     sidebarAutoHide() {
       return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },

@@ -11,11 +11,17 @@ const API_BASE = '/api';
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem('datalogger_token') || 'local-admin-token',
-    user: {
-      username: 'admin',
-      role: 'Administrator',
-      full_name: 'Lead System Engineer',
-    },
+    user: (() => {
+      try {
+        const saved = localStorage.getItem('datalogger_user');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {
+        username: 'admin',
+        role: 'SUPERADMIN',
+        full_name: 'Lead System Administrator',
+      };
+    })(),
     uiPreferences: {
       theme: getStoredTheme(), // 'light' | 'dark' | 'system'
       effectiveTheme: resolveEffectiveTheme(getStoredTheme()), // 'light' | 'dark'
@@ -83,13 +89,28 @@ export default new Vuex.Store({
     activities: [],
     ws: null,
   },
+  getters: {
+    currentUser: state => state.user,
+    userRole: state => ((state.user && state.user.role) || '').toUpperCase(),
+    isSuperAdmin: (state, getters) => getters.userRole === 'SUPERADMIN' || getters.userRole === 'ADMINISTRATOR',
+    isAdmin: (state, getters) => getters.userRole === 'ADMIN',
+    isEngineer: (state, getters) => getters.userRole === 'ENGINEER',
+    isOperator: (state, getters) => getters.userRole === 'OPERATOR',
+    canAccessDev: (state, getters) => getters.isSuperAdmin,
+    canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin,
+  },
   mutations: {
     SET_TOKEN(state, token) {
       state.token = token;
-      localStorage.setItem('datalogger_token', token);
+      try {
+        localStorage.setItem('datalogger_token', token);
+      } catch (e) {}
     },
     SET_USER(state, user) {
       state.user = user;
+      try {
+        localStorage.setItem('datalogger_user', JSON.stringify(user));
+      } catch (e) {}
     },
     SET_THEME(state, themeSetting) {
       const effective = applyTheme(themeSetting);
@@ -259,17 +280,20 @@ export default new Vuex.Store({
         console.error('Failed to fetch system status:', err);
       }
     },
-    async fetchProgress({ commit }) {
+    async fetchProgress({ commit, getters }) {
+      if (!getters.canAccessDev) return;
       try {
         const res = await axios.get(`${API_BASE}/progress`);
         if (res.data && res.data.data) {
           commit('SET_PROGRESS', res.data.data);
         }
       } catch (err) {
+        if (err.response && err.response.status === 403) return;
         console.error('Failed to fetch progress:', err);
       }
     },
-    async fetchTasks({ commit }, { phaseId = null, status = '' } = {}) {
+    async fetchTasks({ commit, getters }, { phaseId = null, status = '' } = {}) {
+      if (!getters.canAccessDev) return;
       try {
         let url = `${API_BASE}/tasks`;
         const params = [];
@@ -282,8 +306,40 @@ export default new Vuex.Store({
           commit('SET_TASKS', res.data.data);
         }
       } catch (err) {
+        if (err.response && err.response.status === 403) return;
         console.error('Failed to fetch tasks:', err);
       }
+    },
+    async fetchActivity({ commit, getters }) {
+      if (!getters.canAccessDev) return;
+      try {
+        const res = await axios.get(`${API_BASE}/activity`);
+        if (res.data && res.data.data) {
+          commit('SET_ACTIVITIES', res.data.data);
+        }
+      } catch (err) {
+        if (err.response && err.response.status === 403) return;
+        console.error('Failed to fetch activity:', err);
+      }
+    },
+    async login({ commit, dispatch }, { username, password }) {
+      const res = await axios.post(`${API_BASE}/auth/login`, { username, password });
+      if (res.data && res.data.data) {
+        const data = res.data.data;
+        commit('SET_TOKEN', data.token);
+        const u = data.user || {};
+        const role = (u.role && u.role.name) || u.role_name || (data.claims && data.claims.role) || 'OPERATOR';
+        commit('SET_USER', {
+          id: u.id,
+          username: u.username,
+          full_name: u.full_name || u.username,
+          email: u.email,
+          role: role.toUpperCase(),
+        });
+        dispatch('initWebSocket');
+        return data;
+      }
+      throw new Error((res.data && res.data.error) || 'Login failed');
     },
     async fetchDevices({ commit }, filterParams = {}) {
       try {
@@ -565,7 +621,8 @@ export default new Vuex.Store({
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const tokenParam = state.token ? `?token=${encodeURIComponent(state.token)}` : '';
+      const wsUrl = `${protocol}//${window.location.host}/ws${tokenParam}`;
 
       let socket;
       try {
