@@ -653,4 +653,59 @@ func TestMigrationPhase9Tracking(t *testing.T) {
 	}
 }
 
+func TestMigrationPhase10Tracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_p10_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// 1. Run migrations
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	// 2. Verify Phase 10 status & progress
+	var phase10 model.DevelopmentPhase
+	if err := db.Where("phase_number = 10").First(&phase10).Error; err != nil {
+		t.Fatalf("Phase 10 not found in DB: %v", err)
+	}
+
+	if phase10.Progress < 45.0 {
+		t.Errorf("Phase 10 progress should be >= 45%%, got %.2f%%", phase10.Progress)
+	}
+	if phase10.Status != model.PhaseWorking {
+		t.Errorf("Phase 10 status should be WORKING, got %s", phase10.Status)
+	}
+
+	// 3. Verify specific Phase 10.1 tasks
+	var tasks []model.DevelopmentTask
+	if err := db.Where("phase_id = ?", phase10.ID).Find(&tasks).Error; err != nil {
+		t.Fatalf("Failed to query Phase 10 tasks: %v", err)
+	}
+
+	taskMap := make(map[string]model.DevelopmentTask)
+	for _, task := range tasks {
+		taskMap[task.TaskName] = task
+	}
+
+	cpuTask, ok := taskMap["CPU Optimization"]
+	if !ok || cpuTask.Status != model.StatusWorking || cpuTask.Progress != 60.0 {
+		t.Errorf("CPU Optimization expected WORKING (60%%), got status=%s, prog=%.1f", cpuTask.Status, cpuTask.Progress)
+	}
+
+	ramTask, ok := taskMap["RAM Optimization"]
+	if !ok || ramTask.Status != model.StatusWorking || ramTask.Progress != 50.0 {
+		t.Errorf("RAM Optimization expected WORKING (50%%), got status=%s, prog=%.1f", ramTask.Status, ramTask.Progress)
+	}
+
+	dbTask, ok := taskMap["Database Optimization"]
+	if !ok || dbTask.Status != model.StatusWorking || dbTask.Progress != 85.0 {
+		t.Errorf("Database Optimization expected WORKING (85%%), got status=%s, prog=%.1f", dbTask.Status, dbTask.Progress)
+	}
+}
+
+
 

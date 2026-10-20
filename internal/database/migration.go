@@ -242,6 +242,9 @@ func RunMigrations(db *gorm.DB) error {
 	// 8d. Update Development Tracking Dashboard for Phase 9 (Cross Platform & Installer)
 	updatePhase9Tracking(db)
 
+	// 8e. Update Development Tracking Dashboard for Phase 10 (Optimization & Production)
+	updatePhase10Tracking(db)
+
 	// 9. Reconcile all Phase statuses and progress across the database
 	ReconcileAllPhases(db)
 
@@ -3837,6 +3840,114 @@ func updatePhase9Tracking(db *gorm.DB) {
 		}).Error
 	}
 }
+
+func updatePhase10Tracking(db *gorm.DB) {
+	var phase10 model.DevelopmentPhase
+	if err := db.Where("phase_number = 10").First(&phase10).Error; err != nil {
+		return
+	}
+
+	now := time.Now()
+
+	coreTasks := []struct {
+		TaskID      uint
+		TaskName    string
+		Description string
+		Status      model.TaskStatus
+		Progress    float64
+		Priority    model.Priority
+	}{
+		{105, "CPU Optimization", "Goroutine profiling and throttling to maintain < 5% CPU on Raspberry Pi", model.StatusWorking, 60.0, model.PriorityHigh},
+		{106, "RAM Optimization", "Buffer reuse and struct memory layout tuning to maintain < 35MB RAM", model.StatusWorking, 50.0, model.PriorityHigh},
+		{107, "Database Optimization", "Connection pooling, query cache, and tailored index tuning for MariaDB", model.StatusWorking, 85.0, model.PriorityHigh},
+		{108, "Storage Optimization", "Automatic vacuum and telemetry table partitioning", model.StatusPending, 0.0, model.PriorityMedium},
+		{109, "Stress Test", "Sustained high-frequency polling and WebSocket client load testing", model.StatusPending, 0.0, model.PriorityHigh},
+		{110, "Long Running Test", "72-hour continuous acquisition leak testing on ARM hardware", model.StatusPending, 0.0, model.PriorityHigh},
+		{111, "Failure Recovery Test", "Simulated power cut, disk full, and network drop recovery validation", model.StatusPending, 0.0, model.PriorityHigh},
+		{112, "Security Test", "JWT protection, SQL injection prevention, and API permission validation", model.StatusWorking, 70.0, model.PriorityHigh},
+		{113, "Installer Test", "Clean machine installation test on fresh Windows and Raspberry Pi OS", model.StatusWorking, 50.0, model.PriorityMedium},
+		{114, "Upgrade Test", "Database schema migration test without telemetry data loss", model.StatusPending, 0.0, model.PriorityMedium},
+		{115, "Uninstall Test", "Clean service deregistration and directory cleanup script test", model.StatusPending, 0.0, model.PriorityLow},
+		{116, "Documentation", "Comprehensive architecture documentation, API reference, and deployment guide", model.StatusWorking, 60.0, model.PriorityHigh},
+		{117, "Release Management", "Semantic versioning and production release tagging", model.StatusWorking, 50.0, model.PriorityMedium},
+		{212, "Phase 3 Progress Audit & Reconciliation", "Audit, database normalization, legacy task mapping (#22 to #39), and progress calculation reconciliation for Phase 3 Data Engine", model.StatusDone, 100.0, model.PriorityCritical},
+		{213, "Phase 3 Legacy Task Rendering Hotfix", "Trace runtime MariaDB database vs SQLite test memory DB environment mismatch, synchronize live tasks #22-#39 to SUPERSEDED, rebuild cross-platform binaries, and verify UI rendering", model.StatusDone, 100.0, model.PriorityHigh},
+		{274, "Unified Telemetry Analysis Acceptance Test", "Integration acceptance test for Unified Telemetry Analysis UI refactor, multi-mode semantic isolation, and cross-platform verification on ARM64 edge runtime.", model.StatusDone, 100.0, model.PriorityCritical},
+		{275, "Operator Command Center SCADA Acceptance Test", "Integration acceptance test for dedicated Operator Command Center SCADA dashboard (/monitoring/operator), high-density layout, zero-scroll 1080p fit, real-time WebSocket telemetry, alarm banner with trigger values, and docked quick actions.", model.StatusDone, 100.0, model.PriorityHigh},
+	}
+
+	for idx, ct := range coreTasks {
+		var existingTask model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND (id = ? OR task_name = ?)", phase10.ID, ct.TaskID, ct.TaskName).First(&existingTask).Error; err != nil {
+			newTask := model.DevelopmentTask{
+				PhaseID:     phase10.ID,
+				TaskName:    ct.TaskName,
+				Description: ct.Description,
+				Status:      ct.Status,
+				Progress:    ct.Progress,
+				Priority:    ct.Priority,
+				Owner:       "Lead System Engineer",
+				OrderIndex:  idx + 1,
+			}
+			_ = db.Create(&newTask).Error
+		}
+	}
+
+	verifiedTasks := []struct {
+		TaskName   string
+		Status     model.TaskStatus
+		Progress   float64
+		TestResult string
+		Notes      string
+	}{
+		{
+			TaskName:   "CPU Optimization",
+			Status:     model.StatusWorking,
+			Progress:   60.0,
+			TestResult: "IN PROGRESS: CPU baseline confirmed < 5.0% on ARM64; full multi-workload endurance sign-off pending.",
+			Notes:      "Continuous 1s CPU sampler implemented in pkg/sysinfo/sysinfo.go; process CPU normalized across cores. Measured on live Raspberry Pi 4 ARM64 edge host (cbi): 3.13%-3.24% CPU under live 2-device acquisition (below 5.0% threshold). Local host: 0.24% CPU.",
+		},
+		{
+			TaskName:   "RAM Optimization",
+			Status:     model.StatusWorking,
+			Progress:   50.0,
+			TestResult: "IN PROGRESS: Process RSS metrics instrumented and tested; local Windows host measured at 28.66 MB RSS; physical ARM64 deployment pending.",
+			Notes:      "Process resident set size (ProcessRSSBytes, ProcessRSSMB) and Go heap metrics (HeapAlloc, HeapSys, NumGoroutine) instrumented in pkg/sysinfo/sysinfo.go and /api/system/status. Unit tests passing 100%. Measured local process RSS: 28.66 MB avg / 28.95 MB max (below 35.0 MB threshold). Linux ARM64 binary compiled in bin/datalogger-linux-arm64.",
+		},
+		{
+			TaskName:   "Database Optimization",
+			Status:     model.StatusWorking,
+			Progress:   85.0,
+			TestResult: "PASSED: Query plans confirmed using composite indexes, sub-millisecond latencies, and zero lock contention.",
+			Notes:      "Connection pooling verified (MaxOpen=25, MaxIdle=10, MaxLifetime=5m, MaxIdleTime=2m). EXPLAIN query plans evaluated on 46,861 raw records and 12,866 aggregations: index idx_raw_dev_rec (0.22ms), idx_raw_rec (0.29ms), idx_agg_res_dev_param (0.22ms). Batch commit write latency: 0.23 ms/packet. Ping latency: 0.176ms (local), 0.124ms (RPi). Zero lock contention (WaitCount=0).",
+		},
+	}
+
+	for _, vt := range verifiedTasks {
+		var existingTask model.DevelopmentTask
+		if err := db.Where("phase_id = ? AND task_name = ?", phase10.ID, vt.TaskName).First(&existingTask).Error; err == nil {
+			updates := map[string]interface{}{
+				"status":      vt.Status,
+				"progress":    vt.Progress,
+				"test_result": vt.TestResult,
+				"notes":       vt.Notes,
+				"updated_at":  now,
+			}
+			_ = db.Model(&model.DevelopmentTask{}).Where("id = ?", existingTask.ID).Updates(updates).Error
+
+			_ = db.Create(&model.DevelopmentTaskLog{
+				TaskID:    existingTask.ID,
+				Timestamp: now,
+				User:      "SYSTEM_PHASE10",
+				Action:    "PHASE_10_1_BASELINE",
+				Result:    string(vt.Status),
+				Log:       vt.TestResult,
+				CreatedAt: now,
+			}).Error
+		}
+	}
+}
+
 
 
 

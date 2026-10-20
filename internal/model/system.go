@@ -27,13 +27,18 @@ type SystemStatusOverview struct {
 	// System resources
 	CPUPercent        float64   `json:"cpu_percent"`
 	ProcessCPUPercent float64   `json:"process_cpu_percent"`
+	ProcessRSSBytes   uint64    `json:"process_rss_bytes"`
+	ProcessRSSMB      float64   `json:"process_rss_mb"`
+	GoHeapAllocBytes  uint64    `json:"go_heap_alloc_bytes"`
+	GoHeapSysBytes    uint64    `json:"go_heap_sys_bytes"`
+	GoNumGoroutine    int       `json:"go_num_goroutine"`
 	CPUPerCore        []float64 `json:"cpu_per_core,omitempty"`
 	RAMPercent        float64   `json:"ram_percent"`
-	RAMUsedMB      float64 `json:"ram_used_mb"`
-	RAMTotalMB     float64 `json:"ram_total_mb"`
-	DiskPercent    float64 `json:"disk_percent"`
-	DiskUsedGB     float64 `json:"disk_used_gb"`
-	DiskTotalGB    float64 `json:"disk_total_gb"`
+	RAMUsedMB         float64   `json:"ram_used_mb"`
+	RAMTotalMB        float64   `json:"ram_total_mb"`
+	DiskPercent       float64   `json:"disk_percent"`
+	DiskUsedGB        float64   `json:"disk_used_gb"`
+	DiskTotalGB       float64   `json:"disk_total_gb"`
 	UptimeHuman    string  `json:"uptime_human"`
 	UptimeSeconds  uint64  `json:"uptime_seconds"`
 	OS             string  `json:"os"`

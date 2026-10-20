@@ -30,6 +30,11 @@ var (
 type SystemInfo struct {
 	CPUPercent        float64   `json:"cpu_percent"`
 	ProcessCPUPercent float64   `json:"process_cpu_percent"`
+	ProcessRSSBytes   uint64    `json:"process_rss_bytes"`
+	ProcessRSSMB      float64   `json:"process_rss_mb"`
+	GoHeapAllocBytes  uint64    `json:"go_heap_alloc_bytes"`
+	GoHeapSysBytes    uint64    `json:"go_heap_sys_bytes"`
+	GoNumGoroutine    int       `json:"go_num_goroutine"`
 	CPUPerCore        []float64 `json:"cpu_per_core,omitempty"`
 	RAMUsedBytes      uint64    `json:"ram_used_bytes"`
 	RAMTotalBytes     uint64    `json:"ram_total_bytes"`
@@ -167,14 +172,71 @@ func readMemInfoLinux() (uint64, uint64, float64, bool) {
 	return used, memTotal, pct, true
 }
 
+// ParseVmRSS extracts the VmRSS (Resident Set Size) from Linux /proc/self/status content.
+func ParseVmRSS(data []byte) (uint64, bool) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "VmRSS:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				if valKB, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
+					return valKB * 1024, true // Convert kB to bytes
+				}
+			}
+		}
+	}
+	return 0, false
+}
+
+// readProcessRSSLinux reads the resident set size of the current process from /proc/self/status
+func readProcessRSSLinux() (uint64, bool) {
+	data, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return 0, false
+	}
+	return ParseVmRSS(data)
+}
+
+// GetProcessRSS returns the resident set size (RSS) in bytes of the current datalogger process.
+// It prioritizes direct /proc/self/status on Linux, gopsutil process.MemoryInfo on Windows/Darwin,
+// and gracefully falls back to Go runtime MemStats.Sys if operating-system APIs fail.
+func GetProcessRSS() uint64 {
+	if runtime.GOOS == "linux" {
+		if rss, ok := readProcessRSSLinux(); ok && rss > 0 {
+			return rss
+		}
+	}
+	if currentProc != nil {
+		if memInfo, err := currentProc.MemoryInfo(); err == nil && memInfo != nil && memInfo.RSS > 0 {
+			return memInfo.RSS
+		}
+	}
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Sys
+}
+
 // GetInfo collects system metrics safely with minimal CPU impact
 func GetInfo() SystemInfo {
+	// Collect Go runtime memory stats
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	goroutines := runtime.NumGoroutine()
+
+	rssBytes := GetProcessRSS()
+
 	info := SystemInfo{
-		OS:         runtime.GOOS,
-		Arch:       runtime.GOARCH,
-		NumCPU:     runtime.NumCPU(),
-		Goroutines: runtime.NumGoroutine(),
-		GoVersion:  runtime.Version(),
+		OS:                runtime.GOOS,
+		Arch:              runtime.GOARCH,
+		NumCPU:            runtime.NumCPU(),
+		Goroutines:        goroutines,
+		GoNumGoroutine:    goroutines,
+		GoHeapAllocBytes:  m.HeapAlloc,
+		GoHeapSysBytes:    m.HeapSys,
+		ProcessRSSBytes:   rssBytes,
+		ProcessRSSMB:      float64(rssBytes) / (1024 * 1024),
+		GoVersion:         runtime.Version(),
 	}
 
 	hostname, err := os.Hostname()
@@ -207,8 +269,6 @@ func GetInfo() SystemInfo {
 			info.RAMTotalBytes = vMem.Total
 			info.RAMPercent = vMem.UsedPercent
 		} else {
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
 			info.RAMUsedBytes = m.Alloc
 			info.RAMTotalBytes = m.Sys
 			if m.Sys > 0 {
