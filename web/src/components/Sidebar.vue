@@ -269,7 +269,7 @@
             <span>{{ $t('navigation.usersRoles') || 'Users & RBAC' }}</span>
           </router-link>
 
-          <router-link v-if="!isOperator" to="/administration/config" class="nav-item">
+          <router-link to="/integration" class="nav-item" :class="{ 'nav-active': $route.path === '/integration' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <circle cx="18" cy="5" r="3"></circle>
@@ -278,7 +278,15 @@
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
             </svg>
-            <span>{{ $t('navigation.integrations') }}</span>
+            <span>{{ $t('navigation.integrations') || 'Outbound & Integration' }}</span>
+          </router-link>
+
+          <router-link to="/integration/queue" class="nav-item" :class="{ 'nav-active': $route.path === '/integration/queue' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            <span>{{ $t('navigation.outboundQueue') || 'Delivery Queue' }}</span>
           </router-link>
         </div>
       </div>

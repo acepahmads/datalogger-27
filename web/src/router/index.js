@@ -21,6 +21,7 @@ import ReportsView from '../views/ReportsView.vue';
 import AccessControlView from '../views/AccessControlView.vue';
 import OperatorCommandCenterView from '../views/OperatorCommandCenterView.vue';
 import ISPUAnalysisView from '../views/ISPUAnalysisView.vue';
+import IntegrationView from '../views/IntegrationView.vue';
 import AccessDeniedView from '../views/AccessDeniedView.vue';
 import LoginView from '../views/LoginView.vue';
 
@@ -124,6 +125,22 @@ const routes = [
     meta: { roles: ['SUPERADMIN'] },
   },
   { path: '/administration/access-control', redirect: '/administration/users' },
+
+  // Phase 8 — Outbound & Integration
+  {
+    path: '/integration',
+    name: 'Integration',
+    component: IntegrationView,
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER', 'OPERATOR'] },
+  },
+  {
+    path: '/integration/queue',
+    name: 'OutboundDeliveryQueue',
+    component: IntegrationView,
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER', 'OPERATOR'] },
+  },
+  { path: '/integration/destinations', redirect: '/integration' },
+  { path: '/destinations', redirect: '/integration' },
 
   // Access Denied / 403 route
   { path: '/access-denied', name: 'AccessDenied', component: AccessDeniedView },

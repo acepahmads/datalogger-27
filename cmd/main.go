@@ -153,6 +153,13 @@ func main() {
 	telemetryService.SetAlarmEvaluator(alarmEvaluator)
 	logger.Info("AlarmEvaluator initialized with active DB alarm synchronization and attached to TelemetryService")
 
+	// 7k. Initialize Outbound Delivery & Integration Subsystem (Phase 8)
+	outboundRepo := repository.NewOutboundRepository(db)
+	outboundService := service.NewOutboundService(outboundRepo, deviceRepo, nil)
+	outboundService.StartWorker()
+	defer outboundService.StopWorker()
+	outboundHandler := handler.NewOutboundHandler(outboundService)
+
 	// 8. Initialize Scheduler
 	sched := scheduler.NewScheduler(systemRepo)
 	sched.Start()
@@ -217,6 +224,7 @@ func main() {
 	})
 	aggService.SetOnBucketCompleted(func(ctx context.Context, deviceID uint, bucketEnd time.Time) {
 		ispuService.EnqueueCalculation(deviceID, bucketEnd, "AGGREGATION_COMPLETED")
+		_ = outboundService.HandleBucketCompleted(ctx, deviceID, bucketEnd)
 	})
 
 	// WebSocket endpoint
@@ -505,6 +513,32 @@ func main() {
 			ispuGroup.GET("/:id", middleware.RequirePermission("ispu.view"), ispuHandler.GetDetail)
 		}
 
+		// Phase 8 — Output & Integration (Authenticated & Authorized)
+		destinationsGroup := api.Group("/destinations")
+		destinationsGroup.Use(middleware.JWTAuth(authService))
+		{
+			destinationsGroup.GET("", middleware.RequirePermission("integration.view"), outboundHandler.GetDestinations)
+			destinationsGroup.GET("/:id", middleware.RequirePermission("integration.view"), outboundHandler.GetDestinationByID)
+			destinationsGroup.POST("", middleware.RequirePermission("integration.manage"), outboundHandler.CreateDestination)
+			destinationsGroup.PUT("/:id", middleware.RequirePermission("integration.manage"), outboundHandler.UpdateDestination)
+			destinationsGroup.DELETE("/:id", middleware.RequirePermission("integration.manage"), outboundHandler.DeleteDestination)
+			destinationsGroup.GET("/:id/payload-config", middleware.RequirePermission("integration.view"), outboundHandler.GetPayloadConfig)
+			destinationsGroup.PUT("/:id/payload-config", middleware.RequirePermission("integration.manage"), outboundHandler.UpdatePayloadConfig)
+			destinationsGroup.GET("/:id/preview", middleware.RequirePermission("integration.view"), outboundHandler.GeneratePreview)
+			destinationsGroup.POST("/:id/test", middleware.RequirePermission("integration.test"), outboundHandler.TestPayload)
+		}
+
+		queueGroup := api.Group("/integration/queue")
+		queueGroup.Use(middleware.JWTAuth(authService))
+		{
+			queueGroup.GET("", middleware.RequirePermission("integration.view"), outboundHandler.GetQueueItems)
+			queueGroup.GET("/summary", middleware.RequirePermission("integration.view"), outboundHandler.GetQueueSummary)
+			queueGroup.GET("/:id", middleware.RequirePermission("integration.view"), outboundHandler.GetQueueItemDetail)
+			queueGroup.POST("/:id/retry", middleware.RequirePermission("integration.queue.manage"), outboundHandler.RetryQueueItem)
+			queueGroup.POST("/:id/replay", middleware.RequirePermission("integration.queue.manage"), outboundHandler.ReplayQueueItem)
+			queueGroup.POST("/:id/cancel", middleware.RequirePermission("integration.queue.manage"), outboundHandler.CancelQueueItem)
+		}
+
 		// Public deployment domain inspection
 		api.GET("/system/domain", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
@@ -579,6 +613,7 @@ func main() {
 	// 2. Stop aggregation worker safely
 	aggService.StopWorker()
 	ispuService.StopWorker()
+	outboundService.StopWorker()
 
 	// 3. Stop background scheduler, backup scheduler, and housekeeping scheduler
 	sched.Stop()
