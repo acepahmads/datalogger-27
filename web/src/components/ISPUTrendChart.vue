@@ -497,11 +497,6 @@ export default {
       if (this.mode === 'OPERATIONAL') {
         return `Resolusi Bucket Operasional (${this.aggIntervalLabel}) · Nilai Agregasi Real-time`;
       }
-      if (this.activePollutantCode && this.activePollutantCode !== 'OVERALL' && this.activePollutantCode !== 'ALL') {
-        const pCode = this.activePollutantCode.toUpperCase();
-        const paramName = this.pollutantDisplayName(pCode);
-        return `Permen LHK No. 14/2020 · Jendela 24 Jam (Cadence: 1 Jam) · ${pCode} (${paramName})`;
-      }
       return 'Permen LHK No. 14 Tahun 2020 · Jendela Pengukuran 24 Jam (Cadence: 1 Jam)';
     },
     plotWidth() {
