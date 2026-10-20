@@ -2,8 +2,7 @@
   <div v-if="isAqmsDomain" class="w-full flex flex-col space-y-1.5 transition-all">
     <!-- Compact Single-Row SCADA ISPU Indicator Bar -->
     <div
-      class="w-full px-2.5 py-1 rounded-lg border flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2 gap-y-1 transition-all duration-300 shadow-xs"
-      :class="barThemeClass"
+      class="ispu-summary-card w-full px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#244356] bg-white dark:bg-[#0D2232] flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2 gap-y-1 transition-colors duration-150 shadow-xs"
     >
       <!-- Left: ISPU Metric, Category, Dominant Pollutant & Parameter Pill -->
       <div class="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
@@ -37,18 +36,18 @@
           <!-- 24h Window & Validity Popover -->
           <div
             v-if="showWindowPopover"
-            class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-32px)] rounded-lg shadow-2xl p-3 bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-800 dark:text-slate-100 font-mono text-[10px] animate-fadeIn select-none text-left"
+            class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-32px)] rounded-lg shadow-2xl p-3 bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] text-slate-800 dark:text-[#E6F3FC] font-mono text-[10px] animate-fadeIn select-none text-left"
             @click.stop
           >
             <!-- Popover Header -->
-            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#244356]">
               <div class="flex items-center space-x-2">
                 <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
                 <div>
-                  <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                  <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-[#E6F3FC] leading-none">
                     24-Hour ISPU Window
                   </h4>
-                  <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                  <div class="text-[9px] text-slate-500 dark:text-[#9BB4C8] mt-0.5 leading-none">
                     Permen LHK No. 14 / 2020 Standard
                   </div>
                 </div>
@@ -63,29 +62,29 @@
 
             <!-- Detail Rows -->
             <div class="space-y-2">
-              <div class="p-2 rounded bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] space-y-1 text-[9.5px]">
+              <div class="p-2 rounded bg-slate-50 dark:bg-[#061321] border border-slate-200/80 dark:border-[#244356] space-y-1 text-[9.5px]">
                 <div class="flex items-start justify-between">
-                  <span class="text-slate-500 dark:text-slate-400">Time Window:</span>
-                  <span class="font-bold text-right text-slate-900 dark:text-white">{{ formattedPeriod }}</span>
+                  <span class="text-slate-500 dark:text-[#9BB4C8]">Time Window:</span>
+                  <span class="font-bold text-right text-slate-900 dark:text-[#E6F3FC]">{{ formattedPeriod }}</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500 dark:text-slate-400">Timezone:</span>
+                  <span class="text-slate-500 dark:text-[#9BB4C8]">Timezone:</span>
                   <span class="font-bold text-slate-700 dark:text-slate-300">WIB (UTC+7)</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500 dark:text-slate-400">Data Coverage:</span>
+                  <span class="text-slate-500 dark:text-[#9BB4C8]">Data Coverage:</span>
                   <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'">
                     {{ completenessPercent.toFixed(1) }}% {{ completenessPercent >= 75 ? '(Meets ≥75% rule)' : '(Provisional <75%)' }}
                   </span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-500 dark:text-slate-400">Dominant Pollutant:</span>
-                  <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ dominantPollutant || '-' }} (Index: {{ dominantISPU || '-' }})</span>
+                  <span class="text-slate-500 dark:text-[#9BB4C8]">Dominant Pollutant:</span>
+                  <span class="font-bold text-cyan-600 dark:text-[#21C7E8]">{{ dominantPollutant || '-' }} (Index: {{ dominantISPU || '-' }})</span>
                 </div>
               </div>
 
               <!-- Regulatory Validity Status & Reason -->
-              <div class="text-[9px] text-slate-600 dark:text-slate-400 leading-snug p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/60 dark:border-[#1E3048]">
+              <div class="text-[9px] text-slate-600 dark:text-[#9BB4C8] leading-snug p-2 rounded bg-slate-50/70 dark:bg-[#061321] border border-slate-200/60 dark:border-[#244356]">
                 <div class="font-bold text-slate-700 dark:text-slate-300 mb-0.5">Calculation Assessment:</div>
                 <div>{{ validityTooltip }}</div>
               </div>
@@ -95,13 +94,13 @@
 
         <!-- Dominant Pollutant (when OVERALL) or Selected Parameter Detail Pill -->
         <div v-if="selectedDisplayParam === 'OVERALL'" class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
-          <span class="text-slate-500 dark:text-slate-400 hidden xl:inline">Dominant:</span>
-          <span class="font-bold text-slate-900 dark:text-white px-1.5 py-0.5 rounded bg-slate-200/50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
+          <span class="text-slate-500 dark:text-[#9BB4C8] hidden xl:inline">Dominant:</span>
+          <span class="font-bold text-slate-900 dark:text-[#E6F3FC] px-1.5 py-0.5 rounded bg-slate-200/50 dark:bg-[#0D2232] border border-slate-300 dark:border-[#244356] whitespace-nowrap">
             {{ dominantPollutant || '-' }}
           </span>
         </div>
         <div v-else class="flex items-center space-x-1 text-3xs font-mono flex-shrink-0">
-          <span class="font-bold text-cyan-700 dark:text-cyan-300 px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 whitespace-nowrap">
+          <span class="font-bold text-cyan-700 dark:text-[#21C7E8] px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 whitespace-nowrap">
             {{ selectedParamLabel }}
           </span>
           <span class="text-4xs text-amber-500 font-mono hidden xl:inline" :title="'Polutan kritis stasiun saat ini adalah ' + dominantPollutant">
@@ -121,13 +120,13 @@
           @click="toggleBreakdown"
           class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-3xs font-mono font-bold transition border flex-shrink-0"
           :class="showBreakdown
-            ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
-            : 'bg-slate-200/60 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-cyan-500'"
+            ? 'bg-cyan-500/20 text-cyan-700 dark:text-[#21C7E8] border-cyan-500/50 shadow-xs'
+            : 'bg-slate-200/60 dark:bg-[#0D2232] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#244356] hover:border-cyan-500'"
           title="Inspect All 7 Official ISPU Parameters"
         >
           <span>📊</span>
           <span class="hidden md:inline">Params:</span>
-          <span class="text-cyan-600 dark:text-cyan-400 font-extrabold">{{ activeParametersCount }}/7</span>
+          <span class="text-cyan-600 dark:text-[#21C7E8] font-extrabold">{{ activeParametersCount }}/7</span>
           <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-180': showBreakdown }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
@@ -135,7 +134,7 @@
       </div>
 
       <!-- Center: Data Status & Validity (Compact without long 24h period text) -->
-      <div class="flex items-center space-x-2 text-3xs font-mono text-slate-500 dark:text-slate-400 min-w-0 flex-shrink">
+      <div class="flex items-center space-x-2 text-3xs font-mono text-slate-500 dark:text-[#9BB4C8] min-w-0 flex-shrink">
         <!-- Validity Badge & Coverage Percentage (Click/Tap to view 24h window details) -->
         <button
           type="button"
@@ -149,7 +148,7 @@
         </button>
 
         <!-- Recalculated / Freshness indicator -->
-        <span v-if="lastUpdatedStr" class="hidden sm:inline text-slate-400 dark:text-slate-500 text-4xs whitespace-nowrap flex-shrink-0">
+        <span v-if="lastUpdatedStr" class="hidden sm:inline text-slate-400 dark:text-[#9BB4C8] text-4xs whitespace-nowrap flex-shrink-0">
           · {{ lastUpdatedStr }}
         </span>
       </div>
@@ -159,7 +158,7 @@
         <!-- Setup Mappings Button -->
         <button
           @click="openMappingsModal"
-          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-white/80 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-white/80 dark:bg-[#0D2232] text-slate-600 dark:text-[#9BB4C8] border-slate-300 dark:border-[#244356] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-[#21C7E8]"
           title="Configure & Setup ISPU Parameter Mappings"
         >
           <span>⚙️</span>
@@ -171,8 +170,8 @@
           @click="toggleTrend"
           class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1"
           :class="showTrend
-            ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
-            : 'bg-white/80 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500'"
+            ? 'bg-cyan-500/20 text-cyan-700 dark:text-[#21C7E8] border-cyan-500/50 shadow-xs'
+            : 'bg-white/80 dark:bg-[#0D2232] text-slate-600 dark:text-[#9BB4C8] border-slate-300 dark:border-[#244356] hover:border-cyan-500'"
           title="Toggle Historical ISPU Trend"
         >
           <span>📈</span>
@@ -193,7 +192,7 @@
     <!-- Collapsible 7 Official Parameters SCADA Tray -->
     <div
       v-if="showBreakdown"
-      class="p-2.5 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-md transition-all"
+      class="p-2.5 rounded-xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-md transition-all"
     >
       <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800 text-3xs font-mono">
         <div class="flex items-center space-x-2">
@@ -290,7 +289,7 @@
     <!-- Collapsible Embedded Trend Chart Drawer -->
     <div
       v-if="showTrend"
-      class="p-3 rounded-xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-md transition-all"
+      class="p-3 rounded-xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-md transition-all"
     >
       <ISPUTrendChart
         :records="trendRecords"
@@ -311,7 +310,7 @@
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
       @click.self="showMappingsModal = false"
     >
-      <div class="w-full max-w-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="w-full max-w-2xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <!-- Header -->
         <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div class="flex items-center space-x-2">
@@ -621,20 +620,8 @@ export default {
       return `${hrs}h ago`;
     },
     barThemeClass() {
-      switch (this.ispuCategory) {
-        case 'BAIK':
-          return 'bg-emerald-500/10 dark:bg-emerald-950/20 border-emerald-500/35 shadow-xs';
-        case 'SEDANG':
-          return 'bg-blue-500/10 dark:bg-blue-950/20 border-blue-500/35 shadow-xs';
-        case 'TIDAK_SEHAT':
-          return 'bg-amber-500/10 dark:bg-amber-950/20 border-amber-500/35 shadow-xs';
-        case 'SANGAT_TIDAK_SEHAT':
-          return 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/35 shadow-xs';
-        case 'BERBAHAYA':
-          return 'bg-purple-900/15 dark:bg-[#1E1B4B]/40 border-purple-500/40 shadow-xs';
-        default:
-          return 'bg-[#EAF4FB] dark:bg-[#0B1422] border-[#B7D8EC] dark:border-[#20354B] shadow-xs';
-      }
+      // Unified with SCADA card background and border; categories and status shown via semantic badges
+      return '';
     },
     categoryDotClass() {
       switch (this.ispuCategory) {

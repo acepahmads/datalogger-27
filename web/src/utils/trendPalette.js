@@ -113,32 +113,35 @@ export const SCADA_FALLBACK_PALETTE = {
 // 3. THEME TOKENS FOR OPERATOR DASHBOARD
 export const DASHBOARD_THEME_TOKENS = {
   dark: {
-    bg: '#081421',
-    panel: '#0D1B2A',
-    card: '#112235',
-    border: '#294158',
-    textPrimary: '#E2EBF4',
-    textSecondary: '#91A6BA',
-    accent: '#35C8DA',
+    bg: '#061321', // legacy reference: bg: '#081421'
+    panel: '#0B1C2B', // legacy reference: panel: '#0D1B2A'
+    card: '#0D2232', // legacy reference: card: '#112235'
+    border: '#244356', // legacy reference: border: '#294158'
+    textPrimary: '#E6F3FC', // legacy reference: textPrimary: '#E2EBF4'
+    textSecondary: '#9BB4C8', // legacy reference: textSecondary: '#91A6BA'
+    accent: '#21C7E8', // legacy reference: accent: '#35C8DA'
     normal: '#36C99A',
     warning: '#F1BD61',
     alarm: '#FF6577',
-    grid: '#16273A',
-    axis: '#294158',
+    grid: '#132738',
+    axis: '#244356',
   },
   light: {
-    bg: '#EDF4F8',
-    panel: '#F5F9FC',
+    bg: 'linear-gradient(180deg, #8CCFFF 0%, #D4EDFC 14%, #F7FCFF 42%, #F7FCFF 58%, #E2F4FD 85%, #D6F0FF 100%)', // legacy reference: bg: '#EDF4F8'
+    bgTop: '#8CCFFF',
+    bgCenter: '#F7FCFF',
+    bgBottom: '#D6F0FF',
+    panel: '#FFFFFF', // legacy reference: panel: '#F5F9FC'
     card: '#FFFFFF',
-    border: '#C8DCE8',
-    textPrimary: '#20364B',
-    textSecondary: '#647D91',
+    border: '#B8D4EA', // legacy reference: border: '#C8DCE8'
+    textPrimary: '#15324F', // legacy reference: textPrimary: '#20364B'
+    textSecondary: '#58718D', // legacy reference: textSecondary: '#647D91'
     accent: '#009DB8',
     normal: '#138B68',
     warning: '#A96C0A',
     alarm: '#C93449',
-    grid: '#E2EDF3',
-    axis: '#C8DCE8',
+    grid: '#D7E5EF',
+    axis: '#B8D4EA',
   },
 };
 

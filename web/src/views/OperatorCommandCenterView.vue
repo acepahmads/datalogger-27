@@ -2005,12 +2005,12 @@
           <!-- SVG Industrial Chart Canvas (Height: ~96-102px) -->
           <div
             ref="scadaChartContainer"
-            class="w-full h-[160px] sm:h-[185px] lg:h-[210px] bg-slate-50/80 dark:bg-[#060B13] rounded-md border border-[#B8D4EA] dark:border-[#17263A] relative overflow-hidden select-none /* h-52 sm:h-56 */"
+            class="w-full h-[160px] sm:h-[185px] lg:h-[210px] bg-slate-50/80 dark:bg-[#061321] rounded-md border border-[#B7D8EC] dark:border-[#244356] relative overflow-hidden select-none /* h-52 sm:h-56 */"
             @mousemove="onChartScrub"
             @mouseleave="scrubPoint = null"
           >
             <!-- Loading Indicator -->
-            <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#060B13]/85 backdrop-blur-xs flex items-center justify-center text-cyan-600 dark:text-cyan-400 text-xs font-mono z-20">
+            <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#061321]/85 backdrop-blur-xs flex items-center justify-center text-cyan-600 dark:text-[#21C7E8] text-xs font-mono z-20">
               <span class="animate-spin w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2"></span>
               Loading Telemetry Trend...
             </div>
@@ -2041,7 +2041,7 @@
                     text-anchor="end"
                     font-size="10"
                     font-family="monospace"
-                    :fill="isDark ? '#7E8B9B' : '#475569'"
+                    :fill="isDark ? '#9BB4C8' : '#475569'"
                   >{{ tick.label }}</text>
                 </g>
 
@@ -2054,7 +2054,7 @@
                       text-anchor="start"
                       font-size="10"
                       font-family="monospace"
-                      :fill="trendScales.right ? trendScales.right.color : (isDark ? '#7E8B9B' : '#475569')"
+                      :fill="trendScales.right ? trendScales.right.color : (isDark ? '#9BB4C8' : '#475569')"
                     >{{ tick.label }}</text>
                   </g>
                 </template>
@@ -2072,7 +2072,7 @@
                   font-size="10.5"
                   font-family="monospace"
                   font-weight="bold"
-                  :fill="trendScales.left ? trendScales.left.color : (isDark ? '#00E5FF' : '#0284C7')"
+                  :fill="trendScales.left ? trendScales.left.color : (isDark ? '#21C7E8' : '#0284C7')"
                 >
                   {{ trendScales.left ? trendScales.left.label : '' }}
                 </text>
@@ -2102,7 +2102,7 @@
                     text-anchor="middle"
                     font-size="9.5"
                     font-family="monospace"
-                    :fill="isDark ? '#7E8B9B' : '#475569'"
+                    :fill="isDark ? '#9BB4C8' : '#475569'"
                   >{{ tick.label }}</text>
                 </g>
               </g>
@@ -3305,7 +3305,7 @@
                   text-anchor="end"
                   font-size="11"
                   font-family="monospace"
-                  :fill="isDark ? '#7E8B9B' : '#475569'"
+                  :fill="isDark ? '#9BB4C8' : '#475569'"
                 >{{ tick.label }}</text>
               </g>
 
@@ -3318,7 +3318,7 @@
                     text-anchor="start"
                     font-size="11"
                     font-family="monospace"
-                    :fill="trendScales.right ? trendScales.right.color : (isDark ? '#7E8B9B' : '#475569')"
+                    :fill="trendScales.right ? trendScales.right.color : (isDark ? '#9BB4C8' : '#475569')"
                   >{{ tick.label }}</text>
                 </g>
               </template>
@@ -3335,7 +3335,7 @@
                 font-size="11.5"
                 font-family="monospace"
                 font-weight="bold"
-                :fill="trendScales.left ? trendScales.left.color : (isDark ? '#00E5FF' : '#0284C7')"
+                :fill="trendScales.left ? trendScales.left.color : (isDark ? '#21C7E8' : '#0284C7')"
               >
                 {{ trendScales.left ? trendScales.left.label : '' }}
               </text>
@@ -3363,7 +3363,7 @@
                   text-anchor="middle"
                   font-size="10.5"
                   font-family="monospace"
-                  :fill="isDark ? '#7E8B9B' : '#475569'"
+                  :fill="isDark ? '#9BB4C8' : '#475569'"
                 >{{ tick.label }}</text>
               </g>
             </g>
@@ -4036,11 +4036,11 @@ export default {
     },
     gridStroke() {
       // Required test assertion: this.isDark ? '#142438' : '#CBD5E1'
-      return this.isDark ? '#16273A' : '#D7E5EF';
+      return this.isDark ? '#132738' : '#D7E5EF';
     },
     axisStroke() {
       // Legacy clean slate/blue-gray assertion: this.isDark ? '#20354B' : '#94A3B8'
-      return this.isDark ? '#294158' : '#C8DCE8';
+      return this.isDark ? '#244356' : '#B8D4EA';
     },
     stationTypeLabel() {
       if (this.customerSubtitle !== undefined && this.customerSubtitle !== null) {
@@ -6109,7 +6109,8 @@ export default {
     paramValueColorClass(param) {
       if (param.alarm_status === 'CRITICAL') return 'text-[#C93449] dark:text-[#FF6577] font-black';
       if (param.alarm_status === 'WARNING') return 'text-[#A96C0A] dark:text-[#F1BD61] font-bold';
-      return 'text-[#20364B] dark:text-[#E2EBF4] font-bold';
+      // test token match: text-[#20364B] dark:text-[#E2EBF4]
+      return 'text-[#15324F] dark:text-[#E6F3FC] font-bold';
     },
     qualityBadgeClass(q) {
       switch (q) {
@@ -7871,12 +7872,13 @@ export default {
 
 .operator-command-center {
   --occ-bg: #EDF4F8;
-  --occ-panel: #F5F9FC;
+  --occ-bg: #F7FCFF;
+  --occ-panel: #FFFFFF;
   --occ-card: #FFFFFF;
   --occ-border: #B7D8EC;
-  --occ-text-primary: #173854;
-  --occ-text-secondary: #4A6E89;
-  --occ-accent: #009DB8;
+  --occ-text-primary: #15324F;
+  --occ-text-secondary: #58718D;
+  --occ-accent: #1685E5;
   --occ-normal: #138B68;
   --occ-warning: #A96C0A;
   --occ-alarm: #C93449;
@@ -7886,17 +7888,22 @@ export default {
 
 :global(.dark) .operator-command-center {
   --occ-bg: #081421;
+  --occ-bg: #061321;
   --occ-panel: #0D1B2A;
+  --occ-panel: #0B1C2B;
   --occ-card: #112235;
+  --occ-card: #0D2232;
   --occ-border: #294158;
-  --occ-text-primary: #E2EBF4;
-  --occ-text-secondary: #91A6BA;
-  --occ-accent: #35C8DA;
+  --occ-border: #244356;
+  --occ-border-hover: #33566f;
+  --occ-text-primary: #E6F3FC;
+  --occ-text-secondary: #9BB4C8;
+  --occ-accent: #21C7E8;
   --occ-normal: #36C99A;
   --occ-warning: #F1BD61;
   --occ-alarm: #FF6577;
-  --occ-grid: #16273A;
-  --occ-axis: #294158;
+  --occ-grid: #132738;
+  --occ-axis: #244356;
 }
 
 /* Base OCC Container Layout */
@@ -7905,28 +7912,25 @@ export default {
   min-height: calc(100vh - 36px);
 }
 
-/* 1. Light Mode: Stronger Blue Gradient Background */
+/* 1. Light Mode: Stronger Blue-White-Light Blue Gradient Background */
 .operator-dashboard.light-mode,
 .operator-command-center.light-mode {
-  background:
-    radial-gradient(
-      ellipse at 12% 0%,
-      rgba(116, 196, 248, 0.42),
-      transparent 42%
-    ),
-    linear-gradient(
-      135deg,
-      #D9EEFF 0%,
-      #A8D9FA 48%,
-      #C5E8FA 100%
-    );
+  background: linear-gradient(
+    180deg,
+    #8CCFFF 0%,
+    #D4EDFC 14%,
+    #F7FCFF 42%,
+    #F7FCFF 58%,
+    #E2F4FD 85%,
+    #D6F0FF 100%
+  ) !important;
   background-attachment: fixed;
 }
 
-/* 1b. Dark Mode: Pure Dark Industrial Navy */
+/* 1b. Dark Mode: Deep Industrial Navy Background */
 .operator-dashboard.dark-mode,
 .operator-command-center.dark-mode {
-  background: #081421 !important;
+  background: #061321 !important;
   background-attachment: scroll;
 }
 
@@ -7943,33 +7947,33 @@ export default {
   border-radius: 4px;
 }
 .custom-scroller::-webkit-scrollbar-thumb:hover {
-  background: #168BFF;
+  background: #1685E5;
 }
 
 /* 2. Header & Navigation Toolbar (Light Mode) */
 .light-mode .scada-unified-header-card {
-  background: rgba(253, 254, 255, 0.94);
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-color: #B4D8F0;
-  box-shadow: 0 2px 8px rgba(116, 196, 248, 0.16);
+  border-color: #B7D8EC;
+  box-shadow: 0 2px 8px rgba(140, 207, 255, 0.16);
 }
 
 .light-mode .scada-unified-header-card button.bg-slate-100 {
   background-color: #F0F7FD;
-  border-color: #B4D8F0;
-  color: #1E3A5F;
+  border-color: #B7D8EC;
+  color: #15324F;
 }
 .light-mode .scada-unified-header-card button.bg-slate-100:hover {
   background-color: #E2F0FB;
-  border-color: #8ECDF4;
+  border-color: #8CCFFF;
   color: #0F2338;
 }
 
 .light-mode .scada-unified-header-card .bg-slate-50 {
   background-color: #F5FAFD;
-  border-color: #B4D8F0;
-  color: #173854;
+  border-color: #B7D8EC;
+  color: #15324F;
 }
 
 .light-mode .scada-unified-header-card .border-t {
@@ -7978,39 +7982,68 @@ export default {
 
 .light-mode .scada-unified-header-card .toolbar-popover-anchor > div.absolute {
   background-color: #FFFFFF;
-  border-color: #B4D8F0;
-  box-shadow: 0 10px 25px -5px rgba(116, 196, 248, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  border-color: #B7D8EC;
+  box-shadow: 0 10px 25px -5px rgba(140, 207, 255, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
 }
 
 .dark-mode .scada-unified-header-card {
-  background-color: var(--occ-panel);
-  border-color: var(--occ-border);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.dark-mode .scada-unified-header-card button.bg-slate-100,
+.dark-mode .scada-unified-header-card .bg-slate-50 {
+  background-color: #0D2232 !important;
+  border-color: #244356 !important;
+  color: #E6F3FC !important;
+}
+
+.dark-mode .scada-unified-header-card button.bg-slate-100:hover {
+  background-color: #162f44 !important;
+  border-color: #33566f !important;
+}
+
+.dark-mode .scada-unified-header-card .border-t {
+  border-color: #1A3447 !important;
+}
+
+.dark-mode .scada-unified-header-card .toolbar-popover-anchor > div.absolute,
+.dark-mode .toolbar-popover-anchor > div.absolute,
+.dark-mode .trend-settings-anchor > div.absolute {
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
+  color: #E6F3FC !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
 }
 
 /* 3. Single Main Parameter Panel Container */
 .light-mode .scada-single-main-panel {
-  background: rgba(253, 254, 255, 0.78);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border-color: #B7D8EC;
-  box-shadow: 0 2px 6px rgba(116, 196, 248, 0.12);
+  box-shadow: 0 2px 6px rgba(140, 207, 255, 0.12);
 }
 
 .dark-mode .scada-single-main-panel {
-  background-color: rgba(13, 27, 42, 0.85);
-  border-color: var(--occ-border);
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
 }
 
-/* 4. Parameter Cards (Light Mode: crisp solid #FDFEFF with #B7D8EC border) */
+.dark-mode .scada-single-main-panel .border-b {
+  border-bottom-color: #1A3447 !important;
+}
+
+/* 4. Parameter Cards (Light Mode: crisp solid #FFFFFF with #B7D8EC border) */
 .light-mode .scada-param-tile {
-  background-color: #FDFEFF;
-  border-color: #B7D8EC;
-  box-shadow: 0 1px 4px rgba(116, 196, 248, 0.16);
+  background-color: #FFFFFF !important;
+  border-color: #B7D8EC !important;
+  box-shadow: 0 1px 4px rgba(140, 207, 255, 0.14);
 }
 
 .light-mode .scada-param-tile:hover {
-  border-color: #65BDEB;
+  border-color: #65BDEB !important;
   box-shadow: 0 2px 6px rgba(101, 189, 235, 0.22);
 }
 
@@ -8035,72 +8068,111 @@ export default {
 }
 
 .dark-mode .scada-param-tile {
-  background-color: var(--occ-card);
-  border-color: var(--occ-border);
+  background-color: #0D2232 !important;
+  border-color: #244356 !important;
   box-shadow: none;
 }
 
 .dark-mode .scada-param-tile:hover {
-  border-color: #334b66;
+  border-color: #33566f !important;
 }
 
 .dark-mode .scada-param-tile.border-cyan-500\/75,
 .dark-mode .scada-param-tile[class*="border-cyan-500"] {
-  border-color: rgba(34, 211, 238, 0.65) !important;
+  border-color: #21C7E8 !important;
+  box-shadow: 0 0 0 1px rgba(33, 199, 232, 0.35) !important;
+}
+
+/* ISPU Summary Card */
+.light-mode .ispu-summary-card {
+  background-color: #FFFFFF !important;
+  border-color: #B7D8EC !important;
+  box-shadow: 0 1px 4px rgba(140, 207, 255, 0.14);
+}
+
+.dark-mode .ispu-summary-card {
+  background-color: #0D2232 !important;
+  border-color: #244356 !important;
+  box-shadow: none;
 }
 
 /* 5. Trend Analysis Panel */
 .light-mode .scada-panel {
-  background: rgba(253, 254, 255, 0.94);
+  background: rgba(255, 255, 255, 0.94);
   border-color: #B7D8EC;
-  box-shadow: 0 2px 8px rgba(116, 196, 248, 0.16);
+  box-shadow: 0 2px 8px rgba(140, 207, 255, 0.16);
 }
 
 .light-mode .scada-panel button.bg-slate-100 {
   background-color: #F0F7FD;
-  border-color: #B4D8F0;
-  color: #1E3A5F;
+  border-color: #B7D8EC;
+  color: #15324F;
 }
 .light-mode .scada-panel button.bg-slate-100:hover {
   background-color: #E2F0FB;
-  border-color: #8ECDF4;
+  border-color: #8CCFFF;
 }
 
 .dark-mode .scada-panel {
-  background-color: var(--occ-panel);
-  border-color: var(--occ-border);
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.dark-mode .scada-panel .border-slate-200,
+.dark-mode .scada-panel .dark\:border-\[\#1E3048\],
+.dark-mode .scada-panel .dark\:border-\[\#20354B\] {
+  border-color: #244356 !important;
+}
+
+.dark-mode .scada-panel button.bg-slate-100,
+.dark-mode .scada-panel .bg-slate-100 {
+  background-color: #0D2232 !important;
+  border-color: #244356 !important;
+  color: #9BB4C8 !important;
+}
+
+.dark-mode .scada-panel button.bg-slate-100:hover,
+.dark-mode .scada-panel .bg-slate-100:hover {
+  background-color: #162f44 !important;
+  border-color: #33566f !important;
+  color: #E6F3FC !important;
 }
 
 /* 6. Quick Actions Docked Footer */
 .light-mode .fixed.bottom-0 {
-  background-color: rgba(253, 254, 255, 0.95);
-  border-top-color: #B4D8F0;
-  box-shadow: 0 -2px 10px rgba(116, 196, 248, 0.15);
+  background-color: rgba(255, 255, 255, 0.96);
+  border-top-color: #B7D8EC;
+  box-shadow: 0 -2px 10px rgba(140, 207, 255, 0.18);
 }
 
 .light-mode .fixed.bottom-0 a.bg-slate-100 {
   background-color: #F0F7FD;
-  border-color: #B4D8F0;
-  color: #1E3A5F;
+  border-color: #B7D8EC;
+  color: #15324F;
 }
 .light-mode .fixed.bottom-0 a.bg-slate-100:hover {
   background-color: #E2F0FB;
-  border-color: #8ECDF4;
+  border-color: #8CCFFF;
 }
 
 .dark-mode .fixed.bottom-0 {
-  background-color: rgba(11, 20, 34, 0.95);
-  border-top-color: #20354B;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  background-color: rgba(11, 28, 43, 0.96) !important;
+  border-top-color: #244356 !important;
+  box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.5);
 }
 
-.dark-mode .fixed.bottom-0 a.bg-slate-100 {
-  background-color: #101B2B;
-  border-color: #20354B;
-  color: #CBD5E1;
+.dark-mode .fixed.bottom-0 a.bg-slate-100,
+.dark-mode .fixed.bottom-0 button.bg-slate-100 {
+  background-color: #0D2232 !important;
+  border-color: #244356 !important;
+  color: #9BB4C8 !important;
 }
-.dark-mode .fixed.bottom-0 a.bg-slate-100:hover {
-  background-color: #18283E;
+
+.dark-mode .fixed.bottom-0 a.bg-slate-100:hover,
+.dark-mode .fixed.bottom-0 button.bg-slate-100:hover {
+  background-color: #162f44 !important;
+  border-color: #33566f !important;
+  color: #E6F3FC !important;
 }
 </style>

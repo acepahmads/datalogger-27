@@ -7,21 +7,31 @@
   --font-family-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
 
   /* Global Sky Blue Light Theme Tokens */
-  --theme-bg-gradient: linear-gradient(135deg, #D9EEFF 0%, #F4FAFF 45%, #EAF5FF 100%);
-  --theme-bg-main: #F4FAFF;
-  --theme-bg-tint: #EAF5FF;
-  --theme-bg-accent: #D9EEFF;
+  --theme-bg-gradient: linear-gradient(180deg, #8CCFFF 0%, #D4EDFC 14%, #F7FCFF 42%, #F7FCFF 58%, #E2F4FD 85%, #D6F0FF 100%);
+  --theme-bg-main: #F7FCFF;
+  --theme-bg-tint: #D6F0FF;
+  --theme-bg-accent: #8CCFFF;
   --theme-surface-white: #FFFFFF;
   --theme-primary: #1685E5;
   --theme-text-deep: #15324F;
   --theme-text-secondary: #58718D;
   --theme-border: #B8D4EA;
   --theme-border-strong: #94AEC5;
+
+  /* Global Dark Mode Structured Tokens */
+  --dark-bg-page: #061321;
+  --dark-bg-panel: #0B1C2B;
+  --dark-bg-card: #0D2232;
+  --dark-border: #244356;
+  --dark-border-hover: #33566f;
+  --dark-text-primary: #E6F3FC;
+  --dark-text-secondary: #9BB4C8;
+  --dark-accent: #21C7E8;
 }
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-800 dark:bg-[#0B0F19] dark:text-slate-200 antialiased font-sans text-xs selection:bg-blue-600 selection:text-white transition-colors duration-150;
+    @apply bg-slate-50 text-slate-800 dark:bg-[#061321] dark:text-[#E6F3FC] antialiased font-sans text-xs selection:bg-blue-600 selection:text-white transition-colors duration-150;
     font-family: var(--font-family-ui);
   }
 
@@ -66,21 +76,21 @@ svg.chart-svg text {
   border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: #1E293B;
+  background: #244356;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94AEC5;
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #33566f;
 }
 
 /* Modern Card Utilities */
 .saas-card {
-  @apply bg-white dark:bg-[#111827]/90 border border-[#B8D4EA] dark:border-slate-800/70 rounded-xl shadow-sm transition-all duration-200;
+  @apply bg-white dark:bg-[#0B1C2B] border border-[#B8D4EA] dark:border-[#244356] rounded-xl shadow-sm transition-all duration-200;
 }
 .saas-card-hover {
-  @apply hover:border-[#94AEC5] dark:hover:border-slate-700/80 hover:shadow-soft;
+  @apply hover:border-[#94AEC5] dark:hover:border-[#33566f] hover:shadow-soft;
 }
 
 /* Semantic Badges */
