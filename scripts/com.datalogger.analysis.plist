@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.datalogger.analysis</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/opt/datalogger/datalogger</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/usr/local/opt/datalogger</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/var/log/datalogger/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/datalogger/stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DATALOGGER_PORT</key>
+        <string>8080</string>
+        <key>DB_DRIVER</key>
+        <string>mariadb</string>
+        <key>DB_HOST</key>
+        <string>127.0.0.1</string>
+        <key>DB_PORT</key>
+        <string>3306</string>
+        <key>DB_NAME</key>
+        <string>datalogger</string>
+        <key>DB_USER</key>
+        <string>datalogger</string>
+        <key>DB_PASSWORD</key>
+        <string>datalogger</string>
+    </dict>
+</dict>
+</plist>

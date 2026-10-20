@@ -587,3 +587,70 @@ func TestMigrationPhase7AndOperatorCommandCenterTracking(t *testing.T) {
 		t.Errorf("Operator Command Center progress should be 100%%, got %.2f%%", occTask.Progress)
 	}
 }
+
+func TestMigrationPhase9Tracking(t *testing.T) {
+	dsn := fmt.Sprintf("file:mem_mig_p9_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// 1. Run migrations
+	if err := database.RunMigrations(db); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	// 2. Verify Phase 9 status & progress
+	var phase9 model.DevelopmentPhase
+	if err := db.Where("phase_number = 9").First(&phase9).Error; err != nil {
+		t.Fatalf("Phase 9 not found in DB: %v", err)
+	}
+
+	if phase9.Progress < 90.0 {
+		t.Errorf("Phase 9 progress should be >= 90%%, got %.2f%%", phase9.Progress)
+	}
+	if phase9.Status != model.PhaseWorking {
+		t.Errorf("Phase 9 status should be WORKING (pending hardware acceptance), got %s", phase9.Status)
+	}
+
+	// 3. Verify all 10 tasks in Phase 9
+	var tasks []model.DevelopmentTask
+	if err := db.Where("phase_id = ?", phase9.ID).Order("order_index ASC").Find(&tasks).Error; err != nil {
+		t.Fatalf("Failed to query Phase 9 tasks: %v", err)
+	}
+
+	if len(tasks) != 10 {
+		t.Fatalf("Expected exactly 10 tasks in Phase 9, got %d", len(tasks))
+	}
+
+	expectedStatus := map[string]model.TaskStatus{
+		"Windows x64":           model.StatusDone,
+		"Linux x64":             model.StatusDone,
+		"Linux ARM64":           model.StatusDone,
+		"Raspberry Pi ARM64":    model.StatusDone,
+		"Raspberry Pi ARM32":    model.StatusWorking,
+		"macOS where feasible":  model.StatusWorking,
+		"Application binary":    model.StatusDone,
+		"Web UI":                model.StatusDone,
+		"System service":        model.StatusDone,
+		"Auto-start":            model.StatusDone,
+	}
+
+	for _, task := range tasks {
+		expStatus, ok := expectedStatus[task.TaskName]
+		if !ok {
+			t.Errorf("Unexpected task name in Phase 9: %s", task.TaskName)
+			continue
+		}
+		if task.Status != expStatus {
+			t.Errorf("Task '%s' expected status %s, got %s", task.TaskName, expStatus, task.Status)
+		}
+		if task.TestResult == "" {
+			t.Errorf("Task '%s' should have recorded test results", task.TaskName)
+		}
+	}
+}
+
+

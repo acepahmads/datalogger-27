@@ -28,9 +28,22 @@ import (
 
 func main() {
 	// 1. Load Configuration
-	cfg, err := config.Load("config.json")
+	configPath := "config.json"
+	if envCfg := os.Getenv("DATALOGGER_CONFIG"); envCfg != "" {
+		configPath = envCfg
+	} else if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Fallback: look next to executable
+		if exe, err := os.Executable(); err == nil {
+			exeDir := filepath.Dir(exe)
+			altPath := filepath.Join(exeDir, "config.json")
+			if _, statErr := os.Stat(altPath); statErr == nil {
+				configPath = altPath
+			}
+		}
+	}
+	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Printf("Warning: failed to load config.json: %v. Using defaults.\n", err)
+		fmt.Printf("Warning: failed to load config file (%s): %v. Using defaults.\n", configPath, err)
 		cfg = config.DefaultConfig()
 	}
 
@@ -555,6 +568,18 @@ func main() {
 
 	// 11. Serve Web UI Static Assets (if web/dist exists)
 	distPath := filepath.Join("web", "dist")
+	if envWeb := os.Getenv("DATALOGGER_WEB_DIR"); envWeb != "" {
+		distPath = envWeb
+	} else if _, err := os.Stat(distPath); os.IsNotExist(err) {
+		// Fallback: look next to executable
+		if exe, err := os.Executable(); err == nil {
+			exeDir := filepath.Dir(exe)
+			altPath := filepath.Join(exeDir, "web", "dist")
+			if _, statErr := os.Stat(altPath); statErr == nil {
+				distPath = altPath
+			}
+		}
+	}
 	if _, err := os.Stat(distPath); err == nil {
 		r.Static("/assets", filepath.Join(distPath, "assets"))
 		r.StaticFile("/favicon.ico", filepath.Join(distPath, "favicon.ico"))
