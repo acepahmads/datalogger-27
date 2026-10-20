@@ -70,8 +70,8 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) Run() {
-	// Periodic telemetry ticker: 2-second interval, only runs if clients are connected
-	ticker := time.NewTicker(2 * time.Second)
+	// Periodic telemetry ticker: 5-second interval matching hardware sampling, only runs if clients are connected
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {

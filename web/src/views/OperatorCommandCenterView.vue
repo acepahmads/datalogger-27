@@ -3946,6 +3946,9 @@ export default {
         ? Math.max(0, Math.floor((Date.now() - new Date(localStorage.getItem('dl_last_telemetry_time')).getTime()) / 1000))
         : 0,
       currentTimeMs: Date.now(),
+      staleCheckTimeMs: Date.now(),
+      blinkClearTimer: null,
+      storageSaveTimer: null,
       tickerInterval: null,
       pollingInterval: null,
       trendAutoRefreshInterval: null,
@@ -4709,7 +4712,7 @@ export default {
     },
     allParameters() {
       const list = [];
-      const nowMs = this.currentTimeMs || Date.now();
+      const nowMs = this.staleCheckTimeMs || Date.now();
       for (const dev of this.devicesList) {
         if (!dev.parameters) continue;
         const isOnline = this.isDeviceActiveOnline(dev);
@@ -5026,6 +5029,13 @@ export default {
         }
       },
     },
+    '$store.state.wsConnected': {
+      handler(newVal, oldVal) {
+        if (newVal !== oldVal) {
+          this.setupPollingTimer();
+        }
+      },
+    },
     isDark: {
       handler(newDark) {
         if (this.activeTrendSeries && this.activeTrendSeries.length > 0) {
@@ -5051,6 +5061,11 @@ export default {
       this.currentTimeMs = Date.now();
       if (this.lastTelemetryTime) {
         this.lastTelemetrySecondsAgo = Math.floor((Date.now() - new Date(this.lastTelemetryTime).getTime()) / 1000);
+      }
+      // Re-evaluate staleness only every 10 seconds to avoid invalidating the entire parameter grid every second
+      if (!this._lastStaleCheck || Date.now() - this._lastStaleCheck >= 10000) {
+        this._lastStaleCheck = Date.now();
+        this.staleCheckTimeMs = this._lastStaleCheck;
       }
     }, 1000);
 
@@ -5083,6 +5098,11 @@ export default {
     if (this.pollingInterval) clearInterval(this.pollingInterval);
     if (this.trendAutoRefreshInterval) clearInterval(this.trendAutoRefreshInterval);
     if (this.alarmPulseTimer) clearTimeout(this.alarmPulseTimer);
+    if (this.blinkClearTimer) clearTimeout(this.blinkClearTimer);
+    if (this.storageSaveTimer) {
+      clearTimeout(this.storageSaveTimer);
+      this.flushStorageSave();
+    }
     if (this.trendResizeObserver) {
       this.trendResizeObserver.disconnect();
       this.trendResizeObserver = null;
@@ -6407,7 +6427,10 @@ export default {
         clearInterval(this.pollingInterval);
         this.pollingInterval = null;
       }
-      const intervalMs = this.configuredPollingIntervalMs;
+      // When WebSocket is connected, live telemetry streams in real-time; polling is fallback only (30s).
+      // When disconnected, use device configured polling rate.
+      const isWs = !!(this.$store?.state?.wsConnected);
+      const intervalMs = isWs ? 30000 : this.configuredPollingIntervalMs;
       this.pollingInterval = setInterval(async () => {
         await this.pollDashboardCycle();
       }, intervalMs);
@@ -6426,10 +6449,13 @@ export default {
       }, 60000);
     },
     async pollDashboardCycle() {
-      await this.refreshLatestOnly();
+      // Avoid duplicate REST polling when live WebSocket telemetry is already active
+      if (!this.$store?.state?.wsConnected) {
+        await this.refreshLatestOnly();
+      }
       await this.fetchActiveAlarms();
       this.devicePollCycles = (this.devicePollCycles || 0) + 1;
-      if (this.devicePollCycles >= 3) {
+      if (this.devicePollCycles >= 4) {
         this.devicePollCycles = 0;
         await this.syncDeviceCatalog();
       }
@@ -6489,14 +6515,9 @@ export default {
         this.lastTelemetryTime = new Date(goodTime);
         if (data.parameter_id) {
           this.$set(this.lastGoodTimeMap, data.parameter_id, goodTime);
-          try {
-            localStorage.setItem('dl_last_good_time_map', JSON.stringify(this.lastGoodTimeMap));
-          } catch (e) {}
         }
         this.lastTelemetrySecondsAgo = 0;
-        try {
-          localStorage.setItem('dl_last_telemetry_time', new Date(goodTime).toISOString());
-        } catch (e) {}
+        this.scheduleStorageSave();
       }
 
       // Update device connection status when telemetry arrives
@@ -6515,12 +6536,28 @@ export default {
         this.$set(this.liveMap, data.parameter_id, data);
         this.recordSparkline(data.parameter_id, data.value, data.received_at, data.quality);
 
-        // Flash row/tile briefly
+        // Flash row/tile briefly with consolidated clear timer
         this.$set(this.liveBlinks, data.parameter_id, true);
-        setTimeout(() => {
-          this.$set(this.liveBlinks, data.parameter_id, false);
+        if (this.blinkClearTimer) clearTimeout(this.blinkClearTimer);
+        this.blinkClearTimer = setTimeout(() => {
+          this.liveBlinks = {};
         }, 600);
       }
+    },
+    scheduleStorageSave() {
+      if (this.storageSaveTimer) return;
+      this.storageSaveTimer = setTimeout(() => {
+        this.flushStorageSave();
+      }, 15000);
+    },
+    flushStorageSave() {
+      this.storageSaveTimer = null;
+      try {
+        localStorage.setItem('dl_last_good_time_map', JSON.stringify(this.lastGoodTimeMap));
+        if (this.lastTelemetryTime) {
+          localStorage.setItem('dl_last_telemetry_time', this.lastTelemetryTime.toISOString());
+        }
+      } catch (e) {}
     },
     async initDashboard() {
       this.isRefreshing = true;
@@ -6570,17 +6607,12 @@ export default {
               // Only update last valid telemetry timestamp from GOOD quality data
               if (item.received_at && item.quality === 'GOOD') {
                 this.$set(this.lastGoodTimeMap, item.parameter_id, item.received_at);
-                try {
-                  localStorage.setItem('dl_last_good_time_map', JSON.stringify(this.lastGoodTimeMap));
-                } catch (e) {}
                 const itemTime = new Date(item.received_at).getTime();
                 if (!this.lastTelemetryTime || itemTime > new Date(this.lastTelemetryTime).getTime()) {
                   this.lastTelemetryTime = new Date(item.received_at);
                   this.lastTelemetrySecondsAgo = Math.max(0, Math.floor((Date.now() - itemTime) / 1000));
-                  try {
-                    localStorage.setItem('dl_last_telemetry_time', this.lastTelemetryTime.toISOString());
-                  } catch (e) {}
                 }
+                this.scheduleStorageSave();
               }
               // Parameter values and sparklines are updated from latest cache.
               // Device connection status is maintained strictly by backend comm events and catalog sync.
@@ -7256,6 +7288,13 @@ export default {
       const maxY = scaleInfo.max;
       const spanY = scaleInfo.span;
 
+      // Memoization check: return cached path if series data, scale, and chart bounds haven't changed
+      const isStandard = bounds === null && width === null && height === null;
+      const cacheKey = isStandard ? `${series.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}` : null;
+      if (isStandard && series._cachedPathKey === cacheKey && series._cachedPath) {
+        return series._cachedPath;
+      }
+
       // Estimate gap threshold: when delta t exceeds 3-4x typical sample interval, break path
       let maxGapMs = 15 * 60 * 1000;
       if (timeSpan <= 90 * 1000) maxGapMs = 15 * 1000; // 15s for 1m
@@ -7293,7 +7332,12 @@ export default {
         prevX = p.x;
       }
 
-      return pathStr.trim();
+      const res = pathStr.trim();
+      if (isStandard) {
+        series._cachedPathKey = cacheKey;
+        series._cachedPath = res;
+      }
+      return res;
     },
     generatePrimaryAreaPath(bounds = null, width = null, height = null, padLeft = null, padRight = null, padTop = null, padBottom = null) {
       if (this.activeTrendSeries.length === 0) return '';
@@ -7324,6 +7368,13 @@ export default {
         maxY += 1;
       }
       const spanY = maxY - minY || 1;
+
+      // Memoization check for primary area
+      const isStandard = bounds === null && width === null && height === null;
+      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}` : null;
+      if (isStandard && this._cachedAreaKey === cacheKey && this._cachedAreaPath) {
+        return this._cachedAreaPath;
+      }
 
       let maxGapMs = 15 * 60 * 1000;
       if (timeSpan <= 90 * 1000) maxGapMs = 15 * 1000;
@@ -7382,6 +7433,10 @@ export default {
         d += (d ? ' ' : '') + segD;
       }
 
+      if (isStandard) {
+        this._cachedAreaKey = cacheKey;
+        this._cachedAreaPath = d;
+      }
       return d;
     },
     generateChartPolyline(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {

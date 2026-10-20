@@ -774,16 +774,12 @@ export default new Vuex.Store({
             window.dispatchEvent(new CustomEvent('ispu-calculated-event', { detail: msg.data }));
           } else if (msg.type === 'notification.alert' && msg.data) {
             dispatch('fetchActiveAlarms');
-            dispatch('fetchSystemStatus');
           } else if (msg.type === 'alarm.created' && msg.data) {
             commit('UPSERT_ACTIVE_ALARM', msg.data);
-            dispatch('fetchSystemStatus');
           } else if (msg.type === 'alarm.acknowledged' && msg.data) {
             commit('UPDATE_ALARM_STATUS', msg.data);
-            dispatch('fetchSystemStatus');
           } else if (msg.type === 'alarm.cleared' && msg.data) {
             commit('REMOVE_ACTIVE_ALARM', msg.data.id || msg.data.ID);
-            dispatch('fetchSystemStatus');
           }
         } catch (e) {
           // ignore parse errors

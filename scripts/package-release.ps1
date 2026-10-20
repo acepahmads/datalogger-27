@@ -129,7 +129,7 @@ foreach ($t in $Targets) {
     $ArchiveBase = "datalogger-$Version-$PlatformName"
     if ($t.ArchiveType -eq "zip") {
         $ArchiveFile = Join-Path $ReleasePath "$ArchiveBase.zip"
-        Compress-Archive -Path "$StageDir\*" -DestinationPath $ArchiveFile -Force
+        tar -a -cf "$ArchiveFile" -C "$StageDir" .
         Write-Host "  -> Created: $ArchiveFile" -ForegroundColor Green
     } else {
         $ArchiveFile = Join-Path $ReleasePath "$ArchiveBase.tar.gz"
