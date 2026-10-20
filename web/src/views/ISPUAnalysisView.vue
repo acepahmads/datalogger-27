@@ -1208,7 +1208,9 @@ export default {
       const res = this.getParameterResult(pollutantCode);
       if (!res) return 'TIDAK TERPASANG';
       if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return 'TIDAK TERSEDIA';
-      return res.category || 'TIDAK TERSEDIA';
+      const cat = res.category || 'TIDAK TERSEDIA';
+      if (cat === 'SANGAT_TIDAK_SEHAT') return 'SGT TDK SEHAT';
+      return cat.replace(/_/g, ' ');
     },
     getParameterCardClass(pollutantCode) {
       const isSelected = this.selectedPollutant === pollutantCode;

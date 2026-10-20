@@ -228,7 +228,7 @@
           v-for="pollutant in sevenOfficialParameters"
           :key="pollutant.code"
           @click="selectDisplayParameter(pollutant.code)"
-          class="p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer hover:border-cyan-400 select-none"
+          class="p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer hover:border-cyan-400 select-none overflow-hidden"
           :class="[
             getCardClass(pollutant.code),
             selectedDisplayParam === pollutant.code ? 'ring-2 ring-cyan-400 shadow-md bg-cyan-500/10' : ''
@@ -259,17 +259,18 @@
             </span>
           </div>
 
-          <!-- Metric -->
-          <div class="flex items-baseline space-x-1.5 my-0.5">
-            <span class="text-lg font-bold font-mono tabular-nums leading-none" :class="getTextClass(pollutant.code)">
+          <!-- Metric (Fit tightly without overflowing card boundaries) -->
+          <div class="flex items-center justify-between gap-1 my-0.5 min-w-0">
+            <span class="text-base sm:text-lg font-bold font-mono tabular-nums leading-none shrink-0" :class="getTextClass(pollutant.code)">
               {{ getISPUValue(pollutant.code) }}
             </span>
             <span
               v-if="getParameterResult(pollutant.code)"
-              class="px-1 py-0.2 rounded text-4xs font-bold uppercase tracking-wider border"
+              class="px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-tight border text-center leading-none max-w-full truncate shrink"
               :class="getBadgeClass(pollutant.code)"
+              :title="formatCategoryLabel(getParameterResult(pollutant.code).category)"
             >
-              {{ getParameterResult(pollutant.code).category }}
+              {{ formatCategoryLabel(getParameterResult(pollutant.code).category) }}
             </span>
           </div>
 
@@ -815,6 +816,18 @@ export default {
         case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/40';
         case 'BERBAHAYA': return 'bg-purple-900/40 text-purple-300 border-purple-500/50';
         default: return 'bg-slate-200 text-slate-500 border-slate-300';
+      }
+    },
+    formatCategoryLabel(cat) {
+      if (!cat) return '';
+      switch (cat) {
+        case 'BAIK': return 'BAIK';
+        case 'SEDANG': return 'SEDANG';
+        case 'TIDAK_SEHAT': return 'TIDAK SEHAT';
+        case 'SANGAT_TIDAK_SEHAT': return 'SGT TDK SEHAT';
+        case 'BERBAHAYA': return 'BERBAHAYA';
+        case 'TIDAK_TERSEDIA': return 'N/A';
+        default: return cat.replace(/_/g, ' ');
       }
     },
     getAuthToken() {

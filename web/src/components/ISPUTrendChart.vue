@@ -190,18 +190,6 @@
           />
         </g>
 
-        <!-- Vertical Time Grid Lines (Theme Adaptive: #DCEAF3 in Light Mode, subtle white in Dark Mode) -->
-        <g :stroke="resolvedIsDark ? 'rgba(255, 255, 255, 0.05)' : '#DCEAF3'" stroke-width="1" stroke-dasharray="3,3">
-          <line
-            v-for="(tick, idx) in xTicks"
-            :key="`xgrid-${idx}`"
-            :x1="tick.x"
-            :y1="padTop"
-            :x2="tick.x"
-            :y2="padTop + plotHeight"
-          />
-        </g>
-
         <!-- Category Horizontal Boundary Lines -->
         <g :stroke="resolvedIsDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.12)'" stroke-width="1.2">
           <line
@@ -511,12 +499,10 @@ export default {
       }
       if (this.activePollutantCode && this.activePollutantCode !== 'OVERALL' && this.activePollutantCode !== 'ALL') {
         const pCode = this.activePollutantCode.toUpperCase();
-        if (pCode === 'PM25') {
-          return 'Permen LHK No. 14/2020 Pasal 10 ayat (1)a · Jendela 24 Jam (Pelaporan Setiap Jam)';
-        }
-        return 'Permen LHK No. 14/2020 Pasal 10 ayat (1)b & (2) · Jendela 24 Jam (Jadwal 09.00 & 15.00 WIB / 1 Jam jika >100)';
+        const paramName = this.pollutantDisplayName(pCode);
+        return `Permen LHK No. 14/2020 · Jendela 24 Jam (Cadence: 1 Jam) · ${pCode} (${paramName})`;
       }
-      return 'Permen LHK No. 14 Tahun 2020 · Jendela Pengukuran 24 Jam (Cadence: 1 Jam · Pasal 10 ayat 1a)';
+      return 'Permen LHK No. 14 Tahun 2020 · Jendela Pengukuran 24 Jam (Cadence: 1 Jam)';
     },
     plotWidth() {
       return Math.max(10, this.chartWidth - this.padLeft - this.padRight);
@@ -634,23 +620,6 @@ export default {
         const hourlyRecords = sourceRecords.filter(r => new Date(r.period_end).getMinutes() === 0);
         if (hourlyRecords.length > 0) {
           sourceRecords = hourlyRecords;
-        }
-
-        if (!this.isOverallMode) {
-          const pCode = (this.activePollutantCode || '').toUpperCase();
-          if (pCode !== 'PM25') {
-            // Permen LHK 14/2020 Pasal 10 ayat (1)b & ayat (2):
-            // Cadence for gases/PM10: 09:00 & 15:00 WIB, or hourly when pollutant or station ISPU > 100
-            sourceRecords = sourceRecords.filter((r, idx) => {
-              if (idx === sourceRecords.length - 1) return true; // always show latest point
-              const d = new Date(r.period_end);
-              const hour = d.getHours();
-              if (hour === 9 || hour === 15) return true;
-              const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.activePollutantCode);
-              const val = pr ? pr.calculated_ispu : r.overall_ispu;
-              return val > 100;
-            });
-          }
         }
       }
 
