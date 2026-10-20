@@ -138,9 +138,9 @@
               </div>
 
               <!-- Percentage -->
-              <span class="text-2xs font-bold w-10 text-right font-sans"
+              <span class="text-2xs font-bold w-12 text-right font-sans"
                     :class="phase.progress >= 100 ? 'text-emerald-400' : phase.progress > 0 ? 'text-blue-400' : 'text-slate-500'">
-                {{ phase.progress.toFixed(0) }}%
+                {{ phase.progress % 1 === 0 ? phase.progress : phase.progress.toFixed(1) }}%
               </span>
 
               <!-- Status Pill -->
@@ -324,7 +324,7 @@ export default {
       showNewTaskModal: false,
       newTaskPhaseId: 1,
       selectedSubphaseId: null,
-      openPhases: { 1: true, 2: true, 3: true }, // Open Phase 1, 2 & 3 by default
+      openPhases: { 1: true, 2: true, 3: true, 9: true }, // Open Phase 1, 2, 3 & 9 by default
     };
   },
   computed: {
