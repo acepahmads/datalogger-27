@@ -75,23 +75,31 @@
       </div>
     </div>
 
-    <!-- Chart Canvas Container (Consistent Dark SCADA Oscilloscope/Monitor in both themes) -->
+    <!-- Chart Canvas Container (Theme adaptive: Light Mode #F8FCFF border #B7D8EC, Dark Mode #0B1322) -->
     <div
       ref="chartContainer"
-      class="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden select-none transition-colors duration-200 bg-[#0B1322] border border-slate-200 dark:border-slate-700/60 shadow-md"
+      class="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden select-none transition-colors duration-200 shadow-md"
+      :class="resolvedIsDark
+        ? 'bg-[#0B1322] border border-slate-700/60'
+        : 'bg-[#F8FCFF] border border-[#B7D8EC]'"
       @mousemove="handleMouseMove"
       @mouseleave="hoveredPoint = null"
     >
       <!-- Loading State -->
       <div
         v-if="loading"
-        class="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs transition-colors"
+        class="absolute inset-0 z-20 flex items-center justify-center backdrop-blur-xs transition-colors"
+        :class="resolvedIsDark ? 'bg-slate-900/60' : 'bg-white/60'"
       >
         <div
-          class="flex items-center space-x-2 text-xs font-mono px-3 py-1.5 rounded-lg border text-cyan-400 bg-slate-900/90 border-cyan-500/30"
+          class="flex items-center space-x-2 text-xs font-mono px-3 py-1.5 rounded-lg border"
+          :class="resolvedIsDark
+            ? 'text-cyan-400 bg-slate-900/90 border-cyan-500/30'
+            : 'text-cyan-700 bg-white/95 border-[#B7D8EC] shadow-sm'"
         >
           <div
-            class="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin border-cyan-400"
+            class="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+            :class="resolvedIsDark ? 'border-cyan-400' : 'border-cyan-600'"
           ></div>
           <span>Loading historical trend...</span>
         </div>
@@ -100,10 +108,11 @@
       <!-- Empty State -->
       <div
         v-else-if="!points || points.length === 0"
-        class="absolute inset-0 flex flex-col items-center justify-center text-xs font-mono space-y-1 text-slate-400"
+        class="absolute inset-0 flex flex-col items-center justify-center text-xs font-mono space-y-1"
+        :class="resolvedIsDark ? 'text-slate-400' : 'text-slate-500'"
       >
-        <span>No historical ISPU records available for selected range</span>
-        <span class="text-3xs text-slate-500">
+        <span class="font-medium">No historical ISPU records available for selected range</span>
+        <span class="text-3xs" :class="resolvedIsDark ? 'text-slate-500' : 'text-slate-400'">
           Historical trend will populate automatically from aggregation rollups
         </span>
       </div>
@@ -122,49 +131,49 @@
               dy="0"
               stdDeviation="3.5"
               flood-color="#00F2FE"
-              flood-opacity="0.9"
+              :flood-opacity="resolvedIsDark ? '0.9' : '0.0'"
             />
           </filter>
 
-          <!-- Rich, solid SCADA regulatory category bands (Consistent in all themes) -->
+          <!-- 5 Category Bands (Theme Adaptive: Dark SCADA in Dark Mode, Soft Pastel in Light Mode) -->
           <linearGradient id="bandBaik" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1B873F" stop-opacity="0.92" />
-            <stop offset="100%" stop-color="#166534" stop-opacity="0.92" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#1B873F' : '#E6F9EE'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#166534' : '#C6F6D5'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
           </linearGradient>
 
           <linearGradient id="bandSedang" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1D63B8" stop-opacity="0.92" />
-            <stop offset="100%" stop-color="#1E40AF" stop-opacity="0.92" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#1D63B8' : '#E0F2FE'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#1E40AF' : '#BAE6FD'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
           </linearGradient>
 
           <linearGradient id="bandTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#C49000" stop-opacity="0.92" />
-            <stop offset="100%" stop-color="#B45309" stop-opacity="0.92" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#C49000' : '#FEF9C3'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#B45309' : '#FDE68A'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
           </linearGradient>
 
           <linearGradient id="bandSangatTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#B91C1C" stop-opacity="0.92" />
-            <stop offset="100%" stop-color="#991B1B" stop-opacity="0.92" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#B91C1C' : '#FEE2E2'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#991B1B' : '#FECACA'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
           </linearGradient>
 
           <linearGradient id="bandBerbahaya" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#4A0D15" stop-opacity="0.95" />
-            <stop offset="100%" stop-color="#3B080F" stop-opacity="0.95" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#4A0D15' : '#F5D5DB'" :stop-opacity="resolvedIsDark ? '0.95' : '0.85'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#3B080F' : '#EAB8C1'" :stop-opacity="resolvedIsDark ? '0.95' : '0.85'" />
           </linearGradient>
 
           <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#00F2FE" stop-opacity="0.30" />
-            <stop offset="100%" stop-color="#00F2FE" stop-opacity="0.0" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#00F2FE' : '#0891B2'" stop-opacity="0.30" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#00F2FE' : '#0891B2'" stop-opacity="0.0" />
           </linearGradient>
         </defs>
 
-        <!-- Plot Area Base Background -->
+        <!-- Plot Area Base Background (#FFFFFF in Light Mode, #080F20 in Dark Mode) -->
         <rect
           :x="padLeft"
           :y="padTop"
           :width="chartWidth - padLeft"
           :height="plotHeight"
-          fill="#080F20"
+          :fill="resolvedIsDark ? '#080F20' : '#FFFFFF'"
         />
 
         <!-- 5 Horizontal Background Category Bands -->
@@ -181,8 +190,8 @@
           />
         </g>
 
-        <!-- Vertical Time Grid Lines -->
-        <g stroke="rgba(255, 255, 255, 0.05)" stroke-width="1" stroke-dasharray="3,3">
+        <!-- Vertical Time Grid Lines (Theme Adaptive: #DCEAF3 in Light Mode, subtle white in Dark Mode) -->
+        <g :stroke="resolvedIsDark ? 'rgba(255, 255, 255, 0.05)' : '#DCEAF3'" stroke-width="1" stroke-dasharray="3,3">
           <line
             v-for="(tick, idx) in xTicks"
             :key="`xgrid-${idx}`"
@@ -194,7 +203,7 @@
         </g>
 
         <!-- Category Horizontal Boundary Lines -->
-        <g stroke="rgba(0, 0, 0, 0.45)" stroke-width="1.2">
+        <g :stroke="resolvedIsDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.12)'" stroke-width="1.2">
           <line
             v-for="(b, idx) in computedBands.slice(0, 4)"
             :key="`line-${idx}`"
@@ -205,7 +214,7 @@
           />
         </g>
 
-        <!-- Category Labels Inside the Left Side of Each Band (High-Contrast White with Shadow) -->
+        <!-- Category Labels Inside the Left Side of Each Band (High-Contrast Theme Adaptive) -->
         <g class="band-labels text-[11px] font-mono font-black select-none">
           <text
             v-for="b in computedBands"
@@ -213,16 +222,16 @@
             v-if="b.height >= 14"
             :x="padLeft + 12"
             :y="b.y + b.height / 2 + 4"
-            fill="#FFFFFF"
+            :fill="resolvedIsDark ? '#FFFFFF' : (b.textColorLight || '#1E293B')"
             letter-spacing="0.6"
-            style="text-shadow: 0 1px 3px rgba(0,0,0,0.8);"
+            :style="resolvedIsDark ? 'text-shadow: 0 1px 3px rgba(0,0,0,0.8);' : 'font-weight: 800;'"
           >
             {{ b.label }}
           </text>
         </g>
 
-        <!-- Left Y-Axis Numeric Labels -->
-        <g class="text-[10px] font-mono select-none" text-anchor="end" fill="#94A3B8">
+        <!-- Left Y-Axis Numeric Labels (Theme Adaptive: #526779 in Light Mode, #94A3B8 in Dark Mode) -->
+        <g class="text-[10px] font-mono select-none" text-anchor="end" :fill="resolvedIsDark ? '#94A3B8' : '#526779'">
           <text
             v-for="tick in yTicks"
             :key="`ytick-${tick.val}`"
@@ -233,8 +242,8 @@
           </text>
         </g>
 
-        <!-- Bottom X-Axis Date/Time Labels -->
-        <g class="text-[10px] font-mono select-none" text-anchor="middle" fill="#94A3B8">
+        <!-- Bottom X-Axis Date/Time Labels (Theme Adaptive: #526779 in Light Mode, #94A3B8 in Dark Mode) -->
+        <g class="text-[10px] font-mono select-none" text-anchor="middle" :fill="resolvedIsDark ? '#94A3B8' : '#526779'">
           <text
             v-for="(tick, idx) in xTicks"
             :key="`xtick-${idx}`"
@@ -249,18 +258,18 @@
         <path
           :d="curvePath"
           fill="none"
-          stroke="rgba(8, 15, 32, 0.85)"
-          stroke-width="4.5"
+          :stroke="resolvedIsDark ? 'rgba(8, 15, 32, 0.85)' : 'rgba(255, 255, 255, 0.95)'"
+          :stroke-width="resolvedIsDark ? 4.5 : 4.8"
           stroke-linecap="round"
           stroke-linejoin="round"
           opacity="0.9"
         />
 
-        <!-- Smooth Bright Cyan Neon Trend Curve -->
+        <!-- Smooth Bright Cyan / Deep Teal Trend Curve -->
         <path
           :d="curvePath"
           fill="none"
-          stroke="#00F2FE"
+          :stroke="resolvedIsDark ? '#00F2FE' : '#0891B2'"
           stroke-width="2.6"
           stroke-linecap="round"
           stroke-linejoin="round"
@@ -277,16 +286,16 @@
                 :cx="p.x"
                 :cy="p.y"
                 r="7"
-                fill="#00F2FE"
+                :fill="resolvedIsDark ? '#00F2FE' : '#0891B2'"
                 class="animate-ping opacity-35"
               />
-              <!-- Core Circular Marker (Cyan with Dark SCADA Ring) -->
+              <!-- Core Circular Marker -->
               <circle
                 :cx="p.x"
                 :cy="p.y"
                 r="3.5"
-                fill="#00F2FE"
-                stroke="#080F20"
+                :fill="resolvedIsDark ? '#00F2FE' : '#0891B2'"
+                :stroke="resolvedIsDark ? '#080F20' : '#FFFFFF'"
                 stroke-width="1.8"
                 filter="url(#neonGlow)"
                 class="transition-transform hover:scale-175 cursor-pointer shadow-xs"
@@ -302,7 +311,7 @@
             :y1="padTop"
             :x2="hoveredPoint.x"
             :y2="padTop + plotHeight"
-            stroke="#00F2FE"
+            :stroke="resolvedIsDark ? '#00F2FE' : '#0891B2'"
             stroke-width="1.2"
             stroke-dasharray="3,3"
             class="opacity-80"
@@ -312,7 +321,7 @@
             :cx="hoveredPoint.x"
             :cy="hoveredPoint.y"
             r="6"
-            fill="#00F2FE"
+            :fill="resolvedIsDark ? '#00F2FE' : '#0891B2'"
             stroke="#FFFFFF"
             stroke-width="2"
             filter="url(#neonGlow)"
@@ -320,58 +329,61 @@
         </g>
       </svg>
 
-      <!-- Compact Adaptive Tooltip -->
+      <!-- Compact Adaptive Tooltip (Theme Adaptive: White in Light Mode, Slate in Dark Mode) -->
       <div
         v-if="hoveredPoint"
-        class="absolute z-30 pointer-events-none p-3 rounded-xl backdrop-blur-md text-[11px] font-mono transform -translate-x-1/2 -translate-y-full transition-transform duration-75 select-none bg-[#0F172A]/95 text-white border border-slate-700/80 shadow-2xl"
+        class="absolute z-30 pointer-events-none p-3 rounded-xl backdrop-blur-md text-[11px] font-mono transform -translate-x-1/2 -translate-y-full transition-transform duration-75 select-none"
+        :class="resolvedIsDark
+          ? 'bg-[#0B1C2B]/95 text-white border border-[#244356] shadow-2xl'
+          : 'bg-white/95 text-slate-800 border border-[#B7D8EC] shadow-xl'"
         :style="{
           left: `${tooltipLeft}px`,
           top: `${tooltipTop}px`
         }"
       >
         <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 whitespace-nowrap">
-          <span class="text-slate-400">Mode:</span>
-          <span class="font-bold text-cyan-400">
+          <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Mode:</span>
+          <span class="font-bold" :class="resolvedIsDark ? 'text-cyan-400' : 'text-cyan-600'">
             {{ isRegulatoryMode ? '24-Jam Rolling Regulasi' : `Per Agregasi (${aggIntervalLabel})` }}
           </span>
 
-          <span class="text-slate-400">Window:</span>
-          <span class="font-bold text-white">
+          <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Window:</span>
+          <span class="font-bold" :class="resolvedIsDark ? 'text-white' : 'text-slate-900'">
             {{ formatWindow(hoveredPoint.raw) }}
           </span>
 
-          <span class="text-slate-400">ISPU:</span>
-          <span class="font-bold text-[#00F2FE]">
+          <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">ISPU:</span>
+          <span class="font-bold" :class="resolvedIsDark ? 'text-[#00F2FE]' : 'text-cyan-700'">
             <template v-if="hoveredPoint.isAvailable && hoveredPoint.value !== null">
               {{ Math.round(hoveredPoint.value) }} ({{ (hoveredPoint.category || '').replace('_', ' ') }})
             </template>
             <template v-else>
-              <span class="text-slate-400 font-normal">Tidak Tersedia / Missing</span>
+              <span :class="resolvedIsDark ? 'text-slate-400 font-normal' : 'text-slate-500 font-normal'">Tidak Tersedia / Missing</span>
             </template>
           </span>
 
-          <span v-if="!isOverallMode" class="text-slate-400">Concentration:</span>
-          <span v-if="!isOverallMode" class="font-bold text-white">
+          <span v-if="!isOverallMode" :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Concentration:</span>
+          <span v-if="!isOverallMode" class="font-bold" :class="resolvedIsDark ? 'text-white' : 'text-slate-900'">
             <template v-if="hoveredPoint.isAvailable && hoveredPoint.concentration != null">
               {{ hoveredPoint.concentration.toFixed(1) }} {{ hoveredPoint.unit }}
             </template>
             <template v-else>
-              <span class="text-slate-400">-</span>
+              <span :class="resolvedIsDark ? 'text-slate-400' : 'text-slate-500'">-</span>
             </template>
           </span>
 
-          <span class="text-slate-400">Dominant:</span>
-          <span class="font-bold text-white">
+          <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Dominant:</span>
+          <span class="font-bold" :class="resolvedIsDark ? 'text-white' : 'text-slate-900'">
             {{ formatDominant(hoveredPoint.raw.dominant_pollutant || selectedPollutant) }}
           </span>
 
-          <span class="text-slate-400">Coverage:</span>
-          <span class="font-bold text-white">
+          <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Coverage:</span>
+          <span class="font-bold" :class="resolvedIsDark ? 'text-white' : 'text-slate-900'">
             {{ Number(hoveredPoint.raw.completeness_percent || 0).toFixed(1) }}%
-            <span class="text-4xs text-slate-400">({{ isRegulatoryMode ? '≥75% valid' : 'bucket' }})</span>
+            <span class="text-4xs" :class="resolvedIsDark ? 'text-slate-400' : 'text-slate-500'">({{ isRegulatoryMode ? '≥75% valid' : 'bucket' }})</span>
           </span>
 
-          <span class="text-slate-400">Status:</span>
+          <span :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Status:</span>
           <span
             class="font-bold px-1.5 py-0.5 rounded text-[10px]"
             :class="getStatusBadgeClass(hoveredPoint.raw.calculation_status)"
@@ -527,11 +539,11 @@ export default {
         // Reference Mockup visual layout: Green at top, Blue 2nd, Yellow 3rd, Red 4th, Dark Red at bottom
         const h5 = this.plotHeight / 5;
         return [
-          { key: 'baik', id: 'bandBaik', label: 'BAIK (0-50)', colorLight: '#064E3B', y: this.padTop, height: h5 },
-          { key: 'sedang', id: 'bandSedang', label: 'SEDANG (51-100)', colorLight: '#1E3A8A', y: this.padTop + h5, height: h5 },
-          { key: 'tidak_sehat', id: 'bandTidakSehat', label: 'TIDAK SEHAT (101-200)', colorLight: '#78350F', y: this.padTop + 2 * h5, height: h5 },
-          { key: 'sangat_tidak_sehat', id: 'bandSangatTidakSehat', label: 'SANGAT TIDAK SEHAT (201-300)', colorLight: '#7F1D1D', y: this.padTop + 3 * h5, height: h5 },
-          { key: 'berbahaya', id: 'bandBerbahaya', label: 'BERBAHAYA (>300)', colorLight: '#450A0A', y: this.padTop + 4 * h5, height: h5 }
+          { key: 'baik', id: 'bandBaik', label: 'BAIK (0-50)', colorLight: '#064E3B', textColorLight: '#14532D', y: this.padTop, height: h5 },
+          { key: 'sedang', id: 'bandSedang', label: 'SEDANG (51-100)', colorLight: '#1E3A8A', textColorLight: '#1E40AF', y: this.padTop + h5, height: h5 },
+          { key: 'tidak_sehat', id: 'bandTidakSehat', label: 'TIDAK SEHAT (101-200)', colorLight: '#78350F', textColorLight: '#854D0E', y: this.padTop + 2 * h5, height: h5 },
+          { key: 'sangat_tidak_sehat', id: 'bandSangatTidakSehat', label: 'SANGAT TIDAK SEHAT (201-300)', colorLight: '#7F1D1D', textColorLight: '#991B1B', y: this.padTop + 3 * h5, height: h5 },
+          { key: 'berbahaya', id: 'bandBerbahaya', label: 'BERBAHAYA (>300)', colorLight: '#450A0A', textColorLight: '#701A28', y: this.padTop + 4 * h5, height: h5 }
         ];
       }
 
@@ -549,6 +561,7 @@ export default {
           id: 'bandBerbahaya',
           label: 'BERBAHAYA (>300)',
           colorLight: '#450A0A',
+          textColorLight: '#701A28',
           y: yTop,
           height: Math.max(0, y300 - yTop)
         },
@@ -557,6 +570,7 @@ export default {
           id: 'bandSangatTidakSehat',
           label: 'SANGAT TIDAK SEHAT (201-300)',
           colorLight: '#7F1D1D',
+          textColorLight: '#991B1B',
           y: y300,
           height: Math.max(0, y200 - y300)
         },
@@ -565,6 +579,7 @@ export default {
           id: 'bandTidakSehat',
           label: 'TIDAK SEHAT (101-200)',
           colorLight: '#78350F',
+          textColorLight: '#854D0E',
           y: y200,
           height: Math.max(0, y100 - y200)
         },
@@ -573,6 +588,7 @@ export default {
           id: 'bandSedang',
           label: 'SEDANG (51-100)',
           colorLight: '#1E3A8A',
+          textColorLight: '#1E40AF',
           y: y100,
           height: Math.max(0, y50 - y100)
         },
@@ -581,6 +597,7 @@ export default {
           id: 'bandBaik',
           label: 'BAIK (0-50)',
           colorLight: '#064E3B',
+          textColorLight: '#14532D',
           y: y50,
           height: Math.max(0, y0 - y50)
         }

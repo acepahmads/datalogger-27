@@ -237,7 +237,7 @@
         </div>
 
         <!-- Historical Trend Chart (approx 7 cols) -->
-        <div class="lg:col-span-7 p-3.5 rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] shadow-xs flex flex-col justify-between">
+        <div class="lg:col-span-7 p-3.5 rounded-2xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-xs flex flex-col justify-between">
           <ISPUTrendChart
             :records="trendRecords"
             :loading="trendLoading"
