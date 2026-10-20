@@ -8,6 +8,12 @@ datalogger
 #bin/*.exe
 !bin/datalogger-linux-*
 !bin/datalogger-windows-*
+!bin/datalogger-darwin-*
+
+# Release archives (tracked by package-release.ps1 and SHA256SUMS.txt)
+release/*.zip
+release/*.tar.gz
+!release/SHA256SUMS.txt
 
 # Go build cache & test artifacts
 *.test
