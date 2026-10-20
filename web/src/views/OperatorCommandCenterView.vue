@@ -1959,6 +1959,104 @@
                 <OperatorDashboardIcon name="reset" :size="12" />
               </button>
 
+              <!-- 5. Line Smooth Setup (Smooth vs Sharp / Runcing) -->
+              <div class="relative trend-line-smooth-anchor flex items-center">
+                <button
+                  type="button"
+                  @click.stop="toggleLineInterpolationMenu"
+                  class="p-1 rounded border transition cursor-pointer flex items-center justify-center leading-none"
+                  :class="[
+                    trendLineSmooth
+                      ? 'border-cyan-500/60 bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 shadow-xs ring-1 ring-cyan-500/30'
+                      : 'border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400'
+                  ]"
+                  :title="trendLineSmooth ? ($t('operator.trendLineSmoothActive') || 'Mode Garis: Smooth / Lengkung (Klik untuk Setup)') : ($t('operator.trendLineSharpActive') || 'Mode Garis: Runcing / Linear (Klik untuk Setup)')"
+                  aria-label="Line Smooth Mode"
+                >
+                  <OperatorDashboardIcon :name="trendLineSmooth ? 'line-smooth' : 'line-sharp'" :size="12" />
+                </button>
+
+                <!-- Line Smooth Setup Popover Panel -->
+                <div
+                  v-if="showLineSmoothMenu"
+                  class="absolute left-0 top-full mt-1.5 z-50 w-56 rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0E1726] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-[9.5px]"
+                  @click.stop
+                >
+                  <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+                    <div class="flex items-center space-x-1.5 font-bold uppercase tracking-wider text-[10px] text-slate-900 dark:text-white">
+                      <OperatorDashboardIcon :name="trendLineSmooth ? 'line-smooth' : 'line-sharp'" :size="13" class="text-cyan-500" />
+                      <span>{{ $t('operator.lineStyleSetup') || 'Line Style Setup' }}</span>
+                    </div>
+                    <button
+                      type="button"
+                      @click="showLineSmoothMenu = false"
+                      class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-[11px] p-0.5 leading-none cursor-pointer"
+                    >✕</button>
+                  </div>
+
+                  <div class="text-[8.5px] text-slate-500 dark:text-slate-400 mb-2 leading-tight">
+                    {{ $t('operator.lineStyleDesc') || 'Pilih mode interpolasi garis grafik trend telemetry:' }}
+                  </div>
+
+                  <!-- Mode Selection Options -->
+                  <div class="space-y-1.5 mb-2">
+                    <!-- Option 1: Smooth / Lengkung -->
+                    <button
+                      type="button"
+                      @click="setTrendLineSmooth(true)"
+                      class="w-full p-2 rounded-md border flex items-center justify-between transition cursor-pointer text-left"
+                      :class="trendLineSmooth
+                        ? 'border-cyan-500/70 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-bold ring-1 ring-cyan-500/30'
+                        : 'border-slate-200 dark:border-[#1E3048] bg-slate-50 dark:bg-[#121E30] text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'"
+                    >
+                      <div class="flex items-center space-x-2 min-w-0">
+                        <div class="w-6 h-6 rounded flex items-center justify-center shrink-0" :class="trendLineSmooth ? 'bg-cyan-500/20 text-cyan-500' : 'bg-slate-200/60 dark:bg-slate-800 text-slate-500'">
+                          <OperatorDashboardIcon name="line-smooth" :size="14" />
+                        </div>
+                        <div class="min-w-0 truncate">
+                          <div class="text-[10px] leading-tight">{{ $t('operator.lineSmoothTitle') || 'Smooth (Lengkung)' }}</div>
+                          <div class="text-[8px] font-normal opacity-75 leading-tight">Monotone cubic spline</div>
+                        </div>
+                      </div>
+                      <span v-if="trendLineSmooth" class="text-cyan-500 text-[10px]">✓</span>
+                    </button>
+
+                    <!-- Option 2: Runcing / Sharp / Linear -->
+                    <button
+                      type="button"
+                      @click="setTrendLineSmooth(false)"
+                      class="w-full p-2 rounded-md border flex items-center justify-between transition cursor-pointer text-left"
+                      :class="!trendLineSmooth
+                        ? 'border-cyan-500/70 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-bold ring-1 ring-cyan-500/30'
+                        : 'border-slate-200 dark:border-[#1E3048] bg-slate-50 dark:bg-[#121E30] text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'"
+                    >
+                      <div class="flex items-center space-x-2 min-w-0">
+                        <div class="w-6 h-6 rounded flex items-center justify-center shrink-0" :class="!trendLineSmooth ? 'bg-cyan-500/20 text-cyan-500' : 'bg-slate-200/60 dark:bg-slate-800 text-slate-500'">
+                          <OperatorDashboardIcon name="line-sharp" :size="14" />
+                        </div>
+                        <div class="min-w-0 truncate">
+                          <div class="text-[10px] leading-tight">{{ $t('operator.lineSharpTitle') || 'Runcing (Linear)' }}</div>
+                          <div class="text-[8px] font-normal opacity-75 leading-tight">Direct sharp segments</div>
+                        </div>
+                      </div>
+                      <span v-if="!trendLineSmooth" class="text-cyan-500 text-[10px]">✓</span>
+                    </button>
+                  </div>
+
+                  <!-- Quick 1-Click Toggle Action in footer -->
+                  <div class="pt-1.5 border-t border-slate-100 dark:border-[#1E3048] flex items-center justify-between text-[8px] text-slate-400">
+                    <span>{{ trendLineSmooth ? 'Active: Smooth' : 'Active: Runcing' }}</span>
+                    <button
+                      type="button"
+                      @click="toggleTrendLineSmooth"
+                      class="text-cyan-600 dark:text-cyan-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Ganti ({{ trendLineSmooth ? '→ Runcing' : '→ Smooth' }})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Series Count Badge -->
               <span class="text-slate-400 dark:text-slate-500 text-[8.5px] font-semibold pl-0.5">({{ activeTrendSeries.length }}):</span>
             </div>
@@ -3919,6 +4017,8 @@ export default {
       },
       showTrendDownloadMenu: false,
       showTrendFullscreen: false,
+      showLineSmoothMenu: false,
+      trendLineSmooth: localStorage.getItem('dl_trend_line_smooth') === 'true',
       fullscreenCustomStart: '',
       fullscreenCustomEnd: '',
       fullscreenIsCustom: false,
@@ -5566,6 +5666,9 @@ export default {
       if (this.showAudioSetupPopover && !e.target.closest('.audio-setup-anchor')) {
         this.showAudioSetupPopover = false;
       }
+      if (this.showLineSmoothMenu && !e.target.closest('.trend-line-smooth-anchor')) {
+        this.showLineSmoothMenu = false;
+      }
     },
     onDocumentKeyDown(e) {
       if (e.key === 'Escape') {
@@ -5573,6 +5676,7 @@ export default {
         if (this.activeToolbarPopover) this.closeToolbarPopover();
         if (this.showTrendSettingsMenu) this.showTrendSettingsMenu = false;
         if (this.showTrendDownloadMenu) this.showTrendDownloadMenu = false;
+        if (this.showLineSmoothMenu) this.showLineSmoothMenu = false;
         if (this.showAudioSetupPopover) this.showAudioSetupPopover = false;
         if (this.showLogoModal) this.closeLogoModal();
         if (this.showBrandingModal) this.closeBrandingModal();
@@ -6914,6 +7018,30 @@ export default {
       } catch (e) {}
       this.selectAllEligibleTrendSeries(true);
     },
+    toggleLineInterpolationMenu() {
+      this.showLineSmoothMenu = !this.showLineSmoothMenu;
+    },
+    setTrendLineSmooth(val) {
+      this.trendLineSmooth = !!val;
+      try {
+        localStorage.setItem('dl_trend_line_smooth', this.trendLineSmooth ? 'true' : 'false');
+      } catch (e) {}
+      this.clearTrendPathCache();
+      this.showLineSmoothMenu = false;
+    },
+    toggleTrendLineSmooth() {
+      this.setTrendLineSmooth(!this.trendLineSmooth);
+    },
+    clearTrendPathCache() {
+      if (this.activeTrendSeries) {
+        for (const s of this.activeTrendSeries) {
+          s._cachedPathKey = null;
+          s._cachedPath = null;
+        }
+      }
+      this._cachedAreaKey = null;
+      this._cachedAreaPath = null;
+    },
     restoreOrInitTrendSelection() {
       if (this.allParameters.length === 0) return;
       let saved = null;
@@ -7263,6 +7391,148 @@ export default {
         this.setupTrendAutoRefresh();
       }
     },
+    buildSplinePath(coords, smooth) {
+      if (!coords || coords.length === 0) return '';
+      if (coords.length === 1) {
+        return `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+      }
+      if (!smooth || coords.length < 3) {
+        let d = `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+        for (let i = 1; i < coords.length; i++) {
+          d += ` L ${coords[i].x.toFixed(1)} ${coords[i].y.toFixed(1)}`;
+        }
+        return d;
+      }
+
+      const n = coords.length;
+      const dx = new Float64Array(n - 1);
+      const dy = new Float64Array(n - 1);
+      const slope = new Float64Array(n - 1);
+
+      for (let i = 0; i < n - 1; i++) {
+        dx[i] = coords[i + 1].x - coords[i].x;
+        dy[i] = coords[i + 1].y - coords[i].y;
+        slope[i] = dx[i] !== 0 ? dy[i] / dx[i] : 0;
+      }
+
+      const m = new Float64Array(n);
+      m[0] = slope[0];
+      m[n - 1] = slope[n - 2];
+
+      for (let i = 1; i < n - 1; i++) {
+        if (slope[i - 1] * slope[i] <= 0) {
+          m[i] = 0;
+        } else {
+          m[i] = (slope[i - 1] + slope[i]) / 2;
+        }
+      }
+
+      for (let i = 0; i < n - 1; i++) {
+        if (slope[i] === 0) {
+          m[i] = 0;
+          m[i + 1] = 0;
+        } else {
+          const a = m[i] / slope[i];
+          const b = m[i + 1] / slope[i];
+          if (a < 0) m[i] = 0;
+          if (b < 0) m[i + 1] = 0;
+          const s = a * a + b * b;
+          if (s > 9) {
+            const tau = 3 / Math.sqrt(s);
+            m[i] = tau * a * slope[i];
+            m[i + 1] = tau * b * slope[i];
+          }
+        }
+      }
+
+      let d = `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+      for (let i = 0; i < n - 1; i++) {
+        const p0 = coords[i];
+        const p1 = coords[i + 1];
+        const segDx = dx[i];
+        const cp1x = p0.x + segDx / 3;
+        const cp1y = p0.y + (m[i] * segDx) / 3;
+        const cp2x = p1.x - segDx / 3;
+        const cp2y = p1.y - (m[i + 1] * segDx) / 3;
+
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+      }
+
+      return d;
+    },
+    buildSplineArea(coords, baseY, smooth) {
+      if (!coords || coords.length === 0) return '';
+      const first = coords[0];
+      const last = coords[coords.length - 1];
+
+      if (coords.length === 1) {
+        return `M ${first.x.toFixed(1)} ${baseY.toFixed(1)} L ${first.x.toFixed(1)} ${first.y.toFixed(1)} L ${first.x.toFixed(1)} ${baseY.toFixed(1)} Z`;
+      }
+
+      let d = `M ${first.x.toFixed(1)} ${baseY.toFixed(1)} L ${first.x.toFixed(1)} ${first.y.toFixed(1)}`;
+
+      if (!smooth || coords.length < 3) {
+        for (let i = 1; i < coords.length; i++) {
+          d += ` L ${coords[i].x.toFixed(1)} ${coords[i].y.toFixed(1)}`;
+        }
+      } else {
+        const n = coords.length;
+        const dx = new Float64Array(n - 1);
+        const dy = new Float64Array(n - 1);
+        const slope = new Float64Array(n - 1);
+
+        for (let i = 0; i < n - 1; i++) {
+          dx[i] = coords[i + 1].x - coords[i].x;
+          dy[i] = coords[i + 1].y - coords[i].y;
+          slope[i] = dx[i] !== 0 ? dy[i] / dx[i] : 0;
+        }
+
+        const m = new Float64Array(n);
+        m[0] = slope[0];
+        m[n - 1] = slope[n - 2];
+
+        for (let i = 1; i < n - 1; i++) {
+          if (slope[i - 1] * slope[i] <= 0) {
+            m[i] = 0;
+          } else {
+            m[i] = (slope[i - 1] + slope[i]) / 2;
+          }
+        }
+
+        for (let i = 0; i < n - 1; i++) {
+          if (slope[i] === 0) {
+            m[i] = 0;
+            m[i + 1] = 0;
+          } else {
+            const a = m[i] / slope[i];
+            const b = m[i + 1] / slope[i];
+            if (a < 0) m[i] = 0;
+            if (b < 0) m[i + 1] = 0;
+            const s = a * a + b * b;
+            if (s > 9) {
+              const tau = 3 / Math.sqrt(s);
+              m[i] = tau * a * slope[i];
+              m[i + 1] = tau * b * slope[i];
+            }
+          }
+        }
+
+        for (let i = 0; i < n - 1; i++) {
+          const p0 = coords[i];
+          const p1 = coords[i + 1];
+          const segDx = dx[i];
+          const cp1x = p0.x + segDx / 3;
+          const cp1y = p0.y + (m[i] * segDx) / 3;
+          const cp2x = p1.x - segDx / 3;
+          const cp2y = p1.y - (m[i + 1] * segDx) / 3;
+
+          d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+        }
+      }
+
+      d += ` L ${last.x.toFixed(1)} ${baseY.toFixed(1)} Z`;
+      return d;
+    },
     generateChartPath(series, bounds = null, width = null, height = null, padLeft = null, padRight = null, padTop = null, padBottom = null) {
       const pts = series.dataPoints;
       if (!pts || pts.length === 0) return '';
@@ -7288,9 +7558,10 @@ export default {
       const maxY = scaleInfo.max;
       const spanY = scaleInfo.span;
 
-      // Memoization check: return cached path if series data, scale, and chart bounds haven't changed
+      // Memoization check: return cached path if series data, scale, bounds, and line interpolation mode haven't changed
       const isStandard = bounds === null && width === null && height === null;
-      const cacheKey = isStandard ? `${series.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}` : null;
+      const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
+      const cacheKey = isStandard ? `${series.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
       if (isStandard && series._cachedPathKey === cacheKey && series._cachedPath) {
         return series._cachedPath;
       }
@@ -7305,14 +7576,18 @@ export default {
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000; // 1 hr for 24h
       else maxGapMs = 4 * 3600 * 1000; // 4 hrs for multi-day
 
-      let pathStr = '';
-      let inSegment = false;
+      const segments = [];
+      let currentSeg = [];
       let prevX = null;
 
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i];
         if (p.y === null || !isFinite(p.y)) {
-          inSegment = false;
+          if (currentSeg.length > 0) {
+            segments.push(currentSeg);
+            currentSeg = [];
+          }
+          prevX = null;
           continue;
         }
 
@@ -7320,16 +7595,25 @@ export default {
         const py = (pTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
 
         if (prevX !== null && (p.x - prevX) > maxGapMs) {
-          inSegment = false;
+          if (currentSeg.length > 0) {
+            segments.push(currentSeg);
+            currentSeg = [];
+          }
         }
 
-        if (!inSegment) {
-          pathStr += ` M ${px.toFixed(1)} ${py.toFixed(1)}`;
-          inSegment = true;
-        } else {
-          pathStr += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
-        }
+        currentSeg.push({ x: px, y: py });
         prevX = p.x;
+      }
+      if (currentSeg.length > 0) {
+        segments.push(currentSeg);
+      }
+
+      let pathStr = '';
+      for (const seg of segments) {
+        const segPath = this.buildSplinePath(seg, this.trendLineSmooth);
+        if (segPath) {
+          pathStr += (pathStr ? ' ' : '') + segPath;
+        }
       }
 
       const res = pathStr.trim();
@@ -7369,9 +7653,10 @@ export default {
       }
       const spanY = maxY - minY || 1;
 
-      // Memoization check for primary area
+      // Memoization check for primary area with line interpolation key
       const isStandard = bounds === null && width === null && height === null;
-      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}` : null;
+      const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
+      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
       if (isStandard && this._cachedAreaKey === cacheKey && this._cachedAreaPath) {
         return this._cachedAreaPath;
       }
@@ -7408,7 +7693,9 @@ export default {
           }
         }
 
-        currentSeg.push(p);
+        const px = pLeft + Math.min(Math.max((p.x - timeStart) / timeSpan, 0), 1) * plotW;
+        const py = (pTop + plotH) - Math.min(Math.max((p.y - minY) / spanY, 0), 1) * plotH;
+        currentSeg.push({ x: px, y: py });
         prevX = p.x;
       }
       if (currentSeg.length > 0) {
@@ -7419,25 +7706,18 @@ export default {
 
       let d = '';
       for (const seg of segments) {
-        if (seg.length === 0) continue;
-        const firstPx = pLeft + Math.min(Math.max((seg[0].x - timeStart) / timeSpan, 0), 1) * plotW;
-        const lastPx = pLeft + Math.min(Math.max((seg[seg.length - 1].x - timeStart) / timeSpan, 0), 1) * plotW;
-
-        let segD = `M ${firstPx.toFixed(1)} ${baseY}`;
-        for (let i = 0; i < seg.length; i++) {
-          const px = pLeft + Math.min(Math.max((seg[i].x - timeStart) / timeSpan, 0), 1) * plotW;
-          const py = (pTop + plotH) - Math.min(Math.max((seg[i].y - minY) / spanY, 0), 1) * plotH;
-          segD += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        const segArea = this.buildSplineArea(seg, baseY, this.trendLineSmooth);
+        if (segArea) {
+          d += (d ? ' ' : '') + segArea;
         }
-        segD += ` L ${lastPx.toFixed(1)} ${baseY} Z`;
-        d += (d ? ' ' : '') + segD;
       }
 
+      const res = d.trim();
       if (isStandard) {
         this._cachedAreaKey = cacheKey;
-        this._cachedAreaPath = d;
+        this._cachedAreaPath = res;
       }
-      return d;
+      return res;
     },
     generateChartPolyline(series, bounds = null, width = 560, height = 200, padLeft = 52, padRight = 48, padTop = 24, padBottom = 30) {
       const pts = series.dataPoints;

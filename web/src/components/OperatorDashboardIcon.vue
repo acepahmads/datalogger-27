@@ -250,6 +250,22 @@
         <circle cx="12" cy="12" r="2" fill="currentColor" fill-opacity="0.25" />
       </g>
 
+      <!-- Line Smooth (Bezier Wave Curve / Lengkung) -->
+      <g v-else-if="name === 'line-smooth' || name === 'curve' || name === 'smooth'">
+        <path d="M3 16C6 16 7 8 12 8S18 16 21 16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none" />
+        <circle cx="3" cy="16" r="2" fill="currentColor" />
+        <circle cx="12" cy="8" r="2" fill="currentColor" />
+        <circle cx="21" cy="16" r="2" fill="currentColor" />
+      </g>
+
+      <!-- Line Sharp / Linear (Runcing / Angular Segments) -->
+      <g v-else-if="name === 'line-sharp' || name === 'linear' || name === 'runcing'">
+        <path d="M3 16L12 8L21 16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        <circle cx="3" cy="16" r="2" fill="currentColor" />
+        <circle cx="12" cy="8" r="2" fill="currentColor" />
+        <circle cx="21" cy="16" r="2" fill="currentColor" />
+      </g>
+
       <!-- Clear / X-Circle -->
       <g v-else-if="name === 'clear'">
         <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.18" />
