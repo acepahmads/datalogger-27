@@ -151,23 +151,66 @@
         <!-- Dropdown Menu -->
         <div
           v-if="isUserMenuOpen"
-          class="absolute right-0 mt-2 w-64 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs font-sans animate-fade-in"
+          class="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 text-xs font-sans animate-fade-in"
         >
-          <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-            <div class="text-2xs text-slate-400 font-semibold uppercase tracking-wider">Active Session</div>
-            <div class="font-bold text-slate-900 dark:text-white mt-0.5">{{ user.full_name || user.username }}</div>
+          <!-- Active Session Info Card -->
+          <div class="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
+            <div class="text-2xs text-slate-400 font-semibold uppercase tracking-wider flex items-center justify-between">
+              <span>{{ $t('auth.activeSession') || 'Active Session' }}</span>
+              <span class="w-1.5 h-1.5 rounded-full" :class="roleDotClass"></span>
+            </div>
+            <div class="font-bold text-slate-900 dark:text-white mt-0.5 truncate">{{ user.full_name || user.username }}</div>
             <div class="text-3xs font-mono text-slate-400">@{{ user.username }} &bull; {{ userRole }}</div>
           </div>
 
-          <div class="py-1">
-            <div class="px-3 py-1.5 text-3xs text-slate-400 font-semibold uppercase tracking-wider">
-              Quick Role Switch (Phase 7 RBAC)
+          <!-- Standard Account Actions -->
+          <div class="py-1 border-b border-slate-100 dark:border-slate-800 space-y-0.5">
+            <!-- 1. Profile / Account -->
+            <button
+              type="button"
+              @click="openProfileModal"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <div>
+                <div class="font-semibold text-xs leading-none">{{ $t('auth.profile') || 'Profile / Account' }}</div>
+                <div class="text-4xs text-slate-400 mt-0.5">View identity & capabilities</div>
+              </div>
+            </button>
+
+            <!-- 2. Switch Account / Login as Another User -->
+            <button
+              type="button"
+              @click="openSwitchModal"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <div>
+                <div class="font-semibold text-xs leading-none">{{ $t('auth.switchAccount') || 'Switch Account' }}</div>
+                <div class="text-4xs text-slate-400 mt-0.5">{{ $t('auth.loginAsAnotherUser') || 'Login as another user' }}</div>
+              </div>
+            </button>
+          </div>
+
+          <!-- Quick Role Switch (Strictly SUPERADMIN in Dev/Testing environments only) -->
+          <div v-if="isSuperAdmin" class="py-1 border-b border-slate-100 dark:border-slate-800">
+            <div class="px-3 py-1 flex items-center justify-between">
+              <span class="text-4xs font-mono font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                DEV / TESTING ONLY
+              </span>
+              <span class="text-4xs font-mono px-1 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
+                SUPERADMIN
+              </span>
             </div>
 
             <!-- Role 1: SUPERADMIN -->
             <button
-              @click="switchAccount('admin', 'Password123!')"
-              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              @click="quickSwitchAccount('admin', 'Password123!')"
+              class="w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition-colors"
               :class="userRole === 'SUPERADMIN' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
             >
               <div>
@@ -182,8 +225,8 @@
 
             <!-- Role 2: ADMIN -->
             <button
-              @click="switchAccount('admin_user', 'Password123!')"
-              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              @click="quickSwitchAccount('admin_user', 'Password123!')"
+              class="w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition-colors"
               :class="userRole === 'ADMIN' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
             >
               <div>
@@ -198,8 +241,8 @@
 
             <!-- Role 3: ENGINEER -->
             <button
-              @click="switchAccount('engineer_user', 'Password123!')"
-              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              @click="quickSwitchAccount('engineer_user', 'Password123!')"
+              class="w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition-colors"
               :class="userRole === 'ENGINEER' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
             >
               <div>
@@ -214,8 +257,8 @@
 
             <!-- Role 4: OPERATOR -->
             <button
-              @click="switchAccount('operator_user', 'Password123!')"
-              class="w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition-colors"
+              @click="quickSwitchAccount('operator_user', 'Password123!')"
+              class="w-full text-left px-3 py-1.5 rounded-xl flex items-center justify-between transition-colors"
               :class="userRole === 'OPERATOR' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'"
             >
               <div>
@@ -228,6 +271,171 @@
               <span v-if="userRole === 'OPERATOR'" class="text-xs">&check;</span>
             </button>
           </div>
+
+          <!-- Logout Button -->
+          <div class="pt-1">
+            <button
+              type="button"
+              @click="openLogoutConfirmModal"
+              class="w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors font-semibold"
+            >
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>{{ $t('auth.logout') || 'Logout' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. Profile Modal -->
+    <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-xs font-bold ring-1" :class="roleAvatarClass">
+              {{ (user.username || 'U').charAt(0).toUpperCase() }}
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('auth.profileTitle') || 'User Account Profile' }}</h2>
+              <p class="text-3xs text-slate-400">Authenticated RBAC session</p>
+            </div>
+          </div>
+          <button @click="showProfileModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none">&times;</button>
+        </div>
+
+        <div class="space-y-2.5 text-xs">
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+            <span class="text-slate-500">{{ $t('auth.fullName') || 'Full Name' }}</span>
+            <span class="font-bold text-slate-900 dark:text-white">{{ user.full_name || user.username }}</span>
+          </div>
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+            <span class="text-slate-500">{{ $t('auth.username') || 'Username' }}</span>
+            <span class="font-mono font-semibold text-slate-900 dark:text-white">@{{ user.username }}</span>
+          </div>
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+            <span class="text-slate-500">{{ $t('auth.email') || 'Email' }}</span>
+            <span class="font-mono text-slate-700 dark:text-slate-300">{{ user.email || 'N/A' }}</span>
+          </div>
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+            <span class="text-slate-500">{{ $t('auth.activeRole') || 'Assigned Role' }}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-3xs font-mono font-bold" :class="roleBadgeClass">
+              {{ userRole }}
+            </span>
+          </div>
+        </div>
+
+        <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+          <button
+            @click="showProfileModal = false; openSwitchModal();"
+            class="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
+          >
+            {{ $t('auth.switchAccount') || 'Switch Account' }}
+          </button>
+          <button
+            @click="showProfileModal = false"
+            class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Switch Account Modal -->
+    <div v-if="showSwitchModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('auth.switchAccount') || 'Switch Account' }}</h2>
+            <p class="text-3xs text-slate-400">{{ $t('auth.switchAccountSubtitle') || 'Enter credentials for target account' }}</p>
+          </div>
+          <button @click="showSwitchModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none">&times;</button>
+        </div>
+
+        <div v-if="switchForm.error" class="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-medium">
+          {{ switchForm.error }}
+        </div>
+
+        <form @submit.prevent="performSwitch" class="space-y-3 text-xs">
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">{{ $t('auth.username') || 'Username' }}</label>
+            <input
+              type="text"
+              v-model="switchForm.username"
+              required
+              placeholder="Username"
+              class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">{{ $t('auth.password') || 'Password' }}</label>
+            <input
+              type="password"
+              v-model="switchForm.password"
+              required
+              placeholder="Password"
+              class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              @click="showSwitchModal = false"
+              class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
+            >
+              {{ $t('auth.cancel') || 'Cancel' }}
+            </button>
+            <button
+              type="submit"
+              :disabled="switchForm.loading"
+              class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <svg v-if="switchForm.loading" class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span>{{ switchForm.loading ? ($t('auth.signingIn') || 'Authenticating...') : ($t('auth.switchAccount') || 'Sign In & Switch') }}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 3. Logout Confirm Modal -->
+    <div v-if="showLogoutConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 text-center">
+        <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </div>
+
+        <div>
+          <h2 class="text-base font-bold text-slate-900 dark:text-white">{{ $t('auth.logoutConfirmTitle') || 'Confirm Session Logout' }}</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {{ $t('auth.logoutConfirmMsg') || 'Are you sure you want to end your active session? You will be redirected to the sign-in screen.' }}
+          </p>
+        </div>
+
+        <div class="pt-3 flex items-center justify-center gap-2 border-t border-slate-100 dark:border-slate-800">
+          <button
+            type="button"
+            @click="showLogoutConfirmModal = false"
+            class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
+          >
+            {{ $t('auth.cancel') || 'Cancel' }}
+          </button>
+          <button
+            type="button"
+            @click="handleLogout"
+            class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs"
+          >
+            {{ $t('auth.confirmLogout') || 'Yes, Logout' }}
+          </button>
         </div>
       </div>
     </div>
@@ -244,6 +452,15 @@ export default {
       isLangMenuOpen: false,
       isThemeMenuOpen: false,
       isUserMenuOpen: false,
+      showProfileModal: false,
+      showSwitchModal: false,
+      showLogoutConfirmModal: false,
+      switchForm: {
+        username: '',
+        password: '',
+        error: '',
+        loading: false,
+      },
     };
   },
   computed: {
@@ -254,7 +471,10 @@ export default {
       return this.$store.state.user || {};
     },
     userRole() {
-      return ((this.user && this.user.role) || 'SUPERADMIN').toUpperCase();
+      return ((this.user && this.user.role) || 'OPERATOR').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
     roleBadgeClass() {
       if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') {
@@ -366,22 +586,82 @@ export default {
       this.$store.dispatch('setTheme', theme);
       this.isThemeMenuOpen = false;
     },
-    async switchAccount(username, password) {
+    openProfileModal() {
+      this.isUserMenuOpen = false;
+      this.showProfileModal = true;
+    },
+    openSwitchModal() {
+      this.isUserMenuOpen = false;
+      this.switchForm = { username: '', password: '', error: '', loading: false };
+      this.showSwitchModal = true;
+    },
+    openLogoutConfirmModal() {
+      this.isUserMenuOpen = false;
+      this.showLogoutConfirmModal = true;
+    },
+    async handleLogout() {
+      this.showLogoutConfirmModal = false;
+      this.isUserMenuOpen = false;
+      await this.$store.dispatch('logout');
+      if (this.$route.path !== '/login') {
+        this.$router.push('/login');
+      }
+    },
+    async performSwitch() {
+      this.switchForm.loading = true;
+      this.switchForm.error = '';
+      try {
+        await this.$store.dispatch('login', {
+          username: this.switchForm.username.trim(),
+          password: this.switchForm.password,
+        });
+        this.showSwitchModal = false;
+        this.redirectAfterRoleChange();
+      } catch (err) {
+        console.error('Switch error:', err);
+        this.switchForm.error = err.response?.data?.error || err.message || 'Failed to switch account';
+      } finally {
+        this.switchForm.loading = false;
+      }
+    },
+    async quickSwitchAccount(username, password) {
       this.isUserMenuOpen = false;
       try {
-        await this.$store.dispatch('login', { username, password });
-        const meta = this.$route.meta || {};
-        const roles = meta.roles || [];
-        const currentRole = (this.$store.state.user?.role || '').toUpperCase();
-        if (roles.length > 0 && !roles.includes(currentRole)) {
-          this.$router.push('/dashboard');
-        } else {
-          // Re-trigger router refresh
-          this.$router.replace({ path: this.$route.path, query: { ...this.$route.query, _r: Date.now() } }).catch(() => {});
-        }
+        await this.$store.dispatch('switchAccount', {
+          target_username: username,
+          username,
+          password,
+        });
+        this.redirectAfterRoleChange();
       } catch (err) {
         console.error('Failed to switch account:', err);
-        alert('Failed to switch user account: ' + (err.message || 'Error'));
+        alert('Failed to switch user account: ' + (err.response?.data?.error || err.message || 'Error'));
+      }
+    },
+    redirectAfterRoleChange() {
+      const meta = this.$route.meta || {};
+      const roles = meta.roles || [];
+      const currentRole = (this.$store.state.user?.role || '').toUpperCase();
+      const isSuper = currentRole === 'SUPERADMIN' || currentRole === 'ADMINISTRATOR';
+
+      let allowed = true;
+      if (roles.length > 0) {
+        allowed = roles.some(r => {
+          const target = r.toUpperCase();
+          if ((target === 'SUPERADMIN' || target === 'ADMINISTRATOR') && isSuper) return true;
+          return target === currentRole;
+        });
+      }
+
+      if (!allowed) {
+        if (currentRole === 'OPERATOR') {
+          this.$router.push('/monitoring/operator');
+        } else {
+          this.$router.push('/dashboard');
+        }
+      } else {
+        // Re-trigger router refresh
+        this.$router.replace({ path: this.$route.path, query: { ...this.$route.query, _r: Date.now() } }).catch(() => {});
       }
     },
     handleOutsideClick(event) {

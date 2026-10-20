@@ -2112,6 +2112,35 @@ export default {
     "admin": "ADMIN",
     "engineer": "ENGINEER",
     "operator": "OPERATOR"
+  },
+  "auth": {
+    "systemAccess": "Kontrol Akses Sistem",
+    "signInTitle": "Masuk ke Datalogger",
+    "signInSubtitle": "Masukkan kredensial operasional Anda untuk mengakses telemetri dan sistem pemantauan",
+    "username": "Nama Pengguna",
+    "password": "Kata Sandi",
+    "signInButton": "Masuk",
+    "signingIn": "Mengautentikasi...",
+    "logout": "Keluar",
+    "logoutConfirmTitle": "Konfirmasi Keluar Sesi",
+    "logoutConfirmMsg": "Apakah Anda yakin ingin mengakhiri sesi aktif ini? Anda akan diarahkan ke halaman masuk.",
+    "cancel": "Batal",
+    "confirmLogout": "Ya, Keluar",
+    "switchAccount": "Ganti Akun",
+    "loginAsAnotherUser": "Masuk sebagai Pengguna Lain",
+    "switchAccountSubtitle": "Masukkan kredensial akun target untuk mengganti sesi Anda",
+    "profile": "Profil / Akun",
+    "profileTitle": "Profil Akun Pengguna",
+    "activeSession": "Sesi Aktif",
+    "activeRole": "Peran RBAC Aktif",
+    "email": "Alamat Email",
+    "fullName": "Nama Lengkap",
+    "quickRoleSwitchDev": "Ganti Peran Cepat (Khusus Dev / Testing)",
+    "testAccounts": "Akun Uji Coba & Demo (Isi 1-Klik)",
+    "invalidCredentials": "Nama pengguna atau kata sandi tidak valid. Silakan periksa kredensial Anda.",
+    "switchSuccess": "Berhasil berganti akun ke",
+    "switchFailed": "Gagal mengganti akun pengguna",
+    "superadminOnlySwitch": "Pergantian cepat hanya tersedia untuk SUPERADMIN di lingkungan pengujian."
   }
 };
 

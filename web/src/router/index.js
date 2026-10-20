@@ -22,10 +22,12 @@ import AccessControlView from '../views/AccessControlView.vue';
 import OperatorCommandCenterView from '../views/OperatorCommandCenterView.vue';
 import ISPUAnalysisView from '../views/ISPUAnalysisView.vue';
 import AccessDeniedView from '../views/AccessDeniedView.vue';
+import LoginView from '../views/LoginView.vue';
 
 Vue.use(VueRouter);
 
 const routes = [
+  { path: '/login', name: 'Login', component: LoginView },
   { path: '/', redirect: '/dashboard' },
   { path: '/operator', redirect: '/monitoring/operator' },
   { path: '/monitoring/operator', name: 'OperatorCommandCenter', component: OperatorCommandCenterView },
@@ -135,8 +137,26 @@ const router = new VueRouter({
   routes,
 });
 
-// Centralized Frontend Route Guard for Role-Based Access Control
+// Centralized Frontend Route Guard for Authentication and Role-Based Access Control
 router.beforeEach((to, from, next) => {
+  const token = store.state.token;
+  const isAuth = !!token;
+  const isLoginPage = to.path === '/login';
+
+  // 1. If unauthenticated and navigating to protected route -> redirect to /login
+  if (!isAuth && !isLoginPage) {
+    return next({
+      path: '/login',
+      query: { redirect: to.fullPath },
+    });
+  }
+
+  // 2. If authenticated and navigating to /login -> redirect to /dashboard
+  if (isAuth && isLoginPage) {
+    return next({ path: '/dashboard' });
+  }
+
+  // 3. RBAC validation
   const user = store.state.user || {};
   const rawRole = (user.role || '').toUpperCase();
   const isSuper = rawRole === 'SUPERADMIN' || rawRole === 'ADMINISTRATOR';

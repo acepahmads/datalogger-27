@@ -3450,9 +3450,14 @@ func ensurePhase7RBAC(db *gorm.DB) {
 				IsActive: true,
 			})
 		} else {
-			_ = db.Model(&u).Updates(map[string]interface{}{
-				"role_id": adminRole.ID,
-			}).Error
+			updates := map[string]interface{}{
+				"role_id":   adminRole.ID,
+				"is_active": true,
+			}
+			if u.Password == "" || bcrypt.CompareHashAndPassword([]byte(u.Password), []byte("Password123!")) != nil {
+				updates["password"] = passHash
+			}
+			_ = db.Model(&u).Updates(updates).Error
 		}
 	}
 
@@ -3469,9 +3474,14 @@ func ensurePhase7RBAC(db *gorm.DB) {
 				IsActive: true,
 			})
 		} else {
-			_ = db.Model(&u).Updates(map[string]interface{}{
-				"role_id": engRole.ID,
-			}).Error
+			updates := map[string]interface{}{
+				"role_id":   engRole.ID,
+				"is_active": true,
+			}
+			if u.Password == "" || bcrypt.CompareHashAndPassword([]byte(u.Password), []byte("Password123!")) != nil {
+				updates["password"] = passHash
+			}
+			_ = db.Model(&u).Updates(updates).Error
 		}
 	}
 
@@ -3488,9 +3498,14 @@ func ensurePhase7RBAC(db *gorm.DB) {
 				IsActive: true,
 			})
 		} else {
-			_ = db.Model(&u).Updates(map[string]interface{}{
-				"role_id": opRole.ID,
-			}).Error
+			updates := map[string]interface{}{
+				"role_id":   opRole.ID,
+				"is_active": true,
+			}
+			if u.Password == "" || bcrypt.CompareHashAndPassword([]byte(u.Password), []byte("Password123!")) != nil {
+				updates["password"] = passHash
+			}
+			_ = db.Model(&u).Updates(updates).Error
 		}
 	}
 }

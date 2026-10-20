@@ -19,63 +19,27 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for automatic token renewal
-let isRefreshing = false;
-let failedQueue = [];
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
-
+// Response interceptor for authentication handling
 axios.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    if (
-      error.response &&
-      error.response.status === 401 &&
-      originalRequest &&
-      !originalRequest._retry &&
-      !originalRequest.url.includes('/auth/login')
-    ) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return axios(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
-      }
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      const originalRequest = error.config || {};
+      const url = originalRequest.url || '';
 
-      originalRequest._retry = true;
-      isRefreshing = true;
+      // Don't intercept auth login/logout endpoint errors
+      if (!url.includes('/auth/login') && !url.includes('/auth/logout')) {
+        // Token expired or invalid: purge session & redirect to login
+        store.commit('CLEAR_SENSITIVE_DATA');
+        store.commit('CLEAR_AUTH');
+        store.dispatch('closeWebSocket');
 
-      try {
-        const res = await axios.post('/api/auth/login', {
-          username: 'admin',
-          password: 'Password123!',
-        });
-        const newToken = res.data && res.data.data && res.data.data.token;
-        if (newToken) {
-          store.commit('SET_TOKEN', newToken);
-          processQueue(null, newToken);
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          return axios(originalRequest);
+        if (router.currentRoute.path !== '/login') {
+          router.replace({
+            path: '/login',
+            query: { redirect: router.currentRoute.fullPath },
+          }).catch(() => {});
         }
-      } catch (loginErr) {
-        processQueue(loginErr, null);
-        return Promise.reject(loginErr);
-      } finally {
-        isRefreshing = false;
       }
     }
     return Promise.reject(error);
@@ -106,21 +70,25 @@ new Vue({
       this.$store.commit('SET_EFFECTIVE_THEME', effective);
     });
 
-    // Initialize initial telemetry & WebSocket
-    this.$store.dispatch('fetchSystemStatus');
-    this.$store.dispatch('fetchProgress');
-    this.$store.dispatch('fetchTasks');
-    this.$store.dispatch('fetchDevices');
-    this.$store.dispatch('fetchAlarms');
-    this.$store.dispatch('fetchActivity');
-    this.$store.dispatch('initWebSocket');
+    // Initialize initial telemetry & WebSocket only if authenticated
+    if (this.$store.state.token) {
+      this.$store.dispatch('fetchSystemStatus');
+      this.$store.dispatch('fetchDevices');
+      this.$store.dispatch('fetchAlarms');
+      if (this.$store.getters.isSuperAdmin) {
+        this.$store.dispatch('fetchProgress');
+        this.$store.dispatch('fetchTasks');
+        this.$store.dispatch('fetchActivity');
+      }
+      this.$store.dispatch('initWebSocket');
+    }
 
-    // Fallback telemetry polling: only poll via HTTP if WebSocket is disconnected
+    // Fallback telemetry polling: only poll via HTTP if WebSocket is disconnected and authenticated
     setInterval(() => {
-      if (!this.$store.state.wsConnected) {
+      if (this.$store.state.token && !this.$store.state.wsConnected) {
         this.$store.dispatch('fetchSystemStatus');
       }
-    }, 3000);
+    }, 5000);
   },
   render: (h) => h(App),
 }).$mount('#app');

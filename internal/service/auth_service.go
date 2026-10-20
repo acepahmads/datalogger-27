@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -97,6 +98,85 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 	}
 
 	return tokenString, user, nil
+}
+
+func (s *AuthService) Logout(userID uint, username, ipAddress, userAgent string) error {
+	var uid *uint
+	if userID > 0 {
+		uid = &userID
+	}
+	return s.repo.AddAuditTrail(&model.AuditTrail{
+		UserID:    uid,
+		Username:  username,
+		Action:    "LOGOUT",
+		Resource:  "AUTH",
+		Details:   fmt.Sprintf("User '%s' logged out successfully", username),
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		CreatedAt: time.Now(),
+	})
+}
+
+func (s *AuthService) SwitchAccount(callerID uint, callerUsername, targetUsername, ipAddress, userAgent string) (string, *model.User, error) {
+	targetUser, err := s.repo.GetUserByUsername(targetUsername)
+	if err != nil {
+		return "", nil, errors.New("target user not found")
+	}
+
+	if !targetUser.IsActive {
+		return "", nil, errors.New("target user account is deactivated")
+	}
+
+	roleName := "OPERATOR"
+	if targetUser.Role != nil {
+		uName := strings.ToUpper(targetUser.Role.Name)
+		if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
+			roleName = uName
+		} else {
+			roleName = targetUser.Role.Name
+		}
+	}
+
+	// Audit trail: Superadmin impersonation / role switch
+	var cid *uint
+	if callerID > 0 {
+		cid = &callerID
+	}
+	_ = s.repo.AddAuditTrail(&model.AuditTrail{
+		UserID:    cid,
+		Username:  callerUsername,
+		Action:    "SWITCH_ACCOUNT",
+		Resource:  "AUTH",
+		Details:   fmt.Sprintf("Superadmin '%s' switched session context to user '%s' (%s)", callerUsername, targetUser.Username, roleName),
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		CreatedAt: time.Now(),
+	})
+
+	fullName := targetUser.FullName
+	if strings.TrimSpace(fullName) == "" {
+		fullName = targetUser.Username
+	}
+
+	claims := JWTClaims{
+		UserID:   targetUser.ID,
+		Username: targetUser.Username,
+		FullName: fullName,
+		Role:     roleName,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.config.JWTExpirationHours) * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "datalogger-system",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.config.JWTSecret))
+	if err != nil {
+		return "", nil, err
+	}
+
+	return tokenString, targetUser, nil
 }
 
 func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {

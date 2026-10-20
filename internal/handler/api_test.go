@@ -87,6 +87,8 @@ func setupTestRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	api := r.Group("/api")
 	{
 		api.POST("/auth/login", authHandler.Login)
+		api.POST("/auth/logout", middleware.JWTAuth(authService), authHandler.Logout)
+		api.POST("/auth/switch-account", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"), authHandler.SwitchAccount)
 		api.GET("/phases", devHandler.GetPhases)
 		api.GET("/phases/:id", devHandler.GetPhaseByID)
 		api.GET("/progress", devHandler.GetProgress)
@@ -270,5 +272,95 @@ func TestAPIAuthLogin(t *testing.T) {
 	}
 	if loginRes.Data.User.Username != "admin" {
 		t.Errorf("Expected username admin, got %s", loginRes.Data.User.Username)
+	}
+}
+
+func TestAPIAuthLogoutAndSwitchAccount(t *testing.T) {
+	r, db := setupTestRouter(t)
+
+	// Ensure operator_user exists
+	var opUser model.User
+	if db.Where("username = ?", "operator_user").First(&opUser).Error != nil {
+		var opRole model.Role
+		db.Where("name = ?", "OPERATOR").First(&opRole)
+		db.Create(&model.User{
+			Username: "operator_user",
+			FullName: "Control Room Operator",
+			Email:    "operator_user@datalogger.local",
+			Password: "hashedpassword",
+			RoleID:   opRole.ID,
+			IsActive: true,
+		})
+	}
+
+	// 1. Logout without auth -> 401
+	reqLogoutNoAuth, _ := http.NewRequest("POST", "/api/auth/logout", nil)
+	wLogoutNoAuth := httptest.NewRecorder()
+	r.ServeHTTP(wLogoutNoAuth, reqLogoutNoAuth)
+	if wLogoutNoAuth.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated logout, got %d", wLogoutNoAuth.Code)
+	}
+
+	// 2. Login as admin
+	validCreds, _ := json.Marshal(map[string]string{"username": "admin", "password": "admin123"})
+	reqLogin, _ := http.NewRequest("POST", "/api/auth/login", bytes.NewBuffer(validCreds))
+	reqLogin.Header.Set("Content-Type", "application/json")
+	wLogin := httptest.NewRecorder()
+	r.ServeHTTP(wLogin, reqLogin)
+	if wLogin.Code != http.StatusOK {
+		t.Fatalf("Login failed: %s", wLogin.Body.String())
+	}
+
+	var loginRes struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wLogin.Body.Bytes(), &loginRes)
+	adminToken := loginRes.Data.Token
+
+	// 3. Logout with valid token -> 200
+	reqLogout, _ := http.NewRequest("POST", "/api/auth/logout", nil)
+	reqLogout.Header.Set("Authorization", "Bearer "+adminToken)
+	wLogout := httptest.NewRecorder()
+	r.ServeHTTP(wLogout, reqLogout)
+	if wLogout.Code != http.StatusOK {
+		t.Errorf("Expected 200 for authenticated logout, got %d", wLogout.Code)
+	}
+
+	// 4. Switch account with Superadmin -> 200 with new token
+	switchPayload, _ := json.Marshal(map[string]string{"target_username": "operator_user"})
+	reqSwitch, _ := http.NewRequest("POST", "/api/auth/switch-account", bytes.NewBuffer(switchPayload))
+	reqSwitch.Header.Set("Authorization", "Bearer "+adminToken)
+	reqSwitch.Header.Set("Content-Type", "application/json")
+	wSwitch := httptest.NewRecorder()
+	r.ServeHTTP(wSwitch, reqSwitch)
+	if wSwitch.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for Superadmin switch-account, got %d (body: %s)", wSwitch.Code, wSwitch.Body.String())
+	}
+
+	var switchRes struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Token string `json:"token"`
+			User  struct {
+				Username string `json:"username"`
+				Role     string `json:"role"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wSwitch.Body.Bytes(), &switchRes)
+	if switchRes.Data.Token == "" || switchRes.Data.User.Username != "operator_user" || switchRes.Data.User.Role != "OPERATOR" {
+		t.Errorf("Unexpected switch result: %+v", switchRes)
+	}
+
+	// 5. Non-superadmin cannot switch account -> 403 Forbidden
+	reqSwitchForbidden, _ := http.NewRequest("POST", "/api/auth/switch-account", bytes.NewBuffer(switchPayload))
+	reqSwitchForbidden.Header.Set("Authorization", "Bearer "+switchRes.Data.Token)
+	reqSwitchForbidden.Header.Set("Content-Type", "application/json")
+	wSwitchForbidden := httptest.NewRecorder()
+	r.ServeHTTP(wSwitchForbidden, reqSwitchForbidden)
+	if wSwitchForbidden.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-superadmin switch-account, got %d", wSwitchForbidden.Code)
 	}
 }

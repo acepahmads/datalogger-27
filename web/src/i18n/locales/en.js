@@ -2112,6 +2112,35 @@ export default {
     "admin": "ADMIN",
     "engineer": "ENGINEER",
     "operator": "OPERATOR"
+  },
+  "auth": {
+    "systemAccess": "System Access Control",
+    "signInTitle": "Sign In to Datalogger",
+    "signInSubtitle": "Enter your operational credentials to access telemetry and monitoring systems",
+    "username": "Username",
+    "password": "Password",
+    "signInButton": "Sign In",
+    "signingIn": "Authenticating...",
+    "logout": "Logout",
+    "logoutConfirmTitle": "Confirm Session Logout",
+    "logoutConfirmMsg": "Are you sure you want to end your current session? You will be redirected to the sign-in screen.",
+    "cancel": "Cancel",
+    "confirmLogout": "Yes, Logout",
+    "switchAccount": "Switch Account",
+    "loginAsAnotherUser": "Login as Another User",
+    "switchAccountSubtitle": "Enter credentials for the target account to switch your session",
+    "profile": "Profile / Account",
+    "profileTitle": "User Account Profile",
+    "activeSession": "Active Session",
+    "activeRole": "Assigned RBAC Role",
+    "email": "Email Address",
+    "fullName": "Full Name",
+    "quickRoleSwitchDev": "Quick Role Switch (Dev / Testing Only)",
+    "testAccounts": "Testing & Demo Accounts (1-Click Fill)",
+    "invalidCredentials": "Invalid username or password. Please verify your credentials.",
+    "switchSuccess": "Account switched successfully to",
+    "switchFailed": "Failed to switch user account",
+    "superadminOnlySwitch": "Quick switch is restricted to SUPERADMIN in development environments."
   }
 };
 

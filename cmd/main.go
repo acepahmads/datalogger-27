@@ -229,6 +229,8 @@ func main() {
 	{
 		// Auth
 		api.POST("/auth/login", authHandler.Login)
+		api.POST("/auth/logout", middleware.JWTAuth(authService), authHandler.Logout)
+		api.POST("/auth/switch-account", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"), authHandler.SwitchAccount)
 		api.GET("/auth/me", middleware.JWTAuth(authService), authHandler.Me)
 		api.GET("/users/me", middleware.JWTAuth(authService), authHandler.Me)
 

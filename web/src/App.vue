@@ -1,20 +1,21 @@
 <template>
   <div id="app" class="flex flex-col h-screen overflow-hidden bg-transparent dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150 relative">
-    <!-- Top System Header (Hidden in Full-Width SCADA Mode) -->
+    <!-- Top System Header (Hidden in Full-Width SCADA Mode or on Login) -->
     <Header
+      v-if="!isLoginRoute"
       v-show="!isTopPanelHidden"
       @toggle-sidebar="toggleSidebar"
       @toggle-autohide="onSidebarAutoHideToggle"
     />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
-    <GlobalAlarmBanner v-show="!isTopPanelHidden" />
+    <GlobalAlarmBanner v-if="!isLoginRoute" v-show="!isTopPanelHidden" />
 
     <!-- Main Content Area with Sidebar -->
     <div class="flex flex-1 overflow-hidden relative">
       <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE) -->
       <Sidebar
-        v-if="!sidebarAutoHide"
+        v-if="!isLoginRoute && !sidebarAutoHide"
         :is-collapsed="isSidebarCollapsed"
         :is-auto-hide="false"
         @toggle-autohide="onSidebarAutoHideToggle"
@@ -22,7 +23,7 @@
 
       <!-- 2. Auto-Hide Edge Hover Trigger Zone (rendered when auto-hide is TRUE) -->
       <div
-        v-if="sidebarAutoHide"
+        v-if="!isLoginRoute && sidebarAutoHide"
         @mouseenter="openSidebarHover"
         @click="openSidebarHover"
         class="fixed left-0 top-0 bottom-0 w-4 z-40 cursor-pointer group flex items-center justify-start pointer-events-auto"
@@ -35,7 +36,7 @@
       <!-- 3. Auto-Hide Sliding Drawer (rendered over content with smooth transition) -->
       <transition name="sidebar-slide">
         <div
-          v-if="sidebarAutoHide && isSidebarHovered"
+          v-if="!isLoginRoute && sidebarAutoHide && isSidebarHovered"
           @mouseleave="scheduleCloseSidebarHover"
           @mouseenter="cancelCloseSidebarHover"
           class="fixed left-0 top-0 bottom-0 z-50 w-60 shadow-2xl flex flex-col bg-white dark:bg-[#0B0F19] border-r border-slate-200 dark:border-slate-800"
@@ -52,7 +53,7 @@
       <!-- 4. Subtle backdrop when auto-hide sidebar is popped open -->
       <transition name="fade">
         <div
-          v-if="sidebarAutoHide && isSidebarHovered"
+          v-if="!isLoginRoute && sidebarAutoHide && isSidebarHovered"
           @click="closeSidebarHoverImmediate"
           class="fixed inset-0 z-40 bg-black/20 dark:bg-black/40 backdrop-blur-xs transition-opacity"
         ></div>
@@ -61,7 +62,7 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 overflow-y-auto transition-colors duration-150"
-        :class="isOperatorRoute ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 bg-[#EDF4F8] dark:bg-[#081421]' : 'p-4 bg-transparent dark:bg-slate-950'"
+        :class="isLoginRoute ? 'p-0 bg-transparent' : (isOperatorRoute ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 bg-[#EDF4F8] dark:bg-[#081421]' : 'p-4 bg-transparent dark:bg-slate-950')"
       >
         <router-view
           :is-sidebar-collapsed="isSidebarCollapsed || sidebarAutoHide"
@@ -97,6 +98,9 @@ export default {
     };
   },
   computed: {
+    isLoginRoute() {
+      return this.$route && (this.$route.path === '/login' || this.$route.name === 'Login');
+    },
     isOperatorRoute() {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
     },

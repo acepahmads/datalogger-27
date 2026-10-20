@@ -10,18 +10,15 @@ const API_BASE = '/api';
 
 export default new Vuex.Store({
   state: {
-    token: localStorage.getItem('datalogger_token') || 'local-admin-token',
+    token: localStorage.getItem('datalogger_token') || '',
     user: (() => {
       try {
         const saved = localStorage.getItem('datalogger_user');
         if (saved) return JSON.parse(saved);
       } catch (e) {}
-      return {
-        username: 'admin',
-        role: 'SUPERADMIN',
-        full_name: 'Lead System Administrator',
-      };
+      return null;
     })(),
+    wsExplicitClose: false,
     uiPreferences: {
       theme: getStoredTheme(), // 'light' | 'dark' | 'system'
       effectiveTheme: resolveEffectiveTheme(getStoredTheme()), // 'light' | 'dark'
@@ -90,6 +87,7 @@ export default new Vuex.Store({
     ws: null,
   },
   getters: {
+    isAuthenticated: state => !!state.token && !!state.user,
     currentUser: state => state.user,
     userRole: state => ((state.user && state.user.role) || '').toUpperCase(),
     isSuperAdmin: (state, getters) => getters.userRole === 'SUPERADMIN' || getters.userRole === 'ADMINISTRATOR',
@@ -103,14 +101,37 @@ export default new Vuex.Store({
     SET_TOKEN(state, token) {
       state.token = token;
       try {
-        localStorage.setItem('datalogger_token', token);
+        if (token) {
+          localStorage.setItem('datalogger_token', token);
+        } else {
+          localStorage.removeItem('datalogger_token');
+        }
       } catch (e) {}
     },
     SET_USER(state, user) {
       state.user = user;
       try {
-        localStorage.setItem('datalogger_user', JSON.stringify(user));
+        if (user) {
+          localStorage.setItem('datalogger_user', JSON.stringify(user));
+        } else {
+          localStorage.removeItem('datalogger_user');
+        }
       } catch (e) {}
+    },
+    CLEAR_AUTH(state) {
+      state.token = '';
+      state.user = null;
+      try {
+        localStorage.removeItem('datalogger_token');
+        localStorage.removeItem('datalogger_user');
+      } catch (e) {}
+    },
+    CLEAR_SENSITIVE_DATA(state) {
+      state.tasks = [];
+      state.devices = [];
+      state.alarms = [];
+      state.activeAlarms = [];
+      state.activities = [];
     },
     SET_THEME(state, themeSetting) {
       const effective = applyTheme(themeSetting);
@@ -326,9 +347,19 @@ export default new Vuex.Store({
       const res = await axios.post(`${API_BASE}/auth/login`, { username, password });
       if (res.data && res.data.data) {
         const data = res.data.data;
+        commit('CLEAR_SENSITIVE_DATA');
         commit('SET_TOKEN', data.token);
         const u = data.user || {};
-        const role = (u.role && u.role.name) || u.role_name || (data.claims && data.claims.role) || 'OPERATOR';
+        let role = 'OPERATOR';
+        if (typeof u.role === 'string') {
+          role = u.role;
+        } else if (u.role && typeof u.role === 'object' && u.role.name) {
+          role = u.role.name;
+        } else if (u.role_name) {
+          role = u.role_name;
+        } else if (data.claims && data.claims.role) {
+          role = data.claims.role;
+        }
         commit('SET_USER', {
           id: u.id,
           username: u.username,
@@ -340,6 +371,60 @@ export default new Vuex.Store({
         return data;
       }
       throw new Error((res.data && res.data.error) || 'Login failed');
+    },
+    async switchAccount({ commit, dispatch }, { target_username, username, password }) {
+      if (password) {
+        return dispatch('login', { username: username || target_username, password });
+      }
+      const res = await axios.post(`${API_BASE}/auth/switch-account`, { target_username });
+      if (res.data && res.data.data) {
+        const data = res.data.data;
+        dispatch('closeWebSocket');
+        commit('CLEAR_SENSITIVE_DATA');
+        commit('SET_TOKEN', data.token);
+        const u = data.user || {};
+        let role = 'OPERATOR';
+        if (typeof u.role === 'string') {
+          role = u.role;
+        } else if (u.role && typeof u.role === 'object' && u.role.name) {
+          role = u.role.name;
+        } else if (u.role_name) {
+          role = u.role_name;
+        }
+        commit('SET_USER', {
+          id: u.id,
+          username: u.username,
+          full_name: u.full_name || u.username,
+          email: u.email,
+          role: role.toUpperCase(),
+        });
+        dispatch('initWebSocket');
+        return data;
+      }
+      throw new Error((res.data && res.data.error) || 'Failed to switch account');
+    },
+    async logout({ commit, dispatch, state }) {
+      try {
+        if (state.token) {
+          await axios.post(`${API_BASE}/auth/logout`).catch(() => {});
+        }
+      } catch (e) {
+        // ignore logout errors
+      } finally {
+        dispatch('closeWebSocket');
+        commit('CLEAR_SENSITIVE_DATA');
+        commit('CLEAR_AUTH');
+      }
+    },
+    closeWebSocket({ state, commit }) {
+      state.wsExplicitClose = true;
+      if (state.ws) {
+        try {
+          state.ws.close();
+        } catch (e) {}
+        state.ws = null;
+      }
+      commit('SET_WS_CONNECTED', false);
     },
     async fetchDevices({ commit }, filterParams = {}) {
       try {
@@ -616,6 +701,8 @@ export default new Vuex.Store({
       }
     },
     initWebSocket({ commit, dispatch, state }) {
+      if (!state.token) return;
+      state.wsExplicitClose = false;
       if (state.ws) {
         try { state.ws.close(); } catch (e) {}
       }
@@ -643,10 +730,14 @@ export default new Vuex.Store({
 
       socket.onclose = () => {
         commit('SET_WS_CONNECTED', false);
-        // Auto-reconnect after 3 seconds
-        setTimeout(() => {
-          dispatch('initWebSocket');
-        }, 3000);
+        // Auto-reconnect after 3 seconds only if authenticated and not explicitly closed
+        if (state.token && !state.wsExplicitClose) {
+          setTimeout(() => {
+            if (state.token && !state.wsExplicitClose) {
+              dispatch('initWebSocket');
+            }
+          }, 3000);
+        }
       };
 
       socket.onerror = () => {
