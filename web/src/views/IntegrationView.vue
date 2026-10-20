@@ -440,8 +440,38 @@
         </button>
       </div>
 
+      <!-- Empty State when 0 Destinations -->
+      <div
+        v-if="destinations.length === 0"
+        class="p-10 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 text-center bg-white/40 dark:bg-slate-900/40 font-mono space-y-3"
+      >
+        <div class="w-12 h-12 rounded-full bg-cyan-500/10 text-cyan-500 flex items-center justify-center mx-auto">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke-width="2"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">
+          No Upstream Destinations Configured
+        </h3>
+        <p class="text-2xs text-slate-500 max-w-md mx-auto">
+          Configure downstream servers (REST Webhooks, MQTT Brokers, TCP/UDP Sockets) to automatically dispatch aggregated telemetry batches.
+        </p>
+        <div v-if="canManageDestinations" class="pt-2">
+          <button
+            @click="openAddDestinationModal"
+            class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs transition inline-flex items-center space-x-2 shadow-md cursor-pointer"
+          >
+            <span>+ Add Your First Destination</span>
+          </button>
+        </div>
+        <div v-else class="text-3xs text-slate-400 italic">
+          (Only Superadmin and Admin can add or configure destinations)
+        </div>
+      </div>
+
       <!-- Destination Cards Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
         <div
           v-for="dest in destinations"
           :key="dest.id"
@@ -526,8 +556,28 @@
     <!-- TAB 3: CONFIGURABLE JSON & FIELD MAPPINGS                      -->
     <!-- ============================================================== -->
     <div v-if="activeTab === 'config'" class="space-y-4 font-mono">
-      <!-- Destination Selector Header -->
-      <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      <!-- Empty State when 0 Destinations -->
+      <div
+        v-if="destinations.length === 0"
+        class="p-10 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 text-center bg-white/40 dark:bg-slate-900/40 space-y-3"
+      >
+        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">
+          No Destination Configured
+        </h3>
+        <p class="text-2xs text-slate-500 max-w-md mx-auto">
+          Please add a destination in the "Destinations Setup" tab first before configuring payload formatting.
+        </p>
+        <button
+          @click="selectTab('destinations')"
+          class="mt-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs transition inline-flex items-center space-x-1.5 shadow-md cursor-pointer"
+        >
+          <span>→ Go to Destinations Setup</span>
+        </button>
+      </div>
+
+      <div v-else class="space-y-4">
+        <!-- Destination Selector Header -->
+        <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
         <div class="flex items-center space-x-2">
           <span class="text-xs text-slate-500 font-bold">Active Destination:</span>
           <select
@@ -802,6 +852,7 @@
             <span>UTF-8 JSON</span>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -1182,25 +1233,31 @@ export default {
       return Math.ceil(this.queueTotal / this.pageSize) || 1;
     },
     currentUserRole() {
-      const u = this.$store.state.auth && this.$store.state.auth.user;
-      return (u && u.role ? u.role : 'OPERATOR').toUpperCase();
+      const u = this.$store.state.user || (this.$store.state.auth && this.$store.state.auth.user);
+      const role = (u && u.role) || (this.$store.getters && this.$store.getters.userRole) || 'OPERATOR';
+      return String(role).toUpperCase();
     },
     isSuperAdmin() {
-      return this.currentUserRole === 'SUPERADMIN';
+      if (this.$store.getters && this.$store.getters.isSuperAdmin) return true;
+      return this.currentUserRole === 'SUPERADMIN' || this.currentUserRole === 'ADMINISTRATOR';
     },
     isAdmin() {
+      if (this.$store.getters && this.$store.getters.isAdmin) return true;
       return this.currentUserRole === 'ADMIN' || this.isSuperAdmin;
     },
     isEngineer() {
+      if (this.$store.getters && this.$store.getters.isEngineer) return true;
       return this.currentUserRole === 'ENGINEER' || this.isAdmin;
     },
     isOperator() {
-      return this.currentUserRole === 'OPERATOR';
+      return !this.isAdmin && !this.isEngineer;
     },
     canManageDestinations() {
+      // Khusus untuk SUPERADMIN dan ADMIN
       return this.isSuperAdmin || this.isAdmin;
     },
     canManageQueue() {
+      // Khusus untuk SUPERADMIN dan ADMIN
       return this.isSuperAdmin || this.isAdmin;
     },
   },
