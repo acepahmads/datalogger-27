@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100">
-    <!-- Header & Breadcrumb -->
-    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+    <!-- Header & Breadcrumb (Sticky Top Navigation) -->
+    <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md pt-2 pb-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
       <div class="flex items-center space-x-3">
         <router-link
           to="/dashboard"
@@ -16,38 +16,23 @@
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
             <h1 class="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-900 dark:text-white uppercase">
-              OUTBOUND INTEGRATION & DELIVERY QUEUE
+              OUTBOUND INTEGRATION &amp; DELIVERY
             </h1>
             <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
               PHASE 8
             </span>
           </div>
           <p class="text-3xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-            Aggregation-based outbound telemetry routing, configurable JSON payloads, offline buffering, and deep queue inspection.
+            Aggregation-based outbound routing, configurable JSON payloads, offline buffering &amp; queue inspection.
           </p>
         </div>
       </div>
 
-      <!-- Navigation Tabs -->
-      <div class="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/60 font-mono text-xs">
+      <!-- Navigation Tabs (Setup & Queue) -->
+      <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-300 dark:border-slate-700/80 font-mono text-xs shadow-inner">
+        <!-- TAB 1: DESTINATIONS SETUP -->
         <button
-          @click="activeTab = 'queue'"
-          class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
-          :class="activeTab === 'queue'
-            ? 'bg-cyan-500 text-white shadow-xs'
-            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-          </svg>
-          <span>Delivery Queue</span>
-          <span v-if="summary.pending > 0" class="ml-1.5 px-1.5 py-0.2 rounded-full text-4xs bg-amber-400 text-slate-900 font-bold">
-            {{ summary.pending }}
-          </span>
-        </button>
-
-        <button
-          @click="activeTab = 'destinations'"
+          @click="selectTab('destinations')"
           class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
           :class="activeTab === 'destinations'
             ? 'bg-cyan-500 text-white shadow-xs'
@@ -57,11 +42,12 @@
             <circle cx="12" cy="12" r="10" stroke-width="2"/>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
           </svg>
-          <span>Destinations ({{ destinations.length }})</span>
+          <span>Destinations Setup ({{ destinations.length }})</span>
         </button>
 
+        <!-- TAB 2: CONFIGURABLE JSON -->
         <button
-          @click="activeTab = 'config'"
+          @click="selectTab('config')"
           class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
           :class="activeTab === 'config'
             ? 'bg-cyan-500 text-white shadow-xs'
@@ -71,6 +57,23 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
           </svg>
           <span>Configurable JSON</span>
+        </button>
+
+        <!-- TAB 3: DELIVERY QUEUE -->
+        <button
+          @click="selectTab('queue')"
+          class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
+          :class="activeTab === 'queue'
+            ? 'bg-cyan-500 text-white shadow-xs'
+            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          <span>Delivery Queue</span>
+          <span v-if="summary.pending > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-4xs bg-amber-400 text-slate-900 font-bold">
+            {{ summary.pending }}
+          </span>
         </button>
       </div>
     </div>
@@ -1084,8 +1087,17 @@ import axios from 'axios';
 export default {
   name: 'IntegrationView',
   data() {
+    let initialTab = 'destinations';
+    if (this.$route.query && this.$route.query.tab) {
+      initialTab = this.$route.query.tab;
+    } else if (this.$route.path && this.$route.path.endsWith('/queue')) {
+      initialTab = 'queue';
+    } else if (this.$route.path && this.$route.path.endsWith('/config')) {
+      initialTab = 'config';
+    }
+
     return {
-      activeTab: this.$route.path.includes('/queue') ? 'queue' : 'queue',
+      activeTab: initialTab,
       loading: false,
       autoRefresh: true,
       timer: null,
@@ -1192,7 +1204,27 @@ export default {
       return this.isSuperAdmin || this.isAdmin;
     },
   },
+  watch: {
+    '$route.path'(newPath) {
+      if (newPath.endsWith('/queue')) {
+        this.activeTab = 'queue';
+      } else if (newPath === '/integration' && this.activeTab === 'queue') {
+        this.activeTab = 'destinations';
+      }
+    },
+    '$route.query.tab'(newTab) {
+      if (newTab && ['destinations', 'config', 'queue'].includes(newTab)) {
+        this.activeTab = newTab;
+      }
+    },
+  },
   mounted() {
+    this.$nextTick(() => {
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = 0;
+      window.scrollTo(0, 0);
+    });
+
     this.fetchSummary();
     this.fetchDestinations();
     this.fetchQueue();
@@ -1210,6 +1242,12 @@ export default {
     }
   },
   methods: {
+    selectTab(tab) {
+      this.activeTab = tab;
+      if (this.$route.query.tab !== tab) {
+        this.$router.replace({ query: { ...this.$route.query, tab } }).catch(() => {});
+      }
+    },
     async fetchSummary() {
       try {
         const res = await axios.get('/api/integration/queue/summary');
