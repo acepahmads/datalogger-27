@@ -5169,9 +5169,10 @@ export default {
       }
     }, 1000);
 
-    // Live Digital Clock
+    // Live Digital Clock & Live Trend Window Slide
     this.clockInterval = setInterval(() => {
       this.currentTime = new Date().toLocaleTimeString('en-GB');
+      this.advanceLiveTrendWindow();
     }, 1000);
 
     // Background Poll Interval for Telemetry & Alarms (configured dynamically to device interval)
@@ -6301,8 +6302,12 @@ export default {
         arr[arr.length - 1].quality = quality;
       } else {
         arr.push({ val: num, time: ts, quality });
+        // Preserve strictly chronological ascending order
+        if (arr.length > 1 && arr[arr.length - 1].time < arr[arr.length - 2].time) {
+          arr.sort((a, b) => a.time - b.time);
+        }
         // Bound the number of sparkline points to keep memory and rendering lightweight
-        if (arr.length > 25) {
+        if (arr.length > 30) {
           arr.shift();
         }
       }
@@ -6312,7 +6317,7 @@ export default {
       for (const dev of this.devicesList || []) {
         if (!dev.id) continue;
         try {
-          const res = await axios.get(`/api/devices/${dev.id}/telemetry/history?page_size=120`);
+          const res = await axios.get(`/api/devices/${dev.id}/telemetry/history?page_size=500`);
           if (res.data?.data?.items) {
             const items = res.data.data.items;
             const grouped = {};
@@ -6326,9 +6331,14 @@ export default {
               grouped[pid].push({ val: num, time: ts, quality: item.quality || 'GOOD' });
             }
             for (const pid in grouped) {
-              // Preserve chronological order (ascending timestamp)
-              grouped[pid].sort((a, b) => a.time - b.time);
-              const sliced = grouped[pid].slice(-25);
+              const existing = this.sparklinesMap[pid] || [];
+              const combined = [...grouped[pid], ...existing];
+              const dedupMap = new Map();
+              for (const pt of combined) {
+                dedupMap.set(pt.time, pt);
+              }
+              const sorted = Array.from(dedupMap.values()).sort((a, b) => a.time - b.time);
+              const sliced = sorted.slice(-30);
               this.$set(this.sparklinesMap, pid, sliced);
               this.recomputeSparklineMeta(pid);
             }
@@ -6407,11 +6417,11 @@ export default {
         const item = rawList[i];
         const isValValid = item && item.val !== null && item.val !== undefined && isFinite(item.val);
 
-        // Detect substantial time gap (> 4x standard sample spacing) as visual break
+        // Detect substantial time gap (> 15 minutes) as legitimate telemetry outage
         let isTimeGap = false;
         if (isValValid && currentSegment.length > 0) {
           const prevItem = currentSegment[currentSegment.length - 1].raw;
-          if (item.time && prevItem.time && (item.time - prevItem.time > 20000)) {
+          if (item.time && prevItem.time && (item.time - prevItem.time > 15 * 60 * 1000)) {
             isTimeGap = true;
           }
         }
@@ -6444,8 +6454,11 @@ export default {
       for (const seg of segments) {
         if (seg.length === 1) {
           const p = seg[0];
-          strokePaths.push(`M 0,${p.y} L 100,${p.y}`);
-          areaPaths.push(`M 0,${H} L 0,${p.y} L 100,${p.y} L 100,${H} Z`);
+          // Localized dot/tick marker for isolated point, NEVER full-width line across card!
+          const x1 = Math.max(0, Number((p.x - 1.2).toFixed(1)));
+          const x2 = Math.min(100, Number((p.x + 1.2).toFixed(1)));
+          strokePaths.push(`M ${x1},${p.y} L ${x2},${p.y}`);
+          areaPaths.push(`M ${x1},${H} L ${x1},${p.y} L ${x2},${p.y} L ${x2},${H} Z`);
         } else if (seg.length > 1) {
           const strokeD = seg.map((p, idx) => (idx === 0 ? `M ${p.x},${p.y}` : `L ${p.x},${p.y}`)).join(' ');
           strokePaths.push(strokeD);
@@ -6639,6 +6652,7 @@ export default {
       if (data.parameter_id && data.value !== undefined) {
         this.$set(this.liveMap, data.parameter_id, data);
         this.recordSparkline(data.parameter_id, data.value, data.received_at, data.quality);
+        this.recordTrendPoint(data);
 
         // Flash row/tile briefly with consolidated clear timer
         this.$set(this.liveBlinks, data.parameter_id, true);
@@ -6707,6 +6721,7 @@ export default {
             for (const item of res.data.data) {
               this.$set(this.liveMap, item.parameter_id, item);
               this.recordSparkline(item.parameter_id, item.value, item.received_at, item.quality);
+              this.recordTrendPoint(item);
 
               // Only update last valid telemetry timestamp from GOOD quality data
               if (item.received_at && item.quality === 'GOOD') {
@@ -7254,6 +7269,7 @@ export default {
           else if (this.currentTimeframe === '15m') startTime = new Date(now.getTime() - 15 * 60 * 1000);
           else if (this.currentTimeframe === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
           else if (this.currentTimeframe === '6h') startTime = new Date(now.getTime() - 6 * 3600 * 1000);
+          else if (this.currentTimeframe === '24h') startTime = new Date(now.getTime() - 24 * 3600 * 1000);
         }
 
         this.trendTimeBounds = {
@@ -7390,6 +7406,121 @@ export default {
         // Reschedule next auto-refresh 1 minute after any fetch completes
         this.setupTrendAutoRefresh();
       }
+    },
+    getTimeframeSpan(tf) {
+      switch (tf) {
+        case '1m': return 60 * 1000;
+        case '5m': return 5 * 60 * 1000;
+        case '15m': return 15 * 60 * 1000;
+        case '1h': return 3600 * 1000;
+        case '6h': return 6 * 3600 * 1000;
+        case '24h': return 24 * 3600 * 1000;
+        default: return 15 * 60 * 1000;
+      }
+    },
+    advanceLiveTrendWindow() {
+      if (this.fullscreenIsCustom) return;
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) return;
+      // Do not slide under the user's cursor while actively hovering or scrubbing
+      if (this.scrubPoint || this.fullscreenScrubPoint) return;
+
+      const now = Date.now();
+      const span = this.getTimeframeSpan(this.currentTimeframe);
+      let threshold = 2000;
+      if (span <= 5 * 60 * 1000) threshold = 1000;
+      else if (span >= 6 * 3600 * 1000) threshold = 5000;
+
+      if (!this._lastTrendAdvance || (now - this._lastTrendAdvance >= threshold)) {
+        this._lastTrendAdvance = now;
+        this.trendTimeBounds = {
+          start: now - span,
+          end: now,
+        };
+      }
+    },
+    recordTrendPoint(data) {
+      if (!data || !data.parameter_id || data.value === undefined) return;
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) return;
+
+      const pid = Number(data.parameter_id);
+      const series = this.activeTrendSeries.find(s => Number(s.parameterId) === pid);
+      if (!series) return;
+
+      const rawVal = data.processed_value !== undefined ? data.processed_value : data.value;
+      const numVal = (rawVal !== null && rawVal !== undefined && rawVal !== '' && !isNaN(rawVal))
+        ? Number(rawVal)
+        : null;
+      // Valid numeric zero (e.g. 0.00 mm rain or 0.00 m/s wind) is completely valid!
+      const isValid = numVal !== null && isFinite(numVal) && Math.abs(numVal) < 1e8;
+      const ts = data.received_at
+        ? new Date(data.received_at).getTime()
+        : (data.timestamp ? new Date(data.timestamp).getTime() : Date.now());
+
+      if (!series.dataPoints) {
+        series.dataPoints = [];
+      }
+
+      const span = this.getTimeframeSpan(this.currentTimeframe);
+      const isUnderOrEqual6h = span <= (6 * 3600 * 1000 + 1000);
+      const pollStepMs = isUnderOrEqual6h ? 5000 : null;
+      const alignedX = pollStepMs ? Math.round(ts / pollStepMs) * pollStepMs : ts;
+
+      const pts = series.dataPoints;
+      const newPt = {
+        x: alignedX,
+        y: isValid ? numVal : null,
+        quality: data.quality || 'GOOD',
+      };
+
+      if (pts.length > 0 && pts[pts.length - 1].x === alignedX) {
+        pts[pts.length - 1] = newPt;
+      } else if (pts.length > 0 && pts[pts.length - 1].x > alignedX) {
+        const idx = pts.findIndex(p => p.x === alignedX);
+        if (idx >= 0) {
+          pts[idx] = newPt;
+        } else {
+          pts.push(newPt);
+          pts.sort((a, b) => a.x - b.x);
+        }
+      } else {
+        pts.push(newPt);
+      }
+
+      // If live point is at or past current right edge, slide right edge to encompass it
+      if (!this.fullscreenIsCustom && alignedX > this.trendTimeBounds.end) {
+        this.trendTimeBounds = {
+          start: alignedX - span,
+          end: alignedX,
+        };
+      }
+
+      // Prune points outside active sliding window (keep 10% safety buffer before start)
+      const windowStart = this.trendTimeBounds.start - (span * 0.1);
+      while (pts.length > 2 && pts[0].x < windowStart) {
+        pts.shift();
+      }
+
+      // Update series statistics and latestVal
+      const yVals = pts.map(p => p.y).filter(v => v !== null && typeof v === 'number' && isFinite(v));
+      if (yVals.length > 0) {
+        const min = Math.min(...yVals);
+        const max = Math.max(...yVals);
+        const sum = yVals.reduce((acc, v) => acc + v, 0);
+        const avg = sum / yVals.length;
+        const prec = series.precision !== undefined ? series.precision : (Math.abs(max) >= 100 ? 1 : 2);
+        series.stats = {
+          min: min.toFixed(prec),
+          max: max.toFixed(prec),
+          avg: avg.toFixed(prec),
+          count: yVals.length,
+        };
+        const lastVal = yVals[yVals.length - 1];
+        series.latestVal = lastVal.toFixed(prec);
+      }
+
+      // Invalidate memoization cache key so latest right-edge point renders immediately
+      series._cachedPathKey = null;
+      this._cachedAreaKey = null;
     },
     buildSplinePath(coords, smooth) {
       if (!coords || coords.length === 0) return '';
@@ -7561,7 +7692,8 @@ export default {
       // Memoization check: return cached path if series data, scale, bounds, and line interpolation mode haven't changed
       const isStandard = bounds === null && width === null && height === null;
       const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
-      const cacheKey = isStandard ? `${series.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
+      const lastPt = pts.length > 0 ? pts[pts.length - 1] : null;
+      const cacheKey = isStandard ? `${series.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / 1000)}_${Math.floor(timeEnd / 1000)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
       if (isStandard && series._cachedPathKey === cacheKey && series._cachedPath) {
         return series._cachedPath;
       }
@@ -7656,7 +7788,8 @@ export default {
       // Memoization check for primary area with line interpolation key
       const isStandard = bounds === null && width === null && height === null;
       const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
-      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${timeStart}_${timeEnd}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
+      const lastPt = pts.length > 0 ? pts[pts.length - 1] : null;
+      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / 1000)}_${Math.floor(timeEnd / 1000)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
       if (isStandard && this._cachedAreaKey === cacheKey && this._cachedAreaPath) {
         return this._cachedAreaPath;
       }
