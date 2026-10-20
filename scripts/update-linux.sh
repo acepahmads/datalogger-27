@@ -66,8 +66,13 @@ sudo chmod +x "$TARGET_BIN"
 if [ -d "$INSTALL_DIR" ]; then
   sudo mkdir -p "$INSTALL_DIR/web"
   if [ -d "./web/dist" ]; then
-    echo "Copying web/dist assets to $INSTALL_DIR/web/dist..."
-    sudo cp -r ./web/dist "$INSTALL_DIR/web/"
+    echo "Deploying fresh web/dist assets to $INSTALL_DIR/web/dist..."
+    CURRENT_DIR=$(pwd -P 2>/dev/null || pwd)
+    INSTALL_REAL=$(cd "$INSTALL_DIR" 2>/dev/null && pwd -P || echo "$INSTALL_DIR")
+    if [ "$CURRENT_DIR" != "$INSTALL_REAL" ]; then
+      sudo rm -rf "$INSTALL_DIR/web/dist"
+      sudo cp -r ./web/dist "$INSTALL_DIR/web/dist"
+    fi
   fi
 fi
 
