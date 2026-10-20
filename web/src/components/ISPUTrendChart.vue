@@ -135,30 +135,30 @@
             />
           </filter>
 
-          <!-- 5 Category Bands (Theme Adaptive: Dark SCADA in Dark Mode, Soft Pastel in Light Mode) -->
+          <!-- 5 Category Bands (Theme Adaptive: Rich Saturated SCADA Colors in both themes) -->
           <linearGradient id="bandBaik" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#1B873F' : '#E6F9EE'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#166534' : '#C6F6D5'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#1B873F' : '#22C55E'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#166534' : '#15803D'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
           </linearGradient>
 
           <linearGradient id="bandSedang" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#1D63B8' : '#E0F2FE'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#1E40AF' : '#BAE6FD'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#1D63B8' : '#3B82F6'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#1E40AF' : '#1D4ED8'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
           </linearGradient>
 
           <linearGradient id="bandTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#C49000' : '#FEF9C3'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#B45309' : '#FDE68A'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#C49000' : '#EAB308'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#B45309' : '#CA8A04'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
           </linearGradient>
 
           <linearGradient id="bandSangatTidakSehat" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#B91C1C' : '#FEE2E2'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#991B1B' : '#FECACA'" :stop-opacity="resolvedIsDark ? '0.92' : '0.85'" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#B91C1C' : '#EF4444'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#991B1B' : '#B91C1C'" :stop-opacity="resolvedIsDark ? '0.92' : '0.90'" />
           </linearGradient>
 
           <linearGradient id="bandBerbahaya" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" :stop-color="resolvedIsDark ? '#4A0D15' : '#F5D5DB'" :stop-opacity="resolvedIsDark ? '0.95' : '0.85'" />
-            <stop offset="100%" :stop-color="resolvedIsDark ? '#3B080F' : '#EAB8C1'" :stop-opacity="resolvedIsDark ? '0.95' : '0.85'" />
+            <stop offset="0%" :stop-color="resolvedIsDark ? '#4A0D15' : '#881337'" :stop-opacity="resolvedIsDark ? '0.95' : '0.92'" />
+            <stop offset="100%" :stop-color="resolvedIsDark ? '#3B080F' : '#5C0820'" :stop-opacity="resolvedIsDark ? '0.95' : '0.92'" />
           </linearGradient>
 
           <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -214,7 +214,7 @@
           />
         </g>
 
-        <!-- Category Labels Inside the Left Side of Each Band (High-Contrast Theme Adaptive) -->
+        <!-- Category Labels Inside the Left Side of Each Band (High-Contrast White with Shadow) -->
         <g class="band-labels text-[11px] font-mono font-black select-none">
           <text
             v-for="b in computedBands"
@@ -222,9 +222,9 @@
             v-if="b.height >= 14"
             :x="padLeft + 12"
             :y="b.y + b.height / 2 + 4"
-            :fill="resolvedIsDark ? '#FFFFFF' : (b.textColorLight || '#1E293B')"
+            fill="#FFFFFF"
             letter-spacing="0.6"
-            :style="resolvedIsDark ? 'text-shadow: 0 1px 3px rgba(0,0,0,0.8);' : 'font-weight: 800;'"
+            style="text-shadow: 0 1px 3px rgba(0,0,0,0.85); font-weight: 900;"
           >
             {{ b.label }}
           </text>
