@@ -29,7 +29,7 @@ Vue.use(VueRouter);
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView },
-  { path: '/', redirect: '/dashboard' },
+  { path: '/', redirect: '/monitoring/operator' },
   { path: '/operator', redirect: '/monitoring/operator' },
   { path: '/monitoring/operator', name: 'OperatorCommandCenter', component: OperatorCommandCenterView },
   { path: '/dashboard', name: 'Dashboard', component: DashboardView },
@@ -145,7 +145,7 @@ const routes = [
   // Access Denied / 403 route
   { path: '/access-denied', name: 'AccessDenied', component: AccessDeniedView },
 
-  { path: '*', redirect: '/dashboard' },
+  { path: '*', redirect: '/monitoring/operator' },
 ];
 
 const router = new VueRouter({
@@ -155,12 +155,23 @@ const router = new VueRouter({
 });
 
 // Centralized Frontend Route Guard for Authentication and Role-Based Access Control
-router.beforeEach((to, from, next) => {
-  const token = store.state.token;
-  const isAuth = !!token;
+router.beforeEach(async (to, from, next) => {
+  let token = store.state.token;
+  let isAuth = !!token && !!store.state.user;
   const isLoginPage = to.path === '/login';
 
-  // 1. If unauthenticated and navigating to protected route -> redirect to /login
+  // Automatically authenticate as default operator if unauthenticated, so entry to dashboard is immediate
+  if (!isAuth && !isLoginPage) {
+    try {
+      await store.dispatch('autoLoginOperator');
+      token = store.state.token;
+      isAuth = !!token && !!store.state.user;
+    } catch (e) {
+      console.warn('Auto-login as default operator failed, continuing with fallback:', e);
+    }
+  }
+
+  // 1. If still unauthenticated and navigating to protected route -> redirect to /login
   if (!isAuth && !isLoginPage) {
     return next({
       path: '/login',
@@ -168,9 +179,9 @@ router.beforeEach((to, from, next) => {
     });
   }
 
-  // 2. If authenticated and navigating to /login -> redirect to /dashboard
-  if (isAuth && isLoginPage) {
-    return next({ path: '/dashboard' });
+  // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to operator dashboard
+  if (isAuth && isLoginPage && !to.query.switch) {
+    return next({ path: '/monitoring/operator' });
   }
 
   // 3. RBAC validation

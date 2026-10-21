@@ -91,8 +91,8 @@ export default {
   },
   data() {
     return {
-      isSidebarCollapsed: false,
-      isTopPanelHidden: false,
+      isSidebarCollapsed: true, // Default to fullscreen SCADA mode for Operator Dashboard
+      isTopPanelHidden: true,
       isSidebarHovered: false,
       hoverCloseTimer: null,
     };
@@ -109,11 +109,18 @@ export default {
     },
   },
   watch: {
-    $route(to) {
-      if (to.path !== '/monitoring/operator' && to.path !== '/operator') {
-        this.isTopPanelHidden = false;
-      }
-      this.closeSidebarHoverImmediate();
+    $route: {
+      immediate: true,
+      handler(to) {
+        if (to && (to.path === '/monitoring/operator' || to.path === '/operator')) {
+          this.isSidebarCollapsed = true;
+          this.isTopPanelHidden = true;
+        } else {
+          this.isTopPanelHidden = false;
+          this.isSidebarCollapsed = false;
+        }
+        this.closeSidebarHoverImmediate();
+      },
     },
   },
   methods: {

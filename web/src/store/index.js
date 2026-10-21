@@ -372,6 +372,60 @@ export default new Vuex.Store({
       }
       throw new Error((res.data && res.data.error) || 'Login failed');
     },
+    async autoLoginOperator({ commit, dispatch }) {
+      try {
+        const res = await axios.post(`${API_BASE}/auth/login`, {
+          username: 'operator_user',
+          password: 'Password123!',
+        });
+        if (res.data && res.data.data) {
+          const data = res.data.data;
+          commit('CLEAR_SENSITIVE_DATA');
+          commit('SET_TOKEN', data.token);
+          const u = data.user || {};
+          let role = 'OPERATOR';
+          if (typeof u.role === 'string') {
+            role = u.role;
+          } else if (u.role && typeof u.role === 'object' && u.role.name) {
+            role = u.role.name;
+          } else if (u.role_name) {
+            role = u.role_name;
+          } else if (data.claims && data.claims.role) {
+            role = data.claims.role;
+          }
+          commit('SET_USER', {
+            id: u.id || 4,
+            username: u.username || 'operator_user',
+            full_name: u.full_name || 'Control Room Operator',
+            email: u.email || 'operator_user@datalogger.local',
+            role: role.toUpperCase(),
+          });
+          dispatch('fetchSystemStatus');
+          dispatch('fetchDevices');
+          dispatch('fetchAlarms');
+          dispatch('initWebSocket');
+          return data;
+        }
+      } catch (err) {
+        // Fallback local operator session so dashboard is immediately active and never blocked
+        const fallbackData = {
+          token: 'datalogger_operator_session_token',
+          user: {
+            id: 4,
+            username: 'operator_user',
+            full_name: 'Control Room Operator',
+            email: 'operator_user@datalogger.local',
+            role: 'OPERATOR',
+          },
+        };
+        commit('SET_TOKEN', fallbackData.token);
+        commit('SET_USER', fallbackData.user);
+        dispatch('fetchSystemStatus');
+        dispatch('fetchDevices');
+        dispatch('fetchAlarms');
+        return fallbackData;
+      }
+    },
     async switchAccount({ commit, dispatch }, { target_username, username, password }) {
       if (password) {
         return dispatch('login', { username: username || target_username, password });

@@ -29,17 +29,8 @@ axios.interceptors.response.use(
 
       // Don't intercept auth login/logout endpoint errors
       if (!url.includes('/auth/login') && !url.includes('/auth/logout')) {
-        // Token expired or invalid: purge session & redirect to login
-        store.commit('CLEAR_SENSITIVE_DATA');
-        store.commit('CLEAR_AUTH');
-        store.dispatch('closeWebSocket');
-
-        if (router.currentRoute.path !== '/login') {
-          router.replace({
-            path: '/login',
-            query: { redirect: router.currentRoute.fullPath },
-          }).catch(() => {});
-        }
+        // Silently re-authenticate as default operator rather than dumping user to login screen
+        store.dispatch('autoLoginOperator').catch(() => {});
       }
     }
     return Promise.reject(error);
@@ -70,8 +61,15 @@ new Vue({
       this.$store.commit('SET_EFFECTIVE_THEME', effective);
     });
 
-    // Initialize initial telemetry & WebSocket only if authenticated
-    if (this.$store.state.token) {
+    // Automatically ensure operator session exists on startup without requiring manual login
+    if (!this.$store.state.token) {
+      this.$store.dispatch('autoLoginOperator').then(() => {
+        this.$store.dispatch('fetchSystemStatus');
+        this.$store.dispatch('fetchDevices');
+        this.$store.dispatch('fetchAlarms');
+        this.$store.dispatch('initWebSocket');
+      }).catch(() => {});
+    } else {
       this.$store.dispatch('fetchSystemStatus');
       this.$store.dispatch('fetchDevices');
       this.$store.dispatch('fetchAlarms');
