@@ -127,21 +127,21 @@ export const DASHBOARD_THEME_TOKENS = {
     axis: '#244356',
   },
   light: {
-    bg: 'linear-gradient(180deg, #8CCFFF 0%, #D4EDFC 14%, #F7FCFF 42%, #F7FCFF 58%, #E2F4FD 85%, #D6F0FF 100%)', // legacy reference: bg: '#EDF4F8'
-    bgTop: '#8CCFFF',
-    bgCenter: '#F7FCFF',
-    bgBottom: '#D6F0FF',
-    panel: '#FFFFFF', // legacy reference: panel: '#F5F9FC'
+    bg: 'linear-gradient(180deg, #E6EFF7 0%, #EDF3F9 12%, #F4F7FB 40%, #F8FAFD 100%)',
+    bgTop: '#E6EFF7',
+    bgCenter: '#F4F7FB',
+    bgBottom: '#F8FAFD',
+    panel: '#FFFFFF',
     card: '#FFFFFF',
-    border: '#B8D4EA', // legacy reference: border: '#C8DCE8'
-    textPrimary: '#15324F', // legacy reference: textPrimary: '#20364B'
-    textSecondary: '#58718D', // legacy reference: textSecondary: '#647D91'
-    accent: '#009DB8',
-    normal: '#138B68',
-    warning: '#A96C0A',
-    alarm: '#C93449',
-    grid: '#D7E5EF',
-    axis: '#B8D4EA',
+    border: '#CBD5E1',
+    textPrimary: '#0F172A',
+    textSecondary: '#475569',
+    accent: '#0284C7',
+    normal: '#059669',
+    warning: '#D97706',
+    alarm: '#E11D48',
+    grid: '#E2E8F0',
+    axis: '#CBD5E1',
   },
 };
 

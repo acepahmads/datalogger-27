@@ -9800,17 +9800,15 @@ export default {
   min-height: calc(100vh - 36px);
 }
 
-/* 1. Light Mode: Stronger Blue-White-Light Blue Gradient Background */
+/* 1. Light Mode: Soft Slate-Sky Gradient Background */
 .operator-dashboard.light-mode,
 .operator-command-center.light-mode {
   background: linear-gradient(
     180deg,
-    #8CCFFF 0%,
-    #D4EDFC 14%,
-    #F7FCFF 42%,
-    #F7FCFF 58%,
-    #E2F4FD 85%,
-    #D6F0FF 100%
+    #E6EFF7 0%,
+    #EDF3F9 12%,
+    #F4F7FB 40%,
+    #F8FAFD 100%
   ) !important;
   background-attachment: fixed;
 }
@@ -9840,38 +9838,38 @@ export default {
 
 /* 2. Header & Navigation Toolbar (Light Mode) */
 .light-mode .scada-unified-header-card {
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-color: #B7D8EC;
-  box-shadow: 0 2px 8px rgba(140, 207, 255, 0.16);
+  border-color: #CBD5E1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .light-mode .scada-unified-header-card button.bg-slate-100 {
-  background-color: #F0F7FD;
-  border-color: #B7D8EC;
-  color: #15324F;
+  background-color: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #0F172A;
 }
 .light-mode .scada-unified-header-card button.bg-slate-100:hover {
-  background-color: #E2F0FB;
-  border-color: #8CCFFF;
-  color: #0F2338;
+  background-color: #E2E8F0;
+  border-color: #94A3B8;
+  color: #0F172A;
 }
 
 .light-mode .scada-unified-header-card .bg-slate-50 {
-  background-color: #F5FAFD;
-  border-color: #B7D8EC;
-  color: #15324F;
+  background-color: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #0F172A;
 }
 
 .light-mode .scada-unified-header-card .border-t {
-  border-color: #D3E7F5;
+  border-color: #E2E8F0;
 }
 
 .light-mode .scada-unified-header-card .toolbar-popover-anchor > div.absolute {
   background-color: #FFFFFF;
-  border-color: #B7D8EC;
-  box-shadow: 0 10px 25px -5px rgba(140, 207, 255, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  border-color: #CBD5E1;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
 }
 
 .dark-mode .scada-unified-header-card {
@@ -9907,11 +9905,11 @@ export default {
 
 /* 3. Single Main Parameter Panel Container */
 .light-mode .scada-single-main-panel {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border-color: #B7D8EC;
-  box-shadow: 0 2px 6px rgba(140, 207, 255, 0.12);
+  border-color: #CBD5E1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .dark-mode .scada-single-main-panel {
@@ -9923,16 +9921,16 @@ export default {
   border-bottom-color: #1A3447 !important;
 }
 
-/* 4. Parameter Cards (Light Mode: crisp solid #FFFFFF with #B7D8EC border) */
+/* 4. Parameter Cards (Light Mode: crisp solid #FFFFFF with #CBD5E1 border) */
 .light-mode .scada-param-tile {
   background-color: #FFFFFF !important;
-  border-color: #B7D8EC !important;
-  box-shadow: 0 1px 4px rgba(140, 207, 255, 0.14);
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .light-mode .scada-param-tile:hover {
-  border-color: #65BDEB !important;
-  box-shadow: 0 2px 6px rgba(101, 189, 235, 0.22);
+  border-color: #94A3B8 !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 /* Selected Parameter Card: Cyan #22B8D4 */
@@ -9974,8 +9972,8 @@ export default {
 /* ISPU Summary Card */
 .light-mode .ispu-summary-card {
   background-color: #FFFFFF !important;
-  border-color: #B7D8EC !important;
-  box-shadow: 0 1px 4px rgba(140, 207, 255, 0.14);
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .dark-mode .ispu-summary-card {
@@ -9986,19 +9984,19 @@ export default {
 
 /* 5. Trend Analysis Panel */
 .light-mode .scada-panel {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: #B7D8EC;
-  box-shadow: 0 2px 8px rgba(140, 207, 255, 0.16);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #CBD5E1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .light-mode .scada-panel button.bg-slate-100 {
-  background-color: #F0F7FD;
-  border-color: #B7D8EC;
-  color: #15324F;
+  background-color: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #0F172A;
 }
 .light-mode .scada-panel button.bg-slate-100:hover {
-  background-color: #E2F0FB;
-  border-color: #8CCFFF;
+  background-color: #E2E8F0;
+  border-color: #94A3B8;
 }
 
 .dark-mode .scada-panel {
@@ -10030,18 +10028,18 @@ export default {
 /* 6. Quick Actions Docked Footer */
 .light-mode .fixed.bottom-0 {
   background-color: rgba(255, 255, 255, 0.96);
-  border-top-color: #B7D8EC;
-  box-shadow: 0 -2px 10px rgba(140, 207, 255, 0.18);
+  border-top-color: #CBD5E1;
+  box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.06);
 }
 
 .light-mode .fixed.bottom-0 a.bg-slate-100 {
-  background-color: #F0F7FD;
-  border-color: #B7D8EC;
-  color: #15324F;
+  background-color: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #0F172A;
 }
 .light-mode .fixed.bottom-0 a.bg-slate-100:hover {
-  background-color: #E2F0FB;
-  border-color: #8CCFFF;
+  background-color: #E2E8F0;
+  border-color: #94A3B8;
 }
 
 .dark-mode .fixed.bottom-0 {
