@@ -1867,6 +1867,8 @@ export default {
     "locationUnconfigured": "Lokasi Belum Dikonfigurasi",
     "locationUnconfiguredDesc": "Atur koordinat stasiun melalui GPS, geolokasi IP, atau klik pada peta.",
     "clickMapToPick": "Klik pada peta atau geser pin untuk menentukan koordinat stasiun",
+    "searchLocationPlaceholder": "Cari kota, alamat, atau koordinat... (Tekan Enter)",
+    "quickLocationSearch": "Pencarian Lokasi (Nama Kota, Alamat, atau Koordinat)",
     "recentActivity": "Alarm & Peristiwa Terkini",
     "tabActiveAlarms": "Alarm Aktif",
     "tabRecentEvents": "Peristiwa Terkini",

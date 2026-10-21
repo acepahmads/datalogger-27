@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1116,6 +1118,105 @@ func (h *SystemHandler) GetIPGeolocationEstimate(c *gin.Context) {
 		"coordinates": nil,
 		"disclaimer":  "Internet Geolocation berbasis IP hanya merupakan estimasi perkiraan dan tidak seakurat GPS fisik.",
 	})
+}
+
+// LocationSearchResult represents a location item found via geocoding or coordinates
+type LocationSearchResult struct {
+	Name        string  `json:"name"`
+	DisplayName string  `json:"display_name"`
+	Lat         float64 `json:"lat"`
+	Lon         float64 `json:"lon"`
+	Type        string  `json:"type"`
+}
+
+// SearchLocation resolves places and coordinates for station location mapping
+func (h *SystemHandler) SearchLocation(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		response.OK(c, []LocationSearchResult{})
+		return
+	}
+
+	// 1. Direct coordinate parsing: e.g. "-6.9218, 107.6070" or "-6.9218 107.6070"
+	coordPattern := regexp.MustCompile(`^([-+]?\d{1,2}(?:\.\d+)?)[,\s;]+([-+]?\d{1,3}(?:\.\d+)?)$`)
+	if matches := coordPattern.FindStringSubmatch(q); len(matches) == 3 {
+		lat, err1 := strconv.ParseFloat(matches[1], 64)
+		lng, err2 := strconv.ParseFloat(matches[2], 64)
+		if err1 == nil && err2 == nil && lat >= -90.0 && lat <= 90.0 && lng >= -180.0 && lng <= 180.0 {
+			res := []LocationSearchResult{
+				{
+					Name:        fmt.Sprintf("Coordinates (%.6f, %.6f)", lat, lng),
+					DisplayName: fmt.Sprintf("Latitude: %.6f, Longitude: %.6f", lat, lng),
+					Lat:         lat,
+					Lon:         lng,
+					Type:        "coordinate",
+				},
+			}
+			response.OK(c, res)
+			return
+		}
+	}
+
+	// 2. Query Nominatim OpenStreetMap Geocoding API
+	escapedQuery := url.QueryEscape(q)
+	nominatimURL := fmt.Sprintf("https://nominatim.openstreetmap.org/search?format=json&q=%s&limit=6&addressdetails=1", escapedQuery)
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, nominatimURL, nil)
+	if err != nil {
+		response.OK(c, []LocationSearchResult{})
+		return
+	}
+	req.Header.Set("User-Agent", "Datalogger-SCADA/1.0 (LocationSearch; contact: admin@datalogger.local)")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 4 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		response.OK(c, []LocationSearchResult{})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		response.OK(c, []LocationSearchResult{})
+		return
+	}
+
+	var rawResults []struct {
+		PlaceID     interface{} `json:"place_id"`
+		Name        string      `json:"name"`
+		DisplayName string      `json:"display_name"`
+		Lat         string      `json:"lat"`
+		Lon         string      `json:"lon"`
+		Type        string      `json:"type"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&rawResults); err != nil {
+		response.OK(c, []LocationSearchResult{})
+		return
+	}
+
+	results := make([]LocationSearchResult, 0, len(rawResults))
+	for _, item := range rawResults {
+		lat, _ := strconv.ParseFloat(item.Lat, 64)
+		lng, _ := strconv.ParseFloat(item.Lon, 64)
+		name := item.Name
+		if name == "" {
+			parts := strings.Split(item.DisplayName, ",")
+			if len(parts) > 0 {
+				name = strings.TrimSpace(parts[0])
+			}
+		}
+		results = append(results, LocationSearchResult{
+			Name:        name,
+			DisplayName: item.DisplayName,
+			Lat:         lat,
+			Lon:         lng,
+			Type:        item.Type,
+		})
+	}
+
+	response.OK(c, results)
 }
 
 

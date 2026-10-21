@@ -1867,6 +1867,8 @@ export default {
     "locationUnconfigured": "Location Unconfigured",
     "locationUnconfiguredDesc": "Set station coordinates using GPS, IP geolocation, or manual map pin.",
     "clickMapToPick": "Click anywhere on the map or drag the pin to set station coordinates",
+    "searchLocationPlaceholder": "Search city, address, or lat, lng... (Enter)",
+    "quickLocationSearch": "Search Location (City, Address, or Coordinates)",
     "recentActivity": "Recent Alarms & Events",
     "tabActiveAlarms": "Active Alarms",
     "tabRecentEvents": "Recent Events",

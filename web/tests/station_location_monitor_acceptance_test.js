@@ -110,4 +110,13 @@ runTest('8.1: Full screen mode covers viewport, maintains marker, and provides c
   assert(occContent.includes('fixed inset-0 z-[100]'), 'Must use full viewport area');
 });
 
+// 9. Location Search Bar (Enter to execute)
+runTest('9.1: Map supports location search by city/address or coordinates with Enter key execution', () => {
+  assert(mapContent.includes('locationSearchInput') || mapContent.includes('searchQuery'), 'Must have search input for location');
+  assert(mapContent.includes('@keydown.enter.prevent="executeSearch"'), 'Must execute search on Enter key press');
+  assert(mapContent.includes('executeSearch'), 'Must define executeSearch method');
+  assert(mapContent.includes('parseCoordinates'), 'Must support direct coordinate search');
+  assert(occContent.includes('executeTabLocationSearch'), 'Must support tab location search execution');
+});
+
 console.log('\n=== All Station Location Monitor Acceptance Tests Passed Successfully ===');

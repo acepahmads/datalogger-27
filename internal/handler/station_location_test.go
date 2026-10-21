@@ -52,6 +52,7 @@ func setupStationLocationTestRouter(t *testing.T) (*gin.Engine, *gorm.DB, *servi
 	{
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.GET("/system/location/ip-estimate", systemHandler.GetIPGeolocationEstimate)
+		api.GET("/system/location/search", systemHandler.SearchLocation)
 
 		// Simulated authenticated endpoint with context
 		api.PUT("/system/location/direct", func(c *gin.Context) {
@@ -344,6 +345,44 @@ func TestStationLocation_UnauthorizedCannotModify(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
 		t.Errorf("Expected 401 Unauthorized or 403 Forbidden for unauthenticated location update, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestStationLocation_SearchLocation(t *testing.T) {
+	router, _, _ := setupStationLocationTestRouter(t)
+
+	// Case 1: Empty query
+	{
+		req := httptest.NewRequest(http.MethodGet, "/api/system/location/search?q=", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200 for empty search, got %d", w.Code)
+		}
+	}
+
+	// Case 2: Direct coordinate query (e.g. "-6.9218, 107.6070")
+	{
+		req := httptest.NewRequest(http.MethodGet, "/api/system/location/search?q=-6.9218,%20107.6070", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200 for coordinate search, got %d", w.Code)
+		}
+		var resp map[string]interface{}
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		data, ok := resp["data"].([]interface{})
+		if !ok || len(data) == 0 {
+			t.Fatalf("Expected coordinate match in data array, got: %s", w.Body.String())
+		}
+		first := data[0].(map[string]interface{})
+		if first["type"] != "coordinate" {
+			t.Errorf("Expected type='coordinate', got %v", first["type"])
+		}
+		lat := first["lat"].(float64)
+		if lat < -6.93 || lat > -6.91 {
+			t.Errorf("Expected lat around -6.9218, got %f", lat)
+		}
 	}
 }
 

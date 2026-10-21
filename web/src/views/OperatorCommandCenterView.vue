@@ -1044,9 +1044,10 @@
                     :source="candidateLocation.location_source || stationLocation.location_source"
                     height="170px"
                     @coordinate-change="onMapCoordinatePicked"
+                    @location-selected="onLocationSelected"
                   />
                   <div class="text-[8.5px] text-slate-400 mt-1 italic">
-                    💡 Click on the map or drag the marker to pinpoint exact station coordinates.
+                    💡 Click on the map, use search box, or drag the marker to pinpoint exact station coordinates.
                   </div>
                 </div>
 
@@ -1081,6 +1082,31 @@
 
                   <!-- Tab 1: Manual Input & Map Pin -->
                   <div v-if="locationActiveTab === 'manual'" class="space-y-2">
+                    <!-- Quick Location Search Bar in Tab -->
+                    <div class="p-1.5 rounded bg-slate-100 dark:bg-[#070E1A] border border-slate-200 dark:border-[#1E3048]">
+                      <label class="block text-[8.5px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                        🔍 {{ $t('operator.quickLocationSearch') || 'Pencarian Lokasi (Nama Kota / Alamat / Koordinat)' }}
+                      </label>
+                      <div class="flex items-center space-x-1">
+                        <input
+                          v-model="tabLocationSearchQuery"
+                          type="text"
+                          :placeholder="$t('operator.searchLocationPlaceholder') || 'Contoh: Bandung, Cimahi, atau -6.917, 107.619 (Tekan Enter)'"
+                          @keydown.enter.prevent="executeTabLocationSearch"
+                          class="flex-1 px-2 py-1 rounded bg-white dark:bg-[#0E1726] border border-slate-300 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                        <button
+                          type="button"
+                          @click="executeTabLocationSearch"
+                          :disabled="isTabSearching"
+                          class="px-2.5 py-1 rounded text-3xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white transition flex items-center space-x-1 disabled:opacity-50"
+                        >
+                          <span v-if="isTabSearching" class="animate-spin">⏳</span>
+                          <span v-else>Cari</span>
+                        </button>
+                      </div>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-2 text-[9px]">
                       <div>
                         <label class="block text-slate-500 dark:text-slate-400 mb-0.5 font-bold">Latitude (-90 to 90)</label>
@@ -4462,6 +4488,7 @@
             :source="candidateLocation.location_source || stationLocation.location_source"
             height="100%"
             @coordinate-change="onMapCoordinatePicked"
+            @location-selected="onLocationSelected"
           />
         </div>
 
@@ -4730,6 +4757,8 @@ export default {
         type: '',
         message: '',
       },
+      tabLocationSearchQuery: '',
+      isTabSearching: false,
       networkPollCycles: 0,
       // Dual Organization & Company Branding State (Customer Left, Maker Right)
       showBrandingModal: false,
@@ -7801,6 +7830,124 @@ export default {
         type: 'success',
         message: `Titik stasiun (${lat.toFixed(6)}, ${lng.toFixed(6)}) dipilih dari peta. Klik "Save Location" untuk menyimpan.`,
       };
+    },
+    onLocationSelected({ lat, lng, name, displayName }) {
+      this.candidateLocation.latitude = lat;
+      this.candidateLocation.longitude = lng;
+      this.candidateLocation.location_source = 'MANUAL';
+      if (displayName && !this.candidateLocation.address) {
+        this.candidateLocation.address = displayName;
+      }
+      if (name && !this.candidateLocation.station_name) {
+        this.candidateLocation.station_name = name;
+      }
+      this.stationLocationFeedback = {
+        type: 'success',
+        message: `Lokasi "${name || displayName || 'Pilihan'}" (${lat.toFixed(6)}, ${lng.toFixed(6)}) berhasil dipilih! Klik "Save Location" untuk menyimpan.`,
+      };
+    },
+    async executeTabLocationSearch() {
+      const q = (this.tabLocationSearchQuery || '').trim();
+      if (!q) return;
+
+      this.isTabSearching = true;
+      try {
+        // 1. Direct coordinate check
+        const cleaned = q.replace(/[;]/g, ',');
+        const parts = cleaned.includes(',') ? cleaned.split(',') : cleaned.split(/\s+/);
+        if (parts.length === 2) {
+          const lat = parseFloat(parts[0].trim());
+          const lng = parseFloat(parts[1].trim());
+          if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            this.candidateLocation.latitude = Number(lat.toFixed(6));
+            this.candidateLocation.longitude = Number(lng.toFixed(6));
+            this.candidateLocation.location_source = 'MANUAL';
+            this.stationLocationFeedback = {
+              type: 'success',
+              message: `Koordinat manual (${lat.toFixed(6)}, ${lng.toFixed(6)}) berhasil diterapkan!`,
+            };
+            this.$nextTick(() => {
+              if (this.$refs.miniMapViewer) {
+                this.$refs.miniMapViewer.setMarkerPosition(lat, lng);
+                this.$refs.miniMapViewer.recenterMap();
+              }
+              if (this.$refs.fullScreenMapViewer) {
+                this.$refs.fullScreenMapViewer.setMarkerPosition(lat, lng);
+                this.$refs.fullScreenMapViewer.recenterMap();
+              }
+            });
+            return;
+          }
+        }
+
+        // 2. Search API
+        let results = [];
+        try {
+          const res = await axios.get('/api/system/location/search', { params: { q } });
+          if (res.data && Array.isArray(res.data.data)) {
+            results = res.data.data;
+          }
+        } catch (err) {
+          console.warn('Backend search error:', err);
+        }
+
+        if (!results || results.length === 0) {
+          try {
+            const directRes = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`);
+            if (Array.isArray(directRes.data)) {
+              results = directRes.data.map(item => ({
+                name: item.name || (item.display_name ? item.display_name.split(',')[0] : q),
+                display_name: item.display_name,
+                lat: parseFloat(item.lat),
+                lon: parseFloat(item.lon),
+              }));
+            }
+          } catch (directErr) {
+            console.warn('Direct Nominatim error:', directErr);
+          }
+        }
+
+        if (results && results.length > 0) {
+          const first = results[0];
+          const lat = Number(Number(first.lat).toFixed(6));
+          const lng = Number(Number(first.lon).toFixed(6));
+          this.candidateLocation.latitude = lat;
+          this.candidateLocation.longitude = lng;
+          this.candidateLocation.location_source = 'MANUAL';
+          if (first.display_name && !this.candidateLocation.address) {
+            this.candidateLocation.address = first.display_name;
+          }
+          if (first.name && !this.candidateLocation.station_name) {
+            this.candidateLocation.station_name = first.name;
+          }
+          this.stationLocationFeedback = {
+            type: 'success',
+            message: `Lokasi "${first.name || first.display_name}" (${lat.toFixed(6)}, ${lng.toFixed(6)}) ditemukan & diterapkan!`,
+          };
+          this.$nextTick(() => {
+            if (this.$refs.miniMapViewer) {
+              this.$refs.miniMapViewer.setMarkerPosition(lat, lng);
+              this.$refs.miniMapViewer.recenterMap();
+            }
+            if (this.$refs.fullScreenMapViewer) {
+              this.$refs.fullScreenMapViewer.setMarkerPosition(lat, lng);
+              this.$refs.fullScreenMapViewer.recenterMap();
+            }
+          });
+        } else {
+          this.stationLocationFeedback = {
+            type: 'error',
+            message: `Lokasi "${q}" tidak ditemukan. Coba gunakan nama kota/wilayah lain atau koordinat.`,
+          };
+        }
+      } catch (err) {
+        this.stationLocationFeedback = {
+          type: 'error',
+          message: 'Gagal melakukan pencarian lokasi: ' + (err.message || 'Kesalahan jaringan'),
+        };
+      } finally {
+        this.isTabSearching = false;
+      }
     },
     async saveStationLocation() {
       if (this.candidateLocation.latitude == null || this.candidateLocation.longitude == null) {

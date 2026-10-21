@@ -42,10 +42,75 @@
       </div>
     </div>
 
-    <!-- Non-blocking Map Pinning Mode Hint Pill (Allows direct clicking through to map) -->
+    <!-- Floating Location Search Bar (Top Left, Press Enter to Execute) -->
     <div
-      v-if="!hasCoordinates"
-      class="absolute top-2 left-2 right-12 z-30 pointer-events-none flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-900/85 text-amber-300 border border-amber-500/40 text-[9.5px] font-mono shadow-md backdrop-blur-xs"
+      v-if="editable"
+      class="absolute top-2 left-2 z-30 flex flex-col w-72 sm:w-80 md:w-96 max-w-[calc(100%-60px)] font-mono"
+    >
+      <div class="relative flex items-center shadow-lg rounded-md bg-white/95 dark:bg-[#0E1726]/95 border border-slate-300 dark:border-[#20354B] focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/40 transition">
+        <span class="pl-2.5 text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center">
+          <svg v-if="!isSearching" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span v-else class="animate-spin inline-block text-cyan-500 text-xs">⏳</span>
+        </span>
+        <input
+          ref="locationSearchInput"
+          v-model="searchQuery"
+          type="text"
+          :placeholder="$t('operator.searchLocationPlaceholder') || 'Cari lokasi atau koordinat... (Tekan Enter)'"
+          class="w-full py-1.5 pl-2 pr-7 text-xs bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
+          @keydown.enter.prevent="executeSearch"
+          @keydown.esc="clearSearch"
+        />
+        <button
+          v-if="searchQuery"
+          type="button"
+          @click="clearSearch"
+          class="absolute right-2 text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs"
+          title="Clear search"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Dropdown Results List -->
+      <div
+        v-if="searchResults && searchResults.length > 0"
+        class="mt-1 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-md shadow-2xl overflow-hidden max-h-52 overflow-y-auto text-xs divide-y divide-slate-100 dark:divide-[#1E3048]"
+      >
+        <div
+          v-for="(res, idx) in searchResults"
+          :key="idx"
+          @click="selectSearchResult(res)"
+          class="p-2 hover:bg-cyan-500/10 dark:hover:bg-cyan-950/40 cursor-pointer transition flex items-start space-x-2"
+        >
+          <span class="text-cyan-500 mt-0.5">📍</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ res.name || res.display_name }}</div>
+            <div class="text-[9.5px] text-slate-400 dark:text-slate-500 truncate">{{ res.display_name }}</div>
+            <div class="text-[9px] text-cyan-600 dark:text-cyan-400 font-mono mt-0.5">
+              Lat: {{ Number(res.lat).toFixed(6) }}, Lng: {{ Number(res.lon).toFixed(6) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Notice (e.g. Not Found) -->
+      <div
+        v-if="searchNotice"
+        class="mt-1 p-1.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-[9.5px] flex items-center justify-between"
+      >
+        <span>⚠️ {{ searchNotice }}</span>
+        <button @click="searchNotice = ''" class="ml-1 opacity-70 hover:opacity-100 font-bold">✕</button>
+      </div>
+    </div>
+
+    <!-- Non-blocking Map Pinning Mode Hint Pill -->
+    <div
+      v-if="!hasCoordinates && !searchResults.length && !searchNotice"
+      class="absolute top-11 left-2 z-20 pointer-events-none max-w-max flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-900/85 text-amber-300 border border-amber-500/40 text-[9.5px] font-mono shadow-md backdrop-blur-xs"
     >
       <span class="animate-pulse">📍</span>
       <span>{{ $t('operator.clickMapToPick') || 'Klik pada peta untuk menentukan koordinat stasiun' }}</span>
@@ -94,6 +159,7 @@
 <script>
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import axios from 'axios';
 
 export default {
   name: 'StationMapViewer',
@@ -132,6 +198,10 @@ export default {
       isTilesOnline: true,
       tileErrorCount: 0,
       tileSuccessCount: 0,
+      searchQuery: '',
+      searchResults: [],
+      isSearching: false,
+      searchNotice: '',
     };
   },
   computed: {
@@ -353,6 +423,113 @@ export default {
           this.map.invalidateSize();
         });
       }
+    },
+
+    parseCoordinates(input) {
+      if (!input) return null;
+      const cleaned = input.trim().replace(/[;]/g, ',');
+      const parts = cleaned.includes(',') ? cleaned.split(',') : cleaned.split(/\s+/);
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0].trim());
+        const lng = parseFloat(parts[1].trim());
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          return { lat, lng };
+        }
+      }
+      return null;
+    },
+
+    clearSearch() {
+      this.searchQuery = '';
+      this.searchResults = [];
+      this.searchNotice = '';
+    },
+
+    async executeSearch() {
+      const q = (this.searchQuery || '').trim();
+      if (!q) return;
+
+      this.searchNotice = '';
+      this.searchResults = [];
+
+      // 1. Direct Coordinate Parsing
+      const directCoords = this.parseCoordinates(q);
+      if (directCoords) {
+        this.applySearchedLocation({
+          lat: directCoords.lat,
+          lon: directCoords.lng,
+          name: `Coordinates (${directCoords.lat.toFixed(6)}, ${directCoords.lng.toFixed(6)})`,
+          display_name: `Lat: ${directCoords.lat.toFixed(6)}, Lng: ${directCoords.lng.toFixed(6)}`,
+        });
+        return;
+      }
+
+      // 2. Geocoding Search via Backend Proxy with Fallback to Nominatim
+      this.isSearching = true;
+      try {
+        let results = [];
+        try {
+          const res = await axios.get('/api/system/location/search', { params: { q } });
+          if (res.data && Array.isArray(res.data.data)) {
+            results = res.data.data;
+          }
+        } catch (backendErr) {
+          console.warn('Backend location search failed, attempting direct geocoder:', backendErr);
+        }
+
+        if (!results || results.length === 0) {
+          try {
+            const directRes = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`);
+            if (Array.isArray(directRes.data)) {
+              results = directRes.data.map((item) => ({
+                name: item.name || (item.display_name ? item.display_name.split(',')[0] : q),
+                display_name: item.display_name,
+                lat: parseFloat(item.lat),
+                lon: parseFloat(item.lon),
+                type: item.type,
+              }));
+            }
+          } catch (directErr) {
+            console.warn('Direct geocoder failed:', directErr);
+          }
+        }
+
+        if (results && results.length > 0) {
+          this.searchResults = results;
+          // Automatically apply the top result to the map
+          this.applySearchedLocation(results[0], false);
+        } else {
+          this.searchNotice = 'Lokasi tidak ditemukan. Masukkan nama kota/alamat spesifik atau koordinat (lat, lng).';
+        }
+      } catch (err) {
+        this.searchNotice = 'Gagal melakukan pencarian lokasi.';
+      } finally {
+        this.isSearching = false;
+      }
+    },
+
+    selectSearchResult(item) {
+      this.applySearchedLocation(item, true);
+      this.searchResults = [];
+    },
+
+    applySearchedLocation(item, closeDropdown = true) {
+      const lat = Number(Number(item.lat).toFixed(6));
+      const lng = Number(Number(item.lon).toFixed(6));
+      this.setMarkerPosition(lat, lng);
+      if (this.map) {
+        this.map.setView([lat, lng], 15);
+      }
+      if (closeDropdown) {
+        this.searchResults = [];
+      }
+      this.$emit('coordinate-change', { lat, lng });
+      this.$emit('location-selected', {
+        lat,
+        lng,
+        name: item.name,
+        displayName: item.display_name,
+      });
     },
   },
 };

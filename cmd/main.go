@@ -284,6 +284,7 @@ func main() {
 		api.PUT("/system/branding", systemHandler.SaveBranding)
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.GET("/system/location/ip-estimate", systemHandler.GetIPGeolocationEstimate)
+		api.GET("/system/location/search", systemHandler.SearchLocation)
 		api.PUT("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 		api.POST("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 
