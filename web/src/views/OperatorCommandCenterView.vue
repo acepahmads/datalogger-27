@@ -108,7 +108,47 @@
         <!-- Left: Workspace Settings Icons + Fullscreen Control -->
         <div class="flex items-center space-x-1.5 min-w-0" ref="toolbarContainer">
           <div class="flex items-center space-x-1 flex-shrink-0">
-            <!-- View & Filter Options Popover (Unified: Display Mode, Grid Density, Favorites, Categories) -->
+          <!-- Sidebar Auto-Hide Setup Toggle Button -->
+          <button
+            type="button"
+            id="btn-operator-sidebar-autohide"
+            @click.stop="toggleSidebarAutoHide"
+            class="w-8 h-8 flex items-center justify-center rounded transition border cursor-pointer"
+            :class="sidebarAutoHide
+              ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-xs'
+              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'"
+            :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
+            aria-label="Toggle Sidebar Auto-Hide"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18" />
+              <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
+              <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+
+          <!-- Fullscreen / Sidebar & Top Panel Layout Toggle (Icon Only) -->
+          <button
+            type="button"
+            @click="$emit('toggle-sidebar')"
+            class="w-8 h-8 flex items-center justify-center rounded transition border text-cyan-600 dark:text-cyan-400"
+            :class="isSidebarCollapsed
+              ? 'bg-cyan-600/15 hover:bg-cyan-600/25 border-cyan-500/50 shadow-xs'
+              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] border-slate-200 dark:border-[#20354B]'"
+            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
+            :aria-label="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
+            </svg>
+          </button>
+
+          <!-- Thin Vertical Divider before Fullscreen & Layout Controls -->
+          <div class="h-4 w-px bg-slate-200 dark:bg-[#1E3048] mx-0.5 flex-shrink-0"></div>
+
+          <!-- View & Filter Options Popover (Unified: Display Mode, Grid Density, Favorites, Categories) -->
           <div class="relative toolbar-popover-anchor">
             <button
               type="button"
@@ -514,46 +554,6 @@
               </button>
             </div>
           </div>
-
-          <!-- Thin Vertical Divider before Fullscreen & Layout Controls -->
-          <div class="h-4 w-px bg-slate-200 dark:bg-[#1E3048] mx-0.5 flex-shrink-0"></div>
-
-          <!-- Sidebar Auto-Hide Setup Toggle Button -->
-          <button
-            type="button"
-            id="btn-operator-sidebar-autohide"
-            @click.stop="toggleSidebarAutoHide"
-            class="w-8 h-8 flex items-center justify-center rounded transition border cursor-pointer"
-            :class="sidebarAutoHide
-              ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-xs'
-              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'"
-            :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
-            aria-label="Toggle Sidebar Auto-Hide"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M9 3v18" />
-              <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
-              <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-
-          <!-- Fullscreen / Sidebar & Top Panel Layout Toggle (Icon Only) -->
-          <button
-            type="button"
-            @click="$emit('toggle-sidebar')"
-            class="w-8 h-8 flex items-center justify-center rounded transition border text-cyan-600 dark:text-cyan-400"
-            :class="isSidebarCollapsed
-              ? 'bg-cyan-600/15 hover:bg-cyan-600/25 border-cyan-500/50 shadow-xs'
-              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] border-slate-200 dark:border-[#20354B]'"
-            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
-            :aria-label="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
-            </svg>
-          </button>
           </div>
 
           <!-- Active Filter Dismissible Badges (Minimalist) -->
