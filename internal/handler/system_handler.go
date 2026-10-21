@@ -18,11 +18,145 @@ import (
 )
 
 type SystemHandler struct {
-	systemService *service.SystemService
+	systemService   *service.SystemService
+	outboundService service.OutboundService
 }
 
 func NewSystemHandler(systemService *service.SystemService) *SystemHandler {
 	return &SystemHandler{systemService: systemService}
+}
+
+// SetOutboundService injects outbound integration service for network & delivery monitoring
+func (h *SystemHandler) SetOutboundService(outboundService service.OutboundService) {
+	h.outboundService = outboundService
+}
+
+// GetNetworkStatus reports local network interfaces, gateway connectivity, internet probe, and outbound links
+func (h *SystemHandler) GetNetworkStatus(c *gin.Context) {
+	diag := sysinfo.GetNetworkDiagnostics()
+
+	outboundOverview := gin.H{
+		"total_links":    0,
+		"healthy_count":  0,
+		"degraded_count": 0,
+		"failed_count":   0,
+		"disabled_count": 0,
+		"unknown_count":  0,
+		"overall_status": "UNKNOWN",
+		"queue_summary": gin.H{
+			"pending":      0,
+			"sending":      0,
+			"delivered":    0,
+			"retrying":     0,
+			"failed":       0,
+			"acknowledged": 0,
+			"total":        0,
+		},
+		"destinations": []gin.H{},
+	}
+
+	if h.outboundService != nil {
+		ctx := c.Request.Context()
+		destinations, err := h.outboundService.GetDestinations(ctx, false, true)
+		if err == nil {
+			destList := make([]gin.H, 0, len(destinations))
+			var healthyCount, degradedCount, failedCount, disabledCount, unknownCount int
+
+			// Overall queue summary
+			if qs, qsErr := h.outboundService.GetQueueSummary(ctx); qsErr == nil && qs != nil {
+				outboundOverview["queue_summary"] = qs
+			}
+
+			for _, d := range destinations {
+				destID := d.ID
+				healthStatus := sysinfo.MapOutboundStatus(d.Enabled, d.Status, d.SuccessDeliveries, d.FailedDeliveries)
+
+				switch healthStatus {
+				case "HEALTHY":
+					healthyCount++
+				case "DEGRADED":
+					degradedCount++
+				case "FAILED":
+					failedCount++
+				case "DISABLED":
+					disabledCount++
+				case "UNKNOWN":
+					unknownCount++
+				}
+
+				totalDeliv := d.SuccessDeliveries + d.FailedDeliveries
+				successRate := 0.0
+				if totalDeliv > 0 {
+					successRate = (float64(d.SuccessDeliveries) / float64(totalDeliv)) * 100.0
+				}
+
+				var lastError string
+				var lastAttempt *time.Time
+				var destQueueCount int64
+
+				qItems, qTotal, qErr := h.outboundService.GetQueueItems(ctx, repository.QueueFilter{
+					DestinationID: &destID,
+					Page:          1,
+					PageSize:      1,
+				})
+				if qErr == nil {
+					destQueueCount = qTotal
+					if len(qItems) > 0 {
+						lastError = sysinfo.SanitizeError(qItems[0].LastError)
+						lastAttempt = qItems[0].LastAttemptAt
+					}
+				}
+
+				destList = append(destList, gin.H{
+					"id":                 d.ID,
+					"name":               d.Name,
+					"type":               d.Type,
+					"endpoint":           sysinfo.SanitizeEndpoint(d.Endpoint),
+					"enabled":            d.Enabled,
+					"status":             healthStatus,
+					"raw_status":         d.Status,
+					"format":             d.Format,
+					"interval_seconds":   d.IntervalSeconds,
+					"success_deliveries": d.SuccessDeliveries,
+					"failed_deliveries":  d.FailedDeliveries,
+					"success_rate":       successRate,
+					"last_delivery":      d.LastDelivery,
+					"last_attempt_at":    lastAttempt,
+					"last_error":         lastError,
+					"queue_count":        destQueueCount,
+				})
+			}
+
+			overallStatus := "HEALTHY"
+			if len(destinations) == 0 {
+				overallStatus = "UNKNOWN"
+			} else if disabledCount == len(destinations) {
+				overallStatus = "DISABLED"
+			} else if failedCount > 0 {
+				overallStatus = "FAILED"
+			} else if degradedCount > 0 {
+				overallStatus = "DEGRADED"
+			} else if unknownCount > 0 && healthyCount == 0 {
+				overallStatus = "UNKNOWN"
+			}
+
+			outboundOverview["total_links"] = len(destinations)
+			outboundOverview["healthy_count"] = healthyCount
+			outboundOverview["degraded_count"] = degradedCount
+			outboundOverview["failed_count"] = failedCount
+			outboundOverview["disabled_count"] = disabledCount
+			outboundOverview["unknown_count"] = unknownCount
+			outboundOverview["overall_status"] = overallStatus
+			outboundOverview["destinations"] = destList
+		}
+	}
+
+	response.OK(c, gin.H{
+		"local_network": diag.LocalNetwork,
+		"internet":      diag.Internet,
+		"outbound":      outboundOverview,
+		"timestamp":     diag.Timestamp,
+	})
 }
 
 // System Status

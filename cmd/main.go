@@ -202,6 +202,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService)
 	devHandler := handler.NewDevHandler(phaseService, hub)
 	systemHandler := handler.NewSystemHandler(systemService)
+	systemHandler.SetOutboundService(outboundService)
 	deviceHandler := handler.NewDeviceHandler(deviceService, pollingEngine)
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
@@ -273,6 +274,7 @@ func main() {
 		// System Diagnostics & Health
 		api.GET("/system/status", systemHandler.GetStatus)
 		api.GET("/system/health", systemHandler.GetHealth)
+		api.GET("/system/network", systemHandler.GetNetworkStatus)
 		api.GET("/system/serial-ports", systemHandler.GetSerialPorts)
 		api.GET("/system/serial-ports/details", systemHandler.GetDetailedSerialPorts)
 		api.GET("/devices/serial-ports", systemHandler.GetSerialPorts)

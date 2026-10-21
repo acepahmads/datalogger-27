@@ -48,6 +48,15 @@
         <circle cx="9" cy="3" r="1.5" fill="currentColor" fill-opacity="0.3" />
       </g>
 
+      <!-- Network / Workflow / Outbound Delivery -->
+      <g v-else-if="name === 'network' || name === 'workflow'">
+        <rect x="9" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2" />
+        <rect x="2" y="16" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2" />
+        <rect x="16" y="16" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2" />
+        <path d="M12 8v4m0 0H5v4m7-4h7v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+      </g>
+
       <!-- Dashboard Menu -->
       <g v-else-if="name === 'menu'">
         <line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />

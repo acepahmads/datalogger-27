@@ -638,6 +638,254 @@
                 </button>
               </div>
             </div>
+
+            <!-- 5. Network & Outbound Delivery Monitor Popover -->
+            <div class="relative toolbar-popover-anchor">
+              <button
+                type="button"
+                @click.stop="toggleToolbarPopover('networkMonitor')"
+                class="w-8 h-8 flex items-center justify-center rounded transition border relative"
+                :class="[
+                  activeToolbarPopover === 'networkMonitor'
+                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
+                ]"
+                :title="networkMonitorTooltip"
+                aria-label="Network & Outbound Delivery Monitor"
+                :aria-expanded="activeToolbarPopover === 'networkMonitor'"
+              >
+                <OperatorDashboardIcon name="network" :size="16" />
+                <span
+                  class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
+                  :class="networkStatusDotClass"
+                ></span>
+              </button>
+
+              <!-- Network Monitor Popover Panel -->
+              <div
+                v-if="activeToolbarPopover === 'networkMonitor'"
+                class="absolute left-0 top-full mt-1.5 z-50 w-96 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-xs max-h-[85vh] overflow-y-auto"
+                @click.stop
+              >
+                <!-- Popover Header -->
+                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
+                  <div class="flex items-center space-x-2">
+                    <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
+                      <OperatorDashboardIcon name="network" :size="15" class="text-cyan-500" />
+                    </div>
+                    <div>
+                      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                        Network & Delivery Monitor
+                      </h3>
+                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                        LAN · Internet WAN · Outbound Links
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-1.5">
+                    <button
+                      type="button"
+                      @click="fetchNetworkStatus"
+                      class="text-slate-400 hover:text-cyan-500 p-0.5 rounded transition"
+                      :class="{ 'animate-spin': isFetchingNetwork }"
+                      title="Refresh Network Diagnostics"
+                    >
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      @click="closeToolbarPopover"
+                      class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                      title="Close"
+                    >
+                      <OperatorDashboardIcon name="close" :size="14" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Group 1: Local Network Status (LAN) -->
+                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                      <span>🖥️</span>
+                      <span>Local Network (LAN)</span>
+                    </span>
+                    <span
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded border leading-none"
+                      :class="networkStatus.local_network.status === 'UP' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'"
+                    >
+                      {{ networkStatus.local_network.status === 'UP' ? 'CONNECTED' : 'DOWN' }}
+                    </span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-1.5 text-[9.5px]">
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Primary IP & Interface</span>
+                      <span class="font-bold text-slate-800 dark:text-slate-200">
+                        {{ networkStatus.local_network.primary_ip || '-' }}
+                        <span v-if="networkStatus.local_network.primary_interface" class="text-slate-400 text-[8.5px]">
+                          ({{ networkStatus.local_network.primary_interface }})
+                        </span>
+                      </span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Default Gateway</span>
+                      <span class="font-bold text-slate-800 dark:text-slate-200">
+                        {{ networkStatus.local_network.gateway || '-' }}
+                      </span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Gateway Status</span>
+                      <span
+                        class="font-semibold flex items-center space-x-1"
+                        :class="networkStatus.local_network.gateway_reachable ? 'text-emerald-500' : 'text-rose-500'"
+                      >
+                        <span class="inline-block w-1.5 h-1.5 rounded-full" :class="networkStatus.local_network.gateway_reachable ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                        <span>{{ networkStatus.local_network.gateway_reachable ? 'Reachable (' + formatLatency(networkStatus.local_network.gateway_latency_ms) + ')' : 'Unreachable' }}</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Active Interfaces</span>
+                      <span class="font-medium text-slate-700 dark:text-slate-300">
+                        {{ (networkStatus.local_network.interfaces || []).filter(i => i.is_up && i.type !== 'LOOPBACK').length }} interface(s) UP
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Group 2: Internet Connectivity Status (WAN) -->
+                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                      <span>🌐</span>
+                      <span>Internet Connectivity (WAN)</span>
+                    </span>
+                    <span
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded border leading-none"
+                      :class="networkStatus.internet.status === 'CONNECTED' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : networkStatus.internet.status === 'DEGRADED' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'"
+                    >
+                      {{ networkStatus.internet.status || 'UNKNOWN' }}
+                    </span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-1.5 text-[9.5px]">
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Probe Target</span>
+                      <span class="font-mono text-slate-700 dark:text-slate-300">{{ networkStatus.internet.probe_target || '1.1.1.1:53' }}</span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">External Latency</span>
+                      <span
+                        class="font-bold tabular-nums"
+                        :class="networkStatus.internet.connected ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'"
+                      >
+                        {{ networkStatus.internet.connected ? formatLatency(networkStatus.internet.latency_ms) : 'Timeout' }}
+                      </span>
+                    </div>
+                  </div>
+                  <div v-if="!networkStatus.internet.connected" class="mt-1.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60 text-[9px] text-amber-600 dark:text-amber-400">
+                    ⚠️ WAN Offline: Data safely queued locally in autonomous offline storage.
+                  </div>
+                </div>
+
+                <!-- Group 3: Outbound Delivery Monitor -->
+                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2.5">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                      <span>📤</span>
+                      <span>Outbound Delivery Links ({{ networkStatus.outbound.total_links }})</span>
+                    </span>
+                    <span
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded border leading-none"
+                      :class="outboundStatusBadgeClass(networkStatus.outbound.overall_status)"
+                    >
+                      {{ networkStatus.outbound.overall_status || 'UNKNOWN' }}
+                    </span>
+                  </div>
+
+                  <!-- Queue Summary Counters Bar -->
+                  <div class="p-1.5 rounded bg-slate-100 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] mb-2 flex items-center justify-between text-[9px]">
+                    <div>
+                      <span class="text-slate-400">Queue: </span>
+                      <strong class="text-slate-700 dark:text-slate-300">{{ networkStatus.outbound.queue_summary.total }}</strong>
+                    </div>
+                    <div>
+                      <span class="text-slate-400">Pending: </span>
+                      <strong class="text-cyan-500">{{ networkStatus.outbound.queue_summary.pending }}</strong>
+                    </div>
+                    <div>
+                      <span class="text-slate-400">Sending: </span>
+                      <strong :class="networkStatus.outbound.queue_summary.sending > 0 ? 'text-amber-500 font-bold' : 'text-slate-400'">
+                        {{ networkStatus.outbound.queue_summary.sending }}
+                      </strong>
+                    </div>
+                    <div>
+                      <span class="text-slate-400">Failed: </span>
+                      <strong :class="networkStatus.outbound.queue_summary.failed > 0 ? 'text-rose-500 font-bold' : 'text-slate-400'">
+                        {{ networkStatus.outbound.queue_summary.failed }}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <!-- Destinations List -->
+                  <div v-if="networkStatus.outbound.destinations && networkStatus.outbound.destinations.length" class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                    <div
+                      v-for="dest in networkStatus.outbound.destinations"
+                      :key="dest.id"
+                      class="p-2 rounded bg-white dark:bg-[#0A1220] border border-slate-200/90 dark:border-[#1E3048] space-y-1 text-[9.5px]"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5 min-w-0">
+                          <strong class="text-slate-900 dark:text-white truncate">{{ dest.name }}</strong>
+                          <span class="text-[8.5px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                            {{ dest.type }}
+                          </span>
+                        </div>
+                        <span
+                          class="text-[8.5px] font-bold px-1.5 py-0.5 rounded border leading-none flex-shrink-0"
+                          :class="outboundStatusBadgeClass(dest.status)"
+                        >
+                          {{ dest.status }}
+                        </span>
+                      </div>
+
+                      <div class="font-mono text-[8.5px] text-slate-500 dark:text-slate-400 truncate" :title="dest.endpoint">
+                        {{ dest.endpoint }}
+                      </div>
+
+                      <div class="flex items-center justify-between text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                        <span>
+                          Success: <strong class="text-emerald-600 dark:text-emerald-400">{{ (dest.success_deliveries || 0).toLocaleString() }}</strong> ·
+                          Fail: <strong class="text-rose-500">{{ (dest.failed_deliveries || 0).toLocaleString() }}</strong>
+                          <span class="text-slate-400 text-[8px]">({{ (dest.success_rate || 0).toFixed(1) }}%)</span>
+                        </span>
+                        <span class="text-slate-400">
+                          Queue: <strong class="text-slate-700 dark:text-slate-300">{{ dest.queue_count || 0 }}</strong>
+                        </span>
+                      </div>
+
+                      <div v-if="dest.last_error" class="text-[8px] text-rose-500 dark:text-rose-400 truncate bg-rose-500/5 p-1 rounded border border-rose-500/20" :title="dest.last_error">
+                        ⚠️ {{ dest.last_error }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-else class="text-center py-3 text-[10px] text-slate-400 italic">
+                    No outbound destinations configured.
+                  </div>
+                </div>
+
+                <!-- Action Button: Open Outbound Integration -->
+                <button
+                  type="button"
+                  @click="navigateToRoute('/integration')"
+                  class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                >
+                  <span>🔗</span>
+                  <span>Open Outbound Integration & Delivery (/integration) →</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Active Filter Dismissible Badges (Minimalist) -->
@@ -3964,6 +4212,48 @@ export default {
       filterPinnedOnly: false,
       viewMode: 'cards', // 'cards' | 'table'
       activeToolbarPopover: null,
+      networkStatus: {
+        local_network: {
+          status: 'DOWN',
+          primary_ip: '',
+          primary_interface: '',
+          gateway: '',
+          gateway_reachable: false,
+          gateway_latency_ms: 0,
+          interfaces: [],
+          last_checked: null,
+        },
+        internet: {
+          status: 'DISCONNECTED',
+          connected: false,
+          probe_target: '',
+          latency_ms: 0,
+          last_checked: null,
+        },
+        outbound: {
+          total_links: 0,
+          healthy_count: 0,
+          degraded_count: 0,
+          failed_count: 0,
+          disabled_count: 0,
+          unknown_count: 0,
+          overall_status: 'UNKNOWN',
+          queue_summary: {
+            pending: 0,
+            sending: 0,
+            delivered: 0,
+            retrying: 0,
+            failed: 0,
+            acknowledged: 0,
+            total: 0,
+          },
+          destinations: [],
+        },
+        timestamp: null,
+      },
+      isFetchingNetwork: false,
+      lastNetworkFetchTime: null,
+      networkPollCycles: 0,
       // Dual Organization & Company Branding State (Customer Left, Maker Right)
       showBrandingModal: false,
       showLogoModal: false, // legacy alias
@@ -4097,6 +4387,32 @@ export default {
     };
   },
   computed: {
+    networkStatusDotClass() {
+      const local = this.networkStatus?.local_network?.status;
+      const internet = this.networkStatus?.internet?.status;
+      const outbound = this.networkStatus?.outbound?.overall_status;
+
+      if (outbound === 'FAILED' || local === 'DOWN') {
+        return 'bg-rose-500 animate-pulse';
+      }
+      if (internet === 'DEGRADED' || outbound === 'DEGRADED') {
+        return 'bg-amber-500';
+      }
+      if (internet === 'DISCONNECTED') {
+        return 'bg-amber-400';
+      }
+      if (local === 'UP' && internet === 'CONNECTED' && (outbound === 'HEALTHY' || outbound === 'DISABLED' || outbound === 'UNKNOWN')) {
+        return 'bg-emerald-400';
+      }
+      return 'bg-slate-400';
+    },
+    networkMonitorTooltip() {
+      const local = this.networkStatus?.local_network?.status || 'UNKNOWN';
+      const ip = this.networkStatus?.local_network?.primary_ip || '-';
+      const internet = this.networkStatus?.internet?.status || 'UNKNOWN';
+      const outbound = this.networkStatus?.outbound?.overall_status || 'UNKNOWN';
+      return `Network & Outbound: LAN ${local} (${ip}) · Internet ${internet} · Outbound ${outbound}`;
+    },
     singlePanelGridClass() {
       const cols = Number(this.gridColumns) || 4;
       if (cols === 1) return 'grid-cols-1';
@@ -5688,6 +6004,9 @@ export default {
         this.activeToolbarPopover = null;
       } else {
         this.activeToolbarPopover = popoverName;
+        if (popoverName === 'networkMonitor') {
+          this.fetchNetworkStatus();
+        }
       }
     },
     async initCompanyBranding() {
@@ -6576,6 +6895,11 @@ export default {
         this.devicePollCycles = 0;
         await this.syncDeviceCatalog();
       }
+      this.networkPollCycles = (this.networkPollCycles || 0) + 1;
+      if (this.networkPollCycles >= 3 || this.activeToolbarPopover === 'networkMonitor') {
+        this.networkPollCycles = 0;
+        await this.fetchNetworkStatus();
+      }
     },
     async syncDeviceCatalog() {
       try {
@@ -6687,6 +7011,7 @@ export default {
           this.fetchActiveAlarms(),
           this.fetchEvents(),
           this.fetchNotifications(),
+          this.fetchNetworkStatus(),
         ]);
         if (!this.trendSelectionRestored) {
           this.restoreOrInitTrendSelection();
@@ -6708,6 +7033,7 @@ export default {
           this.fetchEvents(),
           this.fetchNotifications(),
           this.fetchTrendData(),
+          this.fetchNetworkStatus(),
         ]);
       } finally {
         this.isRefreshing = false;
@@ -6840,6 +7166,40 @@ export default {
         }
       } catch (err) {
         console.error('Failed to load notification queue:', err);
+      }
+    },
+    async fetchNetworkStatus() {
+      if (this.isFetchingNetwork) return;
+      this.isFetchingNetwork = true;
+      try {
+        const res = await axios.get('/api/system/network');
+        if (res.data && res.data.data) {
+          this.networkStatus = res.data.data;
+          this.lastNetworkFetchTime = new Date();
+        }
+      } catch (err) {
+        console.warn('Failed to load network diagnostics:', err);
+      } finally {
+        this.isFetchingNetwork = false;
+      }
+    },
+    formatLatency(ms) {
+      if (ms == null || isNaN(ms) || ms === 0) return '-';
+      if (ms < 1) return '< 1 ms';
+      return `${Number(ms).toFixed(1)} ms`;
+    },
+    outboundStatusBadgeClass(status) {
+      switch (status) {
+        case 'HEALTHY':
+          return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
+        case 'DEGRADED':
+          return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
+        case 'FAILED':
+          return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
+        case 'DISABLED':
+          return 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/30';
+        default:
+          return 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-500/30';
       }
     },
     togglePin(paramId) {
