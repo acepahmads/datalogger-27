@@ -1285,179 +1285,63 @@
 
         <!-- Right: Workspace Settings Icons + Fullscreen Control -->
         <div class="flex items-center space-x-1.5 flex-shrink-0" ref="toolbarContainer">
-          <!-- A. Categories Settings Popover -->
+          <!-- View & Filter Options Popover (Unified: Display Mode, Grid Density, Favorites, Categories) -->
           <div class="relative toolbar-popover-anchor">
             <button
               type="button"
-              @click.stop="toggleToolbarPopover('categories')"
+              id="btn-toolbar-view-options"
+              @click.stop="toggleToolbarPopover('viewOptions')"
               class="w-8 h-8 flex items-center justify-center rounded transition border relative"
               :class="[
-                activeToolbarPopover === 'categories'
+                activeToolbarPopover === 'viewOptions'
                   ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                  : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white',
-                selectedCategoryFilter !== 'all' ? 'ring-1 ring-cyan-500/50' : ''
-              ]"
-              :title="$t('operator.toolbarCategoriesTooltip') || 'Categories & Filtering'"
-              aria-label="Parameter Categories"
-              :aria-expanded="activeToolbarPopover === 'categories'"
-            >
-              <OperatorDashboardIcon name="filter" :size="16" />
-              <span
-                v-if="selectedCategoryFilter !== 'all'"
-                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 ring-1 ring-white dark:ring-[#0B1422]"
-              ></span>
-            </button>
-
-            <!-- Categories Popover Panel -->
-            <div
-              v-if="activeToolbarPopover === 'categories'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
-              @click.stop
-            >
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <OperatorDashboardIcon name="filter" :size="15" class="text-cyan-500" />
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.categories') || 'Parameter Categories' }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                  title="Close"
-                >
-                  <OperatorDashboardIcon name="close" :size="14" />
-                </button>
-              </div>
-
-              <!-- Categories List -->
-              <div class="max-h-64 overflow-y-auto custom-scroller space-y-1 font-mono text-[10.5px]">
-                <!-- All Categories -->
-                <button
-                  type="button"
-                  @click="selectedCategoryFilter = 'all'"
-                  class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
-                  :class="selectedCategoryFilter === 'all'
-                    ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs font-bold'
-                    : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
-                >
-                  <div class="flex items-center space-x-2 truncate">
-                    <OperatorDashboardIcon name="menu" :size="12" class="text-cyan-500 flex-shrink-0" />
-                    <span class="truncate">{{ $t('operator.allCategories') || 'All Categories' }}</span>
-                  </div>
-                  <div class="flex items-center space-x-1.5 flex-shrink-0">
-                    <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {{ allParameters.length }}
-                    </span>
-                    <span v-if="selectedCategoryFilter === 'all'" class="text-cyan-500 font-bold text-xs">✓</span>
-                  </div>
-                </button>
-
-                <!-- Dynamic Category Tabs -->
-                <button
-                  type="button"
-                  v-for="cat in activeCategoriesList"
-                  :key="cat.id"
-                  @click="selectedCategoryFilter = cat.id"
-                  class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
-                  :class="selectedCategoryFilter === cat.id
-                    ? getCategoryTheme(cat.color_key).activeTab + ' font-bold'
-                    : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
-                >
-                  <div class="flex items-center space-x-2 truncate">
-                    <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(cat.color_key).dot"></span>
-                    <span class="truncate">{{ cat.name }}</span>
-                  </div>
-                  <div class="flex items-center space-x-1.5 flex-shrink-0">
-                    <span
-                      class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
-                      :class="selectedCategoryFilter === cat.id ? getCategoryTheme(cat.color_key).pill : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
-                    >
-                      {{ getCategoryParamCount(cat.id) }}
-                    </span>
-                    <span v-if="selectedCategoryFilter === cat.id" class="text-cyan-500 font-bold text-xs">✓</span>
-                  </div>
-                </button>
-
-                <!-- Uncategorized -->
-                <button
-                  type="button"
-                  v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
-                  @click="selectedCategoryFilter = 'uncategorized'"
-                  class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
-                  :class="selectedCategoryFilter === 'uncategorized'
-                    ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs font-bold'
-                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-800 dark:hover:text-slate-200'"
-                >
-                  <div class="flex items-center space-x-2 truncate">
-                    <span>📦</span>
-                    <span class="truncate">{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
-                  </div>
-                  <div class="flex items-center space-x-1.5 flex-shrink-0">
-                    <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                      {{ uncategorizedParamCount }}
-                    </span>
-                    <span v-if="selectedCategoryFilter === 'uncategorized'" class="text-slate-300 font-bold text-xs">✓</span>
-                  </div>
-                </button>
-              </div>
-
-              <!-- Footer: Category Management Modal Trigger -->
-              <div v-if="canManageCategories || canViewCategories" class="pt-2 mt-2 border-t border-slate-100 dark:border-[#1E3048]">
-                <button
-                  type="button"
-                  @click="openCategoryManagementModal(); closeToolbarPopover()"
-                  class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
-                >
-                  <span>🏷️</span>
-                  <span>{{ $t('operator.manageCategories') || 'Configure Categories & Layout' }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- B. Pinned Parameters Settings Popover -->
-          <div class="relative toolbar-popover-anchor">
-            <button
-              type="button"
-              @click.stop="toggleToolbarPopover('pinned')"
-              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
-              :class="[
-                activeToolbarPopover === 'pinned'
-                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500 shadow-xs'
                   : filterPinnedOnly
                     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/50'
-                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white',
-                filterPinnedOnly ? 'ring-1 ring-amber-500/50' : ''
+                    : selectedCategoryFilter !== 'all'
+                      ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/50'
+                      : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white',
+                (filterPinnedOnly || selectedCategoryFilter !== 'all') ? 'ring-1 ring-cyan-500/40' : ''
               ]"
-              :title="$t('operator.toolbarPinnedTooltip') || 'Pinned Favorite Parameters'"
-              aria-label="Pinned Parameters"
-              :aria-expanded="activeToolbarPopover === 'pinned'"
+              :title="$t('operator.toolbarViewOptionsTooltip') || 'View & Filter Options (Display, Layout, Favorites, Categories)'"
+              aria-label="View & Filter Options"
+              :aria-expanded="activeToolbarPopover === 'viewOptions'"
             >
-              <OperatorDashboardIcon name="pin" :size="16" />
+              <OperatorDashboardIcon name="sliders" :size="16" />
+              <!-- Badge: Pinned Filter Active (Star) -->
               <span
-                v-if="pinnedIds.length > 0"
+                v-if="filterPinnedOnly"
                 class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-bold font-mono flex items-center justify-center bg-amber-500 text-slate-950 ring-1 ring-white dark:ring-[#0B1422]"
+                title="Pinned filter active"
               >
-                {{ pinnedIds.length }}
+                ★
+              </span>
+              <!-- Badge: Category Filter Active (Cyan Dot) -->
+              <span
+                v-else-if="selectedCategoryFilter !== 'all'"
+                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 ring-1 ring-white dark:ring-[#0B1422]"
+                title="Category filter active"
+              ></span>
+              <!-- Default Badge: Layout Density (e.g. 4P or TBL) -->
+              <span
+                v-else
+                class="absolute -top-1.5 -right-1.5 text-[8px] font-bold font-mono px-1 py-0.2 rounded-full bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] ring-1 ring-white dark:ring-[#0B1422] leading-none pointer-events-none"
+              >
+                {{ viewMode === 'table' ? 'TBL' : gridColumns + 'P' }}
               </span>
             </button>
 
-            <!-- Pinned Popover Panel -->
+            <!-- Unified Popover Panel -->
             <div
-              v-if="activeToolbarPopover === 'pinned'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
+              v-if="activeToolbarPopover === 'viewOptions'"
+              class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
               @click.stop
             >
+              <!-- Panel Header -->
               <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
                 <div class="flex items-center space-x-1.5">
-                  <span class="text-amber-400">⭐</span>
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.pinnedParameters') || 'Pinned Parameters' }}
-                  </span>
-                  <span class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                    {{ pinnedIds.length }}
+                  <OperatorDashboardIcon name="sliders" :size="15" class="text-cyan-500" />
+                  <span class="text-xs font-bold uppercase tracking-wider font-mono block leading-tight">
+                    {{ $t('operator.viewAndFilterOptions') || 'View & Filter Options' }}
                   </span>
                 </div>
                 <button
@@ -1470,250 +1354,236 @@
                 </button>
               </div>
 
-              <!-- Pinned Only Quick Toggle Row -->
-              <div class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2 font-mono">
+              <!-- Body with tidy sections -->
+              <div class="max-h-[calc(85vh-100px)] overflow-y-auto custom-scroller pr-0.5 space-y-2.5">
+                <!-- 1. Display Mode Section -->
                 <div>
-                  <div class="text-[10.5px] font-bold text-slate-900 dark:text-white">
-                    {{ $t('operator.pinnedOnly') || 'Pinned Only' }}
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>{{ $t('operator.displayMode') || 'Display Mode' }}</span>
+                    <span class="text-[9px] text-cyan-500 font-semibold">{{ viewMode === 'cards' ? 'Cards' : 'Table' }}</span>
                   </div>
-                  <div class="text-[9px] text-slate-500 dark:text-slate-400">
-                    Filter SCADA cards to favorites
+                  <div class="grid grid-cols-2 gap-1.5 font-mono">
+                    <button
+                      type="button"
+                      @click="viewMode = 'cards'"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
+                      :class="viewMode === 'cards'
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <OperatorDashboardIcon name="layout" :size="14" class="text-cyan-500 flex-shrink-0" />
+                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewCards') || 'Cards View' }}</span>
+                      <span v-if="viewMode === 'cards'" class="text-cyan-500 font-bold text-xs">✓</span>
+                    </button>
+                    <button
+                      type="button"
+                      @click="viewMode = 'table'"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
+                      :class="viewMode === 'table'
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <OperatorDashboardIcon name="menu" :size="14" class="text-cyan-500 flex-shrink-0" />
+                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewTable') || 'Table View' }}</span>
+                      <span v-if="viewMode === 'table'" class="text-cyan-500 font-bold text-xs">✓</span>
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  @click="toggleFilterPinned"
-                  class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                  :class="filterPinnedOnly ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'"
-                  role="switch"
-                  :aria-checked="filterPinnedOnly"
-                >
-                  <span
-                    aria-hidden="true"
-                    class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                    :class="filterPinnedOnly ? 'translate-x-4' : 'translate-x-0'"
-                  ></span>
-                </button>
-              </div>
 
-              <!-- Pinned Parameters List -->
-              <div class="text-[10px] font-mono">
-                <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex justify-between items-center">
-                  <span>Favorites ({{ pinnedParametersList.length }})</span>
-                  <button
-                    type="button"
-                    v-if="pinnedIds.length > 0"
-                    @click="clearAllPinned"
-                    class="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:underline"
-                  >
-                    {{ $t('operator.clearAllPinned') || 'Clear All' }}
-                  </button>
-                </div>
-
-                <div v-if="pinnedParametersList.length > 0" class="max-h-44 overflow-y-auto custom-scroller space-y-1">
+                <!-- 2. Panel Layout Density (1P - 4P Columns) -->
+                <div>
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>{{ $t('operator.panelLayout') || 'Panel Layout' }}</span>
+                    <span class="text-[9px] font-semibold" :class="viewMode === 'table' ? 'text-slate-400 italic' : 'text-cyan-500'">
+                      {{ viewMode === 'table' ? '(N/A in Table)' : gridColumns + 'P Columns' }}
+                    </span>
+                  </div>
                   <div
-                    v-for="param in pinnedParametersList"
-                    :key="'pinned-item-' + param.param_id"
-                    class="flex items-center justify-between p-1.5 rounded bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/70 dark:border-[#1E3048] hover:border-slate-300 dark:hover:border-slate-700 transition"
+                    class="grid grid-cols-4 gap-1 font-mono transition-opacity"
+                    :class="viewMode === 'table' ? 'opacity-40 pointer-events-none' : ''"
                   >
-                    <div class="min-w-0 flex-1 pr-1.5">
-                      <div class="font-bold text-slate-800 dark:text-slate-200 truncate text-[10px]">
-                        {{ param.param_name || param.param_code }}
-                      </div>
-                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center space-x-1.5 truncate">
-                        <span>{{ param.device_code }}</span>
-                        <span v-if="param.unit">· {{ param.unit }}</span>
+                    <button
+                      type="button"
+                      v-for="cnt in [1, 2, 3, 4]"
+                      :key="'occ-panel-btn-' + cnt"
+                      :id="'btn-toolbar-panel-' + cnt"
+                      @click="setGridColumns(cnt)"
+                      class="p-1.5 rounded border text-center transition flex flex-col items-center justify-center"
+                      :class="gridColumns === cnt
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
+                      :title="cnt + (cnt === 1 ? ' Column Grid (1P)' : ' Columns Grid (' + cnt + 'P)')"
+                    >
+                      <span class="text-xs font-black">{{ cnt }}P</span>
+                      <span class="text-[8px] opacity-75">{{ cnt === 1 ? '1 Col' : cnt + ' Cols' }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 3. Pinned Favorites Section -->
+                <div class="p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] font-mono">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-1.5">
+                      <span class="text-amber-400 text-xs">⭐</span>
+                      <div>
+                        <div class="text-[10px] font-bold text-slate-900 dark:text-white leading-tight">
+                          {{ $t('operator.pinnedOnly') || 'Pinned Only' }}
+                        </div>
+                        <div class="text-[8.5px] text-slate-500 dark:text-slate-400">
+                          Filter SCADA cards to favorites
+                        </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      @click.stop="togglePin(param.param_id)"
-                      class="p-1 rounded text-amber-400 hover:text-rose-500 transition hover:bg-slate-200 dark:hover:bg-slate-800 flex-shrink-0"
-                      title="Unpin parameter"
+                      @click="toggleFilterPinned"
+                      class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="filterPinnedOnly ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="filterPinnedOnly"
                     >
-                      <OperatorDashboardIcon name="pin" :size="14" class="text-amber-400" />
+                      <span
+                        aria-hidden="true"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                        :class="filterPinnedOnly ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+
+                  <!-- Pinned items list if any -->
+                  <div v-if="pinnedParametersList.length > 0" class="mt-2 pt-2 border-t border-slate-200/70 dark:border-[#1E3048]">
+                    <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mb-1">
+                      <span>Favorites ({{ pinnedParametersList.length }})</span>
+                      <button
+                        type="button"
+                        @click="clearAllPinned"
+                        class="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:underline"
+                      >
+                        {{ $t('operator.clearAllPinned') || 'Clear All' }}
+                      </button>
+                    </div>
+                    <div class="max-h-28 overflow-y-auto custom-scroller space-y-1">
+                      <div
+                        v-for="param in pinnedParametersList"
+                        :key="'pinned-item-' + param.param_id"
+                        class="flex items-center justify-between p-1 rounded bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B]"
+                      >
+                        <div class="min-w-0 flex-1 pr-1.5">
+                          <div class="font-bold text-slate-800 dark:text-slate-200 truncate text-[9.5px]">
+                            {{ param.param_name || param.param_code }}
+                          </div>
+                          <div class="text-[8px] text-slate-500 dark:text-slate-400 flex items-center space-x-1 truncate">
+                            <span>{{ param.device_code }}</span>
+                            <span v-if="param.unit">· {{ param.unit }}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          @click.stop="togglePin(param.param_id)"
+                          class="p-0.5 rounded text-amber-400 hover:text-rose-500 transition hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0"
+                          title="Unpin parameter"
+                        >
+                          <OperatorDashboardIcon name="pin" :size="13" class="text-amber-400" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 4. Parameter Categories Section -->
+                <div>
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+                    <div class="flex items-center space-x-1.5">
+                      <OperatorDashboardIcon name="filter" :size="12" class="text-cyan-500" />
+                      <span>{{ $t('operator.categories') || 'Parameter Categories' }}</span>
+                    </div>
+                    <span v-if="selectedCategoryFilter !== 'all'" class="text-[9px] text-cyan-500 font-semibold">Filtered</span>
+                  </div>
+
+                  <!-- Categories List -->
+                  <div class="max-h-48 overflow-y-auto custom-scroller space-y-1 font-mono text-[10.5px]">
+                    <!-- All Categories -->
+                    <button
+                      type="button"
+                      @click="selectedCategoryFilter = 'all'"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      :class="selectedCategoryFilter === 'all'
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs font-bold'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <OperatorDashboardIcon name="menu" :size="12" class="text-cyan-500 flex-shrink-0" />
+                        <span class="truncate">{{ $t('operator.allCategories') || 'All Categories' }}</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {{ allParameters.length }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === 'all'" class="text-cyan-500 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+
+                    <!-- Dynamic Category Tabs -->
+                    <button
+                      type="button"
+                      v-for="cat in activeCategoriesList"
+                      :key="cat.id"
+                      @click="selectedCategoryFilter = cat.id"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      :class="selectedCategoryFilter === cat.id
+                        ? getCategoryTheme(cat.color_key).activeTab + ' font-bold'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(cat.color_key).dot"></span>
+                        <span class="truncate">{{ cat.name }}</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span
+                          class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
+                          :class="selectedCategoryFilter === cat.id ? getCategoryTheme(cat.color_key).pill : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
+                        >
+                          {{ getCategoryParamCount(cat.id) }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === cat.id" class="text-cyan-500 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+
+                    <!-- Uncategorized -->
+                    <button
+                      type="button"
+                      v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
+                      @click="selectedCategoryFilter = 'uncategorized'"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      :class="selectedCategoryFilter === 'uncategorized'
+                        ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs font-bold'
+                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-800 dark:hover:text-slate-200'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <span>📦</span>
+                        <span class="truncate">{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {{ uncategorizedParamCount }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === 'uncategorized'" class="text-slate-300 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  <!-- Footer: Category Management Modal Trigger -->
+                  <div v-if="canManageCategories || canViewCategories" class="pt-2 mt-2 border-t border-slate-100 dark:border-[#1E3048]">
+                    <button
+                      type="button"
+                      @click="openCategoryManagementModal(); closeToolbarPopover()"
+                      class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                    >
+                      <span>🏷️</span>
+                      <span>{{ $t('operator.manageCategories') || 'Configure Categories & Layout' }}</span>
                     </button>
                   </div>
                 </div>
-                <div v-else class="p-3 text-center text-slate-400 dark:text-slate-500 text-[10px] bg-slate-50/50 dark:bg-[#0E1726]/50 rounded border border-dashed border-slate-200 dark:border-[#20354B]">
-                  {{ $t('operator.noPinnedParams') || 'No parameters pinned yet. Click the star icon on any parameter card to pin it here.' }}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- C. Display Mode Settings Popover (Cards vs Table) -->
-          <div class="relative toolbar-popover-anchor">
-            <button
-              type="button"
-              @click.stop="toggleToolbarPopover('displayMode')"
-              class="w-8 h-8 flex items-center justify-center rounded transition border"
-              :class="[
-                activeToolbarPopover === 'displayMode'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                  : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
-              ]"
-              :title="$t('operator.toolbarDisplayModeTooltip') || 'Display Mode (Cards / Table)'"
-              aria-label="Display Mode"
-              :aria-expanded="activeToolbarPopover === 'displayMode'"
-            >
-              <OperatorDashboardIcon :name="viewMode === 'cards' ? 'layout' : 'menu'" :size="16" />
-            </button>
-
-            <!-- Display Mode Popover Panel -->
-            <div
-              v-if="activeToolbarPopover === 'displayMode'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
-              @click.stop
-            >
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <OperatorDashboardIcon name="layout" :size="15" class="text-cyan-500" />
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.displayMode') || 'Display Mode' }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                  title="Close"
-                >
-                  <OperatorDashboardIcon name="close" :size="14" />
-                </button>
-              </div>
-
-              <!-- Mode Options -->
-              <div class="space-y-1.5 font-mono">
-                <!-- Cards View -->
-                <button
-                  type="button"
-                  @click="viewMode = 'cards'"
-                  class="w-full p-2 rounded-md border text-left transition flex items-start space-x-2.5"
-                  :class="viewMode === 'cards'
-                    ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs'
-                    : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
-                >
-                  <div class="p-1.5 rounded bg-white dark:bg-[#162538] border border-slate-200 dark:border-[#20354B] text-cyan-500 mt-0.5 flex-shrink-0">
-                    <OperatorDashboardIcon name="layout" :size="16" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center justify-between">
-                      <span class="text-[11px] font-bold text-slate-900 dark:text-white">
-                        {{ $t('operator.viewCards') || 'Cards View' }}
-                      </span>
-                      <span v-if="viewMode === 'cards'" class="text-cyan-500 font-bold text-xs">✓ Active</span>
-                    </div>
-                    <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                      {{ $t('operator.cardsViewDesc') || 'Real-time SCADA tiles with sparklines and status badges' }}
-                    </div>
-                  </div>
-                </button>
-
-                <!-- Table View -->
-                <button
-                  type="button"
-                  @click="viewMode = 'table'"
-                  class="w-full p-2 rounded-md border text-left transition flex items-start space-x-2.5"
-                  :class="viewMode === 'table'
-                    ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs'
-                    : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
-                >
-                  <div class="p-1.5 rounded bg-white dark:bg-[#162538] border border-slate-200 dark:border-[#20354B] text-cyan-500 mt-0.5 flex-shrink-0">
-                    <OperatorDashboardIcon name="menu" :size="16" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center justify-between">
-                      <span class="text-[11px] font-bold text-slate-900 dark:text-white">
-                        {{ $t('operator.viewTable') || 'Table View' }}
-                      </span>
-                      <span v-if="viewMode === 'table'" class="text-cyan-500 font-bold text-xs">✓ Active</span>
-                    </div>
-                    <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                      {{ $t('operator.tableViewDesc') || 'Dense tabular spreadsheet view with sortable columns' }}
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- D. Panel Layout Settings Popover (1P, 2P, 3P, 4P) -->
-          <div class="relative toolbar-popover-anchor">
-            <button
-              type="button"
-              @click.stop="toggleToolbarPopover('panelLayout')"
-              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
-              :class="[
-                activeToolbarPopover === 'panelLayout'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                  : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
-              ]"
-              :title="$t('operator.toolbarPanelLayoutTooltip') || 'Panel Layout (1P - 4P Columns)'"
-              aria-label="Panel Layout"
-              :aria-expanded="activeToolbarPopover === 'panelLayout'"
-            >
-              <OperatorDashboardIcon name="layout" :size="16" />
-              <span class="absolute -top-1.5 -right-1.5 text-[8px] font-bold font-mono px-1 py-0.2 rounded-full bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] ring-1 ring-white dark:ring-[#0B1422] leading-none pointer-events-none">
-                {{ gridColumns }}P
-              </span>
-            </button>
-
-            <!-- Panel Layout Popover Panel -->
-            <div
-              v-if="activeToolbarPopover === 'panelLayout'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
-              @click.stop
-            >
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <OperatorDashboardIcon name="layout" :size="15" class="text-cyan-500" />
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.panelLayout') || 'Panel Layout' }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                  title="Close"
-                >
-                  <OperatorDashboardIcon name="close" :size="14" />
-                </button>
-              </div>
-
-              <div class="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 mb-2 leading-tight">
-                {{ $t('operator.panelLayoutDesc') || 'Card columns inside the single parameter panel:' }}
-              </div>
-
-              <!-- 1P, 2P, 3P, 4P Controls -->
-              <div class="grid grid-cols-2 gap-1.5 font-mono">
-                <button
-                  type="button"
-                  v-for="cnt in [1, 2, 3, 4]"
-                  :key="'occ-panel-btn-' + cnt"
-                  :id="'btn-toolbar-panel-' + cnt"
-                  @click="setGridColumns(cnt)"
-                  class="p-2 rounded-md border text-left transition flex items-center justify-between"
-                  :class="gridColumns === cnt
-                    ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/60 shadow-xs font-bold'
-                    : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
-                  :title="cnt + (cnt === 1 ? ' Column Grid (1P)' : ' Columns Grid (' + cnt + 'P)')"
-                >
-                  <div class="flex items-center space-x-2">
-                    <span class="text-xs font-black px-1.5 py-0.5 rounded bg-white dark:bg-[#162538] border border-slate-200 dark:border-[#20354B]">
-                      {{ cnt }}P
-                    </span>
-                    <span class="text-[10px]">
-                      {{ cnt === 1 ? '1 Col' : cnt + ' Cols' }}
-                    </span>
-                  </div>
-                  <span v-if="gridColumns === cnt" class="text-cyan-500 font-bold text-xs">✓</span>
-                </button>
-              </div>
-
-              <div class="mt-2 pt-2 border-t border-slate-100 dark:border-[#1E3048] text-[8.5px] font-mono text-slate-400 text-center">
-                Preference saved automatically (Default: 4P)
               </div>
             </div>
           </div>
