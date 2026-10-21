@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"datalogger/internal/model"
 )
@@ -111,6 +112,11 @@ type ParameterCalculationOutput struct {
 	SourceLatestIdentifier    string              `json:"source_latest_identifier"`
 	SourceAggregationInterval int                 `json:"source_aggregation_interval"`
 	SourceAggregationFunction string              `json:"source_aggregation_function"`
+	PeakConcentration         float64             `json:"peak_concentration"`
+	PeakTimestamp             *time.Time          `json:"peak_timestamp,omitempty"`
+	PeakBucketIdentifier      string              `json:"peak_bucket_identifier,omitempty"`
+	MinConcentration          float64             `json:"min_concentration"`
+	DetailsJSON               string              `json:"details_json,omitempty"`
 	ErrorMessage              string              `json:"error_message,omitempty"`
 }
 

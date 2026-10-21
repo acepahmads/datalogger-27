@@ -138,6 +138,34 @@ func (h *ISPUHandler) GetDetail(c *gin.Context) {
 	response.OK(c, record)
 }
 
+// GetAuditTracking returns outlier details, peak timing, and top spikes for an ISPU calculation.
+func (h *ISPUHandler) GetAuditTracking(c *gin.Context) {
+	calcIDStr := c.Query("calculation_result_id")
+	if calcIDStr == "" {
+		calcIDStr = c.Query("id")
+	}
+	if calcIDStr == "" {
+		response.BadRequest(c, "calculation_result_id is required")
+		return
+	}
+
+	calcID, err := strconv.ParseUint(calcIDStr, 10, 32)
+	if err != nil {
+		response.BadRequest(c, "invalid calculation_result_id")
+		return
+	}
+
+	pollutant := c.Query("pollutant")
+	details, err := h.ispuService.GetAuditTracking(c.Request.Context(), uint(calcID), pollutant)
+	if err != nil {
+		response.NotFound(c, err.Error())
+		return
+	}
+
+	response.OK(c, details)
+}
+
+
 // Recalculate triggers on-demand recalculation for a station and time window.
 func (h *ISPUHandler) Recalculate(c *gin.Context) {
 	var req struct {

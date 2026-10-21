@@ -1563,6 +1563,14 @@ export default {
       if (query.preset) {
         this.filters.timePreset = query.preset;
       }
+      if (query.start_time) {
+        this.filters.startTime = query.start_time;
+        this.filters.timePreset = 'custom';
+      }
+      if (query.end_time) {
+        this.filters.endTime = query.end_time;
+        this.filters.timePreset = 'custom';
+      }
       if (query.quality) {
         this.filters.quality = query.quality;
       }

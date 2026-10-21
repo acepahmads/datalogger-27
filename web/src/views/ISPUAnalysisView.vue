@@ -592,7 +592,7 @@
       class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/75 backdrop-blur-sm"
       @click.self="showDetailModal = false"
     >
-      <div class="w-full max-w-3xl bg-white dark:bg-[#0B1422] rounded-2xl border border-slate-200 dark:border-[#20354B] shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="w-full max-w-4xl bg-white dark:bg-[#0B1422] rounded-2xl border border-slate-200 dark:border-[#20354B] shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#20354B]">
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
@@ -638,6 +638,137 @@
           </div>
         </div>
 
+        <!-- Pollutant Inspector Tabs -->
+        <div class="flex items-center space-x-2 overflow-x-auto pb-1">
+          <span class="text-3xs font-mono font-bold text-slate-400 uppercase tracking-wider shrink-0">Pollutant Inspector:</span>
+          <button
+            v-for="p in selectedRecord?.parameter_results || []"
+            :key="'tab-' + p.pollutant_code"
+            @click="selectInspectPollutant(p.pollutant_code)"
+            class="px-2.5 py-1 rounded-lg text-3xs font-mono font-bold transition flex items-center space-x-1.5 shrink-0 border"
+            :class="activeInspectPollutant === p.pollutant_code
+              ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40 shadow-sm'
+              : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:text-slate-900 dark:hover:text-white'"
+          >
+            <span>{{ p.pollutant_code }}</span>
+            <span
+              v-if="p.peak_concentration && p.xa && p.peak_concentration > p.xa"
+              class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"
+              title="Outlier Anomaly Detected"
+            ></span>
+          </button>
+        </div>
+
+        <!-- Peak Anomaly & Outlier Tracking Panel -->
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-2xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center space-x-1.5">
+              <span>🎯 Peak & Anomaly Occurrence Tracking:</span>
+              <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-black">{{ activeInspectPollutant }}</span>
+            </span>
+            <div v-if="auditTrackingLoading" class="text-4xs text-cyan-400 animate-pulse flex items-center space-x-1">
+              <span>Analyzing buckets...</span>
+            </div>
+          </div>
+
+          <!-- Anomaly Alert Banner (if spike or above regulatory breakpoint) -->
+          <div
+            v-if="auditTrackingData?.is_anomaly || (auditTrackingData?.peak_concentration && auditTrackingData?.regulatory_xa && auditTrackingData.peak_concentration > auditTrackingData.regulatory_xa)"
+            class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-3xs flex items-start space-x-2"
+          >
+            <span class="text-base leading-none">⚠️</span>
+            <div class="space-y-0.5">
+              <div class="font-bold uppercase tracking-wide">Extreme Anomaly Detected in 24-Hour Evaluation Window</div>
+              <div class="text-slate-700 dark:text-slate-300">
+                {{ auditTrackingData?.anomaly_reason || `Peak concentration (${formatConcentration(auditTrackingData?.peak_concentration)} µg/m³) exceeds maximum Permen LHK No. 14/2020 regulatory breakpoint (${auditTrackingData?.regulatory_xa} µg/m³).` }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 4 Outlier Metrics Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-3xs">
+            <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
+              <span class="text-slate-400 block text-4xs">Peak Concentration:</span>
+              <span class="font-bold text-rose-500 text-xs block tabular-nums">
+                {{ formatConcentration(auditTrackingData?.peak_concentration || getParameterResult(activeInspectPollutant)?.peak_concentration) }} {{ auditTrackingData?.normalized_unit || 'µg/m³' }}
+              </span>
+            </div>
+            <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
+              <span class="text-slate-400 block text-4xs">Peak Occurrence Time:</span>
+              <span class="font-bold text-cyan-600 dark:text-cyan-400 text-xs block">
+                {{ formatDateTime(auditTrackingData?.peak_timestamp || getParameterResult(activeInspectPollutant)?.peak_timestamp) }}
+              </span>
+              <span class="text-4xs text-slate-400 block font-normal">
+                Bucket ID: {{ auditTrackingData?.peak_bucket_identifier || getParameterResult(activeInspectPollutant)?.peak_bucket_identifier || '-' }}
+              </span>
+            </div>
+            <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
+              <span class="text-slate-400 block text-4xs">Window 24h Average:</span>
+              <span class="font-bold text-slate-800 dark:text-slate-200 text-xs block tabular-nums">
+                {{ formatConcentration(auditTrackingData?.avg_concentration || getParameterResult(activeInspectPollutant)?.normalized_concentration) }} {{ auditTrackingData?.normalized_unit || 'µg/m³' }}
+              </span>
+            </div>
+            <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
+              <span class="text-slate-400 block text-4xs">Min Concentration:</span>
+              <span class="font-bold text-emerald-500 text-xs block tabular-nums">
+                {{ formatConcentration(auditTrackingData?.min_concentration || getParameterResult(activeInspectPollutant)?.min_concentration) }} {{ auditTrackingData?.normalized_unit || 'µg/m³' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Top Spikes Table -->
+          <div v-if="auditTrackingData?.top_spikes && auditTrackingData.top_spikes.length > 0" class="space-y-1.5">
+            <div class="text-3xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Highest Concentration Spikes in Window (Top {{ auditTrackingData.top_spikes.length }} Buckets):</span>
+              <span class="text-4xs text-slate-500">Total Analyzed: {{ auditTrackingData.total_buckets || auditTrackingData.top_spikes.length }} buckets</span>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
+              <table class="w-full text-left text-3xs font-mono">
+                <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th class="p-1.5">#</th>
+                    <th class="p-1.5">Timestamp</th>
+                    <th class="p-1.5">Bucket Identifier</th>
+                    <th class="p-1.5">Raw Value</th>
+                    <th class="p-1.5">Normalized Conc</th>
+                    <th class="p-1.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tr
+                    v-for="(spike, sIdx) in auditTrackingData.top_spikes"
+                    :key="sIdx"
+                    class="hover:bg-slate-50 dark:hover:bg-[#101B2B]/60 transition"
+                    :class="sIdx === 0 ? 'bg-rose-500/5' : ''"
+                  >
+                    <td class="p-1.5 font-bold">
+                      <span v-if="sIdx === 0" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-bold text-4xs">#1 PEAK</span>
+                      <span v-else class="text-slate-400">#{{ sIdx + 1 }}</span>
+                    </td>
+                    <td class="p-1.5 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                      {{ formatDateTime(spike.timestamp) }}
+                    </td>
+                    <td class="p-1.5 text-cyan-600 dark:text-cyan-400">{{ spike.identifier || '-' }}</td>
+                    <td class="p-1.5 tabular-nums text-slate-500">{{ formatConcentration(spike.raw_value) }}</td>
+                    <td class="p-1.5 tabular-nums font-bold" :class="sIdx === 0 ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300'">
+                      {{ formatConcentration(spike.normalized_value) }} {{ auditTrackingData.normalized_unit || 'µg/m³' }}
+                    </td>
+                    <td class="p-1.5 text-right">
+                      <button
+                        @click="goToTelemetryInvestigation(spike)"
+                        class="px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-500 dark:text-cyan-400 text-4xs font-bold transition flex items-center space-x-1 ml-auto cursor-pointer"
+                        title="Investigate this timestamp in Telemetry Analysis"
+                      >
+                        <span>🔍 Inspect Telemetry</span>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- Formula Box -->
         <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono text-xs space-y-1.5">
           <div class="text-cyan-600 dark:text-cyan-400 font-bold">
@@ -658,9 +789,10 @@
               <tr>
                 <th class="p-2">Pollutant</th>
                 <th class="p-2">Conc 24h</th>
+                <th class="p-2">Peak Conc</th>
+                <th class="p-2">Peak Time</th>
                 <th class="p-2">Conc Aggr</th>
                 <th class="p-2">Buckets</th>
-                <th class="p-2">Latest Bucket ID</th>
                 <th class="p-2">Breakpoint [Xb, Xa]</th>
                 <th class="p-2">Index [Ib, Ia]</th>
                 <th class="p-2">Formula Evaluation</th>
@@ -669,16 +801,30 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-              <tr v-for="pr in selectedRecord?.parameter_results || []" :key="pr.id">
-                <td class="p-2 font-bold text-slate-900 dark:text-white">{{ pr.pollutant_code }}</td>
-                <td class="p-2 tabular-nums">
-                  {{ pr.valid_samples > 0 ? `${pr.normalized_concentration.toFixed(1)} µg/m³` : '-' }}
+              <tr
+                v-for="pr in selectedRecord?.parameter_results || []"
+                :key="pr.id"
+                class="hover:bg-slate-50 dark:hover:bg-[#101B2B]/60 transition cursor-pointer"
+                :class="activeInspectPollutant === pr.pollutant_code ? 'bg-cyan-500/10' : ''"
+                @click="selectInspectPollutant(pr.pollutant_code)"
+              >
+                <td class="p-2 font-bold text-slate-900 dark:text-white flex items-center space-x-1">
+                  <span>{{ pr.pollutant_code }}</span>
+                  <span v-if="activeInspectPollutant === pr.pollutant_code" class="text-cyan-400 text-4xs font-normal">◀</span>
                 </td>
                 <td class="p-2 tabular-nums">
-                  {{ pr.valid_samples > 0 ? `${(pr.aggregation_concentration || pr.normalized_concentration || 0).toFixed(1)} µg/m³` : '-' }}
+                  {{ pr.valid_samples > 0 ? `${formatConcentration(pr.normalized_concentration)} µg/m³` : '-' }}
+                </td>
+                <td class="p-2 tabular-nums font-bold" :class="pr.peak_concentration && pr.xa && pr.peak_concentration > pr.xa ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300'">
+                  {{ pr.peak_concentration ? `${formatConcentration(pr.peak_concentration)} µg/m³` : '-' }}
+                </td>
+                <td class="p-2 text-4xs whitespace-nowrap text-cyan-600 dark:text-cyan-400">
+                  {{ pr.peak_timestamp ? formatDateTime(pr.peak_timestamp) : '-' }}
+                </td>
+                <td class="p-2 tabular-nums">
+                  {{ pr.valid_samples > 0 ? `${formatConcentration(pr.aggregation_concentration || pr.normalized_concentration)} µg/m³` : '-' }}
                 </td>
                 <td class="p-2 tabular-nums">{{ pr.source_aggregation_count || pr.valid_samples || 0 }}</td>
-                <td class="p-2 font-bold text-cyan-600 dark:text-cyan-400">{{ pr.source_latest_identifier || '-' }}</td>
                 <td class="p-2 tabular-nums">[{{ pr.xb }}, {{ pr.xa }}]</td>
                 <td class="p-2 tabular-nums">[{{ pr.ib }}, {{ pr.ia }}]</td>
                 <td class="p-2 text-4xs font-mono">
@@ -705,7 +851,7 @@
         <div class="flex justify-end pt-2">
           <button
             @click="showDetailModal = false"
-            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-mono font-bold hover:bg-slate-300 dark:hover:bg-slate-700"
+            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-mono font-bold hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
           >
             Close
           </button>
@@ -883,6 +1029,9 @@ export default {
       // Modals
       showDetailModal: false,
       selectedRecord: null,
+      activeInspectPollutant: 'CO',
+      auditTrackingData: null,
+      auditTrackingLoading: false,
       showMappingsModal: false,
       stationMappings: [],
       stationParameters: [],
@@ -1310,9 +1459,13 @@ export default {
       const d = new Date(isoStr);
       return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     },
-    openFormulaModal(pollutantCode) {
+    async openFormulaModal(pollutantCode) {
       this.selectedRecord = this.latestData;
+      this.activeInspectPollutant = pollutantCode || this.latestData?.dominant_pollutant || 'CO';
       this.showDetailModal = true;
+      if (this.latestData?.id) {
+        await this.fetchAuditTracking(this.latestData.id, this.activeInspectPollutant);
+      }
     },
     getRowReason(r) {
       if (!r) return '';
@@ -1375,9 +1528,78 @@ export default {
       }
       return `Status kalkulasi stasiun: ${r.calculation_status || 'PROVISIONAL'} dengan polutan dominan ${r.dominant_pollutant || '-'}.`;
     },
-    openDetailModal(record) {
+    async openDetailModal(record) {
       this.selectedRecord = record;
+      this.activeInspectPollutant = record?.dominant_pollutant || record?.parameter_results?.[0]?.pollutant_code || 'CO';
       this.showDetailModal = true;
+      if (record?.id) {
+        await this.fetchAuditTracking(record.id, this.activeInspectPollutant);
+      }
+    },
+    async selectInspectPollutant(code) {
+      this.activeInspectPollutant = code;
+      if (this.selectedRecord?.id) {
+        await this.fetchAuditTracking(this.selectedRecord.id, code);
+      }
+    },
+    async fetchAuditTracking(calcId, pollutant) {
+      if (!calcId) return;
+      this.auditTrackingLoading = true;
+      try {
+        const token = this.getAuthToken();
+        const res = await axios.get(`/api/ispu/audit-tracking?calculation_result_id=${calcId}&pollutant=${pollutant || ''}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.data?.success && res.data?.data) {
+          this.auditTrackingData = res.data.data;
+        } else {
+          this.auditTrackingData = null;
+        }
+      } catch (err) {
+        console.error('Failed to fetch audit tracking:', err);
+        this.auditTrackingData = null;
+      } finally {
+        this.auditTrackingLoading = false;
+      }
+    },
+    goToTelemetryInvestigation(item) {
+      if (!item || !item.timestamp) return;
+      const t = new Date(item.timestamp).getTime();
+      const pad = (n) => String(n).padStart(2, '0');
+      const toDtLocal = (d) => {
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+      const startTime = toDtLocal(new Date(t - 30 * 60 * 1000));
+      const endTime = toDtLocal(new Date(t + 30 * 60 * 1000));
+
+      const paramId = this.getParamIdForPollutant(this.activeInspectPollutant);
+      this.showDetailModal = false;
+      this.$router.push({
+        path: '/monitoring/analysis',
+        query: {
+          mode: 'AGGREGATED',
+          device_id: this.selectedDeviceId,
+          parameter_id: paramId,
+          preset: 'custom',
+          start_time: startTime,
+          end_time: endTime,
+        },
+      });
+    },
+    getParamIdForPollutant(code) {
+      const pr = (this.selectedRecord?.parameter_results || []).find((p) => p.pollutant_code === code);
+      if (pr && pr.parameter_id) return pr.parameter_id;
+      const m = (this.stationMappings || []).find((x) => x.pollutant_code === code);
+      if (m && m.parameter_id) return m.parameter_id;
+      return '';
+    },
+    formatConcentration(val) {
+      if (val === undefined || val === null || isNaN(val)) return '-';
+      const num = Number(val);
+      if (num >= 1000000) {
+        return num.toLocaleString('id-ID', { maximumFractionDigits: 1 });
+      }
+      return num.toFixed(1);
     },
     async openMappingsModal() {
       this.showMappingsModal = true;

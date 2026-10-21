@@ -532,6 +532,7 @@ func main() {
 			ispuGroup.DELETE("/mappings/:id", middleware.RequirePermission("ispu.manage_mapping"), ispuHandler.DeleteMapping)
 			ispuGroup.POST("/recalculate", middleware.RequirePermission("ispu.recalculate"), ispuHandler.Recalculate)
 			ispuGroup.POST("/backfill", middleware.RequirePermission("ispu.recalculate"), ispuHandler.Backfill)
+			ispuGroup.GET("/audit-tracking", middleware.RequirePermission("ispu.view"), ispuHandler.GetAuditTracking)
 			ispuGroup.GET("/:id", middleware.RequirePermission("ispu.view"), ispuHandler.GetDetail)
 		}
 

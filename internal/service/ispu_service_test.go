@@ -497,4 +497,91 @@ func TestISPUService_StartupRecovery_NoSubHourlyRegulatoryRecords(t *testing.T) 
 	}
 }
 
+// TestISPUService_AuditTrackingAndPeakOutliers tests that peak concentrations, timestamps, bucket identifiers,
+// and outlier spikes are correctly captured and can be retrieved via GetAuditTracking and GetCalculationDetail.
+func TestISPUService_AuditTrackingAndPeakOutliers(t *testing.T) {
+	db, ispuSvc, dev := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	// Find the PM25 parameter
+	var paramPM25 model.Parameter
+	if err := db.Where("device_id = ? AND parameter_code = ?", dev.ID, "PM25").First(&paramPM25).Error; err != nil {
+		t.Fatalf("PM25 parameter not found: %v", err)
+	}
+
+	// Create 24 hourly buckets
+	now := time.Now().Truncate(time.Hour)
+	peakTimestamp := now.Add(-5 * time.Hour)
+	peakVal := 999.0 // Extreme spike (> 500 max breakpoint for PM2.5)
+	normalVal := 25.0
+
+	for i := 24; i >= 1; i-- {
+		pEnd := now.Add(-time.Duration(i-1) * time.Hour)
+		val := normalVal
+		if pEnd.Equal(peakTimestamp) {
+			val = peakVal
+		}
+		valPtr := val
+		db.Create(&model.AggregationResult{
+			DeviceID:        dev.ID,
+			ParameterID:     paramPM25.ID,
+			PeriodStart:     pEnd.Add(-time.Hour).UTC(),
+			PeriodEnd:       pEnd.UTC(),
+			IntervalSeconds: 3600,
+			Value:           &valPtr,
+			AvgValue:        &valPtr,
+			Quality:         model.QualityGood,
+			Identifier:      pEnd.Format("20060102150405"),
+		})
+	}
+
+	// Calculate station ISPU
+	res, err := ispuSvc.CalculateStationWindowWithReason(ctx, dev.ID, now, "TEST_PEAK")
+	if err != nil {
+		t.Fatalf("CalculateStationWindowWithReason failed: %v", err)
+	}
+
+	// Retrieve detail
+	detail, err := ispuSvc.GetCalculationDetail(ctx, res.ID)
+	if err != nil {
+		t.Fatalf("GetCalculationDetail failed: %v", err)
+	}
+
+	var prPM25 *model.ISPUParameterResult
+	for i := range detail.ParameterResults {
+		if detail.ParameterResults[i].PollutantCode == model.PollutantPM25 {
+			prPM25 = &detail.ParameterResults[i]
+			break
+		}
+	}
+	if prPM25 == nil {
+		t.Fatalf("PM25 parameter result not found in detail")
+	}
+
+	if prPM25.PeakConcentration != peakVal {
+		t.Errorf("Expected PeakConcentration = %f, got %f", peakVal, prPM25.PeakConcentration)
+	}
+	if prPM25.PeakTimestamp == nil || prPM25.PeakTimestamp.UTC().Unix() != peakTimestamp.UTC().Unix() {
+		t.Errorf("Expected PeakTimestamp = %v, got %v", peakTimestamp, prPM25.PeakTimestamp)
+	}
+	if prPM25.PeakBucketIdentifier != peakTimestamp.Format("20060102150405") {
+		t.Errorf("Expected PeakBucketIdentifier = %s, got %s", peakTimestamp.Format("20060102150405"), prPM25.PeakBucketIdentifier)
+	}
+
+	// Test GetAuditTracking
+	audit, err := ispuSvc.GetAuditTracking(ctx, res.ID, "PM25")
+	if err != nil {
+		t.Fatalf("GetAuditTracking failed: %v", err)
+	}
+	if !audit.IsAnomaly {
+		t.Errorf("Expected IsAnomaly = true for extreme spike %f", peakVal)
+	}
+	if len(audit.TopSpikes) == 0 {
+		t.Errorf("Expected non-empty TopSpikes")
+	} else if audit.TopSpikes[0].NormalizedVal != peakVal {
+		t.Errorf("Expected top spike to be %f, got %f", peakVal, audit.TopSpikes[0].NormalizedVal)
+	}
+}
+
+
 

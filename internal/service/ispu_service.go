@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -480,6 +482,50 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			}
 			opOut.SourceAggregationInterval = paramInterval
 			opOut.SourceAggregationFunction = paramFunc
+
+			recTime := opAgg.PeriodEnd
+			opOut.PeakConcentration = opOut.NormalizedConcentration
+			opOut.MinConcentration = opOut.NormalizedConcentration
+			opOut.PeakTimestamp = &recTime
+			opOut.PeakBucketIdentifier = opOut.SourceLatestIdentifier
+
+			var maxBpXa float64 = 45000
+			if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
+				maxBpXa = bps[len(bps)-1].Xa
+			}
+			isAnomaly := opOut.NormalizedConcentration > maxBpXa
+			var anomalyReason string
+			if isAnomaly {
+				anomalyReason = fmt.Sprintf("Bucket concentration %.1f %s exceeds regulatory breakpoint maximum (%.1f %s)",
+					opOut.NormalizedConcentration, opOut.NormalizedUnit, maxBpXa, opOut.NormalizedUnit)
+			}
+			opAudit := model.ISPUAuditDetails{
+				PollutantCode:        m.PollutantCode,
+				ParameterID:          m.ParameterID,
+				PeakConcentration:    opOut.NormalizedConcentration,
+				PeakTimestamp:        &recTime,
+				PeakBucketIdentifier: opOut.SourceLatestIdentifier,
+				MinConcentration:     opOut.NormalizedConcentration,
+				MinTimestamp:         &recTime,
+				AvgConcentration:     opOut.NormalizedConcentration,
+				IsAnomaly:            isAnomaly,
+				AnomalyReason:        anomalyReason,
+				RegulatoryXa:         maxBpXa,
+				SourceUnit:           m.SourceUnit,
+				NormalizedUnit:       opOut.NormalizedUnit,
+				TotalBuckets:         1,
+				TopSpikes: []model.ISPUOutlierBucket{
+					{
+						Timestamp:     recTime,
+						Identifier:    opOut.SourceLatestIdentifier,
+						RawValue:      val,
+						NormalizedVal: opOut.NormalizedConcentration,
+					},
+				},
+			}
+			if b, err := json.Marshal(opAudit); err == nil {
+				opOut.DetailsJSON = string(b)
+			}
 		} else {
 			opOut = ParameterCalculationOutput{
 				PollutantCode:             m.PollutantCode,
@@ -556,6 +602,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		if len(aggStats) > 0 {
 			hoursWithData := make(map[int]bool)
 			var totalSum float64
+			allBuckets := make([]model.ISPUOutlierBucket, 0, len(aggStats))
 
 			for _, as := range aggStats {
 				hoursDiff := int(paramRegEnd.Sub(as.Rec).Hours())
@@ -563,6 +610,17 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 					hoursWithData[hoursDiff] = true
 					totalSum += as.Val
 				}
+				normVal, _, _ := s.calculator.NormalizeConcentration(as.Val, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
+				ident := as.Ident
+				if ident == "" {
+					ident = as.Rec.In(loc).Format("20060102150405")
+				}
+				allBuckets = append(allBuckets, model.ISPUOutlierBucket{
+					Timestamp:     as.Rec,
+					Identifier:    ident,
+					RawValue:      as.Val,
+					NormalizedVal: normVal,
+				})
 			}
 
 			latest := aggStats[len(aggStats)-1]
@@ -588,6 +646,70 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			regOut.SourceAggregationInterval = paramInterval
 			regOut.SourceAggregationFunction = paramFunc
 
+			if len(allBuckets) > 0 {
+				sort.Slice(allBuckets, func(i, j int) bool {
+					return allBuckets[i].NormalizedVal > allBuckets[j].NormalizedVal
+				})
+
+				peakConc := allBuckets[0].NormalizedVal
+				tPeak := allBuckets[0].Timestamp
+				peakTime := &tPeak
+				peakIdent := allBuckets[0].Identifier
+				minConc := allBuckets[len(allBuckets)-1].NormalizedVal
+				tMin := allBuckets[len(allBuckets)-1].Timestamp
+				minTime := &tMin
+
+				topCount := 10
+				if len(allBuckets) < topCount {
+					topCount = len(allBuckets)
+				}
+				topSpikes := make([]model.ISPUOutlierBucket, topCount)
+				copy(topSpikes, allBuckets[:topCount])
+
+				var maxBpXa float64 = 45000
+				if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
+					maxBpXa = bps[len(bps)-1].Xa
+				}
+
+				isAnomaly := false
+				var anomalyReason string
+				if peakConc > maxBpXa {
+					isAnomaly = true
+					anomalyReason = fmt.Sprintf("Peak concentration %.1f %s at %s exceeds regulatory breakpoint maximum (%.1f %s)",
+						peakConc, regOut.NormalizedUnit, peakTime.In(loc).Format("2006-01-02 15:04:05"), maxBpXa, regOut.NormalizedUnit)
+				} else if regOut.NormalizedConcentration > 0 && peakConc > regOut.NormalizedConcentration*10 {
+					isAnomaly = true
+					anomalyReason = fmt.Sprintf("Extreme spike detected: Peak %.1f %s is %.1fx higher than 24h average (%.1f %s)",
+						peakConc, regOut.NormalizedUnit, peakConc/regOut.NormalizedConcentration, regOut.NormalizedConcentration, regOut.NormalizedUnit)
+				}
+
+				regOut.PeakConcentration = peakConc
+				regOut.PeakTimestamp = peakTime
+				regOut.PeakBucketIdentifier = peakIdent
+				regOut.MinConcentration = minConc
+
+				auditDetails := model.ISPUAuditDetails{
+					PollutantCode:        m.PollutantCode,
+					ParameterID:          m.ParameterID,
+					PeakConcentration:    peakConc,
+					PeakTimestamp:        peakTime,
+					PeakBucketIdentifier: peakIdent,
+					MinConcentration:     minConc,
+					MinTimestamp:         minTime,
+					AvgConcentration:     regOut.NormalizedConcentration,
+					IsAnomaly:            isAnomaly,
+					AnomalyReason:        anomalyReason,
+					RegulatoryXa:         maxBpXa,
+					SourceUnit:           m.SourceUnit,
+					NormalizedUnit:       regOut.NormalizedUnit,
+					TotalBuckets:         len(aggStats),
+					TopSpikes:            topSpikes,
+				}
+				if b, err := json.Marshal(auditDetails); err == nil {
+					regOut.DetailsJSON = string(b)
+				}
+			}
+
 			if hasOpAgg {
 				regOut.AggregationConcentration = opOut.NormalizedConcentration
 				regOut.AggregationISPU = opOut.CalculatedISPU
@@ -611,6 +733,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			if len(rawStats) > 0 {
 				hoursWithData := make(map[int]bool)
 				var totalSum float64
+				allBuckets := make([]model.ISPUOutlierBucket, 0, len(rawStats))
 
 				for _, rs := range rawStats {
 					hoursDiff := int(periodEnd.Sub(rs.Rec).Hours())
@@ -618,6 +741,14 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 						hoursWithData[hoursDiff] = true
 						totalSum += rs.Val
 					}
+					normVal, _, _ := s.calculator.NormalizeConcentration(rs.Val, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
+					ident := rs.Rec.In(loc).Format("20060102150405")
+					allBuckets = append(allBuckets, model.ISPUOutlierBucket{
+						Timestamp:     rs.Rec,
+						Identifier:    ident,
+						RawValue:      rs.Val,
+						NormalizedVal: normVal,
+					})
 				}
 
 				regInput := ParameterCalculationInput{
@@ -636,6 +767,71 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				regOut.SourceLatestIdentifier = rawStats[len(rawStats)-1].Rec.In(loc).Format("20060102150405")
 				regOut.SourceAggregationInterval = paramInterval
 				regOut.SourceAggregationFunction = paramFunc
+
+				if len(allBuckets) > 0 {
+					sort.Slice(allBuckets, func(i, j int) bool {
+						return allBuckets[i].NormalizedVal > allBuckets[j].NormalizedVal
+					})
+
+					peakConc := allBuckets[0].NormalizedVal
+					tPeak := allBuckets[0].Timestamp
+					peakTime := &tPeak
+					peakIdent := allBuckets[0].Identifier
+					minConc := allBuckets[len(allBuckets)-1].NormalizedVal
+					tMin := allBuckets[len(allBuckets)-1].Timestamp
+					minTime := &tMin
+
+					topCount := 10
+					if len(allBuckets) < topCount {
+						topCount = len(allBuckets)
+					}
+					topSpikes := make([]model.ISPUOutlierBucket, topCount)
+					copy(topSpikes, allBuckets[:topCount])
+
+					var maxBpXa float64 = 45000
+					if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
+						maxBpXa = bps[len(bps)-1].Xa
+					}
+
+					isAnomaly := false
+					var anomalyReason string
+					if peakConc > maxBpXa {
+						isAnomaly = true
+						anomalyReason = fmt.Sprintf("Peak concentration %.1f %s at %s exceeds regulatory breakpoint maximum (%.1f %s)",
+							peakConc, regOut.NormalizedUnit, peakTime.In(loc).Format("2006-01-02 15:04:05"), maxBpXa, regOut.NormalizedUnit)
+					} else if regOut.NormalizedConcentration > 0 && peakConc > regOut.NormalizedConcentration*10 {
+						isAnomaly = true
+						anomalyReason = fmt.Sprintf("Extreme spike detected: Peak %.1f %s is %.1fx higher than 24h average (%.1f %s)",
+							peakConc, regOut.NormalizedUnit, peakConc/regOut.NormalizedConcentration, regOut.NormalizedConcentration, regOut.NormalizedUnit)
+					}
+
+					regOut.PeakConcentration = peakConc
+					regOut.PeakTimestamp = peakTime
+					regOut.PeakBucketIdentifier = peakIdent
+					regOut.MinConcentration = minConc
+
+					auditDetails := model.ISPUAuditDetails{
+						PollutantCode:        m.PollutantCode,
+						ParameterID:          m.ParameterID,
+						PeakConcentration:    peakConc,
+						PeakTimestamp:        peakTime,
+						PeakBucketIdentifier: peakIdent,
+						MinConcentration:     minConc,
+						MinTimestamp:         minTime,
+						AvgConcentration:     regOut.NormalizedConcentration,
+						IsAnomaly:            isAnomaly,
+						AnomalyReason:        anomalyReason,
+						RegulatoryXa:         maxBpXa,
+						SourceUnit:           m.SourceUnit,
+						NormalizedUnit:       regOut.NormalizedUnit,
+						TotalBuckets:         len(rawStats),
+						TopSpikes:            topSpikes,
+					}
+					if b, err := json.Marshal(auditDetails); err == nil {
+						regOut.DetailsJSON = string(b)
+					}
+				}
+
 				if hasOpAgg {
 					regOut.AggregationConcentration = opOut.NormalizedConcentration
 					regOut.AggregationISPU = opOut.CalculatedISPU
@@ -743,10 +939,15 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			ValidSamples:              po.ValidSamples,
 			TotalExpectedSamples:      po.ExpectedSamples,
 			Formula:                   po.Formula,
+			DetailsJSON:               po.DetailsJSON,
 			SourceAggregationCount:    po.SourceAggregationCount,
 			SourceLatestIdentifier:    po.SourceLatestIdentifier,
 			SourceAggregationInterval: po.SourceAggregationInterval,
 			SourceAggregationFunction: po.SourceAggregationFunction,
+			PeakConcentration:         po.PeakConcentration,
+			PeakTimestamp:             po.PeakTimestamp,
+			PeakBucketIdentifier:      po.PeakBucketIdentifier,
+			MinConcentration:          po.MinConcentration,
 		})
 	}
 	if err := s.ispuRepo.UpsertCalculationResult(ctx, opCalcRes); err != nil {
@@ -815,10 +1016,15 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			ValidSamples:              po.ValidSamples,
 			TotalExpectedSamples:      po.ExpectedSamples,
 			Formula:                   po.Formula,
+			DetailsJSON:               po.DetailsJSON,
 			SourceAggregationCount:    po.SourceAggregationCount,
 			SourceLatestIdentifier:    po.SourceLatestIdentifier,
 			SourceAggregationInterval: po.SourceAggregationInterval,
 			SourceAggregationFunction: po.SourceAggregationFunction,
+			PeakConcentration:         po.PeakConcentration,
+			PeakTimestamp:             po.PeakTimestamp,
+			PeakBucketIdentifier:      po.PeakBucketIdentifier,
+			MinConcentration:          po.MinConcentration,
 		})
 	}
 
@@ -1003,9 +1209,242 @@ func (s *ISPUService) GetHistory(ctx context.Context, filter repository.ISPUHist
 	return s.ispuRepo.GetHistory(ctx, filter)
 }
 
-// GetCalculationDetail retrieves calculation result with all parameter details.
+// GetCalculationDetail retrieves calculation result with all parameter details, enriching missing audit tracking.
 func (s *ISPUService) GetCalculationDetail(ctx context.Context, id uint) (*model.ISPUCalculationResult, error) {
-	return s.ispuRepo.GetByID(ctx, id)
+	res, err := s.ispuRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCalculationAuditTracking(ctx, res)
+	return res, nil
+}
+
+// enrichCalculationAuditTracking verifies that all parameter results have peak tracking and details populated.
+// If missing (e.g. historical calculation), it calculates them on-the-fly from aggregation buckets and saves back.
+func (s *ISPUService) enrichCalculationAuditTracking(ctx context.Context, res *model.ISPUCalculationResult) {
+	if res == nil || len(res.ParameterResults) == 0 {
+		return
+	}
+
+	loc, err := time.LoadLocation(res.Timezone)
+	if err != nil || loc == nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
+
+	for i := range res.ParameterResults {
+		pr := &res.ParameterResults[i]
+		if pr.PeakTimestamp != nil && pr.DetailsJSON != "" {
+			continue
+		}
+
+		var mapping model.ISPUParameterMapping
+		s.db.WithContext(ctx).Where("device_id = ? AND parameter_id = ?", res.DeviceID, pr.ParameterID).First(&mapping)
+
+		srcUnit := pr.SourceUnit
+		convFactor := 1.0
+		convRule := "DIRECT"
+		if mapping.ID > 0 {
+			srcUnit = mapping.SourceUnit
+			convFactor = mapping.ConversionFactor
+			convRule = mapping.ConversionRule
+		}
+
+		var aggStats []struct {
+			Val   float64
+			Rec   time.Time
+			Ident string
+		}
+
+		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
+			Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
+			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
+				res.DeviceID, pr.ParameterID, res.PeriodStart.UTC(), res.PeriodEnd.UTC(), model.QualityBad).
+			Order("period_end ASC").
+			Find(&aggStats)
+
+		if len(aggStats) == 0 {
+			var rawHourly []struct {
+				Val   float64
+				Rec   time.Time
+				Ident string
+			}
+			s.db.WithContext(ctx).Model(&model.RawData{}).
+				Select("AVG(value) AS val, MAX(timestamp) AS rec, DATE_FORMAT(timestamp, '%Y%m%d%H0000') AS ident").
+				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
+					res.DeviceID, pr.ParameterID, res.PeriodStart.UTC(), res.PeriodEnd.UTC(), model.QualityBad).
+				Group("DATE(timestamp), HOUR(timestamp)").
+				Find(&rawHourly)
+			if len(rawHourly) > 0 {
+				aggStats = rawHourly
+			}
+		}
+
+		if len(aggStats) == 0 {
+			continue
+		}
+
+		allBuckets := make([]model.ISPUOutlierBucket, 0, len(aggStats))
+		for _, as := range aggStats {
+			normVal, _, _ := s.calculator.NormalizeConcentration(as.Val, srcUnit, convRule, convFactor)
+			ident := as.Ident
+			if ident == "" {
+				ident = as.Rec.In(loc).Format("20060102150405")
+			}
+			allBuckets = append(allBuckets, model.ISPUOutlierBucket{
+				Timestamp:     as.Rec,
+				Identifier:    ident,
+				RawValue:      as.Val,
+				NormalizedVal: normVal,
+			})
+		}
+
+		sort.Slice(allBuckets, func(a, b int) bool {
+			return allBuckets[a].NormalizedVal > allBuckets[b].NormalizedVal
+		})
+
+		peakConc := allBuckets[0].NormalizedVal
+		tPeak := allBuckets[0].Timestamp
+		peakTime := &tPeak
+		peakIdent := allBuckets[0].Identifier
+		minConc := allBuckets[len(allBuckets)-1].NormalizedVal
+		tMin := allBuckets[len(allBuckets)-1].Timestamp
+		minTime := &tMin
+
+		topCount := 10
+		if len(allBuckets) < topCount {
+			topCount = len(allBuckets)
+		}
+		topSpikes := make([]model.ISPUOutlierBucket, topCount)
+		copy(topSpikes, allBuckets[:topCount])
+
+		var maxBpXa float64 = 45000
+		if bps, ok := OfficialBreakpoints[pr.PollutantCode]; ok && len(bps) > 0 {
+			maxBpXa = bps[len(bps)-1].Xa
+		}
+
+		isAnomaly := false
+		var anomalyReason string
+		if peakConc > maxBpXa {
+			isAnomaly = true
+			anomalyReason = fmt.Sprintf("Peak concentration %.1f %s at %s exceeds regulatory breakpoint maximum (%.1f %s)",
+				peakConc, pr.NormalizedUnit, peakTime.In(loc).Format("2006-01-02 15:04:05"), maxBpXa, pr.NormalizedUnit)
+		} else if pr.NormalizedConcentration > 0 && peakConc > pr.NormalizedConcentration*10 {
+			isAnomaly = true
+			anomalyReason = fmt.Sprintf("Extreme spike detected: Peak %.1f %s is %.1fx higher than window average (%.1f %s)",
+				peakConc, pr.NormalizedUnit, peakConc/pr.NormalizedConcentration, pr.NormalizedConcentration, pr.NormalizedUnit)
+		}
+
+		pr.PeakConcentration = peakConc
+		pr.PeakTimestamp = peakTime
+		pr.PeakBucketIdentifier = peakIdent
+		pr.MinConcentration = minConc
+
+		auditDetails := model.ISPUAuditDetails{
+			CalculationResultID:  res.ID,
+			PollutantCode:        pr.PollutantCode,
+			ParameterID:          pr.ParameterID,
+			PeakConcentration:    peakConc,
+			PeakTimestamp:        peakTime,
+			PeakBucketIdentifier: peakIdent,
+			MinConcentration:     minConc,
+			MinTimestamp:         minTime,
+			AvgConcentration:     pr.NormalizedConcentration,
+			IsAnomaly:            isAnomaly,
+			AnomalyReason:        anomalyReason,
+			RegulatoryXa:         maxBpXa,
+			SourceUnit:           srcUnit,
+			NormalizedUnit:       pr.NormalizedUnit,
+			TotalBuckets:         len(aggStats),
+			TopSpikes:            topSpikes,
+		}
+
+		if b, err := json.Marshal(auditDetails); err == nil {
+			pr.DetailsJSON = string(b)
+		}
+
+		_ = s.db.WithContext(ctx).Model(&model.ISPUParameterResult{}).
+			Where("id = ?", pr.ID).
+			Updates(map[string]interface{}{
+				"peak_concentration":     pr.PeakConcentration,
+				"peak_timestamp":         pr.PeakTimestamp,
+				"peak_bucket_identifier": pr.PeakBucketIdentifier,
+				"min_concentration":      pr.MinConcentration,
+				"details_json":           pr.DetailsJSON,
+			})
+	}
+}
+
+// GetAuditTracking returns outlier details, peak timing, and top spikes for an ISPU calculation and pollutant.
+func (s *ISPUService) GetAuditTracking(ctx context.Context, calcResultID uint, pollutantCode string) (*model.ISPUAuditDetails, error) {
+	res, err := s.ispuRepo.GetByID(ctx, calcResultID)
+	if err != nil {
+		return nil, fmt.Errorf("ISPU calculation record %d not found: %w", calcResultID, err)
+	}
+
+	s.enrichCalculationAuditTracking(ctx, res)
+
+	var targetPR *model.ISPUParameterResult
+	if pollutantCode != "" {
+		for i := range res.ParameterResults {
+			if string(res.ParameterResults[i].PollutantCode) == pollutantCode {
+				targetPR = &res.ParameterResults[i]
+				break
+			}
+		}
+	}
+
+	if targetPR == nil && len(res.ParameterResults) > 0 {
+		for i := range res.ParameterResults {
+			if res.ParameterResults[i].PollutantCode == res.DominantPollutant {
+				targetPR = &res.ParameterResults[i]
+				break
+			}
+		}
+		if targetPR == nil {
+			targetPR = &res.ParameterResults[0]
+		}
+	}
+
+	if targetPR == nil {
+		return nil, fmt.Errorf("no parameter results found for calculation %d", calcResultID)
+	}
+
+	var audit model.ISPUAuditDetails
+	if targetPR.DetailsJSON != "" {
+		_ = json.Unmarshal([]byte(targetPR.DetailsJSON), &audit)
+	}
+
+	audit.CalculationResultID = res.ID
+	audit.PollutantCode = targetPR.PollutantCode
+	audit.ParameterID = targetPR.ParameterID
+	if audit.PeakConcentration == 0 {
+		audit.PeakConcentration = targetPR.PeakConcentration
+	}
+	if audit.PeakTimestamp == nil {
+		audit.PeakTimestamp = targetPR.PeakTimestamp
+	}
+	if audit.PeakBucketIdentifier == "" {
+		audit.PeakBucketIdentifier = targetPR.PeakBucketIdentifier
+	}
+	if audit.MinConcentration == 0 {
+		audit.MinConcentration = targetPR.MinConcentration
+	}
+	if audit.AvgConcentration == 0 {
+		audit.AvgConcentration = targetPR.NormalizedConcentration
+	}
+	if audit.NormalizedUnit == "" {
+		audit.NormalizedUnit = targetPR.NormalizedUnit
+	}
+	if audit.SourceUnit == "" {
+		audit.SourceUnit = targetPR.SourceUnit
+	}
+	if audit.RegulatoryXa == 0 {
+		if bps, ok := OfficialBreakpoints[targetPR.PollutantCode]; ok && len(bps) > 0 {
+			audit.RegulatoryXa = bps[len(bps)-1].Xa
+		}
+	}
+
+	return &audit, nil
 }
 
 // Recalculate recalculates ISPU for station and audit logs the action.

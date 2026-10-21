@@ -136,6 +136,39 @@ type ISPUParameterResult struct {
 	SourceLatestIdentifier    string        `gorm:"size:32" json:"source_latest_identifier"`
 	SourceAggregationInterval int           `gorm:"default:120" json:"source_aggregation_interval"`
 	SourceAggregationFunction string        `gorm:"size:32;default:'AVG'" json:"source_aggregation_function"`
+	PeakConcentration         float64       `gorm:"default:0" json:"peak_concentration"`
+	PeakTimestamp             *time.Time    `json:"peak_timestamp,omitempty"`
+	PeakBucketIdentifier      string        `gorm:"size:32" json:"peak_bucket_identifier,omitempty"`
+	MinConcentration          float64       `gorm:"default:0" json:"min_concentration"`
 	CreatedAt                 time.Time     `json:"created_at"`
 	UpdatedAt                 time.Time     `json:"updated_at"`
 }
+
+// ISPUOutlierBucket represents an individual aggregation bucket during the calculation window.
+type ISPUOutlierBucket struct {
+	Timestamp     time.Time `json:"timestamp"`
+	Identifier    string    `json:"identifier"`
+	RawValue      float64   `json:"raw_value"`
+	NormalizedVal float64   `json:"normalized_value"`
+}
+
+// ISPUAuditDetails holds outlier tracking, peak occurrence, and anomaly metadata for audit inspection.
+type ISPUAuditDetails struct {
+	CalculationResultID  uint                `json:"calculation_result_id,omitempty"`
+	PollutantCode        ISPUParameter       `json:"pollutant_code"`
+	ParameterID          uint                `json:"parameter_id"`
+	PeakConcentration    float64             `json:"peak_concentration"`
+	PeakTimestamp        *time.Time          `json:"peak_timestamp,omitempty"`
+	PeakBucketIdentifier string              `json:"peak_bucket_identifier,omitempty"`
+	MinConcentration     float64             `json:"min_concentration"`
+	MinTimestamp         *time.Time          `json:"min_timestamp,omitempty"`
+	AvgConcentration     float64             `json:"avg_concentration"`
+	IsAnomaly            bool                `json:"is_anomaly"`
+	AnomalyReason        string              `json:"anomaly_reason,omitempty"`
+	RegulatoryXa         float64             `json:"regulatory_xa"`
+	SourceUnit           string              `json:"source_unit"`
+	NormalizedUnit       string              `json:"normalized_unit"`
+	TotalBuckets         int                 `json:"total_buckets"`
+	TopSpikes            []ISPUOutlierBucket `json:"top_spikes"`
+}
+
