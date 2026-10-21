@@ -880,5 +880,113 @@ func (s *SystemService) SaveBranding(req UpdateSystemBrandingRequest) (*model.Sy
 	return current, nil
 }
 
+// UpdateStationLocationRequest DTO for updating station coordinates
+type UpdateStationLocationRequest struct {
+	StationName    *string  `json:"station_name"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
+	LocationSource string   `json:"location_source"` // MANUAL, GPS, IP_GEOLOCATION
+	AccuracyMeters *float64 `json:"accuracy_meters"`
+	Address        *string  `json:"address"`
+	Reset          bool     `json:"reset"`
+}
+
+func (s *SystemService) GetStationLocation() (*model.StationLocation, error) {
+	return s.systemRepo.GetStationLocation()
+}
+
+func (s *SystemService) SaveStationLocation(req UpdateStationLocationRequest, actorID uint, actorUsername, ip, ua string) (*model.StationLocation, error) {
+	current, err := s.systemRepo.GetStationLocation()
+	if err != nil {
+		return nil, err
+	}
+
+	if actorUsername == "" {
+		actorUsername = "system"
+	}
+
+	var details string
+	if req.Reset {
+		current.IsConfigured = false
+		current.Latitude = nil
+		current.Longitude = nil
+		current.LocationSource = model.LocationSourceUnconfigured
+		current.AccuracyMeters = nil
+		current.Address = ""
+		current.UpdatedBy = actorUsername
+		current.UpdatedAt = time.Now()
+		details = "Station location reset to unconfigured"
+	} else {
+		if req.Latitude == nil {
+			return nil, errors.New("latitude is required")
+		}
+		if *req.Latitude < -90.0 || *req.Latitude > 90.0 {
+			return nil, errors.New("latitude must be between -90 and 90")
+		}
+
+		if req.Longitude == nil {
+			return nil, errors.New("longitude is required")
+		}
+		if *req.Longitude < -180.0 || *req.Longitude > 180.0 {
+			return nil, errors.New("longitude must be between -180 and 180")
+		}
+
+		source := strings.ToUpper(strings.TrimSpace(req.LocationSource))
+		if source == "" {
+			source = model.LocationSourceManual
+		}
+		if source != model.LocationSourceManual && source != model.LocationSourceGPS && source != model.LocationSourceIPGeolocation {
+			return nil, fmt.Errorf("invalid location source '%s' (allowed: %s, %s, %s)", source, model.LocationSourceManual, model.LocationSourceGPS, model.LocationSourceIPGeolocation)
+		}
+
+		if req.AccuracyMeters != nil && *req.AccuracyMeters < 0 {
+			return nil, errors.New("accuracy_meters cannot be negative")
+		}
+
+		current.Latitude = req.Latitude
+		current.Longitude = req.Longitude
+		current.LocationSource = source
+		current.AccuracyMeters = req.AccuracyMeters
+		current.IsConfigured = true
+		current.UpdatedBy = actorUsername
+		current.UpdatedAt = time.Now()
+
+		if req.StationName != nil && strings.TrimSpace(*req.StationName) != "" {
+			current.StationName = strings.TrimSpace(*req.StationName)
+		}
+		if req.Address != nil {
+			current.Address = strings.TrimSpace(*req.Address)
+		}
+
+		accStr := "N/A"
+		if req.AccuracyMeters != nil {
+			accStr = fmt.Sprintf("±%.1fm", *req.AccuracyMeters)
+		}
+		details = fmt.Sprintf("Station location updated via %s to Lat: %.6f, Lng: %.6f (Accuracy: %s)", source, *req.Latitude, *req.Longitude, accStr)
+	}
+
+	if err := s.systemRepo.SaveStationLocation(current); err != nil {
+		return nil, err
+	}
+
+	// Audit trail record
+	var uidPtr *uint
+	if actorID > 0 {
+		uidPtr = &actorID
+	}
+	_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+		UserID:    uidPtr,
+		Username:  actorUsername,
+		Action:    "STATION_LOCATION_UPDATE",
+		Resource:  "STATION_LOCATION",
+		Details:   details,
+		IPAddress: ip,
+		UserAgent: ua,
+		CreatedAt: time.Now(),
+	})
+
+	return current, nil
+}
+
 
 

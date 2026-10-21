@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1062,6 +1063,59 @@ func (h *SystemHandler) SaveBranding(c *gin.Context) {
 		return
 	}
 	response.OK(c, branding)
+}
+
+// GetStationLocation retrieves the persistent station coordinates and configuration
+func (h *SystemHandler) GetStationLocation(c *gin.Context) {
+	loc, err := h.systemService.GetStationLocation()
+	if err != nil {
+		response.InternalError(c, "Failed to load station location: "+err.Error())
+		return
+	}
+	response.OK(c, loc)
+}
+
+// SaveStationLocation updates station coordinates with validation and audit logging
+func (h *SystemHandler) SaveStationLocation(c *gin.Context) {
+	var req service.UpdateStationLocationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid location payload: "+err.Error())
+		return
+	}
+
+	var actorID uint
+	if uid, exists := c.Get("userID"); exists {
+		if id, ok := uid.(uint); ok {
+			actorID = id
+		}
+	}
+	actorUsername := "operator"
+	if u, exists := c.Get("username"); exists {
+		if un, ok := u.(string); ok {
+			actorUsername = un
+		}
+	}
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+
+	loc, err := h.systemService.SaveStationLocation(req, actorID, actorUsername, ip, ua)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, loc)
+}
+
+// GetIPGeolocationEstimate checks configured IP geolocation provider status without leaking IP or inventing fake coordinates
+func (h *SystemHandler) GetIPGeolocationEstimate(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"available":   false,
+		"provider":    "NONE",
+		"status":      "UNAVAILABLE",
+		"message":     "Internet IP geolocation provider is not configured or disabled. No external provider requests performed.",
+		"coordinates": nil,
+		"disclaimer":  "Internet Geolocation berbasis IP hanya merupakan estimasi perkiraan dan tidak seakurat GPS fisik.",
+	})
 }
 
 

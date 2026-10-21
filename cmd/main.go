@@ -282,6 +282,10 @@ func main() {
 		api.GET("/system/branding", systemHandler.GetBranding)
 		api.POST("/system/branding", systemHandler.SaveBranding)
 		api.PUT("/system/branding", systemHandler.SaveBranding)
+		api.GET("/system/location", systemHandler.GetStationLocation)
+		api.GET("/system/location/ip-estimate", systemHandler.GetIPGeolocationEstimate)
+		api.PUT("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
+		api.POST("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 
 		// Phase 2.1 — Device Management & Parameters (Authenticated & Authorized)
 		devicesGroup := api.Group("/devices")
@@ -509,6 +513,8 @@ func main() {
 			configGroup.GET("/domain-compatibility", middleware.RequirePermission("config.view"), systemHandler.CheckDomainCompatibility)
 			configGroup.PUT("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
 			configGroup.POST("", middleware.RequirePermission("config.manage"), systemHandler.SaveConfig)
+			configGroup.GET("/location", middleware.RequirePermission("config.view"), systemHandler.GetStationLocation)
+			configGroup.PUT("/location", middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 		}
 
 		// Phase 7.5 — Environmental Compliance & ISPU Module (Permen LHK No. 14 Tahun 2020)

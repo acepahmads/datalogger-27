@@ -886,6 +886,348 @@
                 </button>
               </div>
             </div>
+
+            <!-- 6. Station Location Monitor Popover -->
+            <div class="relative toolbar-popover-anchor">
+              <button
+                type="button"
+                @click.stop="toggleToolbarPopover('stationLocation')"
+                class="w-8 h-8 flex items-center justify-center rounded transition border relative"
+                :class="[
+                  activeToolbarPopover === 'stationLocation'
+                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
+                ]"
+                :title="stationLocationTooltip"
+                aria-label="Station Location Monitor"
+                :aria-expanded="activeToolbarPopover === 'stationLocation'"
+              >
+                <OperatorDashboardIcon :name="stationLocation.is_configured ? 'map-pinned' : 'map-pin'" :size="16" />
+                <span
+                  class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
+                  :class="stationLocationStatusDotClass"
+                ></span>
+              </button>
+
+              <!-- Station Location Popover Panel -->
+              <div
+                v-if="activeToolbarPopover === 'stationLocation'"
+                class="absolute left-0 top-full mt-1.5 z-50 w-[420px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-xs max-h-[88vh] overflow-y-auto"
+                @click.stop
+              >
+                <!-- Popover Header -->
+                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
+                  <div class="flex items-center space-x-2">
+                    <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
+                      <OperatorDashboardIcon name="map-pin" :size="15" class="text-cyan-500" />
+                    </div>
+                    <div>
+                      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                        {{ $t('operator.stationLocation') || 'Station Location Monitor' }}
+                      </h3>
+                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                        {{ $t('operator.stationLocationSub') || 'Physical Geolocation & Coordinates' }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-1.5">
+                    <button
+                      type="button"
+                      @click="openFullScreenMap"
+                      class="text-slate-400 hover:text-cyan-500 p-0.5 rounded transition flex items-center"
+                      title="Expand to Full Screen Map"
+                    >
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 3 21 3 21 9" />
+                        <polyline points="9 21 3 21 3 15" />
+                        <line x1="21" y1="3" x2="14" y2="10" />
+                        <line x1="3" y1="21" x2="10" y2="14" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      @click="fetchStationLocation"
+                      class="text-slate-400 hover:text-cyan-500 p-0.5 rounded transition"
+                      :class="{ 'animate-spin': isFetchingStationLocation }"
+                      title="Refresh Location"
+                    >
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      @click="closeToolbarPopover"
+                      class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                      title="Close"
+                    >
+                      <OperatorDashboardIcon name="close" :size="14" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Feedback Banner -->
+                <div
+                  v-if="stationLocationFeedback.message"
+                  class="p-2 mb-2 rounded text-[9.5px] border flex items-center justify-between"
+                  :class="stationLocationFeedback.type === 'error' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
+                >
+                  <span>{{ stationLocationFeedback.message }}</span>
+                  <button @click="stationLocationFeedback.message = ''" class="ml-1 opacity-70 hover:opacity-100">✕</button>
+                </div>
+
+                <!-- Station Summary Status Card -->
+                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center space-x-1.5">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        {{ stationLocation.station_name || systemStatus.hostname || 'Edge Station Node' }}
+                      </span>
+                    </div>
+                    <span
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded border leading-none"
+                      :class="stationLocation.is_configured ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'"
+                    >
+                      {{ stationLocation.is_configured ? 'CONFIGURED' : 'UNCONFIGURED' }}
+                    </span>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2 text-[9.5px]">
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Coordinates (Lat, Lng)</span>
+                      <span class="font-bold tabular-nums text-slate-800 dark:text-slate-200">
+                        {{ stationLocation.is_configured && stationLocation.latitude !== null ? `${Number(stationLocation.latitude).toFixed(6)}, ${Number(stationLocation.longitude).toFixed(6)}` : 'Not Configured' }}
+                      </span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400 block text-[9px]">Location Source</span>
+                      <span class="font-semibold text-cyan-600 dark:text-cyan-400">
+                        {{ stationLocation.location_source || 'UNCONFIGURED' }}
+                        <span v-if="stationLocation.accuracy_meters" class="text-slate-400 text-[8.5px]">
+                          (±{{ stationLocation.accuracy_meters }}m)
+                        </span>
+                      </span>
+                    </div>
+                    <div v-if="stationLocation.address" class="col-span-2">
+                      <span class="text-slate-400 block text-[9px]">Installation Site / Address</span>
+                      <span class="text-slate-700 dark:text-slate-300 truncate block">
+                        {{ stationLocation.address }}
+                      </span>
+                    </div>
+                    <div class="col-span-2 flex items-center justify-between text-[8.5px] text-slate-400 pt-1 border-t border-slate-200/50 dark:border-slate-800/60">
+                      <span>Updated: {{ stationLocation.updated_at ? formatDate(stationLocation.updated_at) : '-' }}</span>
+                      <span>By: <strong class="text-slate-600 dark:text-slate-300">{{ stationLocation.updated_by || 'system' }}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mini Map Section -->
+                <div class="mb-2.5">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-[9.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      Interactive Station Map
+                    </span>
+                    <button
+                      type="button"
+                      @click="openFullScreenMap"
+                      class="text-[9px] text-cyan-600 dark:text-cyan-400 hover:underline flex items-center space-x-1"
+                    >
+                      <span>Full Screen ⛶</span>
+                    </button>
+                  </div>
+                  <StationMapViewer
+                    ref="miniMapViewer"
+                    :latitude="candidateLocation.latitude !== null ? Number(candidateLocation.latitude) : (stationLocation.latitude !== null ? Number(stationLocation.latitude) : null)"
+                    :longitude="candidateLocation.longitude !== null ? Number(candidateLocation.longitude) : (stationLocation.longitude !== null ? Number(stationLocation.longitude) : null)"
+                    :accuracy-meters="candidateLocation.accuracy_meters !== null ? Number(candidateLocation.accuracy_meters) : (stationLocation.accuracy_meters !== null ? Number(stationLocation.accuracy_meters) : null)"
+                    :editable="true"
+                    :source="candidateLocation.location_source || stationLocation.location_source"
+                    height="170px"
+                    @coordinate-change="onMapCoordinatePicked"
+                  />
+                  <div class="text-[8.5px] text-slate-400 mt-1 italic">
+                    💡 Click on the map or drag the marker to pinpoint exact station coordinates.
+                  </div>
+                </div>
+
+                <!-- Three Location Sources Tabs -->
+                <div class="border-t border-slate-200 dark:border-[#1E3048] pt-2 mb-2">
+                  <div class="flex rounded bg-slate-100 dark:bg-[#0A1220] p-0.5 border border-slate-200 dark:border-[#1E3048] mb-2 text-[9px] font-bold">
+                    <button
+                      type="button"
+                      @click="locationActiveTab = 'manual'"
+                      class="flex-1 py-1 rounded transition text-center"
+                      :class="locationActiveTab === 'manual' ? 'bg-cyan-500 text-slate-950 font-black shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      ✏️ Manual & Pin
+                    </button>
+                    <button
+                      type="button"
+                      @click="locationActiveTab = 'gps'"
+                      class="flex-1 py-1 rounded transition text-center"
+                      :class="locationActiveTab === 'gps' ? 'bg-cyan-500 text-slate-950 font-black shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      📡 GPS (Browser)
+                    </button>
+                    <button
+                      type="button"
+                      @click="locationActiveTab = 'ip'"
+                      class="flex-1 py-1 rounded transition text-center"
+                      :class="locationActiveTab === 'ip' ? 'bg-cyan-500 text-slate-950 font-black shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      🌐 Internet IP
+                    </button>
+                  </div>
+
+                  <!-- Tab 1: Manual Input & Map Pin -->
+                  <div v-if="locationActiveTab === 'manual'" class="space-y-2">
+                    <div class="grid grid-cols-2 gap-2 text-[9px]">
+                      <div>
+                        <label class="block text-slate-500 dark:text-slate-400 mb-0.5 font-bold">Latitude (-90 to 90)</label>
+                        <input
+                          v-model.number="candidateLocation.latitude"
+                          type="number"
+                          step="0.000001"
+                          min="-90"
+                          max="90"
+                          placeholder="-6.208800"
+                          class="w-full px-2 py-1 rounded bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-slate-500 dark:text-slate-400 mb-0.5 font-bold">Longitude (-180 to 180)</label>
+                        <input
+                          v-model.number="candidateLocation.longitude"
+                          type="number"
+                          step="0.000001"
+                          min="-180"
+                          max="180"
+                          placeholder="106.845600"
+                          class="w-full px-2 py-1 rounded bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                      <div class="col-span-2">
+                        <label class="block text-slate-500 dark:text-slate-400 mb-0.5">Site Name / Description (Optional)</label>
+                        <input
+                          v-model="candidateLocation.station_name"
+                          type="text"
+                          placeholder="Station Central Jakarta AQMS"
+                          class="w-full px-2 py-1 rounded bg-slate-50 dark:bg-[#070E1A] border border-slate-300 dark:border-[#20354B] text-slate-800 dark:text-slate-200 text-3xs font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Action Buttons: Save, Cancel, Reset -->
+                    <div class="flex items-center space-x-1.5 pt-1">
+                      <button
+                        type="button"
+                        @click="saveStationLocation"
+                        :disabled="isSavingStationLocation || candidateLocation.latitude == null || candidateLocation.longitude == null"
+                        class="flex-1 py-1.5 px-2 rounded text-3xs font-bold transition border flex items-center justify-center space-x-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span v-if="isSavingStationLocation" class="animate-spin">⏳</span>
+                        <span>💾 Save Location</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="cancelLocationEdit"
+                        class="py-1.5 px-2.5 rounded text-3xs font-semibold transition border bg-slate-100 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538]"
+                        title="Revert to saved location"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        @click="resetStationLocation"
+                        class="py-1.5 px-2 rounded text-3xs font-semibold transition border bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                        title="Reset station coordinates to unconfigured state"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Tab 2: GPS (Browser Geolocation API) -->
+                  <div v-else-if="locationActiveTab === 'gps'" class="space-y-2 text-[9.5px]">
+                    <div class="p-2 rounded bg-cyan-500/5 border border-cyan-500/20 text-slate-600 dark:text-slate-300 space-y-1">
+                      <div class="font-bold text-cyan-600 dark:text-cyan-400 flex items-center space-x-1">
+                        <span>📡</span>
+                        <span>Hardware / Browser GPS Geolocation</span>
+                      </div>
+                      <p class="text-[9px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Menggunakan Browser Geolocation API dengan izin operator. Hanya dijalankan saat tombol ditekan (tidak melakukan polling latar belakang).
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      @click="detectBrowserGPS"
+                      :disabled="gpsState.isDetecting"
+                      class="w-full py-1.5 px-2 rounded text-3xs font-bold transition border flex items-center justify-center space-x-1.5 bg-cyan-600/15 hover:bg-cyan-600/25 text-cyan-700 dark:text-cyan-300 border-cyan-500/40"
+                    >
+                      <span v-if="gpsState.isDetecting" class="animate-spin">⏳</span>
+                      <span>🛰️ {{ gpsState.isDetecting ? 'Detecting GPS Satellite / Device...' : 'Ambil Koordinat dari GPS Browser' }}</span>
+                    </button>
+
+                    <!-- GPS Result Card -->
+                    <div v-if="gpsState.coordinates" class="p-2 rounded bg-slate-50 dark:bg-[#070E1A] border border-cyan-500/30 space-y-1">
+                      <div class="flex items-center justify-between text-[9px] font-bold text-emerald-500">
+                        <span>✓ Koordinat GPS Berhasil Diperoleh</span>
+                        <span>±{{ gpsState.coordinates.accuracy }}m</span>
+                      </div>
+                      <div class="grid grid-cols-2 gap-1 font-mono text-[9px]">
+                        <div>Lat: <strong class="text-slate-800 dark:text-slate-200">{{ gpsState.coordinates.lat }}</strong></div>
+                        <div>Lng: <strong class="text-slate-800 dark:text-slate-200">{{ gpsState.coordinates.lng }}</strong></div>
+                      </div>
+                      <button
+                        type="button"
+                        @click="applyGPSToCandidate"
+                        class="w-full mt-1.5 py-1 px-2 rounded text-3xs font-bold transition bg-cyan-600 hover:bg-cyan-500 text-white"
+                      >
+                        Gunakan untuk Form Edit (Pratinjau) →
+                      </button>
+                    </div>
+
+                    <div v-if="gpsState.error" class="p-2 rounded bg-rose-500/10 border border-rose-500/30 text-rose-500 text-[9px]">
+                      ⚠️ {{ gpsState.error }}
+                    </div>
+                  </div>
+
+                  <!-- Tab 3: Internet Geolocation (IP-based) -->
+                  <div v-else-if="locationActiveTab === 'ip'" class="space-y-2 text-[9.5px]">
+                    <div class="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-slate-600 dark:text-slate-300 space-y-1">
+                      <div class="font-bold text-amber-600 dark:text-amber-400 flex items-center space-x-1">
+                        <span>⚠️</span>
+                        <span>Internet IP Geolocation (Perkiraan Kasar)</span>
+                      </div>
+                      <p class="text-[9px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Lokasi berbasis IP hanya merupakan estimasi kasar level kota/ISP dan tidak seakurat GPS. Sesuai kebijakan SCADA privat, data IP tidak dikirim ke pihak ketiga tanpa konfigurasi provider terverifikasi.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      @click="checkIPGeolocationProvider"
+                      :disabled="ipGeoState.isDetecting"
+                      class="w-full py-1.5 px-2 rounded text-3xs font-bold transition border flex items-center justify-center space-x-1.5 bg-slate-100 dark:bg-[#0E1726] hover:bg-slate-200 dark:hover:bg-[#162538] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B]"
+                    >
+                      <span v-if="ipGeoState.isDetecting" class="animate-spin">⏳</span>
+                      <span>🌐 Periksa Provider IP Geolocation</span>
+                    </button>
+
+                    <div v-if="ipGeoState.status !== 'IDLE'" class="p-2 rounded bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] space-y-1">
+                      <div class="flex items-center justify-between text-[9px]">
+                        <span class="text-slate-400">Status Provider:</span>
+                        <span class="font-bold text-amber-500">{{ ipGeoState.status }}</span>
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400">
+                        {{ ipGeoState.message || 'Provider IP Geolocation tidak dikonfigurasi / tidak tersedia. Koordinat tidak dapat diestimasi secara otomatis.' }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Active Filter Dismissible Badges (Minimalist) -->
@@ -4071,6 +4413,100 @@
       :is-open="showAlarmNotificationModal"
       @close="showAlarmNotificationModal = false; initAudioPreferences()"
     />
+
+    <!-- 7. Station Location Full Screen Map Modal -->
+    <div
+      v-if="showFullScreenStationMap"
+      class="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex flex-col p-3 md:p-5 select-none animate-fadeIn font-mono"
+      @click.self="closeFullScreenMap"
+    >
+      <div class="flex-1 w-full max-w-7xl mx-auto flex flex-col bg-white dark:bg-[#0B1422] rounded-xl border border-slate-200 dark:border-[#20354B] shadow-2xl overflow-hidden">
+        <!-- Full Screen Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-[#1E3048] bg-slate-50 dark:bg-[#070E1A]">
+          <div class="flex items-center space-x-2.5">
+            <div class="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
+              <OperatorDashboardIcon name="map-pinned" :size="20" class="text-cyan-500" />
+            </div>
+            <div>
+              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                Station Location — Full Screen View
+              </h2>
+              <div class="text-3xs text-slate-500 dark:text-slate-400 mt-1">
+                {{ stationLocation.station_name || 'Ambient Monitoring Station' }} ·
+                <span class="text-cyan-500 font-bold">
+                  {{ candidateLocation.latitude !== null ? `${Number(candidateLocation.latitude).toFixed(6)}, ${Number(candidateLocation.longitude).toFixed(6)}` : 'No coordinates selected' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button
+              type="button"
+              @click="closeFullScreenMap"
+              class="px-2.5 py-1 rounded text-2xs font-bold border border-slate-300 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] text-slate-700 dark:text-slate-300 transition flex items-center space-x-1"
+            >
+              <span>✕ Exit Full Screen (Esc)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Full Screen Map Container -->
+        <div class="flex-1 relative w-full h-full min-h-[400px]">
+          <StationMapViewer
+            ref="fullScreenMapViewer"
+            :latitude="candidateLocation.latitude !== null ? Number(candidateLocation.latitude) : (stationLocation.latitude !== null ? Number(stationLocation.latitude) : null)"
+            :longitude="candidateLocation.longitude !== null ? Number(candidateLocation.longitude) : (stationLocation.longitude !== null ? Number(stationLocation.longitude) : null)"
+            :accuracy-meters="candidateLocation.accuracy_meters !== null ? Number(candidateLocation.accuracy_meters) : (stationLocation.accuracy_meters !== null ? Number(stationLocation.accuracy_meters) : null)"
+            :editable="true"
+            :source="candidateLocation.location_source || stationLocation.location_source"
+            height="100%"
+            @coordinate-change="onMapCoordinatePicked"
+          />
+        </div>
+
+        <!-- Full Screen Footer Control Bar -->
+        <div class="px-4 py-2.5 border-t border-slate-200 dark:border-[#1E3048] bg-slate-50 dark:bg-[#070E1A] flex flex-wrap items-center justify-between gap-2 text-2xs">
+          <div class="flex items-center space-x-3 text-slate-600 dark:text-slate-300">
+            <div>
+              <span class="text-slate-400">Lat: </span>
+              <strong class="text-slate-800 dark:text-slate-100 font-mono">{{ candidateLocation.latitude !== null ? Number(candidateLocation.latitude).toFixed(6) : '-' }}</strong>
+            </div>
+            <div>
+              <span class="text-slate-400">Lng: </span>
+              <strong class="text-slate-800 dark:text-slate-100 font-mono">{{ candidateLocation.longitude !== null ? Number(candidateLocation.longitude).toFixed(6) : '-' }}</strong>
+            </div>
+            <div v-if="candidateLocation.accuracy_meters">
+              <span class="text-slate-400">Accuracy: </span>
+              <strong class="text-cyan-500">±{{ candidateLocation.accuracy_meters }}m</strong>
+            </div>
+            <div>
+              <span class="text-slate-400">Source: </span>
+              <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ candidateLocation.location_source || 'MANUAL' }}</span>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button
+              type="button"
+              @click="cancelLocationEdit"
+              class="px-3 py-1.5 rounded text-3xs font-semibold border border-slate-300 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] text-slate-700 dark:text-slate-300 transition"
+            >
+              Revert
+            </button>
+            <button
+              type="button"
+              @click="saveStationLocation"
+              :disabled="isSavingStationLocation || candidateLocation.latitude == null || candidateLocation.longitude == null"
+              class="px-4 py-1.5 rounded text-3xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              <span v-if="isSavingStationLocation" class="animate-spin mr-1">⏳</span>
+              <span>Save Station Coordinates</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -4103,6 +4539,7 @@ import {
 import MultiPanelConfigModal from '../components/MultiPanelConfigModal.vue';
 import AlarmNotificationModal from '../components/AlarmNotificationModal.vue';
 import OperatorDashboardIcon from '../components/OperatorDashboardIcon.vue';
+import StationMapViewer from '../components/StationMapViewer.vue';
 import {
   getStoredAlarmPreferences,
   saveAlarmPreferences,
@@ -4140,6 +4577,7 @@ export default {
   name: 'OperatorCommandCenterView',
   components: {
     OperatorDashboardIcon,
+    StationMapViewer,
     WindRoseChart,
     PollutantDispersionMap,
     ParameterIcon,
@@ -4253,6 +4691,45 @@ export default {
       },
       isFetchingNetwork: false,
       lastNetworkFetchTime: null,
+      stationLocation: {
+        id: null,
+        station_name: '',
+        latitude: null,
+        longitude: null,
+        location_source: 'UNCONFIGURED',
+        accuracy_meters: null,
+        address: '',
+        is_configured: false,
+        updated_at: null,
+        updated_by: '',
+      },
+      candidateLocation: {
+        latitude: null,
+        longitude: null,
+        location_source: 'MANUAL',
+        accuracy_meters: null,
+        address: '',
+        station_name: '',
+      },
+      isFetchingStationLocation: false,
+      isSavingStationLocation: false,
+      showFullScreenStationMap: false,
+      locationActiveTab: 'manual',
+      gpsState: {
+        isDetecting: false,
+        error: null,
+        coordinates: null,
+      },
+      ipGeoState: {
+        isDetecting: false,
+        status: 'IDLE',
+        message: '',
+        provider: 'NONE',
+      },
+      stationLocationFeedback: {
+        type: '',
+        message: '',
+      },
       networkPollCycles: 0,
       // Dual Organization & Company Branding State (Customer Left, Maker Right)
       showBrandingModal: false,
@@ -4412,6 +4889,21 @@ export default {
       const internet = this.networkStatus?.internet?.status || 'UNKNOWN';
       const outbound = this.networkStatus?.outbound?.overall_status || 'UNKNOWN';
       return `Network & Outbound: LAN ${local} (${ip}) · Internet ${internet} · Outbound ${outbound}`;
+    },
+    stationLocationStatusDotClass() {
+      if (this.stationLocation && this.stationLocation.is_configured) {
+        return 'bg-emerald-500';
+      }
+      return 'bg-amber-500';
+    },
+    stationLocationTooltip() {
+      if (this.stationLocation && this.stationLocation.is_configured && this.stationLocation.latitude !== null && this.stationLocation.longitude !== null) {
+        const lat = Number(this.stationLocation.latitude).toFixed(4);
+        const lng = Number(this.stationLocation.longitude).toFixed(4);
+        const src = this.stationLocation.location_source || 'MANUAL';
+        return `Station Location: [${lat}, ${lng}] (${src})`;
+      }
+      return 'Station Location: Unconfigured - Click to set coordinates';
     },
     singlePanelGridClass() {
       const cols = Number(this.gridColumns) || 4;
@@ -6006,6 +6498,15 @@ export default {
         this.activeToolbarPopover = popoverName;
         if (popoverName === 'networkMonitor') {
           this.fetchNetworkStatus();
+        } else if (popoverName === 'stationLocation') {
+          this.fetchStationLocation();
+          this.$nextTick(() => {
+            setTimeout(() => {
+              if (this.$refs.miniMapViewer) {
+                this.$refs.miniMapViewer.invalidateSize();
+              }
+            }, 100);
+          });
         }
       }
     },
@@ -7012,6 +7513,7 @@ export default {
           this.fetchEvents(),
           this.fetchNotifications(),
           this.fetchNetworkStatus(),
+          this.fetchStationLocation(),
         ]);
         if (!this.trendSelectionRestored) {
           this.restoreOrInitTrendSelection();
@@ -7034,6 +7536,7 @@ export default {
           this.fetchNotifications(),
           this.fetchTrendData(),
           this.fetchNetworkStatus(),
+          this.fetchStationLocation(),
         ]);
       } finally {
         this.isRefreshing = false;
@@ -7201,6 +7704,226 @@ export default {
         default:
           return 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border-zinc-500/30';
       }
+    },
+    async fetchStationLocation() {
+      if (this.isFetchingStationLocation) return;
+      this.isFetchingStationLocation = true;
+      try {
+        const res = await axios.get('/api/system/location');
+        if (res.data && res.data.data) {
+          this.stationLocation = res.data.data;
+          this.candidateLocation = {
+            latitude: res.data.data.latitude,
+            longitude: res.data.data.longitude,
+            location_source: res.data.data.location_source || 'MANUAL',
+            accuracy_meters: res.data.data.accuracy_meters,
+            address: res.data.data.address || '',
+            station_name: res.data.data.station_name || '',
+          };
+          this.$nextTick(() => {
+            if (this.$refs.miniMapViewer) this.$refs.miniMapViewer.invalidateSize();
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load station location:', err);
+      } finally {
+        this.isFetchingStationLocation = false;
+      }
+    },
+    detectBrowserGPS() {
+      if (!navigator.geolocation) {
+        this.gpsState.error = 'Browser Geolocation API tidak didukung pada browser/perangkat ini.';
+        return;
+      }
+      this.gpsState.isDetecting = true;
+      this.gpsState.error = null;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          this.gpsState.isDetecting = false;
+          this.gpsState.coordinates = {
+            lat: Number(pos.coords.latitude.toFixed(6)),
+            lng: Number(pos.coords.longitude.toFixed(6)),
+            accuracy: pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null,
+            timestamp: new Date(pos.timestamp || Date.now()).toISOString(),
+          };
+        },
+        (err) => {
+          this.gpsState.isDetecting = false;
+          let errMsg = 'Gagal mendeteksi koordinat GPS.';
+          if (err.code === 1) {
+            errMsg = 'Izin akses lokasi ditolak oleh operator/browser.';
+          } else if (err.code === 2) {
+            errMsg = 'Posisi GPS tidak tersedia atau perangkat tidak memiliki sensor GPS.';
+          } else if (err.code === 3) {
+            errMsg = 'Permintaan lokasi GPS timed out.';
+          }
+          this.gpsState.error = errMsg;
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    },
+    applyGPSToCandidate() {
+      if (!this.gpsState.coordinates) return;
+      this.candidateLocation.latitude = this.gpsState.coordinates.lat;
+      this.candidateLocation.longitude = this.gpsState.coordinates.lng;
+      this.candidateLocation.accuracy_meters = this.gpsState.coordinates.accuracy;
+      this.candidateLocation.location_source = 'GPS';
+      this.locationActiveTab = 'manual';
+      this.stationLocationFeedback = {
+        type: 'success',
+        message: 'Koordinat GPS diterapkan ke form. Klik "Save Location" untuk menyimpan permanen.',
+      };
+      this.$nextTick(() => {
+        if (this.$refs.miniMapViewer) this.$refs.miniMapViewer.invalidateSize();
+      });
+    },
+    async checkIPGeolocationProvider() {
+      this.ipGeoState.isDetecting = true;
+      try {
+        const res = await axios.get('/api/system/location/ip-estimate');
+        if (res.data) {
+          this.ipGeoState.status = res.data.status || 'UNAVAILABLE';
+          this.ipGeoState.message = res.data.message || 'Provider IP Geolocation tidak dikonfigurasi / tidak tersedia.';
+          this.ipGeoState.provider = res.data.provider || 'NONE';
+        }
+      } catch (err) {
+        this.ipGeoState.status = 'UNAVAILABLE';
+        this.ipGeoState.message = 'Gagal menghubungi endpoint estimasi IP Geolocation.';
+      } finally {
+        this.ipGeoState.isDetecting = false;
+      }
+    },
+    onMapCoordinatePicked({ lat, lng }) {
+      this.candidateLocation.latitude = lat;
+      this.candidateLocation.longitude = lng;
+      this.candidateLocation.location_source = 'MANUAL';
+    },
+    async saveStationLocation() {
+      if (this.candidateLocation.latitude == null || this.candidateLocation.longitude == null) {
+        this.stationLocationFeedback = {
+          type: 'error',
+          message: 'Latitude dan Longitude wajib diisi.',
+        };
+        return;
+      }
+
+      const lat = Number(this.candidateLocation.latitude);
+      const lng = Number(this.candidateLocation.longitude);
+
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        this.stationLocationFeedback = {
+          type: 'error',
+          message: 'Latitude harus bernilai antara -90 hingga 90 derajat.',
+        };
+        return;
+      }
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        this.stationLocationFeedback = {
+          type: 'error',
+          message: 'Longitude harus bernilai antara -180 hingga 180 derajat.',
+        };
+        return;
+      }
+
+      this.isSavingStationLocation = true;
+      this.stationLocationFeedback = { type: '', message: '' };
+
+      try {
+        const payload = {
+          latitude: lat,
+          longitude: lng,
+          location_source: this.candidateLocation.location_source || 'MANUAL',
+          accuracy_meters: this.candidateLocation.accuracy_meters ? Number(this.candidateLocation.accuracy_meters) : null,
+          station_name: this.candidateLocation.station_name || undefined,
+          address: this.candidateLocation.address || undefined,
+        };
+
+        const res = await axios.put('/api/system/location', payload);
+        if (res.data && res.data.data) {
+          this.stationLocation = res.data.data;
+          this.stationLocationFeedback = {
+            type: 'success',
+            message: 'Lokasi stasiun berhasil disimpan secara persisten!',
+          };
+          if (this.showFullScreenStationMap) {
+            this.showFullScreenStationMap = false;
+          }
+        }
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message || 'Gagal menyimpan koordinat stasiun.';
+        this.stationLocationFeedback = {
+          type: 'error',
+          message: msg,
+        };
+      } finally {
+        this.isSavingStationLocation = false;
+      }
+    },
+    cancelLocationEdit() {
+      this.candidateLocation = {
+        latitude: this.stationLocation.latitude,
+        longitude: this.stationLocation.longitude,
+        location_source: this.stationLocation.location_source || 'MANUAL',
+        accuracy_meters: this.stationLocation.accuracy_meters,
+        address: this.stationLocation.address || '',
+        station_name: this.stationLocation.station_name || '',
+      };
+      this.stationLocationFeedback = { type: '', message: '' };
+      this.$nextTick(() => {
+        if (this.$refs.miniMapViewer) this.$refs.miniMapViewer.invalidateSize();
+        if (this.$refs.fullScreenMapViewer) this.$refs.fullScreenMapViewer.invalidateSize();
+      });
+    },
+    async resetStationLocation() {
+      if (!confirm('Apakah Anda yakin ingin mereset koordinat lokasi stasiun ke status unconfigured?')) {
+        return;
+      }
+      this.isSavingStationLocation = true;
+      try {
+        const res = await axios.put('/api/system/location', { reset: true });
+        if (res.data && res.data.data) {
+          this.stationLocation = res.data.data;
+          this.candidateLocation = {
+            latitude: null,
+            longitude: null,
+            location_source: 'UNCONFIGURED',
+            accuracy_meters: null,
+            address: '',
+            station_name: '',
+          };
+          this.stationLocationFeedback = {
+            type: 'success',
+            message: 'Lokasi stasiun berhasil direset ke status unconfigured.',
+          };
+        }
+      } catch (err) {
+        this.stationLocationFeedback = {
+          type: 'error',
+          message: 'Gagal mereset lokasi stasiun: ' + (err.response?.data?.message || err.message),
+        };
+      } finally {
+        this.isSavingStationLocation = false;
+      }
+    },
+    openFullScreenMap() {
+      this.showFullScreenStationMap = true;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (this.$refs.fullScreenMapViewer) {
+            this.$refs.fullScreenMapViewer.invalidateSize();
+          }
+        }, 150);
+      });
+    },
+    closeFullScreenMap() {
+      this.showFullScreenStationMap = false;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (this.$refs.miniMapViewer) {
+            this.$refs.miniMapViewer.invalidateSize();
+          }
+        }, 100);
+      });
     },
     togglePin(paramId) {
       const idx = this.pinnedIds.indexOf(paramId);

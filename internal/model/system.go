@@ -126,3 +126,30 @@ func (SystemBranding) TableName() string {
 	return "system_brandings"
 }
 
+// Location sources for Station Location Monitor
+const (
+	LocationSourceManual        = "MANUAL"
+	LocationSourceGPS           = "GPS"
+	LocationSourceIPGeolocation = "IP_GEOLOCATION"
+	LocationSourceUnconfigured  = "UNCONFIGURED"
+)
+
+// StationLocation stores physical geographic placement and telemetry coordinates for the station
+type StationLocation struct {
+	ID             uint      `gorm:"primaryKey" json:"id"`
+	StationName    string    `gorm:"size:128" json:"station_name"`
+	Latitude       *float64  `json:"latitude"`
+	Longitude      *float64  `json:"longitude"`
+	LocationSource string    `gorm:"size:32;default:'UNCONFIGURED'" json:"location_source"` // MANUAL, GPS, IP_GEOLOCATION, UNCONFIGURED
+	AccuracyMeters *float64  `json:"accuracy_meters,omitempty"`
+	Address        string    `gorm:"size:255" json:"address,omitempty"`
+	IsConfigured   bool      `gorm:"default:false" json:"is_configured"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	UpdatedBy      string    `gorm:"size:128" json:"updated_by,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+func (StationLocation) TableName() string {
+	return "station_locations"
+}
+

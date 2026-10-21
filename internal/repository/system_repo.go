@@ -492,4 +492,44 @@ func (r *SystemRepository) SaveBranding(b *model.SystemBranding) error {
 	return r.db.Save(b).Error
 }
 
+// Station Location Persistence
+func (r *SystemRepository) GetStationLocation() (*model.StationLocation, error) {
+	var loc model.StationLocation
+	err := r.db.First(&loc).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			defaultLoc := model.StationLocation{
+				StationName:    "Ambient Monitoring Station",
+				Latitude:       nil,
+				Longitude:      nil,
+				LocationSource: model.LocationSourceUnconfigured,
+				IsConfigured:   false,
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+			}
+			_ = r.db.Create(&defaultLoc)
+			return &defaultLoc, nil
+		}
+		return nil, err
+	}
+	return &loc, nil
+}
+
+func (r *SystemRepository) SaveStationLocation(loc *model.StationLocation) error {
+	var existing model.StationLocation
+	err := r.db.First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			loc.CreatedAt = time.Now()
+			loc.UpdatedAt = time.Now()
+			return r.db.Create(loc).Error
+		}
+		return err
+	}
+	loc.ID = existing.ID
+	loc.CreatedAt = existing.CreatedAt
+	loc.UpdatedAt = time.Now()
+	return r.db.Save(loc).Error
+}
+
 

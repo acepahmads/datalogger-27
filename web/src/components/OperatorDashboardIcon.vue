@@ -98,6 +98,24 @@
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="currentColor" fill-opacity="0.25" />
       </g>
 
+      <!-- Map Pin / Station Location -->
+      <g v-else-if="name === 'map-pin' || name === 'location'">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="currentColor" fill-opacity="0.18" />
+        <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8" />
+        <circle cx="12" cy="10" r="1.2" fill="currentColor" />
+      </g>
+
+      <!-- Map Pinned / Station Geolocation -->
+      <g v-else-if="name === 'map-pinned' || name === 'map'">
+        <!-- Underneath map plane -->
+        <path d="M3 6l6-3 6 3 6-3v14l-6 3-6-3-6 3V6z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.35" />
+        <line x1="9" y1="3" x2="9" y2="17" stroke="currentColor" stroke-width="1.3" stroke-opacity="0.25" stroke-dasharray="2 2" />
+        <line x1="15" y1="6" x2="15" y2="20" stroke="currentColor" stroke-width="1.3" stroke-opacity="0.25" stroke-dasharray="2 2" />
+        <!-- Prominent Station Pin on map -->
+        <path d="M12 4a3.5 3.5 0 0 0-3.5 3.5c0 2.8 3.5 6.5 3.5 6.5s3.5-3.7 3.5-6.5A3.5 3.5 0 0 0 12 4z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="currentColor" fill-opacity="0.25" />
+        <circle cx="12" cy="7.5" r="1.3" fill="currentColor" />
+      </g>
+
       <!-- Settings / Sliders -->
       <g v-else-if="name === 'settings' || name === 'sliders' || name === 'chart-setup'">
         <line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
