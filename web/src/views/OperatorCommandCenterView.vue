@@ -1015,7 +1015,7 @@
                       </span>
                     </div>
                     <div class="col-span-2 flex items-center justify-between text-[8.5px] text-slate-400 pt-1 border-t border-slate-200/50 dark:border-slate-800/60">
-                      <span>Updated: {{ stationLocation.updated_at ? formatDate(stationLocation.updated_at) : '-' }}</span>
+                      <span>Updated: {{ formatLocationDate(stationLocation.updated_at) }}</span>
                       <span>By: <strong class="text-slate-600 dark:text-slate-300">{{ stationLocation.updated_by || 'system' }}</strong></span>
                     </div>
                   </div>
@@ -7924,6 +7924,22 @@ export default {
           }
         }, 100);
       });
+    },
+    formatLocationDate(value) {
+      if (!value) return '-';
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    },
+    formatDate(value) {
+      return this.formatLocationDate(value);
     },
     togglePin(paramId) {
       const idx = this.pinnedIds.indexOf(paramId);
