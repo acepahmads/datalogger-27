@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
@@ -485,6 +486,18 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 					unit = item.Parameter.Unit
 				}
 				devInfo := deviceMap[item.DeviceID]
+
+				val := item.Value
+				qual := string(item.Quality)
+
+				// POS 3: Outbound Gatekeeper (Sanitize unphysical float/register overflow before transmission)
+				if val != nil && (math.IsNaN(*val) || math.IsInf(*val, 0) || math.Abs(*val) > 1e8) {
+					logger.Warn("[Outbound Gatekeeper] Quarantined implausible value %.2e for parameter %s (%s) in batch %s",
+						*val, paramCode, devInfo.DeviceCode, batchID)
+					val = nil
+					qual = string(model.QualityBad)
+				}
+
 				sourceItems = append(sourceItems, model.SourceAggregationValueItem{
 					DeviceID:            item.DeviceID,
 					DeviceCode:          devInfo.DeviceCode,
@@ -492,9 +505,9 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 					ParameterID:         item.ParameterID,
 					ParameterCode:       paramCode,
 					ParameterName:       paramName,
-					Value:               item.Value,
+					Value:               val,
 					Unit:                unit,
-					Quality:             string(item.Quality),
+					Quality:             qual,
 					AggregationResultID: item.ID,
 					PeriodStart:         item.PeriodStart,
 					PeriodEnd:           item.PeriodEnd,

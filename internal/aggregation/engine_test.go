@@ -253,3 +253,62 @@ func TestQualityAggregationAndInvalidSamples(t *testing.T) {
 		t.Errorf("Expected quality BAD when 0 valid samples, got %s", resZero.Quality)
 	}
 }
+
+// TestSmartAggregationSampleSanitization verifies that POS 2 properly excludes unphysical
+// Modbus register overflow glitches (like 3.69e19) and QualityBad samples from mathematical calculation.
+func TestSmartAggregationSampleSanitization(t *testing.T) {
+	eng := aggregation.NewEngine()
+	now := time.Date(2026, 10, 21, 9, 52, 0, 0, time.UTC)
+	bEnd := now.Add(2 * time.Minute)
+
+	def := &model.AggregationDefinition{
+		ID:              10,
+		ParameterID:     14,
+		SourceType:      model.SourceCustomerProcessed,
+		Function:        model.FunctionAvg,
+		IntervalSeconds: 120,
+		Timezone:        "UTC",
+	}
+
+	// Scenario matching the real incident on AQMS-02:
+	// 5 healthy samples (~1250), 1 unphysical Modbus overflow (3.69e19), 1 QualityBad read error
+	samples := []model.RawData{
+		{ProcessedValue: 1249.0, ReceivedAt: now.Add(10 * time.Second), Quality: model.QualityGood},
+		{ProcessedValue: 1259.0, ReceivedAt: now.Add(20 * time.Second), Quality: model.QualityGood},
+		{ProcessedValue: 3.6978779416885244928e19, ReceivedAt: now.Add(38 * time.Second), Quality: model.QualityUncertain},
+		{ProcessedValue: 1300.0, ReceivedAt: now.Add(50 * time.Second), Quality: model.QualityGood},
+		{ProcessedValue: -2.0, ReceivedAt: now.Add(60 * time.Second), Quality: model.QualityBad},
+		{ProcessedValue: 1310.0, ReceivedAt: now.Add(70 * time.Second), Quality: model.QualityGood},
+		{ProcessedValue: 1310.0, ReceivedAt: now.Add(80 * time.Second), Quality: model.QualityGood},
+	}
+
+	res := eng.Calculate(def, now, bEnd, samples)
+
+	// Quality accounting must record total samples and bad/uncertain counts
+	if res.SampleCount != 7 {
+		t.Errorf("Expected SampleCount 7, got %d", res.SampleCount)
+	}
+	if res.BadCount < 2 { // 3.69e19 is counted as corrupt/bad, and -2.0 is QualityBad
+		t.Errorf("Expected at least 2 bad samples counted, got BadCount=%d", res.BadCount)
+	}
+
+	// Value MUST be calculated strictly from the 5 healthy samples:
+	// (1249 + 1259 + 1300 + 1310 + 1310) / 5 = 6428 / 5 = 1285.6
+	if res.Value == nil {
+		t.Fatalf("Expected non-nil sanitized value, got nil")
+	}
+	expectedAvg := 1285.6
+	if math.Abs(*res.Value-expectedAvg) > 0.1 {
+		t.Errorf("Expected sanitized average %.1f, got %.1f (glitch was NOT excluded!)", expectedAvg, *res.Value)
+	}
+	if *res.MinValue != 1249.0 {
+		t.Errorf("Expected sanitized MinValue 1249.0, got %v", *res.MinValue)
+	}
+	if *res.MaxValue != 1310.0 {
+		t.Errorf("Expected sanitized MaxValue 1310.0, got %v", *res.MaxValue)
+	}
+	// Overall quality truthfully flags UNCERTAIN because anomalies were present
+	if res.Quality != model.QualityUncertain {
+		t.Errorf("Expected overall bucket quality UNCERTAIN, got %s", res.Quality)
+	}
+}

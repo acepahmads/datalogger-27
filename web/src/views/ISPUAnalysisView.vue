@@ -685,6 +685,22 @@
             </div>
           </div>
 
+          <!-- Regulatory ISPU Gatekeeper Quarantine Banner -->
+          <div
+            v-if="auditTrackingData?.excluded_outliers_count > 0"
+            class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-3xs flex items-start space-x-2"
+          >
+            <span class="text-base leading-none">🛡️</span>
+            <div class="space-y-0.5">
+              <div class="font-bold uppercase tracking-wide">
+                Regulatory Gatekeeper Active: {{ auditTrackingData.excluded_outliers_count }} Implausible Bucket(s) Quarantined
+              </div>
+              <div class="text-slate-700 dark:text-slate-300">
+                Data lonjakan tidak masuk akal (di luar batas fisik lingkungan) telah otomatis diisolasi dan tidak diikutsertakan dalam rata-rata 24 jam ISPU, menjaga integritas nilai ISPU stasiun agar tidak terdistorsi.
+              </div>
+            </div>
+          </div>
+
           <!-- 4 Outlier Metrics Grid -->
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-3xs">
             <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
@@ -739,10 +755,11 @@
                     v-for="(spike, sIdx) in auditTrackingData.top_spikes"
                     :key="sIdx"
                     class="hover:bg-slate-50 dark:hover:bg-[#101B2B]/60 transition"
-                    :class="sIdx === 0 ? 'bg-rose-500/5' : ''"
+                    :class="spike.is_excluded ? 'bg-amber-500/10' : (sIdx === 0 ? 'bg-rose-500/5' : '')"
                   >
                     <td class="p-1.5 font-bold">
-                      <span v-if="sIdx === 0" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-bold text-4xs">#1 PEAK</span>
+                      <span v-if="spike.is_excluded" class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 dark:text-amber-400 font-bold text-4xs">QUARANTINED</span>
+                      <span v-else-if="sIdx === 0" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-bold text-4xs">#1 PEAK</span>
                       <span v-else class="text-slate-400">#{{ sIdx + 1 }}</span>
                     </td>
                     <td class="p-1.5 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
@@ -750,8 +767,13 @@
                     </td>
                     <td class="p-1.5 text-cyan-600 dark:text-cyan-400">{{ spike.identifier || '-' }}</td>
                     <td class="p-1.5 tabular-nums text-slate-500">{{ formatConcentration(spike.raw_value) }}</td>
-                    <td class="p-1.5 tabular-nums font-bold" :class="sIdx === 0 ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300'">
-                      {{ formatConcentration(spike.normalized_value) }} {{ auditTrackingData.normalized_unit || 'µg/m³' }}
+                    <td class="p-1.5 tabular-nums font-bold" :class="spike.is_excluded ? 'text-amber-400' : (sIdx === 0 ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300')">
+                      <span :class="spike.is_excluded ? 'line-through opacity-70' : ''">
+                        {{ formatConcentration(spike.normalized_value) }} {{ auditTrackingData.normalized_unit || 'µg/m³' }}
+                      </span>
+                      <span v-if="spike.is_excluded" class="block text-4xs text-amber-500 dark:text-amber-400 font-normal mt-0.5" :title="spike.exclude_reason">
+                        {{ spike.exclude_reason || 'Quarantined Outlier' }}
+                      </span>
                     </td>
                     <td class="p-1.5 text-right">
                       <button

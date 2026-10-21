@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"sync"
@@ -464,6 +465,20 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			} else if opAgg.Value != nil {
 				val = *opAgg.Value
 			}
+
+			// POS 3: Operational Gatekeeper check (guard against unphysical float overflow)
+			if val < 0 || math.IsNaN(val) || math.IsInf(val, 0) || val > 1e8 {
+				hasOpAgg = false
+			}
+		}
+
+		if hasOpAgg {
+			val := 0.0
+			if opAgg.AvgValue != nil {
+				val = *opAgg.AvgValue
+			} else if opAgg.Value != nil {
+				val = *opAgg.Value
+			}
 			opOut = s.calculator.CalculateParameter(ParameterCalculationInput{
 				PollutantCode:    m.PollutantCode,
 				ParameterID:      m.ParameterID,
@@ -600,27 +615,68 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 
 		var regOut ParameterCalculationOutput
 		if len(aggStats) > 0 {
+			var maxBpXa float64 = 45000
+			if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
+				maxBpXa = bps[len(bps)-1].Xa
+			}
+
+			// POS 3: Regulatory ISPU Gatekeeper Plausibility Ceiling
+			// Atmospheric concentrations cannot plausibly exceed 20x the highest regulatory breakpoint or 1e8 µg/m³.
+			// Any bucket concentration above this ceiling represents unphysical Modbus bit-overflow / transmission corruption
+			// and is quarantined/excluded from the 24-hour SUM and average.
+			maxPlausibleLimit := maxBpXa * 20.0
+			if maxPlausibleLimit < 100000.0 {
+				maxPlausibleLimit = 100000.0
+			}
+			if maxPlausibleLimit > 1e8 {
+				maxPlausibleLimit = 1e8
+			}
+
 			hoursWithData := make(map[int]bool)
 			var totalSum float64
+			usableBucketCount := 0
+			excludedOutlierCount := 0
 			allBuckets := make([]model.ISPUOutlierBucket, 0, len(aggStats))
 
 			for _, as := range aggStats {
-				hoursDiff := int(paramRegEnd.Sub(as.Rec).Hours())
-				if hoursDiff >= 0 && hoursDiff < 24 {
-					hoursWithData[hoursDiff] = true
-					totalSum += as.Val
-				}
 				normVal, _, _ := s.calculator.NormalizeConcentration(as.Val, m.SourceUnit, m.ConversionRule, m.ConversionFactor)
 				ident := as.Ident
 				if ident == "" {
 					ident = as.Rec.In(loc).Format("20060102150405")
 				}
+
+				isExcluded := false
+				excludeReason := ""
+				if as.Val < 0 || normVal > maxPlausibleLimit || math.IsNaN(as.Val) || math.IsInf(as.Val, 0) {
+					isExcluded = true
+					excludeReason = fmt.Sprintf("Implausible value (%.2e %s) exceeds regulatory plausibility ceiling (%.1f)", as.Val, m.SourceUnit, maxPlausibleLimit)
+					excludedOutlierCount++
+				}
+
+				hoursDiff := int(paramRegEnd.Sub(as.Rec).Hours())
+				if !isExcluded {
+					if hoursDiff >= 0 && hoursDiff < 24 {
+						hoursWithData[hoursDiff] = true
+						totalSum += as.Val
+						usableBucketCount++
+					}
+				}
+
 				allBuckets = append(allBuckets, model.ISPUOutlierBucket{
 					Timestamp:     as.Rec,
 					Identifier:    ident,
 					RawValue:      as.Val,
 					NormalizedVal: normVal,
+					IsExcluded:    isExcluded,
+					ExcludeReason: excludeReason,
 				})
+			}
+
+			rawAvg := 0.0
+			if usableBucketCount > 0 {
+				rawAvg = totalSum / float64(usableBucketCount)
+			} else if len(aggStats) > 0 {
+				rawAvg = totalSum / float64(len(aggStats))
 			}
 
 			latest := aggStats[len(aggStats)-1]
@@ -633,7 +689,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				PollutantCode:    m.PollutantCode,
 				ParameterID:      m.ParameterID,
 				SourceUnit:       m.SourceUnit,
-				RawConcentration: totalSum / float64(len(aggStats)),
+				RawConcentration: rawAvg,
 				ConversionFactor: m.ConversionFactor,
 				ConversionRule:   m.ConversionRule,
 				ValidSamples:     len(hoursWithData),
@@ -666,11 +722,6 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				topSpikes := make([]model.ISPUOutlierBucket, topCount)
 				copy(topSpikes, allBuckets[:topCount])
 
-				var maxBpXa float64 = 45000
-				if bps, ok := OfficialBreakpoints[m.PollutantCode]; ok && len(bps) > 0 {
-					maxBpXa = bps[len(bps)-1].Xa
-				}
-
 				isAnomaly := false
 				var anomalyReason string
 				if peakConc > maxBpXa {
@@ -689,21 +740,22 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				regOut.MinConcentration = minConc
 
 				auditDetails := model.ISPUAuditDetails{
-					PollutantCode:        m.PollutantCode,
-					ParameterID:          m.ParameterID,
-					PeakConcentration:    peakConc,
-					PeakTimestamp:        peakTime,
-					PeakBucketIdentifier: peakIdent,
-					MinConcentration:     minConc,
-					MinTimestamp:         minTime,
-					AvgConcentration:     regOut.NormalizedConcentration,
-					IsAnomaly:            isAnomaly,
-					AnomalyReason:        anomalyReason,
-					RegulatoryXa:         maxBpXa,
-					SourceUnit:           m.SourceUnit,
-					NormalizedUnit:       regOut.NormalizedUnit,
-					TotalBuckets:         len(aggStats),
-					TopSpikes:            topSpikes,
+					PollutantCode:         m.PollutantCode,
+					ParameterID:           m.ParameterID,
+					PeakConcentration:     peakConc,
+					PeakTimestamp:         peakTime,
+					PeakBucketIdentifier:  peakIdent,
+					MinConcentration:      minConc,
+					MinTimestamp:          minTime,
+					AvgConcentration:      regOut.NormalizedConcentration,
+					IsAnomaly:             isAnomaly || excludedOutlierCount > 0,
+					AnomalyReason:         anomalyReason,
+					RegulatoryXa:          maxBpXa,
+					SourceUnit:            m.SourceUnit,
+					NormalizedUnit:        regOut.NormalizedUnit,
+					TotalBuckets:          len(aggStats),
+					ExcludedOutliersCount: excludedOutlierCount,
+					TopSpikes:             topSpikes,
 				}
 				if b, err := json.Marshal(auditDetails); err == nil {
 					regOut.DetailsJSON = string(b)
@@ -1284,17 +1336,39 @@ func (s *ISPUService) enrichCalculationAuditTracking(ctx context.Context, res *m
 		}
 
 		allBuckets := make([]model.ISPUOutlierBucket, 0, len(aggStats))
+		var maxBpXa float64 = 45000
+		if bps, ok := OfficialBreakpoints[pr.PollutantCode]; ok && len(bps) > 0 {
+			maxBpXa = bps[len(bps)-1].Xa
+		}
+		maxPlausibleLimit := maxBpXa * 20.0
+		if maxPlausibleLimit < 100000.0 {
+			maxPlausibleLimit = 100000.0
+		}
+		if maxPlausibleLimit > 1e8 {
+			maxPlausibleLimit = 1e8
+		}
+
+		excludedCount := 0
 		for _, as := range aggStats {
 			normVal, _, _ := s.calculator.NormalizeConcentration(as.Val, srcUnit, convRule, convFactor)
 			ident := as.Ident
 			if ident == "" {
 				ident = as.Rec.In(loc).Format("20060102150405")
 			}
+			isExcluded := false
+			excludeReason := ""
+			if as.Val < 0 || normVal > maxPlausibleLimit || math.IsNaN(as.Val) || math.IsInf(as.Val, 0) {
+				isExcluded = true
+				excludeReason = fmt.Sprintf("Implausible value (%.2e) exceeds regulatory physical ceiling (%.1f)", as.Val, maxPlausibleLimit)
+				excludedCount++
+			}
 			allBuckets = append(allBuckets, model.ISPUOutlierBucket{
 				Timestamp:     as.Rec,
 				Identifier:    ident,
 				RawValue:      as.Val,
 				NormalizedVal: normVal,
+				IsExcluded:    isExcluded,
+				ExcludeReason: excludeReason,
 			})
 		}
 
@@ -1317,11 +1391,6 @@ func (s *ISPUService) enrichCalculationAuditTracking(ctx context.Context, res *m
 		topSpikes := make([]model.ISPUOutlierBucket, topCount)
 		copy(topSpikes, allBuckets[:topCount])
 
-		var maxBpXa float64 = 45000
-		if bps, ok := OfficialBreakpoints[pr.PollutantCode]; ok && len(bps) > 0 {
-			maxBpXa = bps[len(bps)-1].Xa
-		}
-
 		isAnomaly := false
 		var anomalyReason string
 		if peakConc > maxBpXa {
@@ -1340,22 +1409,23 @@ func (s *ISPUService) enrichCalculationAuditTracking(ctx context.Context, res *m
 		pr.MinConcentration = minConc
 
 		auditDetails := model.ISPUAuditDetails{
-			CalculationResultID:  res.ID,
-			PollutantCode:        pr.PollutantCode,
-			ParameterID:          pr.ParameterID,
-			PeakConcentration:    peakConc,
-			PeakTimestamp:        peakTime,
-			PeakBucketIdentifier: peakIdent,
-			MinConcentration:     minConc,
-			MinTimestamp:         minTime,
-			AvgConcentration:     pr.NormalizedConcentration,
-			IsAnomaly:            isAnomaly,
-			AnomalyReason:        anomalyReason,
-			RegulatoryXa:         maxBpXa,
-			SourceUnit:           srcUnit,
-			NormalizedUnit:       pr.NormalizedUnit,
-			TotalBuckets:         len(aggStats),
-			TopSpikes:            topSpikes,
+			CalculationResultID:   res.ID,
+			PollutantCode:         pr.PollutantCode,
+			ParameterID:           pr.ParameterID,
+			PeakConcentration:     peakConc,
+			PeakTimestamp:         peakTime,
+			PeakBucketIdentifier:  peakIdent,
+			MinConcentration:      minConc,
+			MinTimestamp:          minTime,
+			AvgConcentration:      pr.NormalizedConcentration,
+			IsAnomaly:             isAnomaly || excludedCount > 0,
+			AnomalyReason:         anomalyReason,
+			RegulatoryXa:          maxBpXa,
+			SourceUnit:            srcUnit,
+			NormalizedUnit:        pr.NormalizedUnit,
+			TotalBuckets:          len(aggStats),
+			ExcludedOutliersCount: excludedCount,
+			TopSpikes:             topSpikes,
 		}
 
 		if b, err := json.Marshal(auditDetails); err == nil {

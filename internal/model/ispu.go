@@ -150,25 +150,28 @@ type ISPUOutlierBucket struct {
 	Identifier    string    `json:"identifier"`
 	RawValue      float64   `json:"raw_value"`
 	NormalizedVal float64   `json:"normalized_value"`
+	IsExcluded    bool      `json:"is_excluded,omitempty"`
+	ExcludeReason string    `json:"exclude_reason,omitempty"`
 }
 
 // ISPUAuditDetails holds outlier tracking, peak occurrence, and anomaly metadata for audit inspection.
 type ISPUAuditDetails struct {
-	CalculationResultID  uint                `json:"calculation_result_id,omitempty"`
-	PollutantCode        ISPUParameter       `json:"pollutant_code"`
-	ParameterID          uint                `json:"parameter_id"`
-	PeakConcentration    float64             `json:"peak_concentration"`
-	PeakTimestamp        *time.Time          `json:"peak_timestamp,omitempty"`
-	PeakBucketIdentifier string              `json:"peak_bucket_identifier,omitempty"`
-	MinConcentration     float64             `json:"min_concentration"`
-	MinTimestamp         *time.Time          `json:"min_timestamp,omitempty"`
-	AvgConcentration     float64             `json:"avg_concentration"`
-	IsAnomaly            bool                `json:"is_anomaly"`
-	AnomalyReason        string              `json:"anomaly_reason,omitempty"`
-	RegulatoryXa         float64             `json:"regulatory_xa"`
-	SourceUnit           string              `json:"source_unit"`
-	NormalizedUnit       string              `json:"normalized_unit"`
-	TotalBuckets         int                 `json:"total_buckets"`
-	TopSpikes            []ISPUOutlierBucket `json:"top_spikes"`
+	CalculationResultID   uint                `json:"calculation_result_id,omitempty"`
+	PollutantCode         ISPUParameter       `json:"pollutant_code"`
+	ParameterID           uint                `json:"parameter_id"`
+	PeakConcentration     float64             `json:"peak_concentration"`
+	PeakTimestamp         *time.Time          `json:"peak_timestamp,omitempty"`
+	PeakBucketIdentifier  string              `json:"peak_bucket_identifier,omitempty"`
+	MinConcentration      float64             `json:"min_concentration"`
+	MinTimestamp          *time.Time          `json:"min_timestamp,omitempty"`
+	AvgConcentration      float64             `json:"avg_concentration"`
+	IsAnomaly             bool                `json:"is_anomaly"`
+	AnomalyReason         string              `json:"anomaly_reason,omitempty"`
+	RegulatoryXa          float64             `json:"regulatory_xa"`
+	SourceUnit            string              `json:"source_unit"`
+	NormalizedUnit        string              `json:"normalized_unit"`
+	TotalBuckets          int                 `json:"total_buckets"`
+	ExcludedOutliersCount int                 `json:"excluded_outliers_count,omitempty"`
+	TopSpikes             []ISPUOutlierBucket `json:"top_spikes"`
 }
 

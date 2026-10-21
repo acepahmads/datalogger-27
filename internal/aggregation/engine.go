@@ -56,6 +56,11 @@ func (e *Engine) Calculate(
 		return res
 	}
 
+// MaxPlausibleEnvironmentalValue defines the physical upper bound for environmental telemetry (100,000,000 µg/m³).
+// Any value exceeding this magnitude represents a hardware register overflow / corrupted transmission (e.g. 3.69e19)
+// and is automatically excluded from mathematical aggregation by the Smart Aggregation Sanitizer (POS 2).
+const MaxPlausibleEnvironmentalValue = 1e8
+
 	// 1. Extract values based on source domain (INTERNAL_RAW vs CUSTOMER_PROCESSED)
 	isRaw := def.SourceType == model.SourceInternalRaw
 	var validSamples []CalculationSample
@@ -69,22 +74,28 @@ func (e *Engine) Calculate(
 			val = s.ProcessedValue
 		}
 
+		// Validate numeric viability (guard against NaN, Inf, and unphysical register overflow)
+		isCorrupt := math.IsNaN(val) || math.IsInf(val, 0) || math.Abs(val) > MaxPlausibleEnvironmentalValue
+
 		// Quality counting
-		switch s.Quality {
-		case model.QualityGood:
-			res.GoodCount++
-		case model.QualityUncertain:
-			res.UncertainCount++
-		case model.QualityBad:
+		if isCorrupt {
 			res.BadCount++
-		case model.QualityStale:
-			res.StaleCount++
-		default:
-			res.UncertainCount++
+		} else {
+			switch s.Quality {
+			case model.QualityGood:
+				res.GoodCount++
+			case model.QualityUncertain:
+				res.UncertainCount++
+			case model.QualityBad:
+				res.BadCount++
+			case model.QualityStale:
+				res.StaleCount++
+			default:
+				res.UncertainCount++
+			}
 		}
 
-		// Validate numeric viability (guard against NaN and Inf)
-		if math.IsNaN(val) || math.IsInf(val, 0) {
+		if isCorrupt {
 			continue
 		}
 
@@ -117,14 +128,27 @@ func (e *Engine) Calculate(
 		return validSamples[i].Timestamp.Before(validSamples[j].Timestamp)
 	})
 
-	// 2. Calculate Statistical Metrics
-	sum := 0.0
-	minVal := validSamples[0].Value
-	maxVal := validSamples[0].Value
-	firstVal := validSamples[0].Value
-	lastVal := validSamples[len(validSamples)-1].Value
-
+	// POS 2: Smart Aggregation Sample Sanitization
+	// If healthy (GOOD / UNCERTAIN) samples exist, exclude QualityBad samples from mathematical calculation
+	// so faulty registers or sensor read errors do not corrupt the bucket value or average.
+	var calcSamples []CalculationSample
 	for _, s := range validSamples {
+		if s.Quality != model.QualityBad {
+			calcSamples = append(calcSamples, s)
+		}
+	}
+	if len(calcSamples) == 0 {
+		calcSamples = validSamples
+	}
+
+	// 2. Calculate Statistical Metrics on Sanitized Samples
+	sum := 0.0
+	minVal := calcSamples[0].Value
+	maxVal := calcSamples[0].Value
+	firstVal := calcSamples[0].Value
+	lastVal := calcSamples[len(calcSamples)-1].Value
+
+	for _, s := range calcSamples {
 		sum += s.Value
 		if s.Value < minVal {
 			minVal = s.Value
@@ -134,7 +158,7 @@ func (e *Engine) Calculate(
 		}
 	}
 
-	avgVal := sum / float64(len(validSamples))
+	avgVal := sum / float64(len(calcSamples))
 
 	res.MinValue = &minVal
 	res.MaxValue = &maxVal
