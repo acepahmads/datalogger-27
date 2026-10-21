@@ -3,13 +3,13 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 class="text-xl font-bold tracking-tight text-white font-sans flex items-center gap-2.5">
-          <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white font-sans flex items-center gap-2.5">
+          <svg class="w-5 h-5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16m-8 4v6m0 0l-3-3m3 3l3-3"></path>
           </svg>
           {{ $t('backup.title') }}
         </h1>
-        <p class="text-xs text-slate-400 mt-0.5 font-sans">
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-sans">
           {{ $t('backup.subtitle') }}
         </p>
       </div>
@@ -25,15 +25,15 @@
           {{ $t('backup.createBackup') }}
         </button>
 
-        <div class="flex items-center space-x-1 bg-[#111827] p-1 rounded-lg border border-slate-800 text-xs font-sans">
+        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs">
           <button @click="activeTab = 'catalog'"
                   class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="activeTab === 'catalog' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+                  :class="activeTab === 'catalog' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             {{ $t('backup.tabCatalog') }}
           </button>
           <button @click="activeTab = 'schedule'"
                   class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="activeTab === 'schedule' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-white'">
+                  :class="activeTab === 'schedule' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             {{ $t('backup.tabSchedule') }}
           </button>
         </div>
@@ -42,24 +42,24 @@
 
     <!-- Active Job Progress Banner (if any running job) -->
     <div v-if="activeJob && (activeJob.status === 'RUNNING' || activeJob.status === 'PENDING')"
-         class="saas-card p-4 bg-gradient-to-r from-blue-950/60 to-indigo-950/50 border border-blue-500/30 flex items-center justify-between">
+         class="saas-card p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/50 border border-blue-200 dark:border-blue-500/30 flex items-center justify-between shadow-xs">
       <div class="flex items-center space-x-3">
         <span class="flex h-3 w-3 relative">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
         </span>
         <div>
-          <span class="text-xs font-bold text-white uppercase tracking-wider block">
+          <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
             {{ activeJob.type }} OPERATION IN PROGRESS ({{ activeJob.stage }})
           </span>
-          <span class="text-2xs text-slate-300 font-sans block mt-0.5">
-            Job ID: <code class="font-mono text-blue-300">{{ activeJob.id }}</code> • Started: {{ activeJob.started_at | formatDate }}
+          <span class="text-2xs text-slate-600 dark:text-slate-300 font-sans block mt-0.5">
+            Job ID: <code class="font-mono text-blue-600 dark:text-blue-300">{{ activeJob.id }}</code> • Started: {{ activeJob.started_at | formatDate }}
           </span>
         </div>
       </div>
       <div class="text-right">
-        <span class="text-xs font-bold font-mono text-blue-400">{{ activeJob.progress || 0 }}%</span>
-        <div class="w-32 bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
+        <span class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400">{{ activeJob.progress || 0 }}%</span>
+        <div class="w-32 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
           <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" :style="{ width: (activeJob.progress || 10) + '%' }"></div>
         </div>
       </div>
@@ -70,73 +70,73 @@
       <!-- Overview Metric Cards -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <!-- Subsystem Health -->
-        <div class="saas-card p-4 space-y-1">
+        <div class="saas-card p-4 space-y-1 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
           <div class="flex items-center justify-between">
-            <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans">{{ $t('backup.healthStatus') }}</span>
-            <span class="w-2 h-2 rounded-full" :class="isSubsystemHealthy ? 'bg-emerald-400' : 'bg-rose-400'"></span>
+            <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans">{{ $t('backup.healthStatus') }}</span>
+            <span class="w-2 h-2 rounded-full" :class="isSubsystemHealthy ? 'bg-emerald-500' : 'bg-rose-500'"></span>
           </div>
-          <div class="text-sm font-bold text-white font-sans flex items-center space-x-1.5">
-            <span :class="isSubsystemHealthy ? 'text-emerald-400' : 'text-rose-400'">
+          <div class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center space-x-1.5">
+            <span :class="isSubsystemHealthy ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
               {{ isSubsystemHealthy ? 'HEALTHY' : 'DEGRADED' }}
             </span>
           </div>
           <span v-if="!isSubsystemHealthy && statusData.degradation_reasons && statusData.degradation_reasons.length"
-                class="text-3xs text-rose-300 block truncate font-mono"
+                class="text-3xs text-rose-600 dark:text-rose-300 block truncate font-mono"
                 :title="statusData.degradation_reasons.join('; ')">
             {{ statusData.degradation_reasons[0] }}
           </span>
-          <span v-else class="text-3xs text-slate-400 block font-mono">
+          <span v-else class="text-3xs text-slate-500 dark:text-slate-400 block font-mono">
             MariaDB + WAL Spool
           </span>
         </div>
 
         <!-- Total Archives -->
-        <div class="saas-card p-4 space-y-1">
-          <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">{{ $t('backup.totalBackups') }}</span>
-          <div class="text-lg font-bold text-white font-mono">
+        <div class="saas-card p-4 space-y-1 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
+          <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">{{ $t('backup.totalBackups') }}</span>
+          <div class="text-lg font-bold text-slate-900 dark:text-white font-mono">
             {{ statusData.total_backups !== undefined ? statusData.total_backups : (statusData.total_valid_backups !== undefined ? statusData.total_valid_backups : (backupsList ? backupsList.length : 0)) }}
           </div>
-          <span class="text-3xs text-slate-400 block font-sans">
+          <span class="text-3xs text-slate-500 dark:text-slate-400 block font-sans">
             {{ validCount }} Validated
           </span>
         </div>
 
         <!-- Storage Used -->
-        <div class="saas-card p-4 space-y-1">
-          <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">{{ $t('backup.storageUsed') }}</span>
-          <div class="text-lg font-bold text-blue-400 font-mono">
+        <div class="saas-card p-4 space-y-1 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
+          <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">{{ $t('backup.storageUsed') }}</span>
+          <div class="text-lg font-bold text-blue-600 dark:text-blue-400 font-mono">
             {{ formatBytes(statusData.storage_used_bytes !== undefined ? statusData.storage_used_bytes : statusData.total_storage_bytes) }}
           </div>
-          <span class="text-3xs text-slate-400 block font-sans">
+          <span class="text-3xs text-slate-500 dark:text-slate-400 block font-sans">
             Free: {{ formatBytes(statusData.free_disk_bytes !== undefined ? statusData.free_disk_bytes : statusData.free_bytes) }}
           </span>
         </div>
 
         <!-- Last Backup -->
-        <div class="saas-card p-4 space-y-1">
-          <span class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">{{ $t('backup.lastBackup') }}</span>
-          <div class="text-xs font-semibold text-slate-200 font-mono truncate">
+        <div class="saas-card p-4 space-y-1 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
+          <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">{{ $t('backup.lastBackup') }}</span>
+          <div class="text-xs font-semibold text-slate-800 dark:text-slate-200 font-mono truncate">
             {{ (statusData.last_successful_backup || statusData.last_backup_time) ? formatDate(statusData.last_successful_backup || statusData.last_backup_time) : 'Never' }}
           </div>
-          <span class="text-3xs text-slate-400 block font-sans">
+          <span class="text-3xs text-slate-500 dark:text-slate-400 block font-sans">
             Next: {{ (statusData.next_scheduled_run || (statusData.schedule && statusData.schedule.next_run_time)) ? formatDate(statusData.next_scheduled_run || statusData.schedule.next_run_time) : 'Disabled' }}
           </span>
         </div>
       </div>
 
       <!-- Catalog Table -->
-      <div class="saas-card overflow-hidden">
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div class="saas-card overflow-hidden bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <h2 class="text-sm font-bold text-white font-sans">{{ $t('backup.tabCatalog') }}</h2>
-            <span class="text-3xs font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white font-sans">{{ $t('backup.tabCatalog') }}</h2>
+            <span class="text-3xs font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
               {{ totalCount }} items
             </span>
           </div>
 
           <div class="flex items-center space-x-2">
             <button @click="fetchBackups" :disabled="loading"
-                    class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors flex items-center"
+                    class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent text-xs transition-colors flex items-center shadow-xs"
                     title="Refresh">
               <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -148,27 +148,27 @@
         </div>
 
         <!-- Download Error Banner -->
-        <div v-if="downloadError" class="p-3 bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs flex items-center justify-between">
+        <div v-if="downloadError" class="p-3 bg-rose-50 dark:bg-rose-500/10 border-b border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             <span>{{ downloadError }}</span>
           </div>
-          <button @click="downloadError = ''" class="text-rose-400 hover:text-rose-300 text-3xs font-semibold uppercase px-2 py-0.5 rounded hover:bg-rose-500/20">
+          <button @click="downloadError = ''" class="text-rose-700 dark:text-rose-400 hover:text-rose-900 dark:hover:text-rose-300 text-3xs font-semibold uppercase px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-500/20">
             Dismiss
           </button>
         </div>
 
         <!-- Download Success Banner -->
-        <div v-if="downloadSuccessMsg" class="p-3 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-400 text-xs flex items-center justify-between">
+        <div v-if="downloadSuccessMsg" class="p-3 bg-emerald-50 dark:bg-emerald-500/10 border-b border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
             </svg>
             <span>{{ downloadSuccessMsg }}</span>
           </div>
-          <button @click="downloadSuccessMsg = ''" class="text-emerald-400 hover:text-emerald-300 text-3xs font-semibold uppercase px-2 py-0.5 rounded hover:bg-emerald-500/20">
+          <button @click="downloadSuccessMsg = ''" class="text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 text-3xs font-semibold uppercase px-2 py-0.5 rounded hover:bg-emerald-100 dark:hover:bg-emerald-500/20">
             Dismiss
           </button>
         </div>
@@ -177,7 +177,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-xs font-sans">
             <thead>
-              <tr class="border-b border-slate-800 text-slate-400 text-3xs uppercase tracking-wider bg-[#0B0F19]/50">
+              <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-3xs uppercase tracking-wider bg-slate-50/80 dark:bg-[#0B0F19]/50">
                 <th class="py-2.5 px-4 font-semibold">{{ $t('backup.backupId') }}</th>
                 <th class="py-2.5 px-3 font-semibold">{{ $t('backup.createdAt') }}</th>
                 <th class="py-2.5 px-3 font-semibold">{{ $t('backup.type') }}</th>
@@ -188,11 +188,11 @@
                 <th class="py-2.5 px-3 font-semibold text-right">{{ $t('backup.actions') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60">
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
               <tr v-if="loading && backupsList.length === 0">
-                <td colspan="8" class="text-center py-8 text-slate-400">
+                <td colspan="8" class="text-center py-8 text-slate-500 dark:text-slate-400">
                   <div class="flex items-center justify-center space-x-2">
-                    <svg class="animate-spin w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="animate-spin w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
                     </svg>
                     <span>Loading backup catalog...</span>
@@ -204,20 +204,20 @@
                   {{ $t('backup.noBackups') }}
                 </td>
               </tr>
-              <tr v-for="b in backupsList" :key="b.id || b.backup_id" class="hover:bg-slate-800/30 transition-colors">
+              <tr v-for="b in backupsList" :key="b.id || b.backup_id" class="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                 <!-- Backup ID -->
-                <td class="py-2.5 px-4 font-mono text-slate-200">
+                <td class="py-2.5 px-4 font-mono text-slate-900 dark:text-slate-200">
                   <div class="flex items-center space-x-1.5">
                     <span class="w-1.5 h-1.5 rounded-full" :class="getBackupStatusDot(b.status)"></span>
                     <span class="font-semibold text-xs">{{ b.id || b.backup_id }}</span>
                   </div>
-                  <span v-if="b.notes || b.error_message" class="text-3xs text-slate-400 block truncate max-w-xs mt-0.5">
+                  <span v-if="b.notes || b.error_message" class="text-3xs text-slate-500 dark:text-slate-400 block truncate max-w-xs mt-0.5">
                     {{ b.notes || b.error_message }}
                   </span>
                 </td>
 
                 <!-- Created At -->
-                <td class="py-2.5 px-3 text-slate-300 font-mono text-2xs whitespace-nowrap">
+                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 font-mono text-2xs whitespace-nowrap">
                   {{ b.created_at | formatDate }}
                 </td>
 
@@ -230,7 +230,7 @@
                 </td>
 
                 <!-- Size -->
-                <td class="py-2.5 px-3 font-mono text-slate-300 text-2xs whitespace-nowrap">
+                <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300 text-2xs whitespace-nowrap">
                   {{ formatBytes(b.size_bytes !== undefined ? b.size_bytes : b.total_size_bytes) }}
                 </td>
 
@@ -245,7 +245,7 @@
                 <!-- Consistency Status -->
                 <td class="py-2.5 px-3 whitespace-nowrap">
                   <span class="px-2 py-0.5 rounded text-3xs font-semibold"
-                        :class="b.consistency_status === 'CONSISTENT' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
+                        :class="b.consistency_status === 'CONSISTENT' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'">
                     {{ b.consistency_status || (b.status === 'COMPLETED' ? 'CONSISTENT' : 'INCONSISTENT') }}
                   </span>
                 </td>
@@ -253,7 +253,7 @@
                 <!-- Restore Compatibility -->
                 <td class="py-2.5 px-3 whitespace-nowrap">
                   <span class="px-2 py-0.5 rounded text-3xs font-semibold"
-                        :class="b.is_compatible ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'"
+                        :class="b.is_compatible ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'"
                         :title="b.is_compatible ? 'Archive verified and ready for restore' : (b.validation_details || 'Archive incomplete or missing')">
                     {{ b.is_compatible ? 'COMPATIBLE' : 'INCOMPATIBLE' }}
                   </span>
@@ -264,7 +264,7 @@
                   <div class="flex items-center justify-end space-x-1.5">
                     <!-- View Manifest Details -->
                     <button @click="openDetails(b)"
-                            class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                            class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                             title="View Manifest">
                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -274,7 +274,7 @@
 
                     <!-- Validate Integrity -->
                     <button @click="validateBackup(b.id || b.backup_id)" :disabled="validatingId === (b.id || b.backup_id)"
-                            class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 transition-colors"
+                            class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                             title="Validate Integrity">
                        <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': validatingId === (b.id || b.backup_id) }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -285,7 +285,7 @@
                     <button @click="prepareRestore(b.id || b.backup_id)"
                             :disabled="!b.is_compatible"
                             class="px-2 py-1 rounded text-3xs font-semibold transition-colors flex items-center"
-                            :class="b.is_compatible ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 cursor-pointer' : 'bg-slate-800 text-slate-500 border border-slate-700 opacity-60 cursor-not-allowed'"
+                            :class="b.is_compatible ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/20 cursor-pointer shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 opacity-60 cursor-not-allowed'"
                             :title="b.is_compatible ? 'Restore Database' : 'Restore disabled: backup not validated or missing'">
                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <polyline points="1 4 1 10 7 10"></polyline>
@@ -297,19 +297,19 @@
                     <!-- Download Archive -->
                     <button @click="downloadBackup(b.id || b.backup_id)"
                             :disabled="downloadingId === (b.id || b.backup_id)"
-                            class="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors disabled:opacity-50"
+                            class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
                             :title="downloadingId === (b.id || b.backup_id) ? 'Downloading...' : 'Download .tar.gz'">
                        <svg v-if="downloadingId !== (b.id || b.backup_id)" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                        </svg>
-                       <svg v-else class="animate-spin w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <svg v-else class="animate-spin w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                          <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
                        </svg>
                     </button>
 
                     <!-- Delete Backup -->
                     <button @click="deleteBackup(b.id || b.backup_id)"
-                            class="p-1 rounded hover:bg-rose-950 text-slate-400 hover:text-rose-400 transition-colors"
+                            class="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
                             title="Delete Backup">
                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <polyline points="3 6 5 6 21 6"></polyline>
@@ -324,15 +324,15 @@
         </div>
 
         <!-- Pagination Bar -->
-        <div class="p-3 border-t border-slate-800 flex items-center justify-between text-2xs text-slate-400 font-sans">
+        <div class="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-2xs text-slate-500 dark:text-slate-400 font-sans">
           <span>Showing page {{ page }} of {{ totalPages || 1 }}</span>
           <div class="flex items-center space-x-1">
             <button @click="changePage(page - 1)" :disabled="page <= 1"
-                    class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition-colors">
+                    class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent disabled:opacity-40 transition-colors shadow-xs">
               Prev
             </button>
             <button @click="changePage(page + 1)" :disabled="page >= totalPages"
-                    class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition-colors">
+                    class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent disabled:opacity-40 transition-colors shadow-xs">
               Next
             </button>
           </div>
@@ -341,69 +341,69 @@
     </div>
 
     <!-- TAB 2: Schedule & Retention Policy Form -->
-    <div v-if="activeTab === 'schedule'" class="space-y-6 max-w-3xl">
-      <div class="saas-card p-5 space-y-5">
-        <div class="border-b border-slate-800 pb-3">
-          <h2 class="text-sm font-bold text-white font-sans">{{ $t('backup.scheduleEnabled') }}</h2>
-          <p class="text-2xs text-slate-400 font-sans mt-0.5">
+    <div v-if="activeTab === 'schedule'" class="space-y-6 max-w-3xl font-sans">
+      <div class="saas-card p-5 space-y-5 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white font-sans">{{ $t('backup.scheduleEnabled') }}</h2>
+          <p class="text-2xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">
             Configure automated background snapshots and edge archive retention limits.
           </p>
         </div>
 
         <!-- Success Alert -->
-        <div v-if="scheduleMessage" class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+        <div v-if="scheduleMessage" class="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs">
           {{ scheduleMessage }}
         </div>
 
         <div class="space-y-4 text-xs font-sans">
           <!-- Enable Toggle -->
-          <div class="flex items-center justify-between p-3 rounded-lg bg-[#0B0F19] border border-slate-800">
+          <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
             <div>
-              <span class="font-semibold text-white block">{{ $t('backup.scheduleEnabled') }}</span>
-              <span class="text-3xs text-slate-400 block mt-0.5">Execute backups periodically without manual trigger</span>
+              <span class="font-semibold text-slate-900 dark:text-white block">{{ $t('backup.scheduleEnabled') }}</span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 block mt-0.5">Execute backups periodically without manual trigger</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" v-model="scheduleForm.enabled" class="sr-only peer">
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              <div class="w-10 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
 
           <!-- Interval Hours -->
           <div class="space-y-1">
-            <label class="text-slate-300 font-semibold block">{{ $t('backup.scheduleInterval') }}</label>
+            <label class="text-slate-700 dark:text-slate-300 font-semibold block">{{ $t('backup.scheduleInterval') }}</label>
             <input type="number" v-model.number="scheduleForm.interval_hours" min="1" max="168"
-                   class="w-full px-3 py-2 rounded-lg bg-[#0B0F19] border border-slate-800 text-white font-mono focus:border-blue-500 focus:outline-none">
+                   class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono focus:border-blue-500 focus:outline-none">
             <span class="text-3xs text-slate-500 block">Default 24 hours (Daily)</span>
           </div>
 
           <!-- Time of Day UTC -->
           <div class="space-y-1">
-            <label class="text-slate-300 font-semibold block">{{ $t('backup.scheduleTime') }}</label>
+            <label class="text-slate-700 dark:text-slate-300 font-semibold block">{{ $t('backup.scheduleTime') }}</label>
             <input type="text" v-model="scheduleForm.schedule_time" placeholder="02:00"
-                   class="w-full px-3 py-2 rounded-lg bg-[#0B0F19] border border-slate-800 text-white font-mono focus:border-blue-500 focus:outline-none">
+                   class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono focus:border-blue-500 focus:outline-none">
             <span class="text-3xs text-slate-500 block">24-hour format HH:MM UTC (e.g. 02:00)</span>
           </div>
 
           <!-- Max Keep Archives -->
           <div class="space-y-1">
-            <label class="text-slate-300 font-semibold block">{{ $t('backup.maxKeep') }}</label>
+            <label class="text-slate-700 dark:text-slate-300 font-semibold block">{{ $t('backup.maxKeep') }}</label>
             <input type="number" v-model.number="scheduleForm.max_keep" min="1" max="50"
-                   class="w-full px-3 py-2 rounded-lg bg-[#0B0F19] border border-slate-800 text-white font-mono focus:border-blue-500 focus:outline-none">
+                   class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono focus:border-blue-500 focus:outline-none">
             <span class="text-3xs text-slate-500 block">Oldest completed backups will be pruned beyond this threshold</span>
           </div>
 
           <!-- Min Free Space Threshold -->
           <div class="space-y-1">
-            <label class="text-slate-300 font-semibold block">{{ $t('backup.minFreeSpace') }}</label>
+            <label class="text-slate-700 dark:text-slate-300 font-semibold block">{{ $t('backup.minFreeSpace') }}</label>
             <input type="number" v-model.number="scheduleForm.min_free_space_mb" min="10" max="10000"
-                   class="w-full px-3 py-2 rounded-lg bg-[#0B0F19] border border-slate-800 text-white font-mono focus:border-blue-500 focus:outline-none">
+                   class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white font-mono focus:border-blue-500 focus:outline-none">
             <span class="text-3xs text-slate-500 block">Backups will abort safely if free disk space is lower than this margin</span>
           </div>
         </div>
 
-        <div class="pt-4 border-t border-slate-800 flex justify-end">
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
           <button @click="saveScheduleConfig" :disabled="savingSchedule"
-                  class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center">
+                  class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center shadow-xs">
             <svg v-if="savingSchedule" class="animate-spin w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
             </svg>
@@ -415,30 +415,30 @@
 
     <!-- MODAL 1: Create Backup Confirmation -->
     <div v-if="showCreateModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 max-w-md w-full space-y-4 shadow-2xl">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 class="text-sm font-bold text-white font-sans flex items-center space-x-2">
-            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 max-w-md w-full space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center space-x-2">
+            <svg class="w-4 h-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
             </svg>
             <span>{{ $t('backup.confirmCreateTitle') }}</span>
           </h3>
-          <button @click="showCreateModal = false" class="text-slate-400 hover:text-white">&times;</button>
+          <button @click="showCreateModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">&times;</button>
         </div>
 
-        <p class="text-xs text-slate-300 font-sans leading-relaxed">
+        <p class="text-xs text-slate-600 dark:text-slate-300 font-sans leading-relaxed">
           {{ $t('backup.confirmCreateDesc') }}
         </p>
 
         <div class="space-y-1">
-          <label class="text-3xs uppercase tracking-wider text-slate-400 font-sans block">Backup Note / Reason (Optional)</label>
+          <label class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block">Backup Note / Reason (Optional)</label>
           <input type="text" v-model="createNotes" placeholder="e.g. Pre-maintenance snapshot"
-                 class="w-full px-3 py-1.5 rounded-lg bg-[#0B0F19] border border-slate-800 text-white text-xs font-sans focus:border-blue-500 focus:outline-none">
+                 class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-sans focus:border-blue-500 focus:outline-none">
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
+        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
           <button @click="showCreateModal = false"
-                  class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors">
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent text-xs font-medium transition-colors shadow-xs">
             {{ $t('backup.cancel') }}
           </button>
           <button @click="triggerCreateBackup" :disabled="creating"
@@ -454,88 +454,88 @@
 
     <!-- MODAL 2: Manifest Details -->
     <div v-if="showDetailsModal && selectedBackup" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-[#111827] border border-slate-800 rounded-xl p-5 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 class="text-sm font-bold text-white font-sans flex items-center space-x-2">
-            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
             <span>{{ $t('backup.manifestDetails') }} — {{ selectedBackup.id || selectedBackup.backup_id }}</span>
           </h3>
-          <button @click="showDetailsModal = false" class="text-slate-400 hover:text-white">&times;</button>
+          <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">&times;</button>
         </div>
 
         <!-- Manifest Data Grid -->
         <div v-if="selectedManifest" class="space-y-4 text-xs font-sans">
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Backup Version</span>
-              <span class="font-mono text-slate-200 text-xs font-bold">{{ selectedManifest.format_version || selectedManifest.backup_version || '1.0' }}</span>
+              <span class="font-mono text-slate-900 dark:text-slate-200 text-xs font-bold">{{ selectedManifest.format_version || selectedManifest.backup_version || '1.0' }}</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">App Version</span>
-              <span class="font-mono text-slate-200 text-xs font-bold">{{ selectedManifest.app_version }}</span>
+              <span class="font-mono text-slate-900 dark:text-slate-200 text-xs font-bold">{{ selectedManifest.app_version }}</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Database Engine</span>
-              <span class="font-mono text-emerald-400 text-xs font-bold truncate">{{ selectedManifest.database ? selectedManifest.database.engine : 'MariaDB' }}</span>
+              <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs font-bold truncate">{{ selectedManifest.database ? selectedManifest.database.engine : 'MariaDB' }}</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Dump Method</span>
-              <span class="font-mono text-blue-400 text-xs font-bold">{{ selectedManifest.database ? selectedManifest.database.dump_method : 'Logical' }}</span>
+              <span class="font-mono text-blue-600 dark:text-blue-400 text-xs font-bold">{{ selectedManifest.database ? selectedManifest.database.dump_method : 'Logical' }}</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Total DB Rows</span>
-              <span class="font-mono text-slate-200 text-xs font-bold">{{ selectedManifest.database ? selectedManifest.database.total_rows : 0 }}</span>
+              <span class="font-mono text-slate-900 dark:text-slate-200 text-xs font-bold">{{ selectedManifest.database ? selectedManifest.database.total_rows : 0 }}</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Pending WAL Records</span>
-              <span class="font-mono text-purple-400 text-xs font-bold">{{ selectedManifest.wal ? selectedManifest.wal.pending_records : 0 }}</span>
+              <span class="font-mono text-purple-600 dark:text-purple-400 text-xs font-bold">{{ selectedManifest.wal ? selectedManifest.wal.pending_records : 0 }}</span>
             </div>
           </div>
 
           <!-- Table Rows Breakdown -->
           <div v-if="selectedManifest.database && selectedManifest.database.table_rows" class="space-y-2">
-            <span class="font-semibold text-slate-300 block">{{ $t('backup.allTables') }}</span>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2 rounded-lg bg-[#0B0F19] border border-slate-800 text-2xs font-mono">
-              <div v-for="(rows, tbl) in selectedManifest.database.table_rows" :key="tbl" class="flex justify-between px-2 py-1 bg-slate-900/50 rounded">
-                <span class="text-slate-400">{{ tbl }}:</span>
-                <span class="text-blue-300 font-semibold">{{ rows }}</span>
+            <span class="font-semibold text-slate-700 dark:text-slate-300 block">{{ $t('backup.allTables') }}</span>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono">
+              <div v-for="(rows, tbl) in selectedManifest.database.table_rows" :key="tbl" class="flex justify-between px-2 py-1 bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-transparent rounded">
+                <span class="text-slate-600 dark:text-slate-400">{{ tbl }}:</span>
+                <span class="text-blue-600 dark:text-blue-300 font-semibold">{{ rows }}</span>
               </div>
             </div>
           </div>
 
           <!-- Artifacts and Checksums -->
           <div v-if="selectedManifest.database && (selectedManifest.database.artifact || (selectedManifest.artifacts && selectedManifest.artifacts.length))" class="space-y-2">
-            <span class="font-semibold text-slate-300 block">Database Dump Artifact</span>
-            <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800 text-2xs font-mono space-y-1">
+            <span class="font-semibold text-slate-700 dark:text-slate-300 block">Database Dump Artifact</span>
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono space-y-1">
               <div class="flex justify-between">
-                <span class="text-slate-400">File:</span>
-                <span class="text-white">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.path) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].path) }} ({{ formatBytes((selectedManifest.database.artifact && selectedManifest.database.artifact.size_bytes) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].size_bytes)) }})</span>
+                <span class="text-slate-500 dark:text-slate-400">File:</span>
+                <span class="text-slate-900 dark:text-white">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.path) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].path) }} ({{ formatBytes((selectedManifest.database.artifact && selectedManifest.database.artifact.size_bytes) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].size_bytes)) }})</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-slate-400">SHA-256:</span>
-                <span class="text-emerald-400 truncate max-w-sm" :title="(selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256)">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256) }}</span>
+                <span class="text-slate-500 dark:text-slate-400">SHA-256:</span>
+                <span class="text-emerald-600 dark:text-emerald-400 truncate max-w-sm" :title="(selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256)">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256) }}</span>
               </div>
             </div>
           </div>
 
           <!-- WAL Segments -->
           <div v-if="selectedManifest.wal && ((selectedManifest.wal.segments && selectedManifest.wal.segments.length) || (selectedManifest.wal.segment_files && selectedManifest.wal.segment_files.length))" class="space-y-2">
-            <span class="font-semibold text-slate-300 block">{{ $t('backup.walSegments') }} ({{ (selectedManifest.wal.segments || selectedManifest.wal.segment_files).length }})</span>
+            <span class="font-semibold text-slate-700 dark:text-slate-300 block">{{ $t('backup.walSegments') }} ({{ (selectedManifest.wal.segments || selectedManifest.wal.segment_files).length }})</span>
             <div class="space-y-1 max-h-32 overflow-y-auto">
               <div v-for="seg in (selectedManifest.wal.segments || selectedManifest.wal.segment_files)" :key="seg.path"
-                   class="p-2 rounded bg-[#0B0F19] border border-slate-800 text-3xs font-mono flex items-center justify-between">
-                <span class="text-slate-300">{{ seg.path }} ({{ formatBytes(seg.size_bytes) }})</span>
+                   class="p-2 rounded bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-mono flex items-center justify-between">
+                <span class="text-slate-700 dark:text-slate-300">{{ seg.path }} ({{ formatBytes(seg.size_bytes) }})</span>
                 <span class="text-slate-500">CRC-32: 0x{{ seg.crc32 ? seg.crc32.toString(16).toUpperCase() : '0' }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="flex justify-end pt-3 border-t border-slate-800">
+        <div class="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
           <button @click="showDetailsModal = false"
-                  class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors">
+                  class="px-4 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-transparent text-xs font-semibold transition-colors shadow-xs">
             {{ $t('backup.close') }}
           </button>
         </div>
@@ -544,55 +544,55 @@
 
     <!-- MODAL 3: Restore Preview & Confirmation -->
     <div v-if="showRestoreModal && restorePreview" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-[#111827] border border-rose-500/40 rounded-xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 class="text-sm font-bold text-rose-400 font-sans flex items-center space-x-2">
+      <div class="bg-white dark:bg-[#111827] border border-rose-300 dark:border-rose-500/40 rounded-xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-rose-600 dark:text-rose-400 font-sans flex items-center space-x-2">
             <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             <span>{{ $t('backup.confirmRestoreTitle') }}</span>
           </h3>
-          <button @click="showRestoreModal = false" class="text-slate-400 hover:text-white">&times;</button>
+          <button @click="showRestoreModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">&times;</button>
         </div>
 
         <!-- Warning Alert -->
-        <div class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-sans leading-relaxed">
+        <div class="p-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-sans leading-relaxed">
           {{ $t('backup.confirmRestoreWarning') }}
         </div>
 
         <!-- Impact Preview Comparison -->
         <div class="space-y-3 text-xs font-sans">
-          <div class="grid grid-cols-2 gap-3 p-3 rounded-lg bg-[#0B0F19] border border-slate-800">
+          <div class="grid grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
             <div>
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Backup Source</span>
-              <span class="font-mono text-white text-xs font-bold">{{ restorePreview.backup_id }}</span>
-              <span class="text-3xs text-slate-400 font-mono block mt-0.5">Rows: {{ restorePreview.total_rows || 0 }}</span>
+              <span class="font-mono text-slate-900 dark:text-white text-xs font-bold">{{ restorePreview.backup_id }}</span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono block mt-0.5">Rows: {{ restorePreview.total_rows || 0 }}</span>
             </div>
             <div>
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Target Active DB</span>
-              <span class="font-mono text-emerald-400 text-xs font-bold">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
-              <span class="text-3xs text-slate-400 font-mono block mt-0.5">WAL Records: {{ restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0) }}</span>
+              <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs font-bold">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono block mt-0.5">WAL Records: {{ restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0) }}</span>
             </div>
           </div>
 
           <!-- Warnings List -->
           <div v-if="restorePreview.warnings && restorePreview.warnings.length" class="space-y-1">
-            <span class="text-3xs uppercase tracking-wider text-amber-400 font-semibold block">Important Warnings:</span>
-            <ul class="space-y-0.5 text-2xs text-amber-300/90 list-disc list-inside">
+            <span class="text-3xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold block">Important Warnings:</span>
+            <ul class="space-y-0.5 text-2xs text-amber-800/90 dark:text-amber-300/90 list-disc list-inside">
               <li v-for="(w, idx) in restorePreview.warnings" :key="idx">{{ w }}</li>
             </ul>
           </div>
 
           <!-- Safety Backup Checkbox -->
-          <label class="flex items-center space-x-2.5 p-2.5 rounded-lg bg-slate-900 border border-slate-800 cursor-pointer">
-            <input type="checkbox" v-model="restoreSafetyBackup" class="rounded border-slate-700 text-blue-600 focus:ring-0">
-            <span class="text-slate-300 text-2xs font-medium">{{ $t('backup.createSafetyBackup') }}</span>
+          <label class="flex items-center space-x-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer">
+            <input type="checkbox" v-model="restoreSafetyBackup" class="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-0">
+            <span class="text-slate-700 dark:text-slate-300 text-2xs font-medium">{{ $t('backup.createSafetyBackup') }}</span>
           </label>
         </div>
 
-        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
+        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
           <button @click="showRestoreModal = false"
-                  class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors">
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent text-xs font-medium transition-colors shadow-xs">
             {{ $t('backup.cancel') }}
           </button>
           <button @click="executeRestore" :disabled="restoring"
@@ -720,23 +720,23 @@ export default {
     getBackupTypeBadge(type) {
       switch (type) {
         case 'MANUAL':
-          return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+          return 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20';
         case 'SCHEDULED':
-          return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
+          return 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20';
         case 'SAFETY':
-          return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+          return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20';
         default:
-          return 'bg-slate-800 text-slate-300';
+          return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
       }
     },
     getValidationBadge(status) {
       switch (status) {
         case 'VALID':
-          return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+          return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20';
         case 'INVALID':
-          return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+          return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20';
         default:
-          return 'bg-slate-800 text-slate-400 border border-slate-700';
+          return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700';
       }
     },
     async fetchBackups() {

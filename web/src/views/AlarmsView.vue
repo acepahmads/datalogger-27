@@ -17,7 +17,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <!-- Active Alarms Counter Badge -->
         <span class="px-3 py-1.5 rounded-lg text-xs font-semibold font-mono"
-              :class="activeCount > 0 ? 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20'">
+              :class="activeCount > 0 ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 font-bold' : 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-bold'">
           {{ $t('alarms.activeCount', { count: activeCount }) }}
         </span>
 
@@ -54,7 +54,7 @@
     <!-- Alert / Toast Banner -->
     <div v-if="toastMessage"
          class="p-3.5 rounded-xl border flex items-center justify-between text-xs transition-all"
-         :class="toastType === 'error' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 dark:text-rose-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'">
+         :class="toastType === 'error' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30 dark:text-rose-400' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-400'">
       <div class="flex items-center space-x-2">
         <span>{{ toastMessage }}</span>
       </div>
@@ -127,7 +127,7 @@
                 <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">{{ alarm.triggered_at | formatDate }}</td>
                 <td class="py-3 px-4">
                   <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono"
-                        :class="alarm.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'">
+                        :class="alarm.status === 'ACTIVE' ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 font-bold' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'">
                     {{ alarm.status }}
                   </span>
                 </td>
@@ -288,9 +288,9 @@
                   {{ item.device_code || item.device_name || (item.device ? (item.device.code || item.device.name) : 'System') }}
                 </td>
                 <td class="py-3 px-4 font-mono text-2xs font-semibold"
-                    :class="item.is_ongoing ? 'text-amber-500' : 'text-slate-600 dark:text-slate-400'">
+                    :class="item.is_ongoing ? 'text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400'">
                   {{ item.duration_formatted }}
-                  <span v-if="item.is_ongoing" class="text-3xs block text-amber-500 uppercase">{{ $t('alarms.ongoing') || 'Ongoing' }}</span>
+                  <span v-if="item.is_ongoing" class="text-3xs block text-amber-700 dark:text-amber-400 font-bold uppercase">{{ $t('alarms.ongoing') || 'Ongoing' }}</span>
                 </td>
                 <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">{{ item.triggered_at | formatDate }}</td>
                 <td class="py-3 px-4 text-3xs font-sans">
@@ -301,8 +301,8 @@
                   <span v-else class="text-slate-400">-</span>
                 </td>
                 <td class="py-3 px-4 text-3xs font-mono">
-                  <span v-if="item.cleared_at" class="text-emerald-500">{{ item.cleared_at | formatDate }}</span>
-                  <span v-else class="text-amber-500 font-sans">{{ $t('alarms.ongoing') || 'Active' }}</span>
+                  <span v-if="item.cleared_at" class="text-emerald-700 dark:text-emerald-400 font-semibold">{{ item.cleared_at | formatDate }}</span>
+                  <span v-else class="text-amber-700 dark:text-amber-400 font-sans font-bold">{{ $t('alarms.ongoing') || 'Active' }}</span>
                 </td>
                 <td class="py-3 px-4 text-center">
                   <button @click="openIncidentModal(item)"
@@ -326,12 +326,12 @@
           <div class="flex items-center space-x-1">
             <button @click="changeHistoryPage(historyPage - 1)"
                     :disabled="historyPage <= 1"
-                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 transition-colors text-2xs font-medium">
               {{ $t('common.prev') || 'Prev' }}
             </button>
             <button @click="changeHistoryPage(historyPage + 1)"
                     :disabled="historyPage >= historyTotalPages"
-                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 transition-colors text-2xs font-medium">
               {{ $t('common.next') || 'Next' }}
             </button>
           </div>
@@ -350,20 +350,20 @@
           <span class="text-lg font-bold font-mono text-slate-900 dark:text-white mt-1 block">{{ metrics.dispatched_count || 0 }}</span>
         </div>
         <div class="p-3.5 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800">
-          <span class="text-3xs uppercase tracking-wider text-emerald-500 font-semibold block">{{ $t('alarms.delivered') }}</span>
-          <span class="text-lg font-bold font-mono text-emerald-500 mt-1 block">{{ metrics.delivered_count || 0 }}</span>
+          <span class="text-3xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-semibold block">{{ $t('alarms.delivered') }}</span>
+          <span class="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-400 mt-1 block">{{ metrics.delivered_count || 0 }}</span>
         </div>
         <div class="p-3.5 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800">
-          <span class="text-3xs uppercase tracking-wider text-amber-500 font-semibold block">{{ $t('alarms.retrying') }}</span>
-          <span class="text-lg font-bold font-mono text-amber-500 mt-1 block">{{ metrics.retried_count || 0 }}</span>
+          <span class="text-3xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold block">{{ $t('alarms.retrying') }}</span>
+          <span class="text-lg font-bold font-mono text-amber-700 dark:text-amber-400 mt-1 block">{{ metrics.retried_count || 0 }}</span>
         </div>
         <div class="p-3.5 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800">
-          <span class="text-3xs uppercase tracking-wider text-rose-500 font-semibold block">{{ $t('alarms.failureReason') }}</span>
-          <span class="text-lg font-bold font-mono text-rose-500 mt-1 block">{{ metrics.failed_count || 0 }}</span>
+          <span class="text-3xs uppercase tracking-wider text-rose-700 dark:text-rose-400 font-semibold block">{{ $t('alarms.failureReason') }}</span>
+          <span class="text-lg font-bold font-mono text-rose-700 dark:text-rose-400 mt-1 block">{{ metrics.failed_count || 0 }}</span>
         </div>
         <div class="p-3.5 rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800">
-          <span class="text-3xs uppercase tracking-wider text-slate-400 font-semibold block">{{ $t('alarms.cancelled') }}</span>
-          <span class="text-lg font-bold font-mono text-slate-400 mt-1 block">{{ metrics.cancelled_count || 0 }}</span>
+          <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold block">{{ $t('alarms.cancelled') }}</span>
+          <span class="text-lg font-bold font-mono text-slate-600 dark:text-slate-400 mt-1 block">{{ metrics.cancelled_count || 0 }}</span>
         </div>
       </div>
 
@@ -498,12 +498,12 @@
           <div class="flex items-center space-x-1">
             <button @click="changeQueuePage(queuePage - 1)"
                     :disabled="queuePage <= 1"
-                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 transition-colors text-2xs font-medium">
               {{ $t('common.prev') }}
             </button>
             <button @click="changeQueuePage(queuePage + 1)"
                     :disabled="queuePage * queuePageSize >= queueTotal"
-                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors text-2xs">
+                    class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 transition-colors text-2xs font-medium">
               {{ $t('common.next') }}
             </button>
           </div>
@@ -533,29 +533,29 @@
             <!-- Enabled Switch / Status Pill -->
             <div class="flex items-center space-x-2">
               <span class="px-2 py-0.5 rounded-full text-3xs font-semibold font-mono"
-                    :class="ch.enabled ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'">
+                    :class="ch.enabled ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-500 dark:border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-500 border border-slate-200 dark:border-slate-700'">
                 {{ ch.enabled ? $t('alarms.enabled') : $t('alarms.disabled') }}
               </span>
             </div>
           </div>
 
           <!-- Parameters Summary -->
-          <div class="grid grid-cols-2 gap-2 text-2xs font-sans bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800/60">
+          <div class="grid grid-cols-2 gap-2 text-2xs font-sans bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800/60">
             <div>
-              <span class="text-slate-400 block text-3xs">{{ $t('alarms.minSeverity') }}</span>
+              <span class="text-slate-500 dark:text-slate-400 block text-3xs">{{ $t('alarms.minSeverity') }}</span>
               <span class="font-bold font-mono" :class="getSeverityTextColor(ch.min_severity)">{{ ch.min_severity }}</span>
             </div>
             <div>
-              <span class="text-slate-400 block text-3xs">{{ $t('alarms.rateLimit') }}</span>
-              <span class="font-mono text-slate-700 dark:text-slate-300 font-semibold">{{ ch.rate_limit_per_min }}/min</span>
+              <span class="text-slate-500 dark:text-slate-400 block text-3xs">{{ $t('alarms.rateLimit') }}</span>
+              <span class="font-mono text-slate-800 dark:text-slate-300 font-semibold">{{ ch.rate_limit_per_min }}/min</span>
             </div>
             <div>
-              <span class="text-slate-400 block text-3xs">{{ $t('alarms.maxRetries') }} / {{ $t('alarms.retryInterval') }}</span>
-              <span class="font-mono text-slate-700 dark:text-slate-300">{{ ch.max_retries }} retries / {{ ch.retry_interval_sec }}s</span>
+              <span class="text-slate-500 dark:text-slate-400 block text-3xs">{{ $t('alarms.maxRetries') }} / {{ $t('alarms.retryInterval') }}</span>
+              <span class="font-mono text-slate-800 dark:text-slate-300 font-medium">{{ ch.max_retries }} retries / {{ ch.retry_interval_sec }}s</span>
             </div>
             <div>
-              <span class="text-slate-400 block text-3xs">{{ $t('alarms.quietHours') }}</span>
-              <span class="font-mono text-slate-700 dark:text-slate-300">
+              <span class="text-slate-500 dark:text-slate-400 block text-3xs">{{ $t('alarms.quietHours') }}</span>
+              <span class="font-mono text-slate-800 dark:text-slate-300 font-medium">
                 {{ ch.quiet_hours_start ? `${ch.quiet_hours_start} - ${ch.quiet_hours_end}` : 'None' }}
               </span>
             </div>
@@ -563,12 +563,12 @@
 
           <!-- Channel Actions -->
           <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <span class="text-3xs font-mono" :class="ch.is_configured ? 'text-emerald-500' : 'text-amber-500'">
+            <span class="text-3xs font-mono font-bold" :class="ch.is_configured ? 'text-emerald-700 dark:text-emerald-500' : 'text-amber-700 dark:text-amber-400'">
               {{ ch.is_configured ? `✓ ${$t('alarms.configured')}` : `⚠ ${$t('alarms.notConfigured')}` }}
             </span>
             <div class="flex items-center space-x-2">
               <button @click="openTestSendModal(ch)"
-                      class="px-2.5 py-1 text-2xs rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition-colors">
+                      class="px-2.5 py-1 text-2xs rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold transition-colors">
                 {{ $t('alarms.testSend') }}
               </button>
               <button @click="openEditChannelModal(ch)"
@@ -712,7 +712,7 @@
           </div>
           <div>
             <span class="text-3xs text-slate-400 block">{{ $t('alarms.duration') || 'Duration' }}</span>
-            <strong class="font-mono" :class="selectedIncident.is_ongoing ? 'text-amber-500' : 'text-slate-700 dark:text-slate-300'">
+            <strong class="font-mono" :class="selectedIncident.is_ongoing ? 'text-amber-700 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300'">
               {{ selectedIncident.duration_formatted || '-' }}
             </strong>
           </div>
@@ -759,7 +759,7 @@
                 <div class="text-2xs text-slate-700 dark:text-slate-300">
                   By: <strong>{{ selectedIncident.acknowledged_by_name || selectedIncident.acknowledged_by }}</strong>
                 </div>
-                <div v-if="selectedIncident.notes" class="text-2xs italic text-indigo-500 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg">
+                <div v-if="selectedIncident.notes" class="text-2xs italic text-indigo-700 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-900/20 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
                   "{{ selectedIncident.notes }}"
                 </div>
               </div>
@@ -780,7 +780,7 @@
                   Reason: {{ selectedIncident.recovery_reason }}
                 </div>
               </div>
-              <div v-else class="text-3xs text-amber-500 font-semibold flex items-center gap-1.5">
+              <div v-else class="text-3xs text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
                 Incident currently active and awaiting resolution
               </div>
@@ -842,8 +842,8 @@
           </div>
 
           <div v-if="selectedNotif.failure_reason">
-            <span class="text-rose-500 block text-3xs mb-1 font-semibold">{{ $t('alarms.failureReason') }}</span>
-            <pre class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 font-mono text-3xs text-rose-500 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.failure_reason }}</pre>
+            <span class="text-rose-600 dark:text-rose-400 block text-3xs mb-1 font-semibold">{{ $t('alarms.failureReason') }}</span>
+            <pre class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 font-mono text-3xs text-rose-700 dark:text-rose-400 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.failure_reason }}</pre>
           </div>
         </div>
 
@@ -1009,7 +1009,7 @@
           <!-- Diagnostic Test Result -->
           <div v-if="testResult"
                class="p-3 rounded-lg border text-2xs font-mono space-y-1"
-               :class="testResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' : 'bg-rose-500/10 border-rose-500/30 text-rose-500'">
+               :class="testResult.success ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400'">
             <div class="font-bold uppercase">{{ testResult.success ? $t('alarms.testSuccess') : $t('alarms.testFailed') }}</div>
             <div class="break-all">{{ testResult.response || testResult.error }}</div>
           </div>
@@ -1444,55 +1444,55 @@ export default {
     getSeverityBadgeClass(sev) {
       switch (sev) {
         case 'CRITICAL':
-          return 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20';
+          return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 font-bold';
         case 'WARNING':
-          return 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20';
+          return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-bold';
         default:
-          return 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20';
+          return 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 font-bold';
       }
     },
     getSeverityTextColor(sev) {
       switch (sev) {
         case 'CRITICAL':
-          return 'text-rose-500';
+          return 'text-rose-600 dark:text-rose-400 font-bold';
         case 'WARNING':
-          return 'text-amber-500';
+          return 'text-amber-700 dark:text-amber-400 font-bold';
         default:
-          return 'text-blue-500';
+          return 'text-blue-600 dark:text-blue-400 font-bold';
       }
     },
     getStatusBadgeClass(status) {
       switch (status) {
         case 'ACTIVE':
-          return 'bg-rose-500/10 text-rose-500 border border-rose-500/20';
+          return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 font-bold';
         case 'ACKNOWLEDGED':
-          return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
+          return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-bold';
         case 'CLEARED':
-          return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
+          return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-bold';
         case 'SENT':
-          return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
+          return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-bold';
         case 'SENDING':
-          return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
+          return 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 font-bold';
         case 'RETRYING':
-          return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
+          return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-bold';
         case 'FAILED':
-          return 'bg-rose-500/10 text-rose-500 border border-rose-500/20';
+          return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 font-bold';
         case 'CANCELLED':
-          return 'bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700';
+          return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700';
         default:
-          return 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20';
+          return 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 font-bold';
       }
     },
     getChannelBadgeClass(chType) {
       switch (chType) {
         case 'EMAIL':
-          return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
+          return 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 font-bold';
         case 'TELEGRAM':
-          return 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20';
+          return 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-500/20 font-bold';
         case 'WEBHOOK':
-          return 'bg-purple-500/10 text-purple-500 border border-purple-500/20';
+          return 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 font-bold';
         default:
-          return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
+          return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-bold';
       }
     },
     getChannelIconBg(chType) {
