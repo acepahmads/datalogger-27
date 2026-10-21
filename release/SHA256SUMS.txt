@@ -1,7 +1,7 @@
-﻿e3d638f4644ccc8c5d9f552515cee30b817f13c395d80a0745974d1f33443b15  datalogger-v1.0.0-phase9-windows-amd64.zip
-4b7f45493eb0115d34dbf71980bade7f7bb9fd39cded97a6adbc65b6e6cfcd29  datalogger-v1.0.0-phase9-linux-amd64.tar.gz
-00ebac7615172e71f0fe31807c4b1334fca0ec459475e6b486dd16799526ab13  datalogger-v1.0.0-phase9-linux-arm64.tar.gz
-1724a92a351abca95654b76a476b1d881cebe867b3f9eada2cb60dd113066e6f  datalogger-v1.0.0-phase9-linux-armv7.tar.gz
-5d79305dd80cadb4f1378bcd7719aea3decb4ff1f53321ffe500df887ac43bf3  datalogger-v1.0.0-phase9-linux-armv6.tar.gz
-8ab10b6834122016c0313aced640fe975a7a9e2cddc083da8c2cbed05b8c566c  datalogger-v1.0.0-phase9-darwin-amd64.tar.gz
-887df95ae2b7c3b9e0363af2bbfa0d8d0113e6a9e42229c12722683048ba00af  datalogger-v1.0.0-phase9-darwin-arm64.tar.gz
+﻿dabc55a2081753636299482b4959d81e4284e3f0081925d0c227edf69b99083f  datalogger-v1.0.0-phase9-windows-amd64.zip
+dc3f5cb5cc6ef86ae156446966d5d352db93621af1a4769c4aaab0702d1eface  datalogger-v1.0.0-phase9-linux-amd64.tar.gz
+e65624c6547b1135ceb6f4adc2f4bc2c6c6362c1f0e9d34b573b3fb79f22d33b  datalogger-v1.0.0-phase9-linux-arm64.tar.gz
+3a4515927f8ffd78d979cc72607a303c35d04789359f9e9dd73007cfa7e7c5a8  datalogger-v1.0.0-phase9-linux-armv7.tar.gz
+cf8af751e059715af452e06514ace24b70999a6b27cecba27e975334b94e8eab  datalogger-v1.0.0-phase9-linux-armv6.tar.gz
+9ef1b8cb43211d41a112fa79f3c7892c1d2c63dae43cf416fad488690eb74ae1  datalogger-v1.0.0-phase9-darwin-amd64.tar.gz
+3ab3e47e4757315bb0aee76866bbe474ef08797ccee8346b5e4ce8364f30ef17  datalogger-v1.0.0-phase9-darwin-arm64.tar.gz

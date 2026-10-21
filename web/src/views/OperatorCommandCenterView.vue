@@ -7257,19 +7257,23 @@ export default {
       }
       try {
         const now = new Date();
-        let startTime = new Date(now.getTime() - 24 * 3600 * 1000);
-        let endTime = now;
+        const pollInterval = this.configuredPollingIntervalMs || 5000;
+        const nowMs = now.getTime();
+        const alignedEndMs = Math.floor(nowMs / pollInterval) * pollInterval;
+        const span = this.getTimeframeSpan(this.currentTimeframe);
+        let startTime = new Date(alignedEndMs - 24 * 3600 * 1000);
+        let endTime = new Date(alignedEndMs);
 
         if (this.fullscreenIsCustom && this.fullscreenCustomStart && this.fullscreenCustomEnd) {
           startTime = new Date(this.fullscreenCustomStart);
           endTime = new Date(this.fullscreenCustomEnd);
         } else {
-          if (this.currentTimeframe === '1m') startTime = new Date(now.getTime() - 60 * 1000);
-          else if (this.currentTimeframe === '5m') startTime = new Date(now.getTime() - 5 * 60 * 1000);
-          else if (this.currentTimeframe === '15m') startTime = new Date(now.getTime() - 15 * 60 * 1000);
-          else if (this.currentTimeframe === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
-          else if (this.currentTimeframe === '6h') startTime = new Date(now.getTime() - 6 * 3600 * 1000);
-          else if (this.currentTimeframe === '24h') startTime = new Date(now.getTime() - 24 * 3600 * 1000);
+          if (this.currentTimeframe === '1m') startTime = new Date(alignedEndMs - 60 * 1000);
+          else if (this.currentTimeframe === '5m') startTime = new Date(alignedEndMs - 5 * 60 * 1000);
+          else if (this.currentTimeframe === '15m') startTime = new Date(alignedEndMs - 15 * 60 * 1000);
+          else if (this.currentTimeframe === '1h') startTime = new Date(alignedEndMs - 3600 * 1000);
+          else if (this.currentTimeframe === '6h') startTime = new Date(alignedEndMs - 6 * 3600 * 1000);
+          else if (this.currentTimeframe === '24h') startTime = new Date(alignedEndMs - 24 * 3600 * 1000);
         }
 
         this.trendTimeBounds = {
@@ -7425,17 +7429,27 @@ export default {
       if (this.scrubPoint || this.fullscreenScrubPoint) return;
 
       const now = Date.now();
+      const pollInterval = this.configuredPollingIntervalMs || 5000;
       const span = this.getTimeframeSpan(this.currentTimeframe);
-      let threshold = 2000;
-      if (span <= 5 * 60 * 1000) threshold = 1000;
-      else if (span >= 6 * 3600 * 1000) threshold = 5000;
+
+      // Trend analysis update cadence strictly matches the sensor polling interval (5 seconds according to setup)
+      let threshold = Math.max(pollInterval, 5000);
+      if (span >= 6 * 3600 * 1000) {
+        threshold = Math.max(pollInterval * 3, 15000);
+      } else if (span >= 3600 * 1000) {
+        threshold = Math.max(pollInterval * 2, 10000);
+      }
 
       if (!this._lastTrendAdvance || (now - this._lastTrendAdvance >= threshold)) {
         this._lastTrendAdvance = now;
-        this.trendTimeBounds = {
-          start: now - span,
-          end: now,
-        };
+        // Align trend window boundaries strictly to 5-second sensor polling intervals (:00, :05, :10, :15...)
+        const alignedEnd = Math.floor(now / pollInterval) * pollInterval;
+        if (alignedEnd !== this.trendTimeBounds.end) {
+          this.trendTimeBounds = {
+            start: alignedEnd - span,
+            end: alignedEnd,
+          };
+        }
       }
     },
     recordTrendPoint(data) {
@@ -7520,7 +7534,9 @@ export default {
 
       // Invalidate memoization cache key so latest right-edge point renders immediately
       series._cachedPathKey = null;
-      this._cachedAreaKey = null;
+      if (this.activeTrendSeries.length > 0 && this.activeTrendSeries[0].id === series.id) {
+        this._cachedAreaKey = null;
+      }
     },
     buildSplinePath(coords, smooth) {
       if (!coords || coords.length === 0) return '';
@@ -7693,7 +7709,8 @@ export default {
       const isStandard = bounds === null && width === null && height === null;
       const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
       const lastPt = pts.length > 0 ? pts[pts.length - 1] : null;
-      const cacheKey = isStandard ? `${series.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / 1000)}_${Math.floor(timeEnd / 1000)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
+      const pollStep = this.configuredPollingIntervalMs || 5000;
+      const cacheKey = isStandard ? `${series.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / pollStep)}_${Math.floor(timeEnd / pollStep)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
       if (isStandard && series._cachedPathKey === cacheKey && series._cachedPath) {
         return series._cachedPath;
       }
@@ -7789,7 +7806,8 @@ export default {
       const isStandard = bounds === null && width === null && height === null;
       const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
       const lastPt = pts.length > 0 ? pts[pts.length - 1] : null;
-      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / 1000)}_${Math.floor(timeEnd / 1000)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
+      const pollStep = this.configuredPollingIntervalMs || 5000;
+      const cacheKey = isStandard ? `${primary.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / pollStep)}_${Math.floor(timeEnd / pollStep)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
       if (isStandard && this._cachedAreaKey === cacheKey && this._cachedAreaPath) {
         return this._cachedAreaPath;
       }
