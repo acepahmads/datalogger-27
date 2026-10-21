@@ -53,10 +53,12 @@
           </div>
         </div>
 
-        <!-- Area 2 (Center): Dead-Centered Digital Clock -->
+        <!-- Area 2 (Center): Dead-Centered Digital Clock & Calendar -->
         <div v-if="currentTime" class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 pointer-events-auto">
-          <div class="h-7 flex items-center space-x-1.5 px-3 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-[10px] tabular-nums font-mono leading-none shadow-xs">
+          <div class="h-7 flex items-center space-x-1.5 px-3 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 font-bold text-[10px] tabular-nums font-mono leading-none shadow-xs whitespace-nowrap">
             <span class="text-slate-400 dark:text-slate-500 text-3xs">🕒</span>
+            <span v-if="currentDayDate" class="text-slate-600 dark:text-slate-300 font-medium">{{ currentDayDate }}</span>
+            <span v-if="currentDayDate" class="text-cyan-500/70 font-black">·</span>
             <span>{{ currentTime }}</span>
           </div>
         </div>
@@ -103,10 +105,487 @@
 
       <!-- 2. Row 2 — Status and Setup Toolbar -->
       <div class="flex items-center justify-between gap-2 leading-none w-full">
-        <!-- Kelompok Kiri — Status Icons (Device & Comm, Alarms, Telemetry, System) -->
-        <div class="flex items-center space-x-1.5 min-w-0">
+        <!-- Left: Workspace Settings Icons + Fullscreen Control -->
+        <div class="flex items-center space-x-1.5 min-w-0" ref="toolbarContainer">
           <div class="flex items-center space-x-1 flex-shrink-0">
-            <!-- 1. Device & Comm Status Popover -->
+            <!-- View & Filter Options Popover (Unified: Display Mode, Grid Density, Favorites, Categories) -->
+          <div class="relative toolbar-popover-anchor">
+            <button
+              type="button"
+              id="btn-toolbar-view-options"
+              @click.stop="toggleToolbarPopover('viewOptions')"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
+              :class="[
+                activeToolbarPopover === 'viewOptions'
+                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                  : filterPinnedOnly
+                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/50'
+                    : selectedCategoryFilter !== 'all'
+                      ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/50'
+                      : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white',
+                (filterPinnedOnly || selectedCategoryFilter !== 'all') ? 'ring-1 ring-cyan-500/40' : ''
+              ]"
+              :title="$t('operator.toolbarViewOptionsTooltip') || 'View & Filter Options (Display, Layout, Favorites, Categories)'"
+              aria-label="View & Filter Options"
+              :aria-expanded="activeToolbarPopover === 'viewOptions'"
+            >
+              <OperatorDashboardIcon name="sliders" :size="16" />
+              <!-- Badge: Pinned Filter Active (Star) -->
+              <span
+                v-if="filterPinnedOnly"
+                class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-bold font-mono flex items-center justify-center bg-amber-500 text-slate-950 ring-1 ring-white dark:ring-[#0B1422]"
+                title="Pinned filter active"
+              >
+                ★
+              </span>
+              <!-- Badge: Category Filter Active (Cyan Dot) -->
+              <span
+                v-else-if="selectedCategoryFilter !== 'all'"
+                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 ring-1 ring-white dark:ring-[#0B1422]"
+                title="Category filter active"
+              ></span>
+              <!-- Default Badge: Layout Density (e.g. 4P or TBL) -->
+              <span
+                v-else
+                class="absolute -top-1.5 -right-1.5 text-[8px] font-bold font-mono px-1 py-0.2 rounded-full bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] ring-1 ring-white dark:ring-[#0B1422] leading-none pointer-events-none"
+              >
+                {{ viewMode === 'table' ? 'TBL' : gridColumns + 'P' }}
+              </span>
+            </button>
+
+            <!-- Unified Popover Panel -->
+            <div
+              v-if="activeToolbarPopover === 'viewOptions'"
+              class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
+              @click.stop
+            >
+              <!-- Panel Header -->
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+                <div class="flex items-center space-x-1.5">
+                  <OperatorDashboardIcon name="sliders" :size="15" class="text-cyan-500" />
+                  <span class="text-xs font-bold uppercase tracking-wider font-mono block leading-tight">
+                    {{ $t('operator.viewAndFilterOptions') || 'View & Filter Options' }}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  @click="closeToolbarPopover"
+                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                  title="Close"
+                >
+                  <OperatorDashboardIcon name="close" :size="14" />
+                </button>
+              </div>
+
+              <!-- Body with tidy sections -->
+              <div class="max-h-[calc(85vh-100px)] overflow-y-auto custom-scroller pr-0.5 space-y-2.5">
+                <!-- 1. Display Mode Section -->
+                <div>
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>{{ $t('operator.displayMode') || 'Display Mode' }}</span>
+                    <span class="text-[9px] text-cyan-500 font-semibold">{{ viewMode === 'cards' ? 'Cards' : 'Table' }}</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-1.5 font-mono">
+                    <button
+                      type="button"
+                      @click="viewMode = 'cards'"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
+                      :class="viewMode === 'cards'
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <OperatorDashboardIcon name="layout" :size="14" class="text-cyan-500 flex-shrink-0" />
+                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewCards') || 'Cards View' }}</span>
+                      <span v-if="viewMode === 'cards'" class="text-cyan-500 font-bold text-xs">✓</span>
+                    </button>
+                    <button
+                      type="button"
+                      @click="viewMode = 'table'"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
+                      :class="viewMode === 'table'
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <OperatorDashboardIcon name="menu" :size="14" class="text-cyan-500 flex-shrink-0" />
+                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewTable') || 'Table View' }}</span>
+                      <span v-if="viewMode === 'table'" class="text-cyan-500 font-bold text-xs">✓</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 2. Panel Layout Density (1P - 4P Columns) -->
+                <div>
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>{{ $t('operator.panelLayout') || 'Panel Layout' }}</span>
+                    <span class="text-[9px] font-semibold" :class="viewMode === 'table' ? 'text-slate-400 italic' : 'text-cyan-500'">
+                      {{ viewMode === 'table' ? '(N/A in Table)' : gridColumns + 'P Columns' }}
+                    </span>
+                  </div>
+                  <div
+                    class="grid grid-cols-4 gap-1 font-mono transition-opacity"
+                    :class="viewMode === 'table' ? 'opacity-40 pointer-events-none' : ''"
+                  >
+                    <button
+                      type="button"
+                      v-for="cnt in [1, 2, 3, 4]"
+                      :key="'occ-panel-btn-' + cnt"
+                      :id="'btn-toolbar-panel-' + cnt"
+                      @click="setGridColumns(cnt)"
+                      class="p-1.5 rounded border text-center transition flex flex-col items-center justify-center"
+                      :class="gridColumns === cnt
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
+                      :title="cnt + (cnt === 1 ? ' Column Grid (1P)' : ' Columns Grid (' + cnt + 'P)')"
+                    >
+                      <span class="text-xs font-black">{{ cnt }}P</span>
+                      <span class="text-[8px] opacity-75">{{ cnt === 1 ? '1 Col' : cnt + ' Cols' }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 3. Pinned Favorites Section -->
+                <div class="p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] font-mono">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-1.5">
+                      <span class="text-amber-400 text-xs">⭐</span>
+                      <div>
+                        <div class="text-[10px] font-bold text-slate-900 dark:text-white leading-tight">
+                          {{ $t('operator.pinnedOnly') || 'Pinned Only' }}
+                        </div>
+                        <div class="text-[8.5px] text-slate-500 dark:text-slate-400">
+                          Filter SCADA cards to favorites
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="toggleFilterPinned"
+                      class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="filterPinnedOnly ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="filterPinnedOnly"
+                    >
+                      <span
+                        aria-hidden="true"
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                        :class="filterPinnedOnly ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+
+                  <!-- Pinned items list if any -->
+                  <div v-if="pinnedParametersList.length > 0" class="mt-2 pt-2 border-t border-slate-200/70 dark:border-[#1E3048]">
+                    <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mb-1">
+                      <span>Favorites ({{ pinnedParametersList.length }})</span>
+                      <button
+                        type="button"
+                        @click="clearAllPinned"
+                        class="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:underline"
+                      >
+                        {{ $t('operator.clearAllPinned') || 'Clear All' }}
+                      </button>
+                    </div>
+                    <div class="max-h-28 overflow-y-auto custom-scroller space-y-1">
+                      <div
+                        v-for="param in pinnedParametersList"
+                        :key="'pinned-item-' + param.param_id"
+                        class="flex items-center justify-between p-1 rounded bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B]"
+                      >
+                        <div class="min-w-0 flex-1 pr-1.5">
+                          <div class="font-bold text-slate-800 dark:text-slate-200 truncate text-[9.5px]">
+                            {{ param.param_name || param.param_code }}
+                          </div>
+                          <div class="text-[8px] text-slate-500 dark:text-slate-400 flex items-center space-x-1 truncate">
+                            <span>{{ param.device_code }}</span>
+                            <span v-if="param.unit">· {{ param.unit }}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          @click.stop="togglePin(param.param_id)"
+                          class="p-0.5 rounded text-amber-400 hover:text-rose-500 transition hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0"
+                          title="Unpin parameter"
+                        >
+                          <OperatorDashboardIcon name="pin" :size="13" class="text-amber-400" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 4. Parameter Categories Section -->
+                <div>
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+                    <div class="flex items-center space-x-1.5">
+                      <OperatorDashboardIcon name="filter" :size="12" class="text-cyan-500" />
+                      <span>{{ $t('operator.categories') || 'Parameter Categories' }}</span>
+                    </div>
+                    <span v-if="selectedCategoryFilter !== 'all'" class="text-[9px] text-cyan-500 font-semibold">Filtered</span>
+                  </div>
+
+                  <!-- Categories List -->
+                  <div class="max-h-48 overflow-y-auto custom-scroller space-y-1 font-mono text-[10.5px]">
+                    <!-- All Categories -->
+                    <button
+                      type="button"
+                      @click="selectedCategoryFilter = 'all'"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      :class="selectedCategoryFilter === 'all'
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs font-bold'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <OperatorDashboardIcon name="menu" :size="12" class="text-cyan-500 flex-shrink-0" />
+                        <span class="truncate">{{ $t('operator.allCategories') || 'All Categories' }}</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {{ allParameters.length }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === 'all'" class="text-cyan-500 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+
+                    <!-- Dynamic Category Tabs -->
+                    <button
+                      type="button"
+                      v-for="cat in activeCategoriesList"
+                      :key="cat.id"
+                      @click="selectedCategoryFilter = cat.id"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      :class="selectedCategoryFilter === cat.id
+                        ? getCategoryTheme(cat.color_key).activeTab + ' font-bold'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(cat.color_key).dot"></span>
+                        <span class="truncate">{{ cat.name }}</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span
+                          class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
+                          :class="selectedCategoryFilter === cat.id ? getCategoryTheme(cat.color_key).pill : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
+                        >
+                          {{ getCategoryParamCount(cat.id) }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === cat.id" class="text-cyan-500 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+
+                    <!-- Uncategorized -->
+                    <button
+                      type="button"
+                      v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
+                      @click="selectedCategoryFilter = 'uncategorized'"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      :class="selectedCategoryFilter === 'uncategorized'
+                        ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs font-bold'
+                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-800 dark:hover:text-slate-200'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <span>📦</span>
+                        <span class="truncate">{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {{ uncategorizedParamCount }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === 'uncategorized'" class="text-slate-300 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  <!-- Footer: Category Management Modal Trigger -->
+                  <div v-if="canManageCategories || canViewCategories" class="pt-2 mt-2 border-t border-slate-100 dark:border-[#1E3048]">
+                    <button
+                      type="button"
+                      @click="openCategoryManagementModal(); closeToolbarPopover()"
+                      class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                    >
+                      <span>🏷️</span>
+                      <span>{{ $t('operator.manageCategories') || 'Configure Categories & Layout' }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- F. ISPU Settings Popover -->
+          <div class="relative toolbar-popover-anchor">
+            <button
+              type="button"
+              @click.stop="toggleToolbarPopover('ispuSettings')"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
+              :class="[
+                activeToolbarPopover === 'ispuSettings'
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500 shadow-xs'
+                  : isAQMSDomain && isIspuBarVisible
+                    ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/40'
+                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
+              ]"
+              :title="$t('operator.toolbarIspuSettingsTooltip') || 'ISPU Settings & Status'"
+              aria-label="ISPU Settings"
+              :aria-expanded="activeToolbarPopover === 'ispuSettings'"
+            >
+              <OperatorDashboardIcon name="ispu" :size="16" />
+              <span
+                v-if="isAQMSDomain && isIspuBarVisible"
+                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-white dark:ring-[#0B1422]"
+              ></span>
+            </button>
+
+            <!-- ISPU Settings Popover Panel -->
+            <div
+              v-if="activeToolbarPopover === 'ispuSettings'"
+              class="absolute left-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
+              @click.stop
+            >
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+                <div class="flex items-center space-x-1.5">
+                  <OperatorDashboardIcon name="ispu" :size="15" class="text-emerald-500" />
+                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
+                    {{ $t('operator.ispuSettings') || 'ISPU Settings' }}
+                  </span>
+                  <span v-if="isAQMSDomain" class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    AQMS
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  @click="closeToolbarPopover"
+                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                  title="Close"
+                >
+                  <OperatorDashboardIcon name="close" :size="14" />
+                </button>
+              </div>
+
+              <!-- Toggle Show/Hide ISPU Panel Row -->
+              <div class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2 font-mono">
+                <div>
+                  <div class="text-[10.5px] font-bold text-slate-900 dark:text-white">
+                    {{ $t('operator.showIspuBar') || 'Show ISPU Indicator Bar' }}
+                  </div>
+                  <div class="text-[9px] text-slate-500 dark:text-slate-400">
+                    {{ $t('operator.showIspuBarDesc') || 'Display air quality index bar below parameters' }}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  @click="toggleIspuBarVisibility"
+                  class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                  :class="isIspuBarVisible ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                  role="switch"
+                  :aria-checked="isIspuBarVisible"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="isIspuBarVisible ? 'translate-x-4' : 'translate-x-0'"
+                  ></span>
+                </button>
+              </div>
+
+              <!-- Standard Info Card -->
+              <div class="p-2 rounded bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2 text-[9.5px] font-mono space-y-1">
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span class="text-slate-500 dark:text-slate-400">Standard:</span>
+                  <span class="font-bold text-cyan-600 dark:text-cyan-400">Permen LHK No. 14 / 2020</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span class="text-slate-500 dark:text-slate-400">Interval:</span>
+                  <span>24-Hour Rolling Average</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span class="text-slate-500 dark:text-slate-400">Parameters:</span>
+                  <span>PM2.5, PM10, SO2, NO2, O3, CO</span>
+                </div>
+              </div>
+
+              <!-- Navigation to Dedicated ISPU Analysis -->
+              <button
+                type="button"
+                @click="navigateToRoute('/monitoring/ispu')"
+                class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>{{ $t('operator.openIspuAnalysis') || 'Open ISPU Analysis & Reports →' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Thin Vertical Divider before Fullscreen & Layout Controls -->
+          <div class="h-4 w-px bg-slate-200 dark:bg-[#1E3048] mx-0.5 flex-shrink-0"></div>
+
+          <!-- Sidebar Auto-Hide Setup Toggle Button -->
+          <button
+            type="button"
+            id="btn-operator-sidebar-autohide"
+            @click.stop="toggleSidebarAutoHide"
+            class="w-8 h-8 flex items-center justify-center rounded transition border cursor-pointer"
+            :class="sidebarAutoHide
+              ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-xs'
+              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'"
+            :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
+            aria-label="Toggle Sidebar Auto-Hide"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18" />
+              <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
+              <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+
+          <!-- Fullscreen / Sidebar & Top Panel Layout Toggle (Icon Only) -->
+          <button
+            type="button"
+            @click="$emit('toggle-sidebar')"
+            class="w-8 h-8 flex items-center justify-center rounded transition border text-cyan-600 dark:text-cyan-400"
+            :class="isSidebarCollapsed
+              ? 'bg-cyan-600/15 hover:bg-cyan-600/25 border-cyan-500/50 shadow-xs'
+              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] border-slate-200 dark:border-[#20354B]'"
+            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
+            :aria-label="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
+            </svg>
+          </button>
+          </div>
+
+          <!-- Active Filter Dismissible Badges (Minimalist) -->
+          <div v-if="selectedCategoryFilter !== 'all' || filterPinnedOnly" class="flex items-center space-x-1 ml-1 pl-1.5 border-l border-slate-200/70 dark:border-[#1E3048]">
+            <button
+              type="button"
+              v-if="selectedCategoryFilter !== 'all'"
+              @click="selectedCategoryFilter = 'all'"
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25 transition leading-none"
+              title="Clear category filter"
+            >
+              <span>🏷️</span>
+              <span class="max-w-[120px] truncate">{{ selectedCategoryTitle }}</span>
+              <span class="text-xs font-bold leading-none ml-0.5">×</span>
+            </button>
+            <button
+              type="button"
+              v-if="filterPinnedOnly"
+              @click="toggleFilterPinned"
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500/25 transition leading-none"
+              title="Clear pinned-only filter"
+            >
+              <span>⭐</span>
+              <span>{{ $t('operator.pinnedOnly') || 'Pinned' }}</span>
+              <span class="text-xs font-bold leading-none ml-0.5">×</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Status Icons (Device & Comm, Alarms, Telemetry, System, Network, Location) -->
+        <div class="flex items-center space-x-1 flex-shrink-0">
+          <!-- 1. Device & Comm Status Popover -->
             <div class="relative toolbar-popover-anchor">
               <button
                 type="button"
@@ -131,7 +610,7 @@
               <!-- Device & Comm Status Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'deviceStatus'"
-                class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
+                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
                 @click.stop
               >
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
@@ -268,7 +747,7 @@
               <!-- Active Alarms Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'activeAlarms'"
-                class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
+                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
                 @click.stop
               >
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
@@ -414,7 +893,7 @@
               <!-- Latest Telemetry Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'latestTelemetry'"
-                class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
+                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
                 @click.stop
               >
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
@@ -533,7 +1012,7 @@
               <!-- System Monitor Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'systemMonitor'"
-                class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
+                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
                 @click.stop
               >
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
@@ -664,7 +1143,7 @@
               <!-- Network Monitor Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'networkMonitor'"
-                class="absolute left-0 top-full mt-1.5 z-50 w-96 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-xs max-h-[85vh] overflow-y-auto"
+                class="absolute right-0 top-full mt-1.5 z-50 w-96 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-xs max-h-[85vh] overflow-y-auto"
                 @click.stop
               >
                 <!-- Popover Header -->
@@ -912,7 +1391,7 @@
               <!-- Station Location Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'stationLocation'"
-                class="absolute left-0 top-full mt-1.5 z-50 w-[420px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-xs max-h-[88vh] overflow-y-auto"
+                class="absolute right-0 top-full mt-1.5 z-50 w-[420px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono text-xs max-h-[88vh] overflow-y-auto"
                 @click.stop
               >
                 <!-- Popover Header -->
@@ -1254,483 +1733,6 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- Active Filter Dismissible Badges (Minimalist) -->
-          <div v-if="selectedCategoryFilter !== 'all' || filterPinnedOnly" class="flex items-center space-x-1 ml-1 pl-1.5 border-l border-slate-200/70 dark:border-[#1E3048]">
-            <button
-              type="button"
-              v-if="selectedCategoryFilter !== 'all'"
-              @click="selectedCategoryFilter = 'all'"
-              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25 transition leading-none"
-              title="Clear category filter"
-            >
-              <span>🏷️</span>
-              <span class="max-w-[120px] truncate">{{ selectedCategoryTitle }}</span>
-              <span class="text-xs font-bold leading-none ml-0.5">×</span>
-            </button>
-            <button
-              type="button"
-              v-if="filterPinnedOnly"
-              @click="toggleFilterPinned"
-              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:bg-amber-500/25 transition leading-none"
-              title="Clear pinned-only filter"
-            >
-              <span>⭐</span>
-              <span>{{ $t('operator.pinnedOnly') || 'Pinned' }}</span>
-              <span class="text-xs font-bold leading-none ml-0.5">×</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Right: Workspace Settings Icons + Fullscreen Control -->
-        <div class="flex items-center space-x-1.5 flex-shrink-0" ref="toolbarContainer">
-          <!-- View & Filter Options Popover (Unified: Display Mode, Grid Density, Favorites, Categories) -->
-          <div class="relative toolbar-popover-anchor">
-            <button
-              type="button"
-              id="btn-toolbar-view-options"
-              @click.stop="toggleToolbarPopover('viewOptions')"
-              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
-              :class="[
-                activeToolbarPopover === 'viewOptions'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                  : filterPinnedOnly
-                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/50'
-                    : selectedCategoryFilter !== 'all'
-                      ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/50'
-                      : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white',
-                (filterPinnedOnly || selectedCategoryFilter !== 'all') ? 'ring-1 ring-cyan-500/40' : ''
-              ]"
-              :title="$t('operator.toolbarViewOptionsTooltip') || 'View & Filter Options (Display, Layout, Favorites, Categories)'"
-              aria-label="View & Filter Options"
-              :aria-expanded="activeToolbarPopover === 'viewOptions'"
-            >
-              <OperatorDashboardIcon name="sliders" :size="16" />
-              <!-- Badge: Pinned Filter Active (Star) -->
-              <span
-                v-if="filterPinnedOnly"
-                class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-bold font-mono flex items-center justify-center bg-amber-500 text-slate-950 ring-1 ring-white dark:ring-[#0B1422]"
-                title="Pinned filter active"
-              >
-                ★
-              </span>
-              <!-- Badge: Category Filter Active (Cyan Dot) -->
-              <span
-                v-else-if="selectedCategoryFilter !== 'all'"
-                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 ring-1 ring-white dark:ring-[#0B1422]"
-                title="Category filter active"
-              ></span>
-              <!-- Default Badge: Layout Density (e.g. 4P or TBL) -->
-              <span
-                v-else
-                class="absolute -top-1.5 -right-1.5 text-[8px] font-bold font-mono px-1 py-0.2 rounded-full bg-slate-200 dark:bg-[#1E3048] text-cyan-700 dark:text-cyan-300 border border-slate-300 dark:border-[#20354B] ring-1 ring-white dark:ring-[#0B1422] leading-none pointer-events-none"
-              >
-                {{ viewMode === 'table' ? 'TBL' : gridColumns + 'P' }}
-              </span>
-            </button>
-
-            <!-- Unified Popover Panel -->
-            <div
-              v-if="activeToolbarPopover === 'viewOptions'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
-              @click.stop
-            >
-              <!-- Panel Header -->
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <OperatorDashboardIcon name="sliders" :size="15" class="text-cyan-500" />
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono block leading-tight">
-                    {{ $t('operator.viewAndFilterOptions') || 'View & Filter Options' }}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                  title="Close"
-                >
-                  <OperatorDashboardIcon name="close" :size="14" />
-                </button>
-              </div>
-
-              <!-- Body with tidy sections -->
-              <div class="max-h-[calc(85vh-100px)] overflow-y-auto custom-scroller pr-0.5 space-y-2.5">
-                <!-- 1. Display Mode Section -->
-                <div>
-                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-                    <span>{{ $t('operator.displayMode') || 'Display Mode' }}</span>
-                    <span class="text-[9px] text-cyan-500 font-semibold">{{ viewMode === 'cards' ? 'Cards' : 'Table' }}</span>
-                  </div>
-                  <div class="grid grid-cols-2 gap-1.5 font-mono">
-                    <button
-                      type="button"
-                      @click="viewMode = 'cards'"
-                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
-                      :class="viewMode === 'cards'
-                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
-                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                    >
-                      <OperatorDashboardIcon name="layout" :size="14" class="text-cyan-500 flex-shrink-0" />
-                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewCards') || 'Cards View' }}</span>
-                      <span v-if="viewMode === 'cards'" class="text-cyan-500 font-bold text-xs">✓</span>
-                    </button>
-                    <button
-                      type="button"
-                      @click="viewMode = 'table'"
-                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
-                      :class="viewMode === 'table'
-                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
-                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-                    >
-                      <OperatorDashboardIcon name="menu" :size="14" class="text-cyan-500 flex-shrink-0" />
-                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewTable') || 'Table View' }}</span>
-                      <span v-if="viewMode === 'table'" class="text-cyan-500 font-bold text-xs">✓</span>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 2. Panel Layout Density (1P - 4P Columns) -->
-                <div>
-                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-                    <span>{{ $t('operator.panelLayout') || 'Panel Layout' }}</span>
-                    <span class="text-[9px] font-semibold" :class="viewMode === 'table' ? 'text-slate-400 italic' : 'text-cyan-500'">
-                      {{ viewMode === 'table' ? '(N/A in Table)' : gridColumns + 'P Columns' }}
-                    </span>
-                  </div>
-                  <div
-                    class="grid grid-cols-4 gap-1 font-mono transition-opacity"
-                    :class="viewMode === 'table' ? 'opacity-40 pointer-events-none' : ''"
-                  >
-                    <button
-                      type="button"
-                      v-for="cnt in [1, 2, 3, 4]"
-                      :key="'occ-panel-btn-' + cnt"
-                      :id="'btn-toolbar-panel-' + cnt"
-                      @click="setGridColumns(cnt)"
-                      class="p-1.5 rounded border text-center transition flex flex-col items-center justify-center"
-                      :class="gridColumns === cnt
-                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/60 shadow-xs font-bold'
-                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'"
-                      :title="cnt + (cnt === 1 ? ' Column Grid (1P)' : ' Columns Grid (' + cnt + 'P)')"
-                    >
-                      <span class="text-xs font-black">{{ cnt }}P</span>
-                      <span class="text-[8px] opacity-75">{{ cnt === 1 ? '1 Col' : cnt + ' Cols' }}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 3. Pinned Favorites Section -->
-                <div class="p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] font-mono">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-1.5">
-                      <span class="text-amber-400 text-xs">⭐</span>
-                      <div>
-                        <div class="text-[10px] font-bold text-slate-900 dark:text-white leading-tight">
-                          {{ $t('operator.pinnedOnly') || 'Pinned Only' }}
-                        </div>
-                        <div class="text-[8.5px] text-slate-500 dark:text-slate-400">
-                          Filter SCADA cards to favorites
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      @click="toggleFilterPinned"
-                      class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="filterPinnedOnly ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="filterPinnedOnly"
-                    >
-                      <span
-                        aria-hidden="true"
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                        :class="filterPinnedOnly ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
-                  </div>
-
-                  <!-- Pinned items list if any -->
-                  <div v-if="pinnedParametersList.length > 0" class="mt-2 pt-2 border-t border-slate-200/70 dark:border-[#1E3048]">
-                    <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mb-1">
-                      <span>Favorites ({{ pinnedParametersList.length }})</span>
-                      <button
-                        type="button"
-                        @click="clearAllPinned"
-                        class="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:underline"
-                      >
-                        {{ $t('operator.clearAllPinned') || 'Clear All' }}
-                      </button>
-                    </div>
-                    <div class="max-h-28 overflow-y-auto custom-scroller space-y-1">
-                      <div
-                        v-for="param in pinnedParametersList"
-                        :key="'pinned-item-' + param.param_id"
-                        class="flex items-center justify-between p-1 rounded bg-white dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B]"
-                      >
-                        <div class="min-w-0 flex-1 pr-1.5">
-                          <div class="font-bold text-slate-800 dark:text-slate-200 truncate text-[9.5px]">
-                            {{ param.param_name || param.param_code }}
-                          </div>
-                          <div class="text-[8px] text-slate-500 dark:text-slate-400 flex items-center space-x-1 truncate">
-                            <span>{{ param.device_code }}</span>
-                            <span v-if="param.unit">· {{ param.unit }}</span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          @click.stop="togglePin(param.param_id)"
-                          class="p-0.5 rounded text-amber-400 hover:text-rose-500 transition hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0"
-                          title="Unpin parameter"
-                        >
-                          <OperatorDashboardIcon name="pin" :size="13" class="text-amber-400" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 4. Parameter Categories Section -->
-                <div>
-                  <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-                    <div class="flex items-center space-x-1.5">
-                      <OperatorDashboardIcon name="filter" :size="12" class="text-cyan-500" />
-                      <span>{{ $t('operator.categories') || 'Parameter Categories' }}</span>
-                    </div>
-                    <span v-if="selectedCategoryFilter !== 'all'" class="text-[9px] text-cyan-500 font-semibold">Filtered</span>
-                  </div>
-
-                  <!-- Categories List -->
-                  <div class="max-h-48 overflow-y-auto custom-scroller space-y-1 font-mono text-[10.5px]">
-                    <!-- All Categories -->
-                    <button
-                      type="button"
-                      @click="selectedCategoryFilter = 'all'"
-                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
-                      :class="selectedCategoryFilter === 'all'
-                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs font-bold'
-                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
-                    >
-                      <div class="flex items-center space-x-2 truncate">
-                        <OperatorDashboardIcon name="menu" :size="12" class="text-cyan-500 flex-shrink-0" />
-                        <span class="truncate">{{ $t('operator.allCategories') || 'All Categories' }}</span>
-                      </div>
-                      <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          {{ allParameters.length }}
-                        </span>
-                        <span v-if="selectedCategoryFilter === 'all'" class="text-cyan-500 font-bold text-xs">✓</span>
-                      </div>
-                    </button>
-
-                    <!-- Dynamic Category Tabs -->
-                    <button
-                      type="button"
-                      v-for="cat in activeCategoriesList"
-                      :key="cat.id"
-                      @click="selectedCategoryFilter = cat.id"
-                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
-                      :class="selectedCategoryFilter === cat.id
-                        ? getCategoryTheme(cat.color_key).activeTab + ' font-bold'
-                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
-                    >
-                      <div class="flex items-center space-x-2 truncate">
-                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getCategoryTheme(cat.color_key).dot"></span>
-                        <span class="truncate">{{ cat.name }}</span>
-                      </div>
-                      <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        <span
-                          class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
-                          :class="selectedCategoryFilter === cat.id ? getCategoryTheme(cat.color_key).pill : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
-                        >
-                          {{ getCategoryParamCount(cat.id) }}
-                        </span>
-                        <span v-if="selectedCategoryFilter === cat.id" class="text-cyan-500 font-bold text-xs">✓</span>
-                      </div>
-                    </button>
-
-                    <!-- Uncategorized -->
-                    <button
-                      type="button"
-                      v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
-                      @click="selectedCategoryFilter = 'uncategorized'"
-                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
-                      :class="selectedCategoryFilter === 'uncategorized'
-                        ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs font-bold'
-                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-800 dark:hover:text-slate-200'"
-                    >
-                      <div class="flex items-center space-x-2 truncate">
-                        <span>📦</span>
-                        <span class="truncate">{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
-                      </div>
-                      <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                          {{ uncategorizedParamCount }}
-                        </span>
-                        <span v-if="selectedCategoryFilter === 'uncategorized'" class="text-slate-300 font-bold text-xs">✓</span>
-                      </div>
-                    </button>
-                  </div>
-
-                  <!-- Footer: Category Management Modal Trigger -->
-                  <div v-if="canManageCategories || canViewCategories" class="pt-2 mt-2 border-t border-slate-100 dark:border-[#1E3048]">
-                    <button
-                      type="button"
-                      @click="openCategoryManagementModal(); closeToolbarPopover()"
-                      class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
-                    >
-                      <span>🏷️</span>
-                      <span>{{ $t('operator.manageCategories') || 'Configure Categories & Layout' }}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- F. ISPU Settings Popover -->
-          <div class="relative toolbar-popover-anchor">
-            <button
-              type="button"
-              @click.stop="toggleToolbarPopover('ispuSettings')"
-              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
-              :class="[
-                activeToolbarPopover === 'ispuSettings'
-                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500 shadow-xs'
-                  : isAQMSDomain && isIspuBarVisible
-                    ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/40'
-                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
-              ]"
-              :title="$t('operator.toolbarIspuSettingsTooltip') || 'ISPU Settings & Status'"
-              aria-label="ISPU Settings"
-              :aria-expanded="activeToolbarPopover === 'ispuSettings'"
-            >
-              <OperatorDashboardIcon name="ispu" :size="16" />
-              <span
-                v-if="isAQMSDomain && isIspuBarVisible"
-                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-white dark:ring-[#0B1422]"
-              ></span>
-            </button>
-
-            <!-- ISPU Settings Popover Panel -->
-            <div
-              v-if="activeToolbarPopover === 'ispuSettings'"
-              class="absolute right-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
-              @click.stop
-            >
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <OperatorDashboardIcon name="ispu" :size="15" class="text-emerald-500" />
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.ispuSettings') || 'ISPU Settings' }}
-                  </span>
-                  <span v-if="isAQMSDomain" class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                    AQMS
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                  title="Close"
-                >
-                  <OperatorDashboardIcon name="close" :size="14" />
-                </button>
-              </div>
-
-              <!-- Toggle Show/Hide ISPU Panel Row -->
-              <div class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2 font-mono">
-                <div>
-                  <div class="text-[10.5px] font-bold text-slate-900 dark:text-white">
-                    {{ $t('operator.showIspuBar') || 'Show ISPU Indicator Bar' }}
-                  </div>
-                  <div class="text-[9px] text-slate-500 dark:text-slate-400">
-                    {{ $t('operator.showIspuBarDesc') || 'Display air quality index bar below parameters' }}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  @click="toggleIspuBarVisibility"
-                  class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                  :class="isIspuBarVisible ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                  role="switch"
-                  :aria-checked="isIspuBarVisible"
-                >
-                  <span
-                    aria-hidden="true"
-                    class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                    :class="isIspuBarVisible ? 'translate-x-4' : 'translate-x-0'"
-                  ></span>
-                </button>
-              </div>
-
-              <!-- Standard Info Card -->
-              <div class="p-2 rounded bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2 text-[9.5px] font-mono space-y-1">
-                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span class="text-slate-500 dark:text-slate-400">Standard:</span>
-                  <span class="font-bold text-cyan-600 dark:text-cyan-400">Permen LHK No. 14 / 2020</span>
-                </div>
-                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span class="text-slate-500 dark:text-slate-400">Interval:</span>
-                  <span>24-Hour Rolling Average</span>
-                </div>
-                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span class="text-slate-500 dark:text-slate-400">Parameters:</span>
-                  <span>PM2.5, PM10, SO2, NO2, O3, CO</span>
-                </div>
-              </div>
-
-              <!-- Navigation to Dedicated ISPU Analysis -->
-              <button
-                type="button"
-                @click="navigateToRoute('/monitoring/ispu')"
-                class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400"
-              >
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>{{ $t('operator.openIspuAnalysis') || 'Open ISPU Analysis & Reports →' }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Thin Vertical Divider before Fullscreen & Layout Controls -->
-          <div class="h-4 w-px bg-slate-200 dark:bg-[#1E3048] mx-0.5 flex-shrink-0"></div>
-
-          <!-- Sidebar Auto-Hide Setup Toggle Button -->
-          <button
-            type="button"
-            id="btn-operator-sidebar-autohide"
-            @click.stop="toggleSidebarAutoHide"
-            class="w-8 h-8 flex items-center justify-center rounded transition border cursor-pointer"
-            :class="sidebarAutoHide
-              ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-xs'
-              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'"
-            :title="sidebarAutoHide ? ($t('header.sidebarAutoHideOn') || 'Sidebar: Auto-Hide Enabled (Click to Pin)') : ($t('header.sidebarAutoHideOff') || 'Sidebar: Pinned (Click for Auto-Hide)')"
-            aria-label="Toggle Sidebar Auto-Hide"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M9 3v18" />
-              <path v-if="!sidebarAutoHide" d="m14 9-3 3 3 3" stroke-linecap="round" stroke-linejoin="round" />
-              <path v-else d="m12 9 3 3-3 3" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-
-          <!-- Fullscreen / Sidebar & Top Panel Layout Toggle (Icon Only) -->
-          <button
-            type="button"
-            @click="$emit('toggle-sidebar')"
-            class="w-8 h-8 flex items-center justify-center rounded transition border text-cyan-600 dark:text-cyan-400"
-            :class="isSidebarCollapsed
-              ? 'bg-cyan-600/15 hover:bg-cyan-600/25 border-cyan-500/50 shadow-xs'
-              : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] border-slate-200 dark:border-[#20354B]'"
-            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
-            :aria-label="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v4m0 0l5-5m6 0h4a1 1 0 011 1v4m0 0l-5-5M9 20H5a1 1 0 01-1-1v-4m0 0l5 5m6 0h4a1 1 0 001-1v-4m0 0l-5 5" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>
@@ -4721,6 +4723,7 @@ export default {
       devicePollCycles: 0,
       clockInterval: null,
       currentTime: new Date().toLocaleTimeString('en-GB'),
+      currentDayDate: '',
       isRefreshing: false,
       telemetryRate: 24.5,
 
@@ -5877,8 +5880,10 @@ export default {
     }, 1000);
 
     // Live Digital Clock & Live Trend Window Slide
+    this.currentDayDate = this.getCurrentDayDate();
     this.clockInterval = setInterval(() => {
       this.currentTime = new Date().toLocaleTimeString('en-GB');
+      this.currentDayDate = this.getCurrentDayDate();
       this.advanceLiveTrendWindow();
     }, 1000);
 
@@ -7966,6 +7971,15 @@ export default {
     },
     formatDate(value) {
       return this.formatLocationDate(value);
+    },
+    getCurrentDayDate() {
+      const loc = (this.$i18n && this.$i18n.locale === 'id') ? 'id-ID' : 'en-GB';
+      return new Date().toLocaleDateString(loc, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
     },
     togglePin(paramId) {
       const idx = this.pinnedIds.indexOf(paramId);
