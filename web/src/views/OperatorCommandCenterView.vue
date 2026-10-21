@@ -593,7 +593,11 @@
                 class="w-8 h-8 flex items-center justify-center rounded transition border relative"
                 :class="[
                   activeToolbarPopover === 'healthAndAlarms'
-                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500 shadow-xs'
+                    ? (activeCriticalCount > 0
+                        ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border-rose-500 shadow-xs'
+                        : activeAlarmsList.length > 0
+                          ? 'bg-amber-500/20 text-amber-500 dark:text-amber-300 border-amber-500 shadow-xs'
+                          : 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs')
                     : activeCriticalCount > 0
                       ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/50'
                       : activeAlarmsList.length > 0
@@ -626,23 +630,39 @@
               <!-- Unified Health & Alarm Center Popover Panel -->
               <div
                 v-if="activeToolbarPopover === 'healthAndAlarms'"
-                class="absolute right-0 top-full mt-1.5 z-50 w-88 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
+                class="absolute right-0 top-full mt-1.5 z-50 w-[410px] sm:w-[430px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
                 @click.stop
               >
                 <!-- Panel Header -->
-                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
-                  <div class="flex items-center space-x-2">
+                <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/80 dark:border-[#1E3048]">
+                  <div class="flex items-center space-x-2.5">
                     <div
-                      class="p-1 rounded border flex-shrink-0"
-                      :class="activeAlarmsList.length > 0 ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500'"
+                      class="w-7 h-7 rounded flex items-center justify-center border flex-shrink-0"
+                      :class="activeCriticalCount > 0
+                        ? 'bg-rose-500/15 border-rose-500/40 text-rose-500'
+                        : activeAlarmsList.length > 0
+                          ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+                          : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400'"
                     >
                       <OperatorDashboardIcon name="bell" :size="15" />
                     </div>
                     <div>
-                      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
-                        Health & Notification Center
-                      </h3>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                      <div class="flex items-center space-x-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                          Health & Notification Center
+                        </h3>
+                        <span
+                          class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border leading-none"
+                          :class="activeCriticalCount > 0
+                            ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                            : activeAlarmsList.length > 0
+                              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
+                        >
+                          {{ activeCriticalCount > 0 ? 'CRITICAL' : activeAlarmsList.length > 0 ? 'WARNING' : 'HEALTHY' }}
+                        </span>
+                      </div>
+                      <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 leading-none">
                         Alarms · Device Fleet · Telemetry Stream
                       </div>
                     </div>
@@ -650,7 +670,7 @@
                   <button
                     type="button"
                     @click="closeToolbarPopover"
-                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                    class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#18283E] rounded transition"
                     title="Close"
                   >
                     <OperatorDashboardIcon name="close" :size="14" />
@@ -658,27 +678,34 @@
                 </div>
 
                 <!-- 3 Interactive Metric Cards acting as Tab Selectors -->
-                <div class="grid grid-cols-3 gap-1 mb-2.5">
+                <div class="grid grid-cols-3 gap-2 mb-3">
                   <!-- Tab 1: Alarms -->
                   <button
                     type="button"
                     @click="healthActiveTab = 'alarms'"
-                    class="p-1.5 rounded-md border text-left transition flex flex-col justify-between"
+                    class="p-2 rounded-md border text-left transition flex flex-col justify-between"
                     :class="healthActiveTab === 'alarms'
-                      ? 'bg-rose-500/15 border-rose-500/50 text-rose-600 dark:text-rose-300 shadow-xs'
+                      ? (activeAlarmsList.length > 0
+                          ? 'bg-rose-500/15 border-rose-500/50 text-rose-600 dark:text-rose-300 shadow-xs'
+                          : 'bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 shadow-xs')
                       : 'bg-slate-50 dark:bg-[#070E1A] border-slate-200/80 dark:border-[#1E3048] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'"
                   >
                     <div class="flex items-center justify-between w-full">
-                      <span class="text-[8.5px] uppercase font-bold">Alarms</span>
-                      <span v-if="activeCriticalCount > 0" class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                      <span v-else-if="activeAlarmsList.length > 0" class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                      <span v-else class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      <span class="text-[9px] uppercase font-bold tracking-wider">Alarms</span>
+                      <span v-if="activeCriticalCount > 0" class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                      <span v-else-if="activeAlarmsList.length > 0" class="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <span v-else class="w-2 h-2 rounded-full bg-emerald-400"></span>
                     </div>
-                    <div class="mt-0.5 flex items-baseline space-x-1">
-                      <span class="text-xs font-bold tabular-nums" :class="activeAlarmsList.length > 0 ? 'text-rose-500' : 'text-emerald-500'">
+                    <div class="mt-1.5 flex items-baseline justify-between">
+                      <span class="text-sm font-bold tabular-nums" :class="activeAlarmsList.length > 0 ? 'text-rose-500' : 'text-emerald-500 dark:text-emerald-400'">
                         {{ activeAlarmsList.length }}
                       </span>
-                      <span class="text-[8px] opacity-75">{{ activeCriticalCount > 0 ? 'CRIT' : activeAlarmsList.length > 0 ? 'WARN' : 'OK' }}</span>
+                      <span
+                        class="text-[8px] font-bold uppercase px-1 py-0.2 rounded"
+                        :class="activeCriticalCount > 0 ? 'bg-rose-500/20 text-rose-400' : activeAlarmsList.length > 0 ? 'bg-amber-500/20 text-amber-400' : 'text-slate-400'"
+                      >
+                        {{ activeCriticalCount > 0 ? 'CRIT' : activeAlarmsList.length > 0 ? 'WARN' : 'NORMAL' }}
+                      </span>
                     </div>
                   </button>
 
@@ -686,20 +713,25 @@
                   <button
                     type="button"
                     @click="healthActiveTab = 'devices'"
-                    class="p-1.5 rounded-md border text-left transition flex flex-col justify-between"
+                    class="p-2 rounded-md border text-left transition flex flex-col justify-between"
                     :class="healthActiveTab === 'devices'
                       ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 shadow-xs'
                       : 'bg-slate-50 dark:bg-[#070E1A] border-slate-200/80 dark:border-[#1E3048] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'"
                   >
                     <div class="flex items-center justify-between w-full">
-                      <span class="text-[8.5px] uppercase font-bold">Devices</span>
-                      <span :class="summaryStats.offlineCount > 0 ? 'w-1.5 h-1.5 rounded-full bg-rose-500' : 'w-1.5 h-1.5 rounded-full bg-emerald-400'"></span>
+                      <span class="text-[9px] uppercase font-bold tracking-wider">Devices</span>
+                      <span :class="summaryStats.offlineCount > 0 ? 'w-2 h-2 rounded-full bg-rose-500' : 'w-2 h-2 rounded-full bg-emerald-400'"></span>
                     </div>
-                    <div class="mt-0.5 flex items-baseline space-x-1">
-                      <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-white">
+                    <div class="mt-1.5 flex items-baseline justify-between">
+                      <span class="text-sm font-bold tabular-nums text-slate-900 dark:text-white">
                         {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
                       </span>
-                      <span class="text-[8px] opacity-75">{{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' Off' : 'Live' }}</span>
+                      <span
+                        class="text-[8px] font-bold uppercase px-1 py-0.2 rounded"
+                        :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/20 text-rose-400' : 'text-emerald-500 dark:text-emerald-400'"
+                      >
+                        {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' Off' : 'Online' }}
+                      </span>
                     </div>
                   </button>
 
@@ -707,50 +739,58 @@
                   <button
                     type="button"
                     @click="healthActiveTab = 'telemetry'"
-                    class="p-1.5 rounded-md border text-left transition flex flex-col justify-between"
+                    class="p-2 rounded-md border text-left transition flex flex-col justify-between"
                     :class="healthActiveTab === 'telemetry'
                       ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 shadow-xs'
                       : 'bg-slate-50 dark:bg-[#070E1A] border-slate-200/80 dark:border-[#1E3048] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'"
                   >
                     <div class="flex items-center justify-between w-full">
-                      <span class="text-[8.5px] uppercase font-bold">Stream</span>
-                      <span :class="isTelemetryStale ? 'w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse' : 'w-1.5 h-1.5 rounded-full bg-emerald-400'"></span>
+                      <span class="text-[9px] uppercase font-bold tracking-wider">Stream</span>
+                      <span :class="isTelemetryStale ? 'w-2 h-2 rounded-full bg-rose-500 animate-pulse' : 'w-2 h-2 rounded-full bg-emerald-400'"></span>
                     </div>
-                    <div class="mt-0.5 flex items-baseline space-x-1">
-                      <span class="text-xs font-bold tabular-nums" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
+                    <div class="mt-1.5 flex items-baseline justify-between">
+                      <span class="text-sm font-bold tabular-nums" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500 dark:text-emerald-400'">
                         {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
                       </span>
-                      <span class="text-[8px] opacity-75">{{ isTelemetryStale ? 'Stale' : 'Live' }}</span>
+                      <span
+                        class="text-[8px] font-bold uppercase px-1 py-0.2 rounded"
+                        :class="isTelemetryStale ? 'bg-rose-500/20 text-rose-400' : 'text-emerald-500 dark:text-emerald-400'"
+                      >
+                        {{ isTelemetryStale ? 'Stale' : 'Live' }}
+                      </span>
                     </div>
                   </button>
                 </div>
 
                 <!-- TAB 1 CONTENT: ACTIVE ALARMS -->
                 <div v-if="healthActiveTab === 'alarms'" class="space-y-2.5 animate-fadeIn">
-                  <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
-                    <div class="flex items-baseline justify-between mb-1.5">
-                      <div>
+                  <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-baseline space-x-2">
                         <span
-                          class="text-[20px] font-bold tabular-nums tracking-tight"
+                          class="text-2xl font-bold tabular-nums tracking-tight font-mono"
                           :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
                         >
                           {{ activeAlarmsList.length }}
                         </span>
-                        <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">incidents active</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">
+                          Active Incidents
+                        </span>
                       </div>
-                      <div class="flex items-center space-x-1.5 text-[10px]">
-                        <span v-if="activeCriticalCount > 0" class="px-1.5 py-0.2 rounded font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                          {{ activeCriticalCount }} CRIT
+                      <div class="flex items-center space-x-1.5 text-[9.5px]">
+                        <span v-if="activeCriticalCount > 0" class="px-2 py-0.5 rounded font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          {{ activeCriticalCount }} CRITICAL
                         </span>
-                        <span v-if="activeWarningCount > 0" class="px-1.5 py-0.2 rounded font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                          {{ activeWarningCount }} WARN
+                        <span v-if="activeWarningCount > 0" class="px-2 py-0.5 rounded font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          {{ activeWarningCount }} WARNING
                         </span>
-                        <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
-                          ✓ Normal Limits
+                        <span v-if="activeAlarmsList.length === 0" class="px-2 py-0.5 rounded font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center space-x-1">
+                          <span>✓</span>
+                          <span>Normal Limits</span>
                         </span>
                       </div>
                     </div>
-                    <div class="text-[9px] text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
+                    <div class="text-[9.5px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/50 dark:border-slate-800/80 leading-relaxed">
                       <span v-if="highestPriorityAlarm">
                         Top Priority: <strong class="text-rose-600 dark:text-rose-400">{{ highestPriorityAlarm.param_name || highestPriorityAlarm.alarm_code }}</strong> ({{ highestPriorityAlarm.message }})
                       </span>
@@ -762,40 +802,40 @@
 
                   <!-- Active Alarms Incident List -->
                   <div>
-                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
                       <span>Active Incidents</span>
                       <router-link
                         to="/alarm/history"
                         @click.native="closeToolbarPopover"
                         class="text-cyan-600 dark:text-cyan-400 hover:underline"
                       >
-                        History
+                        Full History →
                       </router-link>
                     </div>
-                    <div v-if="activeAlarmsList.length > 0" class="max-h-36 overflow-y-auto custom-scroller space-y-1 pr-0.5">
+                    <div v-if="activeAlarmsList.length > 0" class="max-h-36 overflow-y-auto custom-scroller space-y-1.5 pr-0.5">
                       <div
                         v-for="alm in activeAlarmsList.slice(0, 6)"
                         :key="'popover-alm-' + alm.alarm_id"
-                        class="p-1.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px]"
+                        class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px]"
                       >
-                        <div class="flex items-center justify-between mb-0.5">
+                        <div class="flex items-center justify-between mb-1">
                           <span class="font-bold text-slate-800 dark:text-slate-200 truncate pr-1">
                             {{ alm.param_name || alm.alarm_code }}
                           </span>
                           <span
-                            class="px-1 py-0.2 rounded text-[7.5px] font-bold flex-shrink-0 uppercase"
+                            class="px-1.5 py-0.2 rounded text-[7.5px] font-bold flex-shrink-0 uppercase"
                             :class="alm.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
                           >
                             {{ alm.severity }}
                           </span>
                         </div>
                         <div class="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                          <span>Val: <strong class="text-slate-700 dark:text-slate-300">{{ alm.trigger_value != null ? alm.trigger_value : '—' }}</strong> (Limit: {{ alm.threshold_value != null ? alm.threshold_value : '—' }})</span>
+                          <span>Val: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ alm.trigger_value != null ? alm.trigger_value : '—' }}</strong> (Limit: {{ alm.threshold_value != null ? alm.threshold_value : '—' }})</span>
                           <span class="opacity-80">{{ formatRelative(alm.created_at) }}</span>
                         </div>
                       </div>
                     </div>
-                    <div v-else class="p-3 text-center text-slate-400 dark:text-slate-500 text-[10px] bg-slate-50/50 dark:bg-[#0E1726]/50 rounded border border-dashed border-slate-200 dark:border-[#20354B]">
+                    <div v-else class="py-3 px-3 text-center text-slate-400 dark:text-slate-500 text-[10px] bg-slate-50/50 dark:bg-[#0E1726]/50 rounded-lg border border-dashed border-slate-200 dark:border-[#20354B]">
                       No active alarm incidents detected.
                     </div>
                   </div>
@@ -804,25 +844,33 @@
                   <router-link
                     to="/alarm/active"
                     @click.native="closeToolbarPopover"
-                    class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-400"
+                    class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-1.5"
+                    :class="activeAlarmsList.length > 0
+                      ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-400'
+                      : 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0E1726] dark:hover:bg-[#162538] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400'"
                   >
                     <span>🛡️</span>
-                    <span>{{ $t('operator.viewConsole') || 'Open Alarm Console & Acknowledge →' }}</span>
+                    <span>{{ activeAlarmsList.length > 0 ? 'Open Alarm Console & Acknowledge →' : 'View Alarm Management Console →' }}</span>
                   </router-link>
                 </div>
 
                 <!-- TAB 2 CONTENT: DEVICE FLEET STATUS -->
                 <div v-else-if="healthActiveTab === 'devices'" class="space-y-2.5 animate-fadeIn">
-                  <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
-                    <div class="flex items-baseline justify-between mb-1.5">
-                      <div>
-                        <span class="text-[20px] font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
-                          {{ summaryStats.onlineCount }} / {{ summaryStats.totalDevices }}
+                  <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-baseline space-x-2">
+                        <span class="text-2xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight font-mono">
+                          {{ summaryStats.onlineCount }}<span class="text-slate-400 text-lg">/{{ summaryStats.totalDevices }}</span>
                         </span>
-                        <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">devices online</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">
+                          Devices Online
+                        </span>
                       </div>
-                      <span class="text-[11px] font-bold" :class="summaryStats.offlineCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'">
-                        {{ Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) }}% active
+                      <span
+                        class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border leading-none"
+                        :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'"
+                      >
+                        {{ Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) }}% Active
                       </span>
                     </div>
                     <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
@@ -832,30 +880,34 @@
                         :style="{ width: Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) + '%' }"
                       ></div>
                     </div>
+                    <div class="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
+                      <span>Total Registered: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ summaryStats.totalDevices }} units</strong></span>
+                      <span>Cycle Rate: <strong class="text-cyan-600 dark:text-cyan-400 font-mono">{{ Math.round(configuredPollingIntervalMs / 1000) }}s</strong></span>
+                    </div>
                   </div>
 
                   <!-- Connected Devices List -->
                   <div>
-                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
                       Connected Fleet Nodes
                     </div>
-                    <div class="max-h-36 overflow-y-auto custom-scroller space-y-1 pr-0.5">
+                    <div class="max-h-36 overflow-y-auto custom-scroller space-y-1.5 pr-0.5">
                       <div
                         v-for="dev in devicesList"
                         :key="'popover-dev-' + dev.id"
-                        class="p-1.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9.5px]"
+                        class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9.5px]"
                       >
-                        <div class="flex items-center space-x-1.5 truncate pr-1">
+                        <div class="flex items-center space-x-2 truncate pr-1">
                           <span
-                            class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                            class="w-2 h-2 rounded-full flex-shrink-0"
                             :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500' : 'bg-rose-500'"
                           ></span>
                           <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ dev.device_code }}</span>
-                          <span class="text-slate-400 truncate hidden sm:inline">({{ dev.device_name || 'Generic' }})</span>
+                          <span class="text-slate-400 truncate">({{ dev.device_name || 'Generic' }})</span>
                         </div>
                         <span
-                          class="px-1 py-0.2 rounded text-[8px] font-bold flex-shrink-0"
-                          :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'"
+                          class="px-1.5 py-0.2 rounded text-[8px] font-bold flex-shrink-0"
+                          :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'"
                         >
                           {{ isDeviceActiveOnline(dev) ? 'ONLINE' : 'OFFLINE' }}
                         </span>
@@ -867,7 +919,7 @@
                   <button
                     type="button"
                     @click="navigateToRoute('/monitoring/devices')"
-                    class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                    class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-[#0E1726] dark:hover:bg-[#162538] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
                   >
                     <span>⚙️</span>
                     <span>Configure Device Fleet & Telemetry →</span>
@@ -876,18 +928,23 @@
 
                 <!-- TAB 3 CONTENT: TELEMETRY STREAM DIAGNOSTICS -->
                 <div v-else-if="healthActiveTab === 'telemetry'" class="space-y-2.5 animate-fadeIn">
-                  <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
-                    <div class="flex items-baseline justify-between mb-1.5">
-                      <div>
+                  <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-baseline space-x-2">
                         <span
-                          class="text-[20px] font-bold tabular-nums tracking-tight"
+                          class="text-2xl font-bold tabular-nums tracking-tight font-mono"
                           :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
                         >
                           {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
                         </span>
-                        <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">since last packet</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">
+                          Packet Latency
+                        </span>
                       </div>
-                      <span class="text-[10.5px] font-bold" :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                      <span
+                        class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border leading-none"
+                        :class="summaryStats.goodSensors > 0 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'"
+                      >
                         {{ summaryStats.goodSensors }}/{{ allParameters.length }} Valid
                       </span>
                     </div>
@@ -898,14 +955,14 @@
                         :style="{ width: Math.round((summaryStats.goodSensors / (allParameters.length || 1)) * 100) + '%' }"
                       ></div>
                     </div>
-                    <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-2 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
-                      <span>Packet: <strong class="text-slate-700 dark:text-slate-300">{{ lastTelemetryTimeStr || 'Just now' }}</strong></span>
-                      <span>Timed out: <strong :class="summaryStats.staleSensors > 0 ? 'text-amber-500 font-bold' : 'text-slate-700 dark:text-slate-300'">{{ summaryStats.staleSensors }}</strong></span>
+                    <div class="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
+                      <span>Last Packet: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ lastTelemetryTimeStr || 'Just now' }}</strong></span>
+                      <span>Timed out: <strong :class="summaryStats.staleSensors > 0 ? 'text-amber-500 font-bold font-mono' : 'text-slate-700 dark:text-slate-300 font-mono'">{{ summaryStats.staleSensors }}</strong></span>
                     </div>
                   </div>
 
                   <!-- Stream Diagnostics Information -->
-                  <div class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px] space-y-1">
+                  <div class="p-2.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px] space-y-1.5">
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Stream Status:</span>
                       <span class="font-semibold" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
@@ -914,11 +971,11 @@
                     </div>
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Polling Interval:</span>
-                      <span>{{ Math.round(configuredPollingIntervalMs / 1000) }}s Dynamic Cycle</span>
+                      <span class="font-mono">{{ Math.round(configuredPollingIntervalMs / 1000) }}s Dynamic Cycle</span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Total Monitored:</span>
-                      <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ allParameters.length }} Parameters</span>
+                      <span class="font-bold text-cyan-600 dark:text-cyan-400 font-mono">{{ allParameters.length }} Parameters</span>
                     </div>
                   </div>
 
@@ -926,7 +983,7 @@
                   <button
                     type="button"
                     @click="navigateToRoute('/monitoring/analysis')"
-                    class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                    class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-[#0E1726] dark:hover:bg-[#162538] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
                   >
                     <span>📊</span>
                     <span>Open Telemetry Analytics & Trends →</span>
