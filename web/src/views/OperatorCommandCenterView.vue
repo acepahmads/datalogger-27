@@ -585,156 +585,29 @@
 
         <!-- Right: Status Icons (Device & Comm, Alarms, Telemetry, System, Network, Location) -->
         <div class="flex items-center space-x-1 flex-shrink-0">
-          <!-- 1. Device & Comm Status Popover -->
+          <!-- Consolidated Station Health & Alarm Center (Single Bell Icon) -->
             <div class="relative toolbar-popover-anchor">
               <button
                 type="button"
-                @click.stop="toggleToolbarPopover('deviceStatus')"
+                @click.stop="toggleToolbarPopover('healthAndAlarms')"
                 class="w-8 h-8 flex items-center justify-center rounded transition border relative"
                 :class="[
-                  activeToolbarPopover === 'deviceStatus'
-                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
-                ]"
-                :title="($t('operator.toolbarDeviceStatusTooltip') || $t('operator.summaryDevices') || 'Device & Comm Status') + ': ' + summaryStats.onlineCount + '/' + summaryStats.totalDevices + ' Online (' + summaryStats.offlineCount + ' Off)'"
-                aria-label="Device & Comm Status"
-                :aria-expanded="activeToolbarPopover === 'deviceStatus'"
-              >
-                <OperatorDashboardIcon name="station" :size="16" />
-                <span
-                  class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
-                  :class="summaryStats.offlineCount > 0 ? 'bg-rose-500' : 'bg-emerald-400'"
-                ></span>
-              </button>
-
-              <!-- Device & Comm Status Popover Panel -->
-              <div
-                v-if="activeToolbarPopover === 'deviceStatus'"
-                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
-                @click.stop
-              >
-                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
-                  <div class="flex items-center space-x-2">
-                    <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
-                      <OperatorDashboardIcon name="station" :size="15" class="text-cyan-500" />
-                    </div>
-                    <div>
-                      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
-                        {{ $t('operator.summaryDevices') || 'Device & Comm Status' }}
-                      </h3>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
-                        Fleet Communication Diagnostics
-                      </div>
-                    </div>
-                  </div>
-                  <div class="flex items-center space-x-1.5">
-                    <span
-                      class="text-[9px] font-bold px-1.5 py-0.5 rounded leading-none"
-                      :class="summaryStats.offlineCount > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
-                    >
-                      {{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' OFF' : 'ALL ONLINE' }}
-                    </span>
-                    <button
-                      type="button"
-                      @click="closeToolbarPopover"
-                      class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                      title="Close"
-                    >
-                      <OperatorDashboardIcon name="close" :size="14" />
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Main Stats Highlights -->
-                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2.5">
-                  <div class="flex items-baseline justify-between mb-1.5">
-                    <div>
-                      <span class="text-[20px] font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
-                        {{ summaryStats.onlineCount }} / {{ summaryStats.totalDevices }}
-                      </span>
-                      <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">devices online</span>
-                    </div>
-                    <span class="text-[11px] font-bold" :class="summaryStats.offlineCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'">
-                      {{ Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) }}% active
-                    </span>
-                  </div>
-                  <!-- Progress Bar -->
-                  <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                    <div
-                      class="h-full rounded-full transition-all duration-300"
-                      :class="summaryStats.offlineCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'"
-                      :style="{ width: Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) + '%' }"
-                    ></div>
-                  </div>
-                  <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-2 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
-                    <span>Offline Devices: <strong :class="summaryStats.offlineCount > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300'">{{ summaryStats.offlineCount }}</strong></span>
-                    <span>Latency: <strong class="text-cyan-600 dark:text-cyan-400">{{ systemStatus.avg_latency_ms || 1.2 }}ms</strong></span>
-                    <span>Success: <strong class="text-emerald-600 dark:text-emerald-400">{{ ((systemStatus.success_rate || 99.8).toFixed(1)) }}%</strong></span>
-                  </div>
-                </div>
-
-                <!-- Device Fleet List -->
-                <div class="mb-2.5">
-                  <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
-                    <span>Connected Fleet ({{ devicesList.length }})</span>
-                    <span>Status</span>
-                  </div>
-                  <div class="max-h-36 overflow-y-auto custom-scroller space-y-1 pr-0.5">
-                    <div
-                      v-for="dev in devicesList"
-                      :key="'popover-dev-' + dev.device_id"
-                      class="flex items-center justify-between p-1.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px]"
-                    >
-                      <div class="flex items-center space-x-1.5 truncate min-w-0 pr-1">
-                        <span
-                          class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                          :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500' : 'bg-rose-500'"
-                        ></span>
-                        <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ dev.device_code }}</span>
-                        <span class="text-slate-400 truncate hidden sm:inline">({{ dev.device_name || 'Generic' }})</span>
-                      </div>
-                      <span
-                        class="px-1 py-0.2 rounded text-[8px] font-bold flex-shrink-0"
-                        :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'"
-                      >
-                        {{ isDeviceActiveOnline(dev) ? 'ONLINE' : 'OFFLINE' }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Action Link -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/monitoring/devices')"
-                  class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
-                >
-                  <span>⚙️</span>
-                  <span>Configure Device Fleet & Telemetry →</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- 2. Active Alarms Popover -->
-            <div class="relative toolbar-popover-anchor">
-              <button
-                type="button"
-                @click.stop="toggleToolbarPopover('activeAlarms')"
-                class="w-8 h-8 flex items-center justify-center rounded transition border relative"
-                :class="[
-                  activeToolbarPopover === 'activeAlarms'
+                  activeToolbarPopover === 'healthAndAlarms'
                     ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500 shadow-xs'
                     : activeCriticalCount > 0
                       ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/50'
                       : activeAlarmsList.length > 0
                         ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/50'
-                        : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
+                        : summaryStats.offlineCount > 0 || isTelemetryStale
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/40'
+                          : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
                 ]"
-                :title="($t('operator.toolbarActiveAlarmsTooltip') || $t('operator.summaryAlarms') || 'Active Alarms') + ': ' + activeAlarmsList.length + ' (' + activeCriticalCount + ' CRIT, ' + activeWarningCount + ' WARN)'"
-                aria-label="Active Alarms"
-                :aria-expanded="activeToolbarPopover === 'activeAlarms'"
+                :title="healthAndAlarmsTooltip"
+                aria-label="Alarms & Station Health Center"
+                :aria-expanded="activeToolbarPopover === 'healthAndAlarms'"
               >
                 <OperatorDashboardIcon name="bell" :size="16" />
+                <!-- Badge: show alarm count if active alarms exist -->
                 <span
                   v-if="activeAlarmsList.length > 0"
                   class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[8px] font-bold font-mono flex items-center justify-center text-white ring-1 ring-white dark:ring-[#0B1422]"
@@ -742,248 +615,323 @@
                 >
                   {{ activeAlarmsList.length }}
                 </span>
-              </button>
-
-              <!-- Active Alarms Popover Panel -->
-              <div
-                v-if="activeToolbarPopover === 'activeAlarms'"
-                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
-                @click.stop
-              >
-                <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
-                  <div class="flex items-center space-x-2">
-                    <div class="p-1 rounded bg-rose-500/10 border border-rose-500/30 text-rose-500">
-                      <OperatorDashboardIcon name="bell" :size="15" class="text-rose-500" />
-                    </div>
-                    <div>
-                      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
-                        {{ $t('operator.summaryAlarms') || 'Active Alarms' }}
-                      </h3>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
-                        Limit Threshold & Incident Status
-                      </div>
-                    </div>
-                  </div>
-                  <div class="flex items-center space-x-1.5">
-                    <span
-                      class="text-[9px] font-bold px-1.5 py-0.5 rounded leading-none"
-                      :class="activeCriticalCount > 0 ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40' : activeAlarmsList.length > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40'"
-                    >
-                      {{ activeAlarmsList.length > 0 ? activeAlarmsList.length + ' ACTIVE' : 'NORMAL' }}
-                    </span>
-                    <button
-                      type="button"
-                      @click="closeToolbarPopover"
-                      class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                      title="Close"
-                    >
-                      <OperatorDashboardIcon name="close" :size="14" />
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Main Alarm Metric Highlights -->
-                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2.5">
-                  <div class="flex items-baseline justify-between mb-1.5">
-                    <div>
-                      <span
-                        class="text-[20px] font-bold tabular-nums tracking-tight"
-                        :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
-                      >
-                        {{ activeAlarmsList.length }}
-                      </span>
-                      <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">incidents active</span>
-                    </div>
-                    <div class="flex items-center space-x-1.5 text-[10px]">
-                      <span v-if="activeCriticalCount > 0" class="px-1.5 py-0.2 rounded font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                        {{ activeCriticalCount }} CRIT
-                      </span>
-                      <span v-if="activeWarningCount > 0" class="px-1.5 py-0.2 rounded font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                        {{ activeWarningCount }} WARN
-                      </span>
-                      <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
-                        ✓ Normal Limits
-                      </span>
-                    </div>
-                  </div>
-                  <div class="text-[9px] text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
-                    <span v-if="highestPriorityAlarm">
-                      Top Priority: <strong class="text-rose-600 dark:text-rose-400">{{ highestPriorityAlarm.param_name || highestPriorityAlarm.alarm_code }}</strong> ({{ highestPriorityAlarm.message }})
-                    </span>
-                    <span v-else class="text-slate-600 dark:text-slate-400">
-                      All sensor measurements are currently within regulatory thresholds.
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Active Alarms Incident List -->
-                <div class="mb-2.5">
-                  <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
-                    <span>Active Incidents</span>
-                    <router-link
-                      to="/alarm/history"
-                      @click.native="closeToolbarPopover"
-                      class="text-cyan-600 dark:text-cyan-400 hover:underline"
-                    >
-                      History
-                    </router-link>
-                  </div>
-                  <div v-if="activeAlarmsList.length > 0" class="max-h-36 overflow-y-auto custom-scroller space-y-1 pr-0.5">
-                    <div
-                      v-for="alm in activeAlarmsList.slice(0, 6)"
-                      :key="'popover-alm-' + alm.alarm_id"
-                      class="p-1.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px]"
-                    >
-                      <div class="flex items-center justify-between mb-0.5">
-                        <span class="font-bold text-slate-800 dark:text-slate-200 truncate pr-1">
-                          {{ alm.param_name || alm.alarm_code }}
-                        </span>
-                        <span
-                          class="px-1 py-0.2 rounded text-[7.5px] font-bold flex-shrink-0 uppercase"
-                          :class="alm.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
-                        >
-                          {{ alm.severity }}
-                        </span>
-                      </div>
-                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                        <span>Val: <strong class="text-slate-700 dark:text-slate-300">{{ alm.trigger_value != null ? alm.trigger_value : '—' }}</strong> (Limit: {{ alm.threshold_value != null ? alm.threshold_value : '—' }})</span>
-                        <span class="opacity-80">{{ formatRelative(alm.created_at) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else class="p-3 text-center text-slate-400 dark:text-slate-500 text-[10px] bg-slate-50/50 dark:bg-[#0E1726]/50 rounded border border-dashed border-slate-200 dark:border-[#20354B]">
-                    No active alarm incidents detected.
-                  </div>
-                </div>
-
-                <!-- Action Link -->
-                <router-link
-                  to="/alarm/active"
-                  @click.native="closeToolbarPopover"
-                  class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-400"
-                >
-                  <span>🛡️</span>
-                  <span>{{ $t('operator.viewConsole') || 'Open Alarm Console & Acknowledge →' }}</span>
-                </router-link>
-              </div>
-            </div>
-
-            <!-- 3. Latest Telemetry Popover -->
-            <div class="relative toolbar-popover-anchor">
-              <button
-                type="button"
-                @click.stop="toggleToolbarPopover('latestTelemetry')"
-                class="w-8 h-8 flex items-center justify-center rounded transition border relative"
-                :class="[
-                  activeToolbarPopover === 'latestTelemetry'
-                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
-                ]"
-                :title="($t('operator.toolbarTelemetryTooltip') || $t('operator.summaryTelemetry') || 'Latest Telemetry') + ': ' + formatRelativeSeconds(lastTelemetrySecondsAgo) + ' ago (' + (isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet')) + ')'"
-                aria-label="Latest Telemetry"
-                :aria-expanded="activeToolbarPopover === 'latestTelemetry'"
-              >
-                <OperatorDashboardIcon name="activity" :size="16" />
+                <!-- Status dot if no alarms: red/amber if offline/stale, green if healthy -->
                 <span
+                  v-else
                   class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-white dark:ring-[#0B1422] transition-colors"
-                  :class="isTelemetryStale ? 'bg-rose-500 animate-pulse' : 'bg-emerald-400'"
+                  :class="summaryStats.offlineCount > 0 || isTelemetryStale ? 'bg-amber-500' : 'bg-emerald-400'"
                 ></span>
               </button>
 
-              <!-- Latest Telemetry Popover Panel -->
+              <!-- Unified Health & Alarm Center Popover Panel -->
               <div
-                v-if="activeToolbarPopover === 'latestTelemetry'"
-                class="absolute right-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
+                v-if="activeToolbarPopover === 'healthAndAlarms'"
+                class="absolute right-0 top-full mt-1.5 z-50 w-88 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
                 @click.stop
               >
+                <!-- Panel Header -->
                 <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
                   <div class="flex items-center space-x-2">
-                    <div class="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-500">
-                      <OperatorDashboardIcon name="activity" :size="15" class="text-cyan-500" />
+                    <div
+                      class="p-1 rounded border flex-shrink-0"
+                      :class="activeAlarmsList.length > 0 ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500'"
+                    >
+                      <OperatorDashboardIcon name="bell" :size="15" />
                     </div>
                     <div>
                       <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
-                        {{ $t('operator.summaryTelemetry') || 'Latest Telemetry' }}
+                        Health & Notification Center
                       </h3>
                       <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
-                        {{ isTelemetryStale ? ($t('operator.sinceLastValidData') || 'since last valid data') : ($t('operator.sinceLastPacket') || 'since last packet') }}
+                        Alarms · Device Fleet · Telemetry Stream
                       </div>
                     </div>
                   </div>
-                  <div class="flex items-center space-x-1.5">
-                    <span
-                      class="text-[9px] font-bold px-1.5 py-0.5 rounded leading-none"
-                      :class="isTelemetryStale ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'"
-                    >
-                      {{ isTelemetryStale ? ($t('operator.stale') || 'STALE') : ($t('operator.live') || 'LIVE') }}
-                    </span>
-                    <button
-                      type="button"
-                      @click="closeToolbarPopover"
-                      class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
-                      title="Close"
-                    >
-                      <OperatorDashboardIcon name="close" :size="14" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    @click="closeToolbarPopover"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                    title="Close"
+                  >
+                    <OperatorDashboardIcon name="close" :size="14" />
+                  </button>
                 </div>
 
-                <!-- Main Telemetry Highlights -->
-                <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048] mb-2.5">
-                  <div class="flex items-baseline justify-between mb-1.5">
-                    <div>
-                      <span
-                        class="text-[20px] font-bold tabular-nums tracking-tight"
-                        :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
-                      >
+                <!-- 3 Interactive Metric Cards acting as Tab Selectors -->
+                <div class="grid grid-cols-3 gap-1 mb-2.5">
+                  <!-- Tab 1: Alarms -->
+                  <button
+                    type="button"
+                    @click="healthActiveTab = 'alarms'"
+                    class="p-1.5 rounded-md border text-left transition flex flex-col justify-between"
+                    :class="healthActiveTab === 'alarms'
+                      ? 'bg-rose-500/15 border-rose-500/50 text-rose-600 dark:text-rose-300 shadow-xs'
+                      : 'bg-slate-50 dark:bg-[#070E1A] border-slate-200/80 dark:border-[#1E3048] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'"
+                  >
+                    <div class="flex items-center justify-between w-full">
+                      <span class="text-[8.5px] uppercase font-bold">Alarms</span>
+                      <span v-if="activeCriticalCount > 0" class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                      <span v-else-if="activeAlarmsList.length > 0" class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      <span v-else class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    </div>
+                    <div class="mt-0.5 flex items-baseline space-x-1">
+                      <span class="text-xs font-bold tabular-nums" :class="activeAlarmsList.length > 0 ? 'text-rose-500' : 'text-emerald-500'">
+                        {{ activeAlarmsList.length }}
+                      </span>
+                      <span class="text-[8px] opacity-75">{{ activeCriticalCount > 0 ? 'CRIT' : activeAlarmsList.length > 0 ? 'WARN' : 'OK' }}</span>
+                    </div>
+                  </button>
+
+                  <!-- Tab 2: Devices -->
+                  <button
+                    type="button"
+                    @click="healthActiveTab = 'devices'"
+                    class="p-1.5 rounded-md border text-left transition flex flex-col justify-between"
+                    :class="healthActiveTab === 'devices'
+                      ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 shadow-xs'
+                      : 'bg-slate-50 dark:bg-[#070E1A] border-slate-200/80 dark:border-[#1E3048] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'"
+                  >
+                    <div class="flex items-center justify-between w-full">
+                      <span class="text-[8.5px] uppercase font-bold">Devices</span>
+                      <span :class="summaryStats.offlineCount > 0 ? 'w-1.5 h-1.5 rounded-full bg-rose-500' : 'w-1.5 h-1.5 rounded-full bg-emerald-400'"></span>
+                    </div>
+                    <div class="mt-0.5 flex items-baseline space-x-1">
+                      <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-white">
+                        {{ summaryStats.onlineCount }}/{{ summaryStats.totalDevices }}
+                      </span>
+                      <span class="text-[8px] opacity-75">{{ summaryStats.offlineCount > 0 ? summaryStats.offlineCount + ' Off' : 'Live' }}</span>
+                    </div>
+                  </button>
+
+                  <!-- Tab 3: Telemetry Stream -->
+                  <button
+                    type="button"
+                    @click="healthActiveTab = 'telemetry'"
+                    class="p-1.5 rounded-md border text-left transition flex flex-col justify-between"
+                    :class="healthActiveTab === 'telemetry'
+                      ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 shadow-xs'
+                      : 'bg-slate-50 dark:bg-[#070E1A] border-slate-200/80 dark:border-[#1E3048] text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'"
+                  >
+                    <div class="flex items-center justify-between w-full">
+                      <span class="text-[8.5px] uppercase font-bold">Stream</span>
+                      <span :class="isTelemetryStale ? 'w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse' : 'w-1.5 h-1.5 rounded-full bg-emerald-400'"></span>
+                    </div>
+                    <div class="mt-0.5 flex items-baseline space-x-1">
+                      <span class="text-xs font-bold tabular-nums" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
                         {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
                       </span>
-                      <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">since last packet</span>
+                      <span class="text-[8px] opacity-75">{{ isTelemetryStale ? 'Stale' : 'Live' }}</span>
                     </div>
-                    <span class="text-[10.5px] font-bold" :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
-                      {{ summaryStats.goodSensors }}/{{ allParameters.length }} Valid
-                    </span>
-                  </div>
-                  <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                    <div
-                      class="h-full rounded-full transition-all duration-300"
-                      :class="isTelemetryStale ? 'bg-rose-500' : 'bg-emerald-500'"
-                      :style="{ width: Math.round((summaryStats.goodSensors / (allParameters.length || 1)) * 100) + '%' }"
-                    ></div>
-                  </div>
-                  <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-2 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
-                    <span>Packet: <strong class="text-slate-700 dark:text-slate-300">{{ lastTelemetryTimeStr || 'Just now' }}</strong></span>
-                    <span>Timed out: <strong :class="summaryStats.staleSensors > 0 ? 'text-amber-500 font-bold' : 'text-slate-700 dark:text-slate-300'">{{ summaryStats.staleSensors }}</strong></span>
-                  </div>
+                  </button>
                 </div>
 
-                <!-- Stream Diagnostics Information -->
-                <div class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] mb-2.5 text-[9.5px] space-y-1">
-                  <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                    <span class="text-slate-400">Stream Status:</span>
-                    <span class="font-semibold" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
-                      {{ isTelemetryStale ? 'Delay Warning' : 'Active High-Speed Acquisition' }}
-                    </span>
+                <!-- TAB 1 CONTENT: ACTIVE ALARMS -->
+                <div v-if="healthActiveTab === 'alarms'" class="space-y-2.5 animate-fadeIn">
+                  <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
+                    <div class="flex items-baseline justify-between mb-1.5">
+                      <div>
+                        <span
+                          class="text-[20px] font-bold tabular-nums tracking-tight"
+                          :class="activeCriticalCount > 0 ? 'text-rose-600 dark:text-rose-400' : activeAlarmsList.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'"
+                        >
+                          {{ activeAlarmsList.length }}
+                        </span>
+                        <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">incidents active</span>
+                      </div>
+                      <div class="flex items-center space-x-1.5 text-[10px]">
+                        <span v-if="activeCriticalCount > 0" class="px-1.5 py-0.2 rounded font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          {{ activeCriticalCount }} CRIT
+                        </span>
+                        <span v-if="activeWarningCount > 0" class="px-1.5 py-0.2 rounded font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          {{ activeWarningCount }} WARN
+                        </span>
+                        <span v-if="activeAlarmsList.length === 0" class="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          ✓ Normal Limits
+                        </span>
+                      </div>
+                    </div>
+                    <div class="text-[9px] text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
+                      <span v-if="highestPriorityAlarm">
+                        Top Priority: <strong class="text-rose-600 dark:text-rose-400">{{ highestPriorityAlarm.param_name || highestPriorityAlarm.alarm_code }}</strong> ({{ highestPriorityAlarm.message }})
+                      </span>
+                      <span v-else class="text-slate-600 dark:text-slate-400">
+                        All sensor measurements are currently within regulatory thresholds.
+                      </span>
+                    </div>
                   </div>
-                  <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                    <span class="text-slate-400">Polling Interval:</span>
-                    <span>{{ Math.round(configuredPollingIntervalMs / 1000) }}s Dynamic Cycle</span>
+
+                  <!-- Active Alarms Incident List -->
+                  <div>
+                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+                      <span>Active Incidents</span>
+                      <router-link
+                        to="/alarm/history"
+                        @click.native="closeToolbarPopover"
+                        class="text-cyan-600 dark:text-cyan-400 hover:underline"
+                      >
+                        History
+                      </router-link>
+                    </div>
+                    <div v-if="activeAlarmsList.length > 0" class="max-h-36 overflow-y-auto custom-scroller space-y-1 pr-0.5">
+                      <div
+                        v-for="alm in activeAlarmsList.slice(0, 6)"
+                        :key="'popover-alm-' + alm.alarm_id"
+                        class="p-1.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px]"
+                      >
+                        <div class="flex items-center justify-between mb-0.5">
+                          <span class="font-bold text-slate-800 dark:text-slate-200 truncate pr-1">
+                            {{ alm.param_name || alm.alarm_code }}
+                          </span>
+                          <span
+                            class="px-1 py-0.2 rounded text-[7.5px] font-bold flex-shrink-0 uppercase"
+                            :class="alm.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40'"
+                          >
+                            {{ alm.severity }}
+                          </span>
+                        </div>
+                        <div class="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                          <span>Val: <strong class="text-slate-700 dark:text-slate-300">{{ alm.trigger_value != null ? alm.trigger_value : '—' }}</strong> (Limit: {{ alm.threshold_value != null ? alm.threshold_value : '—' }})</span>
+                          <span class="opacity-80">{{ formatRelative(alm.created_at) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="p-3 text-center text-slate-400 dark:text-slate-500 text-[10px] bg-slate-50/50 dark:bg-[#0E1726]/50 rounded border border-dashed border-slate-200 dark:border-[#20354B]">
+                      No active alarm incidents detected.
+                    </div>
                   </div>
-                  <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                    <span class="text-slate-400">Total Monitored:</span>
-                    <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ allParameters.length }} Parameters</span>
-                  </div>
+
+                  <!-- Action Link -->
+                  <router-link
+                    to="/alarm/active"
+                    @click.native="closeToolbarPopover"
+                    class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 hover:border-rose-400"
+                  >
+                    <span>🛡️</span>
+                    <span>{{ $t('operator.viewConsole') || 'Open Alarm Console & Acknowledge →' }}</span>
+                  </router-link>
                 </div>
 
-                <!-- Action Link -->
-                <button
-                  type="button"
-                  @click="navigateToRoute('/monitoring/analysis')"
-                  class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
-                >
-                  <span>📊</span>
-                  <span>Open Telemetry Analytics & Trends →</span>
-                </button>
+                <!-- TAB 2 CONTENT: DEVICE FLEET STATUS -->
+                <div v-else-if="healthActiveTab === 'devices'" class="space-y-2.5 animate-fadeIn">
+                  <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
+                    <div class="flex items-baseline justify-between mb-1.5">
+                      <div>
+                        <span class="text-[20px] font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
+                          {{ summaryStats.onlineCount }} / {{ summaryStats.totalDevices }}
+                        </span>
+                        <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">devices online</span>
+                      </div>
+                      <span class="text-[11px] font-bold" :class="summaryStats.offlineCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'">
+                        {{ Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) }}% active
+                      </span>
+                    </div>
+                    <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all duration-300"
+                        :class="summaryStats.offlineCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'"
+                        :style="{ width: Math.round((summaryStats.onlineCount / (summaryStats.totalDevices || 1)) * 100) + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <!-- Connected Devices List -->
+                  <div>
+                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                      Connected Fleet Nodes
+                    </div>
+                    <div class="max-h-36 overflow-y-auto custom-scroller space-y-1 pr-0.5">
+                      <div
+                        v-for="dev in devicesList"
+                        :key="'popover-dev-' + dev.id"
+                        class="p-1.5 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9.5px]"
+                      >
+                        <div class="flex items-center space-x-1.5 truncate pr-1">
+                          <span
+                            class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                            :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500' : 'bg-rose-500'"
+                          ></span>
+                          <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ dev.device_code }}</span>
+                          <span class="text-slate-400 truncate hidden sm:inline">({{ dev.device_name || 'Generic' }})</span>
+                        </div>
+                        <span
+                          class="px-1 py-0.2 rounded text-[8px] font-bold flex-shrink-0"
+                          :class="isDeviceActiveOnline(dev) ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'"
+                        >
+                          {{ isDeviceActiveOnline(dev) ? 'ONLINE' : 'OFFLINE' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Action Link -->
+                  <button
+                    type="button"
+                    @click="navigateToRoute('/monitoring/devices')"
+                    class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                  >
+                    <span>⚙️</span>
+                    <span>Configure Device Fleet & Telemetry →</span>
+                  </button>
+                </div>
+
+                <!-- TAB 3 CONTENT: TELEMETRY STREAM DIAGNOSTICS -->
+                <div v-else-if="healthActiveTab === 'telemetry'" class="space-y-2.5 animate-fadeIn">
+                  <div class="p-2.5 rounded-md bg-slate-50 dark:bg-[#070E1A] border border-slate-200/80 dark:border-[#1E3048]">
+                    <div class="flex items-baseline justify-between mb-1.5">
+                      <div>
+                        <span
+                          class="text-[20px] font-bold tabular-nums tracking-tight"
+                          :class="isTelemetryStale ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'"
+                        >
+                          {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
+                        </span>
+                        <span class="text-[10px] text-slate-500 dark:text-slate-400 ml-1">since last packet</span>
+                      </div>
+                      <span class="text-[10.5px] font-bold" :class="summaryStats.goodSensors > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
+                        {{ summaryStats.goodSensors }}/{{ allParameters.length }} Valid
+                      </span>
+                    </div>
+                    <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all duration-300"
+                        :class="isTelemetryStale ? 'bg-rose-500' : 'bg-emerald-500'"
+                        :style="{ width: Math.round((summaryStats.goodSensors / (allParameters.length || 1)) * 100) + '%' }"
+                      ></div>
+                    </div>
+                    <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-2 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60">
+                      <span>Packet: <strong class="text-slate-700 dark:text-slate-300">{{ lastTelemetryTimeStr || 'Just now' }}</strong></span>
+                      <span>Timed out: <strong :class="summaryStats.staleSensors > 0 ? 'text-amber-500 font-bold' : 'text-slate-700 dark:text-slate-300'">{{ summaryStats.staleSensors }}</strong></span>
+                    </div>
+                  </div>
+
+                  <!-- Stream Diagnostics Information -->
+                  <div class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px] space-y-1">
+                    <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                      <span class="text-slate-400">Stream Status:</span>
+                      <span class="font-semibold" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
+                        {{ isTelemetryStale ? 'Delay Warning' : 'Active High-Speed Acquisition' }}
+                      </span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                      <span class="text-slate-400">Polling Interval:</span>
+                      <span>{{ Math.round(configuredPollingIntervalMs / 1000) }}s Dynamic Cycle</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                      <span class="text-slate-400">Total Monitored:</span>
+                      <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ allParameters.length }} Parameters</span>
+                    </div>
+                  </div>
+
+                  <!-- Action Link -->
+                  <button
+                    type="button"
+                    @click="navigateToRoute('/monitoring/analysis')"
+                    class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+                  >
+                    <span>📊</span>
+                    <span>Open Telemetry Analytics & Trends →</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -4505,8 +4453,30 @@ export default {
   },
   data() {
     return {
-      gridColumns: 4,
-      panelCount: 4,
+      gridColumns: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.gridColumns && [1, 2, 3, 4].includes(Number(p.gridColumns))) return Number(p.gridColumns);
+          }
+          const saved = localStorage.getItem('operator_monitoring_grid_cols') || localStorage.getItem('operator_console_grid_columns');
+          if (saved && [1, 2, 3, 4].includes(parseInt(saved, 10))) return parseInt(saved, 10);
+        } catch (e) {}
+        return 4;
+      })(),
+      panelCount: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.gridColumns && [1, 2, 3, 4].includes(Number(p.gridColumns))) return Number(p.gridColumns);
+          }
+          const saved = localStorage.getItem('operator_monitoring_grid_cols') || localStorage.getItem('operator_console_grid_columns');
+          if (saved && [1, 2, 3, 4].includes(parseInt(saved, 10))) return parseInt(saved, 10);
+        } catch (e) {}
+        return 4;
+      })(),
       panelLayoutConfigs: [],
       isPanelConfigModalOpen: false,
       devicesList: [],
@@ -4540,14 +4510,71 @@ export default {
       pinnedIds: JSON.parse(localStorage.getItem('dl_pinned_params') || '[]'),
       searchQuery: '',
       searchDebounceTimer: null,
-      selectedDeviceFilter: '',
-      selectedQualityFilter: '',
-      selectedAlarmFilter: '',
-      selectedCategoryFilter: 'all',
+      selectedDeviceFilter: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.selectedDeviceFilter !== undefined) return p.selectedDeviceFilter;
+          }
+        } catch (e) {}
+        return '';
+      })(),
+      selectedQualityFilter: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.selectedQualityFilter !== undefined) return p.selectedQualityFilter;
+          }
+        } catch (e) {}
+        return '';
+      })(),
+      selectedAlarmFilter: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.selectedAlarmFilter !== undefined) return p.selectedAlarmFilter;
+          }
+        } catch (e) {}
+        return '';
+      })(),
+      selectedCategoryFilter: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.selectedCategoryFilter !== undefined) return p.selectedCategoryFilter;
+          }
+        } catch (e) {}
+        return 'all';
+      })(),
       categoriesList: [],
       isCategoryModalOpen: false,
-      filterPinnedOnly: false,
-      viewMode: 'cards', // 'cards' | 'table'
+      filterPinnedOnly: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (typeof p.filterPinnedOnly === 'boolean') return p.filterPinnedOnly;
+          }
+        } catch (e) {}
+        return false;
+      })(),
+      viewMode: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.viewMode && ['cards', 'table'].includes(p.viewMode)) return p.viewMode;
+          }
+          const legacy = localStorage.getItem('dl_view_mode');
+          if (legacy && ['cards', 'table'].includes(legacy)) return legacy;
+        } catch (e) {}
+        return 'cards';
+      })(),
+      healthActiveTab: 'alarms', // 'alarms' | 'devices' | 'telemetry'
       activeToolbarPopover: null,
       networkStatus: {
         local_network: {
@@ -4668,10 +4695,48 @@ export default {
       showEnvironmentalVisualizations: localStorage.getItem('dl_show_environmental_viz') === 'true',
 
       // Trend Chart State
-      currentTimeframe: '15m',
-      chartMode: 'processed', // 'processed' | 'raw'
-      trendScaleMode: 'auto', // 'auto' | 'normalized'
-      trendSpikeZoom: 'robust', // 'robust' (smart scale with outlier marker) | 'full' (encompass full spike)
+      currentTimeframe: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.currentTimeframe && ['1m', '5m', '15m', '1h', '6h', '24h'].includes(p.currentTimeframe)) return p.currentTimeframe;
+          }
+          const legacy = localStorage.getItem('dl_trend_timeframe');
+          if (legacy && ['1m', '5m', '15m', '1h', '6h', '24h'].includes(legacy)) return legacy;
+        } catch (e) {}
+        return '15m';
+      })(),
+      chartMode: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.chartMode && ['processed', 'raw'].includes(p.chartMode)) return p.chartMode;
+          }
+        } catch (e) {}
+        return 'processed';
+      })(),
+      trendScaleMode: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.trendScaleMode && ['auto', 'normalized'].includes(p.trendScaleMode)) return p.trendScaleMode;
+          }
+        } catch (e) {}
+        return 'auto';
+      })(),
+      trendSpikeZoom: (() => {
+        try {
+          const raw = localStorage.getItem('dl_operator_preferences');
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (p.trendSpikeZoom && ['robust', 'full'].includes(p.trendSpikeZoom)) return p.trendSpikeZoom;
+          }
+        } catch (e) {}
+        return 'robust';
+      })(),
       hoveredTrendSeriesId: null,
       activeTrendSeries: [],
       maxTrendSeries: 16,
@@ -5813,6 +5878,16 @@ export default {
 
       return sections;
     },
+    healthAndAlarmsTooltip() {
+      const parts = [];
+      const critStr = this.activeCriticalCount > 0 ? `${this.activeCriticalCount} CRIT` : '';
+      const warnStr = this.activeWarningCount > 0 ? `${this.activeWarningCount} WARN` : '';
+      const sevStr = [critStr, warnStr].filter(Boolean).join(', ');
+      parts.push(`Alarms: ${this.activeAlarmsList.length}${sevStr ? ' (' + sevStr + ')' : ' (Normal)'}`);
+      parts.push(`Devices: ${this.summaryStats.onlineCount}/${this.summaryStats.totalDevices} Online`);
+      parts.push(`Stream: ${this.isTelemetryStale ? 'STALE' : 'LIVE'} (${this.formatRelativeSeconds(this.lastTelemetrySecondsAgo)} ago)`);
+      return parts.join(' · ');
+    },
     sidebarAutoHide() {
       return !!((this.$store.state.uiPreferences && this.$store.state.uiPreferences.sidebarAutoHide) || this.$store.state.sidebarAutoHide);
     },
@@ -5856,6 +5931,42 @@ export default {
         }
       },
     },
+    viewMode() {
+      this.saveOperatorPreferences();
+    },
+    gridColumns() {
+      this.saveOperatorPreferences();
+    },
+    filterPinnedOnly() {
+      this.saveOperatorPreferences();
+    },
+    selectedCategoryFilter() {
+      this.saveOperatorPreferences();
+    },
+    selectedDeviceFilter() {
+      this.saveOperatorPreferences();
+    },
+    selectedQualityFilter() {
+      this.saveOperatorPreferences();
+    },
+    selectedAlarmFilter() {
+      this.saveOperatorPreferences();
+    },
+    currentTimeframe() {
+      this.saveOperatorPreferences();
+    },
+    chartMode() {
+      this.saveOperatorPreferences();
+    },
+    trendScaleMode() {
+      this.saveOperatorPreferences();
+    },
+    trendSpikeZoom() {
+      this.saveOperatorPreferences();
+    },
+    trendLineSmooth() {
+      this.saveOperatorPreferences();
+    },
   },
   mounted() {
     this.initCompanyBranding();
@@ -5865,6 +5976,7 @@ export default {
     this.initTrendResizeObserver();
     this.loadPanelLayoutConfig();
     this.loadGridColumnsConfig();
+    this.loadOperatorPreferences();
 
     // Telemetry Freshness Ticker
     this.tickerInterval = setInterval(() => {
@@ -5933,6 +6045,74 @@ export default {
     document.removeEventListener('keydown', this.onDocumentKeyDown);
   },
   methods: {
+    loadOperatorPreferences() {
+      try {
+        const raw = localStorage.getItem('dl_operator_preferences');
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (p.viewMode && ['cards', 'table'].includes(p.viewMode)) {
+            this.viewMode = p.viewMode;
+          }
+          if (p.gridColumns && [1, 2, 3, 4].includes(Number(p.gridColumns))) {
+            this.gridColumns = Number(p.gridColumns);
+            this.panelCount = Number(p.gridColumns);
+          }
+          if (typeof p.filterPinnedOnly === 'boolean') {
+            this.filterPinnedOnly = p.filterPinnedOnly;
+          }
+          if (p.selectedCategoryFilter !== undefined) {
+            this.selectedCategoryFilter = p.selectedCategoryFilter;
+          }
+          if (p.selectedDeviceFilter !== undefined) {
+            this.selectedDeviceFilter = p.selectedDeviceFilter;
+          }
+          if (p.selectedQualityFilter !== undefined) {
+            this.selectedQualityFilter = p.selectedQualityFilter;
+          }
+          if (p.selectedAlarmFilter !== undefined) {
+            this.selectedAlarmFilter = p.selectedAlarmFilter;
+          }
+          if (p.currentTimeframe && ['1m', '5m', '15m', '1h', '6h', '24h'].includes(p.currentTimeframe)) {
+            this.currentTimeframe = p.currentTimeframe;
+          }
+          if (p.chartMode && ['processed', 'raw'].includes(p.chartMode)) {
+            this.chartMode = p.chartMode;
+          }
+          if (p.trendScaleMode && ['auto', 'normalized'].includes(p.trendScaleMode)) {
+            this.trendScaleMode = p.trendScaleMode;
+          }
+          if (p.trendSpikeZoom && ['robust', 'full'].includes(p.trendSpikeZoom)) {
+            this.trendSpikeZoom = p.trendSpikeZoom;
+          }
+          if (typeof p.trendLineSmooth === 'boolean') {
+            this.trendLineSmooth = p.trendLineSmooth;
+          }
+        }
+      } catch (e) {}
+    },
+    saveOperatorPreferences() {
+      try {
+        const prefs = {
+          viewMode: this.viewMode,
+          gridColumns: this.gridColumns,
+          filterPinnedOnly: this.filterPinnedOnly,
+          selectedCategoryFilter: this.selectedCategoryFilter,
+          selectedDeviceFilter: this.selectedDeviceFilter,
+          selectedQualityFilter: this.selectedQualityFilter,
+          selectedAlarmFilter: this.selectedAlarmFilter,
+          currentTimeframe: this.currentTimeframe,
+          chartMode: this.chartMode,
+          trendScaleMode: this.trendScaleMode,
+          trendSpikeZoom: this.trendSpikeZoom,
+          trendLineSmooth: this.trendLineSmooth,
+        };
+        localStorage.setItem('dl_operator_preferences', JSON.stringify(prefs));
+        localStorage.setItem('dl_view_mode', this.viewMode);
+        localStorage.setItem('operator_console_grid_columns', String(this.gridColumns));
+        localStorage.setItem('operator_monitoring_grid_cols', String(this.gridColumns));
+        localStorage.setItem('dl_trend_timeframe', this.currentTimeframe);
+      } catch (e) {}
+    },
     toggleSidebarAutoHide() {
       this.$store.dispatch('toggleSidebarAutoHide');
       this.$emit('toggle-autohide', this.sidebarAutoHide);
@@ -6400,7 +6580,15 @@ export default {
         this.activeToolbarPopover = null;
       } else {
         this.activeToolbarPopover = popoverName;
-        if (popoverName === 'networkMonitor') {
+        if (popoverName === 'healthAndAlarms') {
+          if (this.activeAlarmsList.length > 0) {
+            this.healthActiveTab = 'alarms';
+          } else if (this.summaryStats.offlineCount > 0) {
+            this.healthActiveTab = 'devices';
+          } else if (this.isTelemetryStale) {
+            this.healthActiveTab = 'telemetry';
+          }
+        } else if (popoverName === 'networkMonitor') {
           this.fetchNetworkStatus();
         } else if (popoverName === 'stationLocation') {
           this.fetchStationLocation();
