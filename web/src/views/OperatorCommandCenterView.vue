@@ -196,7 +196,7 @@
             <!-- Unified Popover Panel -->
             <div
               v-if="activeToolbarPopover === 'viewOptions'"
-              class="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
+              class="absolute left-0 top-full mt-1.5 z-50 w-[350px] sm:w-[370px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
               @click.stop
             >
               <!-- Panel Header -->
@@ -478,23 +478,27 @@
             <!-- ISPU Settings Popover Panel -->
             <div
               v-if="activeToolbarPopover === 'ispuSettings'"
-              class="absolute left-0 top-full mt-1.5 z-50 w-72 max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-2.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn"
+              class="absolute left-0 top-full mt-1.5 z-50 w-[390px] sm:w-[410px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono"
               @click.stop
             >
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-1.5">
-                  <OperatorDashboardIcon name="ispu" :size="15" class="text-emerald-500" />
-                  <span class="text-xs font-bold uppercase tracking-wider font-mono">
-                    {{ $t('operator.ispuSettings') || 'ISPU Settings' }}
-                  </span>
-                  <span v-if="isAQMSDomain" class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                    AQMS
-                  </span>
+              <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
+                <div class="flex items-center space-x-2">
+                  <div class="w-6 h-6 rounded flex items-center justify-center bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex-shrink-0">
+                    <OperatorDashboardIcon name="ispu" :size="14" />
+                  </div>
+                  <div class="flex items-center space-x-1.5">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                      {{ $t('operator.ispuSettings') || 'ISPU Settings' }}
+                    </span>
+                    <span v-if="isAQMSDomain" class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 leading-none">
+                      AQMS
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"
                   @click="closeToolbarPopover"
-                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
+                  class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#18283E] rounded transition"
                   title="Close"
                 >
                   <OperatorDashboardIcon name="close" :size="14" />
@@ -502,44 +506,44 @@
               </div>
 
               <!-- Toggle Show/Hide ISPU Panel Row -->
-              <div class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2 font-mono">
-                <div>
-                  <div class="text-[10.5px] font-bold text-slate-900 dark:text-white">
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold text-slate-900 dark:text-white">
                     {{ $t('operator.showIspuBar') || 'Show ISPU Indicator Bar' }}
-                  </div>
-                  <div class="text-[9px] text-slate-500 dark:text-slate-400">
-                    {{ $t('operator.showIspuBarDesc') || 'Display air quality index bar below parameters' }}
-                  </div>
+                  </span>
+                  <button
+                    type="button"
+                    @click="toggleIspuBarVisibility"
+                    class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    :class="isIspuBarVisible ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                    role="switch"
+                    :aria-checked="isIspuBarVisible"
+                  >
+                    <span
+                      aria-hidden="true"
+                      class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="isIspuBarVisible ? 'translate-x-4' : 'translate-x-0'"
+                    ></span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  @click="toggleIspuBarVisibility"
-                  class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                  :class="isIspuBarVisible ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                  role="switch"
-                  :aria-checked="isIspuBarVisible"
-                >
-                  <span
-                    aria-hidden="true"
-                    class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                    :class="isIspuBarVisible ? 'translate-x-4' : 'translate-x-0'"
-                  ></span>
-                </button>
+                <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                  {{ $t('operator.showIspuBarDesc') || 'Display air quality index bar below parameters' }}
+                </div>
               </div>
 
               <!-- Standard Info Card -->
-              <div class="p-2 rounded bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2 text-[9.5px] font-mono space-y-1">
+              <div class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2.5 text-[9.5px] space-y-1.5">
                 <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span class="text-slate-500 dark:text-slate-400">Standard:</span>
+                  <span class="text-slate-400">Standard:</span>
                   <span class="font-bold text-cyan-600 dark:text-cyan-400">Permen LHK No. 14 / 2020</span>
                 </div>
                 <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span class="text-slate-500 dark:text-slate-400">Interval:</span>
-                  <span>24-Hour Rolling Average</span>
+                  <span class="text-slate-400">Interval:</span>
+                  <span class="font-semibold text-slate-700 dark:text-slate-300">24-Hour Rolling Average</span>
                 </div>
                 <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
-                  <span class="text-slate-500 dark:text-slate-400">Parameters:</span>
-                  <span>PM2.5, PM10, SO2, NO2, O3, CO</span>
+                  <span class="text-slate-400">Parameters:</span>
+                  <span class="font-mono text-[9px] text-slate-700 dark:text-slate-300">PM2.5, PM10, SO2, NO2, O3, CO</span>
                 </div>
               </div>
 
@@ -547,7 +551,7 @@
               <button
                 type="button"
                 @click="navigateToRoute('/monitoring/ispu')"
-                class="w-full py-1.5 px-2 rounded text-3xs font-mono font-semibold transition border flex items-center justify-center space-x-1.5 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400"
+                class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-2 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400"
               >
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>{{ $t('operator.openIspuAnalysis') || 'Open ISPU Analysis & Reports →' }}</span>
