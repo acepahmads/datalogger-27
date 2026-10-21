@@ -299,66 +299,100 @@ html:not(.dark) .text-sky-400 {
   color: #0369A1 !important;
 }
 
+html:not(.dark) .text-emerald-300,
 html:not(.dark) .text-emerald-400,
 html:not(.dark) .text-emerald-500 {
   color: #047857 !important;
 }
 
+html:not(.dark) .text-amber-300,
 html:not(.dark) .text-amber-400 {
   color: #B45309 !important;
 }
 
+html:not(.dark) .text-rose-300,
 html:not(.dark) .text-rose-400 {
   color: #BE123C !important;
 }
 
+html:not(.dark) .text-purple-300,
 html:not(.dark) .text-purple-400 {
   color: #7E22CE !important;
 }
 
+html:not(.dark) .text-indigo-300,
 html:not(.dark) .text-indigo-400 {
   color: #4338CA !important;
 }
 
+html:not(.dark) .text-cyan-300,
 html:not(.dark) .text-cyan-400 {
-  color: #0891B2 !important;
+  color: #0284C7 !important;
 }
 
 /* Semantic Badges in Light Mode */
 html:not(.dark) .bg-emerald-500\/10,
-html:not(.dark) .bg-emerald-500\/20 {
+html:not(.dark) .bg-emerald-500\/20,
+html:not(.dark) .bg-emerald-950\/10,
+html:not(.dark) .bg-emerald-950\/20,
+html:not(.dark) .bg-emerald-950\/30,
+html:not(.dark) .bg-emerald-950\/40,
+html:not(.dark) .bg-emerald-950\/50,
+html:not(.dark) .bg-emerald-950\/60 {
   background-color: #ECFDF5 !important;
+  color: #047857 !important;
 }
 html:not(.dark) .border-emerald-500\/20,
-html:not(.dark) .border-emerald-500\/30 {
+html:not(.dark) .border-emerald-500\/30,
+html:not(.dark) .border-emerald-800\/40,
+html:not(.dark) .border-emerald-800\/60 {
   border-color: #A7F3D0 !important;
 }
 
 html:not(.dark) .bg-blue-500\/10,
 html:not(.dark) .bg-blue-500\/20,
+html:not(.dark) .bg-blue-600\/20,
+html:not(.dark) .bg-blue-950\/20,
+html:not(.dark) .bg-blue-950\/30,
+html:not(.dark) .bg-blue-950\/40,
+html:not(.dark) .bg-blue-950\/50,
 html:not(.dark) .bg-cyan-500\/10,
 html:not(.dark) .bg-cyan-500\/20 {
   background-color: #EFF6FF !important;
+  color: #0284C7 !important;
 }
 html:not(.dark) .border-blue-500\/20,
 html:not(.dark) .border-blue-500\/30,
+html:not(.dark) .border-blue-500\/40,
+html:not(.dark) .border-blue-800\/40,
+html:not(.dark) .border-blue-800\/60,
 html:not(.dark) .border-cyan-500\/20,
 html:not(.dark) .border-cyan-500\/30 {
   border-color: #BFDBFE !important;
 }
 
 html:not(.dark) .bg-amber-500\/10,
-html:not(.dark) .bg-amber-500\/20 {
+html:not(.dark) .bg-amber-500\/20,
+html:not(.dark) .bg-amber-950\/20,
+html:not(.dark) .bg-amber-950\/30,
+html:not(.dark) .bg-amber-950\/50 {
   background-color: #FFFBEB !important;
+  color: #B45309 !important;
 }
 html:not(.dark) .border-amber-500\/20,
-html:not(.dark) .border-amber-500\/30 {
+html:not(.dark) .border-amber-500\/30,
+html:not(.dark) .border-amber-500\/40 {
   border-color: #FDE68A !important;
 }
 
 html:not(.dark) .bg-rose-500\/10,
-html:not(.dark) .bg-rose-500\/20 {
+html:not(.dark) .bg-rose-500\/20,
+html:not(.dark) .bg-rose-950\/10,
+html:not(.dark) .bg-rose-950\/20,
+html:not(.dark) .bg-rose-950\/30,
+html:not(.dark) .bg-rose-950\/50 {
   background-color: #FFF1F2 !important;
+  color: #BE123C !important;
 }
 html:not(.dark) .border-rose-500\/20,
 html:not(.dark) .border-rose-500\/30 {
@@ -366,12 +400,22 @@ html:not(.dark) .border-rose-500\/30 {
 }
 
 html:not(.dark) .bg-purple-500\/10,
-html:not(.dark) .bg-purple-500\/20 {
+html:not(.dark) .bg-purple-500\/20,
+html:not(.dark) .bg-purple-950\/20,
+html:not(.dark) .bg-purple-950\/30,
+html:not(.dark) .bg-purple-950\/50 {
   background-color: #F5F3FF !important;
+  color: #7E22CE !important;
 }
 html:not(.dark) .border-purple-500\/20,
 html:not(.dark) .border-purple-500\/30 {
   border-color: #DDD6FE !important;
+}
+
+/* Secondary Panels & Accordion Inners */
+html:not(.dark) .bg-\[\#0E1524\]\/40,
+html:not(.dark) .bg-\[\#0E1524\] {
+  background-color: #F8FAFC !important;
 }
 
 /* Explicit button text preservation */

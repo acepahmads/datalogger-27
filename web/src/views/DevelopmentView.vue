@@ -3,10 +3,10 @@
     <!-- Header: Development Lifecycle -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-xl font-bold tracking-tight text-white font-sans">
+        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white font-sans">
           {{ $t('development.title') }}
         </h1>
-        <p class="text-xs text-slate-400 mt-1 font-sans">
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-sans">
           {{ $t('development.subtitle') }}
         </p>
       </div>
@@ -21,7 +21,7 @@
           {{ $t('dashboard.addTask') }}
         </button>
         <button @click="refreshAll" :disabled="refreshing"
-                class="p-2 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 rounded-lg text-xs transition-colors"
+                class="p-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800 dark:border-slate-700/60 dark:text-slate-300 rounded-lg text-xs transition-colors"
                 :title="$t('common.refresh')">
           <svg class="w-4 h-4" :class="{ 'animate-spin': refreshing }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <polyline points="23 4 23 10 17 10"></polyline>
@@ -36,51 +36,51 @@
     <KpiCards />
 
     <!-- Current Status Hero Card (Visually dominant Current Phase, no rigid 4 boxes) -->
-    <div class="saas-card p-5 relative overflow-hidden bg-gradient-to-r from-[#111827] via-[#131E35] to-[#111827]">
+    <div class="saas-card p-5 relative overflow-hidden bg-gradient-to-r from-sky-50 via-slate-50 to-white border border-sky-100 dark:border-slate-800 dark:from-[#111827] dark:via-[#131E35] dark:to-[#111827]">
       <div class="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-blue-600/10 to-transparent pointer-events-none"></div>
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         <!-- Visually Dominant Left Section: Active Phase -->
         <div class="lg:col-span-6 space-y-2">
           <div class="flex items-center space-x-2">
-            <span class="text-3xs font-bold uppercase tracking-widest text-blue-400 font-mono">{{ $t('development.activeMilestone') }}</span>
+            <span class="text-3xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 font-mono">{{ $t('development.activeMilestone') }}</span>
             <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
           </div>
-          <div class="text-2xl font-extrabold text-white tracking-tight font-sans">
+          <div class="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight font-sans">
             {{ activePhaseName }}
           </div>
-          <p class="text-xs text-slate-300 leading-relaxed max-w-xl font-sans">
+          <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl font-sans">
             {{ activePhaseDescription }}
           </p>
         </div>
 
         <!-- Right Section: Current Task, Next Action & Timestamp in clean hierarchy -->
-        <div class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t lg:border-t-0 lg:border-l border-slate-800/80 pt-4 lg:pt-0 lg:pl-6 text-xs font-sans">
+        <div class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800/80 pt-4 lg:pt-0 lg:pl-6 text-xs font-sans">
           <!-- Current Task -->
           <div class="space-y-1">
-            <span class="text-3xs font-medium uppercase tracking-wider text-slate-400 block">{{ $t('development.currentTask') }}</span>
-            <div class="text-sm font-semibold text-slate-100 flex items-center space-x-1.5">
-              <span class="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0"></span>
+            <span class="text-3xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">{{ $t('development.currentTask') }}</span>
+            <div class="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center space-x-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
               <span class="truncate">{{ progress.current_task || 'UI Redesign & MariaDB' }}</span>
             </div>
-            <span class="text-2xs text-blue-400 block">{{ progress.current_subphase || 'Edge Runtime' }}</span>
+            <span class="text-2xs text-blue-600 dark:text-blue-400 block">{{ progress.current_subphase || 'Edge Runtime' }}</span>
           </div>
 
           <!-- Next Action -->
           <div class="space-y-1">
-            <span class="text-3xs font-medium uppercase tracking-wider text-slate-400 block">{{ $t('development.nextAction') }}</span>
-            <div class="text-xs text-slate-200 leading-snug">
+            <span class="text-3xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">{{ $t('development.nextAction') }}</span>
+            <div class="text-xs text-slate-700 dark:text-slate-200 leading-snug">
               {{ progress.next_action || 'Complete Phase 1 deployment and verify MariaDB connectivity' }}
             </div>
           </div>
 
           <!-- Last Update -->
-          <div class="sm:col-span-2 pt-2 border-t border-slate-800/50 flex items-center justify-between text-2xs text-slate-400 font-sans">
+          <div class="sm:col-span-2 pt-2 border-t border-slate-200 dark:border-slate-800/50 flex items-center justify-between text-2xs text-slate-500 dark:text-slate-400 font-sans">
             <div class="flex items-center space-x-2">
               <span>{{ $t('development.lastUpdate') }}</span>
-              <span class="font-mono text-slate-300">{{ progress.last_update }}</span>
+              <span class="font-mono text-slate-700 dark:text-slate-300">{{ progress.last_update }}</span>
             </div>
-            <span class="text-emerald-400 font-medium">{{ $t('development.dbSynchronized') }}</span>
+            <span class="text-emerald-600 dark:text-emerald-400 font-medium">{{ $t('development.dbSynchronized') }}</span>
           </div>
         </div>
       </div>
@@ -89,10 +89,10 @@
     <!-- 10 Phases Development Roadmap Cards (Expandable Accordion) -->
     <div class="space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-bold text-slate-200 tracking-tight font-sans">
+        <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight font-sans">
           {{ $t('development.roadmapTitle') }}
         </h2>
-        <span class="text-2xs text-slate-400">{{ $t('development.clickToExpand') }}</span>
+        <span class="text-2xs text-slate-500 dark:text-slate-400">{{ $t('development.clickToExpand') }}</span>
       </div>
 
       <!-- Phase Cards List -->
@@ -103,7 +103,7 @@
           
           <!-- Phase Card Header (Clickable) -->
           <div @click="togglePhase(phase.id)"
-               class="p-4 cursor-pointer hover:bg-slate-800/20 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
+               class="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 select-none">
             
             <div class="flex items-start space-x-3.5 flex-1">
               <!-- Phase Number Pill -->
@@ -114,10 +114,10 @@
 
               <!-- Name & Description -->
               <div class="space-y-0.5">
-                <div class="text-sm font-bold text-white tracking-tight font-sans">
+                <div class="text-sm font-bold text-slate-900 dark:text-white tracking-tight font-sans">
                   {{ phase.name.replace(/^Phase \d+ — /, '') }}
                 </div>
-                <p class="text-2xs text-slate-400 font-sans line-clamp-1">
+                <p class="text-2xs text-slate-500 dark:text-slate-400 font-sans line-clamp-1">
                   {{ phase.description }}
                 </p>
               </div>
@@ -126,12 +126,12 @@
             <!-- Right: Task Completion, Progress Bar, Status Badge & Chevron -->
             <div class="flex items-center space-x-4 self-end md:self-center font-sans">
               <!-- Task Count -->
-              <span class="text-2xs text-slate-400 font-sans hidden sm:inline-block">
+              <span class="text-2xs text-slate-500 dark:text-slate-400 font-sans hidden sm:inline-block">
                 {{ getCompletedTasksCount(phase) }} / {{ getActiveTasksCount(phase) }} {{ $t('development.activeTasks') }}
               </span>
 
               <!-- Thin subtle Progress Bar -->
-              <div class="w-24 sm:w-32 bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
+              <div class="w-24 sm:w-32 bg-slate-200 dark:bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
                 <div class="h-full rounded-full transition-all duration-500"
                      :class="getProgressBarColor(phase)"
                      :style="{ width: phase.progress + '%' }"></div>
@@ -139,7 +139,7 @@
 
               <!-- Percentage -->
               <span class="text-2xs font-bold w-12 text-right font-sans"
-                    :class="phase.progress >= 100 ? 'text-emerald-400' : phase.progress > 0 ? 'text-blue-400' : 'text-slate-500'">
+                    :class="phase.progress >= 100 ? 'text-emerald-500 dark:text-emerald-400' : phase.progress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'">
                 {{ phase.progress % 1 === 0 ? phase.progress : phase.progress.toFixed(1) }}%
               </span>
 
@@ -159,38 +159,38 @@
           </div>
 
           <!-- Phase Details Accordion Content -->
-          <div v-if="openPhases[phase.id]" class="px-4 pb-4 pt-3 border-t border-slate-800/60 bg-[#0E1524]/40 space-y-4">
+          <div v-if="openPhases[phase.id]" class="px-4 pb-4 pt-3 border-t border-slate-200 dark:border-slate-800/60 bg-slate-50/70 dark:bg-[#0E1524]/40 space-y-4">
             
             <!-- Subphase Breakdown (Hierarchy for phases with subphases like Phase 2) -->
             <div v-if="phase.subphases && phase.subphases.length" class="space-y-2.5">
               <div class="flex items-center justify-between">
-                <span class="text-2xs font-semibold text-slate-300 uppercase tracking-wider font-sans flex items-center space-x-1.5">
+                <span class="text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider font-sans flex items-center space-x-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                   <span>{{ $t('development.subphaseBreakdown') }}</span>
                 </span>
-                <span class="text-3xs text-emerald-400 font-mono">{{ $t('development.normalizedHierarchy') }}</span>
+                <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono">{{ $t('development.normalizedHierarchy') }}</span>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
                 <div v-for="sp in phase.subphases" :key="sp.id"
                      @click="toggleSubphaseFilter(sp.id)"
-                     class="p-3 rounded-lg bg-[#0B0F19]/80 border transition-all cursor-pointer"
-                     :class="selectedSubphaseId === sp.id ? 'border-blue-500 ring-1 ring-blue-500/40 bg-blue-950/20' : 'border-slate-800/80 hover:border-slate-700'">
+                     class="p-3 rounded-lg bg-white dark:bg-[#0B0F19]/80 border transition-all cursor-pointer"
+                     :class="selectedSubphaseId === sp.id ? 'border-blue-500 ring-1 ring-blue-500/40 bg-blue-50/40 dark:bg-blue-950/20' : 'border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'">
                   <div class="flex items-center justify-between mb-1.5">
                     <span class="text-3xs font-mono font-bold px-1.5 py-0.5 rounded"
                           :class="getSubphaseBadgeClass(sp)">
                       {{ $t('status.' + (sp.status ? sp.status.toLowerCase() : (sp.progress >= 100 ? 'done' : 'working'))) }}
                     </span>
                     <span class="text-2xs font-bold font-mono"
-                          :class="sp.progress >= 100 ? 'text-emerald-400' : sp.progress > 0 ? 'text-blue-400' : 'text-slate-400'">
+                          :class="sp.progress >= 100 ? 'text-emerald-500 dark:text-emerald-400' : sp.progress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'">
                       {{ sp.progress.toFixed(0) }}%
                     </span>
                   </div>
-                  <div class="text-xs font-bold text-white font-sans truncate">{{ sp.name }}</div>
-                  <div class="text-2xs text-slate-400 font-sans mt-0.5 line-clamp-1">{{ sp.description }}</div>
-                  <div class="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-3xs font-mono">
-                    <span class="text-slate-400">{{ sp.acceptance_criteria || $t('development.verified') }}</span>
-                    <span class="text-blue-400 hover:underline">
+                  <div class="text-xs font-bold text-slate-900 dark:text-white font-sans truncate">{{ sp.name }}</div>
+                  <div class="text-2xs text-slate-500 dark:text-slate-400 font-sans mt-0.5 line-clamp-1">{{ sp.description }}</div>
+                  <div class="mt-2 pt-1.5 border-t border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-3xs font-mono">
+                    <span class="text-slate-500 dark:text-slate-400">{{ sp.acceptance_criteria || $t('development.verified') }}</span>
+                    <span class="text-blue-600 dark:text-blue-400 hover:underline">
                       {{ getSubphaseTasks(phase, sp.id).length }} {{ $t('development.tasksCount') }}
                     </span>
                   </div>
@@ -199,23 +199,23 @@
             </div>
 
             <!-- Task Header & Filter Bar -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/50">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800/50">
               <div class="flex items-center space-x-2">
-                <span class="text-2xs font-semibold text-slate-400 uppercase tracking-wider font-sans">
+                <span class="text-2xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider font-sans">
                   {{ $t('development.tasksDeliverables') }} ({{ getDisplayedTasks(phase).length }})
                 </span>
-                <span v-if="selectedSubphaseId" class="text-3xs text-blue-400 font-sans bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 flex items-center">
+                <span v-if="selectedSubphaseId" class="text-3xs text-blue-700 dark:text-blue-400 font-sans bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center">
                   {{ $t('development.subphaseFilterActive') }}
-                  <button @click.stop="selectedSubphaseId = null" class="ml-1.5 text-slate-400 hover:text-white" title="Clear filter">&times;</button>
+                  <button @click.stop="selectedSubphaseId = null" class="ml-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white" title="Clear filter">&times;</button>
                 </span>
               </div>
               <div class="flex items-center space-x-2">
                 <button v-if="selectedSubphaseId" @click.stop="selectedSubphaseId = null"
-                        class="text-3xs text-slate-400 hover:text-white font-sans">
+                        class="text-3xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-sans">
                   {{ $t('development.showAllTasks') }}
                 </button>
                 <button @click.stop="openNewTaskForPhase(phase.id)"
-                        class="text-2xs text-blue-400 hover:text-blue-300 font-medium font-sans flex items-center">
+                        class="text-2xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium font-sans flex items-center">
                   + {{ $t('development.addTaskToPhase', { num: phase.phase_number }) }}
                 </button>
               </div>
@@ -225,8 +225,8 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
               <div v-for="task in getDisplayedTasks(phase)" :key="task.id"
                    @click="selectedTask = task"
-                   class="p-3 rounded-lg bg-[#111827] border border-slate-800/80 hover:border-blue-500/50 hover:shadow-soft cursor-pointer transition-all duration-150 flex flex-col justify-between"
-                   :class="{'opacity-60 bg-slate-900/50': task.status === 'SUPERSEDED'}">
+                   class="p-3 rounded-lg bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800/80 hover:border-blue-400 dark:hover:border-blue-500/50 hover:shadow-soft cursor-pointer transition-all duration-150 flex flex-col justify-between"
+                   :class="{'opacity-60 bg-slate-50 dark:bg-slate-900/50': task.status === 'SUPERSEDED'}">
                 <div>
                   <div class="flex items-center justify-between mb-1.5">
                     <span class="text-3xs font-mono text-slate-500">#{{ task.id }}</span>
@@ -235,13 +235,13 @@
                       {{ $t('status.' + task.status.toLowerCase()) }}
                     </span>
                   </div>
-                  <div class="text-xs font-semibold text-slate-100 font-sans">{{ task.task_name }}</div>
-                  <div class="text-2xs text-slate-400 mt-1 font-sans line-clamp-2">{{ task.description }}</div>
+                  <div class="text-xs font-semibold text-slate-900 dark:text-slate-100 font-sans">{{ task.task_name }}</div>
+                  <div class="text-2xs text-slate-500 dark:text-slate-400 mt-1 font-sans line-clamp-2">{{ task.description }}</div>
                 </div>
 
-                <div class="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-2xs">
-                  <span class="text-slate-400 font-sans truncate max-w-[120px]">{{ task.owner || 'Engineer' }}</span>
-                  <span class="font-sans font-medium" :class="task.progress >= 100 ? 'text-emerald-400' : task.progress > 0 ? 'text-blue-400' : 'text-slate-500'">
+                <div class="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-2xs">
+                  <span class="text-slate-600 dark:text-slate-400 font-sans truncate max-w-[120px]">{{ task.owner || 'Engineer' }}</span>
+                  <span class="font-sans font-medium" :class="task.progress >= 100 ? 'text-emerald-500 dark:text-emerald-400' : task.progress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'">
                     {{ task.progress }}%
                   </span>
                 </div>
@@ -253,48 +253,48 @@
     </div>
 
     <!-- Development Activity Timeline Component -->
-    <div class="saas-card p-5 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
+    <div class="saas-card p-5 space-y-4 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-3">
         <div>
-          <h2 class="text-sm font-bold text-white font-sans tracking-tight">{{ $t('development.milestoneTimeline') }}</h2>
-          <p class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestoneTimelineSubtitle') }}</p>
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white font-sans tracking-tight">{{ $t('development.milestoneTimeline') }}</h2>
+          <p class="text-2xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">{{ $t('development.milestoneTimelineSubtitle') }}</p>
         </div>
-        <router-link to="/development/activity" class="text-2xs text-blue-400 hover:text-blue-300 font-sans font-medium">
+        <router-link to="/development/activity" class="text-2xs text-blue-600 dark:text-blue-400 hover:underline font-sans font-medium">
           {{ $t('development.viewAllActivity') }} &rarr;
         </router-link>
       </div>
 
-      <div class="space-y-4 relative pl-5 border-l border-slate-800">
+      <div class="space-y-4 relative pl-5 border-l border-slate-200 dark:border-slate-800">
         <!-- Milestone 1 -->
         <div class="relative">
-          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone1Title') }}</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone1Desc') }}</div>
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-[#0B0F19]"></div>
+          <div class="text-xs font-semibold text-slate-900 dark:text-white font-sans">{{ $t('development.milestone1Title') }}</div>
+          <div class="text-2xs text-slate-600 dark:text-slate-400 font-sans mt-0.5">{{ $t('development.milestone1Desc') }}</div>
           <div class="text-3xs text-slate-500 font-mono mt-1">2026-10-05 · {{ $t('development.verified') }} (17/17 PASS)</div>
         </div>
 
         <!-- Milestone 2 -->
         <div class="relative">
-          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone2Title') }}</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone2Desc') }}</div>
-          <div class="text-3xs text-emerald-400 font-mono mt-1">2026-10-07 · {{ $t('development.verified') }} (81/81 PASS)</div>
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-[#0B0F19]"></div>
+          <div class="text-xs font-semibold text-slate-900 dark:text-white font-sans">{{ $t('development.milestone2Title') }}</div>
+          <div class="text-2xs text-slate-600 dark:text-slate-400 font-sans mt-0.5">{{ $t('development.milestone2Desc') }}</div>
+          <div class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono mt-1">2026-10-07 · {{ $t('development.verified') }} (81/81 PASS)</div>
         </div>
 
         <!-- Milestone 3 -->
         <div class="relative">
-          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone3Title') }}</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone3Desc') }}</div>
-          <div class="text-3xs text-emerald-400 font-mono mt-1">2026-10-09 · {{ $t('development.verified') }} (65/65 PASS)</div>
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-[#0B0F19]"></div>
+          <div class="text-xs font-semibold text-slate-900 dark:text-white font-sans">{{ $t('development.milestone3Title') }}</div>
+          <div class="text-2xs text-slate-600 dark:text-slate-400 font-sans mt-0.5">{{ $t('development.milestone3Desc') }}</div>
+          <div class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono mt-1">2026-10-09 · {{ $t('development.verified') }} (65/65 PASS)</div>
         </div>
 
         <!-- Milestone 4 -->
         <div class="relative">
-          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-[#0B0F19]"></div>
-          <div class="text-xs font-semibold text-white font-sans">{{ $t('development.milestone4Title') }}</div>
-          <div class="text-2xs text-slate-400 font-sans mt-0.5">{{ $t('development.milestone4Desc') }}</div>
-          <div class="text-3xs text-blue-400 font-mono mt-1">{{ $t('development.plannedRoadmap') }}</div>
+          <div class="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white dark:ring-[#0B0F19]"></div>
+          <div class="text-xs font-semibold text-slate-900 dark:text-white font-sans">{{ $t('development.milestone4Title') }}</div>
+          <div class="text-2xs text-slate-600 dark:text-slate-400 font-sans mt-0.5">{{ $t('development.milestone4Desc') }}</div>
+          <div class="text-3xs text-blue-600 dark:text-blue-400 font-mono mt-1">{{ $t('development.plannedRoadmap') }}</div>
         </div>
       </div>
     </div>

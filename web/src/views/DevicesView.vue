@@ -21,10 +21,10 @@
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-xl font-bold tracking-tight text-white">
+        <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
           {{ $t('devices.title') }}
         </h1>
-        <p class="text-xs text-slate-400 mt-0.5">
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           {{ $t('devices.subtitle') }}
         </p>
       </div>
@@ -46,29 +46,29 @@
     <!-- Quick Stats Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.totalRegistered') }}</div>
-        <div class="text-xl font-bold text-white font-mono">{{ totalDevices }}</div>
+        <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.totalRegistered') }}</div>
+        <div class="text-xl font-bold text-slate-900 dark:text-white font-mono">{{ totalDevices }}</div>
         <div class="text-3xs text-slate-500">{{ $t('devices.totalRegisteredDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.onlineHealthy') }}</div>
-        <div class="text-xl font-bold text-emerald-400 font-mono flex items-center space-x-2">
+        <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.onlineHealthy') }}</div>
+        <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono flex items-center space-x-2">
           <span>{{ onlineDevicesCount }}</span>
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
         </div>
         <div class="text-3xs text-slate-500">{{ $t('devices.onlineHealthyDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.offlineError') }}</div>
-        <div class="text-xl font-bold text-rose-400 font-mono">{{ offlineDevicesCount }}</div>
+        <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.offlineError') }}</div>
+        <div class="text-xl font-bold text-rose-600 dark:text-rose-400 font-mono">{{ offlineDevicesCount }}</div>
         <div class="text-3xs text-slate-500">{{ $t('devices.offlineErrorDesc') }}</div>
       </div>
 
       <div class="saas-card p-4 space-y-1">
-        <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.maintenanceInactive') }}</div>
-        <div class="text-xl font-bold text-amber-400 font-mono">{{ maintenanceDevicesCount }}</div>
+        <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('devices.maintenanceInactive') }}</div>
+        <div class="text-xl font-bold text-amber-600 dark:text-amber-400 font-mono">{{ maintenanceDevicesCount }}</div>
         <div class="text-3xs text-slate-500">{{ $t('devices.maintenanceDesc') }}</div>
       </div>
     </div>
@@ -83,7 +83,7 @@
             @input="onFilterChange"
             type="text"
             :placeholder="$t('devices.searchPlaceholder')"
-            class="w-full pl-9 pr-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            class="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
           <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -94,7 +94,7 @@
         <select
           v-model="filterStatus"
           @change="onFilterChange"
-          class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-blue-500"
+          class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-slate-300 focus:outline-none focus:border-blue-500"
         >
           <option value="">{{ $t('devices.allAdminStatuses') }}</option>
           <option value="ACTIVE">{{ $t('status.active') }}</option>
@@ -107,7 +107,7 @@
         <select
           v-model="filterConnStatus"
           @change="onFilterChange"
-          class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-blue-500"
+          class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-slate-300 focus:outline-none focus:border-blue-500"
         >
           <option value="">{{ $t('devices.allCommStatuses') }}</option>
           <option value="ONLINE">{{ $t('status.online') }}</option>
@@ -121,7 +121,7 @@
         <select
           v-model="filterProtocol"
           @change="onFilterChange"
-          class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-slate-300 focus:outline-none focus:border-blue-500"
+          class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-slate-300 focus:outline-none focus:border-blue-500"
         >
           <option value="">{{ $t('devices.allProtocols') }}</option>
           <option value="MODBUS_TCP">MODBUS_TCP</option>
@@ -140,7 +140,7 @@
       <div class="flex items-center space-x-2 self-end md:self-auto">
         <button
           @click="viewMode = 'table'"
-          :class="viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          :class="viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white dark:border-transparent'"
           class="p-1.5 rounded-lg transition"
           :title="$t('devices.tableView')"
         >
@@ -150,7 +150,7 @@
         </button>
         <button
           @click="viewMode = 'grid'"
-          :class="viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          :class="viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white dark:border-transparent'"
           class="p-1.5 rounded-lg transition"
           :title="$t('devices.gridView')"
         >
@@ -160,7 +160,7 @@
         </button>
         <button
           @click="loadDevices"
-          class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
+          class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white dark:border-transparent transition"
           :title="$t('common.refresh')"
         >
           <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,20 +181,20 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs font-sans">
           <thead>
-            <tr class="border-b border-slate-800/80 bg-[#0B0F19]/40 text-3xs uppercase font-semibold text-slate-400 tracking-wider">
-              <th @click="sortBy('device_code')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
+            <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/40 text-3xs uppercase font-semibold text-slate-600 dark:text-slate-400 tracking-wider">
+              <th @click="sortBy('device_code')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.code') }} <span v-if="sortColumn === 'device_code'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th @click="sortBy('device_name')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
+              <th @click="sortBy('device_name')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.deviceName') }} <span v-if="sortColumn === 'device_name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
               </th>
               <th class="py-3 px-4">{{ $t('devices.protocol') }}</th>
               <th class="py-3 px-4">{{ $t('devices.manufacturerModel') }}</th>
               <th class="py-3 px-4">{{ $t('devices.location') }}</th>
-              <th @click="sortBy('status')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
+              <th @click="sortBy('status')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.adminStatus') }}
               </th>
-              <th @click="sortBy('connection_status')" class="py-3 px-4 cursor-pointer hover:text-slate-200">
+              <th @click="sortBy('connection_status')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.commStatus') }}
               </th>
               <th class="py-3 px-4">{{ $t('devices.lastSeen') }}</th>
@@ -203,37 +203,37 @@
               <th class="py-3 px-4 text-right">{{ $t('devices.actions') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/60">
-            <tr v-for="dev in devices" :key="dev.id" class="hover:bg-slate-800/30 transition-colors">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
+            <tr v-for="dev in devices" :key="dev.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
               <!-- Code -->
               <td class="py-3 px-4">
-                <router-link :to="'/monitoring/devices/' + dev.id" class="font-mono font-bold text-blue-400 hover:text-blue-300">
+                <router-link :to="'/monitoring/devices/' + dev.id" class="font-mono font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
                   {{ dev.device_code || dev.code }}
                 </router-link>
               </td>
 
               <!-- Name -->
-              <td class="py-3 px-4 font-semibold text-white">
-                <router-link :to="'/monitoring/devices/' + dev.id" class="hover:text-blue-300">
+              <td class="py-3 px-4 font-semibold text-slate-900 dark:text-white">
+                <router-link :to="'/monitoring/devices/' + dev.id" class="hover:text-blue-600 dark:hover:text-blue-300">
                   {{ dev.device_name || dev.name }}
                 </router-link>
               </td>
 
               <!-- Protocol / Type -->
               <td class="py-3 px-4">
-                <span class="px-2 py-0.5 rounded text-3xs font-mono font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                <span class="px-2 py-0.5 rounded text-3xs font-mono font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">
                   {{ (dev.connection && dev.connection.protocol) || dev.device_type || 'MODBUS_TCP' }}
                 </span>
               </td>
 
               <!-- Manufacturer / Model -->
-              <td class="py-3 px-4 text-slate-300">
+              <td class="py-3 px-4 text-slate-700 dark:text-slate-300">
                 <div>{{ dev.manufacturer || '--' }}</div>
                 <div class="text-3xs text-slate-500 font-mono">{{ dev.model }}</div>
               </td>
 
               <!-- Location -->
-              <td class="py-3 px-4 text-slate-300">
+              <td class="py-3 px-4 text-slate-700 dark:text-slate-300">
                 {{ dev.location || '--' }}
               </td>
 
@@ -253,12 +253,12 @@
               </td>
 
               <!-- Last Seen -->
-              <td class="py-3 px-4 font-mono text-3xs text-slate-400">
+              <td class="py-3 px-4 font-mono text-3xs text-slate-600 dark:text-slate-400">
                 {{ formatTimestamp(dev.last_seen_at || dev.last_communication) }}
               </td>
 
               <!-- Last Data -->
-              <td class="py-3 px-4 font-mono text-3xs text-slate-400">
+              <td class="py-3 px-4 font-mono text-3xs text-slate-600 dark:text-slate-400">
                 {{ formatTimestamp(dev.last_data_at) }}
               </td>
 
@@ -267,7 +267,7 @@
                 <button
                   @click="toggleDeviceEnabled(dev)"
                   class="relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                  :class="dev.enabled ? 'bg-blue-600' : 'bg-slate-700'"
+                  :class="dev.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'"
                 >
                   <span
                     class="pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
@@ -278,16 +278,16 @@
 
               <!-- Actions -->
               <td class="py-3 px-4 text-right space-x-2">
-                <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 font-semibold text-2xs bg-emerald-950/50 hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-800/60 transition">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-semibold text-2xs bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 transition">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
                   <span>{{ $t('devices.liveData') }}</span>
                 </router-link>
-                <router-link :to="'/monitoring/devices/' + dev.id" class="text-blue-400 hover:text-blue-300 font-semibold text-2xs transition">
+                <router-link :to="'/monitoring/devices/' + dev.id" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold text-2xs transition">
                   {{ $t('common.view') }}
                 </router-link>
                 <button
                   @click="openCopyModal(dev)"
-                  class="inline-flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 font-semibold text-2xs transition"
+                  class="inline-flex items-center space-x-1 text-sky-600 hover:text-sky-700 dark:text-cyan-400 dark:hover:text-cyan-300 font-semibold text-2xs transition"
                   :title="$t('devices.copyDevice') || 'Copy Device'"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,17 +295,17 @@
                   </svg>
                   <span>{{ $t('devices.copyDevice') || 'Copy' }}</span>
                 </button>
-                <button @click="openEditModal(dev)" class="text-slate-300 hover:text-white font-semibold text-2xs transition">
+                <button @click="openEditModal(dev)" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white font-semibold text-2xs transition">
                   {{ $t('common.edit') }}
                 </button>
-                <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 font-semibold text-2xs transition">
+                <button @click="confirmDelete(dev)" class="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-2xs transition">
                   {{ $t('common.delete') }}
                 </button>
               </td>
             </tr>
 
             <tr v-if="devices.length === 0">
-              <td colspan="11" class="py-12 text-center text-slate-400">
+              <td colspan="11" class="py-12 text-center text-slate-500 dark:text-slate-400">
                 {{ $t('devices.noDevices') }}
               </td>
             </tr>
@@ -314,7 +314,7 @@
       </div>
 
       <!-- Pagination Footer -->
-      <div class="px-4 py-3 border-t border-slate-800/80 bg-[#0B0F19]/40 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+      <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/40 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
         <div>
           {{ $t('devices.showingCount', { count: devices.length, total: totalDevices }) }}
         </div>
@@ -323,15 +323,15 @@
           <button
             @click="changePage(currentPage - 1)"
             :disabled="currentPage <= 1"
-            class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {{ $t('common.previous') }}
           </button>
-          <span class="px-2 font-mono text-slate-300">{{ $t('common.page') }} {{ currentPage }} / {{ totalPages }}</span>
+          <span class="px-2 font-mono text-slate-700 dark:text-slate-300">{{ $t('common.page') }} {{ currentPage }} / {{ totalPages }}</span>
           <button
             @click="changePage(currentPage + 1)"
             :disabled="currentPage >= totalPages"
-            class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {{ $t('common.next') }}
           </button>

@@ -4,26 +4,26 @@
     <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
       <!-- Search Input -->
       <div class="flex-1 max-w-md relative">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </div>
         <input type="text" v-model="searchQuery" :placeholder="$t('tasks.searchPlaceholder')"
-               class="w-full bg-[#0B0F19] border border-slate-700/80 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-sans transition-colors" />
+               class="w-full bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-sans transition-colors" />
       </div>
 
       <!-- Filters & Action -->
       <div class="flex flex-wrap items-center gap-2.5 text-xs font-sans">
         <!-- Phase Filter -->
-        <select v-model="filterPhase" class="bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-sans text-xs">
+        <select v-model="filterPhase" class="bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 font-sans text-xs">
           <option value="">{{ $t('tasks.allPhases') }}</option>
           <option v-for="p in phases" :key="p.id" :value="p.id">{{ $t('development.phaseNumber', { number: p.phase_number }) }}: {{ p.name.replace(/^Phase \d+ — /, '') }}</option>
         </select>
 
         <!-- Status Filter -->
-        <select v-model="filterStatus" class="bg-[#0B0F19] border border-slate-700/80 rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-sans text-xs">
+        <select v-model="filterStatus" class="bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg px-3 py-1.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 font-sans text-xs">
           <option value="">{{ $t('tasks.allStatuses') }}</option>
           <option value="DONE">{{ $t('status.done') }}</option>
           <option value="WORKING">{{ $t('status.working') }}</option>
@@ -46,19 +46,19 @@
 
     <!-- Task List Table in SaaS Card -->
     <div class="saas-card overflow-hidden">
-      <div class="px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between">
+      <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
         <div>
-          <h2 class="text-sm font-bold text-white font-sans tracking-tight">
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white font-sans tracking-tight">
             {{ $t('tasks.directoryTitle') }}
           </h2>
-          <span class="text-2xs text-slate-400 font-sans">{{ $t('tasks.showingTasks', { filtered: filteredTasks.length, total: tasks.length }) }}</span>
+          <span class="text-2xs text-slate-500 dark:text-slate-400 font-sans">{{ $t('tasks.showingTasks', { filtered: filteredTasks.length, total: tasks.length }) }}</span>
         </div>
       </div>
 
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs border-collapse font-sans">
           <thead>
-            <tr class="border-b border-slate-800/80 bg-[#0B0F19]/60 text-3xs font-semibold text-slate-400 uppercase tracking-wider font-sans">
+            <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider font-sans">
               <th class="py-3 px-4 w-14 text-center">{{ $t('tasks.id') }}</th>
               <th class="py-3 px-4 w-28">{{ $t('tasks.phase') }}</th>
               <th class="py-3 px-4">{{ $t('tasks.taskNameScope') }}</th>
@@ -70,15 +70,15 @@
               <th class="py-3 px-4 w-16 text-center">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/50 text-slate-300">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
             <tr v-for="task in filteredTasks" :key="task.id"
-                class="hover:bg-slate-800/25 transition-colors cursor-pointer"
+                class="hover:bg-slate-50 dark:hover:bg-slate-800/25 transition-colors cursor-pointer"
                 @click="selectedTask = task">
               <td class="py-3 px-4 text-center font-mono text-3xs text-slate-500">#{{ task.id }}</td>
-              <td class="py-3 px-4 font-mono text-2xs text-blue-400 font-medium">{{ $t('development.phaseNumber', { number: task.phase_id }) }}</td>
+              <td class="py-3 px-4 font-mono text-2xs text-blue-600 dark:text-blue-400 font-semibold">{{ $t('development.phaseNumber', { number: task.phase_id }) }}</td>
               <td class="py-3 px-4">
-                <div class="font-semibold text-slate-100 font-sans text-xs">{{ task.task_name }}</div>
-                <div class="text-2xs text-slate-400 line-clamp-1 mt-0.5 font-sans">{{ task.description }}</div>
+                <div class="font-semibold text-slate-900 dark:text-slate-100 font-sans text-xs">{{ task.task_name }}</div>
+                <div class="text-2xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5 font-sans">{{ task.description }}</div>
               </td>
               <td class="py-3 px-4">
                 <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono tracking-wide inline-block"
@@ -88,32 +88,32 @@
               </td>
               <td class="py-3 px-4">
                 <div class="flex items-center space-x-2">
-                  <div class="flex-1 bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
+                  <div class="flex-1 bg-slate-200 dark:bg-slate-800/80 h-1.5 rounded-full overflow-hidden">
                     <div class="h-full rounded-full transition-all duration-300"
-                         :class="task.progress >= 100 ? 'bg-emerald-500' : 'bg-blue-500'"
+                         :class="task.progress >= 100 ? 'bg-emerald-500' : 'bg-blue-600 dark:bg-blue-500'"
                          :style="{ width: task.progress + '%' }"></div>
                   </div>
                   <span class="text-2xs font-semibold w-8 text-right font-sans"
-                        :class="task.progress >= 100 ? 'text-emerald-400' : 'text-slate-300'">
+                        :class="task.progress >= 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'">
                     {{ task.progress }}%
                   </span>
                 </div>
               </td>
               <td class="py-3 px-4">
-                <span class="text-2xs font-sans font-medium"
-                      :class="task.priority === 'CRITICAL' ? 'text-rose-400 font-bold' : task.priority === 'HIGH' ? 'text-amber-400' : 'text-slate-400'">
+                <span class="text-2xs font-sans"
+                      :class="task.priority === 'CRITICAL' ? 'text-rose-600 dark:text-rose-400 font-bold' : task.priority === 'HIGH' ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-600 dark:text-slate-400 font-medium'">
                   {{ task.priority }}
                 </span>
               </td>
-              <td class="py-3 px-4 font-sans text-2xs text-slate-300 truncate max-w-[120px]">
+              <td class="py-3 px-4 font-sans text-2xs text-slate-700 dark:text-slate-300 truncate max-w-[120px]">
                 {{ task.owner || 'Engineer' }}
               </td>
-              <td class="py-3 px-4 font-sans text-2xs text-slate-400 truncate max-w-[160px]">
+              <td class="py-3 px-4 font-sans text-2xs text-slate-600 dark:text-slate-400 truncate max-w-[160px]">
                 {{ task.test_result || $t('tasks.pendingTest') }}
               </td>
               <td class="py-3 px-4 text-center" @click.stop>
                 <button @click="selectedTask = task"
-                        class="p-1.5 rounded-md bg-slate-800/60 hover:bg-slate-700 text-blue-400 hover:text-white transition-colors"
+                        class="p-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-blue-600 border border-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:text-blue-400 dark:hover:text-white dark:border-transparent transition-colors"
                         :title="$t('tasks.editTask')">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>

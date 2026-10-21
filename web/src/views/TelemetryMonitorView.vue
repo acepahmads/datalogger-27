@@ -14,18 +14,18 @@
           <span class="text-emerald-400 font-semibold">{{ $t('navigation.liveTelemetry') }}</span>
         </div>
         <div class="flex items-center space-x-3">
-          <h1 class="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center space-x-2">
             <span>{{ $t('telemetry.incomingTitle') }}</span>
             <span class="relative flex h-3 w-3">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
           </h1>
-          <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-3xs font-mono font-bold">
+          <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 text-3xs font-mono font-bold">
             {{ $t('telemetry.realtimeIngestionActive') }}
           </span>
         </div>
-        <p class="text-xs text-slate-400 mt-1">
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
           {{ $t('telemetry.incomingSubtitle') }}
         </p>
       </div>
@@ -35,7 +35,7 @@
         <button
           @click="fetchTelemetry"
           :disabled="loading"
-          class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-2 disabled:opacity-50"
+          class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-2 disabled:opacity-50"
         >
           <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -68,54 +68,54 @@
 
     <!-- Summary KPI Cards (Phase 3.2) -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.connectedDevices') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('telemetry.connectedDevices') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-2xl font-mono font-bold text-white">{{ stats.activeDevices }}</span>
-          <span class="text-2xs text-slate-400">/ {{ stats.totalDevices }}</span>
+          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white">{{ stats.activeDevices }}</span>
+          <span class="text-2xs text-slate-500 dark:text-slate-400">/ {{ stats.totalDevices }}</span>
         </div>
-        <div class="text-3xs text-emerald-400 font-mono">{{ $t('telemetry.enginesRunning') }}</div>
+        <div class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono">{{ $t('telemetry.enginesRunning') }}</div>
       </div>
 
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('telemetry.healthIndex') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('telemetry.healthIndex') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-2xl font-mono font-bold" :class="stats.healthPercent >= 90 ? 'text-emerald-400' : (stats.healthPercent >= 70 ? 'text-amber-400' : 'text-rose-400')">{{ stats.healthPercent }}%</span>
-          <span class="text-2xs text-slate-400">{{ $t('telemetry.overallHealth') }}</span>
+          <span class="text-2xl font-mono font-bold" :class="stats.healthPercent >= 90 ? 'text-emerald-600 dark:text-emerald-400' : (stats.healthPercent >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400')">{{ stats.healthPercent }}%</span>
+          <span class="text-2xs text-slate-500 dark:text-slate-400">{{ $t('telemetry.overallHealth') }}</span>
         </div>
-        <div class="text-3xs text-slate-400 font-mono">{{ stats.goodSensors }} / {{ parametersList.length }} {{ $t('telemetry.qualityGood') }}</div>
+        <div class="text-3xs text-slate-600 dark:text-slate-400 font-mono">{{ stats.goodSensors }} / {{ parametersList.length }} {{ $t('telemetry.qualityGood') }}</div>
       </div>
 
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('telemetry.qualityGood') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-emerald-200 dark:border-emerald-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('telemetry.qualityGood') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-2xl font-mono font-bold text-emerald-400">{{ stats.goodSensors }}</span>
-          <span class="text-2xs text-slate-400">{{ $t('telemetry.healthySensors') }}</span>
+          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400">{{ stats.goodSensors }}</span>
+          <span class="text-2xs text-slate-500 dark:text-slate-400">{{ $t('telemetry.healthySensors') }}</span>
         </div>
-        <div class="text-3xs text-emerald-400/80">{{ $t('telemetry.goodQualityDesc') }}</div>
+        <div class="text-3xs text-emerald-700 dark:text-emerald-400/80 font-medium">{{ $t('telemetry.goodQualityDesc') }}</div>
       </div>
 
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-amber-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('telemetry.uncertainBad') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-amber-200 dark:border-amber-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-600 dark:text-amber-400">{{ $t('telemetry.uncertainBad') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-2xl font-mono font-bold text-amber-400">{{ stats.uncertainSensors }}</span>
-          <span class="text-2xs text-rose-400 font-mono">/ {{ stats.badSensors }} {{ $t('telemetry.qualityBad') }}</span>
+          <span class="text-2xl font-mono font-bold text-amber-600 dark:text-amber-400">{{ stats.uncertainSensors }}</span>
+          <span class="text-2xs text-rose-600 dark:text-rose-400 font-mono">/ {{ stats.badSensors }} {{ $t('telemetry.qualityBad') }}</span>
         </div>
-        <div class="text-3xs text-amber-400/80">{{ $t('telemetry.attentionRequired') }}</div>
+        <div class="text-3xs text-amber-700 dark:text-amber-400/80 font-medium">{{ $t('telemetry.attentionRequired') }}</div>
       </div>
 
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-purple-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('telemetry.qualityStale') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-purple-200 dark:border-purple-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-purple-600 dark:text-purple-400">{{ $t('telemetry.qualityStale') }}</div>
         <div class="flex items-baseline space-x-2">
-          <span class="text-2xl font-mono font-bold text-purple-400">{{ stats.staleSensors }}</span>
-          <span class="text-2xs text-slate-400">{{ $t('telemetry.timedOutSensors') }}</span>
+          <span class="text-2xl font-mono font-bold text-purple-600 dark:text-purple-400">{{ stats.staleSensors }}</span>
+          <span class="text-2xs text-slate-500 dark:text-slate-400">{{ $t('telemetry.timedOutSensors') }}</span>
         </div>
-        <div class="text-3xs text-purple-400/80">{{ $t('telemetry.noDataReceived') }}</div>
+        <div class="text-3xs text-purple-700 dark:text-purple-400/80 font-medium">{{ $t('telemetry.noDataReceived') }}</div>
       </div>
     </div>
 
     <!-- Filters & Controls Bar -->
-    <div class="p-4 bg-[#0F172A]/90 border border-slate-800 rounded-2xl flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+    <div class="p-4 saas-card bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
       <div class="flex flex-wrap items-center gap-3">
         <!-- Search -->
         <div class="relative min-w-[220px]">
@@ -123,9 +123,9 @@
             v-model="searchQuery"
             type="text"
             :placeholder="$t('telemetry.searchPlaceholder')"
-            class="w-full pl-9 pr-4 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            class="w-full pl-9 pr-4 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
-          <svg class="w-4 h-4 text-slate-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
@@ -134,7 +134,7 @@
         <div>
           <select
             v-model="selectedDeviceId"
-            class="px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+            class="px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('telemetry.allDevices') }} ({{ devices.length }})</option>
             <option v-for="d in devices" :key="d.id" :value="d.id">
@@ -147,7 +147,7 @@
         <div>
           <select
             v-model="selectedQuality"
-            class="px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+            class="px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
           >
             <option value="">{{ $t('telemetry.allQualities') }}</option>
             <option value="GOOD">{{ $t('telemetry.goodQualityOnly') }}</option>
@@ -160,10 +160,10 @@
 
       <!-- View Switcher -->
       <div class="flex items-center space-x-2 self-end md:self-auto">
-        <span class="text-3xs text-slate-400 uppercase font-semibold mr-1">{{ $t('telemetry.display') }}</span>
+        <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold mr-1">{{ $t('telemetry.display') }}</span>
         <button
           @click="viewMode = 'grid'"
-          :class="viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          :class="viewMode === 'grid' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white dark:border-transparent'"
           class="p-2 rounded-lg transition"
           :title="$t('telemetry.cardsGrid')"
         >
@@ -176,7 +176,7 @@
         </button>
         <button
           @click="viewMode = 'table'"
-          :class="viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          :class="viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white dark:border-transparent'"
           class="p-2 rounded-lg transition"
           :title="$t('telemetry.dataTable')"
         >
@@ -190,16 +190,16 @@
     </div>
 
     <!-- Empty State -->
-    <div v-if="filteredParameters.length === 0" class="saas-card p-12 text-center space-y-3 bg-[#0F172A]/50 border border-slate-800">
-      <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+    <div v-if="filteredParameters.length === 0" class="saas-card p-12 text-center space-y-3 bg-white dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800">
+      <div class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="9"></circle>
           <line x1="12" y1="8" x2="12" y2="12"></line>
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
       </div>
-      <h3 class="text-sm font-bold text-white">{{ $t('telemetry.noSensorsMatch') }}</h3>
-      <p class="text-xs text-slate-400 max-w-md mx-auto">
+      <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('telemetry.noSensorsMatch') }}</h3>
+      <p class="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
         {{ $t('telemetry.verifyNotice') }}
       </p>
       <div class="pt-2">
@@ -215,22 +215,22 @@
         v-for="item in filteredParameters"
         :key="item.param_id"
         :class="[
-          liveBlinks[item.param_id] ? 'border-emerald-500 shadow-lg shadow-emerald-500/10' : 'border-slate-800/80',
-          item.quality === 'BAD' ? 'bg-rose-950/10' : 'bg-[#0F172A]'
+          liveBlinks[item.param_id] ? 'border-emerald-500 shadow-lg shadow-emerald-500/10' : 'border-slate-200 dark:border-slate-800/80',
+          item.quality === 'BAD' ? 'bg-rose-50/50 dark:bg-rose-950/10' : 'bg-white dark:bg-[#0F172A]'
         ]"
-        class="saas-card p-4 space-y-3 rounded-2xl border transition-all duration-300 hover:border-slate-700 flex flex-col justify-between"
+        class="saas-card p-4 space-y-3 rounded-2xl border transition-all duration-300 hover:border-slate-300 dark:hover:border-slate-700 flex flex-col justify-between"
       >
         <div>
           <!-- Card Header: Device + Parameter Code -->
           <div class="flex items-start justify-between gap-2">
             <div>
               <div class="flex items-center space-x-1.5">
-                <span class="w-1.5 h-1.5 rounded-full" :class="item.device_status === 'CONNECTED' ? 'bg-emerald-400' : 'bg-slate-500'"></span>
-                <router-link :to="'/monitoring/devices/' + item.device_id" class="text-3xs font-mono font-bold text-slate-400 hover:text-blue-400 uppercase tracking-wide">
+                <span class="w-1.5 h-1.5 rounded-full" :class="item.device_status === 'CONNECTED' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                <router-link :to="'/monitoring/devices/' + item.device_id" class="text-3xs font-mono font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 uppercase tracking-wide">
                   {{ item.device_code }}
                 </router-link>
               </div>
-              <h3 class="text-xs font-bold text-white mt-0.5 truncate" :title="item.param_name">
+              <h3 class="text-xs font-bold text-slate-900 dark:text-white mt-0.5 truncate" :title="item.param_name">
                 {{ item.param_name }}
               </h3>
             </div>
@@ -239,7 +239,7 @@
             <div class="flex items-center space-x-1.5 flex-shrink-0">
               <span
                 v-if="item.is_held_value"
-                class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse flex items-center space-x-1"
+                class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30 animate-pulse flex items-center space-x-1"
                 :title="$t('parameters.heldTooltip')"
               >
                 <span>🛡️</span>
@@ -253,7 +253,7 @@
                   <span class="w-1.5 h-1.5 rounded-full" :class="qualityDotClass(item.quality)"></span>
                   <span>{{ item.quality || 'WAITING' }}</span>
                 </span>
-                <span v-if="item.quality_reason" class="text-4xs font-mono text-amber-400/90 truncate max-w-[120px]" :title="item.quality_reason">
+                <span v-if="item.quality_reason" class="text-4xs font-mono text-amber-600 dark:text-amber-400/90 truncate max-w-[120px]" :title="item.quality_reason">
                   {{ item.quality_reason }}
                 </span>
               </div>
@@ -262,31 +262,31 @@
 
           <!-- Parameter Code Tag -->
           <div class="mt-1 flex items-center space-x-2">
-            <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-3xs">
+            <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-transparent font-mono text-3xs">
               {{ item.param_code }}
             </span>
-            <span v-if="item.data_type" class="text-3xs font-mono text-slate-500">
+            <span v-if="item.data_type" class="text-3xs font-mono text-slate-500 font-medium">
               {{ item.data_type }}
             </span>
           </div>
 
           <!-- Primary Metric Value -->
-          <div class="mt-4 p-3 bg-[#0B0F19] rounded-xl border border-slate-800/80 space-y-2">
+          <div class="mt-4 p-3 bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-2">
             <div class="flex items-baseline justify-between">
               <div class="text-2xl font-mono font-extrabold tracking-tight" :class="valueColorClass(item)">
                 {{ formatValue(item) }}
               </div>
-              <div class="text-xs font-bold text-slate-400 font-mono">
+              <div class="text-xs font-bold text-slate-600 dark:text-slate-400 font-mono">
                 {{ item.unit || '--' }}
               </div>
             </div>
             <!-- Formula Display if configured -->
-            <div v-if="item.formula_value !== undefined && item.formula_value !== null" class="pt-2 border-t border-slate-800/70 flex items-center justify-between text-3xs font-mono">
-              <div class="flex items-center space-x-1 text-blue-400 min-w-0">
+            <div v-if="item.formula_value !== undefined && item.formula_value !== null" class="pt-2 border-t border-slate-200 dark:border-slate-800/70 flex items-center justify-between text-3xs font-mono">
+              <div class="flex items-center space-x-1 text-blue-600 dark:text-blue-400 min-w-0">
                 <span class="font-bold">ƒ(x):</span>
-                <span class="text-slate-400 truncate max-w-[110px]" :title="'Formula: ' + item.formula">{{ item.formula }}</span>
+                <span class="text-slate-600 dark:text-slate-400 truncate max-w-[110px]" :title="'Formula: ' + item.formula">{{ item.formula }}</span>
               </div>
-              <div class="font-bold text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20 whitespace-nowrap">
+              <div class="font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 whitespace-nowrap">
                 {{ formatFormula(item) }} {{ item.unit || '' }}
               </div>
             </div>
@@ -294,36 +294,36 @@
         </div>
 
         <!-- Card Footer -->
-        <div class="pt-2 border-t border-slate-800/80 space-y-2">
-          <div class="flex items-center justify-between text-3xs font-mono text-slate-400">
+        <div class="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-2">
+          <div class="flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400">
             <span>{{ $t('telemetry.lastPacketLabel') }}</span>
-            <span class="text-slate-300">{{ item.received_at ? formatRelative(item.received_at) : $t('common.noData') }}</span>
+            <span class="text-slate-700 dark:text-slate-300">{{ item.received_at ? formatRelative(item.received_at) : $t('common.noData') }}</span>
           </div>
 
           <!-- Quick Navigation Actions -->
           <div class="flex items-center justify-between gap-1 pt-1">
             <router-link
               :to="'/monitoring/devices/' + item.device_id + '?tab=telemetry'"
-              class="text-3xs text-emerald-400 hover:text-emerald-300 font-semibold px-2 py-1 rounded bg-emerald-950/30 border border-emerald-800/40 hover:bg-emerald-900/40 transition"
+              class="text-3xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-semibold px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition"
             >
               {{ $t('navigation.liveTelemetry') }}
             </router-link>
             <div class="flex items-center space-x-1">
               <router-link
                 :to="'/monitoring/devices/' + item.device_id + '?tab=history'"
-                class="text-3xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded bg-blue-950/30 border border-blue-800/40 hover:bg-blue-900/40 transition"
+                class="text-3xs text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium px-2 py-1 rounded bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition"
               >
                 {{ $t('telemetry.chart') }}
               </router-link>
               <router-link
                 :to="'/monitoring/devices/' + item.device_id + '?tab=raw'"
-                class="text-3xs text-slate-400 hover:text-slate-200 font-medium px-2 py-1 rounded bg-slate-800/60 hover:bg-slate-700 transition"
+                class="text-3xs text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 font-medium px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:border-transparent transition"
               >
                 {{ $t('telemetry.raw') }}
               </router-link>
               <router-link
                 :to="'/monitoring/analysis?device_id=' + item.device_id + '&parameter_id=' + item.param_id"
-                class="text-3xs text-indigo-400 hover:text-indigo-300 font-medium px-2 py-1 rounded bg-indigo-950/40 border border-indigo-800/40 hover:bg-indigo-900/40 transition"
+                class="text-3xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition"
                 :title="$t('analysis.openInAnalysis')"
               >
                 📊

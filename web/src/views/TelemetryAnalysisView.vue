@@ -14,14 +14,14 @@
           <span class="text-blue-400 font-semibold">{{ $t('analysis.breadcrumb') }}</span>
         </div>
         <div class="flex items-center space-x-3">
-          <h1 class="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center space-x-2">
             <span>{{ $t('analysis.title') }}</span>
           </h1>
-          <span class="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-3xs font-mono font-bold uppercase tracking-wider">
+          <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 text-3xs font-mono font-bold uppercase tracking-wider">
             {{ $t('analysis.semanticNotice') }}
           </span>
         </div>
-        <p class="text-xs text-slate-400 mt-1">
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
           {{ $t('analysis.subtitle') }}
         </p>
       </div>
@@ -31,7 +31,7 @@
         <button
           @click="fetchData"
           :disabled="loading"
-          class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-2 disabled:opacity-50"
+          class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-2 disabled:opacity-50"
         >
           <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -43,9 +43,9 @@
         <div class="relative">
           <button
             @click="exportDropdownOpen = !exportDropdownOpen"
-            class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-2"
+            class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-2"
           >
-            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>{{ $t('common.export') }}</span>
@@ -55,18 +55,18 @@
           </button>
           <div
             v-if="exportDropdownOpen"
-            class="absolute right-0 mt-1 w-36 bg-[#0F172A] border border-slate-700 rounded-xl shadow-xl z-30 py-1"
+            class="absolute right-0 mt-1 w-36 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 py-1"
           >
             <button
               @click="exportCSV"
-              class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 flex items-center space-x-2"
+              class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center space-x-2"
             >
               <span>📄</span>
               <span>{{ $t('analysis.exportCsv') }}</span>
             </button>
             <button
               @click="exportJSON"
-              class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 flex items-center space-x-2"
+              class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center space-x-2"
             >
               <span>📦</span>
               <span>{{ $t('analysis.exportJson') }}</span>
@@ -77,24 +77,24 @@
         <!-- Shortcut to Live Telemetry -->
         <router-link
           to="/monitoring/telemetry"
-          class="px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 dark:border-emerald-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
         >
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
           <span>{{ $t('navigation.liveTelemetry') }}</span>
         </router-link>
       </div>
     </div>
 
     <!-- Data Source / Semantic Mode Selector Bar -->
-    <div class="saas-card p-2 bg-[#0F172A]/90 border border-slate-800 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
+    <div class="saas-card p-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
       <div class="grid gap-1.5 w-full md:w-auto" :class="isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'">
         <!-- MODE 1: HISTORICAL / PROCESSED -->
         <button
           @click="setMode('HISTORICAL')"
           class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
           :class="activeMode === 'HISTORICAL'
-            ? 'bg-blue-600/20 text-blue-400 border-blue-500/40 shadow-sm'
-            : 'bg-transparent text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-800/40'"
+            ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-600/20 dark:text-blue-400 dark:border-blue-500/40 shadow-sm'
+            : 'bg-transparent text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -111,8 +111,8 @@
           @click="setMode('RAW')"
           class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
           :class="activeMode === 'RAW'
-            ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 shadow-sm'
-            : 'bg-transparent text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-800/40'"
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-600/20 dark:text-emerald-400 dark:border-emerald-500/40 shadow-sm'
+            : 'bg-transparent text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -128,8 +128,8 @@
           @click="setMode('AGGREGATED')"
           class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
           :class="activeMode === 'AGGREGATED'
-            ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/40 shadow-sm'
-            : 'bg-transparent text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-800/40'"
+            ? 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-600/20 dark:text-indigo-400 dark:border-indigo-500/40 shadow-sm'
+            : 'bg-transparent text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -142,8 +142,8 @@
       </div>
 
       <!-- Mode Semantic Badge Description -->
-      <div class="px-3 py-1.5 rounded-xl bg-[#0B0F19] border border-slate-800/80 text-3xs font-mono text-slate-300 flex items-center space-x-2">
-        <span class="w-2 h-2 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-blue-400' : activeMode === 'RAW' ? 'bg-emerald-400' : 'bg-indigo-400'"></span>
+      <div class="px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 dark:bg-[#0B0F19] dark:border-slate-800/80 text-3xs font-mono dark:text-slate-300 flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-blue-500' : activeMode === 'RAW' ? 'bg-emerald-500' : 'bg-indigo-500'"></span>
         <span>
           {{ activeMode === 'HISTORICAL' ? $t('analysis.historicalSemantic') : activeMode === 'RAW' ? $t('analysis.rawSemantic') : $t('analysis.aggregatedSemantic') }}
         </span>
@@ -151,15 +151,15 @@
     </div>
 
     <!-- Unified Filters Bar -->
-    <div class="saas-card p-4 bg-[#0F172A]/90 border border-slate-800 rounded-2xl space-y-3">
+    <div class="saas-card p-4 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <!-- 1. Device Filter -->
         <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('telemetry.device') }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('telemetry.device') }}</label>
           <select
             v-model="filters.deviceId"
             @change="onDeviceChange"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('analysis.allDevices') }}</option>
             <option v-for="d in devicesList" :key="d.id" :value="d.id">
@@ -170,11 +170,11 @@
 
         <!-- 2. Parameter Filter -->
         <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('telemetry.parameterName') }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('telemetry.parameterName') }}</label>
           <select
             v-model="filters.parameterId"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('analysis.allParameters') }}</option>
             <option v-for="p in availableParameters" :key="p.id" :value="p.id">
@@ -185,11 +185,11 @@
 
         <!-- 3. Time Preset Filter -->
         <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('analysis.timeRange') }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.timeRange') }}</label>
           <select
             v-model="filters.timePreset"
             @change="onTimePresetChange"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option value="15m">{{ $t('analysis.last15m') }}</option>
             <option value="1h">{{ $t('analysis.last1h') }}</option>
@@ -203,11 +203,11 @@
 
         <!-- 4. Quality Filter -->
         <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('analysis.qualityFilter') }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.qualityFilter') }}</label>
           <select
             v-model="filters.quality"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('analysis.allQualities') }}</option>
             <option value="GOOD">{{ $t('telemetry.qualityGood') }}</option>
@@ -219,11 +219,11 @@
 
         <!-- 5. Mode Specific Filter (Aggregation function or Raw display toggle) -->
         <div v-if="activeMode === 'AGGREGATED'" class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('analysis.function') }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.function') }}</label>
           <select
             v-model="filters.aggFunction"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('analysis.allFunctions') }}</option>
             <option value="AVG">AVG</option>
@@ -237,10 +237,10 @@
         </div>
 
         <div v-else-if="activeMode === 'RAW'" class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('analysis.trendChart') }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.trendChart') }}</label>
           <select
             v-model="rawChartMode"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option value="scaled">{{ $t('analysis.viewScaledValue') }}</option>
             <option value="raw">{{ $t('analysis.viewRawValue') }}</option>
@@ -249,11 +249,11 @@
 
         <!-- Page Size -->
         <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-400 uppercase tracking-wider">{{ $t('common.limit') || 'Page Size' }}</label>
+          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('common.limit') || 'Page Size' }}</label>
           <select
             v-model="filters.pageSize"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
           >
             <option :value="50">50 records</option>
             <option :value="100">100 records</option>
@@ -264,21 +264,21 @@
       </div>
 
       <!-- Custom Date Pickers (When custom preset selected) -->
-      <div v-if="filters.timePreset === 'custom'" class="pt-2 border-t border-slate-800 flex flex-wrap items-center gap-3 text-xs">
+      <div v-if="filters.timePreset === 'custom'" class="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 text-xs">
         <div class="flex items-center space-x-2">
-          <span class="text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.startDate') }}:</span>
+          <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.startDate') }}:</span>
           <input
             type="datetime-local"
             v-model="filters.startTime"
-            class="px-2.5 py-1 bg-[#0B0F19] border border-slate-700 rounded-lg text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            class="px-2.5 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
           />
         </div>
         <div class="flex items-center space-x-2">
-          <span class="text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.endDate') }}:</span>
+          <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.endDate') }}:</span>
           <input
             type="datetime-local"
             v-model="filters.endTime"
-            class="px-2.5 py-1 bg-[#0B0F19] border border-slate-700 rounded-lg text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            class="px-2.5 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
           />
         </div>
         <button
@@ -294,61 +294,61 @@
     <!-- Case 1: Single Parameter Selected -->
     <div v-if="filters.parameterId" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <!-- Latest Reading -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.latestValue') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('analysis.latestValue') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ singleParamStats.latest !== null ? singleParamStats.latest : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
+          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ singleParamStats.latest !== null ? singleParamStats.latest : '--' }}</span>
+          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono truncate">{{ singleParamStats.latestTime ? formatRelative(singleParamStats.latestTime) : '--' }}</div>
       </div>
 
       <!-- Minimum -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.min') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('analysis.min') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ singleParamStats.min !== null ? singleParamStats.min : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
+          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">{{ singleParamStats.min !== null ? singleParamStats.min : '--' }}</span>
+          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ $t('analysis.min') }} in window</div>
       </div>
 
       <!-- Maximum -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-rose-400">{{ $t('analysis.max') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-rose-600 dark:text-rose-400">{{ $t('analysis.max') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-rose-400 tracking-tight">{{ singleParamStats.max !== null ? singleParamStats.max : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
+          <span class="text-2xl font-mono font-bold text-rose-600 dark:text-rose-400 tracking-tight">{{ singleParamStats.max !== null ? singleParamStats.max : '--' }}</span>
+          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ $t('analysis.max') }} in window</div>
       </div>
 
       <!-- Average -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-400">{{ $t('analysis.avg') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-600 dark:text-blue-400">{{ $t('analysis.avg') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-blue-400 tracking-tight">{{ singleParamStats.avg !== null ? singleParamStats.avg : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-400">{{ activeUnit }}</span>
+          <span class="text-2xl font-mono font-bold text-blue-600 dark:text-blue-400 tracking-tight">{{ singleParamStats.avg !== null ? singleParamStats.avg : '--' }}</span>
+          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">Mean across samples</div>
       </div>
 
       <!-- Sample Count -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.count') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('analysis.count') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ totalRecords }}</span>
-          <span class="text-3xs text-slate-400">items</span>
+          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ totalRecords }}</span>
+          <span class="text-3xs text-slate-500 dark:text-slate-400">items</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ totalRecords }} points in set</div>
       </div>
 
       <!-- Quality Ratio -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-emerald-200 dark:border-emerald-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ singleParamStats.goodPercent }}%</span>
-          <span class="text-3xs text-slate-400">Good</span>
+          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">{{ singleParamStats.goodPercent }}%</span>
+          <span class="text-3xs text-slate-500 dark:text-slate-400">Good</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ singleParamStats.goodCount }} / {{ singleParamStats.sampleCount }} valid</div>
       </div>
@@ -357,51 +357,51 @@
     <!-- Case 2: All Parameters Selected (Overview Cards) -->
     <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <!-- Active Series Count -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-400">{{ $t('analysis.activeSeries') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-600 dark:text-blue-400">{{ $t('analysis.activeSeries') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ seriesList.length }}</span>
-          <span class="text-3xs font-mono text-slate-400">series</span>
+          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ seriesList.length }}</span>
+          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">series</span>
         </div>
-        <div class="text-4xs text-slate-400 font-mono">{{ allSeriesOverview.distinctUnitsCount }} distinct unit(s)</div>
+        <div class="text-4xs text-slate-500 dark:text-slate-400 font-mono">{{ allSeriesOverview.distinctUnitsCount }} distinct unit(s)</div>
       </div>
 
       <!-- Total Dataset Samples -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-400">{{ $t('analysis.count') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('analysis.count') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-white tracking-tight">{{ totalRecords }}</span>
-          <span class="text-3xs text-slate-400">records</span>
+          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ totalRecords }}</span>
+          <span class="text-3xs text-slate-500 dark:text-slate-400">records</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">Total points across set</div>
       </div>
 
       <!-- Overall Quality Health -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-emerald-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-emerald-200 dark:border-emerald-500/20">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
         <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-400 tracking-tight">{{ allSeriesOverview.goodPercent }}%</span>
-          <span class="text-3xs text-slate-400">Good</span>
+          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">{{ allSeriesOverview.goodPercent }}%</span>
+          <span class="text-3xs text-slate-500 dark:text-slate-400">Good</span>
         </div>
         <div class="text-4xs text-slate-500 font-mono">{{ allSeriesOverview.goodCount }} / {{ allSeriesOverview.totalCount }} valid</div>
       </div>
 
       <!-- Most Recent Measurement (With explicit device, param, unit) -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800 col-span-2">
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800 col-span-2">
         <div class="flex items-center justify-between">
-          <span class="text-3xs uppercase tracking-wider font-semibold text-purple-400">{{ $t('analysis.mostRecentPacket') }}</span>
-          <span v-if="allSeriesOverview.latestMeasurement" class="text-4xs font-mono text-slate-400">
+          <span class="text-3xs uppercase tracking-wider font-semibold text-purple-600 dark:text-purple-400">{{ $t('analysis.mostRecentPacket') }}</span>
+          <span v-if="allSeriesOverview.latestMeasurement" class="text-4xs font-mono text-slate-500 dark:text-slate-400">
             {{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }}
           </span>
         </div>
         <div v-if="allSeriesOverview.latestMeasurement" class="flex items-baseline space-x-2">
-          <span class="text-xl font-mono font-bold text-white tracking-tight">
+          <span class="text-xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">
             {{ formatVal(allSeriesOverview.latestMeasurement.value) }}
           </span>
-          <span class="text-xs font-mono text-purple-300 font-bold">
+          <span class="text-xs font-mono text-purple-600 dark:text-purple-300 font-bold">
             {{ allSeriesOverview.latestMeasurement.unit || '--' }}
           </span>
-          <span class="text-3xs text-slate-400 truncate font-mono ml-1">
+          <span class="text-3xs text-slate-600 dark:text-slate-400 truncate font-mono ml-1">
             [{{ allSeriesOverview.latestMeasurement.deviceCode }} : {{ allSeriesOverview.latestMeasurement.paramCode }}]
           </span>
         </div>
@@ -412,13 +412,13 @@
       </div>
 
       <!-- Scale Mode Control Pill -->
-      <div class="saas-card p-3.5 space-y-1 bg-[#0F172A]/70 border border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-400">{{ $t('analysis.scaleMode') }}</div>
+      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
+        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-600 dark:text-amber-400">{{ $t('analysis.scaleMode') }}</div>
         <div class="flex items-center space-x-1 pt-0.5">
           <button
             @click="setChartScaleMode('normalized')"
             class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
-            :class="chartScaleMode === 'normalized' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
+            :class="chartScaleMode === 'normalized' ? 'bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-transparent'"
             title="Scale 0-100% per series to visually compare parameters of different units without distortion"
           >
             % Norm
@@ -426,7 +426,7 @@
           <button
             @click="setChartScaleMode('native')"
             class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
-            :class="chartScaleMode === 'native' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'"
+            :class="chartScaleMode === 'native' ? 'bg-blue-50 text-blue-700 border border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-transparent'"
             title="Show actual physical engineering values"
           >
             Native
@@ -439,13 +439,13 @@
     </div>
 
     <!-- Trend Chart Card -->
-    <div class="saas-card p-5 bg-[#0F172A] border border-slate-800 rounded-2xl space-y-4">
+    <div class="saas-card p-5 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center space-x-2.5">
           <span class="w-2.5 h-2.5 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-blue-500' : activeMode === 'RAW' ? 'bg-emerald-500' : 'bg-indigo-500'"></span>
           <div>
-            <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('analysis.trendChart') }}</h3>
-            <p class="text-3xs text-slate-400 mt-0.5">
+            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.trendChart') }}</h3>
+            <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
               <span v-if="filters.parameterId">{{ activeParameterLabel }} • {{ activeUnit }}</span>
               <span v-else>{{ $t('analysis.allParameters') }} ({{ visibleSeries.length }} / {{ seriesList.length }} series active)</span>
               <span v-if="activeMode === 'RAW'" class="ml-1 text-slate-500">({{ rawChartMode === 'raw' ? 'Unscaled Register' : 'Scaled Engineering' }})</span>
@@ -456,18 +456,18 @@
         <!-- Scale Mode Switcher & Reset in Chart Header -->
         <div class="flex items-center space-x-2 text-2xs font-mono">
           <!-- Scale switcher buttons -->
-          <div class="flex items-center bg-[#0B0F19] rounded-lg p-0.5 border border-slate-800 text-3xs">
+          <div class="flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800 text-3xs">
             <button
               @click="setChartScaleMode('normalized')"
               class="px-2 py-0.5 rounded transition font-semibold"
-              :class="chartScaleMode === 'normalized' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-slate-200'"
+              :class="chartScaleMode === 'normalized' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
             >
               {{ $t('analysis.scaleNormalized') }}
             </button>
             <button
               @click="setChartScaleMode('native')"
               class="px-2 py-0.5 rounded transition font-semibold"
-              :class="chartScaleMode === 'native' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'text-slate-400 hover:text-slate-200'"
+              :class="chartScaleMode === 'native' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
             >
               {{ $t('analysis.scaleNative') }}
             </button>
@@ -477,7 +477,7 @@
           <button
             v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
             @click="resetSeriesFilters"
-            class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-400 text-3xs font-semibold transition"
+            class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-blue-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-400 dark:border-transparent text-3xs font-semibold transition"
           >
             {{ $t('analysis.showAllSeries') }}
           </button>
@@ -485,7 +485,7 @@
       </div>
 
       <!-- Interactive Multi-Series Legend Bar -->
-      <div v-if="seriesList.length > 0" class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/80">
+      <div v-if="seriesList.length > 0" class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
         <div
           v-for="s in seriesList"
           :key="'legend-' + s.id"
@@ -494,10 +494,10 @@
           class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-3xs font-mono transition border cursor-pointer select-none"
           :class="[
             hiddenSeriesIds.includes(s.id)
-              ? 'opacity-40 bg-slate-900 border-slate-800 line-through text-slate-500'
+              ? 'opacity-40 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 line-through text-slate-400 dark:text-slate-500'
               : focusedSeriesId === s.id
-                ? 'bg-blue-950/40 border-blue-500 text-white shadow-sm'
-                : 'bg-[#0B0F19] border-slate-800 text-slate-300 hover:border-slate-700'
+                ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-400 dark:border-blue-500 text-blue-900 dark:text-white shadow-sm'
+                : 'bg-white dark:bg-[#0B0F19] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
           ]"
         >
           <!-- Visibility Toggle Click -->
@@ -505,17 +505,17 @@
             <span
               class="w-2.5 h-2.5 rounded-full inline-block transition-transform"
               :style="{ backgroundColor: s.color }"
-              :class="{ 'ring-2 ring-white/50 scale-110': hoveredSeriesId === s.id }"
+              :class="{ 'ring-2 ring-slate-400/50 dark:ring-white/50 scale-110': hoveredSeriesId === s.id }"
             ></span>
-            <span class="font-bold">{{ s.deviceCode }}: {{ s.paramCode }}</span>
-            <span v-if="s.unit" class="text-slate-400">({{ s.unit }})</span>
-            <span v-if="s.stats.latest !== null" class="text-white font-bold ml-1">{{ s.stats.latest }}</span>
+            <span class="font-bold text-slate-800 dark:text-slate-200">{{ s.deviceCode }}: {{ s.paramCode }}</span>
+            <span v-if="s.unit" class="text-slate-500 dark:text-slate-400">({{ s.unit }})</span>
+            <span v-if="s.stats.latest !== null" class="text-slate-900 dark:text-white font-bold ml-1">{{ s.stats.latest }}</span>
           </div>
 
           <!-- Quick Solo Focus Button -->
           <button
             @click.stop="toggleFocusSeries(s.id)"
-            class="ml-1 text-slate-400 hover:text-blue-400 text-4xs uppercase px-1 py-0.2 rounded hover:bg-slate-800"
+            class="ml-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-4xs uppercase px-1 py-0.2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
             :title="focusedSeriesId === s.id ? 'Exit focus' : 'Focus only this series'"
           >
             {{ focusedSeriesId === s.id ? '✕' : '⊙' }}
@@ -526,7 +526,7 @@
       <!-- SVG Chart Canvas Area -->
       <div
         ref="chartContainer"
-        class="w-full h-80 bg-[#0B0F19] rounded-xl border border-slate-800 relative select-none overflow-hidden"
+        class="w-full h-80 bg-white dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 relative select-none overflow-hidden"
       >
         <!-- Empty State -->
         <div v-if="seriesList.length === 0 || visibleSeries.length === 0" class="w-full h-full flex flex-col items-center justify-center space-y-2 text-center p-6">
@@ -569,16 +569,16 @@
                 :y1="tick.y"
                 :x2="containerWidth - chartPlotData.padRight"
                 :y2="tick.y"
-                stroke="#1E293B"
+                :stroke="isDark ? '#1E293B' : '#E2E8F0'"
                 stroke-dasharray="4 4"
                 stroke-width="0.8"
-                stroke-opacity="0.7"
+                stroke-opacity="0.8"
               />
               <text
                 :x="chartPlotData.padLeft - 8"
                 :y="tick.y + 4"
                 text-anchor="end"
-                fill="#94A3B8"
+                :fill="isDark ? '#94A3B8' : '#64748B'"
                 font-size="11"
                 font-family="monospace"
               >
@@ -595,14 +595,14 @@
                 :y1="containerHeight - chartPlotData.padBottom"
                 :x2="tick.x"
                 :y2="containerHeight - chartPlotData.padBottom + 6"
-                stroke="#334155"
+                :stroke="isDark ? '#334155' : '#CBD5E1'"
                 stroke-width="1"
               />
               <text
                 :x="tick.x"
                 :y="containerHeight - 18"
                 text-anchor="middle"
-                fill="#94A3B8"
+                :fill="isDark ? '#94A3B8' : '#64748B'"
                 font-size="10"
                 font-family="monospace"
               >
@@ -662,7 +662,7 @@
               :y1="chartPlotData.padTop"
               :x2="activePoint.x"
               :y2="containerHeight - chartPlotData.padBottom"
-              stroke="#94A3B8"
+              :stroke="isDark ? '#94A3B8' : '#64748B'"
               stroke-width="1"
               stroke-dasharray="3 3"
             />
@@ -680,33 +680,33 @@
         <!-- Interactive Floating Tooltip -->
         <div
           v-if="activePoint"
-          class="absolute z-20 pointer-events-none bg-[#0F172A]/95 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs shadow-2xl text-slate-200 font-sans backdrop-blur-md"
+          class="absolute z-20 pointer-events-none bg-white/95 dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs shadow-2xl text-slate-800 dark:text-slate-200 font-sans backdrop-blur-md"
           :style="{
             left: `${Math.min(Math.max(activePoint.x - 80, 10), containerWidth - 210)}px`,
             top: `${Math.max(activePoint.y - 85, 10)}px`
           }"
         >
-          <div class="flex items-center space-x-2 text-3xs text-slate-400 font-mono">
+          <div class="flex items-center space-x-2 text-3xs text-slate-500 dark:text-slate-400 font-mono">
             <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: activePoint.color }"></span>
             <span>{{ formatTimestamp(activePoint.timestamp) }}</span>
           </div>
           <div class="flex items-baseline space-x-1.5 mt-1">
-            <span class="text-base font-bold text-white font-mono">{{ formatVal(activePoint.value) }}</span>
-            <span class="text-xs font-mono font-bold text-slate-300">{{ activePoint.unit || '' }}</span>
+            <span class="text-base font-bold text-slate-900 dark:text-white font-mono">{{ formatVal(activePoint.value) }}</span>
+            <span class="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">{{ activePoint.unit || '' }}</span>
             <span class="ml-1 px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(activePoint.quality)">
               {{ activePoint.quality }}
             </span>
           </div>
-          <div class="text-3xs text-slate-300 font-medium truncate max-w-[190px] mt-0.5">
+          <div class="text-3xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-[190px] mt-0.5">
             {{ activePoint.deviceCode }}: {{ activePoint.paramCode }}
           </div>
-          <div class="text-4xs text-slate-500 truncate max-w-[190px]">
+          <div class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[190px]">
             {{ activePoint.paramName }} ({{ activePoint.deviceName }})
           </div>
-          <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-400 font-mono mt-0.5">
+          <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-600 dark:text-rose-400 font-mono mt-0.5">
             Reason: {{ activePoint.qualityReason }}
           </div>
-          <div v-if="isSuperAdmin && activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-400 font-mono mt-0.5">
+          <div v-if="isSuperAdmin && activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
             Hex: {{ activePoint.rawHex }} (Reg: {{ activePoint.rawValue }})
           </div>
         </div>
@@ -714,12 +714,12 @@
     </div>
 
     <!-- Telemetry Data Records Table -->
-    <div class="saas-card overflow-hidden border border-slate-800 bg-[#0F172A] rounded-2xl space-y-0">
+    <div class="saas-card overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0F172A] rounded-2xl space-y-0 shadow-sm">
       <!-- Table Header & Controls -->
-      <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center space-x-2">
-          <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('analysis.dataTable') }}</h3>
-          <span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-3xs font-mono font-bold">
+          <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.dataTable') }}</h3>
+          <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-3xs font-mono font-bold">
             {{ totalRecords }} items
           </span>
         </div>
@@ -730,7 +730,7 @@
             type="text"
             v-model="tableSearch"
             :placeholder="$t('analysis.searchTable')"
-            class="px-3 py-1 bg-[#0B0F19] border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 w-48"
+            class="px-3 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 w-48"
           />
         </div>
       </div>
@@ -739,7 +739,7 @@
       <div class="overflow-x-auto">
         <!-- MODE 1: HISTORICAL / PROCESSED TABLE -->
         <table v-if="activeMode === 'HISTORICAL'" class="w-full text-left text-xs font-sans">
-          <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+          <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('telemetry.receivedAt') }}</th>
               <th class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
@@ -752,40 +752,40 @@
               <th class="py-2.5 px-4 text-right">{{ $t('deviceDetail.actions') || 'Actions' }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/60 text-2xs">
-            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-800/30 transition font-mono">
-              <td class="py-2.5 px-4 text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
+            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition font-mono">
+              <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
               <td class="py-2.5 px-4">
-                <router-link :to="'/monitoring/devices/' + r.device_id" class="text-blue-400 hover:underline font-bold">
+                <router-link :to="'/monitoring/devices/' + r.device_id" class="text-blue-600 dark:text-blue-400 hover:underline font-bold">
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
               </td>
-              <td class="py-2.5 px-4 text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
-              <td class="py-2.5 px-4 text-right font-bold text-white text-xs">
+              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
+              <td class="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white text-xs">
                 {{ formatVal(r.processed_value !== undefined ? r.processed_value : r.value) }}
               </td>
-              <td v-if="isSuperAdmin" class="py-2.5 px-4 text-right text-slate-400">{{ formatVal(r.raw_value) }}</td>
-              <td class="py-2.5 px-4 text-slate-400 font-sans">{{ getParamUnit(r.parameter_id) }}</td>
+              <td v-if="isSuperAdmin" class="py-2.5 px-4 text-right text-slate-500 dark:text-slate-400">{{ formatVal(r.raw_value) }}</td>
+              <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400 font-sans">{{ getParamUnit(r.parameter_id) }}</td>
               <td class="py-2.5 px-4 text-center">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
                   {{ r.quality || 'GOOD' }}
                 </span>
               </td>
-              <td class="py-2.5 px-4 text-3xs text-slate-400 font-mono">
-                <span v-if="r.is_held_value" class="text-amber-400 mr-1">[HELD]</span>
+              <td class="py-2.5 px-4 text-3xs text-slate-500 dark:text-slate-400 font-mono">
+                <span v-if="r.is_held_value" class="text-amber-500 dark:text-amber-400 mr-1">[HELD]</span>
                 <span>{{ r.quality_reason && r.quality_reason !== 'NONE' ? r.quality_reason : '--' }}</span>
               </td>
               <td class="py-2.5 px-4 text-right font-sans">
                 <router-link
                   :to="'/monitoring/devices/' + r.device_id + '?tab=history'"
-                  class="text-blue-400 hover:text-blue-300 hover:underline"
+                  class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-semibold"
                 >
                   Detail →
                 </router-link>
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td colspan="9" class="py-8 text-center text-xs text-slate-400 font-sans">
+              <td colspan="9" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -794,7 +794,7 @@
 
         <!-- MODE 2: RAW TELEMETRY TABLE -->
         <table v-else-if="activeMode === 'RAW'" class="w-full text-left text-xs font-mono">
-          <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+          <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
               <th class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
@@ -807,28 +807,28 @@
               <th class="py-2.5 px-4 text-right">UUID</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/60 text-2xs">
-            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-800/30 transition">
-              <td class="py-2.5 px-4 text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
-              <td class="py-2.5 px-4 text-blue-400 font-bold">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
+            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+              <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
+              <td class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-bold">
                 <router-link :to="'/monitoring/devices/' + r.device_id" class="hover:underline">
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
               </td>
-              <td class="py-2.5 px-4 text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
-              <td class="py-2.5 px-4 text-emerald-400 font-bold tracking-widest">{{ r.raw_hex || '--' }}</td>
-              <td class="py-2.5 px-4 text-right text-slate-300">{{ formatVal(r.raw_value) }}</td>
-              <td class="py-2.5 px-4 text-right text-white font-bold">{{ formatVal(r.value) }}</td>
+              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
+              <td class="py-2.5 px-4 text-emerald-600 dark:text-emerald-400 font-bold tracking-widest">{{ r.raw_hex || '--' }}</td>
+              <td class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{{ formatVal(r.raw_value) }}</td>
+              <td class="py-2.5 px-4 text-right text-slate-900 dark:text-white font-bold">{{ formatVal(r.value) }}</td>
               <td class="py-2.5 px-4 text-center">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
                   {{ r.quality || 'GOOD' }}
                 </span>
               </td>
-              <td class="py-2.5 px-4 text-slate-400">{{ r.source || 'MODBUS_TCP' }}</td>
-              <td class="py-2.5 px-4 text-right text-3xs text-slate-500 truncate max-w-[100px]">{{ r.record_uuid || r.id }}</td>
+              <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400">{{ r.source || 'MODBUS_TCP' }}</td>
+              <td class="py-2.5 px-4 text-right text-3xs text-slate-400 dark:text-slate-500 truncate max-w-[100px]">{{ r.record_uuid || r.id }}</td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td colspan="9" class="py-8 text-center text-xs text-slate-400 font-sans">
+              <td colspan="9" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -837,7 +837,7 @@
 
         <!-- MODE 3: AGGREGATION & ROLLUP TABLE -->
         <table v-else class="w-full text-left text-xs font-sans">
-          <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+          <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('analysis.period') }}</th>
               <th class="py-2.5 px-4">{{ $t('analysis.identifier') }}</th>
@@ -851,29 +851,29 @@
               <th class="py-2.5 px-4 text-center">{{ $t('common.quality') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/60 text-2xs font-mono">
-            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-800/30 transition">
-              <td class="py-2.5 px-4 text-slate-300">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs font-mono">
+            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+              <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">
                 {{ formatTimestamp(r.period_start) }} → {{ formatTimeOnly(r.period_end) }}
               </td>
-              <td class="py-2.5 px-4 text-indigo-400 font-bold">{{ r.identifier }}</td>
-              <td class="py-2.5 px-4 text-blue-400">
+              <td class="py-2.5 px-4 text-indigo-600 dark:text-indigo-400 font-bold">{{ r.identifier }}</td>
+              <td class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-semibold">
                 <router-link :to="'/monitoring/devices/' + r.device_id" class="hover:underline">
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
               </td>
-              <td class="py-2.5 px-4 text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
-              <td class="py-2.5 px-4 text-right font-bold text-white text-xs">
+              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
+              <td class="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white text-xs">
                 {{ formatVal(r.value) }}
               </td>
-              <td class="py-2.5 px-4 text-indigo-300 font-bold">{{ r.function }}</td>
-              <td class="py-2.5 px-4 text-slate-400">{{ formatInterval(r.interval_seconds) }}</td>
-              <td class="py-2.5 px-4 text-right text-slate-400 text-3xs">
+              <td class="py-2.5 px-4 text-indigo-600 dark:text-indigo-300 font-bold">{{ r.function }}</td>
+              <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400">{{ formatInterval(r.interval_seconds) }}</td>
+              <td class="py-2.5 px-4 text-right text-slate-500 dark:text-slate-400 text-3xs">
                 {{ formatVal(r.min_value, 1) }} / {{ formatVal(r.max_value, 1) }}
               </td>
-              <td class="py-2.5 px-4 text-center text-3xs text-slate-400">
-                <span class="text-white font-bold">{{ r.sample_count }}</span>
-                <span class="text-emerald-400 ml-1">({{ r.good_count }}G)</span>
+              <td class="py-2.5 px-4 text-center text-3xs text-slate-500 dark:text-slate-400">
+                <span class="text-slate-900 dark:text-white font-bold">{{ r.sample_count }}</span>
+                <span class="text-emerald-600 dark:text-emerald-400 ml-1">({{ r.good_count }}G)</span>
               </td>
               <td class="py-2.5 px-4 text-center">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
@@ -882,7 +882,7 @@
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td colspan="10" class="py-8 text-center text-xs text-slate-400 font-sans">
+              <td colspan="10" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -891,21 +891,21 @@
       </div>
 
       <!-- Pagination Footer -->
-      <div class="p-3 border-t border-slate-800 flex items-center justify-between text-xs">
+      <div class="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
         <button
           @click="prevPage"
           :disabled="currentPage <= 1 || loading"
-          class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+          class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-transparent disabled:opacity-40 transition font-semibold"
         >
           {{ $t('analysis.prev') }}
         </button>
-        <span class="text-slate-400 text-2xs font-mono">
+        <span class="text-slate-500 dark:text-slate-400 text-2xs font-mono">
           {{ $t('analysis.pageOf', { page: currentPage, totalPages: Math.ceil(totalRecords / filters.pageSize) || 1 }) }}
         </span>
         <button
           @click="nextPage"
           :disabled="currentPage * filters.pageSize >= totalRecords || loading"
-          class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+          class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-transparent disabled:opacity-40 transition font-semibold"
         >
           {{ $t('analysis.next') }}
         </button>
@@ -916,20 +916,20 @@
     <div class="space-y-3">
       <div class="flex items-center justify-between px-1">
         <div>
-          <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+          <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-2">
             <span>{{ $t('analysis.perSeriesBreakdown') }}</span>
-            <span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-4xs font-mono">
+            <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-4xs font-mono">
               {{ seriesList.length }} {{ $t('analysis.activeSeries').toLowerCase() }}
             </span>
           </h4>
-          <p class="text-4xs text-slate-400">
+          <p class="text-4xs text-slate-500 dark:text-slate-400">
             {{ $t('analysis.perSeriesBreakdownSubtitle') }}
           </p>
         </div>
         <button
           v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
           @click="resetSeriesFilters"
-          class="text-3xs text-blue-400 hover:text-blue-300 hover:underline font-mono flex items-center space-x-1"
+          class="text-3xs text-blue-600 dark:text-blue-400 hover:underline font-mono flex items-center space-x-1"
         >
           <span>↺</span>
           <span>{{ $t('analysis.showAllSeries') }}</span>
@@ -940,30 +940,30 @@
         <div
           v-for="s in seriesList"
           :key="'card-' + s.id"
-          class="saas-card p-3 rounded-xl bg-[#0F172A]/90 border transition hover:border-slate-700"
-          :class="focusedSeriesId === s.id ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-800'"
+          class="saas-card p-3 rounded-xl bg-white dark:bg-[#0F172A]/90 border transition hover:border-slate-300 dark:hover:border-slate-700 shadow-sm"
+          :class="focusedSeriesId === s.id ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-200 dark:border-slate-800'"
         >
           <!-- Series Header -->
-          <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800/80">
             <div class="flex items-center space-x-2 min-w-0">
               <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
               <div class="min-w-0">
-                <div class="text-xs font-bold text-white truncate font-mono">
+                <div class="text-xs font-bold text-slate-900 dark:text-white truncate font-mono">
                   {{ s.deviceCode }}: {{ s.paramCode }}
                 </div>
-                <div class="text-4xs text-slate-400 truncate">
+                <div class="text-4xs text-slate-500 dark:text-slate-400 truncate">
                   {{ s.paramName }}
                 </div>
               </div>
             </div>
             <div class="flex items-center space-x-1.5 shrink-0">
-              <span v-if="s.unit" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-4xs font-mono font-bold">
+              <span v-if="s.unit" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-4xs font-mono font-bold border border-slate-200 dark:border-transparent">
                 {{ s.unit }}
               </span>
               <button
                 @click="toggleFocusSeries(s.id)"
                 class="px-1.5 py-0.5 rounded text-4xs font-mono transition"
-                :class="focusedSeriesId === s.id ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
+                :class="focusedSeriesId === s.id ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-transparent'"
                 :title="focusedSeriesId === s.id ? 'Click to show all series' : 'Focus this series alone on the chart'"
               >
                 {{ focusedSeriesId === s.id ? $t('analysis.isolatedSeries') : $t('analysis.focusSeries') }}
@@ -973,40 +973,40 @@
 
           <!-- Series Metrics Grid -->
           <div class="grid grid-cols-4 gap-1.5 pt-2 text-center">
-            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
+            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
               <div class="text-4xs text-slate-500 uppercase font-mono">{{ $t('analysis.latestValue') }}</div>
-              <div class="text-xs font-bold font-mono text-white truncate mt-0.5">
+              <div class="text-xs font-bold font-mono text-slate-900 dark:text-white truncate mt-0.5">
                 {{ s.stats.latest !== null ? s.stats.latest : '--' }}
               </div>
             </div>
-            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-              <div class="text-4xs text-emerald-400 uppercase font-mono">{{ $t('analysis.min') }}</div>
-              <div class="text-xs font-bold font-mono text-emerald-400 truncate mt-0.5">
+            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
+              <div class="text-4xs text-emerald-600 dark:text-emerald-400 uppercase font-mono">{{ $t('analysis.min') }}</div>
+              <div class="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
                 {{ s.stats.min !== null ? s.stats.min : '--' }}
               </div>
             </div>
-            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-              <div class="text-4xs text-rose-400 uppercase font-mono">{{ $t('analysis.max') }}</div>
-              <div class="text-xs font-bold font-mono text-rose-400 truncate mt-0.5">
+            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
+              <div class="text-4xs text-rose-600 dark:text-rose-400 uppercase font-mono">{{ $t('analysis.max') }}</div>
+              <div class="text-xs font-bold font-mono text-rose-600 dark:text-rose-400 truncate mt-0.5">
                 {{ s.stats.max !== null ? s.stats.max : '--' }}
               </div>
             </div>
-            <div class="bg-[#0B0F19] p-1.5 rounded-lg">
-              <div class="text-4xs text-blue-400 uppercase font-mono">{{ $t('analysis.avg') }}</div>
-              <div class="text-xs font-bold font-mono text-blue-400 truncate mt-0.5">
+            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
+              <div class="text-4xs text-blue-600 dark:text-blue-400 uppercase font-mono">{{ $t('analysis.avg') }}</div>
+              <div class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400 truncate mt-0.5">
                 {{ s.stats.avg !== null ? s.stats.avg : '--' }}
               </div>
             </div>
           </div>
 
           <!-- Card Sub-Footer -->
-          <div class="flex items-center justify-between pt-2 mt-1 border-t border-slate-800/60 text-4xs font-mono text-slate-400">
+          <div class="flex items-center justify-between pt-2 mt-1 border-t border-slate-100 dark:border-slate-800/60 text-4xs font-mono text-slate-500 dark:text-slate-400">
             <span>{{ s.stats.sampleCount }} samples</span>
-            <span class="text-emerald-400 font-bold">{{ s.stats.goodPercent }}% Good</span>
+            <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ s.stats.goodPercent }}% Good</span>
           </div>
         </div>
       </div>
-      <div v-else class="p-6 rounded-xl bg-[#0F172A]/50 border border-slate-800/80 text-center text-slate-500 text-3xs font-mono">
+      <div v-else class="p-6 rounded-xl bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800/80 text-center text-slate-500 text-3xs font-mono">
         {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
       </div>
     </div>
@@ -1015,6 +1015,7 @@
 
 <script>
 import axios from 'axios';
+import { getParamSeriesColor } from '../utils/trendPalette';
 
 const SERIES_PALETTE = [
   '#00E5FF', // Cyan
@@ -1064,6 +1065,9 @@ export default {
     };
   },
   computed: {
+    isDark() {
+      return this.$store.state.theme === 'dark' || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
+    },
     userRole() {
       const u = this.$store.state.user || {};
       return (u.role || '').toUpperCase();
@@ -1150,7 +1154,16 @@ export default {
       const seriesArr = Array.from(groups.values());
 
       seriesArr.forEach((series, idx) => {
-        series.color = SERIES_PALETTE[idx % SERIES_PALETTE.length];
+        series.color = getParamSeriesColor(
+          {
+            param_code: series.paramCode,
+            param_name: series.paramName,
+            unit: series.unit,
+            param_id: series.parameterId,
+          },
+          this.isDark,
+          idx
+        );
 
         // Sort records strictly by timestamp ascending, tie-breaking by id
         series.records.sort((a, b) => {
