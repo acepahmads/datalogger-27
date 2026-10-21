@@ -7715,7 +7715,7 @@ export default {
           this.candidateLocation = {
             latitude: res.data.data.latitude,
             longitude: res.data.data.longitude,
-            location_source: res.data.data.location_source || 'MANUAL',
+            location_source: (res.data.data.location_source && res.data.data.location_source !== 'UNCONFIGURED') ? res.data.data.location_source : 'MANUAL',
             accuracy_meters: res.data.data.accuracy_meters,
             address: res.data.data.address || '',
             station_name: res.data.data.station_name || '',
@@ -7797,6 +7797,10 @@ export default {
       this.candidateLocation.latitude = lat;
       this.candidateLocation.longitude = lng;
       this.candidateLocation.location_source = 'MANUAL';
+      this.stationLocationFeedback = {
+        type: 'success',
+        message: `Titik stasiun (${lat.toFixed(6)}, ${lng.toFixed(6)}) dipilih dari peta. Klik "Save Location" untuk menyimpan.`,
+      };
     },
     async saveStationLocation() {
       if (this.candidateLocation.latitude == null || this.candidateLocation.longitude == null) {
@@ -7829,10 +7833,14 @@ export default {
       this.stationLocationFeedback = { type: '', message: '' };
 
       try {
+        let locSource = this.candidateLocation.location_source;
+        if (!locSource || locSource === 'UNCONFIGURED') {
+          locSource = 'MANUAL';
+        }
         const payload = {
           latitude: lat,
           longitude: lng,
-          location_source: this.candidateLocation.location_source || 'MANUAL',
+          location_source: locSource,
           accuracy_meters: this.candidateLocation.accuracy_meters ? Number(this.candidateLocation.accuracy_meters) : null,
           station_name: this.candidateLocation.station_name || undefined,
           address: this.candidateLocation.address || undefined,
@@ -7850,7 +7858,7 @@ export default {
           }
         }
       } catch (err) {
-        const msg = err.response?.data?.message || err.message || 'Gagal menyimpan koordinat stasiun.';
+        const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal menyimpan koordinat stasiun.';
         this.stationLocationFeedback = {
           type: 'error',
           message: msg,
@@ -7863,7 +7871,7 @@ export default {
       this.candidateLocation = {
         latitude: this.stationLocation.latitude,
         longitude: this.stationLocation.longitude,
-        location_source: this.stationLocation.location_source || 'MANUAL',
+        location_source: (this.stationLocation.location_source && this.stationLocation.location_source !== 'UNCONFIGURED') ? this.stationLocation.location_source : 'MANUAL',
         accuracy_meters: this.stationLocation.accuracy_meters,
         address: this.stationLocation.address || '',
         station_name: this.stationLocation.station_name || '',
@@ -7886,7 +7894,7 @@ export default {
           this.candidateLocation = {
             latitude: null,
             longitude: null,
-            location_source: 'UNCONFIGURED',
+            location_source: 'MANUAL',
             accuracy_meters: null,
             address: '',
             station_name: '',
@@ -7897,9 +7905,10 @@ export default {
           };
         }
       } catch (err) {
+        const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Gagal mereset lokasi stasiun.';
         this.stationLocationFeedback = {
           type: 'error',
-          message: 'Gagal mereset lokasi stasiun: ' + (err.response?.data?.message || err.message),
+          message: msg,
         };
       } finally {
         this.isSavingStationLocation = false;

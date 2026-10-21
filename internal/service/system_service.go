@@ -932,7 +932,7 @@ func (s *SystemService) SaveStationLocation(req UpdateStationLocationRequest, ac
 		}
 
 		source := strings.ToUpper(strings.TrimSpace(req.LocationSource))
-		if source == "" {
+		if source == "" || source == model.LocationSourceUnconfigured {
 			source = model.LocationSourceManual
 		}
 		if source != model.LocationSourceManual && source != model.LocationSourceGPS && source != model.LocationSourceIPGeolocation {
