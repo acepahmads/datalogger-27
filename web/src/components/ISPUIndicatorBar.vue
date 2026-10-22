@@ -495,7 +495,18 @@ export default {
       loading: false,
       recalculating: false,
       showTrend: false,
-      showBreakdown: false,
+      showBreakdown: (() => {
+        try {
+          const devId = this.deviceId;
+          if (devId) {
+            const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${devId}`);
+            if (devSaved !== null) return devSaved === 'true';
+          }
+          const saved = localStorage.getItem('scada_ispu_show_breakdown');
+          if (saved !== null) return saved === 'true';
+        } catch (e) {}
+        return false;
+      })(),
       trendRange: '24h',
       trendRecords: [],
       trendLoading: false,
@@ -691,6 +702,15 @@ export default {
           try {
             const saved = localStorage.getItem(`scada_ispu_selected_param_${newId}`);
             this.selectedDisplayParam = saved || 'OVERALL';
+            const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${newId}`);
+            if (devSaved !== null) {
+              this.showBreakdown = devSaved === 'true';
+            } else {
+              const globalSaved = localStorage.getItem('scada_ispu_show_breakdown');
+              if (globalSaved !== null) {
+                this.showBreakdown = globalSaved === 'true';
+              }
+            }
           } catch (e) {}
           this.fetchLatestISPU();
           if (this.showTrend) {
@@ -698,6 +718,15 @@ export default {
           }
         }
       }
+    },
+    showBreakdown(newVal) {
+      try {
+        const valStr = newVal ? 'true' : 'false';
+        localStorage.setItem('scada_ispu_show_breakdown', valStr);
+        if (this.deviceId) {
+          localStorage.setItem(`scada_ispu_show_breakdown_${this.deviceId}`, valStr);
+        }
+      } catch (e) {}
     }
   },
   mounted() {
@@ -705,6 +734,17 @@ export default {
       const saved = localStorage.getItem(`scada_ispu_selected_param_${this.deviceId}`);
       if (saved) {
         this.selectedDisplayParam = saved;
+      }
+      if (this.deviceId) {
+        const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${this.deviceId}`);
+        if (devSaved !== null) {
+          this.showBreakdown = devSaved === 'true';
+        } else {
+          const globalSaved = localStorage.getItem('scada_ispu_show_breakdown');
+          if (globalSaved !== null) {
+            this.showBreakdown = globalSaved === 'true';
+          }
+        }
       }
     } catch (e) {}
 
@@ -835,6 +875,13 @@ export default {
     },
     toggleBreakdown() {
       this.showBreakdown = !this.showBreakdown;
+      try {
+        const valStr = this.showBreakdown ? 'true' : 'false';
+        localStorage.setItem('scada_ispu_show_breakdown', valStr);
+        if (this.deviceId) {
+          localStorage.setItem(`scada_ispu_show_breakdown_${this.deviceId}`, valStr);
+        }
+      } catch (e) {}
     },
     toggleTrend() {
       this.showTrend = !this.showTrend;
