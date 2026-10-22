@@ -1,22 +1,22 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in font-sans">
-    <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div class="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/80 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
       <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-[#0B0F19]/80 backdrop-blur-xs">
         <div>
           <div class="flex items-center space-x-2">
-            <h2 class="text-base font-bold text-white tracking-wide">
+            <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-wide">
               {{ modalTitle }}
             </h2>
-            <span v-if="isCopying" class="px-2 py-0.5 text-3xs font-mono font-bold uppercase rounded bg-cyan-950/80 text-cyan-300 border border-cyan-800/80">
+            <span v-if="isCopying" class="px-2 py-0.5 text-3xs font-mono font-bold uppercase rounded bg-cyan-100 text-cyan-800 border border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-300 dark:border-cyan-800/80">
               CLONE
             </span>
           </div>
-          <p class="text-xs text-slate-400 mt-0.5">
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {{ modalSubtitle }}
           </p>
         </div>
-        <button @click="closeModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+        <button @click="closeModal" class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -26,46 +26,46 @@
       <!-- Modal Body -->
       <form ref="formBody" @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-4">
         <!-- Top Error Alert -->
-        <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-start space-x-2.5 shadow-lg shadow-rose-950/20 animate-fade-in">
-          <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="error" class="p-3.5 bg-rose-50 dark:bg-rose-500/15 border-2 border-rose-300 dark:border-rose-500/40 rounded-xl text-xs text-rose-800 dark:text-rose-300 flex items-start space-x-2.5 shadow-md shadow-rose-950/10 dark:shadow-rose-950/20 animate-fade-in">
+          <svg class="w-4 h-4 text-rose-500 dark:text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
           </svg>
           <div class="flex-1">
-            <span class="font-bold text-rose-200 block text-2xs">{{ $t('parameterModal.cannotSaveTitle') }}</span>
-            <span class="text-3xs text-rose-300 mt-0.5 block leading-relaxed whitespace-pre-wrap">{{ error }}</span>
+            <span class="font-bold text-rose-900 dark:text-rose-200 block text-2xs">{{ $t('parameterModal.cannotSaveTitle') }}</span>
+            <span class="text-3xs text-rose-800 dark:text-rose-300 mt-0.5 block leading-relaxed whitespace-pre-wrap">{{ error }}</span>
           </div>
-          <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs font-mono ml-2">✕</button>
+          <button type="button" @click="error = null" class="text-rose-500 hover:text-rose-800 dark:text-rose-400 dark:hover:text-white text-3xs font-mono ml-2">✕</button>
         </div>
 
         <!-- Copying Parameter Notice Banner -->
-        <div v-if="isCopying" class="p-3.5 bg-cyan-950/40 border border-cyan-800/80 rounded-xl space-y-2.5 animate-fade-in">
+        <div v-if="isCopying" class="p-3.5 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/80 rounded-xl space-y-2.5 animate-fade-in">
           <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2 text-cyan-200 text-xs">
-              <svg class="w-4 h-4 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center space-x-2 text-cyan-900 dark:text-cyan-200 text-xs">
+              <svg class="w-4 h-4 text-cyan-600 dark:text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
               </svg>
               <span class="font-semibold">{{ $t('parameterModal.copyBannerTitle', { code: sourceParam ? (sourceParam.parameter_name || sourceParam.parameter_code) : '' }) }}</span>
             </div>
-            <span class="text-3xs uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-300 font-bold border border-cyan-700/50">
+            <span class="text-3xs uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 font-bold border border-cyan-300 dark:bg-cyan-900/60 dark:text-cyan-300 dark:border-cyan-700/50">
               CONFIG CLONE
             </span>
           </div>
-          <p class="text-3xs text-slate-400 leading-relaxed">
+          <p class="text-3xs text-slate-600 dark:text-slate-400 leading-relaxed">
             {{ $t('parameterModal.copyBannerDesc') }}
           </p>
 
           <!-- Destination Device Selector -->
-          <div v-if="devicesList && devicesList.length > 0" class="pt-2 border-t border-slate-800/80">
+          <div v-if="devicesList && devicesList.length > 0" class="pt-2 border-t border-slate-200 dark:border-slate-800/80">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   {{ $t('parameterModal.destinationDevice') }}
                 </label>
-                <span class="text-3xs text-slate-400">{{ $t('parameterModal.destinationDeviceHelp') }}</span>
+                <span class="text-3xs text-slate-500 dark:text-slate-400">{{ $t('parameterModal.destinationDeviceHelp') }}</span>
               </div>
               <select
                 v-model="targetDeviceId"
-                class="px-2.5 py-1.5 bg-[#0B0F19] border border-cyan-800/80 rounded-lg text-xs text-white focus:outline-none focus:border-cyan-500 font-mono min-w-[200px]"
+                class="px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-cyan-300 dark:border-cyan-800/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 font-mono min-w-[200px]"
               >
                 <option v-for="dev in devicesList" :key="dev.id" :value="dev.id">
                   {{ dev.device_code || dev.code }} ({{ dev.communication_protocol || dev.protocol }})
@@ -74,8 +74,8 @@
             </div>
 
             <!-- Protocol Mismatch Warning -->
-            <div v-if="destProtocolMismatch" class="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-3xs text-amber-300 flex items-start space-x-2">
-              <span class="text-amber-400 font-bold">⚠️</span>
+            <div v-if="destProtocolMismatch" class="mt-2 p-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg text-3xs text-amber-800 dark:text-amber-300 flex items-start space-x-2">
+              <span class="text-amber-600 dark:text-amber-400 font-bold">⚠️</span>
               <span>{{ $t('parameterModal.destProtocolMismatch', { destProto: destProtocolName, srcProto: srcProtocolName }) }}</span>
             </div>
           </div>
@@ -85,10 +85,10 @@
           <!-- Parameter Code -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
-                {{ $t('parameterModal.code') }}
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {{ $t('parameterModal.code') }} <span class="text-rose-500">*</span>
               </label>
-              <span v-if="isCopying" class="text-3xs font-mono text-cyan-400 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/60">
+              <span v-if="isCopying" class="text-3xs font-mono text-cyan-800 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-300 dark:border-cyan-800/60">
                 Must be unique
               </span>
             </div>
@@ -97,40 +97,40 @@
               type="text"
               required
               :placeholder="$t('parameterModal.placeholders.code')"
-              :class="isCopying ? 'border-cyan-500/80 focus:border-cyan-400' : 'border-slate-700/80 focus:border-blue-500'"
-              class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
+              :class="isCopying ? 'border-cyan-500/80 focus:border-cyan-400' : 'border-slate-300 dark:border-slate-700/80 focus:border-blue-500'"
+              class="w-full px-3 py-2 bg-slate-50/60 dark:bg-[#0B0F19] border rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-[#0B0F19] font-mono transition"
             />
           </div>
 
           <!-- Parameter Name -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.name') }}
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              {{ $t('parameterModal.name') }} <span class="text-rose-500">*</span>
             </label>
             <input
               v-model="form.parameter_name"
               type="text"
               required
               :placeholder="$t('parameterModal.placeholders.name')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              class="w-full px-3 py-2 bg-slate-50/60 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-[#0B0F19] transition"
             />
           </div>
         </div>
 
         <!-- Parameter Category & Sensor Icon Configuration Row -->
-        <div class="p-3 bg-[#0B0F19]/60 border border-slate-800 rounded-xl space-y-2.5">
+        <div class="p-3.5 bg-slate-50/70 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {{ $t('operator.categorySettings') || 'Parameter Category & Sensor Icon' }}
             </label>
             <!-- Live Preview Badge with Category -->
-            <div class="flex items-center space-x-1.5 text-2xs font-mono px-2 py-1 bg-slate-900 border border-slate-700/80 rounded-lg">
+            <div class="flex items-center space-x-1.5 text-2xs font-mono px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-lg shadow-xs">
               <span class="text-slate-400 text-3xs">{{ $t('parameterModal.iconCardPreview') || 'Card Preview' }}:</span>
-              <span class="text-cyan-400/80 font-semibold text-3xs">AQMS-01</span>
-              <span class="text-slate-500">·</span>
-              <div class="flex items-center space-x-1 font-bold text-white">
+              <span class="text-cyan-600 dark:text-cyan-400/80 font-semibold text-3xs">AQMS-01</span>
+              <span class="text-slate-400">·</span>
+              <div class="flex items-center space-x-1 font-bold text-slate-900 dark:text-white">
                 <ParameterIcon :icon="form.icon" :code="form.parameter_code" :name="form.parameter_name" :unit="form.unit" size-class="w-3.5 h-3.5" />
-                <span class="truncate max-w-[110px]">{{ form.parameter_name || form.parameter_code || 'Preview' }}</span>
+                <span class="truncate max-w-[130px]">{{ form.parameter_name || form.parameter_code || 'Preview' }}</span>
               </div>
               <span
                 v-if="selectedCategoryObject"
@@ -145,12 +145,12 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <!-- Category Selector -->
             <div>
-              <label class="block text-3xs text-slate-400 mb-1 font-mono">
+              <label class="block text-3xs text-slate-500 dark:text-slate-400 mb-1 font-mono">
                 {{ $t('categoryManagement.fields.name') || 'Domain Category' }}
               </label>
               <select
                 v-model="form.category_id"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
               >
                 <option :value="null">— {{ $t('operator.uncategorized') || 'Uncategorized' }} —</option>
                 <option v-for="cat in availableCategories" :key="cat.id" :value="cat.id">
@@ -161,14 +161,14 @@
 
             <!-- Icon Selector -->
             <div>
-              <label class="block text-3xs text-slate-400 mb-1 font-mono">
+              <label class="block text-3xs text-slate-500 dark:text-slate-400 mb-1 font-mono">
                 {{ $t('parameterModal.iconLabel') || 'Sensor Icon Type' }}
               </label>
               <select
                 v-model="form.icon"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
               >
-                <option value="">{{ $t('parameterModal.iconAuto') || '✨ Auto-Detect (Based on Code/Name/Unit)' }}</option>
+                <option value="">✨ {{ $t('parameterModal.iconAuto') || 'Auto-Detect (Based on Code/Name/Unit)' }}</option>
                 <option v-for="cat in iconCatalog" :key="cat.key" :value="cat.key">
                   {{ cat.label }}
                 </option>
@@ -176,23 +176,23 @@
             </div>
           </div>
 
-          <div class="text-3xs text-slate-400 flex items-center space-x-1.5 font-mono">
+          <div class="text-3xs text-slate-500 dark:text-slate-400 flex items-center space-x-1.5 font-mono">
             <span>{{ $t('parameterModal.iconResolved') || 'Resolved Icon' }}:</span>
-            <span class="font-bold text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
-            <span v-if="!form.icon" class="text-slate-500 font-sans italic">(automatic heuristic)</span>
-            <span v-else class="text-emerald-400 font-sans italic">(manually configured)</span>
+            <span class="font-bold text-cyan-600 dark:text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
+            <span v-if="!form.icon" class="text-slate-400 dark:text-slate-500 font-sans italic">(automatic heuristic)</span>
+            <span v-else class="text-emerald-600 dark:text-emerald-400 font-sans italic">(manually configured)</span>
           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Data Type -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.dataType') }}
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              {{ $t('parameterModal.dataType') }} <span class="text-rose-500">*</span>
             </label>
             <select
               v-model="form.data_type"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
             >
               <option value="FLOAT32">FLOAT32 (Single Precision)</option>
               <option value="FLOAT64">FLOAT64 (Double Precision)</option>
@@ -207,20 +207,20 @@
 
           <!-- Unit -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('parameterModal.unit') }}
             </label>
             <input
               v-model="form.unit"
               type="text"
               :placeholder="$t('parameterModal.placeholders.unit')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
             />
           </div>
 
           <!-- Decimal Precision -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('parameterModal.precision') }}
             </label>
             <input
@@ -228,7 +228,7 @@
               type="number"
               min="0"
               max="6"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
             />
           </div>
         </div>
@@ -236,25 +236,25 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <!-- Register Address -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.addressOffset') }}
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              {{ $t('parameterModal.addressOffset') }} <span class="text-rose-500">*</span>
             </label>
             <input
               v-model.number="form.register_address"
               type="number"
               placeholder="e.g. 30001, 40001"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
             />
           </div>
 
           <!-- Register Type -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.registerType') }}
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              {{ $t('parameterModal.registerType') }} <span class="text-rose-500">*</span>
             </label>
             <select
               v-model="form.register_type"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
             >
               <option value="HOLDING_REGISTER">Holding Register (4x)</option>
               <option value="INPUT_REGISTER">Input Register (3x)</option>
@@ -266,14 +266,14 @@
 
           <!-- Byte / Word Order -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
               <span>{{ $t('parameterModal.byteOrderOverride') }}</span>
-              <span class="text-3xs text-slate-400 font-mono font-normal">({{ byteOrderSize }}B / {{ byteOrderSize / 2 }}W)</span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono font-normal whitespace-nowrap">({{ byteOrderSize }}B / {{ byteOrderSize / 2 }}W)</span>
             </label>
             <select
               :value="byteOrderSelection"
               @change="onByteOrderSelectionChange($event.target.value)"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
             >
               <option value="">{{ $t('parameterModal.defaultDeviceConn') }}</option>
               <option v-for="preset in relevantPresets" :key="preset.value" :value="preset.value">
@@ -285,24 +285,24 @@
         </div>
 
         <!-- Custom Byte Order Mapping Editor & Preview -->
-        <div v-if="isCustomByteOrder" class="p-3.5 rounded-xl border border-blue-500/30 bg-blue-950/20 backdrop-blur-sm space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div class="flex items-center space-x-2">
-              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-              <span class="text-xs font-bold text-white font-mono uppercase tracking-wider">
+        <div v-if="isCustomByteOrder" class="p-4 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-950/20 backdrop-blur-sm space-y-3.5 transition">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+              <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span class="text-xs font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">
                 {{ $t('parameterModal.byteOrderEditor') || 'Custom Byte Order Mapping' }}
               </span>
-              <span class="text-3xs font-mono text-blue-300 bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/30">
+              <span class="text-3xs font-mono font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-500/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/30">
                 {{ form.data_type }} ({{ byteOrderSize }} Bytes)
               </span>
             </div>
             <!-- Quick Preset Action Buttons -->
-            <div class="flex items-center space-x-1.5">
-              <span class="text-3xs text-slate-400 font-mono mr-1 hidden sm:inline">{{ $t('parameterModal.quickPresets') || 'Presets' }}:</span>
+            <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono mr-0.5">{{ $t('parameterModal.quickPresets') || 'Presets' }}:</span>
               <button
                 type="button"
                 @click="applyCustomQuickPreset('DEFAULT')"
-                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                class="px-2.5 py-1 text-3xs rounded-lg font-mono font-semibold transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700"
                 title="Direct Standard Big Endian order"
               >
                 Standard
@@ -311,7 +311,7 @@
                 v-if="byteOrderSize >= 4"
                 type="button"
                 @click="applyCustomQuickPreset('WORD_SWAP')"
-                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                class="px-2.5 py-1 text-3xs rounded-lg font-mono font-semibold transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700"
                 title="Swap 16-bit register word pairs"
               >
                 Word Swap
@@ -319,7 +319,7 @@
               <button
                 type="button"
                 @click="applyCustomQuickPreset('BYTE_SWAP')"
-                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                class="px-2.5 py-1 text-3xs rounded-lg font-mono font-semibold transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700"
                 title="Swap high/low byte within registers"
               >
                 Byte Swap
@@ -327,7 +327,7 @@
               <button
                 type="button"
                 @click="applyCustomQuickPreset('REVERSE')"
-                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                class="px-2.5 py-1 text-3xs rounded-lg font-mono font-semibold transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700"
                 title="Full reverse little endian order"
               >
                 Reverse
@@ -337,82 +337,103 @@
 
           <!-- Position Slot Selectors -->
           <div class="grid gap-2" :class="byteOrderSize === 8 ? 'grid-cols-4 sm:grid-cols-8' : byteOrderSize === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'">
-            <div v-for="(slotVal, idx) in customByteSlots" :key="'slot-' + idx" class="bg-[#0B0F19]/80 p-2 rounded-lg border border-slate-800">
-              <div class="text-4xs uppercase tracking-wider text-slate-400 font-mono mb-1 flex items-center justify-between">
-                <span>{{ $t('parameterModal.slot') || 'Slot' }} {{ idx + 1 }}</span>
-                <span class="text-slate-500 font-sans text-4xs">Out[{{ idx }}]</span>
+            <div
+              v-for="(slotVal, idx) in customByteSlots"
+              :key="'slot-' + idx"
+              class="bg-white dark:bg-[#0B0F19]/90 p-2 rounded-xl border transition shadow-xs"
+              :class="isSlotDuplicate(slotVal, idx) ? 'border-rose-400 bg-rose-50/50 dark:border-rose-500/60 dark:bg-rose-950/20' : 'border-slate-200 dark:border-slate-800'"
+            >
+              <div class="text-4xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono mb-1.5 flex items-center justify-between">
+                <span class="font-bold">SLOT {{ idx + 1 }}</span>
+                <span class="text-slate-400 dark:text-slate-500 font-mono text-4xs">Out[{{ idx }}]</span>
               </div>
-              <select
-                :value="slotVal"
-                @change="onCustomSlotChange(idx, $event.target.value)"
-                class="w-full px-2 py-1.5 bg-[#101826] border rounded-lg text-xs font-mono font-bold focus:outline-none transition"
-                :class="isSlotDuplicate(slotVal, idx) ? 'border-rose-500 text-rose-300 focus:border-rose-400' : 'border-slate-700 text-white focus:border-blue-500'"
-              >
-                <option v-for="b in availableInputBytes" :key="b" :value="b">
-                  Byte {{ b }} (Wire {{ b.charCodeAt(0) - 65 }})
-                </option>
-              </select>
+              <div class="relative">
+                <select
+                  :value="slotVal"
+                  @change="onCustomSlotChange(idx, $event.target.value)"
+                  class="w-full text-center font-mono font-bold text-xs py-1.5 px-1 rounded-lg border appearance-none cursor-pointer focus:outline-none transition shadow-2xs"
+                  :class="isSlotDuplicate(slotVal, idx) ? 'border-rose-400 bg-rose-100/60 text-rose-800 focus:border-rose-500 dark:border-rose-500 dark:bg-rose-950/40 dark:text-rose-300' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-900 focus:border-blue-500 dark:border-slate-700 dark:bg-[#101826] dark:hover:bg-[#152033] dark:text-white'"
+                  :title="`Slot ${idx + 1} takes Wire Byte ${slotVal}`"
+                >
+                  <option v-for="b in availableInputBytes" :key="b" :value="b">
+                    Byte {{ b }} (Wire {{ b.charCodeAt(0) - 65 }})
+                  </option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-1 flex items-center text-slate-400 dark:text-slate-500 text-3xs">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Interactive Input -> Output Preview -->
-          <div class="p-2.5 rounded-lg bg-[#090D16] border border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-2xs font-mono">
-            <!-- Left: Wire Input Order -->
-            <div class="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto">
-              <span class="text-slate-400 uppercase text-3xs font-semibold mr-1 whitespace-nowrap">{{ $t('parameterModal.inputOrder') || 'Wire Input' }}:</span>
-              <div class="flex items-center space-x-1">
-                <span
-                  v-for="b in availableInputBytes"
-                  :key="'in-' + b"
-                  class="px-2 py-0.5 rounded font-bold font-mono text-3xs border"
-                  :class="getByteBadgeClass(b)"
-                >
-                  {{ b }}
+          <div class="p-3 rounded-xl bg-white dark:bg-[#090D16] border border-slate-200 dark:border-slate-800/80 shadow-xs space-y-2 text-2xs font-mono">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <!-- Left: Wire Input Order -->
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span class="text-slate-500 dark:text-slate-400 uppercase text-3xs font-bold tracking-wider whitespace-nowrap">
+                  {{ $t('parameterModal.inputOrder') || 'Wire Input Order' }}:
                 </span>
+                <div class="flex items-center space-x-1 flex-wrap gap-y-1">
+                  <span
+                    v-for="b in availableInputBytes"
+                    :key="'in-' + b"
+                    class="px-2 py-0.5 rounded-md font-bold font-mono text-3xs border shadow-2xs"
+                    :class="getByteBadgeClass(b)"
+                    :title="`Wire Index ${b.charCodeAt(0) - 65}: Byte ${b}`"
+                  >
+                    {{ b }}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <!-- Transition Arrow -->
-            <div class="text-cyan-400 font-bold text-xs flex items-center">
-              <span>➔</span>
-            </div>
+              <!-- Arrow Indicator -->
+              <div class="hidden md:flex text-blue-600 dark:text-cyan-400 font-bold text-sm items-center px-1">
+                ➔
+              </div>
 
-            <!-- Right: Decoded Output Order -->
-            <div class="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto">
-              <span class="text-slate-400 uppercase text-3xs font-semibold mr-1 whitespace-nowrap">{{ $t('parameterModal.outputOrder') || 'Decoded Order' }}:</span>
-              <div class="flex items-center space-x-1">
-                <span
-                  v-for="(b, idx) in customByteSlots"
-                  :key="'out-' + idx"
-                  class="px-2 py-0.5 rounded font-bold font-mono text-3xs border"
-                  :class="getByteBadgeClass(b)"
-                >
-                  {{ b }}
+              <!-- Right: Decoded Output Order -->
+              <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span class="text-slate-500 dark:text-slate-400 uppercase text-3xs font-bold tracking-wider whitespace-nowrap">
+                  {{ $t('parameterModal.outputOrder') || 'Decoded Output Order' }}:
                 </span>
+                <div class="flex items-center space-x-1 flex-wrap gap-y-1">
+                  <span
+                    v-for="(b, idx) in customByteSlots"
+                    :key="'out-' + idx"
+                    class="px-2 py-0.5 rounded-md font-bold font-mono text-3xs border shadow-2xs"
+                    :class="getByteBadgeClass(b)"
+                    :title="`Decoded Byte ${idx}: Takes Wire ${b}`"
+                  >
+                    {{ b }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Live Validation Status -->
-          <div v-if="byteOrderValidationError" class="flex items-center space-x-1.5 text-3xs text-rose-400 font-mono">
+          <div v-if="byteOrderValidationError" class="flex items-center space-x-2 text-3xs text-rose-600 dark:text-rose-400 font-mono font-medium">
             <span>⚠️</span>
             <span>{{ byteOrderValidationError }}</span>
           </div>
-          <div v-else class="flex items-center space-x-1.5 text-3xs text-emerald-400 font-mono">
+          <div v-else class="flex items-center space-x-2 text-3xs text-emerald-600 dark:text-emerald-400 font-mono font-medium">
             <span>✓</span>
-            <span>Valid Permutation: <strong>{{ customByteOrderString }}</strong></span>
+            <span>{{ $t('parameterModal.validPermutation') || 'Valid Permutation' }}: <strong class="font-bold tracking-wider">{{ customByteOrderString }}</strong></span>
           </div>
         </div>
 
-        <div v-if="unknownByteOrderWarning" class="p-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-3xs text-amber-300 font-mono flex items-center space-x-2">
-          <span>⚠️</span>
+        <div v-if="unknownByteOrderWarning" class="p-2.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-3xs text-amber-800 dark:text-amber-300 font-mono flex items-center space-x-2">
+          <span class="text-amber-600 dark:text-amber-400 font-bold">⚠️</span>
           <span>{{ unknownByteOrderWarning }}</span>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Scale Factor -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('parameterModal.scaleFactor') }}
             </label>
             <input
@@ -420,15 +441,15 @@
               type="number"
               step="0.001"
               placeholder="1.0"
-              :class="scaleZeroWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-slate-700/80 focus:border-blue-500'"
-              class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+              :class="scaleZeroWarning ? 'border-rose-400 focus:border-rose-500 dark:border-rose-500/80 dark:focus:border-rose-400' : 'border-slate-300 dark:border-slate-700/80 focus:border-blue-500'"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none font-mono transition"
             />
-            <span v-if="scaleZeroWarning" class="text-3xs text-rose-400 mt-1 block">⚠️ {{ scaleZeroWarning }}</span>
+            <span v-if="scaleZeroWarning" class="text-3xs text-rose-600 dark:text-rose-400 mt-1 block">⚠️ {{ scaleZeroWarning }}</span>
           </div>
 
           <!-- Offset -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('parameterModal.offsetAdder') }}
             </label>
             <input
@@ -436,7 +457,7 @@
               type="number"
               step="0.01"
               placeholder="0.0"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
             />
           </div>
         </div>
@@ -446,7 +467,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Min Value -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('parameterModal.minLimit') }}
               </label>
               <input
@@ -454,14 +475,14 @@
                 type="number"
                 step="any"
                 placeholder="e.g. 0.0"
-                :class="hardLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-slate-700/80 focus:border-blue-500'"
-                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+                :class="hardLimitWarning ? 'border-rose-400 focus:border-rose-500 dark:border-rose-500/80 dark:focus:border-rose-400' : 'border-slate-300 dark:border-slate-700/80 focus:border-blue-500'"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none font-mono transition"
               />
             </div>
 
             <!-- Max Value -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('parameterModal.maxLimit') }}
               </label>
               <input
@@ -469,14 +490,14 @@
                 type="number"
                 step="any"
                 placeholder="e.g. 500.0"
-                :class="hardLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-slate-700/80 focus:border-blue-500'"
-                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+                :class="hardLimitWarning ? 'border-rose-400 focus:border-rose-500 dark:border-rose-500/80 dark:focus:border-rose-400' : 'border-slate-300 dark:border-slate-700/80 focus:border-blue-500'"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none font-mono transition"
               />
             </div>
           </div>
           <!-- Hard Limit Validation Warning -->
-          <div v-if="hardLimitWarning" class="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-2xs text-rose-300 flex items-start space-x-2 animate-fade-in">
-            <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div v-if="hardLimitWarning" class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/40 text-2xs text-rose-700 dark:text-rose-300 flex items-start space-x-2 animate-fade-in">
+            <svg class="w-4 h-4 text-rose-500 dark:text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
             <span class="leading-relaxed">{{ hardLimitWarning }}</span>
@@ -487,45 +508,45 @@
         <div class="space-y-2">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <label class="block text-2xs font-semibold text-amber-700 dark:text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                 <span>{{ $t('parameterModal.warningLow') }}</span>
-                <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
+                <span class="text-3xs text-amber-700 dark:text-amber-500/80 font-mono font-semibold">UNCERTAIN</span>
               </label>
               <input
                 v-model.number="form.warning_low"
                 type="number"
                 step="any"
                 :placeholder="$t('parameterModal.placeholders.warningLow')"
-                :class="warningLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-amber-500/30 focus:border-amber-400'"
-                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+                :class="warningLimitWarning ? 'border-rose-400 focus:border-rose-500 dark:border-rose-500/80 dark:focus:border-rose-400' : 'border-amber-300 dark:border-amber-500/30 focus:border-amber-500'"
+                class="w-full px-3 py-2 bg-amber-50/20 dark:bg-[#0B0F19] border rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none font-mono transition"
               />
             </div>
 
             <div>
-              <label class="block text-2xs font-semibold text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <label class="block text-2xs font-semibold text-amber-700 dark:text-amber-400/90 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                 <span>{{ $t('parameterModal.warningHigh') }}</span>
-                <span class="text-3xs text-amber-500/80 font-mono">UNCERTAIN</span>
+                <span class="text-3xs text-amber-700 dark:text-amber-500/80 font-mono font-semibold">UNCERTAIN</span>
               </label>
               <input
                 v-model.number="form.warning_high"
                 type="number"
                 step="any"
                 :placeholder="$t('parameterModal.placeholders.warningHigh')"
-                :class="warningLimitWarning ? 'border-rose-500/80 focus:border-rose-400' : 'border-amber-500/30 focus:border-amber-400'"
-                class="w-full px-3 py-2 bg-[#0B0F19] border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition"
+                :class="warningLimitWarning ? 'border-rose-400 focus:border-rose-500 dark:border-rose-500/80 dark:focus:border-rose-400' : 'border-amber-300 dark:border-amber-500/30 focus:border-amber-500'"
+                class="w-full px-3 py-2 bg-amber-50/20 dark:bg-[#0B0F19] border rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none font-mono transition"
               />
             </div>
           </div>
 
           <!-- Warning Limits Validation Callout -->
-          <div v-if="warningLimitWarning" class="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-2xs text-rose-300 flex items-start space-x-2 animate-fade-in">
-            <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div v-if="warningLimitWarning" class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/40 text-2xs text-rose-700 dark:text-rose-300 flex items-start space-x-2 animate-fade-in">
+            <svg class="w-4 h-4 text-rose-500 dark:text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
             <span class="leading-relaxed">{{ warningLimitWarning }}</span>
           </div>
-          <div v-else-if="softBeyondHardNotice" class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-2xs text-amber-300 flex items-start space-x-2 animate-fade-in">
-            <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div v-else-if="softBeyondHardNotice" class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-2xs text-amber-800 dark:text-amber-300 flex items-start space-x-2 animate-fade-in">
+            <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <span class="leading-relaxed">{{ softBeyondHardNotice }}</span>
@@ -533,92 +554,92 @@
         </div>
 
         <!-- Zero-Value Alarm Policy Configuration -->
-        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+        <div class="p-3.5 bg-slate-50/70 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {{ $t('parameterModal.zeroValueAlarmPolicy') }}
             </label>
             <span
-              class="text-3xs font-mono font-bold px-2 py-0.5 rounded"
-              :class="form.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/60' : (form.zero_value_alarm_policy === 'INVALID_READING' ? 'bg-rose-950/60 text-rose-300 border border-rose-800/60' : 'bg-slate-800 text-slate-300')"
+              class="text-3xs font-mono font-bold px-2 py-0.5 rounded shadow-2xs"
+              :class="form.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD' ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60' : (form.zero_value_alarm_policy === 'INVALID_READING' ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800/60' : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700')"
             >
               {{ form.zero_value_alarm_policy || 'NORMAL' }}
             </span>
           </div>
           <select
             v-model="form.zero_value_alarm_policy"
-            class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+            class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
           >
             <option value="NORMAL">{{ $t('parameterModal.zeroPolicyNormal') }}</option>
             <option value="SUPPRESS_THRESHOLD">{{ $t('parameterModal.zeroPolicySuppress') }}</option>
             <option value="INVALID_READING">{{ $t('parameterModal.zeroPolicyInvalid') }}</option>
           </select>
           <p class="text-3xs leading-relaxed">
-            <span v-if="form.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD'" class="text-amber-300">
+            <span v-if="form.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD'" class="text-amber-700 dark:text-amber-300 font-medium">
               ℹ️ {{ $t('parameterModal.zeroPolicySuppressHelp') }}
             </span>
-            <span v-else-if="form.zero_value_alarm_policy === 'INVALID_READING'" class="text-rose-300">
+            <span v-else-if="form.zero_value_alarm_policy === 'INVALID_READING'" class="text-rose-700 dark:text-rose-300 font-medium">
               ⚠️ {{ $t('parameterModal.zeroPolicyInvalidHelp') }}
             </span>
-            <span v-else class="text-slate-400">
+            <span v-else class="text-slate-500 dark:text-slate-400">
               {{ $t('parameterModal.zeroPolicyNormalHelp') }}
             </span>
           </p>
         </div>
 
         <!-- Mathematical Formula Evaluation (Python-style eval) -->
-        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2.5">
+        <div class="p-3.5 bg-slate-50/70 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
           <div class="flex items-center justify-between">
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {{ $t('parameterModal.formula') }}
             </label>
-            <span class="text-3xs text-blue-400 font-mono">eval(x, raw)</span>
+            <span class="text-3xs text-blue-600 dark:text-blue-400 font-mono font-bold">eval(x, raw)</span>
           </div>
           <input
             v-model="form.formula"
             type="text"
             :placeholder="$t('parameterModal.formulaPlaceholder')"
-            class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+            class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
           />
-          <p class="text-3xs text-slate-400 leading-relaxed">
+          <p class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
             {{ $t('parameterModal.formulaDesc') }}
           </p>
 
           <!-- Quick Presets -->
           <div class="flex items-center space-x-1.5 flex-wrap gap-y-1.5 pt-1">
-            <span class="text-3xs text-slate-400 mr-1">{{ $t('parameterModal.presets') }}:</span>
+            <span class="text-3xs text-slate-500 dark:text-slate-400 mr-1 font-medium">{{ $t('parameterModal.presets') }}:</span>
             <button
               type="button"
               @click="form.formula = 'x * 1.8 + 32'"
-              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              class="px-2.5 py-1 rounded-md text-3xs font-mono font-medium transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700"
             >
               °C➔°F (x*1.8+32)
             </button>
             <button
               type="button"
               @click="form.formula = '(raw - 4.0) * (100.0 / 16.0)'"
-              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              class="px-2.5 py-1 rounded-md text-3xs font-mono font-medium transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700"
             >
               4-20mA➔%
             </button>
             <button
               type="button"
               @click="form.formula = 'round(x, 2)'"
-              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              class="px-2.5 py-1 rounded-md text-3xs font-mono font-medium transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700"
             >
               round(x, 2)
             </button>
             <button
               type="button"
               @click="form.formula = 'x / 1000'"
-              class="px-2 py-0.5 rounded text-3xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              class="px-2.5 py-1 rounded-md text-3xs font-mono font-medium transition border shadow-xs bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700"
             >
               W➔kW (x/1000)
             </button>
             <button
               type="button"
               @click="form.formula = 'value + random(0.01, 0.09)'"
-              class="px-2 py-0.5 rounded text-3xs font-mono bg-blue-900/40 hover:bg-blue-850/60 border border-blue-500/40 text-blue-300 transition"
+              class="px-2.5 py-1 rounded-md text-3xs font-mono font-bold transition border shadow-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:hover:bg-blue-800/60 dark:border-blue-500/40 dark:text-blue-300"
               title="Add random jitter simulation [min, max]"
             >
               +random(0.01, 0.09)
@@ -626,34 +647,34 @@
           </div>
 
           <!-- Live Preview Banner -->
-          <div v-if="form.formula && form.formula.trim()" class="p-2 rounded-lg bg-[#0B0F19] border border-slate-800 flex items-center justify-between text-2xs font-mono">
-            <span class="text-slate-400">{{ $t('parameterModal.formulaPreview') }} (x={{ previewSampleX }}):</span>
-            <span v-if="formulaPreview && formulaPreview.valid" class="font-bold text-emerald-400">
+          <div v-if="form.formula && form.formula.trim()" class="p-2.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-center justify-between text-2xs font-mono shadow-xs">
+            <span class="text-slate-500 dark:text-slate-400">{{ $t('parameterModal.formulaPreview') }} (x={{ previewSampleX }}):</span>
+            <span v-if="formulaPreview && formulaPreview.valid" class="font-bold text-emerald-600 dark:text-emerald-400">
               ➔ {{ formulaPreview.value }} {{ form.unit }}
             </span>
-            <span v-else class="text-rose-400 font-semibold">
+            <span v-else class="text-rose-600 dark:text-rose-400 font-semibold">
               ⚠️ {{ (formulaPreview && formulaPreview.error) || 'Invalid expression' }}
             </span>
           </div>
         </div>
 
         <!-- Anomaly & Timeout Hold-Last-Good-Value Protection -->
-        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-3">
+        <div class="p-3.5 bg-slate-50/70 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
           <label class="flex items-center space-x-3 cursor-pointer">
             <input
               v-model="form.hold_last_value_enabled"
               type="checkbox"
-              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
             />
             <div>
-              <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.holdLastValueTitle') }}</span>
-              <span class="block text-3xs text-slate-400 mt-0.5">{{ $t('parameterModal.holdLastValueDesc') }}</span>
+              <span class="text-xs font-semibold text-slate-900 dark:text-slate-200">{{ $t('parameterModal.holdLastValueTitle') }}</span>
+              <span class="block text-3xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $t('parameterModal.holdLastValueDesc') }}</span>
             </div>
           </label>
 
           <!-- Duration Input (Conditional when enabled) -->
-          <div v-if="form.hold_last_value_enabled" class="pl-7 pt-2 border-t border-slate-800/80 space-y-1.5">
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+          <div v-if="form.hold_last_value_enabled" class="pl-7 pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {{ $t('parameterModal.holdDurationSeconds') }}
             </label>
             <div class="flex items-center space-x-3">
@@ -664,25 +685,25 @@
                 max="86400"
                 step="10"
                 placeholder="120"
-                class="w-32 px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                class="w-32 px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
               />
-              <span class="text-3xs text-slate-400 font-mono">
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
                 ({{ Math.round((form.hold_last_value_seconds || 120) / 60 * 10) / 10 }} min)
               </span>
             </div>
-            <p class="text-3xs text-amber-400/90 leading-relaxed">
+            <p class="text-3xs text-amber-700 dark:text-amber-400/90 leading-relaxed font-medium">
               {{ $t('parameterModal.holdDurationHelp') }}
             </p>
           </div>
         </div>
 
         <!-- Phase 3.2 Data Quality & Processing Settings -->
-        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-3">
+        <div class="p-3.5 bg-slate-50/70 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-2xs font-bold text-slate-300 uppercase tracking-wider">
+            <span class="text-2xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {{ $t('parameterModal.qualitySettingsTitle') }}
             </span>
-            <span class="text-3xs text-blue-400 font-mono">Phase 3.2</span>
+            <span class="text-3xs text-blue-600 dark:text-blue-400 font-mono font-bold">Phase 3.2</span>
           </div>
 
           <!-- Quality Validation Toggle -->
@@ -690,17 +711,17 @@
             <input
               v-model="form.quality_validation_enabled"
               type="checkbox"
-              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
             />
             <div>
-              <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.qualityValidationEnabled') }}</span>
-              <span class="block text-3xs text-slate-400">{{ $t('parameterModal.qualityValidationDesc') }}</span>
+              <span class="text-xs font-semibold text-slate-900 dark:text-slate-200">{{ $t('parameterModal.qualityValidationEnabled') }}</span>
+              <span class="block text-3xs text-slate-500 dark:text-slate-400">{{ $t('parameterModal.qualityValidationDesc') }}</span>
             </div>
           </label>
 
           <!-- Stale Timeout Input -->
-          <div class="pt-2 border-t border-slate-800/80 space-y-1.5">
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+          <div class="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {{ $t('parameterModal.staleTimeoutSeconds') }}
             </label>
             <div class="flex items-center space-x-3">
@@ -711,34 +732,34 @@
                 max="86400"
                 step="10"
                 placeholder="120"
-                class="w-32 px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                class="w-32 px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
               />
-              <span class="text-3xs text-slate-400 font-mono">
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
                 ({{ Math.round((form.stale_timeout_seconds || 120) / 60 * 10) / 10 }} min)
               </span>
             </div>
-            <p class="text-3xs text-slate-400 leading-relaxed">
+            <p class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
               {{ $t('parameterModal.staleTimeoutHelp') }}
             </p>
           </div>
 
           <!-- Spike Detection Toggle & Config -->
-          <div class="pt-2 border-t border-slate-800/80 space-y-2">
+          <div class="pt-2 border-t border-slate-200 dark:border-slate-800/80 space-y-2">
             <label class="flex items-center space-x-3 cursor-pointer">
               <input
                 v-model="form.spike_detection_enabled"
                 type="checkbox"
-                class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+                class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
               />
               <div>
-                <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.spikeDetectionEnabled') }}</span>
-                <span class="block text-3xs text-slate-400">{{ $t('parameterModal.spikeDetectionDesc') }}</span>
+                <span class="text-xs font-semibold text-slate-900 dark:text-slate-200">{{ $t('parameterModal.spikeDetectionEnabled') }}</span>
+                <span class="block text-3xs text-slate-500 dark:text-slate-400">{{ $t('parameterModal.spikeDetectionDesc') }}</span>
               </div>
             </label>
 
             <div v-if="form.spike_detection_enabled" class="pl-7 grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   {{ $t('parameterModal.spikeThreshold') }}
                 </label>
                 <input
@@ -746,11 +767,11 @@
                   type="number"
                   step="any"
                   placeholder="e.g. 20.0"
-                  class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   {{ $t('parameterModal.spikeWindowSize') }}
                 </label>
                 <input
@@ -759,7 +780,7 @@
                   min="2"
                   max="10"
                   placeholder="3"
-                  class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -768,64 +789,64 @@
 
         <!-- Description -->
         <div>
-          <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             {{ $t('common.description') }}
           </label>
           <input
             v-model="form.description"
             type="text"
             :placeholder="$t('parameterModal.placeholders.description')"
-            class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
         </div>
 
         <!-- Enabled Switch -->
         <div>
-          <label class="flex items-center space-x-3 cursor-pointer p-2.5 rounded-xl bg-[#0B0F19] border border-slate-800">
+          <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-xl bg-slate-50/70 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 shadow-xs">
             <input
               v-model="form.enabled"
               type="checkbox"
-              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+              class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
             />
             <div>
-              <span class="text-xs font-semibold text-slate-200">{{ $t('parameterModal.paramActive') }}</span>
-              <span class="block text-3xs text-slate-400">{{ $t('parameterModal.collectChannel') }}</span>
+              <span class="text-xs font-semibold text-slate-900 dark:text-slate-200">{{ $t('parameterModal.paramActive') }}</span>
+              <span class="block text-3xs text-slate-500 dark:text-slate-400">{{ $t('parameterModal.collectChannel') }}</span>
             </div>
           </label>
         </div>
 
         <!-- Sticky Warning Alert Above Buttons -->
-        <div v-if="activeErrorMessage" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/50 rounded-xl text-xs text-rose-200 flex items-start space-x-2.5 shadow-lg shadow-rose-950/40 animate-fade-in">
-          <svg class="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="activeErrorMessage" class="p-3.5 bg-rose-50 dark:bg-rose-500/15 border-2 border-rose-300 dark:border-rose-500/50 rounded-xl text-xs text-rose-800 dark:text-rose-200 flex items-start space-x-2.5 shadow-md shadow-rose-950/10 dark:shadow-rose-950/40 animate-fade-in">
+          <svg class="w-5 h-5 text-rose-500 dark:text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
           </svg>
           <div class="flex-1">
-            <div class="font-bold flex items-center justify-between text-rose-100">
+            <div class="font-bold flex items-center justify-between text-rose-900 dark:text-rose-100">
               <span class="text-xs">{{ $t('parameterModal.cannotSaveTitle') }}</span>
-              <button v-if="error" type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs underline ml-2">{{ $t('parameterModal.closeWarning') }}</button>
+              <button v-if="error" type="button" @click="error = null" class="text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-white text-3xs underline ml-2">{{ $t('parameterModal.closeWarning') }}</button>
             </div>
-            <p class="mt-1 text-2xs text-rose-300 leading-relaxed font-sans whitespace-pre-wrap">{{ activeErrorMessage }}</p>
+            <p class="mt-1 text-2xs text-rose-700 dark:text-rose-300 leading-relaxed font-sans whitespace-pre-wrap">{{ activeErrorMessage }}</p>
           </div>
         </div>
 
         <!-- Modal Footer -->
-        <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#0F172A]">
           <button
             type="button"
             @click="closeModal"
-            class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            class="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
             {{ $t('common.cancel') }}
           </button>
           <button
             type="submit"
             :disabled="loading || !!clientValidationError"
-            :class="clientValidationError ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-75' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30'"
-            class="px-5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+            :class="clientValidationError ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed opacity-75' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30'"
+            class="px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-md"
             :title="clientValidationError || ''"
           >
             <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            <span v-if="clientValidationError" class="text-2xs text-amber-300">⚠️ {{ $t('parameterModal.fixLimitsBeforeSave') }}</span>
+            <span v-if="clientValidationError" class="text-2xs text-amber-600 dark:text-amber-300 font-semibold">⚠️ {{ $t('parameterModal.fixLimitsBeforeSave') }}</span>
             <span v-else>{{ isCopying ? $t('parameterModal.copyButton') : (isEditing ? $t('parameterModal.updateParam') : $t('parameterModal.addParam')) }}</span>
           </button>
         </div>
@@ -1497,16 +1518,16 @@ export default {
     },
     getByteBadgeClass(byteChar) {
       const map = {
-        'A': 'bg-blue-500/20 text-blue-300 border-blue-500/40',
-        'B': 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
-        'C': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-        'D': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-        'E': 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-        'F': 'bg-rose-500/20 text-rose-300 border-rose-500/40',
-        'G': 'bg-teal-500/20 text-teal-300 border-teal-500/40',
-        'H': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+        'A': 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40',
+        'B': 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/40',
+        'C': 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40',
+        'D': 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40',
+        'E': 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/40',
+        'F': 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40',
+        'G': 'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-500/20 dark:text-teal-300 dark:border-teal-500/40',
+        'H': 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40',
       };
-      return map[byteChar] || 'bg-slate-700 text-slate-300 border-slate-600';
+      return map[byteChar] || 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600';
     },
     initByteOrderFromParam(byteOrderStr, dataType) {
       const raw = (byteOrderStr || '').trim();

@@ -715,6 +715,7 @@ export default {
     "missingByteError": "Missing byte position: {bytes}",
     "invalidByteOrderLength": "Custom byte order requires {count} byte positions",
     "quickPresets": "Quick Presets",
+    "validPermutation": "Valid Permutation",
     "unknownByteOrderWarning": "Saved byte order '{order}' is unrecognized for {type}",
     "scaleFactor": "Scale Factor (Multiplier)",
     "offsetAdder": "Offset (Adder)",

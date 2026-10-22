@@ -170,6 +170,7 @@ html:not(.dark) .bg-\[\#0A0E18\]\/60,
 html:not(.dark) .bg-\[\#081421\],
 html:not(.dark) .bg-\[\#0B1C2B\],
 html:not(.dark) .bg-\[\#0D2232\],
+html:not(.dark) .bg-\[\#090D16\],
 html:not(.dark) .bg-slate-900,
 html:not(.dark) .bg-slate-900\/50,
 html:not(.dark) .bg-slate-900\/60,
@@ -330,6 +331,11 @@ html:not(.dark) .text-cyan-400 {
   color: #0284C7 !important;
 }
 
+html:not(.dark) .text-teal-300,
+html:not(.dark) .text-teal-400 {
+  color: #0F766E !important;
+}
+
 /* Semantic Badges in Light Mode */
 html:not(.dark) .bg-emerald-500\/10,
 html:not(.dark) .bg-emerald-500\/20,
@@ -410,6 +416,20 @@ html:not(.dark) .bg-purple-950\/50 {
 html:not(.dark) .border-purple-500\/20,
 html:not(.dark) .border-purple-500\/30 {
   border-color: #DDD6FE !important;
+}
+
+html:not(.dark) .bg-teal-500\/10,
+html:not(.dark) .bg-teal-500\/20,
+html:not(.dark) .bg-teal-950\/10,
+html:not(.dark) .bg-teal-950\/20,
+html:not(.dark) .bg-teal-950\/30 {
+  background-color: #F0FDFA !important;
+  color: #0F766E !important;
+}
+html:not(.dark) .border-teal-500\/20,
+html:not(.dark) .border-teal-500\/30,
+html:not(.dark) .border-teal-500\/40 {
+  border-color: #99F6E4 !important;
 }
 
 /* Secondary Panels & Accordion Inners */

@@ -715,6 +715,7 @@ export default {
     "missingByteError": "Posisi byte belum dipilih: {bytes}",
     "invalidByteOrderLength": "Urutan byte kustom membutuhkan {count} posisi byte",
     "quickPresets": "Preset Cepat",
+    "validPermutation": "Permutasi Valid",
     "unknownByteOrderWarning": "Urutan byte tersimpan '{order}' tidak dikenal untuk tipe {type}",
     "scaleFactor": "Faktor Skala (Pengali)",
     "offsetAdder": "Offset (Penambah)",
