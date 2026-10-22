@@ -229,15 +229,17 @@ func (m *ConnectionManager) ReconnectDevice(ctx context.Context, device *model.D
 	logger.Debug("Device %s (%d) auto-reconnecting (attempt %d, backoff %v)",
 		device.DeviceCode, device.ID, health.ConsecutiveFailures+1, delay)
 
-	// 4. Clean disconnect before backoff wait
-	_ = m.DisconnectDevice(device.ID)
-
-	// 5. Backoff delay with context cancellation responsiveness
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(delay):
+	// 4. Backoff delay with context cancellation responsiveness
+	if delay > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
 	}
+
+	// 5. Clean disconnect before reconnecting
+	_ = m.DisconnectDevice(device.ID)
 
 	// 6. Connect attempt
 	err := m.ConnectDevice(ctx, device)
@@ -255,6 +257,9 @@ func (m *ConnectionManager) ReconnectDevice(ctx context.Context, device *model.D
 	// 7. Success
 	m.healthTracker.RecordReconnectSuccess(device.ID)
 	_, _ = m.stateMachine.Transition(device.ID, StateConnected, "reconnect successful")
+	if m.deviceService != nil {
+		_ = m.deviceService.SetOnline(device.ID)
+	}
 	logger.Info("Device %s (%d) successfully recovered and reconnected", device.DeviceCode, device.ID)
 	return nil
 }

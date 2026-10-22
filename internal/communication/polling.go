@@ -274,7 +274,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				}
 				// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection attempt
 				go func(d *model.Device) {
-					reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 15*time.Second)
+					reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 45*time.Second)
 					defer reconnCancel()
 					_ = p.connManager.ReconnectDevice(reconnCtx, d)
 				}(cachedDev)
