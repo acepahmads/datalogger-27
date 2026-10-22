@@ -2909,6 +2909,9 @@ func preMigrateEdgeSchema(db *gorm.DB) {
 		if !db.Migrator().HasColumn("parameters", "icon") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "Icon")
 		}
+		if db.Migrator().HasColumn("parameters", "byte_order") {
+			_ = db.Migrator().AlterColumn(&model.Parameter{}, "ByteOrder")
+		}
 
 		type ParamMini struct {
 			ID            uint   `gorm:"primaryKey"`

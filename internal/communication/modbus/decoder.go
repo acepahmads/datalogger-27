@@ -9,29 +9,13 @@ import (
 	"datalogger/internal/model"
 )
 
-// ByteOrder constants
-const (
-	ByteOrderABCD = "ABCD" // Big Endian (Standard Modbus)
-	ByteOrderCDAB = "CDAB" // Word Swap (Mid-Little Endian)
-	ByteOrderBADC = "BADC" // Byte Swap (Mid-Big Endian)
-	ByteOrderDCBA = "DCBA" // Little Endian (Full Reverse)
-)
-
-// NormalizeByteOrder ensures a valid byte order string
+// NormalizeByteOrder ensures a valid byte order string for legacy callers
 func NormalizeByteOrder(order string) string {
-	u := strings.ToUpper(strings.TrimSpace(order))
-	switch u {
-	case ByteOrderABCD, "BIG_ENDIAN", "BE":
-		return ByteOrderABCD
-	case ByteOrderCDAB, "WORD_SWAP", "WS":
-		return ByteOrderCDAB
-	case ByteOrderBADC, "BYTE_SWAP", "BS":
-		return ByteOrderBADC
-	case ByteOrderDCBA, "LITTLE_ENDIAN", "LE":
-		return ByteOrderDCBA
-	default:
+	parsed, err := ParseAndValidateByteOrder(order, model.DataTypeFloat32)
+	if err != nil {
 		return ByteOrderABCD
 	}
+	return parsed.Canonical
 }
 
 // RequiredRegisterCount returns the number of 16-bit Modbus registers needed for a data type
@@ -55,22 +39,11 @@ func OrderBytes32(raw []byte, order string) ([]byte, error) {
 	if len(raw) < 4 {
 		return nil, fmt.Errorf("insufficient bytes for 32-bit decoding: need 4, got %d", len(raw))
 	}
-
-	a, b, c, d := raw[0], raw[1], raw[2], raw[3]
-	norm := NormalizeByteOrder(order)
-
-	switch norm {
-	case ByteOrderABCD: // Standard Big Endian: High Word first, High Byte first
-		return []byte{a, b, c, d}, nil
-	case ByteOrderCDAB: // Word Swap: Low Word first, High Byte first
-		return []byte{c, d, a, b}, nil
-	case ByteOrderBADC: // Byte Swap: High Word first, Low Byte first
-		return []byte{b, a, d, c}, nil
-	case ByteOrderDCBA: // Little Endian: Low Word first, Low Byte first
-		return []byte{d, c, b, a}, nil
-	default:
-		return []byte{a, b, c, d}, nil
+	parsed, err := ParseAndValidateByteOrder(order, model.DataTypeFloat32)
+	if err != nil {
+		return nil, err
 	}
+	return PermuteBytes(raw, parsed.Permutation)
 }
 
 // OrderBytes16 rearranges 2 raw bytes from wire order to standard Big-Endian representation
@@ -78,16 +51,11 @@ func OrderBytes16(raw []byte, order string) ([]byte, error) {
 	if len(raw) < 2 {
 		return nil, fmt.Errorf("insufficient bytes for 16-bit decoding: need 2, got %d", len(raw))
 	}
-
-	a, b := raw[0], raw[1]
-	norm := NormalizeByteOrder(order)
-
-	switch norm {
-	case ByteOrderBADC, ByteOrderDCBA: // Low Byte first
-		return []byte{b, a}, nil
-	default: // High Byte first (ABCD, CDAB)
-		return []byte{a, b}, nil
+	parsed, err := ParseAndValidateByteOrder(order, model.DataTypeInt16)
+	if err != nil {
+		return nil, err
 	}
+	return PermuteBytes(raw, parsed.Permutation)
 }
 
 // DecodeCoilBit extracts a boolean state from a Modbus coil or discrete input bit stream
@@ -110,34 +78,55 @@ type DecodedValue struct {
 }
 
 // DecodeRegisters extracts numeric, boolean, or string data from raw Modbus register bytes
+// using the configured byte permutation and endianness-safe binary decoding.
 func DecodeRegisters(raw []byte, dataType model.ParameterDataType, byteOrder string) (*DecodedValue, error) {
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("empty raw bytes cannot be decoded")
 	}
 
+	// 1. Digital state from single-byte coil/discrete input
+	if dataType == model.DataTypeBoolean && len(raw) == 1 {
+		b := (raw[0] & 0x01) != 0
+		val := 0.0
+		if b {
+			val = 1.0
+		}
+		return &DecodedValue{
+			NumericValue: val,
+			BoolValue:    b,
+			RawValue:     val,
+		}, nil
+	}
+
+	// 2. ASCII String data type
+	if dataType == model.DataTypeString {
+		cleanStr := strings.TrimRight(string(raw), "\x00 ")
+		return &DecodedValue{
+			StringValue:  cleanStr,
+			RawValue:     float64(len(cleanStr)),
+			NumericValue: float64(len(cleanStr)),
+		}, nil
+	}
+
+	// 3. Parse and validate byte order strictly against data type
+	parsedOrder, err := ParseAndValidateByteOrder(byteOrder, dataType)
+	if err != nil {
+		return nil, fmt.Errorf("byte order validation failed for %s: %w", dataType, err)
+	}
+
+	// 4. Apply byte permutation to align raw wire bytes into standard Big-Endian representation
+	buf, err := PermuteBytes(raw, parsedOrder.Permutation)
+	if err != nil {
+		return nil, fmt.Errorf("byte permutation failed: %w", err)
+	}
+
 	res := &DecodedValue{}
 
+	// 5. Decode normalized Big-Endian buffer deterministically across CPU architectures
 	switch dataType {
 	case model.DataTypeBoolean:
-		// If 1 byte (from coil/discrete input)
-		if len(raw) == 1 {
-			b := (raw[0] & 0x01) != 0
-			res.BoolValue = b
-			if b {
-				res.NumericValue = 1.0
-				res.RawValue = 1.0
-			} else {
-				res.NumericValue = 0.0
-				res.RawValue = 0.0
-			}
-			return res, nil
-		}
-		// If 2 bytes (from holding/input register word)
-		ob, err := OrderBytes16(raw, byteOrder)
-		if err != nil {
-			return nil, err
-		}
-		u16 := binary.BigEndian.Uint16(ob)
+		// 16-bit register word boolean
+		u16 := binary.BigEndian.Uint16(buf)
 		b := (u16 != 0)
 		res.BoolValue = b
 		if b {
@@ -150,53 +139,32 @@ func DecodeRegisters(raw []byte, dataType model.ParameterDataType, byteOrder str
 		return res, nil
 
 	case model.DataTypeUInt16:
-		ob, err := OrderBytes16(raw, byteOrder)
-		if err != nil {
-			return nil, err
-		}
-		u16 := binary.BigEndian.Uint16(ob)
+		u16 := binary.BigEndian.Uint16(buf)
 		res.NumericValue = float64(u16)
 		res.RawValue = float64(u16)
 		return res, nil
 
 	case model.DataTypeInt16:
-		ob, err := OrderBytes16(raw, byteOrder)
-		if err != nil {
-			return nil, err
-		}
-		i16 := int16(binary.BigEndian.Uint16(ob))
+		i16 := int16(binary.BigEndian.Uint16(buf))
 		res.NumericValue = float64(i16)
 		res.RawValue = float64(i16)
 		return res, nil
 
 	case model.DataTypeUInt32:
-		ob, err := OrderBytes32(raw, byteOrder)
-		if err != nil {
-			return nil, err
-		}
-		u32 := binary.BigEndian.Uint32(ob)
+		u32 := binary.BigEndian.Uint32(buf)
 		res.NumericValue = float64(u32)
 		res.RawValue = float64(u32)
 		return res, nil
 
 	case model.DataTypeInt32:
-		ob, err := OrderBytes32(raw, byteOrder)
-		if err != nil {
-			return nil, err
-		}
-		i32 := int32(binary.BigEndian.Uint32(ob))
+		i32 := int32(binary.BigEndian.Uint32(buf))
 		res.NumericValue = float64(i32)
 		res.RawValue = float64(i32)
 		return res, nil
 
 	case model.DataTypeFloat32:
-		ob, err := OrderBytes32(raw, byteOrder)
-		if err != nil {
-			return nil, err
-		}
-		u32 := binary.BigEndian.Uint32(ob)
+		u32 := binary.BigEndian.Uint32(buf)
 		f32 := math.Float32frombits(u32)
-		// Check for NaN or Inf
 		if math.IsNaN(float64(f32)) || math.IsInf(float64(f32), 0) {
 			res.NumericValue = 0.0
 			res.RawValue = 0.0
@@ -207,24 +175,7 @@ func DecodeRegisters(raw []byte, dataType model.ParameterDataType, byteOrder str
 		return res, nil
 
 	case model.DataTypeFloat64:
-		if len(raw) < 8 {
-			return nil, fmt.Errorf("insufficient bytes for FLOAT64: need 8, got %d", len(raw))
-		}
-		// For 64-bit IEEE 754: handle ABCD vs CDAB/DCBA
-		var ordered []byte
-		norm := NormalizeByteOrder(byteOrder)
-		if norm == ByteOrderCDAB || norm == ByteOrderDCBA {
-			// Reverse 16-bit words
-			ordered = make([]byte, 8)
-			for i := 0; i < 4; i++ {
-				srcIdx := (3 - i) * 2
-				ordered[i*2] = raw[srcIdx]
-				ordered[i*2+1] = raw[srcIdx+1]
-			}
-		} else {
-			ordered = raw[:8]
-		}
-		u64 := binary.BigEndian.Uint64(ordered)
+		u64 := binary.BigEndian.Uint64(buf)
 		f64 := math.Float64frombits(u64)
 		if math.IsNaN(f64) || math.IsInf(f64, 0) {
 			res.NumericValue = 0.0
@@ -235,22 +186,15 @@ func DecodeRegisters(raw []byte, dataType model.ParameterDataType, byteOrder str
 		}
 		return res, nil
 
-	case model.DataTypeString:
-		cleanStr := strings.TrimRight(string(raw), "\x00 ")
-		res.StringValue = cleanStr
-		res.RawValue = float64(len(cleanStr))
-		return res, nil
-
 	default:
-		// Default fallback to FLOAT32
-		ob, err := OrderBytes32(raw, byteOrder)
-		if err != nil {
-			return nil, err
+		// Default fallback to FLOAT32 if 4 bytes
+		if len(buf) >= 4 {
+			u32 := binary.BigEndian.Uint32(buf)
+			f32 := math.Float32frombits(u32)
+			res.NumericValue = float64(f32)
+			res.RawValue = float64(f32)
+			return res, nil
 		}
-		u32 := binary.BigEndian.Uint32(ob)
-		f32 := math.Float32frombits(u32)
-		res.NumericValue = float64(f32)
-		res.RawValue = float64(f32)
-		return res, nil
+		return nil, fmt.Errorf("unsupported parameter data type: %s", dataType)
 	}
 }

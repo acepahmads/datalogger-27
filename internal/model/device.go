@@ -80,7 +80,7 @@ type DeviceConnection struct {
 	PollingInterval int          `gorm:"default:1000" json:"polling_interval"`
 	Enabled         bool         `gorm:"default:true" json:"enabled"`
 	SlaveID         int          `gorm:"default:1" json:"slave_id"`
-	ByteOrder       string       `gorm:"size:32;default:'ABCD'" json:"byte_order"`
+	ByteOrder       string       `gorm:"size:64;default:'ABCD'" json:"byte_order"`
 	ExtraConfig     string       `gorm:"type:text" json:"extra_config,omitempty"`
 
 	// Compatibility aliases with Phase 1
@@ -292,7 +292,7 @@ type Parameter struct {
 	Precision     int               `gorm:"default:2" json:"precision"`
 	Scale         float64           `gorm:"default:1.0" json:"scale"`
 	Offset        float64           `gorm:"default:0.0" json:"offset"`
-	ByteOrder     string            `gorm:"size:32;default:'ABCD'" json:"byte_order"`
+	ByteOrder     string            `gorm:"size:64;default:'ABCD'" json:"byte_order"`
 	Enabled       bool              `gorm:"index;default:true" json:"enabled"`
 
 	// Custom Formula & Anomaly Hold-Last-Value Protection

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/communication/modbus"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -1013,9 +1014,13 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		enabled = *req.Enabled
 	}
 
-	byteOrder := req.ByteOrder
+	byteOrder := strings.TrimSpace(req.ByteOrder)
 	if byteOrder == "" {
-		byteOrder = "ABCD"
+		byteOrder = modbus.DefaultByteOrderForDataType(dataType)
+	} else {
+		if err := modbus.ValidateByteOrder(byteOrder, dataType); err != nil {
+			return nil, fmt.Errorf("invalid byte order configuration: %w", err)
+		}
 	}
 
 	cleanFormula := strings.TrimSpace(req.Formula)
@@ -1212,7 +1217,15 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		param.RegisterType = strings.TrimSpace(*req.RegisterType)
 	}
 	if req.ByteOrder != nil && *req.ByteOrder != "" {
-		param.ByteOrder = strings.TrimSpace(*req.ByteOrder)
+		newOrder := strings.TrimSpace(*req.ByteOrder)
+		if err := modbus.ValidateByteOrder(newOrder, param.DataType); err != nil {
+			return nil, fmt.Errorf("invalid byte order configuration: %w", err)
+		}
+		param.ByteOrder = newOrder
+	} else if req.DataType != nil {
+		if err := modbus.ValidateByteOrder(param.ByteOrder, param.DataType); err != nil {
+			param.ByteOrder = modbus.DefaultByteOrderForDataType(param.DataType)
+		}
 	}
 	if req.Enabled != nil {
 		param.Enabled = *req.Enabled

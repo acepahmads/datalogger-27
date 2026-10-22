@@ -264,22 +264,149 @@
             </select>
           </div>
 
-          <!-- Byte Order Override -->
+          <!-- Byte / Word Order -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              {{ $t('parameterModal.byteOrderOverride') }}
+            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>{{ $t('parameterModal.byteOrderOverride') }}</span>
+              <span class="text-3xs text-slate-400 font-mono font-normal">({{ byteOrderSize }}B / {{ byteOrderSize / 2 }}W)</span>
             </label>
             <select
-              v-model="form.byte_order"
+              :value="byteOrderSelection"
+              @change="onByteOrderSelectionChange($event.target.value)"
               class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
             >
               <option value="">{{ $t('parameterModal.defaultDeviceConn') }}</option>
-              <option value="ABCD">ABCD (Big Endian)</option>
-              <option value="CDAB">CDAB (Word Swap)</option>
-              <option value="BADC">BADC (Byte Swap)</option>
-              <option value="DCBA">DCBA (Little Endian)</option>
+              <option v-for="preset in relevantPresets" :key="preset.value" :value="preset.value">
+                {{ preset.label }}
+              </option>
+              <option value="CUSTOM">★ {{ $t('parameterModal.customByteOrder') || 'Custom Byte Order' }}</option>
             </select>
           </div>
+        </div>
+
+        <!-- Custom Byte Order Mapping Editor & Preview -->
+        <div v-if="isCustomByteOrder" class="p-3.5 rounded-xl border border-blue-500/30 bg-blue-950/20 backdrop-blur-sm space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+              <span class="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                {{ $t('parameterModal.byteOrderEditor') || 'Custom Byte Order Mapping' }}
+              </span>
+              <span class="text-3xs font-mono text-blue-300 bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/30">
+                {{ form.data_type }} ({{ byteOrderSize }} Bytes)
+              </span>
+            </div>
+            <!-- Quick Preset Action Buttons -->
+            <div class="flex items-center space-x-1.5">
+              <span class="text-3xs text-slate-400 font-mono mr-1 hidden sm:inline">{{ $t('parameterModal.quickPresets') || 'Presets' }}:</span>
+              <button
+                type="button"
+                @click="applyCustomQuickPreset('DEFAULT')"
+                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                title="Direct Standard Big Endian order"
+              >
+                Standard
+              </button>
+              <button
+                v-if="byteOrderSize >= 4"
+                type="button"
+                @click="applyCustomQuickPreset('WORD_SWAP')"
+                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                title="Swap 16-bit register word pairs"
+              >
+                Word Swap
+              </button>
+              <button
+                type="button"
+                @click="applyCustomQuickPreset('BYTE_SWAP')"
+                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                title="Swap high/low byte within registers"
+              >
+                Byte Swap
+              </button>
+              <button
+                type="button"
+                @click="applyCustomQuickPreset('REVERSE')"
+                class="px-2 py-1 text-3xs rounded-lg font-mono font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                title="Full reverse little endian order"
+              >
+                Reverse
+              </button>
+            </div>
+          </div>
+
+          <!-- Position Slot Selectors -->
+          <div class="grid gap-2" :class="byteOrderSize === 8 ? 'grid-cols-4 sm:grid-cols-8' : byteOrderSize === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'">
+            <div v-for="(slotVal, idx) in customByteSlots" :key="'slot-' + idx" class="bg-[#0B0F19]/80 p-2 rounded-lg border border-slate-800">
+              <div class="text-4xs uppercase tracking-wider text-slate-400 font-mono mb-1 flex items-center justify-between">
+                <span>{{ $t('parameterModal.slot') || 'Slot' }} {{ idx + 1 }}</span>
+                <span class="text-slate-500 font-sans text-4xs">Out[{{ idx }}]</span>
+              </div>
+              <select
+                :value="slotVal"
+                @change="onCustomSlotChange(idx, $event.target.value)"
+                class="w-full px-2 py-1.5 bg-[#101826] border rounded-lg text-xs font-mono font-bold focus:outline-none transition"
+                :class="isSlotDuplicate(slotVal, idx) ? 'border-rose-500 text-rose-300 focus:border-rose-400' : 'border-slate-700 text-white focus:border-blue-500'"
+              >
+                <option v-for="b in availableInputBytes" :key="b" :value="b">
+                  Byte {{ b }} (Wire {{ b.charCodeAt(0) - 65 }})
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Interactive Input -> Output Preview -->
+          <div class="p-2.5 rounded-lg bg-[#090D16] border border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-2xs font-mono">
+            <!-- Left: Wire Input Order -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto">
+              <span class="text-slate-400 uppercase text-3xs font-semibold mr-1 whitespace-nowrap">{{ $t('parameterModal.inputOrder') || 'Wire Input' }}:</span>
+              <div class="flex items-center space-x-1">
+                <span
+                  v-for="b in availableInputBytes"
+                  :key="'in-' + b"
+                  class="px-2 py-0.5 rounded font-bold font-mono text-3xs border"
+                  :class="getByteBadgeClass(b)"
+                >
+                  {{ b }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Transition Arrow -->
+            <div class="text-cyan-400 font-bold text-xs flex items-center">
+              <span>➔</span>
+            </div>
+
+            <!-- Right: Decoded Output Order -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto">
+              <span class="text-slate-400 uppercase text-3xs font-semibold mr-1 whitespace-nowrap">{{ $t('parameterModal.outputOrder') || 'Decoded Order' }}:</span>
+              <div class="flex items-center space-x-1">
+                <span
+                  v-for="(b, idx) in customByteSlots"
+                  :key="'out-' + idx"
+                  class="px-2 py-0.5 rounded font-bold font-mono text-3xs border"
+                  :class="getByteBadgeClass(b)"
+                >
+                  {{ b }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Validation Status -->
+          <div v-if="byteOrderValidationError" class="flex items-center space-x-1.5 text-3xs text-rose-400 font-mono">
+            <span>⚠️</span>
+            <span>{{ byteOrderValidationError }}</span>
+          </div>
+          <div v-else class="flex items-center space-x-1.5 text-3xs text-emerald-400 font-mono">
+            <span>✓</span>
+            <span>Valid Permutation: <strong>{{ customByteOrderString }}</strong></span>
+          </div>
+        </div>
+
+        <div v-if="unknownByteOrderWarning" class="p-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-3xs text-amber-300 font-mono flex items-center space-x-2">
+          <span>⚠️</span>
+          <span>{{ unknownByteOrderWarning }}</span>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -750,6 +877,9 @@ export default {
       error: null,
       targetDeviceId: null,
       availableCategories: [],
+      byteOrderSelection: '',
+      customByteSlots: ['A', 'B', 'C', 'D'],
+      unknownByteOrderWarning: null,
       form: {
         category_id: null,
         parameter_code: '',
@@ -993,6 +1123,77 @@ export default {
       if (this.hardLimitWarning) return this.hardLimitWarning;
       if (this.warningLimitWarning) return this.warningLimitWarning;
       if (this.scaleZeroWarning) return this.scaleZeroWarning;
+      if (this.byteOrderValidationError) return this.byteOrderValidationError;
+      return null;
+    },
+    byteOrderSize() {
+      const dt = this.form.data_type;
+      if (dt === 'INT16' || dt === 'UINT16') return 2;
+      if (dt === 'FLOAT64') return 8;
+      if (dt === 'BOOLEAN' || dt === 'STRING') return 2;
+      return 4;
+    },
+    availableInputBytes() {
+      const size = this.byteOrderSize;
+      const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      return letters.slice(0, size);
+    },
+    relevantPresets() {
+      const size = this.byteOrderSize;
+      if (size === 2) {
+        return [
+          { value: 'AB', label: 'AB — Big Endian (High Byte First)' },
+          { value: 'BA', label: 'BA — Little Endian (Low Byte First / Byte Swap)' }
+        ];
+      }
+      if (size === 8) {
+        return [
+          { value: 'ABCDEFGH', label: 'ABCDEFGH — Big Endian (Standard 64-bit)' },
+          { value: 'GHEFCDAB', label: 'GHEFCDAB — Word Swap (16-bit Word Reverse)' },
+          { value: 'BADCFEHG', label: 'BADCFEHG — Byte Swap within Words' },
+          { value: 'HGFEDCBA', label: 'HGFEDCBA — Little Endian (Full Reverse)' },
+          { value: 'EFGHABCD', label: 'EFGHABCD — Double Word Swap (32-bit Swap)' }
+        ];
+      }
+      return [
+        { value: 'ABCD', label: 'ABCD — Big Endian (Standard Modbus)' },
+        { value: 'CDAB', label: 'CDAB — Word Swap (Modicon / ABB)' },
+        { value: 'BADC', label: 'BADC — Byte Swap (Mid-Big Endian)' },
+        { value: 'DCBA', label: 'DCBA — Little Endian (Full Reverse)' }
+      ];
+    },
+    isCustomByteOrder() {
+      return this.byteOrderSelection === 'CUSTOM';
+    },
+    customByteOrderString() {
+      return (this.customByteSlots || []).join('');
+    },
+    byteOrderValidationError() {
+      if (this.byteOrderSelection !== 'CUSTOM') return null;
+      const size = this.byteOrderSize;
+      const slots = this.customByteSlots || [];
+      if (slots.length !== size) {
+        return this.$t('parameterModal.invalidByteOrderLength', { count: size }) || `Custom byte order requires ${size} positions`;
+      }
+      const seen = new Set();
+      const duplicates = [];
+      const validSet = new Set(this.availableInputBytes);
+      for (const s of slots) {
+        if (!validSet.has(s)) {
+          return `Invalid byte position '${s}'. Valid positions are ${this.availableInputBytes.join(', ')}`;
+        }
+        if (seen.has(s)) {
+          duplicates.push(s);
+        }
+        seen.add(s);
+      }
+      if (duplicates.length > 0) {
+        return this.$t('parameterModal.duplicateByteError', { bytes: [...new Set(duplicates)].join(', ') }) || `Duplicate byte position: ${[...new Set(duplicates)].join(', ')}`;
+      }
+      const missing = this.availableInputBytes.filter(b => !seen.has(b));
+      if (missing.length > 0) {
+        return this.$t('parameterModal.missingByteError', { bytes: missing.join(', ') }) || `Missing byte position: ${missing.join(', ')}`;
+      }
       return null;
     },
     activeErrorMessage() {
@@ -1031,6 +1232,13 @@ export default {
       handler(newVal) {
         if (this.isCopying && newVal) {
           this.populateFromSource(newVal);
+        }
+      },
+    },
+    'form.data_type': {
+      handler(newType, oldType) {
+        if (newType !== oldType) {
+          this.handleDataTypeChange(newType);
         }
       },
     },
@@ -1120,6 +1328,7 @@ export default {
         hold_last_value_seconds: 120,
         zero_value_alarm_policy: 'NORMAL',
       };
+      this.initByteOrderFromParam('', 'FLOAT32');
     },
     generateSuggestedCode(sourceCode) {
       if (!sourceCode) return 'param_01';
@@ -1144,11 +1353,12 @@ export default {
     },
     populateFromParam(param) {
       this.targetDeviceId = Number(this.deviceId);
+      const dt = param.data_type || 'FLOAT32';
       this.form = {
         category_id: param.category_id !== undefined && param.category_id !== null ? Number(param.category_id) : (param.category ? Number(param.category.id) : null),
         parameter_code: param.parameter_code || param.code || '',
         parameter_name: param.parameter_name || param.name || '',
-        data_type: param.data_type || 'FLOAT32',
+        data_type: dt,
         unit: param.unit || '',
         icon: param.icon || '',
         description: param.description || '',
@@ -1174,16 +1384,18 @@ export default {
         hold_last_value_seconds: param.hold_last_value_seconds || 120,
         zero_value_alarm_policy: param.zero_value_alarm_policy || 'NORMAL',
       };
+      this.initByteOrderFromParam(param.byte_order, dt);
     },
     populateFromSource(source) {
       this.targetDeviceId = Number(this.deviceId);
       const code = source.parameter_code || source.code || '';
       const name = source.parameter_name || source.name || '';
+      const dt = source.data_type || 'FLOAT32';
       this.form = {
         category_id: source.category_id !== undefined && source.category_id !== null ? Number(source.category_id) : (source.category ? Number(source.category.id) : null),
         parameter_code: this.generateSuggestedCode(code),
         parameter_name: this.generateSuggestedName(name),
-        data_type: source.data_type || 'FLOAT32',
+        data_type: dt,
         unit: source.unit || '',
         icon: source.icon || '',
         description: source.description || '',
@@ -1209,6 +1421,136 @@ export default {
         hold_last_value_seconds: source.hold_last_value_seconds || 120,
         zero_value_alarm_policy: source.zero_value_alarm_policy || 'NORMAL',
       };
+      this.initByteOrderFromParam(source.byte_order, dt);
+    },
+    onByteOrderSelectionChange(val) {
+      this.byteOrderSelection = val;
+      this.unknownByteOrderWarning = null;
+      if (val === 'CUSTOM') {
+        if (!this.customByteSlots || this.customByteSlots.length !== this.byteOrderSize) {
+          this.customByteSlots = this.availableInputBytes.slice();
+        }
+      }
+      this.syncByteOrderToForm();
+    },
+    handleDataTypeChange() {
+      const size = this.byteOrderSize;
+      this.unknownByteOrderWarning = null;
+      if (this.byteOrderSelection === 'CUSTOM') {
+        if (!this.customByteSlots || this.customByteSlots.length !== size) {
+          this.customByteSlots = this.availableInputBytes.slice();
+        }
+      } else if (this.byteOrderSelection && this.byteOrderSelection !== '') {
+        const exists = this.relevantPresets.some(p => p.value === this.byteOrderSelection);
+        if (!exists) {
+          if (size === 2 && (this.byteOrderSelection === 'ABCD' || this.byteOrderSelection === 'CDAB')) {
+            this.byteOrderSelection = 'AB';
+          } else if (size === 2 && (this.byteOrderSelection === 'BADC' || this.byteOrderSelection === 'DCBA')) {
+            this.byteOrderSelection = 'BA';
+          } else if (size === 8 && this.byteOrderSelection === 'ABCD') {
+            this.byteOrderSelection = 'ABCDEFGH';
+          } else {
+            this.byteOrderSelection = '';
+          }
+        }
+      }
+      this.syncByteOrderToForm();
+    },
+    syncByteOrderToForm() {
+      if (this.byteOrderSelection === 'CUSTOM') {
+        this.form.byte_order = 'CUSTOM:' + (this.customByteSlots || []).join('');
+      } else {
+        this.form.byte_order = this.byteOrderSelection || '';
+      }
+    },
+    onCustomSlotChange(idx, val) {
+      this.$set(this.customByteSlots, idx, val);
+      this.syncByteOrderToForm();
+    },
+    applyCustomQuickPreset(presetType) {
+      const size = this.byteOrderSize;
+      const base = this.availableInputBytes.slice();
+      if (presetType === 'DEFAULT') {
+        this.customByteSlots = base;
+      } else if (presetType === 'REVERSE') {
+        this.customByteSlots = base.slice().reverse();
+      } else if (presetType === 'WORD_SWAP') {
+        if (size === 4) {
+          this.customByteSlots = ['C', 'D', 'A', 'B'];
+        } else if (size === 8) {
+          this.customByteSlots = ['G', 'H', 'E', 'F', 'C', 'D', 'A', 'B'];
+        }
+      } else if (presetType === 'BYTE_SWAP') {
+        if (size === 2) {
+          this.customByteSlots = ['B', 'A'];
+        } else if (size === 4) {
+          this.customByteSlots = ['B', 'A', 'D', 'C'];
+        } else if (size === 8) {
+          this.customByteSlots = ['B', 'A', 'D', 'C', 'F', 'E', 'H', 'G'];
+        }
+      }
+      this.syncByteOrderToForm();
+    },
+    isSlotDuplicate(val, slotIdx) {
+      if (!this.customByteSlots) return false;
+      return this.customByteSlots.some((s, i) => s === val && i !== slotIdx);
+    },
+    getByteBadgeClass(byteChar) {
+      const map = {
+        'A': 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+        'B': 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+        'C': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        'D': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        'E': 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+        'F': 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        'G': 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+        'H': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+      };
+      return map[byteChar] || 'bg-slate-700 text-slate-300 border-slate-600';
+    },
+    initByteOrderFromParam(byteOrderStr, dataType) {
+      const raw = (byteOrderStr || '').trim();
+      this.unknownByteOrderWarning = null;
+      const size = (dataType === 'INT16' || dataType === 'UINT16') ? 2 : (dataType === 'FLOAT64' ? 8 : ((dataType === 'BOOLEAN' || dataType === 'STRING') ? 2 : 4));
+      const baseSlots = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].slice(0, size);
+
+      if (!raw) {
+        this.byteOrderSelection = '';
+        this.customByteSlots = baseSlots;
+        this.form.byte_order = '';
+        return;
+      }
+      if (raw.toUpperCase().startsWith('CUSTOM:')) {
+        this.byteOrderSelection = 'CUSTOM';
+        const perm = raw.substring(7).replace(/[\s,-]/g, '').toUpperCase();
+        if (perm.length === size) {
+          this.customByteSlots = perm.split('');
+        } else {
+          this.customByteSlots = baseSlots;
+        }
+        this.form.byte_order = raw;
+        return;
+      }
+      const clean = raw.replace(/[\s,-]/g, '').toUpperCase();
+      const match = this.relevantPresets.find(p => p.value === clean);
+      if (match) {
+        this.byteOrderSelection = clean;
+        this.customByteSlots = clean.split('');
+        this.form.byte_order = clean;
+        return;
+      }
+      const validLetters = new Set(baseSlots);
+      if (clean.length === size && new Set(clean.split('')).size === size && clean.split('').every(ch => validLetters.has(ch))) {
+        this.byteOrderSelection = 'CUSTOM';
+        this.customByteSlots = clean.split('');
+        this.form.byte_order = 'CUSTOM:' + clean;
+        return;
+      }
+      // Unrecognized order
+      this.unknownByteOrderWarning = this.$t('parameterModal.unknownByteOrderWarning', { order: raw, type: dataType }) || `Saved byte order '${raw}' is unrecognized for ${dataType}`;
+      this.byteOrderSelection = 'CUSTOM';
+      this.customByteSlots = baseSlots;
+      this.form.byte_order = raw;
     },
     async submitForm() {
       if (this.clientValidationError) {
