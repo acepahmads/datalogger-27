@@ -7590,28 +7590,46 @@ export default {
       const data = detail.data || {};
 
       if (type === 'device.communication.success') {
-        const devId = data.device_id;
+        const devId = Number(data.device_id);
         if (devId) {
-          const target = this.devicesList.find(d => d.id === devId);
+          const target = this.devicesList.find(d => Number(d.id) === devId);
           if (target) {
-            target.connection_status = 'ONLINE';
+            this.$set(target, 'connection_status', 'ONLINE');
+            this.$set(target, 'status', 'ONLINE');
+            this.staleCheckTimeMs = Date.now();
           }
         }
       } else if (type === 'device.communication.error') {
-        const devId = data.device_id;
+        const devId = Number(data.device_id);
         if (devId) {
-          const target = this.devicesList.find(d => d.id === devId);
+          const target = this.devicesList.find(d => Number(d.id) === devId);
           if (target) {
-            target.connection_status = 'ERROR';
+            this.$set(target, 'connection_status', 'ERROR');
+            this.$set(target, 'status', 'ERROR');
+            this.staleCheckTimeMs = Date.now();
           }
         }
       } else if (type === 'device.connection.changed') {
-        const devId = data.device_id || data.id;
+        const devId = Number(data.device_id || data.id);
         const status = data.connection_status || data.status;
         if (devId && status) {
-          const target = this.devicesList.find(d => d.id === devId);
+          const target = this.devicesList.find(d => Number(d.id) === devId);
           if (target) {
-            target.connection_status = status;
+            this.$set(target, 'connection_status', status);
+            this.$set(target, 'status', status);
+            this.staleCheckTimeMs = Date.now();
+
+            if (status === 'OFFLINE' || status === 'ERROR' || status === 'DISCONNECTED') {
+              (target.parameters || []).forEach(p => {
+                const prev = this.liveMap[p.id] || {};
+                this.$set(this.liveMap, p.id, {
+                  ...prev,
+                  parameter_id: p.id,
+                  quality: 'BAD',
+                  quality_reason: data.reason || 'PORT_DISCONNECTED',
+                });
+              });
+            }
           }
         }
       }

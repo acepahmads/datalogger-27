@@ -264,6 +264,13 @@ func (m *ConnectionManager) ReconnectDevice(ctx context.Context, device *model.D
 	return nil
 }
 
+// ResetDeviceBackoff resets consecutive failures and backoff delay for immediate hot-plug recovery
+func (m *ConnectionManager) ResetDeviceBackoff(deviceID uint) {
+	if m.healthTracker != nil {
+		m.healthTracker.ResetBackoffAndFailures(deviceID)
+	}
+}
+
 // ExecuteWithRetry reads registers with configurable retry count, jittered backoff, and error categorization
 func (m *ConnectionManager) ExecuteWithRetry(
 	ctx context.Context,

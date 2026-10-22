@@ -260,7 +260,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				p.alarmEvaluator.EvaluateDeviceOffline(ctx, cachedDev, hIn)
 			}
 			if cycleSuccess {
-				if consecutiveFailures > 0 {
+				if consecutiveFailures > 0 || currentIntervalMs != baseIntervalMs {
 					consecutiveFailures = 0
 					currentIntervalMs = baseIntervalMs
 					ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
@@ -268,29 +268,71 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 						cachedDev.DeviceCode, deviceID, baseIntervalMs)
 				}
 			} else {
-				consecutiveFailures++
-				if consecutiveFailures >= 2 && p.deviceService != nil {
-					_ = p.deviceService.SetConnectionError(cachedDev.ID, "Device communication failure")
+				// Check physical serial port presence for Modbus RTU devices
+				isSerial := cachedDev.Connection != nil && cachedDev.Connection.Protocol == model.ProtocolModbusRTU
+				portMissing := false
+				targetPort := ""
+				if isSerial && cachedDev.Connection.SerialPort != "" {
+					targetPort = modbus.ResolvePortAddress(cachedDev.Connection.SerialPort)
+					if targetPort == "" {
+						targetPort = cachedDev.Connection.SerialPort
+					}
+					portMissing = !modbus.IsPortPhysicallyPresent(targetPort)
 				}
-				// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection attempt
-				go func(d *model.Device) {
-					reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 45*time.Second)
-					defer reconnCancel()
-					_ = p.connManager.ReconnectDevice(reconnCtx, d)
-				}(cachedDev)
 
-				// Adaptive backoff on consecutive connection failures to preserve edge CPU and reduce log spam
-				var backoffMs int
-				if consecutiveFailures >= 5 {
-					backoffMs = 15000 // 15s backoff
-				} else if consecutiveFailures >= 2 {
-					backoffMs = 5000 // 5s backoff
-				}
-				if backoffMs > 0 && currentIntervalMs != backoffMs {
-					currentIntervalMs = backoffMs
-					ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
-					logger.Debug("Device %s (%d) offline/unreachable (%d failures), backing off polling to %dms",
-						cachedDev.DeviceCode, deviceID, consecutiveFailures, backoffMs)
+				if portMissing {
+					consecutiveFailures++
+					if p.deviceService != nil {
+						_ = p.deviceService.SetOffline(cachedDev.ID)
+					}
+					if p.hub != nil {
+						p.hub.Broadcast(websocket.WSMessage{
+							Type:      "device.connection.changed",
+							Timestamp: time.Now(),
+							Data: map[string]interface{}{
+								"device_id":         cachedDev.ID,
+								"id":                cachedDev.ID,
+								"device_code":       cachedDev.DeviceCode,
+								"connection_status": "OFFLINE",
+								"status":            "OFFLINE",
+								"reason":            "PORT_DISCONNECTED",
+							},
+						})
+					}
+					// Keep checking at 1500ms intervals so that hot-plug reinsertion is detected immediately!
+					if currentIntervalMs != 1500 {
+						currentIntervalMs = 1500
+						ticker.Reset(1500 * time.Millisecond)
+					}
+				} else {
+					consecutiveFailures++
+					// If the port is present (e.g. re-plugged), reset backoff immediately for instant recovery
+					if isSerial && p.connManager != nil {
+						p.connManager.ResetDeviceBackoff(cachedDev.ID)
+					}
+					if consecutiveFailures >= 2 && p.deviceService != nil {
+						_ = p.deviceService.SetConnectionError(cachedDev.ID, "Device communication failure")
+					}
+					// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection attempt
+					go func(d *model.Device) {
+						reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 45*time.Second)
+						defer reconnCancel()
+						_ = p.connManager.ReconnectDevice(reconnCtx, d)
+					}(cachedDev)
+
+					// Adaptive backoff on consecutive connection failures to preserve edge CPU and reduce log spam
+					var backoffMs int
+					if consecutiveFailures >= 5 {
+						backoffMs = 15000 // 15s backoff
+					} else if consecutiveFailures >= 2 {
+						backoffMs = 5000 // 5s backoff
+					}
+					if backoffMs > 0 && currentIntervalMs != backoffMs {
+						currentIntervalMs = backoffMs
+						ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+						logger.Debug("Device %s (%d) offline/unreachable (%d failures), backing off polling to %dms",
+							cachedDev.DeviceCode, deviceID, consecutiveFailures, backoffMs)
+					}
 				}
 			}
 		}
@@ -396,6 +438,24 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 						})
 					}
 				}
+				if p.deviceService != nil {
+					_ = p.deviceService.SetOffline(device.ID)
+				}
+				if p.hub != nil {
+					p.hub.Broadcast(websocket.WSMessage{
+						Type:      "device.connection.changed",
+						Timestamp: nowErr,
+						Data: map[string]interface{}{
+							"device_id":         device.ID,
+							"id":                device.ID,
+							"device_code":       device.DeviceCode,
+							"connection_status": "OFFLINE",
+							"status":            "OFFLINE",
+							"reason":            "PORT_DISCONNECTED",
+							"error":             err.Error(),
+						},
+					})
+				}
 				return false
 			}
 			continue
@@ -414,6 +474,25 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 				Type:      "device.communication.success",
 				Timestamp: res.Timestamp,
 				Data:      res,
+			})
+		}
+	}
+
+	if anySuccess {
+		if p.deviceService != nil {
+			_ = p.deviceService.SetOnline(device.ID)
+		}
+		if p.hub != nil {
+			p.hub.Broadcast(websocket.WSMessage{
+				Type:      "device.connection.changed",
+				Timestamp: time.Now(),
+				Data: map[string]interface{}{
+					"device_id":         device.ID,
+					"id":                device.ID,
+					"device_code":       device.DeviceCode,
+					"connection_status": "ONLINE",
+					"status":            "ONLINE",
+				},
 			})
 		}
 	}

@@ -273,3 +273,14 @@ func (t *ConnectionHealthTracker) RemoveDevice(deviceID uint) {
 	defer t.mu.Unlock()
 	delete(t.records, deviceID)
 }
+
+// ResetBackoffAndFailures resets the consecutive failures counter and backoff delay for immediate hot-plug recovery
+func (t *ConnectionHealthTracker) ResetBackoffAndFailures(deviceID uint) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	h := t.getOrCreate(deviceID)
+	h.ConsecutiveFailures = 0
+	h.CurrentBackoffDelayMs = 0
+	h.NextReconnectTime = nil
+}
+

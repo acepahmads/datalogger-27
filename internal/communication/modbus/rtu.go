@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -49,6 +50,41 @@ func (w *defaultSerialWrapper) SetDeadline(t time.Time) error {
 // SerialOpenerFunc is a factory function for opening serial transports
 type SerialOpenerFunc func(cfg *model.DeviceConnection) (SerialTransport, error)
 
+// IsPortPhysicallyPresent checks if the serial port device node/COM port is present on the OS
+func IsPortPhysicallyPresent(port string) bool {
+	if port == "" {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		available := sysinfo.GetAvailableSerialPorts()
+		for _, p := range available {
+			if strings.EqualFold(p, port) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// POSIX / Linux: Check symlink first, then direct stat
+	if realPath, err := filepath.EvalSymlinks(port); err == nil {
+		if _, statErr := os.Stat(realPath); statErr == nil {
+			return true
+		}
+	}
+	if _, err := os.Stat(port); err == nil {
+		return true
+	}
+
+	// Check if ResolvePortAddress finds an active unowned port
+	resolved := ResolvePortAddress(port)
+	if resolved != "" && resolved != port {
+		if _, err := os.Stat(resolved); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // ResolvePortAddress evaluates symlinks and performs self-healing port migration
 // when USB serial hardware glitches cause ttyUSB0 -> ttyUSB1 re-enumeration
 func ResolvePortAddress(configuredPort string) string {
@@ -69,31 +105,37 @@ func ResolvePortAddress(configuredPort string) string {
 		return configuredPort
 	}
 
-	// 3. Self-healing migration for Linux /dev/ttyUSB* /dev/ttyACM*
-	// If configured as /dev/ttyUSB0 and it does not exist:
-	if runtime.GOOS != "windows" && strings.HasPrefix(configuredPort, "/dev/tty") {
+	// 3. Self-healing migration for Linux /dev/ttyUSB* /dev/ttyACM* and Windows COM*
+	if (runtime.GOOS != "windows" && strings.HasPrefix(configuredPort, "/dev/tty")) ||
+		(runtime.GOOS == "windows" && strings.HasPrefix(strings.ToUpper(configuredPort), "COM")) {
 		// Scan all currently available serial ports
 		availablePorts := sysinfo.GetAvailableSerialPorts()
 		var usbPorts []string
 		for _, p := range availablePorts {
-			if strings.HasPrefix(p, "/dev/ttyUSB") || strings.HasPrefix(p, "/dev/ttyACM") {
+			if strings.HasPrefix(p, "/dev/ttyUSB") || strings.HasPrefix(p, "/dev/ttyACM") ||
+				(runtime.GOOS == "windows" && strings.HasPrefix(strings.ToUpper(p), "COM")) {
 				usbPorts = append(usbPorts, p)
 			}
 		}
 
-		// If exactly 1 active USB serial adapter is found on the system (e.g. ttyUSB1):
-		// This is the classic ttyUSB0 -> ttyUSB1 re-enumeration jump!
-		// Guard: Do not migrate if the single port is already owned by another device's shared bus!
-		if len(usbPorts) == 1 && usbPorts[0] != configuredPort && !IsPortOwnedByBus(usbPorts[0]) {
-			logger.Warn("USB serial port migration detected! Configured '%s' is missing, but active '%s' was found. Auto-rebinding transport to '%s'",
-				configuredPort, usbPorts[0], usbPorts[0])
-			return usbPorts[0]
+		// Find active unowned ports (ports not currently locked by another device's shared bus)
+		var unownedPorts []string
+		for _, p := range usbPorts {
+			if p != configuredPort && !IsPortOwnedByBus(p) {
+				unownedPorts = append(unownedPorts, p)
+			}
 		}
 
-		// If multiple USB ports exist, try to check if any /dev/serial/by-id or by-path matches
+		// If exactly 1 active unowned port is found, rebind to it
+		if len(unownedPorts) == 1 {
+			logger.Warn("USB serial port migration detected! Configured '%s' is missing, but unowned active '%s' was found. Auto-rebinding transport to '%s'",
+				configuredPort, unownedPorts[0], unownedPorts[0])
+			return unownedPorts[0]
+		}
+
 		if len(usbPorts) > 1 {
-			logger.Warn("Configured port '%s' is offline. Multiple USB serial ports detected (%v). Please consider using '/dev/serial/by-id/' or '/dev/serial/by-path/' to lock device identity.",
-				configuredPort, usbPorts)
+			logger.Warn("Configured port '%s' is offline. Available ports: %v (unowned: %v).",
+				configuredPort, usbPorts, unownedPorts)
 		}
 	}
 
@@ -232,6 +274,7 @@ type ModbusRTUAdapter struct {
 	bus       *SharedSerialBus
 	mu        sync.Mutex
 	status    AdapterStatus
+	isMock    bool
 }
 
 // NewModbusRTUAdapter creates an RTU adapter with the standard OS serial opener
@@ -260,9 +303,15 @@ func NewModbusRTUAdapterWithOpener(cfg *model.DeviceConnection, opener SerialOpe
 		cfg.SlaveID = 1
 	}
 
+	isMock := false
+	if opener != nil && reflect.ValueOf(opener).Pointer() != reflect.ValueOf(DefaultSerialOpener).Pointer() {
+		isMock = true
+	}
+
 	return &ModbusRTUAdapter{
 		config: cfg,
 		opener: opener,
+		isMock: isMock,
 		status: AdapterStatus{
 			State: StateDisconnected,
 		},
@@ -307,6 +356,22 @@ func (a *ModbusRTUAdapter) Connect(ctx context.Context) error {
 	bus := GetOrCreateSharedBus(targetPort)
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
+
+	// Proactive Check: Ensure target port physically exists on system before opening (skipped in mock/test mode)
+	if !a.isMock && !IsPortPhysicallyPresent(targetPort) {
+		a.status.State = StateError
+		a.status.LastError = fmt.Sprintf("serial port offline: '%s' not found on system", targetPort)
+		a.status.FailedCount++
+		if bus.transport != nil {
+			_ = bus.transport.Close()
+			bus.transport = nil
+		}
+		if a.transport != nil {
+			_ = a.transport.Close()
+			a.transport = nil
+		}
+		return fmt.Errorf("serial port offline: '%s' not found on system", targetPort)
+	}
 
 	if bus.transport == nil {
 		tr, err := a.opener(a.config)
@@ -475,6 +540,18 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	binary.BigEndian.PutUint16(reqPDU[4:6], req.Quantity)
 
 	reqADU := AppendCRC16(reqPDU)
+
+	// Proactive Hardware Check: Verify port physically exists before communicating (skipped in mock/test mode)
+	if !a.isMock && !IsPortPhysicallyPresent(targetPort) {
+		a.handleSerialError(fmt.Errorf("serial port offline: '%s' physically disconnected from system", targetPort))
+		return nil, &ModbusTransactionError{
+			Category:    FailCategoryPortNotFound,
+			Message:     fmt.Sprintf("serial port offline: '%s' physically disconnected from system", targetPort),
+			RequestADU:  reqADU,
+			RequestSent: false,
+			Err:         fmt.Errorf("serial port offline: '%s' physically disconnected from system", targetPort),
+		}
+	}
 
 	// Ensure port is open
 	if bus != nil && bus.transport != nil {
@@ -741,9 +818,16 @@ func (a *ModbusRTUAdapter) handleSerialError(err error) {
 	a.status.LastError = err.Error()
 	a.status.FailedCount++
 
-	// Only close physical transport on true hardware/OS I/O failures (not slave timeouts)
-	if isFatalSerialError(err) {
-		logger.Warn("Modbus RTU fatal serial error on %s: %v. Releasing physical transport handle.", a.config.SerialPort, err)
+	targetPort := ResolvePortAddress(a.config.SerialPort)
+	if targetPort == "" {
+		targetPort = a.config.SerialPort
+	}
+	portMissing := !a.isMock && !IsPortPhysicallyPresent(targetPort)
+
+	// Release physical transport handle if hardware error OR port physically missing from OS
+	if portMissing || isFatalSerialError(err) {
+		logger.Warn("Modbus RTU serial connection dropped on %s (portMissing=%v, err=%v). Releasing physical transport handle.",
+			a.config.SerialPort, portMissing, err)
 		bus := a.bus
 		if bus != nil {
 			bus.mu.Lock()
