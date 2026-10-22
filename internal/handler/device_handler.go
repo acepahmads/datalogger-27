@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"datalogger/internal/communication"
+	"datalogger/internal/communication/modbus"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -611,5 +612,29 @@ func (h *DeviceHandler) ValidateFormula(c *gin.Context) {
 		"formula": trimmed,
 		"result":  res,
 	})
+}
+
+// GetDevicePollingPlan handles GET /api/devices/:id/polling-plan
+func (h *DeviceHandler) GetDevicePollingPlan(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+
+	dev, err := h.deviceService.GetDeviceByID(uint(id))
+	if err != nil {
+		response.NotFound(c, "Device not found: "+err.Error())
+		return
+	}
+
+	params, err := h.deviceService.ListParameters(uint(id))
+	if err != nil {
+		response.InternalError(c, "Failed to fetch parameters: "+err.Error())
+		return
+	}
+
+	plan := modbus.PlanDeviceBatches(dev, params)
+	response.OK(c, plan)
 }
 

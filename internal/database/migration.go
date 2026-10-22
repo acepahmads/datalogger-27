@@ -82,6 +82,29 @@ func RunMigrations(db *gorm.DB) error {
 			WHERE (p.slave_id IS NULL OR p.slave_id <= 0) AND dc.slave_id > 0
 		`).Error
 		_ = db.Model(&model.Parameter{}).Where("slave_id IS NULL OR slave_id <= 0").Update("slave_id", 1).Error
+
+		if !db.Migrator().HasColumn(&model.Parameter{}, "batch_mode") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "batch_mode")
+		}
+		_ = db.Model(&model.Parameter{}).Where("batch_mode IS NULL OR batch_mode = ''").Update("batch_mode", "AUTO").Error
+	}
+
+	// 1b2. Ensure batch read configuration columns exist on device_connections
+	if db.Migrator().HasTable(&model.DeviceConnection{}) {
+		if !db.Migrator().HasColumn(&model.DeviceConnection{}, "batch_read_enabled") {
+			_ = db.Migrator().AddColumn(&model.DeviceConnection{}, "batch_read_enabled")
+		}
+		_ = db.Model(&model.DeviceConnection{}).Where("batch_read_enabled IS NULL").Update("batch_read_enabled", false).Error
+
+		if !db.Migrator().HasColumn(&model.DeviceConnection{}, "max_batch_registers") {
+			_ = db.Migrator().AddColumn(&model.DeviceConnection{}, "max_batch_registers")
+		}
+		_ = db.Model(&model.DeviceConnection{}).Where("max_batch_registers IS NULL OR max_batch_registers <= 0").Update("max_batch_registers", 32).Error
+
+		if !db.Migrator().HasColumn(&model.DeviceConnection{}, "max_register_gap") {
+			_ = db.Migrator().AddColumn(&model.DeviceConnection{}, "max_register_gap")
+		}
+		_ = db.Model(&model.DeviceConnection{}).Where("max_register_gap IS NULL OR max_register_gap < 0").Update("max_register_gap", 0).Error
 	}
 
 	// 1c. Ensure calculation_mode column is initialized and backfilled on ispu_calculation_results

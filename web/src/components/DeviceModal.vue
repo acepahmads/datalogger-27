@@ -570,6 +570,63 @@
               />
             </div>
           </div>
+
+          <!-- 4. Multi-Address Batch Read Configuration (Modbus Protocols) -->
+          <div v-if="isModbusProtocol" class="p-3.5 bg-gradient-to-br from-indigo-50/70 to-blue-50/40 dark:from-indigo-950/20 dark:to-blue-950/20 border border-indigo-200/80 dark:border-indigo-800/40 rounded-xl space-y-3 shadow-2xs">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2.5">
+                <div class="w-7 h-7 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <div>
+                  <span class="text-xs font-bold text-slate-900 dark:text-white">{{ $t('deviceModal.batchRead') || 'Multi-Address Batch Read' }}</span>
+                  <p class="text-3xs text-slate-500 dark:text-slate-400">{{ $t('deviceModal.batchReadDesc') || 'Consolidate multiple parameter requests into optimal contiguous Modbus frames' }}</p>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  v-model="form.connection.batch_read_enabled"
+                  type="checkbox"
+                  class="sr-only peer"
+                />
+                <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <!-- Batch Fine-tuning Parameters (Only when Batch Read is Enabled) -->
+            <div v-if="form.connection.batch_read_enabled" class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2.5 border-t border-indigo-100 dark:border-indigo-900/40">
+              <div>
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  {{ $t('deviceModal.maxBatchRegisters') || 'Max Batch Registers' }}
+                </label>
+                <input
+                  v-model.number="form.connection.max_batch_registers"
+                  type="number"
+                  min="1"
+                  max="120"
+                  placeholder="32"
+                  class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
+                />
+                <span class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5 block">{{ $t('deviceModal.maxBatchRegistersHelp') || 'Default 32 (Clamped 1 - 120 registers)' }}</span>
+              </div>
+              <div>
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  {{ $t('deviceModal.maxRegisterGap') || 'Max Register Gap' }}
+                </label>
+                <input
+                  v-model.number="form.connection.max_register_gap"
+                  type="number"
+                  min="0"
+                  max="10"
+                  placeholder="0"
+                  class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
+                />
+                <span class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5 block">{{ $t('deviceModal.maxRegisterGapHelp') || 'Default 0 (Unmapped address gap tolerance 0 - 10)' }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Sticky Warning Alert Above Buttons -->
@@ -692,6 +749,9 @@ export default {
           retry_count: 3,
           polling_interval: 1000,
           enabled: true,
+          batch_read_enabled: false,
+          max_batch_registers: 32,
+          max_register_gap: 0,
         },
       },
     };
@@ -736,6 +796,10 @@ export default {
     },
     isCustomProtocol() {
       return this.form.connection.protocol === 'CUSTOM';
+    },
+    isModbusProtocol() {
+      const p = this.form.connection && this.form.connection.protocol;
+      return p === 'MODBUS_TCP' || p === 'MODBUS_RTU';
     },
     isNetworkProtocol() {
       const p = this.form.connection.protocol;
@@ -828,6 +892,9 @@ export default {
               polling_interval: (newVal.connection && (newVal.connection.polling_interval || newVal.connection.poll_interval_ms)) || 1000,
               enabled: newVal.connection ? newVal.connection.enabled : true,
               extra_config: (newVal.connection && newVal.connection.extra_config) || '',
+              batch_read_enabled: !!(newVal.connection && newVal.connection.batch_read_enabled),
+              max_batch_registers: (newVal.connection && newVal.connection.max_batch_registers) || 32,
+              max_register_gap: (newVal.connection && newVal.connection.max_register_gap !== undefined) ? newVal.connection.max_register_gap : 0,
             },
           };
         } else {
@@ -933,6 +1000,9 @@ export default {
           polling_interval: (source.connection && (source.connection.polling_interval || source.connection.poll_interval_ms)) || 1000,
           enabled: false,
           extra_config: (source.connection && source.connection.extra_config) || '',
+          batch_read_enabled: !!(source.connection && source.connection.batch_read_enabled),
+          max_batch_registers: (source.connection && source.connection.max_batch_registers) || 32,
+          max_register_gap: (source.connection && source.connection.max_register_gap !== undefined) ? source.connection.max_register_gap : 0,
         },
       };
     },
@@ -1047,6 +1117,9 @@ export default {
           polling_interval: 1000,
           enabled: true,
           extra_config: '',
+          batch_read_enabled: false,
+          max_batch_registers: 32,
+          max_register_gap: 0,
         },
       };
     },

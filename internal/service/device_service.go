@@ -32,9 +32,12 @@ type ConnectionConfigDTO struct {
 	RetryCount      int                `json:"retry_count"`
 	PollingInterval int                `json:"polling_interval"`
 	Enabled         bool               `json:"enabled"`
-	SlaveID         int                `json:"slave_id"`
-	ByteOrder       string             `json:"byte_order"`
-	ExtraConfig     string             `json:"extra_config,omitempty"`
+	SlaveID           int                `json:"slave_id"`
+	ByteOrder         string             `json:"byte_order"`
+	ExtraConfig       string             `json:"extra_config,omitempty"`
+	BatchReadEnabled  *bool              `json:"batch_read_enabled,omitempty"`
+	MaxBatchRegisters int                `json:"max_batch_registers,omitempty"`
+	MaxRegisterGap    int                `json:"max_register_gap,omitempty"`
 }
 
 type CreateDeviceRequest struct {
@@ -99,6 +102,7 @@ type CreateParameterRequest struct {
 	RegisterType             string                  `json:"register_type"`
 	SlaveID                  int                     `json:"slave_id"`
 	ByteOrder                string                  `json:"byte_order"`
+	BatchMode                string                  `json:"batch_mode"`
 	Enabled                  *bool                   `json:"enabled"`
 	Formula                  string                  `json:"formula"`
 	HoldLastValueEnabled     *bool                   `json:"hold_last_value_enabled"`
@@ -192,6 +196,7 @@ type UpdateParameterRequest struct {
 	RegisterType             *string                  `json:"register_type"`
 	SlaveID                  *int                     `json:"slave_id"`
 	ByteOrder                *string                  `json:"byte_order"`
+	BatchMode                *string                  `json:"batch_mode"`
 	Enabled                  *bool                    `json:"enabled"`
 	Formula                  *string                  `json:"formula"`
 	HoldLastValueEnabled     *bool                    `json:"hold_last_value_enabled"`
@@ -1084,6 +1089,11 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		slaveID = 1
 	}
 
+	batchMode := strings.ToUpper(strings.TrimSpace(req.BatchMode))
+	if batchMode == "" || (batchMode != "AUTO" && batchMode != "SINGLE") {
+		batchMode = "AUTO"
+	}
+
 	param := &model.Parameter{
 		DeviceID:                 deviceID,
 		ParameterCode:            code,
@@ -1110,6 +1120,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		RegisterType:             strings.TrimSpace(req.RegisterType),
 		SlaveID:                  slaveID,
 		ByteOrder:                byteOrder,
+		BatchMode:                batchMode,
 		Enabled:                  enabled,
 		Formula:                  cleanFormula,
 		HoldLastValueEnabled:     holdLastVal,
@@ -1246,6 +1257,12 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	} else if req.DataType != nil {
 		if err := modbus.ValidateByteOrder(param.ByteOrder, param.DataType); err != nil {
 			param.ByteOrder = modbus.DefaultByteOrderForDataType(param.DataType)
+		}
+	}
+	if req.BatchMode != nil {
+		bm := strings.ToUpper(strings.TrimSpace(*req.BatchMode))
+		if bm == "AUTO" || bm == "SINGLE" {
+			param.BatchMode = bm
 		}
 	}
 	if req.Enabled != nil {
@@ -1660,23 +1677,45 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 		byteOrder = "ABCD"
 	}
 
+	batchRead := false
+	if dto.BatchReadEnabled != nil {
+		batchRead = *dto.BatchReadEnabled
+	}
+	maxRegs := dto.MaxBatchRegisters
+	if maxRegs <= 0 {
+		maxRegs = 32
+	}
+	if maxRegs > 120 {
+		maxRegs = 120
+	}
+	maxGap := dto.MaxRegisterGap
+	if maxGap < 0 {
+		maxGap = 0
+	}
+	if maxGap > 10 {
+		maxGap = 10
+	}
+
 	return &model.DeviceConnection{
-		Protocol:        proto,
-		ConnectionType:  connType,
-		Host:            strings.TrimSpace(dto.Host),
-		Port:            port,
-		SerialPort:      strings.TrimSpace(dto.SerialPort),
-		BaudRate:        baud,
-		DataBits:        dataBits,
-		Parity:          parity,
-		StopBits:        stopBits,
-		Timeout:         timeout,
-		RetryCount:      retry,
-		PollingInterval: interval,
-		Enabled:         dto.Enabled,
-		SlaveID:         slaveID,
-		ByteOrder:       byteOrder,
-		ExtraConfig:     dto.ExtraConfig,
+		Protocol:          proto,
+		ConnectionType:    connType,
+		Host:              strings.TrimSpace(dto.Host),
+		Port:              port,
+		SerialPort:        strings.TrimSpace(dto.SerialPort),
+		BaudRate:          baud,
+		DataBits:          dataBits,
+		Parity:            parity,
+		StopBits:          stopBits,
+		Timeout:           timeout,
+		RetryCount:        retry,
+		PollingInterval:   interval,
+		Enabled:           dto.Enabled,
+		SlaveID:           slaveID,
+		ByteOrder:         byteOrder,
+		ExtraConfig:       dto.ExtraConfig,
+		BatchReadEnabled:  batchRead,
+		MaxBatchRegisters: maxRegs,
+		MaxRegisterGap:    maxGap,
 	}
 }
 

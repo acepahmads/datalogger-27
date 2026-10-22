@@ -28,6 +28,8 @@ type PollingEngine struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	stopOnce         sync.Once
+	batchFailuresMu  sync.Mutex
+	batchFailures    map[string]int
 }
 
 // NewPollingEngine constructs the polling coordinator
@@ -39,6 +41,7 @@ func NewPollingEngine(connManager *ConnectionManager, deviceService *service.Dev
 		hub:           hub,
 		holdTracker:   NewAnomalyHoldTracker(),
 		workers:       make(map[uint]context.CancelFunc),
+		batchFailures: make(map[string]int),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
@@ -339,14 +342,22 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 	}
 }
 
-// pollDevice executes the parameter read loop using pre-cached parameters
+// pollDevice dispatches polling execution to batch mode or single read mode
 func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, enabledParams []model.Parameter) bool {
 	if len(enabledParams) == 0 {
-		// No parameters configured, perform health check
 		_ = p.connManager.ConnectDevice(ctx, device)
 		return true
 	}
 
+	if device.Connection != nil && device.Connection.BatchReadEnabled {
+		return p.pollDeviceBatch(ctx, device, enabledParams)
+	}
+
+	return p.pollDeviceSingle(ctx, device, enabledParams)
+}
+
+// pollDeviceSingle executes the parameter read loop sequentially (Single Read mode)
+func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Device, enabledParams []model.Parameter) bool {
 	anySuccess := false
 	source := ""
 	if device != nil && device.Connection != nil {
@@ -362,13 +373,11 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 
 		res, err := p.ReadParameter(ctx, device, &param)
 		if err != nil {
-			// Phase 6 Wave 2: Evaluate communication failure against thresholds
 			if p.alarmEvaluator != nil && p.connManager != nil {
 				h := p.connManager.GetDeviceHealth(device.ID)
 				p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
 			}
 
-			// Broadcast error event
 			if p.hub != nil {
 				p.hub.Broadcast(websocket.WSMessage{
 					Type:      "device.communication.error",
@@ -383,92 +392,19 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 				})
 			}
 
-			// If device transport itself is dead, mark remaining parameters BAD (comm failure) and abort cycle
-			errStr := strings.ToLower(err.Error())
-			if strings.Contains(errStr, "offline") ||
-				strings.Contains(errStr, "connection refused") ||
-				strings.Contains(errStr, "dial failed") ||
-				strings.Contains(errStr, "cannot find") ||
-				strings.Contains(errStr, "timeout") ||
-				strings.Contains(errStr, "deadline exceeded") ||
-				strings.Contains(errStr, "input/output error") ||
-				strings.Contains(errStr, "bad file descriptor") ||
-				strings.Contains(errStr, "broken pipe") ||
-				strings.Contains(errStr, "pipe closed") ||
-				strings.Contains(errStr, "connection reset") ||
-				strings.Contains(errStr, "eof") ||
-				strings.Contains(errStr, "access is denied") ||
-				strings.Contains(errStr, "permission denied") ||
-				strings.Contains(errStr, "not functioning") ||
-				strings.Contains(errStr, "not connected") ||
-				strings.Contains(errStr, "serial port offline") ||
-				strings.Contains(errStr, "failed after") ||
-				strings.Contains(errStr, "no such file") ||
-				strings.Contains(errStr, "busy") {
-				nowErr := time.Now().UTC()
-				for j := idx; j < len(enabledParams); j++ {
-					remParam := enabledParams[j]
-					lastKnownVal := 0.0
-					if remParam.CurrentProcessedValue != nil {
-						lastKnownVal = *remParam.CurrentProcessedValue
-					} else if remParam.CurrentValue != nil {
-						lastKnownVal = *remParam.CurrentValue
-					}
-					if p.telemetryService != nil {
-						_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
-							DeviceID:      device.ID,
-							DeviceCode:    device.DeviceCode,
-							DeviceName:    device.DeviceName,
-							ParameterID:   remParam.ID,
-							ParameterCode: remParam.ParameterCode,
-							ParameterName: remParam.ParameterName,
-							Unit:          remParam.Unit,
-							DataType:      remParam.DataType,
-							RawValue:      lastKnownVal,
-							Value:         lastKnownVal,
-							Quality:       model.QualityBad,
-							QualityReason: model.ReasonCommunicationError,
-							QualityFlags:  model.FlagCommError,
-							IsHeldValue:   false,
-							Source:        source,
-							ErrorMessage:  err.Error(),
-							ReceivedAt:    nowErr,
-							Parameter:     &remParam,
-							ReadError:     err,
-						})
-					}
-				}
-				if p.deviceService != nil {
-					_ = p.deviceService.SetOffline(device.ID)
-				}
-				if p.hub != nil {
-					p.hub.Broadcast(websocket.WSMessage{
-						Type:      "device.connection.changed",
-						Timestamp: nowErr,
-						Data: map[string]interface{}{
-							"device_id":         device.ID,
-							"id":                device.ID,
-							"device_code":       device.DeviceCode,
-							"connection_status": "OFFLINE",
-							"status":            "OFFLINE",
-							"reason":            "PORT_DISCONNECTED",
-							"error":             err.Error(),
-						},
-					})
-				}
+			if isFatalCommError(err) {
+				p.markRemainingParamsBad(device, enabledParams, idx, err, source)
 				return false
 			}
 			continue
 		}
 
 		anySuccess = true
-		// Phase 6 Wave 2: Evaluate communication success and healthy recovery
 		if p.alarmEvaluator != nil && p.connManager != nil {
 			h := p.connManager.GetDeviceHealth(device.ID)
 			p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
 		}
 
-		// Broadcast success event
 		if p.hub != nil {
 			p.hub.Broadcast(websocket.WSMessage{
 				Type:      "device.communication.success",
@@ -498,6 +434,359 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 	}
 
 	return anySuccess
+}
+
+// pollDeviceBatch executes consolidated Modbus batch read jobs with controlled single-read fallback
+func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Device, enabledParams []model.Parameter) bool {
+	plan := modbus.PlanDeviceBatches(device, enabledParams)
+	if len(plan.Jobs) == 0 {
+		return false
+	}
+
+	anySuccess := false
+	source := ""
+	if device != nil && device.Connection != nil {
+		source = string(device.Connection.Protocol)
+	}
+
+	for _, job := range plan.Jobs {
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+		}
+
+		// 1. Single-parameter job (either opt-out SINGLE mode or isolated register)
+		if job.IsSingle && len(job.Parameters) == 1 {
+			param := job.Parameters[0].Parameter
+			res, err := p.ReadParameter(ctx, device, param)
+			if err != nil {
+				if p.alarmEvaluator != nil && p.connManager != nil {
+					h := p.connManager.GetDeviceHealth(device.ID)
+					p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
+				}
+				if p.hub != nil {
+					p.hub.Broadcast(websocket.WSMessage{
+						Type:      "device.communication.error",
+						Timestamp: time.Now(),
+						Data: map[string]interface{}{
+							"device_id":      device.ID,
+							"device_code":    device.DeviceCode,
+							"parameter_id":   param.ID,
+							"parameter_code": param.ParameterCode,
+							"error":          err.Error(),
+						},
+					})
+				}
+				if isFatalCommError(err) {
+					p.markRemainingParamsBad(device, enabledParams, 0, err, source)
+					return false
+				}
+				continue
+			}
+
+			anySuccess = true
+			if p.alarmEvaluator != nil && p.connManager != nil {
+				h := p.connManager.GetDeviceHealth(device.ID)
+				p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
+			}
+			if p.hub != nil {
+				p.hub.Broadcast(websocket.WSMessage{
+					Type:      "device.communication.success",
+					Timestamp: res.Timestamp,
+					Data:      res,
+				})
+			}
+			continue
+		}
+
+		// 2. Multi-parameter Batch Job
+		batchKey := fmt.Sprintf("%d_%s", device.ID, job.ID)
+		p.batchFailuresMu.Lock()
+		consecBatchFailures := p.batchFailures[batchKey]
+		p.batchFailuresMu.Unlock()
+
+		// Circuit Breaker: If batch failed 3 consecutive times, execute single-read fallback directly.
+		// After 10 fallback cycles (total 13 failures), reset counter to 0 to trial batch read again (half-open).
+		if consecBatchFailures >= 3 {
+			if consecBatchFailures >= 13 {
+				p.batchFailuresMu.Lock()
+				p.batchFailures[batchKey] = 0
+				p.batchFailuresMu.Unlock()
+				logger.Info("Batch %s on device %s half-open trial: retrying batch read", job.ID, device.DeviceCode)
+			} else {
+				p.batchFailuresMu.Lock()
+				p.batchFailures[batchKey]++
+				p.batchFailuresMu.Unlock()
+				logger.Warn("Batch %s on device %s circuit-broken (%d failures); executing single-read fallback",
+					job.ID, device.DeviceCode, consecBatchFailures)
+				for _, sp := range job.Parameters {
+					_, ok, abort := p.executeSingleFallback(ctx, device, sp.Parameter, enabledParams, source)
+					if abort {
+						return false
+					}
+					if ok {
+						anySuccess = true
+					}
+				}
+				continue
+			}
+		}
+
+		req := modbus.ModbusReadRequest{
+			SlaveID:         job.SlaveID,
+			FunctionCode:    job.FunctionCode,
+			StartingAddress: job.StartingAddress,
+			Quantity:        job.Quantity,
+		}
+
+		resp, err := p.connManager.ExecuteWithRetry(ctx, device, req)
+		if err != nil {
+			// Batch Read Failed! Track failure and initiate controlled single-read fallback
+			p.batchFailuresMu.Lock()
+			p.batchFailures[batchKey]++
+			p.batchFailuresMu.Unlock()
+
+			logger.Warn("Batch read %s (dev %s, addr %d, qty %d) failed: %v. Initiating controlled single-read fallback...",
+				job.ID, device.DeviceCode, job.StartingAddress, job.Quantity, err)
+
+			if isFatalCommError(err) {
+				p.markRemainingParamsBad(device, enabledParams, 0, err, source)
+				return false
+			}
+
+			// Controlled fallback: read each parameter in this batch individually
+			for _, sp := range job.Parameters {
+				_, ok, abort := p.executeSingleFallback(ctx, device, sp.Parameter, enabledParams, source)
+				if abort {
+					return false
+				}
+				if ok {
+					anySuccess = true
+				}
+			}
+			continue
+		}
+
+		// Batch Read Succeeded! Reset failure counter
+		p.batchFailuresMu.Lock()
+		delete(p.batchFailures, batchKey)
+		p.batchFailuresMu.Unlock()
+
+		anySuccess = true
+		if p.alarmEvaluator != nil && p.connManager != nil {
+			h := p.connManager.GetDeviceHealth(device.ID)
+			p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
+		}
+
+		// Slice response data and decode each parameter independently
+		for _, sp := range job.Parameters {
+			select {
+			case <-ctx.Done():
+				return false
+			default:
+			}
+
+			var paramBytes []byte
+			if job.FunctionCode == modbus.FunctionReadCoils || job.FunctionCode == modbus.FunctionReadDiscreteInputs {
+				val, bitErr := modbus.DecodeCoilBit(resp.Data, sp.BitOffset)
+				if bitErr != nil {
+					logger.Error("Failed decoding coil bit for %s: %v", sp.Parameter.ParameterCode, bitErr)
+					continue
+				}
+				if val {
+					paramBytes = []byte{0x01}
+				} else {
+					paramBytes = []byte{0x00}
+				}
+			} else {
+				if sp.ByteOffset+sp.ByteLength > len(resp.Data) {
+					logger.Error("Slice offset [%d:%d] out of range for response length %d on param %s",
+						sp.ByteOffset, sp.ByteOffset+sp.ByteLength, len(resp.Data), sp.Parameter.ParameterCode)
+					continue
+				}
+				paramBytes = resp.Data[sp.ByteOffset : sp.ByteOffset+sp.ByteLength]
+			}
+
+			res, pErr := p.processDecodedParameter(
+				ctx,
+				device,
+				sp.Parameter,
+				paramBytes,
+				job.FunctionCode,
+				sp.PDUAddress,
+				sp.RegisterCount,
+				resp.ResponseTime,
+			)
+			if pErr != nil {
+				logger.Error("Failed processing batch parameter %s: %v", sp.Parameter.ParameterCode, pErr)
+				continue
+			}
+
+			if p.hub != nil {
+				p.hub.Broadcast(websocket.WSMessage{
+					Type:      "device.communication.success",
+					Timestamp: res.Timestamp,
+					Data:      res,
+				})
+			}
+		}
+	}
+
+	if anySuccess {
+		if p.deviceService != nil {
+			_ = p.deviceService.SetOnline(device.ID)
+		}
+		if p.hub != nil {
+			p.hub.Broadcast(websocket.WSMessage{
+				Type:      "device.connection.changed",
+				Timestamp: time.Now(),
+				Data: map[string]interface{}{
+					"device_id":         device.ID,
+					"id":                device.ID,
+					"device_code":       device.DeviceCode,
+					"connection_status": "ONLINE",
+					"status":            "ONLINE",
+				},
+			})
+		}
+	}
+
+	return anySuccess
+}
+
+func isFatalCommError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "offline") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "dial failed") ||
+		strings.Contains(errStr, "cannot find") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "deadline exceeded") ||
+		strings.Contains(errStr, "input/output error") ||
+		strings.Contains(errStr, "bad file descriptor") ||
+		strings.Contains(errStr, "broken pipe") ||
+		strings.Contains(errStr, "pipe closed") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "eof") ||
+		strings.Contains(errStr, "access is denied") ||
+		strings.Contains(errStr, "permission denied") ||
+		strings.Contains(errStr, "not functioning") ||
+		strings.Contains(errStr, "not connected") ||
+		strings.Contains(errStr, "serial port offline") ||
+		strings.Contains(errStr, "failed after") ||
+		strings.Contains(errStr, "no such file") ||
+		strings.Contains(errStr, "busy")
+}
+
+func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []model.Parameter, fromIdx int, err error, source string) {
+	nowErr := time.Now().UTC()
+	for j := fromIdx; j < len(params); j++ {
+		remParam := params[j]
+		lastKnownVal := 0.0
+		if remParam.CurrentProcessedValue != nil {
+			lastKnownVal = *remParam.CurrentProcessedValue
+		} else if remParam.CurrentValue != nil {
+			lastKnownVal = *remParam.CurrentValue
+		}
+		if p.telemetryService != nil {
+			_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+				DeviceID:      device.ID,
+				DeviceCode:    device.DeviceCode,
+				DeviceName:    device.DeviceName,
+				ParameterID:   remParam.ID,
+				ParameterCode: remParam.ParameterCode,
+				ParameterName: remParam.ParameterName,
+				Unit:          remParam.Unit,
+				DataType:      remParam.DataType,
+				RawValue:      lastKnownVal,
+				Value:         lastKnownVal,
+				Quality:       model.QualityBad,
+				QualityReason: model.ReasonCommunicationError,
+				QualityFlags:  model.FlagCommError,
+				IsHeldValue:   false,
+				Source:        source,
+				ErrorMessage:  err.Error(),
+				ReceivedAt:    nowErr,
+				Parameter:     &remParam,
+				ReadError:     err,
+			})
+		}
+	}
+	if p.deviceService != nil {
+		_ = p.deviceService.SetOffline(device.ID)
+	}
+	if p.hub != nil {
+		p.hub.Broadcast(websocket.WSMessage{
+			Type:      "device.connection.changed",
+			Timestamp: nowErr,
+			Data: map[string]interface{}{
+				"device_id":         device.ID,
+				"id":                device.ID,
+				"device_code":       device.DeviceCode,
+				"connection_status": "OFFLINE",
+				"status":            "OFFLINE",
+				"reason":            "PORT_DISCONNECTED",
+				"error":             err.Error(),
+			},
+		})
+	}
+}
+
+func (p *PollingEngine) executeSingleFallback(
+	ctx context.Context,
+	device *model.Device,
+	param *model.Parameter,
+	enabledParams []model.Parameter,
+	source string,
+) (*CommunicationResult, bool, bool) {
+	select {
+	case <-ctx.Done():
+		return nil, false, true
+	default:
+	}
+
+	res, err := p.ReadParameter(ctx, device, param)
+	if err != nil {
+		if p.alarmEvaluator != nil && p.connManager != nil {
+			h := p.connManager.GetDeviceHealth(device.ID)
+			p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
+		}
+		if p.hub != nil {
+			p.hub.Broadcast(websocket.WSMessage{
+				Type:      "device.communication.error",
+				Timestamp: time.Now(),
+				Data: map[string]interface{}{
+					"device_id":      device.ID,
+					"device_code":    device.DeviceCode,
+					"parameter_id":   param.ID,
+					"parameter_code": param.ParameterCode,
+					"error":          err.Error(),
+				},
+			})
+		}
+		if isFatalCommError(err) {
+			p.markRemainingParamsBad(device, enabledParams, 0, err, source)
+			return nil, false, true
+		}
+		return nil, false, false
+	}
+
+	if p.alarmEvaluator != nil && p.connManager != nil {
+		h := p.connManager.GetDeviceHealth(device.ID)
+		p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
+	}
+	if p.hub != nil {
+		p.hub.Broadcast(websocket.WSMessage{
+			Type:      "device.communication.success",
+			Timestamp: res.Timestamp,
+			Data:      res,
+		})
+	}
+	return res, true, false
 }
 
 // ReadParameter reads and decodes a single parameter from the device
@@ -670,7 +959,30 @@ func (p *PollingEngine) ReadParameter(
 		return errRes, pErr
 	}
 
-	// 4. Decode Register Values
+	// 4. Delegate decoding and telemetry ingestion to shared processDecodedParameter
+	return p.processDecodedParameter(
+		ctx,
+		device,
+		param,
+		resp.Data,
+		res.FunctionCode,
+		res.PDUAddress,
+		qty,
+		resp.ResponseTime,
+	)
+}
+
+// processDecodedParameter decodes raw register bytes and executes the telemetry ingestion pipeline
+func (p *PollingEngine) processDecodedParameter(
+	ctx context.Context,
+	device *model.Device,
+	param *model.Parameter,
+	rawBytes []byte,
+	fc byte,
+	pdu uint16,
+	qty uint16,
+	responseTime time.Duration,
+) (*CommunicationResult, error) {
 	byteOrder := param.ByteOrder
 	if byteOrder == "" && device.Connection != nil {
 		byteOrder = device.Connection.ByteOrder
@@ -679,15 +991,15 @@ func (p *PollingEngine) ReadParameter(
 		byteOrder = "ABCD"
 	}
 
-	decoded, err := modbus.DecodeRegisters(resp.Data, param.DataType, byteOrder)
+	decoded, err := modbus.DecodeRegisters(rawBytes, param.DataType, byteOrder)
 	if err != nil {
 		return nil, fmt.Errorf("register decode failed: %w", err)
 	}
 
-	// 5. Apply Scale & Offset
+	// Apply Scale & Offset
 	engVal := modbus.ApplyScaleAndOffset(decoded.RawValue, param.Scale, param.Offset, param.Precision)
 
-	// 5b. Evaluate Anomaly Hold Tracker & Custom Formula
+	// Evaluate Anomaly Hold Tracker & Custom Formula
 	effVal := engVal
 	var formulaVal *float64
 	var isHeld bool
@@ -697,7 +1009,7 @@ func (p *PollingEngine) ReadParameter(
 		effVal, formulaVal, isHeld, quality, _ = p.holdTracker.ProcessReading(param, decoded.RawValue, engVal, nil)
 	}
 
-	// 6. Update Device and Parameter State
+	// Update Device and Parameter State
 	finalVal := effVal
 	if formulaVal != nil {
 		finalVal = *formulaVal
@@ -713,13 +1025,13 @@ func (p *PollingEngine) ReadParameter(
 		device.Connection.ID,
 		param.ID,
 		param.ParameterCode,
-		res.FunctionCode,
-		res.PDUAddress,
+		fc,
+		pdu,
 		qty,
-		resp.Data,
+		rawBytes,
 		decoded.RawValue,
 		finalVal,
-		resp.ResponseTime,
+		responseTime,
 	)
 	result.ScaledValue = engVal
 	result.Formula = param.Formula
@@ -728,7 +1040,7 @@ func (p *PollingEngine) ReadParameter(
 	result.Quality = quality
 	result.ProcessedValue = finalVal
 
-	// 7. Pipeline Telemetry Ingestion (Phase 3.1 & 3.2)
+	// Pipeline Telemetry Ingestion (Phase 3.1 & 3.2)
 	if p.telemetryService != nil {
 		source := ""
 		if device.Connection != nil {
@@ -743,7 +1055,7 @@ func (p *PollingEngine) ReadParameter(
 			ParameterName: param.ParameterName,
 			Unit:          param.Unit,
 			DataType:      param.DataType,
-			RawBytes:      resp.Data,
+			RawBytes:      rawBytes,
 			RawHex:        result.RawHex,
 			RawValue:      decoded.RawValue,
 			Value:         finalVal,

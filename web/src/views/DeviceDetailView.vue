@@ -454,6 +454,150 @@
       <div v-else class="text-center py-8 text-xs text-slate-400">
         {{ $t('deviceDetail.noConnConfig') }}
       </div>
+
+      <!-- MODBUS POLLING PLAN & BATCH OPTIMIZATION CARD -->
+      <div v-if="isModbusDevice" class="space-y-4 pt-5 border-t border-slate-800">
+        <!-- Card Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h4 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.pollingPlan') || 'Modbus Polling Plan & Batch Optimization' }}</h4>
+                <span
+                  class="px-2 py-0.5 rounded text-3xs font-mono font-bold"
+                  :class="(pollingPlan && pollingPlan.batch_read_enabled) ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-slate-300 border border-slate-600'"
+                >
+                  {{ (pollingPlan && pollingPlan.batch_read_enabled) ? ($t('deviceDetail.batchActiveBadge') || 'Batch Read: Active (Auto)') : ($t('deviceDetail.batchInactiveBadge') || 'Batch Read: Off (Single Sequential)') }}
+                </span>
+              </div>
+              <p class="text-3xs text-slate-400 mt-0.5">{{ $t('deviceDetail.pollingPlanSubtitle') || 'Live calculated request frames, register spans, and estimated network traffic reduction' }}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button
+              @click="fetchPollingPlan"
+              :disabled="pollingPlanLoading"
+              class="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': pollingPlanLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>{{ $t('deviceDetail.refreshPlan') || 'Recalculate Plan' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Plan Metric Summary Strip -->
+        <div v-if="pollingPlan" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+            <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.totalParameters') || 'Active Modbus Parameters' }}</div>
+            <div class="text-base font-mono font-bold text-slate-200 mt-0.5">
+              {{ pollingPlan.total_parameters || 0 }} <span class="text-3xs font-sans text-slate-400 font-normal">params</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+            <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.plannedRequests') || 'Planned Modbus Requests' }}</div>
+            <div class="text-base font-mono font-bold text-blue-400 mt-0.5">
+              {{ pollingPlan.total_modbus_requests || 0 }} <span class="text-3xs font-sans text-slate-400 font-normal">frames / cycle</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+            <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.reductionPct') || 'Traffic Reduction' }}</div>
+            <div class="text-base font-mono font-bold text-emerald-400 mt-0.5 flex items-center space-x-1.5">
+              <span>{{ pollingPlan.estimated_reduction_percent || 0 }}%</span>
+              <span v-if="pollingPlan.estimated_reduction_percent > 0" class="text-3xs px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-sans font-normal">Fewer Requests</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
+            <div class="text-3xs text-slate-400 font-semibold uppercase">Batch Constraints</div>
+            <div class="text-xs font-mono font-semibold text-slate-300 mt-1">
+              Max {{ pollingPlan.max_batch_registers || 32 }} regs • Gap tol: {{ pollingPlan.max_register_gap || 0 }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Plan Error Banner -->
+        <div v-if="pollingPlanError" class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 flex items-center justify-between">
+          <span>{{ pollingPlanError }}</span>
+          <button @click="fetchPollingPlan" class="underline text-3xs">Retry</button>
+        </div>
+
+        <!-- Plan Jobs Breakdown Table -->
+        <div v-if="pollingPlan && pollingPlan.jobs && pollingPlan.jobs.length" class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-left text-xs font-sans">
+            <thead class="bg-slate-900/80 text-slate-400 font-semibold text-3xs uppercase tracking-wider border-b border-slate-800">
+              <tr>
+                <th class="py-2.5 px-3">{{ $t('deviceDetail.requestID') || 'Request ID / Mode' }}</th>
+                <th class="py-2.5 px-3">{{ $t('deviceDetail.functionCode') || 'Function Code' }}</th>
+                <th class="py-2.5 px-3">{{ $t('deviceDetail.modiconRange') || 'Modicon Range' }}</th>
+                <th class="py-2.5 px-3">{{ $t('deviceDetail.pduRange') || 'PDU Range' }}</th>
+                <th class="py-2.5 px-3">{{ $t('deviceDetail.quantity') || 'Quantity' }}</th>
+                <th class="py-2.5 px-3">{{ $t('deviceDetail.packedParams') || 'Packed Parameters & Offsets' }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60 bg-[#0B0F19]/60">
+              <tr v-for="job in pollingPlan.jobs" :key="job.id" class="hover:bg-slate-800/30 transition">
+                <td class="py-2.5 px-3">
+                  <div class="flex items-center space-x-1.5">
+                    <span
+                      class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase"
+                      :class="job.is_single ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'"
+                    >
+                      {{ job.is_single ? 'SINGLE' : 'BATCH' }}
+                    </span>
+                    <span class="font-mono text-3xs font-semibold text-slate-200">{{ job.id }}</span>
+                  </div>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-3xs text-blue-400">
+                  <span class="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                    FC{{ String(job.function_code).padStart(2, '0') }} ({{ job.register_type }})
+                  </span>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-3xs text-slate-200 font-semibold">
+                  <span>#{{ job.display_address }}</span>
+                  <span v-if="job.quantity > 1" class="text-slate-400 font-normal"> .. #{{ job.display_end_addr }}</span>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
+                  0x{{ job.starting_address.toString(16).toUpperCase().padStart(4, '0') }}
+                  <span v-if="job.quantity > 1"> .. 0x{{ (job.starting_address + job.quantity - 1).toString(16).toUpperCase().padStart(4, '0') }}</span>
+                  <span class="text-4xs text-slate-500"> (dec {{ job.starting_address }})</span>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-3xs text-slate-300 font-bold">
+                  {{ job.quantity }} {{ (job.function_code === 1 || job.function_code === 2) ? 'coils' : 'words' }}
+                  <span class="text-4xs font-normal text-slate-500">({{ (job.function_code === 1 || job.function_code === 2) ? Math.ceil(job.quantity/8) : (job.quantity * 2) }}B)</span>
+                </td>
+                <td class="py-2.5 px-3">
+                  <div class="flex flex-wrap gap-1.5 items-center">
+                    <div
+                      v-for="sp in job.parameters"
+                      :key="sp.parameter.id"
+                      class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-3xs flex items-center space-x-1.5 shadow-2xs"
+                      :title="sp.parameter.parameter_name + ' | DataType: ' + sp.parameter.data_type + ' | Sliced Bytes: ' + sp.byte_offset + '..' + (sp.byte_offset + sp.byte_length - 1)"
+                    >
+                      <span class="font-mono font-bold text-slate-200">{{ sp.parameter.parameter_code }}</span>
+                      <span class="px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-400 text-4xs font-mono font-semibold">{{ sp.parameter.data_type }}</span>
+                      <span class="text-slate-400 font-mono text-4xs">Offset {{ sp.byte_offset }}B ({{ sp.byte_length }}B)</span>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else-if="!pollingPlanLoading" class="p-6 text-center text-xs text-slate-400 bg-[#0B0F19]/40 rounded-xl border border-slate-800/80">
+          {{ $t('deviceDetail.noParamsForPlan') || 'No active Modbus parameters configured for this device.' }}
+        </div>
+      </div>
     </div>
 
     <!-- TAB 3: PARAMETERS -->
@@ -525,6 +669,13 @@
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">
                 <span class="font-bold text-slate-200">#{{ param.register_address !== undefined ? param.register_address : 0 }}</span>
                 <span class="block text-4xs text-slate-500 font-sans uppercase">{{ param.register_type || 'HOLDING' }}</span>
+                <span
+                  v-if="isModbusDevice"
+                  class="inline-block mt-0.5 px-1 py-0.2 rounded text-[9px] font-mono font-bold uppercase"
+                  :class="param.batch_mode === 'SINGLE' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'"
+                >
+                  {{ param.batch_mode === 'SINGLE' ? 'SINGLE' : 'AUTO BATCH' }}
+                </span>
               </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
                 <div>×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</div>
@@ -3073,6 +3224,11 @@ export default {
       testReadLoading: false,
       testReadResult: null,
 
+      // Modbus Multi-Address Batch Read Polling Plan
+      pollingPlan: null,
+      pollingPlanLoading: false,
+      pollingPlanError: null,
+
       // Phase 3.1 Live Telemetry
       liveTelemetry: {},
       liveBlinks: {},
@@ -3490,11 +3646,21 @@ export default {
     historyStats() {
       return this.chartStats;
     },
+    isModbusDevice() {
+      if (!this.device) return false;
+      const p = (this.device.connection && this.device.connection.protocol) || this.device.device_type;
+      return p === 'MODBUS_TCP' || p === 'MODBUS_RTU';
+    },
   },
   watch: {
     '$route.query.tab'(newTab) {
       if (newTab) {
         this.switchTab(newTab);
+      }
+    },
+    activeTab(newTab) {
+      if (newTab === 'connection' && this.isModbusDevice && !this.pollingPlan) {
+        this.fetchPollingPlan();
       }
     },
   },
@@ -3558,6 +3724,9 @@ export default {
         this.device = res;
         this.loadActivity();
         this.fetchCommStatus();
+        if (this.isModbusDevice) {
+          this.fetchPollingPlan();
+        }
         if (this.activeTab === 'telemetry') {
           this.fetchLatestTelemetry();
         } else if (this.activeTab === 'history') {
@@ -3827,6 +3996,19 @@ export default {
         this.commFeedback = { type: 'error', message: (err.response && err.response.data && err.response.data.error) || err.message };
       } finally {
         this.commActionLoading = false;
+      }
+    },
+    async fetchPollingPlan() {
+      if (!this.device || !this.device.id) return;
+      this.pollingPlanLoading = true;
+      this.pollingPlanError = null;
+      try {
+        const res = await apiClient.get(`/devices/${this.device.id}/polling-plan`);
+        this.pollingPlan = (res && res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+      } catch (err) {
+        this.pollingPlanError = (err.response && err.response.data && err.response.data.error) || err.message || 'Failed to load polling plan';
+      } finally {
+        this.pollingPlanLoading = false;
       }
     },
     async handleTestConnection() {

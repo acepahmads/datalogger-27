@@ -233,7 +233,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <!-- Modbus Slave ID / Unit ID -->
           <div>
             <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
@@ -296,6 +296,23 @@
                 {{ preset.label }}
               </option>
               <option value="CUSTOM">★ {{ $t('parameterModal.customByteOrder') || 'Custom Byte Order' }}</option>
+            </select>
+          </div>
+
+          <!-- Batch Polling Mode -->
+          <div>
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>{{ $t('parameterModal.batchMode') || 'Batch Mode' }}</span>
+              <span class="text-3xs font-mono font-bold" :class="form.batch_mode === 'AUTO' ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'">
+                {{ form.batch_mode === 'AUTO' ? 'AUTO' : 'SINGLE' }}
+              </span>
+            </label>
+            <select
+              v-model="form.batch_mode"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-mono"
+            >
+              <option value="AUTO">{{ $t('parameterModal.batchModeAuto') || 'AUTO (Batch Candidate)' }}</option>
+              <option value="SINGLE">{{ $t('parameterModal.batchModeSingle') || 'SINGLE (Force Single Read)' }}</option>
             </select>
           </div>
         </div>
@@ -947,6 +964,7 @@ export default {
         hold_last_value_enabled: false,
         hold_last_value_seconds: 120,
         zero_value_alarm_policy: 'NORMAL',
+        batch_mode: 'AUTO',
       },
     };
   },
@@ -1366,6 +1384,7 @@ export default {
         hold_last_value_enabled: false,
         hold_last_value_seconds: 120,
         zero_value_alarm_policy: 'NORMAL',
+        batch_mode: 'AUTO',
       };
       this.initByteOrderFromParam('', 'FLOAT32');
     },
@@ -1423,6 +1442,7 @@ export default {
         hold_last_value_enabled: param.hold_last_value_enabled !== undefined ? param.hold_last_value_enabled : false,
         hold_last_value_seconds: param.hold_last_value_seconds || 120,
         zero_value_alarm_policy: param.zero_value_alarm_policy || 'NORMAL',
+        batch_mode: param.batch_mode || 'AUTO',
       };
       this.initByteOrderFromParam(param.byte_order, dt);
     },
@@ -1461,6 +1481,7 @@ export default {
         hold_last_value_enabled: source.hold_last_value_enabled !== undefined ? source.hold_last_value_enabled : false,
         hold_last_value_seconds: source.hold_last_value_seconds || 120,
         zero_value_alarm_policy: source.zero_value_alarm_policy || 'NORMAL',
+        batch_mode: source.batch_mode || 'AUTO',
       };
       this.initByteOrderFromParam(source.byte_order, dt);
     },

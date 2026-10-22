@@ -297,6 +297,7 @@ func main() {
 			devicesGroup.GET("/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
 			devicesGroup.GET("/:id/status", middleware.RequirePermission("device.view"), systemHandler.GetDeviceStatus)
 			devicesGroup.GET("/:id/activity", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceActivity)
+			devicesGroup.GET("/:id/polling-plan", middleware.RequirePermission("device.view"), deviceHandler.GetDevicePollingPlan)
 
 			// Create endpoint (device.create)
 			devicesGroup.POST("", middleware.RequirePermission("device.create"), deviceHandler.CreateDevice)

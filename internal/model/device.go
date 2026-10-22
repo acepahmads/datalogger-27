@@ -83,6 +83,11 @@ type DeviceConnection struct {
 	ByteOrder       string       `gorm:"size:64;default:'ABCD'" json:"byte_order"`
 	ExtraConfig     string       `gorm:"type:text" json:"extra_config,omitempty"`
 
+	// Modbus Batch Read Configuration
+	BatchReadEnabled  bool `gorm:"default:false" json:"batch_read_enabled"`
+	MaxBatchRegisters int  `gorm:"default:32" json:"max_batch_registers"`
+	MaxRegisterGap    int  `gorm:"default:0" json:"max_register_gap"`
+
 	// Compatibility aliases with Phase 1
 	Address        string `gorm:"size:128" json:"address,omitempty"`
 	TimeoutMs      int    `gorm:"default:1000" json:"timeout_ms,omitempty"`
@@ -98,6 +103,18 @@ func (c *DeviceConnection) BeforeSave(tx *gorm.DB) error {
 	}
 	if c.ByteOrder == "" {
 		c.ByteOrder = "ABCD"
+	}
+	if c.MaxBatchRegisters <= 0 {
+		c.MaxBatchRegisters = 32
+	}
+	if c.MaxBatchRegisters > 120 {
+		c.MaxBatchRegisters = 120
+	}
+	if c.MaxRegisterGap < 0 {
+		c.MaxRegisterGap = 0
+	}
+	if c.MaxRegisterGap > 10 {
+		c.MaxRegisterGap = 10
 	}
 	if c.Host == "" && c.Address != "" {
 		c.Host = c.Address
@@ -129,6 +146,18 @@ func (c *DeviceConnection) AfterFind(tx *gorm.DB) error {
 	}
 	if c.ByteOrder == "" {
 		c.ByteOrder = "ABCD"
+	}
+	if c.MaxBatchRegisters <= 0 {
+		c.MaxBatchRegisters = 32
+	}
+	if c.MaxBatchRegisters > 120 {
+		c.MaxBatchRegisters = 120
+	}
+	if c.MaxRegisterGap < 0 {
+		c.MaxRegisterGap = 0
+	}
+	if c.MaxRegisterGap > 10 {
+		c.MaxRegisterGap = 10
 	}
 	if c.Host == "" && c.Address != "" {
 		c.Host = c.Address
@@ -294,6 +323,7 @@ type Parameter struct {
 	Offset        float64           `gorm:"default:0.0" json:"offset"`
 	SlaveID       int               `gorm:"default:1" json:"slave_id"`
 	ByteOrder     string            `gorm:"size:64;default:'ABCD'" json:"byte_order"`
+	BatchMode     string            `gorm:"size:16;default:'AUTO'" json:"batch_mode"`
 	Enabled       bool              `gorm:"index;default:true" json:"enabled"`
 
 	// Custom Formula & Anomaly Hold-Last-Value Protection
@@ -354,6 +384,9 @@ func (p *Parameter) BeforeSave(tx *gorm.DB) error {
 	if p.ByteOrder == "" {
 		p.ByteOrder = "ABCD"
 	}
+	if p.BatchMode == "" {
+		p.BatchMode = "AUTO"
+	}
 	if p.ParameterCode == "" && p.Code != "" {
 		p.ParameterCode = p.Code
 	}
@@ -399,6 +432,9 @@ func (p *Parameter) AfterFind(tx *gorm.DB) error {
 	}
 	if p.ByteOrder == "" {
 		p.ByteOrder = "ABCD"
+	}
+	if p.BatchMode == "" {
+		p.BatchMode = "AUTO"
 	}
 	if p.ParameterCode == "" && p.Code != "" {
 		p.ParameterCode = p.Code

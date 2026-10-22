@@ -85,6 +85,7 @@ func setupDeviceTestRouter(t *testing.T) *TestEnv {
 			devicesGroup.GET("/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
 			devicesGroup.GET("/:id/status", middleware.RequirePermission("device.view"), systemHandler.GetDeviceStatus)
 			devicesGroup.GET("/:id/activity", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceActivity)
+			devicesGroup.GET("/:id/polling-plan", middleware.RequirePermission("device.view"), deviceHandler.GetDevicePollingPlan)
 
 			devicesGroup.POST("", middleware.RequirePermission("device.create"), deviceHandler.CreateDevice)
 
@@ -612,5 +613,142 @@ func TestValidateFormulaEndpointWithRandom(t *testing.T) {
 			t.Fatalf("Expected 400 Bad Request, got %d: %s", w.Code, w.Body.String())
 		}
 	})
+}
+
+func TestGetDevicePollingPlan(t *testing.T) {
+	env := setupDeviceTestRouter(t)
+
+	// 1. Create Device with BatchReadEnabled=true
+	devicePayload := map[string]interface{}{
+		"device_code": "PLAN-DEV-01",
+		"device_name": "Plan Test Device",
+		"device_type": "MODBUS_TCP",
+		"connection": map[string]interface{}{
+			"protocol":            "MODBUS_TCP",
+			"connection_type":     "ETHERNET",
+			"host":                "127.0.0.1",
+			"port":                502,
+			"timeout":             1000,
+			"retry_count":         1,
+			"polling_interval":    1000,
+			"batch_read_enabled":  true,
+			"max_batch_registers": 32,
+			"max_register_gap":    0,
+		},
+	}
+	body, _ := json.Marshal(devicePayload)
+	req, _ := http.NewRequest("POST", "/api/devices", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	env.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("Failed creating device: %s", w.Body.String())
+	}
+
+	var devRes struct {
+		Data struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &devRes)
+	devID := devRes.Data.ID
+
+	// 2. Add two contiguous parameters
+	param1 := map[string]interface{}{
+		"parameter_code":   "VOLT_L1",
+		"parameter_name":   "Voltage L1",
+		"register_type":    "HOLDING_REGISTER",
+		"register_address": 40001,
+		"data_type":        "FLOAT32",
+		"byte_order":       "ABCD",
+		"batch_mode":       "AUTO",
+		"enabled":          true,
+	}
+	pBody1, _ := json.Marshal(param1)
+	pReq1, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters", devID), bytes.NewBuffer(pBody1))
+	pReq1.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	pReq1.Header.Set("Content-Type", "application/json")
+	pW1 := httptest.NewRecorder()
+	env.Router.ServeHTTP(pW1, pReq1)
+	if pW1.Code != http.StatusCreated {
+		t.Fatalf("Failed creating param 1: %s", pW1.Body.String())
+	}
+
+	param2 := map[string]interface{}{
+		"parameter_code":   "VOLT_L2",
+		"parameter_name":   "Voltage L2",
+		"register_type":    "HOLDING_REGISTER",
+		"register_address": 40003,
+		"data_type":        "FLOAT32",
+		"byte_order":       "ABCD",
+		"batch_mode":       "AUTO",
+		"enabled":          true,
+	}
+	pBody2, _ := json.Marshal(param2)
+	pReq2, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters", devID), bytes.NewBuffer(pBody2))
+	pReq2.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	pReq2.Header.Set("Content-Type", "application/json")
+	pW2 := httptest.NewRecorder()
+	env.Router.ServeHTTP(pW2, pReq2)
+	if pW2.Code != http.StatusCreated {
+		t.Fatalf("Failed creating param 2: %s", pW2.Body.String())
+	}
+
+	// 3. Query Polling Plan
+	planReq, _ := http.NewRequest("GET", fmt.Sprintf("/api/devices/%d/polling-plan", devID), nil)
+	planReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+	planW := httptest.NewRecorder()
+	env.Router.ServeHTTP(planW, planReq)
+
+	if planW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d: %s", planW.Code, planW.Body.String())
+	}
+
+	var planRes struct {
+		Data struct {
+			DeviceID                  uint    `json:"device_id"`
+			BatchReadEnabled          bool    `json:"batch_read_enabled"`
+			TotalParameters           int     `json:"total_parameters"`
+			TotalModbusRequests       int     `json:"total_modbus_requests"`
+			EstimatedReductionPercent float64 `json:"estimated_reduction_percent"`
+			Jobs                      []struct {
+				ID              string `json:"id"`
+				StartingAddress uint16 `json:"starting_address"`
+				Quantity        uint16 `json:"quantity"`
+				IsSingle        bool   `json:"is_single"`
+				Parameters      []struct {
+					ByteOffset int `json:"byte_offset"`
+					ByteLength int `json:"byte_length"`
+				} `json:"parameters"`
+			} `json:"jobs"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(planW.Body.Bytes(), &planRes); err != nil {
+		t.Fatalf("Failed to parse plan response: %v", err)
+	}
+
+	if !planRes.Data.BatchReadEnabled {
+		t.Errorf("Expected BatchReadEnabled true")
+	}
+	if planRes.Data.TotalParameters != 2 {
+		t.Errorf("Expected 2 total parameters, got %d", planRes.Data.TotalParameters)
+	}
+	if planRes.Data.TotalModbusRequests != 1 {
+		t.Errorf("Expected 1 planned batch request, got %d", planRes.Data.TotalModbusRequests)
+	}
+	if planRes.Data.EstimatedReductionPercent != 50.0 {
+		t.Errorf("Expected 50%% reduction, got %v", planRes.Data.EstimatedReductionPercent)
+	}
+	if len(planRes.Data.Jobs) != 1 {
+		t.Fatalf("Expected 1 job, got %d", len(planRes.Data.Jobs))
+	}
+	job := planRes.Data.Jobs[0]
+	if job.Quantity != 4 {
+		t.Errorf("Expected quantity 4 (2 floats = 4 regs), got %d", job.Quantity)
+	}
+	if len(job.Parameters) != 2 {
+		t.Errorf("Expected 2 parameters in job, got %d", len(job.Parameters))
+	}
 }
 
