@@ -602,6 +602,19 @@ export default {
       }, 1200);
     },
     formatValue(item) {
+      if (!item) return '--';
+      const isOffline = item.device_status === 'OFFLINE' ||
+        item.device_status === 'ERROR' ||
+        item.device_status === 'DISCONNECTED' ||
+        item.device_status === 'FAILED';
+      const isBad = item.quality === 'BAD' && !item.is_held_value;
+      const isCommErr = item.quality_reason === 'COMMUNICATION_ERROR' ||
+        item.quality_reason === 'DEVICE_OFFLINE' ||
+        item.quality_reason === 'TIMEOUT' ||
+        item.quality_reason === 'SENSOR_FAULT';
+      if (isOffline || isBad || isCommErr) {
+        return '--';
+      }
       if (item.value_text) return item.value_text;
       if (item.value !== null && item.value !== undefined) {
         return Number(item.value).toFixed(item.precision || 2);

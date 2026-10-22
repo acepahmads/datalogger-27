@@ -4460,6 +4460,11 @@ export default {
       document.body.removeChild(textarea);
     },
     formatParamValue(param) {
+      if (!param) return '--';
+      const q = this.getParamQuality(param);
+      if (this.device && (this.device.connection_status === 'OFFLINE' || this.device.connection_status === 'ERROR' || this.device.connection_status === 'DISCONNECTED') || q === 'BAD') {
+        return '--';
+      }
       if (this.liveTelemetry[param.id] !== undefined) {
         const item = this.liveTelemetry[param.id];
         if (item.value_text) return item.value_text;

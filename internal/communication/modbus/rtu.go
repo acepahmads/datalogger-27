@@ -83,7 +83,8 @@ func ResolvePortAddress(configuredPort string) string {
 
 		// If exactly 1 active USB serial adapter is found on the system (e.g. ttyUSB1):
 		// This is the classic ttyUSB0 -> ttyUSB1 re-enumeration jump!
-		if len(usbPorts) == 1 && usbPorts[0] != configuredPort {
+		// Guard: Do not migrate if the single port is already owned by another device's shared bus!
+		if len(usbPorts) == 1 && usbPorts[0] != configuredPort && !IsPortOwnedByBus(usbPorts[0]) {
 			logger.Warn("USB serial port migration detected! Configured '%s' is missing, but active '%s' was found. Auto-rebinding transport to '%s'",
 				configuredPort, usbPorts[0], usbPorts[0])
 			return usbPorts[0]
@@ -476,7 +477,16 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	reqADU := AppendCRC16(reqPDU)
 
 	// Ensure port is open
-	if (bus != nil && bus.transport == nil) || a.transport == nil || a.status.State != StateConnected {
+	if bus != nil && bus.transport != nil {
+		// The shared serial bus already has an active open transport (e.g. opened by device 1).
+		// Reuse it directly without attempting an OS-level reopen, which causes "Access is denied" / "busy".
+		a.transport = bus.transport
+		now := time.Now()
+		a.status.State = StateConnected
+		if a.status.ConnectedSince == nil {
+			a.status.ConnectedSince = &now
+		}
+	} else if (bus != nil && bus.transport == nil) || a.transport == nil || a.status.State != StateConnected {
 		tr, err := a.opener(a.config)
 		if err != nil {
 			a.status.State = StateError

@@ -269,6 +269,9 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				}
 			} else {
 				consecutiveFailures++
+				if consecutiveFailures >= 2 && p.deviceService != nil {
+					_ = p.deviceService.SetConnectionError(cachedDev.ID, "Device communication failure")
+				}
 				// Auto-recovery (Phase 4.1): Trigger asynchronous deduplicated reconnection attempt
 				go func(d *model.Device) {
 					reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -344,7 +347,22 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 				strings.Contains(errStr, "connection refused") ||
 				strings.Contains(errStr, "dial failed") ||
 				strings.Contains(errStr, "cannot find") ||
-				strings.Contains(errStr, "timeout") {
+				strings.Contains(errStr, "timeout") ||
+				strings.Contains(errStr, "deadline exceeded") ||
+				strings.Contains(errStr, "input/output error") ||
+				strings.Contains(errStr, "bad file descriptor") ||
+				strings.Contains(errStr, "broken pipe") ||
+				strings.Contains(errStr, "pipe closed") ||
+				strings.Contains(errStr, "connection reset") ||
+				strings.Contains(errStr, "eof") ||
+				strings.Contains(errStr, "access is denied") ||
+				strings.Contains(errStr, "permission denied") ||
+				strings.Contains(errStr, "not functioning") ||
+				strings.Contains(errStr, "not connected") ||
+				strings.Contains(errStr, "serial port offline") ||
+				strings.Contains(errStr, "failed after") ||
+				strings.Contains(errStr, "no such file") ||
+				strings.Contains(errStr, "busy") {
 				nowErr := time.Now().UTC()
 				for j := idx; j < len(enabledParams); j++ {
 					remParam := enabledParams[j]

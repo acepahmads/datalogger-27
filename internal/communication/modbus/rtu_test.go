@@ -2,6 +2,7 @@ package modbus
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -152,3 +153,65 @@ func TestModbusRTUMaster(t *testing.T) {
 		t.Fatalf("expected timeout or read error, got nil")
 	}
 }
+
+// TestSharedSerialBusMultiDeviceRecovery verifies that when Dev 1 and Dev 2 share a port,
+// Dev 2 (even in StateError) can read registers by attaching to the already open bus without
+// attempting to re-open the OS serial handle (which would fail with busy/access denied).
+func TestSharedSerialBusMultiDeviceRecovery(t *testing.T) {
+	ResetSharedBuses()
+	defer ResetSharedBuses()
+
+	server := NewMockModbusServer()
+	server.SetHoldingRegister(10, 100)
+	server.SetHoldingRegister(20, 200)
+
+	pipe := NewMockSerialPipe(server)
+	openerCalls := 0
+	opener := func(c *model.DeviceConnection) (SerialTransport, error) {
+		openerCalls++
+		if openerCalls > 1 {
+			// Simulate OS error when port is already opened by another adapter
+			return nil, fmt.Errorf("open COM3: Access is denied")
+		}
+		return pipe, nil
+	}
+
+	cfg1 := &model.DeviceConnection{DeviceID: 1, Protocol: model.ProtocolModbusRTU, SerialPort: "COM3", SlaveID: 1, Timeout: 1000}
+	cfg2 := &model.DeviceConnection{DeviceID: 2, Protocol: model.ProtocolModbusRTU, SerialPort: "COM3", SlaveID: 1, Timeout: 1000}
+
+	adapter1 := NewModbusRTUAdapterWithOpener(cfg1, opener)
+	adapter2 := NewModbusRTUAdapterWithOpener(cfg2, opener)
+
+	ctx := context.Background()
+
+	// 1. Dev 1 connects and opens the shared bus
+	if err := adapter1.Connect(ctx); err != nil {
+		t.Fatalf("adapter1 connect failed: %v", err)
+	}
+	defer adapter1.Disconnect()
+
+	// 2. Dev 2 is simulated in StateError / uninitialized (did not call Connect yet)
+	adapter2.status.State = StateError
+
+	// 3. Dev 2 reads registers directly - it MUST reuse adapter1's open bus without calling opener again!
+	resp2, err2 := adapter2.ReadRegisters(ctx, ModbusReadRequest{
+		SlaveID:         1,
+		FunctionCode:    FunctionReadHoldingRegisters,
+		StartingAddress: 20,
+		Quantity:        1,
+	})
+	if err2 != nil {
+		t.Fatalf("adapter2 ReadRegisters failed to reuse shared bus: %v", err2)
+	}
+	if len(resp2.Data) < 2 || resp2.Data[1] != 200 {
+		t.Fatalf("adapter2 unexpected data: %v", resp2.Data)
+	}
+
+	if openerCalls != 1 {
+		t.Fatalf("expected exactly 1 opener call across both devices, got %d", openerCalls)
+	}
+	if adapter2.GetStatus().State != StateConnected {
+		t.Fatalf("expected adapter2 state to be CONNECTED, got %v", adapter2.GetStatus().State)
+	}
+}
+

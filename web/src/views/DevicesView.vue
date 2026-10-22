@@ -392,7 +392,7 @@
                class="p-2 rounded-lg bg-[#0B0F19]/60 border border-slate-800/80 flex items-center justify-between text-xs">
             <span class="text-slate-200 text-2xs font-medium">{{ param.parameter_name || param.name }}</span>
             <span class="text-xs font-mono font-bold text-blue-400">
-              {{ param.current_value !== null && param.current_value !== undefined ? param.current_value.toFixed(1) : '--' }}
+              {{ (dev.connection_status === 'ONLINE' || dev.connection_status === 'CONNECTED') && param.current_value !== null && param.current_value !== undefined ? param.current_value.toFixed(1) : '--' }}
               <span class="text-slate-400 text-3xs">{{ param.unit }}</span>
             </span>
           </div>

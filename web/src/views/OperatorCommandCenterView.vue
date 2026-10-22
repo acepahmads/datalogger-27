@@ -7161,7 +7161,23 @@ export default {
       return '';
     },
     formatParamValue(param) {
-      if (!param || param.value == null || param.value === '') return '--';
+      if (!param) return '--';
+      // 1. If device is offline, error, disconnected, or failed: display '--'
+      const isDevOffline = param.device_status === 'OFFLINE' ||
+        param.device_status === 'ERROR' ||
+        param.device_status === 'DISCONNECTED' ||
+        param.device_status === 'FAILED';
+      // 2. If data quality is BAD (e.g. comm failure, sensor timeout, bad frame) and not in anomaly grace hold
+      const isBadQuality = param.quality === 'BAD' && !param.is_held_value;
+      // 3. If explicit communication error or device offline reason
+      const isCommError = param.quality_reason === 'COMMUNICATION_ERROR' ||
+        param.quality_reason === 'DEVICE_OFFLINE' ||
+        param.quality_reason === 'TIMEOUT' ||
+        param.quality_reason === 'SENSOR_FAULT';
+      if (isDevOffline || isBadQuality || isCommError) {
+        return '--';
+      }
+      if (param.value == null || param.value === '') return '--';
       if (param.value_text) return String(param.value_text);
       if (typeof param.value === 'string' && /[eE]/.test(param.value)) {
         return param.value;
@@ -7212,6 +7228,7 @@ export default {
       }
     },
     paramValueColorClass(param) {
+      if (this.formatParamValue(param) === '--') return 'text-slate-400 dark:text-slate-500 font-bold';
       if (param.alarm_status === 'CRITICAL') return 'text-[#C93449] dark:text-[#FF6577] font-black';
       if (param.alarm_status === 'WARNING') return 'text-[#A96C0A] dark:text-[#F1BD61] font-bold';
       // test token match: text-[#20364B] dark:text-[#E2EBF4]
