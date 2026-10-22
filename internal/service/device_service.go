@@ -97,6 +97,7 @@ type CreateParameterRequest struct {
 	Offset                   float64                 `json:"offset"`
 	RegisterAddress          int                     `json:"register_address"`
 	RegisterType             string                  `json:"register_type"`
+	SlaveID                  int                     `json:"slave_id"`
 	ByteOrder                string                  `json:"byte_order"`
 	Enabled                  *bool                   `json:"enabled"`
 	Formula                  string                  `json:"formula"`
@@ -189,6 +190,7 @@ type UpdateParameterRequest struct {
 	Offset                   *float64                 `json:"offset"`
 	RegisterAddress          *int                     `json:"register_address"`
 	RegisterType             *string                  `json:"register_type"`
+	SlaveID                  *int                     `json:"slave_id"`
 	ByteOrder                *string                  `json:"byte_order"`
 	Enabled                  *bool                    `json:"enabled"`
 	Formula                  *string                  `json:"formula"`
@@ -1070,6 +1072,18 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		spikeWindow = *req.SpikeWindowSize
 	}
 
+	slaveID := req.SlaveID
+	if slaveID <= 0 {
+		if dev.Connection != nil && dev.Connection.SlaveID > 0 {
+			slaveID = dev.Connection.SlaveID
+		} else {
+			slaveID = 1
+		}
+	}
+	if slaveID < 1 || slaveID > 247 {
+		slaveID = 1
+	}
+
 	param := &model.Parameter{
 		DeviceID:                 deviceID,
 		ParameterCode:            code,
@@ -1094,6 +1108,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		Offset:                   req.Offset,
 		RegisterAddress:          req.RegisterAddress,
 		RegisterType:             strings.TrimSpace(req.RegisterType),
+		SlaveID:                  slaveID,
 		ByteOrder:                byteOrder,
 		Enabled:                  enabled,
 		Formula:                  cleanFormula,
@@ -1215,6 +1230,12 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.RegisterType != nil {
 		param.RegisterType = strings.TrimSpace(*req.RegisterType)
+	}
+	if req.SlaveID != nil {
+		if *req.SlaveID < 1 || *req.SlaveID > 247 {
+			return nil, errors.New("slave_id must be between 1 and 247")
+		}
+		param.SlaveID = *req.SlaveID
 	}
 	if req.ByteOrder != nil && *req.ByteOrder != "" {
 		newOrder := strings.TrimSpace(*req.ByteOrder)

@@ -523,6 +523,9 @@ func (p *PollingEngine) ReadParameter(
 	}
 
 	slaveID := byte(device.Connection.SlaveID)
+	if param.SlaveID > 0 {
+		slaveID = byte(param.SlaveID)
+	}
 	if slaveID == 0 {
 		slaveID = 1
 	}

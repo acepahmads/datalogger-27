@@ -71,6 +71,17 @@ func RunMigrations(db *gorm.DB) error {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "zero_value_alarm_policy")
 		}
 		_ = db.Model(&model.Parameter{}).Where("zero_value_alarm_policy IS NULL OR zero_value_alarm_policy = ''").Update("zero_value_alarm_policy", string(model.ZeroValuePolicyNormal)).Error
+
+		if !db.Migrator().HasColumn(&model.Parameter{}, "slave_id") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "slave_id")
+		}
+		_ = db.Exec(`
+			UPDATE parameters p
+			INNER JOIN device_connections dc ON p.device_id = dc.device_id
+			SET p.slave_id = dc.slave_id
+			WHERE (p.slave_id IS NULL OR p.slave_id <= 0) AND dc.slave_id > 0
+		`).Error
+		_ = db.Model(&model.Parameter{}).Where("slave_id IS NULL OR slave_id <= 0").Update("slave_id", 1).Error
 	}
 
 	// 1c. Ensure calculation_mode column is initialized and backfilled on ispu_calculation_results

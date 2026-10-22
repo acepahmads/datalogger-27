@@ -102,6 +102,15 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 		m.diagMu.Unlock()
 	}()
 
+	// Resolve effective Slave ID (prefer parameter SlaveID over device connection default)
+	effectiveSlaveID := byte(cfg.SlaveID)
+	if param != nil && param.SlaveID > 0 {
+		effectiveSlaveID = byte(param.SlaveID)
+	}
+	if effectiveSlaveID == 0 {
+		effectiveSlaveID = 1
+	}
+
 	// -------------------------------------------------------------
 	// STAGE 1: PORT_VERIFICATION
 	// -------------------------------------------------------------
@@ -133,12 +142,12 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 				report.SuggestedAction = fmt.Sprintf("Configured serial port '%s' does not exist. The system detected available serial port(s): %s. If your USB-RS485 adapter re-enumerated, update the device port to '%s' or use persistent '/dev/serial/by-id/'.",
 					cfg.SerialPort, strings.Join(portEv.SystemAvailablePorts, ", "), bestPort)
 				report.SuggestedActionID = "PORT_NOT_FOUND_PORTS_AVAILABLE"
-				report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, byte(cfg.SlaveID), bestPort)
+				report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, effectiveSlaveID, bestPort)
 			} else {
 				report.SuggestedAction = fmt.Sprintf("Configured serial port '%s' does not exist and no USB serial ports were found. Check physical USB cabling, adapter power, and run 'ls -l /dev/serial*' on the Raspberry Pi.",
 					cfg.SerialPort)
 				report.SuggestedActionID = "PORT_NOT_FOUND_NO_PORTS"
-				report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, byte(cfg.SlaveID), cfg.SerialPort)
+				report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, effectiveSlaveID, cfg.SerialPort)
 			}
 			return report, nil
 		}
@@ -163,7 +172,7 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 			)
 			report.SuggestedAction = fmt.Sprintf("Symlink '%s' points to '%s', which has disconnected or disappeared. Verify USB connection or udev rules in /etc/udev/rules.d/.", cfg.SerialPort, portEv.SymlinkTarget)
 			report.SuggestedActionID = "BROKEN_SYMLINK"
-			report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, byte(cfg.SlaveID), cfg.SerialPort)
+			report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, effectiveSlaveID, cfg.SerialPort)
 			return report, nil
 		}
 
@@ -190,7 +199,7 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 				DiagnosticStageEvidence{Stage: "MODBUS_TRANSACTION", Status: StageNotTested, Message: "No Modbus request transmitted."},
 				DiagnosticStageEvidence{Stage: "DATA_INTERPRETATION", Status: StageNotTested, Message: "No data received."},
 			)
-			report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, byte(cfg.SlaveID), portEv.ResolvedPort)
+			report.MbpollCommand = FormatMbpollCommand(cfg, param, 0x03, 0, 1, effectiveSlaveID, portEv.ResolvedPort)
 			return report, nil
 		}
 
@@ -287,10 +296,7 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 	// -------------------------------------------------------------
 	// STAGE 3: MODBUS_TRANSACTION
 	// -------------------------------------------------------------
-	slaveID := byte(cfg.SlaveID)
-	if slaveID == 0 {
-		slaveID = 1
-	}
+	slaveID := effectiveSlaveID
 
 	targetPort := cfg.SerialPort
 	if report.PortEvidence.ResolvedPort != "" {

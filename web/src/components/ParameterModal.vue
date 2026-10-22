@@ -233,7 +233,23 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Modbus Slave ID / Unit ID -->
+          <div>
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+              <span>{{ $t('parameterModal.slaveId') || 'Slave ID / Unit ID' }}</span>
+              <span class="text-3xs text-slate-400 font-mono font-normal">1-247</span>
+            </label>
+            <input
+              v-model.number="form.slave_id"
+              type="number"
+              min="1"
+              max="247"
+              placeholder="1"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+            />
+          </div>
+
           <!-- Register Address -->
           <div>
             <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -909,6 +925,7 @@ export default {
         unit: '',
         icon: '',
         description: '',
+        slave_id: 1,
         register_address: 0,
         register_type: 'HOLDING_REGISTER',
         byte_order: '',
@@ -1327,6 +1344,7 @@ export default {
         unit: '',
         icon: '',
         description: '',
+        slave_id: (this.device && this.device.connection && this.device.connection.slave_id) || 1,
         register_address: 0,
         register_type: 'HOLDING_REGISTER',
         byte_order: '',
@@ -1383,6 +1401,7 @@ export default {
         unit: param.unit || '',
         icon: param.icon || '',
         description: param.description || '',
+        slave_id: (param.slave_id !== undefined && param.slave_id !== null && param.slave_id > 0) ? param.slave_id : ((this.device && this.device.connection && this.device.connection.slave_id) || 1),
         register_address: param.register_address !== undefined ? param.register_address : 0,
         register_type: param.register_type || 'HOLDING_REGISTER',
         byte_order: param.byte_order || '',
@@ -1420,6 +1439,7 @@ export default {
         unit: source.unit || '',
         icon: source.icon || '',
         description: source.description || '',
+        slave_id: (source.slave_id !== undefined && source.slave_id !== null && source.slave_id > 0) ? source.slave_id : 1,
         register_address: source.register_address !== undefined ? source.register_address : 0,
         register_type: source.register_type || 'HOLDING_REGISTER',
         byte_order: source.byte_order || '',
@@ -1601,6 +1621,7 @@ export default {
         unit: this.form.unit ? this.form.unit.trim() : '',
         icon: this.form.icon ? this.form.icon.trim() : '',
         description: this.form.description ? this.form.description.trim() : '',
+        slave_id: this.cleanNum(this.form.slave_id) || 1,
         register_address: this.cleanNum(this.form.register_address) || 0,
         register_type: this.form.register_type,
         byte_order: this.form.byte_order || '',

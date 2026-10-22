@@ -1,17 +1,17 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in font-sans">
-    <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div class="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/80 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
       <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-[#0B0F19]/80 backdrop-blur-xs">
         <div>
-          <h2 class="text-base font-bold text-white tracking-wide">
+          <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-wide">
             {{ modalTitle }}
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {{ modalSubtitle }}
           </p>
         </div>
-        <button @click="closeModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+        <button @click="closeModal" class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -19,11 +19,11 @@
       </div>
 
       <!-- Navigation Tabs -->
-      <div class="flex border-b border-slate-800 bg-[#0B0F19]/40 px-6 text-xs font-medium">
+      <div class="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-[#0B0F19]/40 px-6 text-xs font-medium">
         <button
           type="button"
           @click="activeTab = 'basic'"
-          :class="activeTab === 'basic' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          :class="activeTab === 'basic' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 font-semibold' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'"
           class="py-3 px-3 transition-colors flex items-center space-x-1.5"
         >
           <span>{{ $t('deviceModal.tabGeneral') }}</span>
@@ -31,7 +31,7 @@
         <button
           type="button"
           @click="activeTab = 'location'"
-          :class="activeTab === 'location' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          :class="activeTab === 'location' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 font-semibold' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'"
           class="py-3 px-3 transition-colors flex items-center space-x-1.5"
         >
           <span>{{ $t('deviceModal.tabLocation') }}</span>
@@ -39,7 +39,7 @@
         <button
           type="button"
           @click="activeTab = 'connection'"
-          :class="activeTab === 'connection' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          :class="activeTab === 'connection' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 font-semibold' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'"
           class="py-3 px-3 transition-colors flex items-center space-x-1.5"
         >
           <span>{{ $t('deviceModal.tabComm') }}</span>
@@ -50,29 +50,29 @@
       <!-- Modal Body -->
       <form ref="deviceFormBody" novalidate @submit.prevent="submitForm" class="flex-1 overflow-y-auto p-6 space-y-5">
         <!-- Copy Source Indicator Banner -->
-        <div v-if="isCopying && sourceDevice" class="p-3.5 bg-cyan-950/40 border border-cyan-700/60 rounded-xl flex items-start space-x-3 text-xs shadow-md animate-fade-in">
-          <span class="text-cyan-400 mt-0.5 text-base leading-none">📋</span>
+        <div v-if="isCopying && sourceDevice" class="p-3.5 bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-700/60 rounded-xl flex items-start space-x-3 text-xs shadow-xs animate-fade-in">
+          <span class="text-cyan-600 dark:text-cyan-400 mt-0.5 text-base leading-none">📋</span>
           <div class="flex-1">
-            <div class="font-bold text-cyan-200">
+            <div class="font-bold text-cyan-950 dark:text-cyan-200">
               {{ $t('deviceModal.copyBannerTitle', { code: sourceDevice.device_code || sourceDevice.code }) }}
-              <span class="font-normal text-cyan-400">({{ sourceDevice.device_name || sourceDevice.name }})</span>
+              <span class="font-normal text-cyan-700 dark:text-cyan-400">({{ sourceDevice.device_name || sourceDevice.name }})</span>
             </div>
-            <div class="text-3xs text-cyan-300/80 mt-1 leading-relaxed">
+            <div class="text-3xs text-cyan-800 dark:text-cyan-300/80 mt-1 leading-relaxed">
               {{ $t('deviceModal.copyBannerDesc') }}
             </div>
           </div>
         </div>
 
         <!-- Error Alert -->
-        <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-start space-x-2.5 shadow-lg shadow-rose-950/20 animate-fade-in">
-          <svg class="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="error" class="p-3.5 bg-rose-50 dark:bg-rose-500/15 border-2 border-rose-200 dark:border-rose-500/40 rounded-xl text-xs text-rose-900 dark:text-rose-300 flex items-start space-x-2.5 shadow-xs animate-fade-in">
+          <svg class="w-4 h-4 text-rose-500 dark:text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
           </svg>
           <div class="flex-1">
-            <span class="font-bold text-rose-200 block text-2xs">{{ $t('deviceModal.cannotSaveTitle') }}</span>
-            <span class="text-3xs text-rose-300 mt-0.5 block leading-relaxed whitespace-pre-wrap">{{ error }}</span>
+            <span class="font-bold text-rose-950 dark:text-rose-200 block text-2xs">{{ $t('deviceModal.cannotSaveTitle') }}</span>
+            <span class="text-3xs text-rose-800 dark:text-rose-300 mt-0.5 block leading-relaxed whitespace-pre-wrap">{{ error }}</span>
           </div>
-          <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs font-mono ml-2">✕</button>
+          <button type="button" @click="error = null" class="text-rose-500 hover:text-rose-700 dark:hover:text-white text-3xs font-mono ml-2">✕</button>
         </div>
 
         <!-- TAB 1: General Info -->
@@ -80,27 +80,27 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Device Code -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.deviceCode') }}
               </label>
               <input
                 v-model="form.device_code"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.code')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
 
             <!-- Device Name -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.deviceName') }}
               </label>
               <input
                 v-model="form.device_name"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.name')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -108,12 +108,12 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Administrative Status -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.adminStatus') }}
               </label>
               <select
                 v-model="form.status"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
               >
                 <option value="ACTIVE">{{ $t('status.active') }}</option>
                 <option value="INACTIVE">{{ $t('status.inactive') }}</option>
@@ -124,15 +124,15 @@
 
             <!-- Enabled Switch -->
             <div class="flex flex-col justify-end">
-              <label class="flex items-center space-x-3 cursor-pointer p-2.5 rounded-xl bg-[#0B0F19] border border-slate-800 hover:border-slate-700 transition">
+              <label class="flex items-center space-x-3 cursor-pointer p-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">
                 <input
                   v-model="form.enabled"
                   type="checkbox"
-                  class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-slate-900 border-slate-700"
+                  class="w-4 h-4 rounded text-blue-600 focus:ring-0 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                 />
                 <div>
-                  <span class="text-xs font-semibold text-slate-200">{{ $t('deviceModal.deviceEnabled') }}</span>
-                  <span class="block text-3xs text-slate-400">{{ $t('deviceModal.includeInCycle') }}</span>
+                  <span class="text-xs font-semibold text-slate-900 dark:text-slate-200">{{ $t('deviceModal.deviceEnabled') }}</span>
+                  <span class="block text-3xs text-slate-500 dark:text-slate-400">{{ $t('deviceModal.includeInCycle') }}</span>
                 </div>
               </label>
             </div>
@@ -141,27 +141,27 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Manufacturer -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.manufacturer') }}
               </label>
               <input
                 v-model="form.manufacturer"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.manufacturer')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <!-- Model -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.model') }}
               </label>
               <input
                 v-model="form.model"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.model')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -169,41 +169,41 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Serial Number -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.serialNumber') }}
               </label>
               <input
                 v-model="form.serial_number"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.serialNumber')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
 
             <!-- Firmware Version -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.firmwareVersion') }}
               </label>
               <input
                 v-model="form.firmware_version"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.firmware')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
           </div>
 
           <!-- Description -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('deviceModal.description') }}
             </label>
             <textarea
               v-model="form.description"
               rows="2"
               :placeholder="$t('deviceModal.placeholders.description')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none"
             ></textarea>
           </div>
         </div>
@@ -212,21 +212,21 @@
         <div v-show="activeTab === 'location'" class="space-y-4">
           <!-- Physical Location -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('deviceModal.location') }}
             </label>
             <input
               v-model="form.location"
               type="text"
               :placeholder="$t('deviceModal.placeholders.location')"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500"
             />
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Latitude -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.latitude') }}
               </label>
               <input
@@ -236,13 +236,13 @@
                 min="-90"
                 max="90"
                 placeholder="-6.2088"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
 
             <!-- Longitude -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.longitude') }}
               </label>
               <input
@@ -252,18 +252,18 @@
                 min="-180"
                 max="180"
                 placeholder="106.8456"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
 
             <!-- Timezone -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.timezone') }}
               </label>
               <select
                 v-model="form.timezone"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
               >
                 <option value="UTC">UTC (Coordinated Universal Time)</option>
                 <option value="Asia/Jakarta">Asia/Jakarta (WIB, UTC+7)</option>
@@ -279,20 +279,20 @@
 
         <!-- TAB 3: Communication & Protocol -->
         <div v-show="activeTab === 'connection'" class="space-y-4">
-          <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-between text-xs text-blue-300">
+          <div class="p-3 bg-blue-50/80 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl flex items-center justify-between text-xs text-blue-900 dark:text-blue-300 shadow-2xs">
             <span class="font-medium">{{ $t('deviceModal.protocolArchitecture') }}</span>
-            <span class="text-3xs font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">{{ $t('deviceModal.phase21Foundation') }}</span>
+            <span class="text-3xs font-mono px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-200 dark:border-transparent font-semibold">{{ $t('deviceModal.phase21Foundation') }}</span>
           </div>
 
           <!-- Protocol Selector -->
           <div>
-            <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               {{ $t('deviceModal.protocol') }}
             </label>
             <select
               v-model="form.connection.protocol"
               @change="onProtocolChange"
-              class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
             >
               <option value="MODBUS_TCP">MODBUS_TCP (Ethernet / WiFi Master)</option>
               <option value="MODBUS_RTU">MODBUS_RTU (RS485 / RS232 Serial Master)</option>
@@ -310,25 +310,25 @@
           <!-- 1. For Networked (MODBUS_TCP, TCP, UDP, HTTP, MQTT, WEBSOCKET) -->
           <div v-if="isNetworkProtocol" class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-2">
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.hostIp') }}
               </label>
               <input
                 v-model="form.connection.host"
                 type="text"
                 :placeholder="$t('deviceModal.placeholders.host')"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.port') }}
               </label>
               <input
                 v-model.number="form.connection.port"
                 type="number"
                 placeholder="502"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
           </div>
@@ -338,14 +338,14 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div class="flex items-center justify-between mb-1.5">
-                  <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider">
+                  <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     {{ $t('deviceModal.hardwareAddress') }}
                   </label>
                   <button
                     type="button"
                     @click="fetchAvailableSerialPorts"
                     :disabled="loadingPorts"
-                    class="text-3xs text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                    class="text-3xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-semibold flex items-center space-x-1"
                     title="Scan available hardware COM ports on system"
                   >
                     <svg class="w-3 h-3" :class="{ 'animate-spin': loadingPorts }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -359,7 +359,7 @@
                   <div v-if="!useCustomPort" class="relative">
                     <select
                       v-model="form.connection.serial_port"
-                      class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                      class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                     >
                       <!-- 1. Persistent by-ID (Chip Serial Number: Recommended for field use) -->
                       <optgroup v-if="byIDPorts.length > 0" :label="$t('deviceModal.optgroupById')">
@@ -396,45 +396,45 @@
                     v-model="form.connection.serial_port"
                     type="text"
                     :placeholder="$t('deviceModal.placeholders.hardwareAddress')"
-                    class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                    class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
                   />
 
                   <!-- Field stability alert / recommendation tip -->
-                  <div class="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-300 font-sans flex items-start space-x-2 mt-1.5">
-                    <svg class="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <div class="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-[10px] text-blue-900 dark:text-blue-300 font-sans flex items-start space-x-2 mt-1.5">
+                    <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
                     </svg>
                     <div class="space-y-0.5">
-                      <span class="font-semibold text-blue-200">{{ $t('deviceModal.resilienceTipTitle') }}</span>
-                      <p class="text-slate-300">
+                      <span class="font-semibold text-blue-800 dark:text-blue-200">{{ $t('deviceModal.resilienceTipTitle') }}</span>
+                      <p class="text-blue-700/90 dark:text-slate-300">
                         {{ $t('deviceModal.resilienceTipText') }}
                       </p>
                     </div>
                   </div>
 
                   <!-- Serial Port Conflict Warning (Connection safety Rule 3E) -->
-                  <div v-if="serialConflictWarning" class="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-3xs text-amber-200 font-sans flex items-start space-x-2 mt-1.5 shadow-sm">
-                    <svg class="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div v-if="serialConflictWarning" class="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-3xs text-amber-900 dark:text-amber-200 font-sans flex items-start space-x-2 mt-1.5 shadow-2xs">
+                    <svg class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                     <span class="leading-relaxed">{{ serialConflictWarning }}</span>
                   </div>
 
-                  <div class="flex items-center justify-between text-3xs text-slate-400 pt-0.5">
-                    <span v-if="systemPorts.length > 0 && !useCustomPort" class="text-emerald-400 font-mono flex items-center space-x-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 pt-0.5">
+                    <span v-if="systemPorts.length > 0 && !useCustomPort" class="text-emerald-600 dark:text-emerald-400 font-mono flex items-center space-x-1 font-medium">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
                       <span>{{ $t('deviceModal.pathsDetected', { count: systemPorts.length }) }}</span>
                     </span>
                     <span v-else-if="!useCustomPort" class="text-slate-500">
                       {{ $t('deviceModal.noPortsDetected') }}
                     </span>
-                    <span v-else class="text-slate-400">
+                    <span v-else class="text-slate-500 dark:text-slate-400">
                       {{ $t('deviceModal.customPortMode') }}
                     </span>
                     <button
                       type="button"
                       @click="useCustomPort = !useCustomPort"
-                      class="text-blue-400 hover:text-blue-300 underline ml-auto text-3xs"
+                      class="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-medium underline ml-auto text-3xs"
                     >
                       {{ useCustomPort ? $t('deviceModal.chooseFromList') : $t('deviceModal.typeCustomPort') }}
                     </button>
@@ -442,12 +442,12 @@
                 </div>
               </div>
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   {{ $t('deviceModal.baudRate') }}
                 </label>
                 <select
                   v-model.number="form.connection.baud_rate"
-                  class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                 >
                   <option :value="2400">2400</option>
                   <option :value="4800">4800</option>
@@ -462,24 +462,24 @@
 
             <div class="grid grid-cols-3 gap-4">
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   {{ $t('deviceModal.dataBits') }}
                 </label>
                 <select
                   v-model.number="form.connection.data_bits"
-                  class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                 >
                   <option :value="8">8 (Standard)</option>
                   <option :value="7">7</option>
                 </select>
               </div>
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   {{ $t('deviceModal.parity') }}
                 </label>
                 <select
                   v-model="form.connection.parity"
-                  class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                 >
                   <option value="N">None (N)</option>
                   <option value="E">Even (E)</option>
@@ -487,12 +487,12 @@
                 </select>
               </div>
               <div>
-                <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                   {{ $t('deviceModal.stopBits') }}
                 </label>
                 <select
                   v-model.number="form.connection.stop_bits"
-                  class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
                 >
                   <option :value="1">1 (Standard)</option>
                   <option :value="2">2</option>
@@ -502,69 +502,36 @@
           </div>
 
           <!-- 3. For Custom Protocol -->
-          <div v-if="isCustomProtocol" class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-3">
+          <div v-if="isCustomProtocol" class="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.connectionMedium') || 'Connection Medium' }}
               </label>
               <select
                 v-model="form.connection.connection_type"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500"
               >
                 <option value="ETHERNET">Ethernet / IP Socket</option>
                 <option value="SERIAL">Serial / RS485 / UART</option>
               </select>
             </div>
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.extraConfig') || 'Custom Configuration (JSON / Framing Options)' }}
               </label>
               <textarea
                 v-model="form.connection.extra_config"
                 rows="2"
                 placeholder='e.g. {"delimiter": "\r\n", "header": "0xAA"}'
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono resize-none"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono resize-none"
               ></textarea>
             </div>
           </div>
 
-          <!-- Modbus Specific Settings (ONLY for MODBUS_TCP, MODBUS_RTU) -->
-          <div v-if="isModbusProtocol" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
-            <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                {{ $t('deviceModal.slaveId') }}
-              </label>
-              <input
-                v-model.number="form.connection.slave_id"
-                type="number"
-                min="1"
-                max="247"
-                placeholder="1"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
-              />
-              <span class="text-3xs text-slate-400 mt-1 block">{{ $t('deviceModal.slaveAddressHint') }}</span>
-            </div>
-            <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                {{ $t('deviceModal.byteOrder') }}
-              </label>
-              <select
-                v-model="form.connection.byte_order"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500"
-              >
-                <option value="ABCD">ABCD — Big Endian (Standard)</option>
-                <option value="CDAB">CDAB — Word Swap (Modicon / ABB)</option>
-                <option value="BADC">BADC — Byte Swap</option>
-                <option value="DCBA">DCBA — Little Endian</option>
-              </select>
-              <span class="text-3xs text-slate-400 mt-1 block">{{ $t('deviceModal.byteOrderHint') }}</span>
-            </div>
-          </div>
-
           <!-- Common Timing Configuration -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/80">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800/80">
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.timeout') }}
               </label>
               <input
@@ -573,11 +540,11 @@
                 min="50"
                 step="50"
                 placeholder="1000"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.retryCount') }}
               </label>
               <input
@@ -586,11 +553,11 @@
                 min="0"
                 max="10"
                 placeholder="3"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
             <div>
-              <label class="block text-2xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.pollInterval') }}
               </label>
               <input
@@ -599,32 +566,32 @@
                 min="100"
                 step="100"
                 placeholder="1000"
-                class="w-full px-3 py-2 bg-[#0B0F19] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
           </div>
         </div>
 
         <!-- Sticky Warning Alert Above Buttons -->
-        <div v-if="error" class="p-3.5 bg-rose-500/15 border-2 border-rose-500/50 rounded-xl text-xs text-rose-200 flex items-start space-x-2.5 shadow-lg shadow-rose-950/40 animate-fade-in">
-          <svg class="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="error" class="p-3.5 bg-rose-50 dark:bg-rose-500/15 border-2 border-rose-200 dark:border-rose-500/50 rounded-xl text-xs text-rose-900 dark:text-rose-200 flex items-start space-x-2.5 shadow-xs animate-fade-in">
+          <svg class="w-5 h-5 text-rose-500 dark:text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
           </svg>
           <div class="flex-1">
-            <div class="font-bold flex items-center justify-between text-rose-100">
+            <div class="font-bold flex items-center justify-between text-rose-950 dark:text-rose-100">
               <span class="text-xs">{{ $t('deviceModal.cannotSaveTitle') }}</span>
-              <button type="button" @click="error = null" class="text-rose-400 hover:text-white text-3xs underline ml-2">{{ $t('common.cancel') }}</button>
+              <button type="button" @click="error = null" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-white text-3xs underline ml-2">{{ $t('common.cancel') }}</button>
             </div>
-            <p class="mt-1 text-2xs text-rose-300 leading-relaxed font-sans whitespace-pre-wrap">{{ error }}</p>
+            <p class="mt-1 text-2xs text-rose-800 dark:text-rose-300 leading-relaxed font-sans whitespace-pre-wrap">{{ error }}</p>
           </div>
         </div>
 
         <!-- Modal Footer -->
-        <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
+        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <button
             type="button"
             @click="closeModal"
-            class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            class="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
             {{ $t('common.cancel') }}
           </button>
@@ -633,7 +600,7 @@
               v-if="activeTab !== 'basic'"
               type="button"
               @click="prevTab"
-              class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 transition"
+              class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 shadow-xs transition"
             >
               {{ $t('common.previous') }}
             </button>
@@ -641,7 +608,7 @@
               v-if="activeTab !== 'connection'"
               type="button"
               @click="nextTab"
-              class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 transition"
+              class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 shadow-sm transition"
             >
               {{ $t('common.next') }}
             </button>
@@ -649,7 +616,7 @@
               v-if="activeTab === 'connection'"
               type="submit"
               :disabled="loading"
-              class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center space-x-1.5 disabled:opacity-50"
+              class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-900/20 transition flex items-center space-x-1.5 disabled:opacity-50"
             >
               <span v-if="loading" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
               <span>{{ saveButtonText }}</span>

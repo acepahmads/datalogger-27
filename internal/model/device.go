@@ -292,6 +292,7 @@ type Parameter struct {
 	Precision     int               `gorm:"default:2" json:"precision"`
 	Scale         float64           `gorm:"default:1.0" json:"scale"`
 	Offset        float64           `gorm:"default:0.0" json:"offset"`
+	SlaveID       int               `gorm:"default:1" json:"slave_id"`
 	ByteOrder     string            `gorm:"size:64;default:'ABCD'" json:"byte_order"`
 	Enabled       bool              `gorm:"index;default:true" json:"enabled"`
 
@@ -347,6 +348,9 @@ func (p *Parameter) BeforeSave(tx *gorm.DB) error {
 	if p.ZeroValueAlarmPolicy == "" {
 		p.ZeroValueAlarmPolicy = ZeroValuePolicyNormal
 	}
+	if p.SlaveID <= 0 {
+		p.SlaveID = 1
+	}
 	if p.ByteOrder == "" {
 		p.ByteOrder = "ABCD"
 	}
@@ -390,6 +394,9 @@ func (p *Parameter) BeforeSave(tx *gorm.DB) error {
 }
 
 func (p *Parameter) AfterFind(tx *gorm.DB) error {
+	if p.SlaveID <= 0 {
+		p.SlaveID = 1
+	}
 	if p.ByteOrder == "" {
 		p.ByteOrder = "ABCD"
 	}
