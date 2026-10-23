@@ -179,73 +179,73 @@
     <!-- TABLE VIEW -->
     <div v-else-if="viewMode === 'table'" class="saas-card overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs font-sans">
+        <table class="w-full text-left text-xs font-sans min-w-[1080px]">
           <thead>
-            <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/40 text-3xs uppercase font-semibold text-slate-600 dark:text-slate-400 tracking-wider">
-              <th @click="sortBy('device_code')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
+            <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/40 text-3xs uppercase font-semibold text-slate-600 dark:text-slate-400 tracking-wider whitespace-nowrap">
+              <th @click="sortBy('device_code')" class="py-3.5 px-3.5 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.code') }} <span v-if="sortColumn === 'device_code'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th @click="sortBy('device_name')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
+              <th @click="sortBy('device_name')" class="py-3.5 px-3.5 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.deviceName') }} <span v-if="sortColumn === 'device_name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
               </th>
-              <th class="py-3 px-4">{{ $t('devices.protocol') }}</th>
-              <th class="py-3 px-4">{{ $t('devices.manufacturerModel') }}</th>
-              <th class="py-3 px-4">{{ $t('devices.location') }}</th>
-              <th @click="sortBy('status')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
+              <th class="py-3.5 px-3.5">{{ $t('devices.protocol') }}</th>
+              <th class="py-3.5 px-3.5">{{ $t('devices.manufacturerModel') }}</th>
+              <th class="py-3.5 px-3.5">{{ $t('devices.location') }}</th>
+              <th @click="sortBy('status')" class="py-3.5 px-3.5 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.adminStatus') }}
               </th>
-              <th @click="sortBy('connection_status')" class="py-3 px-4 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
+              <th @click="sortBy('connection_status')" class="py-3.5 px-3.5 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
                 {{ $t('devices.commStatus') }}
               </th>
-              <th class="py-3 px-4">{{ $t('devices.lastSeen') }}</th>
-              <th class="py-3 px-4">{{ $t('devices.lastData') }}</th>
-              <th class="py-3 px-4">{{ $t('devices.enabled') }}</th>
-              <th class="py-3 px-4 text-right">{{ $t('devices.actions') }}</th>
+              <th class="py-3.5 px-3.5">{{ $t('devices.lastSeen') }}</th>
+              <th class="py-3.5 px-3.5">{{ $t('devices.lastData') }}</th>
+              <th class="py-3.5 px-3.5 text-center">{{ $t('devices.enabled') }}</th>
+              <th class="py-3.5 px-4 text-right pr-5">{{ $t('devices.actions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
             <tr v-for="dev in devices" :key="dev.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
               <!-- Code -->
-              <td class="py-3 px-4">
+              <td class="py-3.5 px-3.5 whitespace-nowrap">
                 <router-link :to="'/monitoring/devices/' + dev.id" class="font-mono font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
                   {{ dev.device_code || dev.code }}
                 </router-link>
               </td>
 
               <!-- Name -->
-              <td class="py-3 px-4 font-semibold text-slate-900 dark:text-white">
+              <td class="py-3.5 px-3.5 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
                 <router-link :to="'/monitoring/devices/' + dev.id" class="hover:text-blue-600 dark:hover:text-blue-300">
                   {{ dev.device_name || dev.name }}
                 </router-link>
               </td>
 
               <!-- Protocol / Type -->
-              <td class="py-3 px-4">
+              <td class="py-3.5 px-3.5 whitespace-nowrap">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">
                   {{ (dev.connection && dev.connection.protocol) || dev.device_type || 'MODBUS_TCP' }}
                 </span>
               </td>
 
               <!-- Manufacturer / Model -->
-              <td class="py-3 px-4 text-slate-700 dark:text-slate-300">
+              <td class="py-3.5 px-3.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
                 <div>{{ dev.manufacturer || '--' }}</div>
-                <div class="text-3xs text-slate-500 font-mono">{{ dev.model }}</div>
+                <div v-if="dev.model" class="text-3xs text-slate-500 font-mono">{{ dev.model }}</div>
               </td>
 
               <!-- Location -->
-              <td class="py-3 px-4 text-slate-700 dark:text-slate-300">
+              <td class="py-3.5 px-3.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
                 {{ dev.location || '--' }}
               </td>
 
               <!-- Admin Status -->
-              <td class="py-3 px-4">
+              <td class="py-3.5 px-3.5 whitespace-nowrap">
                 <span class="px-2 py-0.5 rounded text-3xs font-bold font-mono" :class="statusBadgeClass(dev.status)">
                   {{ dev.status }}
                 </span>
               </td>
 
               <!-- Comm Status -->
-              <td class="py-3 px-4">
+              <td class="py-3.5 px-3.5 whitespace-nowrap">
                 <span class="flex items-center space-x-1.5 font-mono text-3xs font-bold" :class="commTextClass(dev.connection_status)">
                   <span class="w-1.5 h-1.5 rounded-full" :class="commDotClass(dev.connection_status)"></span>
                   <span>{{ dev.connection_status || 'UNKNOWN' }}</span>
@@ -253,17 +253,17 @@
               </td>
 
               <!-- Last Seen -->
-              <td class="py-3 px-4 font-mono text-3xs text-slate-600 dark:text-slate-400">
+              <td class="py-3.5 px-3.5 font-mono text-3xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
                 {{ formatTimestamp(dev.last_seen_at || dev.last_communication) }}
               </td>
 
               <!-- Last Data -->
-              <td class="py-3 px-4 font-mono text-3xs text-slate-600 dark:text-slate-400">
+              <td class="py-3.5 px-3.5 font-mono text-3xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
                 {{ formatTimestamp(dev.last_data_at) }}
               </td>
 
               <!-- Enabled -->
-              <td class="py-3 px-4">
+              <td class="py-3.5 px-3.5 text-center whitespace-nowrap">
                 <button
                   @click="toggleDeviceEnabled(dev)"
                   class="relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
@@ -277,30 +277,49 @@
               </td>
 
               <!-- Actions -->
-              <td class="py-3 px-4 text-right space-x-2">
-                <router-link :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'" class="inline-flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-semibold text-2xs bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 transition">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
-                  <span>{{ $t('devices.liveData') }}</span>
-                </router-link>
-                <router-link :to="'/monitoring/devices/' + dev.id" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold text-2xs transition">
-                  {{ $t('common.view') }}
-                </router-link>
-                <button
-                  @click="openCopyModal(dev)"
-                  class="inline-flex items-center space-x-1 text-sky-600 hover:text-sky-700 dark:text-cyan-400 dark:hover:text-cyan-300 font-semibold text-2xs transition"
-                  :title="$t('devices.copyDevice') || 'Copy Device'"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-                  </svg>
-                  <span>{{ $t('devices.copyDevice') || 'Copy' }}</span>
-                </button>
-                <button @click="openEditModal(dev)" class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white font-semibold text-2xs transition">
-                  {{ $t('common.edit') }}
-                </button>
-                <button @click="confirmDelete(dev)" class="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 font-semibold text-2xs transition">
-                  {{ $t('common.delete') }}
-                </button>
+              <td class="py-3.5 px-4 text-right whitespace-nowrap pr-5">
+                <div class="flex items-center justify-end space-x-1.5">
+                  <router-link
+                    :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'"
+                    class="inline-flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-semibold text-3xs bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/60 transition shadow-2xs"
+                    :title="$t('devices.liveData')"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+                    <span>{{ $t('devices.liveData') }}</span>
+                  </router-link>
+
+                  <router-link
+                    :to="'/monitoring/devices/' + dev.id"
+                    class="px-2 py-1 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/40 font-semibold text-3xs transition"
+                  >
+                    {{ $t('common.view') }}
+                  </router-link>
+
+                  <button
+                    @click="openCopyModal(dev)"
+                    class="inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:text-cyan-400 dark:hover:text-cyan-300 dark:hover:bg-cyan-950/40 font-semibold text-3xs transition"
+                    :title="$t('devices.copyDevice') || 'Copy Device'"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                    </svg>
+                    <span>{{ $t('common.copy') || 'Copy' }}</span>
+                  </button>
+
+                  <button
+                    @click="openEditModal(dev)"
+                    class="px-2 py-1 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 font-semibold text-3xs transition"
+                  >
+                    {{ $t('common.edit') }}
+                  </button>
+
+                  <button
+                    @click="confirmDelete(dev)"
+                    class="px-2 py-1 rounded-lg text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-950/40 font-semibold text-3xs transition"
+                  >
+                    {{ $t('common.delete') }}
+                  </button>
+                </div>
               </td>
             </tr>
 
