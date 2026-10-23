@@ -12,11 +12,11 @@
       </div>
       <div class="mt-2.5 flex items-baseline space-x-1.5">
         <span class="text-2xl font-bold font-sans tracking-tight text-slate-900 dark:text-white">
-          {{ progress.overall_percentage ? progress.overall_percentage.toFixed(1) : '20.5' }}%
+          {{ progress.overall_percentage ? progress.overall_percentage.toFixed(1) : '94.5' }}%
         </span>
       </div>
-      <div class="mt-1 text-2xs text-slate-500 dark:text-slate-400">
-        {{ $t('development.foundationNotice') }}
+      <div class="mt-1 text-2xs text-slate-500 dark:text-slate-400 truncate" :title="progressNotice">
+        {{ progressNotice }}
       </div>
     </div>
 
@@ -32,10 +32,10 @@
       </div>
       <div class="mt-2.5 flex items-baseline space-x-1.5">
         <span class="text-2xl font-bold font-sans tracking-tight text-slate-900 dark:text-white">
-          {{ progress.completed_tasks_count || 14 }}
+          {{ progress.completed_tasks_count || 236 }}
         </span>
         <span class="text-xs text-slate-500 font-sans">
-          / {{ progress.total_tasks_count || 117 }} {{ $t('dashboard.tasks') }}
+          / {{ progress.total_tasks_count || 255 }} {{ $t('dashboard.tasks') }}
         </span>
       </div>
       <div class="mt-1 text-2xs text-emerald-600 dark:text-emerald-400/90 font-medium">
@@ -55,11 +55,11 @@
       </div>
       <div class="mt-2.5 flex items-baseline space-x-1.5">
         <span class="text-2xl font-bold font-sans tracking-tight text-slate-900 dark:text-white">
-          {{ $t('development.phaseNumber', { number: progress.current_phase_number || 1 }) }}
+          {{ $t('development.phaseNumber', { number: progress.current_phase_number || 10 }) }}
         </span>
       </div>
-      <div class="mt-1 text-2xs text-slate-500 dark:text-slate-400 truncate">
-        {{ progress.current_subphase || 'Core Edge Architecture' }}
+      <div class="mt-1 text-2xs text-slate-500 dark:text-slate-400 truncate" :title="progress.current_subphase">
+        {{ progress.current_subphase || 'Phase 10.1 — Performance Optimization' }}
       </div>
     </div>
 
@@ -74,8 +74,8 @@
         </div>
       </div>
       <div class="mt-2.5 truncate">
-        <span class="text-lg font-bold font-sans tracking-tight text-slate-800 dark:text-slate-100 truncate block">
-          {{ progress.current_task || 'UI Redesign & MariaDB' }}
+        <span class="text-lg font-bold font-sans tracking-tight text-slate-800 dark:text-slate-100 truncate block" :title="progress.current_task">
+          {{ progress.current_task || 'Task #105: CPU Optimization (WORKING)' }}
         </span>
       </div>
       <div class="mt-1 text-2xs text-blue-600 dark:text-blue-400/90 truncate">
@@ -90,10 +90,19 @@ export default {
   name: 'KpiCards',
   computed: {
     progress() {
-      return this.$store.state.progress;
+      return this.$store.state.progress || {};
     },
     systemStatus() {
-      return this.$store.state.systemStatus;
+      return this.$store.state.systemStatus || {};
+    },
+    progressNotice() {
+      if (this.progress.estimated_completion) {
+        return this.progress.estimated_completion;
+      }
+      if (this.progress.next_action) {
+        return this.progress.next_action;
+      }
+      return 'Phases 1–9 Complete (100%) · Phase 10 In Progress';
     },
   },
 };

@@ -55,7 +55,7 @@
         <div class="flex items-baseline justify-between">
           <div class="flex items-baseline space-x-2">
             <span class="text-2xl font-bold font-mono text-slate-900 dark:text-white">{{ systemStatus.total_devices || 0 }}</span>
-            <span class="text-3xs text-slate-400 font-sans">{{ $t('devices.total') || 'Total' }}</span>
+            <span class="text-3xs text-slate-400 font-sans">{{ $t('devices.total') || $t('common.total') || 'Total' }}</span>
           </div>
           <div class="flex items-center space-x-1.5 text-xs font-mono">
             <span class="flex items-center text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -69,7 +69,7 @@
           </div>
         </div>
         <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
-          <span class="text-slate-500 dark:text-slate-400">{{ $t('systemMonitoring.latency') }}:</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ cleanLabel($t('systemMonitoring.latency')) }}</span>
           <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ systemStatus.avg_latency_ms || 0 }} ms</span>
         </div>
       </router-link>
@@ -96,7 +96,7 @@
           </span>
         </div>
         <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
-          <span class="text-slate-500 dark:text-slate-400">{{ $t('systemMonitoring.totalSamples') }}:</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ cleanLabel($t('systemMonitoring.totalSamples')) }}</span>
           <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ (systemStatus.data_received_count || 0).toLocaleString() }}</span>
         </div>
       </router-link>
@@ -108,7 +108,7 @@
             {{ $t('navigation.activeAlarms') }}
           </span>
           <span class="text-3xs font-mono text-rose-500 hover:underline">
-            {{ $t('alarms.viewActive') || 'Alarms' }} &rarr;
+            {{ $t('alarms.viewActive') || 'View Active' }} &rarr;
           </span>
         </div>
         <div class="flex items-baseline justify-between">
@@ -131,7 +131,7 @@
           </div>
         </div>
         <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
-          <span class="text-slate-500 dark:text-slate-400">{{ $t('alarms.acknowledged') || 'Acknowledged' }}:</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ cleanLabel($t('alarms.acknowledged') || 'Acknowledged') }}</span>
           <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ systemStatus.acknowledged_alarms || 0 }}</span>
         </div>
       </router-link>
@@ -147,18 +147,18 @@
           </span>
         </div>
         <div class="flex items-baseline justify-between">
-          <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span class="text-sm font-bold font-mono text-slate-900 dark:text-white truncate">
-              {{ systemStatus.db_version || 'MariaDB 10.4' }}
+          <div class="flex items-center space-x-1.5 min-w-0">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+            <span class="text-xs font-bold font-mono text-slate-900 dark:text-white truncate" :title="systemStatus.db_version || 'MariaDB'">
+              {{ formatDbVersion(systemStatus.db_version) }}
             </span>
           </div>
-          <span class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+          <span class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-1">
             {{ systemStatus.db_latency_ms ? systemStatus.db_latency_ms.toFixed(1) + ' ms' : '< 1 ms' }}
           </span>
         </div>
         <div class="flex items-center justify-between text-2xs pt-1 border-t border-slate-200 dark:border-slate-800/60 font-sans">
-          <span class="text-slate-500 dark:text-slate-400">{{ $t('dashboard.hostPort') }}:</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ cleanLabel($t('dashboard.hostPort')) }}</span>
           <span class="font-mono text-slate-800 dark:text-slate-200 font-medium">{{ (systemStatus.db_host || '127.0.0.1') + ':' + (systemStatus.db_port || '3306') }}</span>
         </div>
       </router-link>
@@ -213,11 +213,11 @@
           <div class="grid grid-cols-2 gap-3 text-xs pt-1">
             <div class="p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80">
               <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block mb-1">{{ $t('dashboard.activeSubPhase') }}</span>
-              <span class="text-xs font-semibold text-slate-800 dark:text-slate-100 font-sans truncate block">{{ progress.current_subphase }}</span>
+              <span class="text-xs font-semibold text-slate-800 dark:text-slate-100 font-sans truncate block" :title="progress.current_subphase">{{ progress.current_subphase || 'Phase 10.1 — 24h Soak Testing & Optimization' }}</span>
             </div>
             <div class="p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/60 border border-slate-200 dark:border-slate-800/80">
               <span class="text-3xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-sans block mb-1">{{ $t('dashboard.activeTask') }}</span>
-              <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-sans truncate block">{{ progress.current_task }}</span>
+              <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-sans truncate block" :title="progress.current_task">{{ progress.current_task || 'Task #105: CPU Optimization (WORKING)' }}</span>
             </div>
           </div>
         </div>
@@ -338,19 +338,19 @@
             </div>
             <div class="grid grid-cols-2 gap-2 text-2xs font-sans pt-1">
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.hostPort') }}:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ cleanLabel($t('dashboard.hostPort')) }}</span>
                 <span class="font-mono text-slate-700 dark:text-slate-200">{{ (systemStatus.db_host || '127.0.0.1') + ':' + (systemStatus.db_port || '3306') }}</span>
               </div>
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.database') }}:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ cleanLabel($t('dashboard.database')) }}</span>
                 <span class="font-mono text-slate-700 dark:text-slate-200">{{ systemStatus.db_database || 'datalogger' }}</span>
               </div>
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.version') }}:</span>
-                <span class="font-mono text-blue-600 dark:text-blue-400">{{ systemStatus.db_version || '10.4.32-MariaDB' }}</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ cleanLabel($t('dashboard.version')) }}</span>
+                <span class="font-mono text-blue-600 dark:text-blue-400 truncate block" :title="systemStatus.db_version">{{ formatDbVersion(systemStatus.db_version) }}</span>
               </div>
               <div>
-                <span class="text-slate-400 dark:text-slate-500 block">{{ $t('dashboard.latency') }}:</span>
+                <span class="text-slate-400 dark:text-slate-500 block">{{ cleanLabel($t('dashboard.latency')) }}</span>
                 <span class="font-mono text-emerald-600 dark:text-emerald-400">{{ systemStatus.db_latency_ms ? systemStatus.db_latency_ms.toFixed(1) + ' ms' : '< 1 ms' }}</span>
               </div>
             </div>
@@ -421,6 +421,18 @@ export default {
     },
   },
   methods: {
+    cleanLabel(str) {
+      if (!str) return '';
+      return String(str).replace(/:+$/, '') + ':';
+    },
+    formatDbVersion(val) {
+      if (!val) return 'MariaDB';
+      const m = String(val).match(/(\d+\.\d+(?:\.\d+)?)/);
+      if (m) {
+        return 'MariaDB ' + m[1];
+      }
+      return val;
+    },
     async refreshAll() {
       this.refreshing = true;
       try {

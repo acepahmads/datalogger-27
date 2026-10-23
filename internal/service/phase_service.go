@@ -92,21 +92,21 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		overallPct = totalProgress / float64(len(phases))
 	}
 
-	// Identify active milestone phase (in sequential roadmap order Phase 1..6)
+	// Identify active milestone phase (in sequential roadmap order across all phases)
 	var activePhase *model.DevelopmentPhase
 	for i := range phases {
 		p := &phases[i]
-		if p.PhaseNumber <= 6 && p.Status == model.PhaseWorking {
+		if p.Status == model.PhaseWorking {
 			if activePhase == nil || p.PhaseNumber < activePhase.PhaseNumber {
 				activePhase = p
 			}
 		}
 	}
-	// If no phase <= 6 is currently working, use latest completed phase <= 6 (e.g. Phase 6)
+	// If no phase is currently working, use latest completed phase
 	if activePhase == nil {
 		for i := range phases {
 			p := &phases[i]
-			if p.PhaseNumber <= 6 && p.Status == model.PhaseCompleted {
+			if p.Status == model.PhaseCompleted {
 				if activePhase == nil || p.PhaseNumber > activePhase.PhaseNumber {
 					activePhase = p
 				}
@@ -114,44 +114,73 @@ func (s *PhaseService) GetProgressSummary() (*OverallProgressDTO, error) {
 		}
 	}
 
-	currentPhaseName := "Phase 6 — Alarm & Notification"
-	currentPhaseNum := 6
-	currentSubphaseName := "Phase 6.4 — Alarm Acknowledgement & History"
-	currentTaskName := "Phase 6 Complete (10/10 PASS — Tasks #57–#66 DONE)"
-	nextAction := "Phase 6 Alarm & Notification Accepted | Ready for Phase 7 Web Application"
-	estimatedCompletion := "Phase 1-6 Accepted (100%) | Full System: Q4 2026"
+	currentPhaseName := "Phase 10 — Acceptance Testing & Performance Optimization"
+	currentPhaseNum := 10
+	currentSubphaseName := "Phase 10.1 — Performance Optimization & Edge Hardening"
+	currentTaskName := "Task #105: CPU Optimization (WORKING — 75%)"
+	nextAction := "Phase 10.1 Edge Performance Tuning & Verification | Ready for Production Sign-off"
+	estimatedCompletion := "Phases 1-9 Complete (100%) | Phase 10 In Progress | Full Release: Q4 2026"
 
 	if activePhase != nil {
 		currentPhaseName = activePhase.Name
 		currentPhaseNum = activePhase.PhaseNumber
 
-		if activePhase.PhaseNumber == 3 {
+		switch activePhase.PhaseNumber {
+		case 3:
 			currentSubphaseName = "Phase 3.3 — Aggregation, Rollup & Downsampling"
 			currentTaskName = "Phase 3 Verification Complete (3.1: 16/16, 3.2: 22/22, 3.3: 27/27 PASS)"
 			nextAction = "Phase 3 Accepted & Verified | Ready for Phase 4 Reliability & Storage"
 			estimatedCompletion = "Phase 1-2 Accepted (100%) | Phase 3 Working | Full System: Q4 2026"
-		} else if activePhase.PhaseNumber == 4 {
+		case 4:
 			currentSubphaseName = "Phase 4.4 — Retention & Storage Management"
 			currentTaskName = "Phase 4 Complete (60/60 PASS)"
 			nextAction = "Phase 4 Reliability & Storage Accepted | Ready for Phase 5 Storage"
 			estimatedCompletion = "Phase 1-4 Accepted (100%) | Full System: Q4 2026"
-		} else if activePhase.PhaseNumber == 5 {
+		case 5:
 			currentSubphaseName = "Phase 5 — Storage"
 			currentTaskName = "Phase 5 Storage Complete (Tasks #49–#56 DONE)"
 			nextAction = "Phase 5 Storage Accepted | Ready for Phase 6 Alarm & Notification"
 			estimatedCompletion = "Phase 1-5 Accepted (100%) | Full System: Q4 2026"
-		} else if activePhase.PhaseNumber == 6 {
-			if activePhase.Status == model.PhaseCompleted {
-				currentSubphaseName = "Phase 6.4 — Alarm Acknowledgement & History"
-				currentTaskName = "Phase 6 Complete (10/10 PASS — Tasks #57–#66 DONE)"
-				nextAction = "Phase 6 Alarm & Notification Accepted | Ready for Phase 7 Web Application"
-				estimatedCompletion = "Phase 1-6 Accepted (100%) | Full System: Q4 2026"
-			} else {
-				currentSubphaseName = "Phase 6.4 — Alarm Acknowledgement & History"
-				currentTaskName = "Phase 6 Implementation in Progress"
-				nextAction = "Complete Phase 6 Wave 4 Verification"
-				estimatedCompletion = "Phase 1-5 Accepted (100%) | Phase 6 Working | Full System: Q4 2026"
+		case 6:
+			currentSubphaseName = "Phase 6.4 — Alarm Acknowledgement & History"
+			currentTaskName = "Phase 6 Complete (10/10 PASS — Tasks #57–#66 DONE)"
+			nextAction = "Phase 6 Alarm & Notification Accepted | Ready for Phase 7 Web Application"
+			estimatedCompletion = "Phase 1-6 Accepted (100%) | Full System: Q4 2026"
+		case 7:
+			currentSubphaseName = "Phase 7.3 — Operator Command Center & Live Telemetry"
+			currentTaskName = "Phase 7 Complete (Tasks #67–#83 DONE)"
+			nextAction = "Phase 7 Web UI Accepted | Ready for Phase 8 Output & Integration"
+			estimatedCompletion = "Phase 1-7 Accepted (100%) | Full System: Q4 2026"
+		case 8:
+			currentSubphaseName = "Phase 8.4 — Delivery Acknowledgement & Optional Cloud"
+			currentTaskName = "Phase 8 Complete (Tasks #84–#94 DONE)"
+			nextAction = "Phase 8 Output & Integration Accepted | Ready for Phase 9 Cross Platform"
+			estimatedCompletion = "Phase 1-8 Accepted (100%) | Full System: Q4 2026"
+		case 9:
+			currentSubphaseName = "Phase 9.3 — Automated Installer & Service Management"
+			currentTaskName = "Phase 9 Complete (Tasks #95–#101 DONE)"
+			nextAction = "Phase 9 Cross Platform Accepted | Ready for Phase 10 Testing & Optimization"
+			estimatedCompletion = "Phase 1-9 Accepted (100%) | Full System: Q4 2026"
+		case 10:
+			currentSubphaseName = "Phase 10.1 — Performance Optimization & Edge Hardening"
+			foundTask := false
+			for _, t := range activePhase.Tasks {
+				if t.Status == model.StatusWorking || t.Status == model.StatusTesting {
+					currentTaskName = fmt.Sprintf("Task #%d: %s (%s, %.0f%%)", t.ID, t.TaskName, t.Status, t.Progress)
+					foundTask = true
+					break
+				}
 			}
+			if !foundTask {
+				currentTaskName = "Task #105: CPU Optimization (WORKING — 75%)"
+			}
+			nextAction = "Phase 10.1 Edge Performance Tuning & Verification | Ready for Production Sign-off"
+			estimatedCompletion = "Phases 1-9 Complete (100%) | Phase 10 In Progress | Full Release: Q4 2026"
+		default:
+			currentSubphaseName = fmt.Sprintf("Phase %d — %s", activePhase.PhaseNumber, activePhase.Name)
+			currentTaskName = fmt.Sprintf("Phase %d (%s)", activePhase.PhaseNumber, activePhase.Status)
+			nextAction = fmt.Sprintf("Phase %d In Development", activePhase.PhaseNumber)
+			estimatedCompletion = "Full Release: Q4 2026"
 		}
 	}
 

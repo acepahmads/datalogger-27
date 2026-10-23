@@ -260,7 +260,8 @@ export default {
     "code": "Code",
     "copyDevice": "Copy Device",
     "copiedSuccess": "Device '{name}' created from copy successfully!",
-    "viewCopiedDevice": "View New Device"
+    "viewCopiedDevice": "View New Device",
+    "total": "Total"
   },
   "deviceDetail": {
     "copyDevice": "Copy Device",
@@ -1045,6 +1046,8 @@ export default {
     "warning": "WARNING",
     "info": "INFO",
     "acknowledgeAll": "Acknowledge All",
+    "viewActive": "View Active",
+    "acknowledged": "Acknowledged",
     "noActiveAlarms": "No active alarms detected. All industrial devices operating normally.",
     "tabAlarms": "Alarms Console",
     "tabActive": "Active Incidents",

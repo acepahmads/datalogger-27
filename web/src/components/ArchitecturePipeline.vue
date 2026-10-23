@@ -1,25 +1,25 @@
 <template>
   <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 font-sans">
     <div v-for="(node, idx) in pipelineNodes" :key="node.id"
-         class="p-2.5 rounded-lg bg-[#0B0F19]/70 border border-slate-800/80 hover:border-slate-700/80 transition-all flex flex-col justify-between">
+         class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19]/70 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700/80 transition-all flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-3xs font-mono text-slate-500">0{{ idx + 1 }}</span>
           <span class="w-1.5 h-1.5 rounded-full"
-                :class="node.status === 'ONLINE' ? 'bg-emerald-400' : 'bg-amber-400'"></span>
+                :class="node.status === 'ONLINE' ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-amber-400'"></span>
         </div>
-        <div class="text-xs font-bold text-slate-100 font-sans tracking-tight">{{ node.name }}</div>
-        <div class="text-3xs text-slate-400 mt-0.5 truncate font-sans">{{ node.subtext }}</div>
+        <div class="text-xs font-bold text-slate-800 dark:text-slate-100 font-sans tracking-tight">{{ node.name }}</div>
+        <div class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5 truncate font-sans">{{ node.subtext }}</div>
       </div>
 
-      <div class="mt-3 pt-2 border-t border-slate-800/60 text-3xs font-sans space-y-0.5">
+      <div class="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800/60 text-3xs font-sans space-y-0.5">
         <div class="flex justify-between">
-          <span class="text-slate-500">{{ $t('common.health') }}:</span>
-          <span class="text-emerald-400 font-semibold font-mono">{{ node.health }}</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ $t('common.health') }}:</span>
+          <span class="text-emerald-600 dark:text-emerald-400 font-semibold font-mono">{{ node.health }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-slate-500">{{ $t('common.activity') }}:</span>
-          <span class="text-slate-300 font-mono">{{ node.lastActivity }}</span>
+          <span class="text-slate-500 dark:text-slate-400">{{ $t('common.activity') }}:</span>
+          <span class="text-slate-700 dark:text-slate-300 font-mono">{{ node.lastActivity }}</span>
         </div>
       </div>
     </div>

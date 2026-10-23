@@ -267,8 +267,8 @@ func TestProgressSummaryDTO(t *testing.T) {
 		t.Fatalf("GetProgressSummary failed: %v", err)
 	}
 
-	if summary.CurrentPhaseNumber != 6 && summary.CurrentPhaseNumber != 4 && summary.CurrentPhaseNumber != 3 {
-		t.Errorf("Expected CurrentPhaseNumber 6, 4, or 3, got %d", summary.CurrentPhaseNumber)
+	if summary.CurrentPhaseNumber != 10 && summary.CurrentPhaseNumber != 9 && summary.CurrentPhaseNumber != 8 && summary.CurrentPhaseNumber != 6 && summary.CurrentPhaseNumber != 4 && summary.CurrentPhaseNumber != 3 {
+		t.Errorf("Expected CurrentPhaseNumber 10, 9, 8, 6, 4, or 3, got %d", summary.CurrentPhaseNumber)
 	}
 	if summary.CompletedTasksCount == 0 {
 		t.Errorf("Expected CompletedTasksCount > 0, got 0")

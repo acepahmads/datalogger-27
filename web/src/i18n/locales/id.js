@@ -260,7 +260,8 @@ export default {
     "code": "Kode",
     "copyDevice": "Salin Perangkat",
     "copiedSuccess": "Perangkat '{name}' berhasil dibuat dari salinan!",
-    "viewCopiedDevice": "Lihat Perangkat Baru"
+    "viewCopiedDevice": "Lihat Perangkat Baru",
+    "total": "Total"
   },
   "deviceDetail": {
     "copyDevice": "Salin Perangkat",
@@ -1045,6 +1046,8 @@ export default {
     "warning": "PERINGATAN",
     "info": "INFO",
     "acknowledgeAll": "Akui Semua",
+    "viewActive": "Lihat Aktif",
+    "acknowledged": "Diakui",
     "noActiveAlarms": "Tidak ada alarm aktif yang terdeteksi. Semua perangkat industri beroperasi normal.",
     "tabAlarms": "Konsol Alarm",
     "tabActive": "Insiden Aktif",
