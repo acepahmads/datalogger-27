@@ -6,6 +6,7 @@ import (
 
 	"datalogger/internal/communication"
 	"datalogger/internal/communication/modbus"
+	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -614,27 +615,33 @@ func (h *DeviceHandler) ValidateFormula(c *gin.Context) {
 	})
 }
 
-// GetDevicePollingPlan handles GET /api/devices/:id/polling-plan
+// GetDevicePollingPlan handles GET /api/devices/:id/polling-plan and GET /api/v1/devices/:id/polling-plan
 func (h *DeviceHandler) GetDevicePollingPlan(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		response.BadRequest(c, "Invalid device ID")
+		logger.Warn("[DeviceHandler] Invalid device ID '%s' requested for polling plan: %v", idParam, err)
+		response.BadRequest(c, "Invalid device ID: must be an unsigned integer")
 		return
 	}
 
 	dev, err := h.deviceService.GetDeviceByID(uint(id))
 	if err != nil {
+		logger.Warn("[DeviceHandler] Device ID %d not found for polling plan: %v", id, err)
 		response.NotFound(c, "Device not found: "+err.Error())
 		return
 	}
 
 	params, err := h.deviceService.ListParameters(uint(id))
 	if err != nil {
+		logger.Error("[DeviceHandler] Failed to fetch parameters for device ID %d: %v", id, err)
 		response.InternalError(c, "Failed to fetch parameters: "+err.Error())
 		return
 	}
 
 	plan := modbus.PlanDeviceBatches(dev, params)
+	logger.Info("[DeviceHandler] Calculated polling plan for device %s (ID: %d): %d active params, %d requests/cycle, %d invalid/skipped, batchEnabled=%t",
+		dev.DeviceCode, dev.ID, plan.TotalParameters, plan.TotalModbusRequests, len(plan.InvalidParameters), plan.BatchReadEnabled)
 	response.OK(c, plan)
 }
 

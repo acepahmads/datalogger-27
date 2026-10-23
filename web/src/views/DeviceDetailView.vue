@@ -262,220 +262,256 @@
     </div>
 
     <!-- TAB 2: CONNECTION CONFIG -->
-    <div v-if="device && activeTab === 'connection'" class="saas-card p-6 space-y-6">
-      <!-- Header & Actions -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-        <div>
-          <div class="flex items-center space-x-2">
-            <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.commEngineTitle') }}</h3>
-            <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              {{ $t('deviceDetail.phase22Active') }}
-            </span>
-            <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              {{ $t('deviceDetail.autoConnectActive') }}
-            </span>
-          </div>
-          <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.commSubtitle') }}</p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <!-- Force Reconnect (Manual Override) -->
-          <button
-            @click="handleReconnect"
-            :disabled="commActionLoading"
-            class="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
-            :title="$t('deviceDetail.reconnectTooltip')"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-            <span>{{ $t('deviceDetail.reconnectNow') }}</span>
-          </button>
-
-          <!-- Test Link Button -->
-          <button
-            @click="handleTestConnection"
-            :disabled="commActionLoading"
-            class="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            <span>{{ $t('deviceDetail.testLink') }}</span>
-          </button>
-
-          <!-- Edit Config -->
-          <button
-            @click="openEditModal"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition"
-          >
-            {{ $t('deviceDetail.editSettings') }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Auto-Connect & Background Polling Explanatory Banner -->
-      <div
-        class="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-        :class="((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'"
-      >
-        <div class="flex items-center space-x-2.5">
-          <span
-            class="w-2.5 h-2.5 rounded-full flex-shrink-0"
-            :class="((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-ping'"
-          ></span>
+    <div
+      v-if="device && activeTab === 'connection'"
+      class="p-5 sm:p-6 space-y-6 rounded-2xl border border-[#C7D5E8] dark:border-slate-800 bg-gradient-to-br from-[#EAF3FF] to-[#DCEAFF] dark:from-[#0B1524] dark:to-[#08101C] shadow-sm transition-all"
+    >
+      <!-- Communication Engine & Action Toolbar Card -->
+      <div class="bg-white dark:bg-[#0E2034] rounded-xl border border-[#C7D5E8] dark:border-slate-800 p-5 shadow-xs space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E2EAF4] dark:border-slate-800/80 pb-4">
           <div>
-            <div class="font-bold flex items-center space-x-2">
-              <span>{{ $t('deviceDetail.autoConnectBannerTitle') }}</span>
-              <span class="px-1.5 py-0.5 rounded text-3xs font-mono font-medium uppercase bg-slate-800 text-slate-300">
-                {{ $t('deviceDetail.noManualConnectNeeded') }}
+            <div class="flex items-center space-x-2">
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('deviceDetail.commEngineTitle') }}</h3>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">
+                {{ $t('deviceDetail.phase22Active') }}
+              </span>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
+                {{ $t('deviceDetail.autoConnectActive') }}
               </span>
             </div>
-            <p class="text-3xs opacity-85 mt-0.5">
-              {{ ((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? $t('deviceDetail.autoConnectOnlineDesc') : $t('deviceDetail.autoConnectOfflineDesc') }}
-            </p>
+            <p class="text-2xs text-slate-500 dark:text-slate-400 mt-1">{{ $t('deviceDetail.commSubtitle') }}</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Force Reconnect (Manual Override) -->
+            <button
+              @click="handleReconnect"
+              :disabled="commActionLoading"
+              class="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 hover:border-blue-300 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 dark:text-blue-400 dark:border-blue-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+              :title="$t('deviceDetail.reconnectTooltip')"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              <span>{{ $t('deviceDetail.reconnectNow') }}</span>
+            </button>
+
+            <!-- Test Link Button -->
+            <button
+              @click="handleTestConnection"
+              :disabled="commActionLoading"
+              class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 hover:border-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/20 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>{{ $t('deviceDetail.testLink') }}</span>
+            </button>
+
+            <!-- Edit Config -->
+            <button
+              @click="openEditModal"
+              class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition"
+            >
+              {{ $t('deviceDetail.editSettings') }}
+            </button>
           </div>
         </div>
-        <div class="flex items-center space-x-3 text-3xs font-mono text-slate-300 flex-shrink-0">
-          <span>{{ $t('deviceDetail.interval') }} {{ (device.connection && device.connection.polling_interval) || 1000 }}ms</span>
-          <span>•</span>
-          <span>{{ $t('deviceDetail.autoRecoveryOn') }}</span>
-        </div>
-      </div>
 
-      <!-- Action Feedback Banner -->
-      <div
-        v-if="commFeedback"
-        :class="commFeedback.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
-        class="p-3 rounded-xl border text-xs flex items-center justify-between"
-      >
-        <div class="flex items-center space-x-2">
-          <span class="w-2 h-2 rounded-full" :class="commFeedback.type === 'success' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
-          <span>{{ commFeedback.message }}</span>
+        <!-- Auto-Connect & Background Polling Explanatory Banner -->
+        <div
+          class="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition"
+          :class="((commStatus && commStatus.status) || device.connection_status) === 'ONLINE'
+            ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
+            : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-300'"
+        >
+          <div class="flex items-center space-x-2.5">
+            <span
+              class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              :class="((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-ping'"
+            ></span>
+            <div>
+              <div class="font-bold flex items-center space-x-2">
+                <span>{{ $t('deviceDetail.autoConnectBannerTitle') }}</span>
+                <span class="px-1.5 py-0.5 rounded text-3xs font-mono font-medium uppercase bg-white/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-emerald-200/60 dark:border-slate-700">
+                  {{ $t('deviceDetail.noManualConnectNeeded') }}
+                </span>
+              </div>
+              <p class="text-3xs opacity-90 mt-0.5">
+                {{ ((commStatus && commStatus.status) || device.connection_status) === 'ONLINE' ? $t('deviceDetail.autoConnectOnlineDesc') : $t('deviceDetail.autoConnectOfflineDesc') }}
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-3 text-3xs font-mono text-slate-600 dark:text-slate-400 flex-shrink-0">
+            <span>{{ $t('deviceDetail.interval') }} {{ (device.connection && device.connection.polling_interval) || 1000 }}ms</span>
+            <span>•</span>
+            <span>{{ $t('deviceDetail.autoRecoveryOn') }}</span>
+          </div>
         </div>
-        <button @click="commFeedback = null" class="text-slate-400 hover:text-white text-3xs font-mono">{{ $t('deviceDetail.dismiss') }}</button>
-      </div>
 
-      <!-- Live Engine Diagnostics Strip -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.engineLifecycle') }}</div>
+        <!-- Action Feedback Banner -->
+        <div
+          v-if="commFeedback"
+          :class="commFeedback.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-300'"
+          class="p-3 rounded-xl border text-xs flex items-center justify-between"
+        >
           <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full" :class="commDotClass(commStatus ? commStatus.status : device.connection_status)"></span>
-            <span class="text-xs font-mono font-bold" :class="commTextClass(commStatus ? commStatus.status : device.connection_status)">
-              {{ (commStatus && commStatus.status) || device.connection_status || 'UNKNOWN' }}
-            </span>
+            <span class="w-2 h-2 rounded-full" :class="commFeedback.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+            <span class="font-medium">{{ commFeedback.message }}</span>
           </div>
-        </div>
-
-        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.roundtripLatency') }}</div>
-          <div class="text-xs font-mono font-bold text-emerald-400">
-            {{ commStatus ? commStatus.latency_ms : (device.latency_ms || 0) }} ms
-          </div>
-        </div>
-
-        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.consecutiveRetries') }}</div>
-          <div class="text-xs font-mono font-bold text-slate-200">
-            {{ commStatus ? commStatus.consecutive_errors : 0 }} / {{ (device.connection && device.connection.retry_count) || 3 }} {{ $t('deviceDetail.max') }}
-          </div>
-        </div>
-
-        <div class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-1">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.lastCommError') }}</div>
-          <div class="text-xs font-mono truncate text-rose-400" :title="(commStatus && commStatus.last_error) || $t('deviceDetail.none')">
-            {{ (commStatus && commStatus.last_error) || $t('deviceDetail.none') }}
-          </div>
+          <button @click="commFeedback = null" class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-3xs font-mono">{{ $t('deviceDetail.dismiss') }}</button>
         </div>
       </div>
 
-      <!-- Detailed Configuration Grid -->
-      <div v-if="device.connection" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-sans">
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.protocol') }}</div>
-          <div class="text-xs font-mono font-bold text-blue-400 mt-1">{{ device.connection.protocol }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.connectionType') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.connection_type }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.slaveIdUnit') }}</div>
-          <div class="text-xs font-mono font-bold text-amber-400 mt-1">#{{ device.connection.slave_id || 1 }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.byteWordOrder') }}</div>
-          <div class="text-xs font-mono font-bold text-indigo-400 mt-1">{{ device.connection.byte_order || 'ABCD' }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.hostAddress') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.host || device.connection.address || '--' }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.port') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.port || '--' }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.serialPort') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">{{ device.connection.serial_port || '--' }}</div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.baudAndFraming') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.baud_rate || 9600 }} ({{ device.connection.data_bits || 8 }}-{{ device.connection.parity || 'N' }}-{{ device.connection.stop_bits || 1 }})
+      <!-- Communication Engine Diagnostics & Configuration Details Card -->
+      <div class="bg-white dark:bg-[#0E2034] rounded-xl border border-[#C7D5E8] dark:border-slate-800 p-5 shadow-xs space-y-4">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          {{ $t('deviceDetail.engineLifecycle') || 'Lifecycle & Physical Parameters' }}
+        </h4>
+
+        <!-- Live Engine Diagnostics Strip -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+          <div class="p-3.5 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.engineLifecycle') }}</div>
+            <div class="flex items-center space-x-2 mt-1">
+              <span class="w-2 h-2 rounded-full" :class="commDotClass(commStatus ? commStatus.status : device.connection_status)"></span>
+              <span class="text-xs font-mono font-bold" :class="commTextClass(commStatus ? commStatus.status : device.connection_status)">
+                {{ (commStatus && commStatus.status) || device.connection_status || 'UNKNOWN' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.roundtripLatency') }}</div>
+            <div class="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 mt-1">
+              {{ commStatus ? commStatus.latency_ms : (device.latency_ms || 0) }} ms
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.consecutiveRetries') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">
+              {{ commStatus ? commStatus.consecutive_errors : 0 }} / {{ (device.connection && device.connection.retry_count) || 3 }} {{ $t('deviceDetail.max') }}
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.lastCommError') }}</div>
+            <div
+              class="text-xs font-mono truncate mt-1"
+              :class="(commStatus && commStatus.last_error) ? 'text-rose-700 dark:text-rose-400 font-bold' : 'text-slate-600 dark:text-slate-400'"
+              :title="(commStatus && commStatus.last_error) || $t('deviceDetail.none')"
+            >
+              {{ (commStatus && commStatus.last_error) || $t('deviceDetail.none') }}
+            </div>
           </div>
         </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.timeout') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.timeout || device.connection.timeout_ms || 1000 }} ms
+
+        <!-- Detailed Configuration Grid -->
+        <div v-if="device.connection" class="grid grid-cols-2 md:grid-cols-4 gap-3.5 text-xs font-sans">
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.protocol') }}</div>
+            <div class="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 mt-1">{{ device.connection.protocol }}</div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.connectionType') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">{{ device.connection.connection_type }}</div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.slaveIdUnit') }}</div>
+            <div class="text-xs font-mono font-bold text-amber-700 dark:text-amber-400 mt-1">#{{ device.connection.slave_id || 1 }}</div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.byteWordOrder') }}</div>
+            <div class="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 mt-1">{{ device.connection.byte_order || 'ABCD' }}</div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.hostAddress') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1 truncate" :title="device.connection.host || device.connection.address || '--'">
+              {{ device.connection.host || device.connection.address || '--' }}
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.port') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">{{ device.connection.port || '--' }}</div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.serialPort') }}</div>
+            <div class="flex items-center justify-between gap-1 mt-1">
+              <span class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 truncate" :title="device.connection.serial_port || '--'">
+                {{ device.connection.serial_port || '--' }}
+              </span>
+              <button
+                v-if="device.connection.serial_port"
+                @click="copyToClipboard(device.connection.serial_port, 'Serial port path copied')"
+                class="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-0.5 rounded transition flex-shrink-0"
+                title="Copy full serial port path"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.baudAndFraming') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">
+              {{ device.connection.baud_rate || 9600 }} ({{ device.connection.data_bits || 8 }}-{{ device.connection.parity || 'N' }}-{{ device.connection.stop_bits || 1 }})
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.timeout') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">
+              {{ device.connection.timeout || device.connection.timeout_ms || 1000 }} ms
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.retryPolicy') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">
+              {{ $t('deviceDetail.retriesWithBackoff', { count: device.connection.retry_count || 3 }) }}
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.pollingInterval') }}</div>
+            <div class="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 mt-1">
+              {{ device.connection.polling_interval || device.connection.poll_interval_ms || 1000 }} ms
+            </div>
+          </div>
+          <div class="p-3 bg-slate-50/70 dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 min-h-[72px] flex flex-col justify-between shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.adapterStatus') }}</div>
+            <div class="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 mt-1">
+              {{ (commStatus && commStatus.adapter_status) || 'ACTIVE' }}
+            </div>
           </div>
         </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.retryPolicy') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ $t('deviceDetail.retriesWithBackoff', { count: device.connection.retry_count || 3 }) }}
-          </div>
+        <div v-else class="text-center py-8 text-xs text-slate-500 dark:text-slate-400">
+          {{ $t('deviceDetail.noConnConfig') }}
         </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.pollingInterval') }}</div>
-          <div class="text-xs font-mono text-slate-200 mt-1">
-            {{ device.connection.polling_interval || device.connection.poll_interval_ms || 1000 }} ms
-          </div>
-        </div>
-        <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-          <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.adapterStatus') }}</div>
-          <div class="text-xs font-mono text-emerald-400 mt-1">
-            {{ (commStatus && commStatus.adapter_status) || 'ACTIVE' }}
-          </div>
-        </div>
-      </div>
-      <div v-else class="text-center py-8 text-xs text-slate-400">
-        {{ $t('deviceDetail.noConnConfig') }}
       </div>
 
       <!-- MODBUS POLLING PLAN & BATCH OPTIMIZATION CARD -->
-      <div v-if="isModbusDevice" class="space-y-4 pt-5 border-t border-slate-800">
+      <div v-if="isModbusDevice" class="bg-[#F4F8FD] dark:bg-[#091827] border border-[#C7D5E8] dark:border-[#223d53] rounded-2xl p-5 shadow-xs space-y-4">
         <!-- Card Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div class="flex items-center space-x-2.5">
-            <div class="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#DDE7F2] dark:border-slate-800/80 pb-3.5">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
             <div>
-              <div class="flex items-center space-x-2">
-                <h4 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.pollingPlan') || 'Modbus Polling Plan & Batch Optimization' }}</h4>
+              <div class="flex flex-wrap items-center gap-2">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('deviceDetail.pollingPlan') || 'Modbus Polling Plan & Batch Optimization' }}</h4>
                 <span
-                  class="px-2 py-0.5 rounded text-3xs font-mono font-bold"
-                  :class="(pollingPlan && pollingPlan.batch_read_enabled) ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-slate-300 border border-slate-600'"
+                  class="px-2.5 py-0.5 rounded-full text-3xs font-mono font-bold transition"
+                  :class="(pollingPlan && pollingPlan.batch_read_enabled)
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40'
+                    : 'bg-slate-200/90 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'"
                 >
                   {{ (pollingPlan && pollingPlan.batch_read_enabled) ? ($t('deviceDetail.batchActiveBadge') || 'Batch Read: Active (Auto)') : ($t('deviceDetail.batchInactiveBadge') || 'Batch Read: Off (Single Sequential)') }}
                 </span>
               </div>
-              <p class="text-3xs text-slate-400 mt-0.5">{{ $t('deviceDetail.pollingPlanSubtitle') || 'Live calculated request frames, register spans, and estimated network traffic reduction' }}</p>
+              <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $t('deviceDetail.pollingPlanSubtitle') || 'Live calculated request frames, register spans, and estimated network traffic reduction' }}</p>
             </div>
           </div>
 
@@ -483,7 +519,7 @@
             <button
               @click="fetchPollingPlan"
               :disabled="pollingPlanLoading"
-              class="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+              class="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-indigo-700 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 shadow-2xs dark:bg-indigo-600/20 dark:hover:bg-indigo-600/30 dark:text-indigo-300 dark:border-indigo-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
             >
               <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': pollingPlanLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -493,48 +529,67 @@
           </div>
         </div>
 
-        <!-- Plan Metric Summary Strip -->
-        <div v-if="pollingPlan" class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-            <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.totalParameters') || 'Active Modbus Parameters' }}</div>
-            <div class="text-base font-mono font-bold text-slate-200 mt-0.5">
-              {{ pollingPlan.total_parameters || 0 }} <span class="text-3xs font-sans text-slate-400 font-normal">params</span>
-            </div>
+        <!-- Plan Error Banner (Non-Intrusive, Highly Legible) -->
+        <div v-if="pollingPlanError" class="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span class="font-medium">{{ pollingPlanError }}</span>
           </div>
-
-          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-            <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.plannedRequests') || 'Planned Modbus Requests' }}</div>
-            <div class="text-base font-mono font-bold text-blue-400 mt-0.5">
-              {{ pollingPlan.total_modbus_requests || 0 }} <span class="text-3xs font-sans text-slate-400 font-normal">frames / cycle</span>
-            </div>
-          </div>
-
-          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-            <div class="text-3xs text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.reductionPct') || 'Traffic Reduction' }}</div>
-            <div class="text-base font-mono font-bold text-emerald-400 mt-0.5 flex items-center space-x-1.5">
-              <span>{{ pollingPlan.estimated_reduction_percent || 0 }}%</span>
-              <span v-if="pollingPlan.estimated_reduction_percent > 0" class="text-3xs px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-sans font-normal">Fewer Requests</span>
-            </div>
-          </div>
-
-          <div class="p-3 bg-[#0B0F19] rounded-xl border border-slate-800">
-            <div class="text-3xs text-slate-400 font-semibold uppercase">Batch Constraints</div>
-            <div class="text-xs font-mono font-semibold text-slate-300 mt-1">
-              Max {{ pollingPlan.max_batch_registers || 32 }} regs • Gap tol: {{ pollingPlan.max_register_gap || 0 }}
-            </div>
-          </div>
+          <button
+            @click="fetchPollingPlan"
+            :disabled="pollingPlanLoading"
+            class="px-2.5 py-1 rounded bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 dark:text-rose-200 text-3xs font-semibold transition"
+          >
+            Retry
+          </button>
         </div>
 
-        <!-- Plan Error Banner -->
-        <div v-if="pollingPlanError" class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-300 flex items-center justify-between">
-          <span>{{ pollingPlanError }}</span>
-          <button @click="fetchPollingPlan" class="underline text-3xs">Retry</button>
+        <!-- Loading Skeleton / Spinner State -->
+        <div v-if="pollingPlanLoading" class="p-6 text-center text-xs text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-[#0B1524]/40 rounded-xl border border-[#D5E2F0] dark:border-slate-800/80 flex items-center justify-center space-x-2">
+          <svg class="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>{{ $t('deviceDetail.calculatingPlan') || 'Calculating Modbus polling plan...' }}</span>
+        </div>
+
+        <!-- Plan Metric Summary Strip -->
+        <div v-else-if="pollingPlan && pollingPlan.jobs && pollingPlan.jobs.length" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="p-3 bg-white dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.totalParameters') || 'Active Modbus Parameters' }}</div>
+            <div class="text-base font-mono font-bold text-slate-900 dark:text-slate-100 mt-0.5">
+              {{ pollingPlan.total_parameters || 0 }} <span class="text-3xs font-sans text-slate-500 dark:text-slate-400 font-normal">params</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-white dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.plannedRequests') || 'Planned Modbus Requests' }}</div>
+            <div class="text-base font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+              {{ pollingPlan.total_modbus_requests || 0 }} <span class="text-3xs font-sans text-slate-500 dark:text-slate-400 font-normal">frames / cycle</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-white dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.reductionPct') || 'Traffic Reduction' }}</div>
+            <div class="text-base font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center space-x-1.5">
+              <span>{{ pollingPlan.estimated_reduction_percent || 0 }}%</span>
+              <span v-if="pollingPlan.estimated_reduction_percent > 0" class="text-3xs px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-sans font-normal">Estimated reduction</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-white dark:bg-[#0B1524] rounded-xl border border-[#D5E2F0] dark:border-slate-800 shadow-2xs">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Batch Constraints</div>
+            <div class="text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 mt-1">
+              Max {{ pollingPlan.max_batch_registers || 32 }} regs • Gap: {{ pollingPlan.max_register_gap || 0 }}
+            </div>
+          </div>
         </div>
 
         <!-- Plan Jobs Breakdown Table -->
-        <div v-if="pollingPlan && pollingPlan.jobs && pollingPlan.jobs.length" class="overflow-x-auto rounded-xl border border-slate-800">
+        <div v-if="!pollingPlanLoading && pollingPlan && pollingPlan.jobs && pollingPlan.jobs.length" class="overflow-x-auto rounded-xl border border-[#D5E2F0] dark:border-slate-800 shadow-2xs">
           <table class="w-full text-left text-xs font-sans">
-            <thead class="bg-slate-900/80 text-slate-400 font-semibold text-3xs uppercase tracking-wider border-b border-slate-800">
+            <thead class="bg-slate-100/90 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300 font-semibold text-3xs uppercase tracking-wider border-b border-[#D5E2F0] dark:border-slate-800">
               <tr>
                 <th class="py-2.5 px-3">{{ $t('deviceDetail.requestID') || 'Request ID / Mode' }}</th>
                 <th class="py-2.5 px-3">{{ $t('deviceDetail.functionCode') || 'Function Code' }}</th>
@@ -544,34 +599,34 @@
                 <th class="py-2.5 px-3">{{ $t('deviceDetail.packedParams') || 'Packed Parameters & Offsets' }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 bg-[#0B0F19]/60">
-              <tr v-for="job in pollingPlan.jobs" :key="job.id" class="hover:bg-slate-800/30 transition">
+            <tbody class="divide-y divide-[#E2ECF7] dark:divide-slate-800/60 bg-white dark:bg-[#0B1524]/60">
+              <tr v-for="job in pollingPlan.jobs" :key="job.id" class="hover:bg-blue-50/50 dark:hover:bg-slate-800/30 transition">
                 <td class="py-2.5 px-3">
                   <div class="flex items-center space-x-1.5">
                     <span
                       class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold uppercase"
-                      :class="job.is_single ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'"
+                      :class="job.is_single ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30' : 'bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30'"
                     >
                       {{ job.is_single ? 'SINGLE' : 'BATCH' }}
                     </span>
-                    <span class="font-mono text-3xs font-semibold text-slate-200">{{ job.id }}</span>
+                    <span class="font-mono text-3xs font-semibold text-slate-900 dark:text-slate-100">{{ job.id }}</span>
                   </div>
                 </td>
-                <td class="py-2.5 px-3 font-mono text-3xs text-blue-400">
-                  <span class="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                <td class="py-2.5 px-3 font-mono text-3xs text-blue-600 dark:text-blue-400">
+                  <span class="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20">
                     FC{{ String(job.function_code).padStart(2, '0') }} ({{ job.register_type }})
                   </span>
                 </td>
-                <td class="py-2.5 px-3 font-mono text-3xs text-slate-200 font-semibold">
+                <td class="py-2.5 px-3 font-mono text-3xs text-slate-900 dark:text-slate-100 font-semibold">
                   <span>#{{ job.display_address }}</span>
-                  <span v-if="job.quantity > 1" class="text-slate-400 font-normal"> .. #{{ job.display_end_addr }}</span>
+                  <span v-if="job.quantity > 1" class="text-slate-500 dark:text-slate-400 font-normal"> .. #{{ job.display_end_addr }}</span>
                 </td>
-                <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
+                <td class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                   0x{{ job.starting_address.toString(16).toUpperCase().padStart(4, '0') }}
                   <span v-if="job.quantity > 1"> .. 0x{{ (job.starting_address + job.quantity - 1).toString(16).toUpperCase().padStart(4, '0') }}</span>
                   <span class="text-4xs text-slate-500"> (dec {{ job.starting_address }})</span>
                 </td>
-                <td class="py-2.5 px-3 font-mono text-3xs text-slate-300 font-bold">
+                <td class="py-2.5 px-3 font-mono text-3xs text-slate-800 dark:text-slate-200 font-bold">
                   {{ job.quantity }} {{ (job.function_code === 1 || job.function_code === 2) ? 'coils' : 'words' }}
                   <span class="text-4xs font-normal text-slate-500">({{ (job.function_code === 1 || job.function_code === 2) ? Math.ceil(job.quantity/8) : (job.quantity * 2) }}B)</span>
                 </td>
@@ -580,12 +635,12 @@
                     <div
                       v-for="sp in job.parameters"
                       :key="sp.parameter.id"
-                      class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-3xs flex items-center space-x-1.5 shadow-2xs"
+                      class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-3xs flex items-center space-x-1.5 shadow-2xs"
                       :title="sp.parameter.parameter_name + ' | DataType: ' + sp.parameter.data_type + ' | Sliced Bytes: ' + sp.byte_offset + '..' + (sp.byte_offset + sp.byte_length - 1)"
                     >
-                      <span class="font-mono font-bold text-slate-200">{{ sp.parameter.parameter_code }}</span>
-                      <span class="px-1 py-0.2 rounded bg-indigo-500/10 text-indigo-400 text-4xs font-mono font-semibold">{{ sp.parameter.data_type }}</span>
-                      <span class="text-slate-400 font-mono text-4xs">Offset {{ sp.byte_offset }}B ({{ sp.byte_length }}B)</span>
+                      <span class="font-mono font-bold text-slate-900 dark:text-slate-100">{{ sp.parameter.parameter_code }}</span>
+                      <span class="px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 text-4xs font-mono font-semibold">{{ sp.parameter.data_type }}</span>
+                      <span class="text-slate-500 dark:text-slate-400 font-mono text-4xs">Offset {{ sp.byte_offset }}B ({{ sp.byte_length }}B)</span>
                     </div>
                   </div>
                 </td>
@@ -594,8 +649,70 @@
           </table>
         </div>
 
-        <div v-else-if="!pollingPlanLoading" class="p-6 text-center text-xs text-slate-400 bg-[#0B0F19]/40 rounded-xl border border-slate-800/80">
-          {{ $t('deviceDetail.noParamsForPlan') || 'No active Modbus parameters configured for this device.' }}
+        <!-- Skipped / Invalid Parameters Breakdown (Auditing) -->
+        <div
+          v-if="!pollingPlanLoading && pollingPlan && pollingPlan.invalid_parameters && pollingPlan.invalid_parameters.length"
+          class="p-4 bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl space-y-2 text-xs"
+        >
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 font-bold text-amber-800 dark:text-amber-300">
+              <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>{{ $t('deviceDetail.skippedParamsNotice') || 'Skipped or Misconfigured Parameters' }} ({{ pollingPlan.invalid_parameters.length }})</span>
+            </div>
+            <button
+              @click="goToParametersTab"
+              class="text-xs font-semibold text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300 underline"
+            >
+              {{ $t('deviceDetail.goToParameters') || 'Open Parameters Tab' }} &rarr;
+            </button>
+          </div>
+          <p class="text-3xs text-amber-700/90 dark:text-amber-400/90">
+            {{ $t('deviceDetail.skippedParamsDesc') || 'The following configured parameters could not be included in the Modbus polling plan:' }}
+          </p>
+          <div class="flex flex-wrap gap-2 pt-1">
+            <div
+              v-for="inv in pollingPlan.invalid_parameters"
+              :key="inv.parameter_id"
+              class="px-2.5 py-1 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-amber-300/80 dark:border-amber-700/50 text-3xs flex items-center space-x-1.5 shadow-2xs"
+            >
+              <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ inv.parameter_code }}</span>
+              <span class="text-slate-400">·</span>
+              <span class="text-amber-800 dark:text-amber-300 font-sans">{{ inv.reason }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clean Empty State (Only if NO ERROR, NOT LOADING, and NO JOBS) -->
+        <div
+          v-else-if="!pollingPlanLoading && !pollingPlanError && pollingPlan && (!pollingPlan.jobs || !pollingPlan.jobs.length)"
+          class="p-8 text-center bg-white/80 dark:bg-[#0B1524]/40 rounded-xl border border-[#D5E2F0] dark:border-slate-800/80 space-y-3"
+        >
+          <div class="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+          </div>
+          <div>
+            <h5 class="text-xs font-bold text-slate-800 dark:text-slate-200">
+              {{ $t('deviceDetail.noParamsForPlan') || 'No active Modbus parameters configured for this device.' }}
+            </h5>
+            <p class="text-3xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+              {{ (pollingPlan && pollingPlan.empty_reason) || $t('deviceDetail.noActiveParamsDesc') || 'To calculate Modbus frame bundling and preview batch optimization, configure and enable Modbus telemetry parameters.' }}
+            </p>
+          </div>
+          <div class="pt-2">
+            <button
+              @click="goToParametersTab"
+              class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs transition inline-flex items-center space-x-1.5"
+            >
+              <span>{{ $t('deviceDetail.goToParameters') || 'Open Parameters Tab' }}</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -3903,39 +4020,39 @@ export default {
     },
     statusBadgeClass(status) {
       switch (status) {
-        case 'ACTIVE': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-        case 'INACTIVE': return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
-        case 'MAINTENANCE': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-        case 'DISABLED': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
-        default: return 'bg-slate-500/10 text-slate-400';
+        case 'ACTIVE': return 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
+        case 'INACTIVE': return 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20';
+        case 'MAINTENANCE': return 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20';
+        case 'DISABLED': return 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20';
+        default: return 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-500/10 dark:text-slate-400';
       }
     },
     commDotClass(status) {
       switch (status) {
         case 'ONLINE':
-        case 'CONNECTED': return 'bg-emerald-400 animate-pulse';
-        case 'CONNECTING': return 'bg-blue-400 animate-pulse';
-        case 'RECONNECTING': return 'bg-indigo-400 animate-pulse';
-        case 'DEGRADED': return 'bg-amber-400 animate-pulse';
-        case 'DISABLED': return 'bg-slate-500';
+        case 'CONNECTED': return 'bg-emerald-500 dark:bg-emerald-400 animate-pulse';
+        case 'CONNECTING': return 'bg-blue-500 dark:bg-blue-400 animate-pulse';
+        case 'RECONNECTING': return 'bg-indigo-500 dark:bg-indigo-400 animate-pulse';
+        case 'DEGRADED': return 'bg-amber-500 dark:bg-amber-400 animate-pulse';
+        case 'DISABLED': return 'bg-slate-400 dark:bg-slate-500';
         case 'OFFLINE':
-        case 'ERROR': return 'bg-rose-500 animate-pulse';
-        case 'DISCONNECTED': return 'bg-slate-500';
-        default: return 'bg-purple-400';
+        case 'ERROR': return 'bg-rose-600 dark:bg-rose-500 animate-pulse';
+        case 'DISCONNECTED': return 'bg-slate-400 dark:bg-slate-500';
+        default: return 'bg-purple-500 dark:bg-purple-400';
       }
     },
     commTextClass(status) {
       switch (status) {
         case 'ONLINE':
-        case 'CONNECTED': return 'text-emerald-400';
-        case 'CONNECTING': return 'text-blue-400';
-        case 'RECONNECTING': return 'text-indigo-400';
-        case 'DEGRADED': return 'text-amber-400';
-        case 'DISABLED': return 'text-slate-400';
+        case 'CONNECTED': return 'text-emerald-700 dark:text-emerald-400 font-bold';
+        case 'CONNECTING': return 'text-blue-600 dark:text-blue-400 font-bold';
+        case 'RECONNECTING': return 'text-indigo-600 dark:text-indigo-400 font-bold';
+        case 'DEGRADED': return 'text-amber-700 dark:text-amber-400 font-bold';
+        case 'DISABLED': return 'text-slate-500 dark:text-slate-400 font-medium';
         case 'OFFLINE':
-        case 'ERROR': return 'text-rose-400 font-bold';
-        case 'DISCONNECTED': return 'text-slate-400';
-        default: return 'text-purple-400';
+        case 'ERROR': return 'text-rose-700 dark:text-rose-400 font-bold';
+        case 'DISCONNECTED': return 'text-slate-500 dark:text-slate-400 font-medium';
+        default: return 'text-purple-600 dark:text-purple-400 font-bold';
       }
     },
     formatTimestamp(ts) {
@@ -4003,12 +4120,55 @@ export default {
       this.pollingPlanLoading = true;
       this.pollingPlanError = null;
       try {
-        const res = await apiClient.get(`/devices/${this.device.id}/polling-plan`);
-        this.pollingPlan = (res && res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+        const data = await this.$store.dispatch('fetchPollingPlan', this.device.id);
+        this.pollingPlan = data;
       } catch (err) {
         this.pollingPlanError = (err.response && err.response.data && err.response.data.error) || err.message || 'Failed to load polling plan';
       } finally {
         this.pollingPlanLoading = false;
+      }
+    },
+    goToParametersTab() {
+      this.activeTab = 'parameters';
+      if (this.$route.query.tab !== 'parameters') {
+        this.$router.replace({ query: { ...this.$route.query, tab: 'parameters' } }).catch(() => {});
+      }
+    },
+    copyToClipboard(text, msg = 'Copied to clipboard') {
+      if (!text) return;
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          this.toastMessage = msg;
+          this.toastType = 'success';
+          if (this.toastTimer) clearTimeout(this.toastTimer);
+          this.toastTimer = setTimeout(() => {
+            this.toastMessage = null;
+          }, 3000);
+        }).catch(() => {
+          this.toastMessage = 'Failed to copy';
+          this.toastType = 'error';
+        });
+      } else {
+        try {
+          const el = document.createElement('textarea');
+          el.value = text;
+          el.setAttribute('readonly', '');
+          el.style.position = 'absolute';
+          el.style.left = '-9999px';
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+          this.toastMessage = msg;
+          this.toastType = 'success';
+          if (this.toastTimer) clearTimeout(this.toastTimer);
+          this.toastTimer = setTimeout(() => {
+            this.toastMessage = null;
+          }, 3000);
+        } catch (e) {
+          this.toastMessage = 'Failed to copy';
+          this.toastType = 'error';
+        }
       }
     },
     async handleTestConnection() {

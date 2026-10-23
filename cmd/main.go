@@ -575,7 +575,17 @@ func main() {
 				},
 			})
 		})
+
+		// Compatibility API v1 routes (mirrors device and polling-plan routes for /api/v1 callers)
+		apiV1 := r.Group("/api/v1")
+		apiV1.Use(middleware.JWTAuth(authService))
+		{
+			apiV1.GET("/devices/:id/polling-plan", middleware.RequirePermission("device.view"), deviceHandler.GetDevicePollingPlan)
+			apiV1.GET("/devices/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
+			apiV1.GET("/devices/:id/parameters", middleware.RequirePermission("device.view"), deviceHandler.ListParameters)
+		}
 	}
+
 
 	// 11. Serve Web UI Static Assets (if web/dist exists)
 	distPath := filepath.Join("web", "dist")

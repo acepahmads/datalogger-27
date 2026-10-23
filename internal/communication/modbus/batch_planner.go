@@ -22,36 +22,48 @@ type resolvedParam struct {
 // PlanDeviceBatches calculates the optimal Modbus batch polling plan for a device and its active parameters.
 // This is a deterministic, side-effect-free pure function.
 func PlanDeviceBatches(device *model.Device, params []model.Parameter) BatchPlan {
-	if device == nil || device.Connection == nil {
+	if device == nil {
 		return BatchPlan{}
 	}
 
 	cfg := device.Connection
-	batchEnabled := cfg.BatchReadEnabled
+	batchEnabled := false
+	maxBatchRegs := 32
+	maxGap := 0
+	var defaultSlaveID byte = 1
 
-	maxBatchRegs := cfg.MaxBatchRegisters
-	if maxBatchRegs <= 0 {
-		maxBatchRegs = 32
-	}
-	if maxBatchRegs > 120 {
-		maxBatchRegs = 120
-	}
+	if cfg != nil {
+		batchEnabled = cfg.BatchReadEnabled
+		maxBatchRegs = cfg.MaxBatchRegisters
+		if maxBatchRegs <= 0 {
+			maxBatchRegs = 32
+		}
+		if maxBatchRegs > 120 {
+			maxBatchRegs = 120
+		}
 
-	maxGap := cfg.MaxRegisterGap
-	if maxGap < 0 {
-		maxGap = 0
-	}
-	if maxGap > 10 {
-		maxGap = 10
+		maxGap = cfg.MaxRegisterGap
+		if maxGap < 0 {
+			maxGap = 0
+		}
+		if maxGap > 10 {
+			maxGap = 10
+		}
+
+		if cfg.SlaveID > 0 {
+			defaultSlaveID = byte(cfg.SlaveID)
+		}
 	}
 
 	plan := BatchPlan{
-		DeviceID:          device.ID,
-		DeviceCode:        device.DeviceCode,
-		BatchReadEnabled:  batchEnabled,
-		MaxBatchRegisters: maxBatchRegs,
-		MaxRegisterGap:    maxGap,
-		Jobs:              []BatchJob{},
+		DeviceID:                  device.ID,
+		DeviceCode:                device.DeviceCode,
+		BatchReadEnabled:          batchEnabled,
+		MaxBatchRegisters:         maxBatchRegs,
+		MaxRegisterGap:            maxGap,
+		TotalConfiguredParameters: len(params),
+		Jobs:                      []BatchJob{},
+		InvalidParameters:         []InvalidParameterInfo{},
 	}
 
 	// 1. Resolve and filter enabled Modbus parameters
@@ -59,17 +71,35 @@ func PlanDeviceBatches(device *model.Device, params []model.Parameter) BatchPlan
 	for i := range params {
 		p := &params[i]
 		if !p.Enabled {
+			plan.InvalidParameters = append(plan.InvalidParameters, InvalidParameterInfo{
+				ParameterID:   p.ID,
+				ParameterCode: p.ParameterCode,
+				ParameterName: p.ParameterName,
+				Reason:        "Parameter is disabled",
+			})
 			continue
 		}
 
 		// Skip virtual / internal variables that are not read from Modbus
 		normType := strings.ToUpper(strings.TrimSpace(p.RegisterType))
 		if normType == "VARIABLE" || normType == "VIRTUAL" {
+			plan.InvalidParameters = append(plan.InvalidParameters, InvalidParameterInfo{
+				ParameterID:   p.ID,
+				ParameterCode: p.ParameterCode,
+				ParameterName: p.ParameterName,
+				Reason:        "Virtual / Internal calculation variable (not read via Modbus)",
+			})
 			continue
 		}
 
 		res, err := ResolveRegisterAddress(p.RegisterType, p.RegisterAddress)
 		if err != nil {
+			plan.InvalidParameters = append(plan.InvalidParameters, InvalidParameterInfo{
+				ParameterID:   p.ID,
+				ParameterCode: p.ParameterCode,
+				ParameterName: p.ParameterName,
+				Reason:        fmt.Sprintf("Invalid Modbus register address: %v", err),
+			})
 			continue
 		}
 
@@ -80,7 +110,7 @@ func PlanDeviceBatches(device *model.Device, params []model.Parameter) BatchPlan
 
 		slaveID := byte(p.SlaveID)
 		if slaveID == 0 {
-			slaveID = byte(cfg.SlaveID)
+			slaveID = defaultSlaveID
 		}
 		if slaveID == 0 {
 			slaveID = 1
@@ -99,6 +129,11 @@ func PlanDeviceBatches(device *model.Device, params []model.Parameter) BatchPlan
 
 	plan.TotalParameters = len(resolvedList)
 	if plan.TotalParameters == 0 {
+		if len(params) == 0 {
+			plan.EmptyReason = "No parameters configured for this device"
+		} else {
+			plan.EmptyReason = "No active Modbus parameters eligible for polling"
+		}
 		return plan
 	}
 

@@ -649,6 +649,15 @@ export default new Vuex.Store({
         return null;
       }
     },
+    async fetchPollingPlan(_, deviceId) {
+      try {
+        const res = await axios.get(`${API_BASE}/devices/${deviceId}/polling-plan`);
+        return (res && res.data && res.data.data !== undefined) ? res.data.data : (res.data || res);
+      } catch (err) {
+        console.error('Failed to fetch polling plan:', err);
+        throw err;
+      }
+    },
     async testReadParameter(_, payload) {
       const deviceId = payload.deviceId || payload.device_id;
       const paramId = payload.paramId || payload.parameterId || payload.parameter_id;

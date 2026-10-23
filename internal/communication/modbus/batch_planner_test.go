@@ -1,6 +1,7 @@
 package modbus
 
 import (
+	"strings"
 	"testing"
 
 	"datalogger/internal/model"
@@ -501,4 +502,77 @@ func TestBatchPlanner_MixedDataTypesAndByteOrders(t *testing.T) {
 		t.Errorf("param 3 expected 500, got %f", dec3.NumericValue)
 	}
 }
+
+func TestBatchPlanner_InvalidAndSkippedParametersAuditing(t *testing.T) {
+	dev := &model.Device{
+		ID:         1,
+		DeviceCode: "AUDIT-DEV-01",
+		Connection: &model.DeviceConnection{
+			DeviceID:         1,
+			Protocol:         model.ProtocolModbusTCP,
+			SlaveID:          1,
+			BatchReadEnabled: true,
+		},
+	}
+
+	params := []model.Parameter{
+		{
+			ID:            1,
+			ParameterCode: "DISABLED_PARAM",
+			ParameterName: "Disabled Sensor",
+			Enabled:       false,
+		},
+		{
+			ID:            2,
+			ParameterCode: "CALCULATED_ISPU",
+			ParameterName: "Calculated Formula Param",
+			RegisterType:  "VARIABLE",
+			Enabled:       true,
+		},
+		{
+			ID:              3,
+			ParameterCode:   "BAD_ADDR",
+			ParameterName:   "Bad Address Param",
+			RegisterType:    "HOLDING_REGISTER",
+			RegisterAddress: 999999,
+			Enabled:         true,
+		},
+		{
+			ID:              4,
+			ParameterCode:   "VALID_AUTO",
+			ParameterName:   "Valid Auto Param",
+			RegisterType:    "HOLDING_REGISTER",
+			RegisterAddress: 40001,
+			DataType:        model.DataTypeFloat32,
+			BatchMode:       "AUTO",
+			Enabled:         true,
+		},
+	}
+
+	plan := PlanDeviceBatches(dev, params)
+
+	if plan.TotalParameters != 1 {
+		t.Fatalf("expected 1 active parameter, got %d", plan.TotalParameters)
+	}
+	if len(plan.InvalidParameters) != 3 {
+		t.Fatalf("expected 3 invalid/skipped parameters, got %d", len(plan.InvalidParameters))
+	}
+
+	// Verify reason diagnostics
+	reasons := make(map[string]string)
+	for _, inv := range plan.InvalidParameters {
+		reasons[inv.ParameterCode] = inv.Reason
+	}
+
+	if reasons["DISABLED_PARAM"] != "Parameter is disabled" {
+		t.Errorf("unexpected reason for disabled param: %s", reasons["DISABLED_PARAM"])
+	}
+	if reasons["CALCULATED_ISPU"] != "Virtual / Internal calculation variable (not read via Modbus)" {
+		t.Errorf("unexpected reason for virtual param: %s", reasons["CALCULATED_ISPU"])
+	}
+	if !strings.Contains(reasons["BAD_ADDR"], "Invalid Modbus register address") {
+		t.Errorf("unexpected reason for bad address: %s", reasons["BAD_ADDR"])
+	}
+}
+
 

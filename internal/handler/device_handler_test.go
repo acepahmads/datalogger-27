@@ -106,6 +106,13 @@ func setupDeviceTestRouter(t *testing.T) *TestEnv {
 			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
 			devicesGroup.PUT("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameterQuality)
 		}
+
+		apiV1 := r.Group("/api/v1")
+		apiV1.Use(middleware.JWTAuth(authService))
+		{
+			apiV1.GET("/devices/:id/polling-plan", middleware.RequirePermission("device.view"), deviceHandler.GetDevicePollingPlan)
+			apiV1.GET("/devices/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
+		}
 	}
 
 	adminToken, _, _ := authService.Login("test_admin", "password123", "127.0.0.1", "")
@@ -750,5 +757,76 @@ func TestGetDevicePollingPlan(t *testing.T) {
 	if len(job.Parameters) != 2 {
 		t.Errorf("Expected 2 parameters in job, got %d", len(job.Parameters))
 	}
+
+	// 4. Test API v1 route consistency
+	planV1Req, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/devices/%d/polling-plan", devID), nil)
+	planV1Req.Header.Set("Authorization", "Bearer "+env.OpToken)
+	planV1W := httptest.NewRecorder()
+	env.Router.ServeHTTP(planV1W, planV1Req)
+	if planV1W.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK on /api/v1, got %d: %s", planV1W.Code, planV1W.Body.String())
+	}
+
+	// 5. Test Non-existent Device ID (404)
+	notFoundReq, _ := http.NewRequest("GET", "/api/devices/99999/polling-plan", nil)
+	notFoundReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+	notFoundW := httptest.NewRecorder()
+	env.Router.ServeHTTP(notFoundW, notFoundReq)
+	if notFoundW.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found for non-existent device, got %d", notFoundW.Code)
+	}
+
+	// 6. Test Invalid Device ID format (400)
+	invalidReq, _ := http.NewRequest("GET", "/api/devices/invalid-id/polling-plan", nil)
+	invalidReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+	invalidW := httptest.NewRecorder()
+	env.Router.ServeHTTP(invalidW, invalidReq)
+	if invalidW.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for non-integer ID, got %d", invalidW.Code)
+	}
+
+	// 7. Test Device with 0 Parameters (returns 200 with TotalParameters=0 and EmptyReason)
+	emptyDevPayload := map[string]interface{}{
+		"device_code": "EMPTY-DEV-01",
+		"device_name": "Empty Parameter Device",
+		"device_type": "MODBUS_TCP",
+	}
+	emptyBody, _ := json.Marshal(emptyDevPayload)
+	emptyCreateReq, _ := http.NewRequest("POST", "/api/devices", bytes.NewBuffer(emptyBody))
+	emptyCreateReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	emptyCreateReq.Header.Set("Content-Type", "application/json")
+	emptyCreateW := httptest.NewRecorder()
+	env.Router.ServeHTTP(emptyCreateW, emptyCreateReq)
+	if emptyCreateW.Code != http.StatusCreated {
+		t.Fatalf("Failed creating empty device: %s", emptyCreateW.Body.String())
+	}
+	var emptyDevRes struct {
+		Data struct {
+			ID uint `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(emptyCreateW.Body.Bytes(), &emptyDevRes)
+
+	emptyPlanReq, _ := http.NewRequest("GET", fmt.Sprintf("/api/devices/%d/polling-plan", emptyDevRes.Data.ID), nil)
+	emptyPlanReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+	emptyPlanW := httptest.NewRecorder()
+	env.Router.ServeHTTP(emptyPlanW, emptyPlanReq)
+	if emptyPlanW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK on empty device plan, got %d: %s", emptyPlanW.Code, emptyPlanW.Body.String())
+	}
+	var emptyPlanRes struct {
+		Data struct {
+			TotalParameters int    `json:"total_parameters"`
+			EmptyReason     string `json:"empty_reason"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(emptyPlanW.Body.Bytes(), &emptyPlanRes)
+	if emptyPlanRes.Data.TotalParameters != 0 {
+		t.Errorf("Expected 0 parameters, got %d", emptyPlanRes.Data.TotalParameters)
+	}
+	if emptyPlanRes.Data.EmptyReason == "" {
+		t.Errorf("Expected non-empty reason for device with 0 parameters")
+	}
 }
+
 

@@ -38,15 +38,26 @@ type BatchJob struct {
 	IsSingle        bool              `json:"is_single"`        // True if read individually (opt-out or non-contiguous)
 }
 
+// InvalidParameterInfo documents parameters that could not be mapped into the Modbus polling plan
+type InvalidParameterInfo struct {
+	ParameterID   uint   `json:"parameter_id"`
+	ParameterCode string `json:"parameter_code"`
+	ParameterName string `json:"parameter_name"`
+	Reason        string `json:"reason"`
+}
+
 // BatchPlan encapsulates the complete calculated polling plan for a device
 type BatchPlan struct {
-	DeviceID                  uint       `json:"device_id"`
-	DeviceCode                string     `json:"device_code"`
-	BatchReadEnabled          bool       `json:"batch_read_enabled"`
-	MaxBatchRegisters         int        `json:"max_batch_registers"`
-	MaxRegisterGap            int        `json:"max_register_gap"`
-	TotalParameters           int        `json:"total_parameters"`
-	TotalModbusRequests       int        `json:"total_modbus_requests"`
-	EstimatedReductionPercent float64    `json:"estimated_reduction_percent"`
-	Jobs                      []BatchJob `json:"jobs"`
+	DeviceID                  uint                   `json:"device_id"`
+	DeviceCode                string                 `json:"device_code"`
+	BatchReadEnabled          bool                   `json:"batch_read_enabled"`
+	MaxBatchRegisters         int                    `json:"max_batch_registers"`
+	MaxRegisterGap            int                    `json:"max_register_gap"`
+	TotalParameters           int                    `json:"total_parameters"`
+	TotalConfiguredParameters int                    `json:"total_configured_parameters"`
+	TotalModbusRequests       int                    `json:"total_modbus_requests"`
+	EstimatedReductionPercent float64                `json:"estimated_reduction_percent"`
+	Jobs                      []BatchJob             `json:"jobs"`
+	InvalidParameters         []InvalidParameterInfo `json:"invalid_parameters,omitempty"`
+	EmptyReason               string                 `json:"empty_reason,omitempty"`
 }

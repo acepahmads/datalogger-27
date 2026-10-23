@@ -601,7 +601,11 @@ export default {
     "quantity": "Kuantitas",
     "packedParams": "Parameter Terpaket",
     "jobType": "Tipe Permintaan",
-    "noParamsForPlan": "Belum ada parameter Modbus aktif pada perangkat ini."
+    "noParamsForPlan": "Belum ada parameter Modbus aktif pada perangkat ini.",
+    "goToParameters": "Buka Tab Parameter",
+    "noActiveParamsDesc": "Untuk menghitung pembagian frame Modbus dan optimasi batch, konfigurasikan dan aktifkan parameter telemetri Modbus.",
+    "skippedParamsNotice": "Parameter Dilewati atau Tidak Sesuai",
+    "skippedParamsDesc": "Parameter berikut terkonfigurasi namun tidak dapat dimasukkan ke dalam rencana polling Modbus:"
   },
   "deviceModal": {
     "titleAdd": "Daftarkan Perangkat Edge Baru",

@@ -601,7 +601,11 @@ export default {
     "quantity": "Quantity",
     "packedParams": "Packed Parameters",
     "jobType": "Job Type",
-    "noParamsForPlan": "No active Modbus parameters configured for this device."
+    "noParamsForPlan": "No active Modbus parameters configured for this device.",
+    "goToParameters": "Open Parameters Tab",
+    "noActiveParamsDesc": "To calculate Modbus frame bundling and preview batch optimization, configure and enable Modbus telemetry parameters.",
+    "skippedParamsNotice": "Skipped or Misconfigured Parameters",
+    "skippedParamsDesc": "The following configured parameters could not be included in the Modbus polling plan:"
   },
   "deviceModal": {
     "titleAdd": "Register New Edge Device",
