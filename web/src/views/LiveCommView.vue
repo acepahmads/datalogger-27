@@ -278,20 +278,20 @@
       </div>
 
       <!-- Live Packets Table / Terminal -->
-      <div ref="packetContainer" class="overflow-x-auto max-h-[560px] overflow-y-auto">
-        <table class="w-full text-left text-xs font-sans border-collapse">
+      <div ref="packetContainer" class="overflow-x-auto max-h-[580px] overflow-y-auto scrollbar-thin">
+        <table class="w-full min-w-[1260px] text-left text-xs font-sans border-collapse">
           <thead class="bg-slate-100/90 dark:bg-slate-900/90 text-slate-600 dark:text-slate-400 text-3xs font-semibold uppercase tracking-wider sticky top-0 z-10 border-b border-[#C7D5E8] dark:border-slate-800 backdrop-blur-xs">
             <tr>
-              <th class="py-2.5 px-3 w-28">{{ $t('liveComm.timestamp') }} <span class="text-3xs text-blue-500 font-bold ml-0.5">↓</span></th>
-              <th class="py-2.5 px-3 w-28">{{ $t('liveComm.device') }}</th>
-              <th class="py-2.5 px-3 w-36">{{ $t('liveComm.parameter') }}</th>
-              <th class="py-2.5 px-3 w-36">{{ $t('liveComm.function') }}</th>
-              <th class="py-2.5 px-3 w-36">{{ $t('liveComm.address') }}</th>
-              <th class="py-2.5 px-3">{{ $t('liveComm.hexPayload') }}</th>
-              <th class="py-2.5 px-3 min-w-[150px]">{{ $t('liveComm.convertedValue') }}</th>
-              <th class="py-2.5 px-3 w-20 text-right">{{ $t('liveComm.latency') }}</th>
-              <th class="py-2.5 px-3 w-24 text-center">{{ $t('liveComm.status') }}</th>
-              <th class="py-2.5 px-3 w-20 text-center">Inspect</th>
+              <th class="py-2.5 px-3 w-28 whitespace-nowrap">{{ $t('liveComm.timestamp') }} <span class="text-3xs text-blue-500 font-bold ml-0.5">↓</span></th>
+              <th class="py-2.5 px-3 w-28 whitespace-nowrap">{{ $t('liveComm.device') }}</th>
+              <th class="py-2.5 px-3 w-32 min-w-[110px] whitespace-nowrap">{{ $t('liveComm.parameter') }}</th>
+              <th class="py-2.5 px-3 w-32 min-w-[110px] whitespace-nowrap">{{ $t('liveComm.function') }}</th>
+              <th class="py-2.5 px-3 w-36 min-w-[130px] whitespace-nowrap">{{ $t('liveComm.address') }}</th>
+              <th class="py-2.5 px-3 min-w-[320px] max-w-[420px] whitespace-nowrap">{{ $t('liveComm.hexPayload') }}</th>
+              <th class="py-2.5 px-3 min-w-[200px] whitespace-nowrap">{{ $t('liveComm.convertedValue') }}</th>
+              <th class="py-2.5 px-3 w-20 text-right whitespace-nowrap">{{ $t('liveComm.latency') }}</th>
+              <th class="py-2.5 px-3 w-24 text-center whitespace-nowrap">{{ $t('liveComm.status') }}</th>
+              <th class="py-2.5 px-3 w-16 text-center whitespace-nowrap">Inspect</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#E2ECF7] dark:divide-slate-800/60 font-mono text-3xs bg-white dark:bg-[#0B1524]">
@@ -327,7 +327,7 @@
               </td>
 
               <!-- Device Code & Transport -->
-              <td class="py-2 px-3">
+              <td class="py-2 px-3 whitespace-nowrap">
                 <div class="flex flex-col">
                   <span class="font-bold text-slate-900 dark:text-slate-100">{{ frame.device_code }}</span>
                   <span class="text-4xs text-slate-400 truncate max-w-[110px]" :title="frame.transport">{{ frame.transport }}</span>
@@ -336,13 +336,17 @@
 
               <!-- Target Parameter -->
               <td class="py-2 px-3">
-                <div v-if="getFrameParams(frame)" class="flex flex-col">
+                <div v-if="getFrameParams(frame)" class="flex flex-col max-w-[130px]">
                   <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1">
-                    <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40">
+                    <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40 truncate max-w-[125px]" :title="getFrameParams(frame).codes">
                       {{ getFrameParams(frame).codes }}
                     </span>
                   </span>
-                  <span v-if="getFrameParams(frame).name" class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[130px] mt-0.5" :title="getFrameParams(frame).name">
+                  <span
+                    v-if="getFrameParams(frame).name && !isRedundantParamName(getFrameParams(frame).codes, getFrameParams(frame).name)"
+                    class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[125px] mt-0.5"
+                    :title="getFrameParams(frame).name"
+                  >
                     {{ getFrameParams(frame).name }}
                   </span>
                 </div>
@@ -352,68 +356,97 @@
               </td>
 
               <!-- Function Code -->
-              <td class="py-2 px-3">
-                <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20 font-semibold">
-                  {{ frame.fc_name }}
-                </span>
+              <td class="py-2 px-3 whitespace-nowrap">
+                <div>
+                  <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20 font-bold font-mono text-3xs">
+                    {{ getFcShort(frame.fc_name) }}
+                  </span>
+                  <span class="text-4xs text-slate-500 dark:text-slate-400 block mt-0.5 font-sans" :title="frame.fc_name">
+                    {{ getFcDesc(frame.fc_name) }}
+                  </span>
+                </div>
               </td>
 
               <!-- Address & Qty -->
               <td class="py-2 px-3 whitespace-nowrap">
                 <span class="font-bold text-slate-900 dark:text-slate-200">#{{ frame.display_address }}</span>
-                <span class="text-slate-400"> (PDU 0x{{ frame.starting_address.toString(16).toUpperCase().padStart(4, '0') }})</span>
+                <span class="text-slate-400 text-4xs"> (0x{{ frame.starting_address.toString(16).toUpperCase().padStart(4, '0') }})</span>
                 <span class="text-slate-500 block text-4xs">Qty: {{ frame.quantity }}</span>
               </td>
 
               <!-- Raw HEX Stream (TX & RX) -->
-              <td class="py-2 px-3">
-                <div class="space-y-1">
+              <td class="py-2 px-3 min-w-[320px] max-w-[420px]">
+                <div class="space-y-1 font-mono text-3xs">
                   <!-- TX Request Frame -->
-                  <div class="flex items-center space-x-1.5">
-                    <span class="px-1 py-0.2 rounded text-4xs font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40">TX</span>
-                    <span class="text-3xs font-semibold text-blue-700 dark:text-blue-300 tracking-wider select-all" :title="'Request: ' + frame.tx_hex">
+                  <div class="flex items-baseline space-x-1.5 flex-nowrap">
+                    <span class="px-1 py-0.2 rounded text-4xs font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40 flex-shrink-0">TX</span>
+                    <div class="font-semibold text-blue-700 dark:text-blue-300 tracking-wider select-all whitespace-nowrap overflow-x-auto scrollbar-none py-0.5 flex-1 min-w-0" :title="'Request: ' + frame.tx_hex">
                       {{ frame.tx_hex || '--' }}
-                    </span>
-                    <span class="text-4xs text-slate-400 font-sans">({{ frame.tx_bytes }}B)</span>
+                    </div>
+                    <span class="text-4xs text-slate-400 font-sans flex-shrink-0">({{ frame.tx_bytes }}B)</span>
                   </div>
 
                   <!-- RX Response Frame -->
-                  <div class="flex items-center space-x-1.5">
-                    <span class="px-1 py-0.2 rounded text-4xs font-bold" :class="frame.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40'">RX</span>
-                    <span v-if="frame.rx_hex" class="text-3xs font-semibold tracking-wider select-all" :class="frame.status === 'SUCCESS' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'" :title="'Response: ' + frame.rx_hex">
+                  <div class="flex items-baseline space-x-1.5 flex-nowrap">
+                    <span class="px-1 py-0.2 rounded text-4xs font-bold flex-shrink-0" :class="frame.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40'">RX</span>
+                    <div v-if="frame.rx_hex" class="font-semibold tracking-wider select-all whitespace-nowrap overflow-x-auto scrollbar-none py-0.5 flex-1 min-w-0" :class="frame.status === 'SUCCESS' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'" :title="'Response: ' + frame.rx_hex">
                       {{ frame.rx_hex }}
-                    </span>
-                    <span v-else class="text-rose-600 dark:text-rose-400 text-4xs italic">
-                      {{ frame.error_message || 'No response received (Timeout / I/O error)' }}
-                    </span>
-                    <span v-if="frame.rx_bytes > 0" class="text-4xs text-slate-400 font-sans">({{ frame.rx_bytes }}B)</span>
+                    </div>
+                    <div v-else class="text-rose-600 dark:text-rose-400 text-4xs italic truncate flex-1 min-w-0" :title="frame.error_message">
+                      {{ frame.error_message || 'No response received' }}
+                    </div>
+                    <span v-if="frame.rx_bytes > 0" class="text-4xs text-slate-400 font-sans flex-shrink-0">({{ frame.rx_bytes }}B)</span>
                   </div>
                 </div>
               </td>
 
               <!-- Converted Value (Sesuai Setup Parameter) -->
-              <td class="py-2 px-3 whitespace-nowrap">
-                <div v-if="getDecodedValues(frame).length > 0" class="space-y-1">
-                  <div
-                    v-for="(valItem, vIdx) in getDecodedValues(frame)"
-                    :key="vIdx"
-                    class="flex items-center space-x-1.5"
-                  >
-                    <span
-                      v-if="getDecodedValues(frame).length > 1"
-                      class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+              <td class="py-2 px-3 min-w-[200px]">
+                <div v-if="getDecodedValues(frame).length > 0">
+                  <!-- 1 or 2 items: clean vertical stack -->
+                  <div v-if="getDecodedValues(frame).length <= 2" class="space-y-1">
+                    <div
+                      v-for="(valItem, vIdx) in getDecodedValues(frame)"
+                      :key="vIdx"
+                      class="flex items-center space-x-1.5 whitespace-nowrap"
                     >
-                      {{ valItem.parameter_code }}
-                    </span>
-                    <span class="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
-                      {{ valItem.formatted }}
-                    </span>
-                    <span v-if="valItem.unit" class="text-4xs font-sans text-slate-500 dark:text-slate-400 font-medium">
-                      {{ valItem.unit }}
-                    </span>
+                      <span
+                        v-if="getDecodedValues(frame).length > 1"
+                        class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                      >
+                        {{ valItem.parameter_code }}
+                      </span>
+                      <span class="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                        {{ valItem.formatted }}
+                      </span>
+                      <span v-if="valItem.unit" class="text-4xs font-sans text-slate-500 dark:text-slate-400 font-medium">
+                        {{ valItem.unit }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 3 or more items: compact 2-column grid -->
+                  <div v-else class="grid grid-cols-2 gap-x-2.5 gap-y-1">
+                    <div
+                      v-for="(valItem, vIdx) in getDecodedValues(frame)"
+                      :key="vIdx"
+                      class="flex items-center space-x-1 whitespace-nowrap"
+                    >
+                      <span
+                        class="px-1 py-0.2 rounded text-4xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 flex-shrink-0"
+                      >
+                        {{ valItem.parameter_code }}
+                      </span>
+                      <span class="font-mono font-bold text-2xs text-emerald-600 dark:text-emerald-400">
+                        {{ valItem.formatted }}
+                      </span>
+                      <span v-if="valItem.unit" class="text-4xs font-sans text-slate-400 font-normal">
+                        {{ valItem.unit }}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div v-else-if="frame.converted_values" class="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                <div v-else-if="frame.converted_values" class="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                   {{ frame.converted_values }}
                 </div>
                 <div v-else-if="frame.status !== 'SUCCESS'" class="text-rose-500 dark:text-rose-400 text-4xs italic">
@@ -425,12 +458,12 @@
               </td>
 
               <!-- Latency -->
-              <td class="py-2 px-3 text-right font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+              <td class="py-2 px-3 text-right font-bold text-slate-900 dark:text-slate-100 tabular-nums whitespace-nowrap">
                 {{ frame.latency_ms }} ms
               </td>
 
               <!-- Status Badge -->
-              <td class="py-2 px-3 text-center">
+              <td class="py-2 px-3 text-center whitespace-nowrap">
                 <span
                   class="px-1.5 py-0.5 rounded text-4xs font-bold uppercase tracking-wider"
                   :class="statusBadgeClass(frame.status)"
@@ -440,7 +473,7 @@
               </td>
 
               <!-- Inspect Action -->
-              <td class="py-2 px-3 text-center">
+              <td class="py-2 px-3 text-center whitespace-nowrap">
                 <button
                   type="button"
                   @click.stop="openInspectModal(frame)"
@@ -939,6 +972,23 @@ export default {
       const ms = String(d.getMilliseconds()).padStart(3, '0');
       return `${h}:${m}:${s}.${ms}`;
     },
+    getFcShort(fcName) {
+      if (!fcName) return 'FC--';
+      const m = String(fcName).match(/FC\d+/i);
+      return m ? m[0].toUpperCase() : fcName;
+    },
+    getFcDesc(fcName) {
+      if (!fcName) return '';
+      const m = String(fcName).match(/\(([^)]+)\)/);
+      if (m) return m[1];
+      return fcName.replace(/FC\d+\s*/i, '').trim();
+    },
+    isRedundantParamName(codes, name) {
+      if (!codes || !name) return false;
+      const cleanC = String(codes).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const cleanN = String(name).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      return cleanN.includes(cleanC) || cleanC.includes(cleanN);
+    },
     async loadStatus() {
       const res = await this.$store.dispatch('fetchLiveCommStatus');
       if (res) {
@@ -1150,5 +1200,23 @@ export default {
 <style scoped>
 .shadow-2xs {
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.scrollbar-thin::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 4px;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>
