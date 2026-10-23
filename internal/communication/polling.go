@@ -195,6 +195,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				cachedParams = append(cachedParams, param)
 			}
 		}
+		cachedDev.Parameters = cachedParams
 	}
 
 	cyclesSinceRefresh := 0
@@ -230,6 +231,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 								cachedParams = append(cachedParams, param)
 							}
 						}
+						cachedDev.Parameters = cachedParams
 					}
 				}
 			}
@@ -533,11 +535,34 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 			}
 		}
 
+		var bCodes []string
+		var bNames []string
+		for _, sp := range job.Parameters {
+			c := sp.Parameter.ParameterCode
+			if c == "" {
+				c = sp.Parameter.Code
+			}
+			n := sp.Parameter.ParameterName
+			if n == "" {
+				n = sp.Parameter.Name
+			}
+			if c != "" {
+				bCodes = append(bCodes, c)
+				if n != "" && n != c {
+					bNames = append(bNames, fmt.Sprintf("%s (%s)", c, n))
+				} else {
+					bNames = append(bNames, c)
+				}
+			}
+		}
+
 		req := modbus.ModbusReadRequest{
 			SlaveID:         job.SlaveID,
 			FunctionCode:    job.FunctionCode,
 			StartingAddress: job.StartingAddress,
 			Quantity:        job.Quantity,
+			ParameterCode:   strings.Join(bCodes, ", "),
+			ParameterName:   strings.Join(bNames, ", "),
 		}
 
 		resp, err := p.connManager.ExecuteWithRetry(ctx, device, req)
@@ -819,11 +844,27 @@ func (p *PollingEngine) ReadParameter(
 		slaveID = 1
 	}
 
+	pCode := param.ParameterCode
+	if pCode == "" {
+		pCode = param.Code
+	}
+	pName := param.ParameterName
+	if pName == "" {
+		pName = param.Name
+	}
+	if pName != "" && pName != pCode {
+		pName = fmt.Sprintf("%s (%s)", pCode, pName)
+	} else if pName == "" {
+		pName = pCode
+	}
+
 	req := ModbusReadRequest{
 		SlaveID:         slaveID,
 		FunctionCode:    res.FunctionCode,
 		StartingAddress: res.PDUAddress,
 		Quantity:        qty,
+		ParameterCode:   pCode,
+		ParameterName:   pName,
 	}
 
 	// 3. Execute with Retry

@@ -27,6 +27,8 @@ type CommTraceFrame struct {
 	StartingAddress uint16    `json:"starting_address"`
 	DisplayAddress  int       `json:"display_address"` // Modicon notation (e.g. 40021)
 	Quantity        uint16    `json:"quantity"`
+	ParameterCodes  string    `json:"parameter_codes,omitempty"` // e.g. "PM25" or "SO2, NO2"
+	ParameterNames  string    `json:"parameter_names,omitempty"` // e.g. "Particulate Matter 2.5"
 	TXHex           string    `json:"tx_hex"`
 	TXBytes         int       `json:"tx_bytes"`
 	RXHex           string    `json:"rx_hex"`
@@ -302,8 +304,64 @@ func (t *CommTracer) Record(
 	fcName := FunctionCodeName(req.FunctionCode)
 	modiconAddr := ToModiconDisplay(req.FunctionCode, req.StartingAddress)
 
+	// Match target parameter(s) if configured on the device or passed in request
+	var matchedCodes []string
+	var matchedNames []string
+
+	if req.ParameterCode != "" {
+		matchedCodes = append(matchedCodes, req.ParameterCode)
+		if req.ParameterName != "" {
+			matchedNames = append(matchedNames, req.ParameterName)
+		} else {
+			matchedNames = append(matchedNames, req.ParameterCode)
+		}
+	} else if len(device.Parameters) > 0 {
+		reqStart := req.StartingAddress
+		reqEnd := req.StartingAddress + req.Quantity - 1
+		for _, p := range device.Parameters {
+			if !p.Enabled {
+				continue
+			}
+			res, err := modbus.ResolveRegisterAddress(p.RegisterType, p.RegisterAddress)
+			if err != nil || res.FunctionCode != req.FunctionCode {
+				continue
+			}
+			paramQty := uint16(modbus.RequiredRegisterCount(p.DataType))
+			if paramQty == 0 {
+				paramQty = 1
+			}
+			paramStart := res.PDUAddress
+			paramEnd := res.PDUAddress + paramQty - 1
+
+			// Check if register range overlaps
+			if reqStart <= paramEnd && reqEnd >= paramStart {
+				code := strings.TrimSpace(p.ParameterCode)
+				if code == "" {
+					code = strings.TrimSpace(p.Code)
+				}
+				name := strings.TrimSpace(p.ParameterName)
+				if name == "" {
+					name = strings.TrimSpace(p.Name)
+				}
+				if code != "" {
+					matchedCodes = append(matchedCodes, code)
+					if name != "" && name != code {
+						matchedNames = append(matchedNames, fmt.Sprintf("%s (%s)", code, name))
+					} else {
+						matchedNames = append(matchedNames, code)
+					}
+				}
+			}
+		}
+	}
+	paramCodesStr := strings.Join(matchedCodes, ", ")
+	paramNamesStr := strings.Join(matchedNames, ", ")
+
 	summary := fmt.Sprintf("%s at #%d (PDU 0x%04X), Qty %d",
 		fcName, modiconAddr, req.StartingAddress, req.Quantity)
+	if paramCodesStr != "" {
+		summary = fmt.Sprintf("[%s] %s", paramCodesStr, summary)
+	}
 
 	frame := CommTraceFrame{
 		ID:              frameID,
@@ -319,6 +377,8 @@ func (t *CommTracer) Record(
 		StartingAddress: req.StartingAddress,
 		DisplayAddress:  modiconAddr,
 		Quantity:        req.Quantity,
+		ParameterCodes:  paramCodesStr,
+		ParameterNames:  paramNamesStr,
 		TXHex:           txHex,
 		TXBytes:         len(txBytes),
 		RXHex:           rxHex,

@@ -284,7 +284,8 @@
             <tr>
               <th class="py-2.5 px-3 w-28">{{ $t('liveComm.timestamp') }} <span class="text-3xs text-blue-500 font-bold ml-0.5">↓</span></th>
               <th class="py-2.5 px-3 w-28">{{ $t('liveComm.device') }}</th>
-              <th class="py-2.5 px-3 w-40">{{ $t('liveComm.function') }}</th>
+              <th class="py-2.5 px-3 w-36">{{ $t('liveComm.parameter') }}</th>
+              <th class="py-2.5 px-3 w-36">{{ $t('liveComm.function') }}</th>
               <th class="py-2.5 px-3 w-36">{{ $t('liveComm.address') }}</th>
               <th class="py-2.5 px-3">{{ $t('liveComm.hexPayload') }}</th>
               <th class="py-2.5 px-3 w-20 text-right">{{ $t('liveComm.latency') }}</th>
@@ -294,7 +295,7 @@
           </thead>
           <tbody class="divide-y divide-[#E2ECF7] dark:divide-slate-800/60 font-mono text-3xs bg-white dark:bg-[#0B1524]">
             <tr v-if="filteredFrames.length === 0">
-              <td colspan="8" class="py-16 text-center text-slate-500 font-sans">
+              <td colspan="9" class="py-16 text-center text-slate-500 font-sans">
                 <div class="flex flex-col items-center justify-center space-y-2">
                   <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,6 +330,23 @@
                 <div class="flex flex-col">
                   <span class="font-bold text-slate-900 dark:text-slate-100">{{ frame.device_code }}</span>
                   <span class="text-4xs text-slate-400 truncate max-w-[110px]" :title="frame.transport">{{ frame.transport }}</span>
+                </div>
+              </td>
+
+              <!-- Target Parameter -->
+              <td class="py-2 px-3">
+                <div v-if="getFrameParams(frame)" class="flex flex-col">
+                  <span class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1">
+                    <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40">
+                      {{ getFrameParams(frame).codes }}
+                    </span>
+                  </span>
+                  <span v-if="getFrameParams(frame).name" class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[130px] mt-0.5" :title="getFrameParams(frame).name">
+                    {{ getFrameParams(frame).name }}
+                  </span>
+                </div>
+                <div v-else class="text-slate-400 dark:text-slate-500 text-4xs italic">
+                  --
                 </div>
               </td>
 
@@ -467,6 +485,29 @@
             </div>
           </div>
 
+          <!-- Target Parameter Card -->
+          <div v-if="getFrameParams(inspectedFrame)" class="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              </span>
+              <div>
+                <div class="text-4xs text-indigo-600 dark:text-indigo-400 uppercase font-semibold">{{ $t('liveComm.targetParameter') }}</div>
+                <div class="font-bold text-xs text-indigo-950 dark:text-indigo-200">
+                  {{ getFrameParams(inspectedFrame).codes }}
+                  <span v-if="getFrameParams(inspectedFrame).name" class="font-normal text-slate-500 dark:text-slate-400 text-3xs ml-1">
+                    ({{ getFrameParams(inspectedFrame).name }})
+                  </span>
+                </div>
+              </div>
+            </div>
+            <span class="font-mono text-3xs font-semibold px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/30 text-indigo-800 dark:text-indigo-300">
+              #{{ inspectedFrame.display_address }} (Qty: {{ inspectedFrame.quantity }})
+            </span>
+          </div>
+
           <!-- TX Request Inspector Panel -->
           <div class="space-y-1.5">
             <div class="flex items-center justify-between text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -592,7 +633,9 @@ export default {
           const matchHex = (f.tx_hex && f.tx_hex.toLowerCase().includes(q)) || (f.rx_hex && f.rx_hex.toLowerCase().includes(q));
           const matchErr = f.error_message && f.error_message.toLowerCase().includes(q);
           const matchSummary = f.summary && f.summary.toLowerCase().includes(q);
-          if (!matchHex && !matchErr && !matchSummary) {
+          const pInfo = this.getFrameParams(f);
+          const matchParam = pInfo && ((pInfo.codes && pInfo.codes.toLowerCase().includes(q)) || (pInfo.name && pInfo.name.toLowerCase().includes(q)) || (pInfo.primary && pInfo.primary.toLowerCase().includes(q)));
+          if (!matchHex && !matchErr && !matchSummary && !matchParam) {
             return false;
           }
         }
@@ -618,6 +661,89 @@ export default {
     },
   },
   methods: {
+    getFrameParams(frame) {
+      if (!frame) return null;
+
+      // 1. If backend frame already has ParameterCodes / ParameterNames populated:
+      if (frame.parameter_codes || frame.parameter_names) {
+        const codes = frame.parameter_codes || frame.parameter_names;
+        const name = frame.parameter_names && frame.parameter_names !== codes ? frame.parameter_names : '';
+        return {
+          codes,
+          name,
+          primary: name ? `${codes} (${name})` : codes,
+        };
+      }
+
+      // 2. Client-side resolution fallback using loaded devices with parameters
+      const dev = this.devices.find(d => (frame.device_id && d.id === frame.device_id) || (frame.device_code && d.device_code === frame.device_code));
+      if (!dev || !dev.parameters || dev.parameters.length === 0) {
+        return null;
+      }
+
+      const matches = [];
+      const reqStart = Number(frame.starting_address || 0);
+      const reqQty = Number(frame.quantity || 1);
+      const reqEnd = reqStart + reqQty - 1;
+
+      for (const p of dev.parameters) {
+        if (p.enabled === false) continue;
+        const rawAddr = Number(p.register_address);
+        let pduAddr = rawAddr;
+        let fc = 3;
+        const regType = String(p.register_type || 'HOLDING_REGISTER').toUpperCase();
+
+        if (rawAddr >= 400001 && rawAddr <= 465536) {
+          pduAddr = rawAddr - 400001;
+          fc = 3;
+        } else if (rawAddr >= 300001 && rawAddr <= 365536) {
+          pduAddr = rawAddr - 300001;
+          fc = 4;
+        } else if (rawAddr >= 40001 && rawAddr <= 49999) {
+          pduAddr = rawAddr - 40001;
+          fc = 3;
+        } else if (rawAddr >= 30001 && rawAddr <= 39999) {
+          pduAddr = rawAddr - 30001;
+          fc = 4;
+        } else if (rawAddr >= 10001 && rawAddr <= 19999) {
+          pduAddr = rawAddr - 10001;
+          fc = 2;
+        } else if (rawAddr >= 1 && rawAddr <= 9999 && regType.includes('COIL')) {
+          pduAddr = rawAddr - 1;
+          fc = 1;
+        } else {
+          if (regType.includes('INPUT')) fc = 4;
+          else if (regType.includes('DISCRETE')) fc = 2;
+          else if (regType.includes('COIL')) fc = 1;
+          else fc = 3;
+        }
+
+        if (frame.function_code && Number(frame.function_code) !== fc) {
+          continue;
+        }
+
+        let qty = 2;
+        const dt = String(p.data_type || 'FLOAT32').toUpperCase();
+        if (dt.includes('INT16') || dt.includes('UINT16')) qty = 1;
+        else if (dt.includes('INT64') || dt.includes('FLOAT64') || dt.includes('DOUBLE')) qty = 4;
+
+        const pEnd = pduAddr + qty - 1;
+        if (reqStart <= pEnd && reqEnd >= pduAddr) {
+          const code = p.parameter_code || p.code || p.parameter_name || p.name;
+          const name = p.parameter_name || p.name;
+          matches.push({ code, name });
+        }
+      }
+
+      if (matches.length === 0) return null;
+      const codes = matches.map(m => m.code).join(', ');
+      const names = matches.map(m => m.name).filter(Boolean).join(', ');
+      return {
+        codes,
+        name: names !== codes ? names : '',
+        primary: names && names !== codes ? `${codes} (${names})` : codes,
+      };
+    },
     statusBadgeClass(status) {
       switch (status) {
         case 'SUCCESS':
@@ -759,13 +885,23 @@ export default {
       let filename = `comm_trace_${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
       if (format === 'json') {
-        content = JSON.stringify(data, null, 2);
+        const enriched = data.map(f => {
+          const pInfo = this.getFrameParams(f);
+          return {
+            ...f,
+            target_parameter: pInfo ? pInfo.primary : (f.parameter_names || null),
+            target_parameter_code: pInfo ? pInfo.codes : (f.parameter_codes || null),
+          };
+        });
+        content = JSON.stringify(enriched, null, 2);
         mime = 'application/json';
         filename += '.json';
       } else {
         filename += '.txt';
         content = data.map(f => {
-          return `[${f.timestamp}] [${f.device_code}] ${f.fc_name} Addr:#${f.display_address} Status:${f.status} Latency:${f.latency_ms}ms\nTX: ${f.tx_hex}\nRX: ${f.rx_hex || f.error_message}\n`;
+          const pInfo = this.getFrameParams(f);
+          const pStr = pInfo ? ` [Param: ${pInfo.primary}]` : '';
+          return `[${f.timestamp}] [${f.device_code}]${pStr} ${f.fc_name} Addr:#${f.display_address} Status:${f.status} Latency:${f.latency_ms}ms\nTX: ${f.tx_hex}\nRX: ${f.rx_hex || f.error_message}\n`;
         }).join('\n----------------------------------------\n');
       }
 

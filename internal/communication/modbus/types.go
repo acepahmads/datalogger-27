@@ -81,6 +81,8 @@ type ModbusReadRequest struct {
 	FunctionCode    byte
 	StartingAddress uint16
 	Quantity        uint16
+	ParameterCode   string
+	ParameterName   string
 }
 
 // ModbusReadResponse contains the raw response payload, latency, and captured frame traces

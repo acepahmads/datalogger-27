@@ -2231,6 +2231,8 @@ export default {
     "errors": "Errors / Retries",
     "timestamp": "Timestamp",
     "device": "Device",
+    "parameter": "Parameter",
+    "targetParameter": "Target Parameter",
     "direction": "Direction",
     "function": "Function",
     "address": "Address / Range",

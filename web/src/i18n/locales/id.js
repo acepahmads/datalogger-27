@@ -2231,6 +2231,8 @@ export default {
     "errors": "Error / Percobaan Ulang",
     "timestamp": "Waktu",
     "device": "Perangkat",
+    "parameter": "Parameter",
+    "targetParameter": "Target Parameter",
     "direction": "Arah",
     "function": "Fungsi",
     "address": "Alamat / Rentang",
