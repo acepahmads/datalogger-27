@@ -413,8 +413,8 @@ func main() {
 			// Live Sensor Communication Sniffer & Frame Inspector (Alarms & Events Menu)
 			alarmsGroup.GET("/live-comm/status", middleware.RequirePermission("alarm.view"), commTraceHandler.GetStatus)
 			alarmsGroup.GET("/live-comm/frames", middleware.RequirePermission("alarm.view"), commTraceHandler.GetFrames)
-			alarmsGroup.POST("/live-comm/toggle", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ToggleTrace)
-			alarmsGroup.DELETE("/live-comm/frames", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ClearFrames)
+			alarmsGroup.POST("/live-comm/toggle", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ToggleTrace)
+			alarmsGroup.DELETE("/live-comm/frames", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ClearFrames)
 		}
 
 		// Logs
@@ -594,8 +594,8 @@ func main() {
 			apiV1.GET("/devices/:id/parameters", middleware.RequirePermission("device.view"), deviceHandler.ListParameters)
 			apiV1.GET("/alarms/live-comm/status", middleware.RequirePermission("alarm.view"), commTraceHandler.GetStatus)
 			apiV1.GET("/alarms/live-comm/frames", middleware.RequirePermission("alarm.view"), commTraceHandler.GetFrames)
-			apiV1.POST("/alarms/live-comm/toggle", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ToggleTrace)
-			apiV1.DELETE("/alarms/live-comm/frames", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ClearFrames)
+			apiV1.POST("/alarms/live-comm/toggle", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ToggleTrace)
+			apiV1.DELETE("/alarms/live-comm/frames", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ClearFrames)
 		}
 	}
 

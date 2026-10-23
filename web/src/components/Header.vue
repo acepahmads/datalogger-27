@@ -1,5 +1,7 @@
 <template>
-  <header class="bg-white/95 dark:bg-[#0B0F19]/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-4 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-40 select-none transition-colors duration-150">
+  <header class="relative bg-white/95 dark:bg-[#0B0F19]/95 border-b border-slate-200 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 px-4 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-40 select-none transition-colors duration-150">
+    <!-- Backdrop Blur Layer (Isolated sibling so header does not form a containing block for modals) -->
+    <div class="absolute inset-0 backdrop-blur-md -z-10 pointer-events-none"></div>
     <!-- Left: Logo & App Title -->
     <div class="flex items-center space-x-3">
       <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-soft text-white font-bold text-xs tracking-wider">
@@ -250,7 +252,7 @@
                   <span class="w-2 h-2 rounded-full bg-amber-500"></span>
                   ENGINEER
                 </div>
-                <div class="text-4xs text-slate-400 font-mono">@engineer_user (Sensors/Params, No Dev/Raw)</div>
+                <div class="text-4xs text-slate-400 font-mono">@engineer_user (Sensors/Live Comm, No Dev)</div>
               </div>
               <span v-if="userRole === 'ENGINEER'" class="text-xs">&check;</span>
             </button>
@@ -290,8 +292,12 @@
     </div>
 
     <!-- 1. Profile Modal -->
-    <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+    <div
+      v-if="showProfileModal"
+      @click.self="showProfileModal = false"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+    >
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 m-auto max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <div class="flex items-center gap-2.5">
             <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-xs font-bold ring-1" :class="roleAvatarClass">
@@ -344,8 +350,12 @@
     </div>
 
     <!-- 2. Switch Account Modal -->
-    <div v-if="showSwitchModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+    <div
+      v-if="showSwitchModal"
+      @click.self="showSwitchModal = false"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+    >
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 m-auto max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h2 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('auth.switchAccount') || 'Switch Account' }}</h2>
@@ -406,8 +416,12 @@
     </div>
 
     <!-- 3. Logout Confirm Modal -->
-    <div v-if="showLogoutConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 text-center">
+    <div
+      v-if="showLogoutConfirmModal"
+      @click.self="showLogoutConfirmModal = false"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+    >
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 text-center m-auto max-h-[90vh] overflow-y-auto">
         <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

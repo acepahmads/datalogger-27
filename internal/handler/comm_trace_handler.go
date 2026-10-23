@@ -49,10 +49,13 @@ func (h *CommTraceHandler) GetStatus(c *gin.Context) {
 
 	status := h.tracer.GetStatus()
 
-	// Check if caller is SUPERADMIN
+	// Check if caller can toggle (SUPERADMIN, Administrator, ADMIN, ENGINEER)
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(string)
-	canToggle := strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator")
+	canToggle := strings.EqualFold(role, "SUPERADMIN") ||
+		strings.EqualFold(role, "Administrator") ||
+		strings.EqualFold(role, "ADMIN") ||
+		strings.EqualFold(role, "ENGINEER")
 
 	response.OK(c, gin.H{
 		"active":            status.Active,
@@ -94,7 +97,7 @@ func (h *CommTraceHandler) GetFrames(c *gin.Context) {
 	response.OK(c, frames)
 }
 
-// ToggleTrace activates or deactivates live frame capture (SUPERADMIN only)
+// ToggleTrace activates or deactivates live frame capture (Superadmin, Admin, Engineer)
 func (h *CommTraceHandler) ToggleTrace(c *gin.Context) {
 	if h.tracer == nil {
 		response.InternalError(c, "CommTracer not initialized")
@@ -137,7 +140,7 @@ func (h *CommTraceHandler) ToggleTrace(c *gin.Context) {
 	}
 }
 
-// ClearFrames empties the in-memory trace ring buffer (SUPERADMIN only)
+// ClearFrames empties the in-memory trace ring buffer (Superadmin, Admin, Engineer)
 func (h *CommTraceHandler) ClearFrames(c *gin.Context) {
 	if h.tracer != nil {
 		h.tracer.ClearBuffer()

@@ -40,7 +40,7 @@
         </p>
       </div>
 
-      <!-- Quick Superadmin Activation / Deactivation Toolbar -->
+      <!-- Quick Activation / Deactivation Toolbar (Superadmin, Admin, Engineer) -->
       <div class="flex items-center space-x-2.5 flex-shrink-0">
         <!-- Target Device Filter Selection when activating -->
         <select
@@ -54,7 +54,7 @@
           </option>
         </select>
 
-        <!-- Toggle Button (Superadmin Only) -->
+        <!-- Toggle Button (Superadmin, Admin, Engineer) -->
         <button
           v-if="canToggle"
           @click="toggleTrace"
@@ -78,16 +78,16 @@
           <span>{{ (status && status.active) ? $t('liveComm.stopSniffer') : $t('liveComm.startSniffer') }}</span>
         </button>
 
-        <!-- Viewer / Non-Superadmin Badge -->
+        <!-- Viewer / Non-Authorized Badge (for Operator or Guests) -->
         <span
           v-else
           class="px-3 py-2 rounded-xl text-3xs font-semibold bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 flex items-center space-x-1.5"
-          :title="$t('liveComm.superadminOnlyBadge')"
+          :title="$t('liveComm.authorizedOnlyBadge') || $t('liveComm.superadminOnlyBadge')"
         >
           <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
           </svg>
-          <span>{{ $t('liveComm.superadminOnlyBadge') }}</span>
+          <span>{{ $t('liveComm.authorizedOnlyBadge') || $t('liveComm.superadminOnlyBadge') }}</span>
         </span>
       </div>
     </div>
@@ -717,8 +717,12 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isAuthorizedRole() {
+      const allowed = ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'];
+      return allowed.includes(this.userRole);
+    },
     canToggle() {
-      return this.isSuperAdmin || (this.status && this.status.can_toggle);
+      return this.isAuthorizedRole || (this.status && this.status.can_toggle);
     },
     deviceList() {
       if (Array.isArray(this.devices) && this.devices.length > 0) {

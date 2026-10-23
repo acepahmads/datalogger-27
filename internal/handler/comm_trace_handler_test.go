@@ -40,13 +40,19 @@ func TestCommTraceEndpoints_RBACAndLifecycle(t *testing.T) {
 	_ = database.RunMigrations(db)
 
 	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
-	var saRole, opRole model.Role
+	var saRole, adminRole, engRole, opRole model.Role
 	db.Where("name = ?", "SUPERADMIN").First(&saRole)
+	db.Where("name = ?", "ADMIN").First(&adminRole)
+	db.Where("name = ?", "ENGINEER").First(&engRole)
 	db.Where("name = ?", "OPERATOR").First(&opRole)
 
-	adminUser := model.User{Username: "superadmin_user", Email: "sa@test.local", Password: string(hash), RoleID: saRole.ID, IsActive: true}
-	opUser := model.User{Username: "op_user", Email: "op@test.local", Password: string(hash), RoleID: opRole.ID, IsActive: true}
+	saUser := model.User{Username: "trace_sa_user", Email: "sa@test.local", Password: string(hash), RoleID: saRole.ID, IsActive: true}
+	adminUser := model.User{Username: "trace_admin_user", Email: "admin@test.local", Password: string(hash), RoleID: adminRole.ID, IsActive: true}
+	engUser := model.User{Username: "trace_eng_user", Email: "eng@test.local", Password: string(hash), RoleID: engRole.ID, IsActive: true}
+	opUser := model.User{Username: "trace_op_user", Email: "op@test.local", Password: string(hash), RoleID: opRole.ID, IsActive: true}
+	db.Create(&saUser)
 	db.Create(&adminUser)
+	db.Create(&engUser)
 	db.Create(&opUser)
 
 	cfg := config.DefaultConfig()
@@ -67,14 +73,16 @@ func TestCommTraceEndpoints_RBACAndLifecycle(t *testing.T) {
 	{
 		alarmsGroup.GET("/live-comm/status", middleware.RequirePermission("alarm.view"), traceHandler.GetStatus)
 		alarmsGroup.GET("/live-comm/frames", middleware.RequirePermission("alarm.view"), traceHandler.GetFrames)
-		alarmsGroup.POST("/live-comm/toggle", middleware.RequireRole("SUPERADMIN"), traceHandler.ToggleTrace)
-		alarmsGroup.DELETE("/live-comm/frames", middleware.RequireRole("SUPERADMIN"), traceHandler.ClearFrames)
+		alarmsGroup.POST("/live-comm/toggle", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), traceHandler.ToggleTrace)
+		alarmsGroup.DELETE("/live-comm/frames", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), traceHandler.ClearFrames)
 	}
 
-	saToken, _, _ := authService.Login("superadmin_user", "password123", "127.0.0.1", "")
-	opToken, _, _ := authService.Login("op_user", "password123", "127.0.0.1", "")
+	saToken, _, _ := authService.Login("trace_sa_user", "password123", "127.0.0.1", "")
+	adminToken, _, _ := authService.Login("trace_admin_user", "password123", "127.0.0.1", "")
+	engToken, _, _ := authService.Login("trace_eng_user", "password123", "127.0.0.1", "")
+	opToken, _, _ := authService.Login("trace_op_user", "password123", "127.0.0.1", "")
 
-	// 1. Initial status query as Operator
+	// 1. Initial status query as Operator (can_toggle must be false)
 	statusReq, _ := http.NewRequest("GET", "/api/alarms/live-comm/status", nil)
 	statusReq.Header.Set("Authorization", "Bearer "+opToken)
 	statusW := httptest.NewRecorder()
@@ -183,5 +191,80 @@ func TestCommTraceEndpoints_RBACAndLifecycle(t *testing.T) {
 	}
 	if tracer.IsActive() {
 		t.Errorf("Tracer should be inactive after Stop")
+	}
+
+	// 7. Engineer queries status (can_toggle must be true) and activates live trace
+	engStatusReq, _ := http.NewRequest("GET", "/api/alarms/live-comm/status", nil)
+	engStatusReq.Header.Set("Authorization", "Bearer "+engToken)
+	engStatusW := httptest.NewRecorder()
+	r.ServeHTTP(engStatusW, engStatusReq)
+	if engStatusW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for engineer status, got %d", engStatusW.Code)
+	}
+	var engStatusRes struct {
+		Data struct {
+			CanToggle bool `json:"can_toggle"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(engStatusW.Body.Bytes(), &engStatusRes)
+	if !engStatusRes.Data.CanToggle {
+		t.Fatalf("Engineer MUST have can_toggle=true")
+	}
+
+	engToggleReq, _ := http.NewRequest("POST", "/api/alarms/live-comm/toggle", bytes.NewBuffer(tBody))
+	engToggleReq.Header.Set("Authorization", "Bearer "+engToken)
+	engToggleReq.Header.Set("Content-Type", "application/json")
+	engToggleW := httptest.NewRecorder()
+	r.ServeHTTP(engToggleW, engToggleReq)
+	if engToggleW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK when Engineer toggles live-comm, got %d: %s", engToggleW.Code, engToggleW.Body.String())
+	}
+	if !tracer.IsActive() {
+		t.Fatalf("Tracer should be active after Engineer activation")
+	}
+
+	// 8. Admin queries status (can_toggle must be true) and stops live trace
+	adminStatusReq, _ := http.NewRequest("GET", "/api/alarms/live-comm/status", nil)
+	adminStatusReq.Header.Set("Authorization", "Bearer "+adminToken)
+	adminStatusW := httptest.NewRecorder()
+	r.ServeHTTP(adminStatusW, adminStatusReq)
+	if adminStatusW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for admin status, got %d", adminStatusW.Code)
+	}
+	var adminStatusRes struct {
+		Data struct {
+			CanToggle bool `json:"can_toggle"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(adminStatusW.Body.Bytes(), &adminStatusRes)
+	if !adminStatusRes.Data.CanToggle {
+		t.Fatalf("Admin MUST have can_toggle=true")
+	}
+
+	adminStopReq, _ := http.NewRequest("POST", "/api/alarms/live-comm/toggle", bytes.NewBuffer(sBody))
+	adminStopReq.Header.Set("Authorization", "Bearer "+adminToken)
+	adminStopReq.Header.Set("Content-Type", "application/json")
+	adminStopW := httptest.NewRecorder()
+	r.ServeHTTP(adminStopW, adminStopReq)
+	if adminStopW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK when Admin stops live-comm, got %d", adminStopW.Code)
+	}
+
+	// 9. Operator cannot clear frames (403 Forbidden)
+	opClearReq, _ := http.NewRequest("DELETE", "/api/alarms/live-comm/frames", nil)
+	opClearReq.Header.Set("Authorization", "Bearer "+opToken)
+	opClearW := httptest.NewRecorder()
+	r.ServeHTTP(opClearW, opClearReq)
+	if opClearW.Code != http.StatusForbidden {
+		t.Fatalf("Expected 403 Forbidden when Operator clears frames, got %d", opClearW.Code)
+	}
+
+	// 10. Engineer can clear frames (200 OK)
+	engClearReq, _ := http.NewRequest("DELETE", "/api/alarms/live-comm/frames", nil)
+	engClearReq.Header.Set("Authorization", "Bearer "+engToken)
+	engClearW := httptest.NewRecorder()
+	r.ServeHTTP(engClearW, engClearReq)
+	if engClearW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK when Engineer clears frames, got %d", engClearW.Code)
 	}
 }
