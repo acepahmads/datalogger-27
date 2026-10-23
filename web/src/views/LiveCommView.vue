@@ -233,7 +233,7 @@
         <div class="flex flex-wrap items-center gap-2">
           <!-- Auto-Scroll Toggle -->
           <button
-            @click="autoScroll = !autoScroll"
+            @click="toggleAutoScroll"
             class="px-2.5 py-1 rounded-lg border text-2xs font-semibold transition flex items-center space-x-1.5"
             :class="autoScroll ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-600/20 dark:text-blue-300 dark:border-blue-500/30' : 'bg-white text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
             :title="$t('liveComm.autoScroll')"
@@ -282,7 +282,7 @@
         <table class="w-full text-left text-xs font-sans border-collapse">
           <thead class="bg-slate-100/90 dark:bg-slate-900/90 text-slate-600 dark:text-slate-400 text-3xs font-semibold uppercase tracking-wider sticky top-0 z-10 border-b border-[#C7D5E8] dark:border-slate-800 backdrop-blur-xs">
             <tr>
-              <th class="py-2.5 px-3 w-28">{{ $t('liveComm.timestamp') }}</th>
+              <th class="py-2.5 px-3 w-28">{{ $t('liveComm.timestamp') }} <span class="text-3xs text-blue-500 font-bold ml-0.5">↓</span></th>
               <th class="py-2.5 px-3 w-28">{{ $t('liveComm.device') }}</th>
               <th class="py-2.5 px-3 w-40">{{ $t('liveComm.function') }}</th>
               <th class="py-2.5 px-3 w-36">{{ $t('liveComm.address') }}</th>
@@ -308,14 +308,20 @@
             </tr>
 
             <tr
-              v-for="frame in filteredFrames"
+              v-for="(frame, idx) in filteredFrames"
               :key="frame.id"
               @click="openInspectModal(frame)"
               class="hover:bg-blue-50/60 dark:hover:bg-slate-800/40 transition cursor-pointer"
+              :class="{ 'bg-blue-50/20 dark:bg-blue-950/10': idx === 0 }"
             >
               <!-- Timestamp -->
               <td class="py-2 px-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                {{ formatTime(frame.timestamp) }}
+                <div class="flex items-center space-x-1.5">
+                  <span>{{ formatTime(frame.timestamp) }}</span>
+                  <span v-if="idx === 0" class="px-1 py-0.2 rounded text-4xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                    NEW
+                  </span>
+                </div>
               </td>
 
               <!-- Device Code & Transport -->
@@ -574,7 +580,7 @@ export default {
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} remaining`;
     },
     filteredFrames() {
-      return this.frames.filter(f => {
+      const list = this.frames.filter(f => {
         if (this.filterDevice && f.device_code !== this.filterDevice) {
           return false;
         }
@@ -592,6 +598,8 @@ export default {
         }
         return true;
       });
+      // Always keep newest frame at index 0 (top of table)
+      return list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     },
     txCount() {
       return this.filteredFrames.filter(f => f.tx_hex).length;
@@ -642,8 +650,8 @@ export default {
     async loadRecentFrames() {
       const data = await this.$store.dispatch('fetchLiveCommFrames', { limit: 100 });
       if (data && Array.isArray(data)) {
-        this.frames = data;
-        this.scrollToBottom();
+        this.frames = data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        this.scrollToTop();
       }
     },
     async loadDevices() {
@@ -691,11 +699,12 @@ export default {
     onLiveFrame(event) {
       if (this.isPaused) return;
       if (event && event.detail) {
-        this.frames.push(event.detail);
+        // Prepend newest frame to top of list
+        this.frames.unshift(event.detail);
         if (this.frames.length > this.maxInMemoryFrames) {
-          this.frames.shift();
+          this.frames.pop();
         }
-        this.scrollToBottom();
+        this.scrollToTop();
       }
     },
     onTraceStatus(event) {
@@ -704,12 +713,18 @@ export default {
         this.remainingSeconds = event.detail.remaining_seconds || 0;
       }
     },
-    scrollToBottom() {
+    toggleAutoScroll() {
+      this.autoScroll = !this.autoScroll;
+      if (this.autoScroll) {
+        this.scrollToTop();
+      }
+    },
+    scrollToTop() {
       if (!this.autoScroll) return;
       this.$nextTick(() => {
         const c = this.$refs.packetContainer;
         if (c) {
-          c.scrollTop = c.scrollHeight;
+          c.scrollTop = 0;
         }
       });
     },

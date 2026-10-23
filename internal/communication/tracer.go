@@ -188,7 +188,8 @@ func (t *CommTracer) statusUnlocked() CommTraceStatus {
 	}
 }
 
-// GetRecentFrames returns captured frames filtered by optional deviceID and limit
+// GetRecentFrames returns captured frames filtered by optional deviceID and limit.
+// Frames are ordered newest first (most recent at index 0).
 func (t *CommTracer) GetRecentFrames(limit int, deviceID uint) []CommTraceFrame {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -203,11 +204,6 @@ func (t *CommTracer) GetRecentFrames(limit int, deviceID uint) []CommTraceFrame 
 		if deviceID == 0 || frame.DeviceID == deviceID {
 			filtered = append(filtered, frame)
 		}
-	}
-
-	// Reverse so returned slice is chronological (oldest to newest)
-	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
-		filtered[i], filtered[j] = filtered[j], filtered[i]
 	}
 
 	return filtered

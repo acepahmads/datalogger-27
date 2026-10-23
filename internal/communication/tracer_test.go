@@ -63,12 +63,35 @@ func TestCommTracer_LifecycleAndAutoTimeout(t *testing.T) {
 
 	tracer.Record(dev, req, resp, nil, 75)
 
+	req2 := modbus.ModbusReadRequest{
+		SlaveID:         1,
+		FunctionCode:    3,
+		StartingAddress: 30,
+		Quantity:        2,
+	}
+	resp2 := &modbus.ModbusReadResponse{
+		SlaveID:      1,
+		FunctionCode: 3,
+		ByteCount:    4,
+		Data:         []byte{0x00, 0x01, 0x00, 0x02},
+		ResponseTime: 40 * time.Millisecond,
+		RequestADU:   []byte{0x01, 0x03, 0x00, 0x1E, 0x00, 0x02, 0xA4, 0x0D},
+		ResponseADU:  []byte{0x01, 0x03, 0x04, 0x00, 0x01, 0x00, 0x02, 0x2B, 0x85},
+		CRCPassed:    true,
+	}
+	tracer.Record(dev, req2, resp2, nil, 40)
+
 	frames := tracer.GetRecentFrames(10, 0)
-	if len(frames) != 1 {
-		t.Fatalf("Expected 1 captured frame, got %d", len(frames))
+	if len(frames) != 2 {
+		t.Fatalf("Expected 2 captured frames, got %d", len(frames))
 	}
 
-	f := frames[0]
+	// Verify frames[0] is newest frame (StartingAddress 30, DisplayAddress 40031)
+	if frames[0].DisplayAddress != 40031 {
+		t.Errorf("Expected newest frame at index 0 (DisplayAddress 40031), got %d", frames[0].DisplayAddress)
+	}
+
+	f := frames[1]
 	if f.DeviceCode != "AQMS-02" {
 		t.Errorf("Expected device code AQMS-02, got %s", f.DeviceCode)
 	}
@@ -94,7 +117,7 @@ func TestCommTracer_LifecycleAndAutoTimeout(t *testing.T) {
 
 	// 5. Recording while inactive should be ignored
 	tracer.Record(dev, req, resp, nil, 75)
-	if len(tracer.GetRecentFrames(10, 0)) != 1 {
-		t.Errorf("Expected no new frames recorded after deactivation")
+	if len(tracer.GetRecentFrames(10, 0)) != 2 {
+		t.Errorf("Expected no new frames recorded after deactivation (count should remain 2)")
 	}
 }
