@@ -256,6 +256,10 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 
 			// Execute cached parameter poll cycle
 			cycleSuccess := p.pollDevice(ctx, cachedDev, cachedParams)
+			if cycleSuccess {
+				now := time.Now().UTC()
+				cachedDev.LastDataAt = &now
+			}
 			if p.alarmEvaluator != nil {
 				var hIn *service.DeviceHealthInput
 				if p.connManager != nil {

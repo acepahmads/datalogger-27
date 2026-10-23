@@ -578,10 +578,16 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeDeviceOffline, device.ID)
 		}
+		if e.alarmService != nil {
+			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
+		}
 		// Also clear comm error if device was disabled
 		if commExisting, ok := e.activeCommErrors[device.ID]; ok {
 			e.clearActiveAlarm(ctx, commExisting.AlarmID, commExisting.AlarmCode)
 			delete(e.activeCommErrors, device.ID)
+		}
+		if e.alarmService != nil {
+			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeCommError)
 		}
 		return
 	}
@@ -674,9 +680,12 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 		if existing != nil {
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeDeviceOffline, device.ID)
-			if e.statusUpdater != nil {
-				_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
-			}
+		}
+		if e.alarmService != nil {
+			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
+		}
+		if e.statusUpdater != nil {
+			_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
 		}
 	}
 }
@@ -756,15 +765,21 @@ func (e *AlarmEvaluator) EvaluateDeviceCommSuccess(ctx context.Context, device *
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeCommErrors, device.ID)
 		}
+		if e.alarmService != nil {
+			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeCommError)
+		}
 	}
 
 	// 2. Recover Device Offline Alarm
 	if existing, ok := e.activeDeviceOffline[device.ID]; ok {
 		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 		delete(e.activeDeviceOffline, device.ID)
-		if e.statusUpdater != nil {
-			_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
-		}
+	}
+	if e.alarmService != nil {
+		_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
+	}
+	if e.statusUpdater != nil {
+		_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
 	}
 }
 
@@ -780,6 +795,10 @@ func (e *AlarmEvaluator) ClearDeviceAlarms(ctx context.Context, deviceID uint) {
 	if existing, ok := e.activeCommErrors[deviceID]; ok {
 		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 		delete(e.activeCommErrors, deviceID)
+	}
+	if e.alarmService != nil {
+		_ = e.alarmService.ClearDeviceAlarms(ctx, deviceID, AlarmCodeDeviceOffline)
+		_ = e.alarmService.ClearDeviceAlarms(ctx, deviceID, AlarmCodeCommError)
 	}
 }
 

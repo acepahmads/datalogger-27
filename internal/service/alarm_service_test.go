@@ -546,3 +546,66 @@ func TestAlarmService_Wave4_ConcurrentAcknowledgement(t *testing.T) {
 	}
 }
 
+func TestAlarmService_ClearDeviceAlarms(t *testing.T) {
+	_, svc, _, _ := setupTestAlarmEnvironment(t)
+	ctx := context.Background()
+
+	devID := uint(42)
+	otherDevID := uint(99)
+
+	// Create 3 DEVICE_OFFLINE alarms for devID
+	for i := 0; i < 3; i++ {
+		a := &model.Alarm{
+			DeviceID:  &devID,
+			AlarmCode: "DEVICE_OFFLINE",
+			Severity:  model.SeverityCritical,
+			Message:   "Device is offline",
+			Status:    model.AlarmActive,
+		}
+		if err := svc.CreateAlarm(ctx, a); err != nil {
+			t.Fatalf("failed creating alarm %d: %v", i, err)
+		}
+	}
+
+	// Create 1 alarm for otherDevID
+	otherAlarm := &model.Alarm{
+		DeviceID:  &otherDevID,
+		AlarmCode: "DEVICE_OFFLINE",
+		Severity:  model.SeverityCritical,
+		Message:   "Other device is offline",
+		Status:    model.AlarmActive,
+	}
+	if err := svc.CreateAlarm(ctx, otherAlarm); err != nil {
+		t.Fatalf("failed creating other alarm: %v", err)
+	}
+
+	// Clear all DEVICE_OFFLINE alarms for devID
+	if err := svc.ClearDeviceAlarms(ctx, devID, "DEVICE_OFFLINE"); err != nil {
+		t.Fatalf("ClearDeviceAlarms failed: %v", err)
+	}
+
+	// Verify all devID alarms are CLEARED
+	activeAlarms, err := svc.GetActiveOrAckedAlarms(ctx)
+	if err != nil {
+		t.Fatalf("GetActiveOrAckedAlarms failed: %v", err)
+	}
+
+	for _, a := range activeAlarms {
+		if a.DeviceID != nil && *a.DeviceID == devID && a.AlarmCode == "DEVICE_OFFLINE" {
+			t.Errorf("expected no active DEVICE_OFFLINE alarm for devID %d, but found ID %d", devID, a.ID)
+		}
+	}
+
+	// Verify otherDevID alarm is still active
+	foundOther := false
+	for _, a := range activeAlarms {
+		if a.DeviceID != nil && *a.DeviceID == otherDevID {
+			foundOther = true
+			break
+		}
+	}
+	if !foundOther {
+		t.Errorf("expected otherDevID alarm to remain active")
+	}
+}
+

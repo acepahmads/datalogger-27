@@ -276,3 +276,30 @@ func (r *AlarmRepository) Clear(ctx context.Context, id uint, clearedAt time.Tim
 
 	return r.GetByID(ctx, id)
 }
+
+// ClearActiveByDeviceAndCode marks all active and acknowledged alarms for a given device and alarm code as CLEARED
+func (r *AlarmRepository) ClearActiveByDeviceAndCode(ctx context.Context, deviceID uint, alarmCode string, clearedAt time.Time) ([]model.Alarm, error) {
+	if clearedAt.IsZero() {
+		clearedAt = time.Now().UTC()
+	}
+
+	var activeAlarms []model.Alarm
+	err := r.db.WithContext(ctx).
+		Where("device_id = ? AND alarm_code = ? AND status IN ?", deviceID, alarmCode, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Find(&activeAlarms).Error
+	if err != nil || len(activeAlarms) == 0 {
+		return activeAlarms, err
+	}
+
+	res := r.db.WithContext(ctx).Model(&model.Alarm{}).
+		Where("device_id = ? AND alarm_code = ? AND status IN ?", deviceID, alarmCode, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Updates(map[string]interface{}{
+			"status":     model.AlarmCleared,
+			"cleared_at": &clearedAt,
+		})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	return activeAlarms, nil
+}

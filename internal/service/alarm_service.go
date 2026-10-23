@@ -192,3 +192,39 @@ func (s *AlarmService) ClearAlarm(ctx context.Context, id uint) (*model.Alarm, e
 
 	return alarm, nil
 }
+
+// ClearDeviceAlarms clears all active and acknowledged alarms of a specific code for a device and broadcasts resolution
+func (s *AlarmService) ClearDeviceAlarms(ctx context.Context, deviceID uint, alarmCode string) error {
+	clearedAt := time.Now().UTC()
+	clearedList, err := s.alarmRepo.ClearActiveByDeviceAndCode(ctx, deviceID, alarmCode, clearedAt)
+	if err != nil {
+		return err
+	}
+
+	for i := range clearedList {
+		alarmCopy := clearedList[i]
+		alarmCopy.Status = model.AlarmCleared
+		alarmCopy.ClearedAt = &clearedAt
+
+		logger.Info("Device alarm %d (%s) for device %d cleared upon communication recovery", alarmCopy.ID, alarmCode, deviceID)
+
+		if s.systemRepo != nil {
+			_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+				Username:  "system",
+				Action:    "ALARM_CLEAR",
+				Resource:  "ALARM",
+				Details:   fmt.Sprintf("Alarm %d (%s) auto-cleared upon recovery", alarmCopy.ID, alarmCopy.AlarmCode),
+				CreatedAt: clearedAt,
+			})
+		}
+
+		if s.hub != nil {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "alarm.cleared",
+				Timestamp: clearedAt,
+				Data:      &alarmCopy,
+			})
+		}
+	}
+	return nil
+}

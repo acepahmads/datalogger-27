@@ -335,6 +335,15 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	// Phase 6 Wave 1: Automated Alarm Threshold Evaluation
 	if s.alarmEvaluator != nil {
 		s.alarmEvaluator.EvaluateTelemetry(s.ctx, latest, payload.Parameter)
+		// Active telemetry proves device communication is alive: recover offline status if active
+		dev := &model.Device{
+			ID:         latest.DeviceID,
+			DeviceCode: latest.DeviceCode,
+			Enabled:    true,
+			Status:     model.DeviceStatusActive,
+			LastDataAt: &latest.ReceivedAt,
+		}
+		s.alarmEvaluator.EvaluateDeviceCommSuccess(s.ctx, dev, nil)
 	}
 
 	// 3. Realtime WebSocket Broadcast
@@ -571,18 +580,16 @@ func (s *TelemetryService) evaluateStaleParameters() {
 			s.alarmEvaluator.EvaluateTelemetry(s.ctx, staleItem, nil)
 		}
 
-		now := time.Now().UTC()
 		for devID, lastData := range devLastData {
-			if now.Sub(lastData) >= 60*time.Second {
-				dev := &model.Device{
-					ID:         devID,
-					DeviceCode: devCodes[devID],
-					Enabled:    true,
-					Status:     model.DeviceStatusActive,
-					LastDataAt: &lastData,
-				}
-				s.alarmEvaluator.EvaluateDeviceOffline(s.ctx, dev, nil)
+			lastDataCopy := lastData
+			dev := &model.Device{
+				ID:         devID,
+				DeviceCode: devCodes[devID],
+				Enabled:    true,
+				Status:     model.DeviceStatusActive,
+				LastDataAt: &lastDataCopy,
 			}
+			s.alarmEvaluator.EvaluateDeviceOffline(s.ctx, dev, nil)
 		}
 	}
 }
