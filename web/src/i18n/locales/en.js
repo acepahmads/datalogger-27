@@ -17,6 +17,7 @@ export default {
     "deliveryStatus": "Delivery Status",
     "liveComm": "Live Sensor Comm",
     "liveCommActiveTooltip": "Live Modbus Frame Sniffer Active",
+    "activityMonitor": "System Activity Monitor",
     "systemAdmin": "System & Admin",
     "systemLogs": "System Logs",
     "auditTrails": "Audit Trails",

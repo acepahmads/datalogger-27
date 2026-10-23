@@ -17,6 +17,7 @@ export default {
     "deliveryStatus": "Status Pengiriman",
     "liveComm": "Live Komunikasi Sensor",
     "liveCommActiveTooltip": "Pemantau Frame Modbus Langsung Aktif",
+    "activityMonitor": "System Activity Monitor",
     "systemAdmin": "Sistem & Admin",
     "systemLogs": "Log Sistem",
     "auditTrails": "Jejak Audit",

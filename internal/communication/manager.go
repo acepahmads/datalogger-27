@@ -31,6 +31,7 @@ type ConnectionManager struct {
 	diagMu         sync.Mutex
 	diagActive     map[uint]time.Time
 	tracer         *CommTracer
+	activityMonitor *ActivityMonitor
 }
 
 // NewConnectionManager initializes the communication connection manager
@@ -76,6 +77,23 @@ func (m *ConnectionManager) GetBackoffPolicy() *BackoffPolicy {
 // GetDeviceHealth retrieves the real-time ConnectionHealth for a device
 func (m *ConnectionManager) GetDeviceHealth(deviceID uint) ConnectionHealth {
 	return m.healthTracker.GetHealth(deviceID)
+}
+
+// SetActivityMonitor attaches the system activity monitor
+func (m *ConnectionManager) SetActivityMonitor(mon *ActivityMonitor) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.activityMonitor = mon
+}
+
+// getActivityMonitor gets the attached or global activity monitor
+func (m *ConnectionManager) getActivityMonitor() *ActivityMonitor {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.activityMonitor != nil {
+		return m.activityMonitor
+	}
+	return GetGlobalActivityMonitor()
 }
 
 // GetAllDeviceHealth retrieves real-time ConnectionHealth snapshots for all devices
@@ -239,6 +257,24 @@ func (m *ConnectionManager) ReconnectDevice(ctx context.Context, device *model.D
 		}
 	}
 
+	if mon := m.getActivityMonitor(); mon != nil {
+		mon.RecordEvent(ActivityEvent{
+			Severity:    SeverityInfo,
+			Category:    CategoryCommunication,
+			Component:   "ConnectionManager",
+			DeviceID:    device.ID,
+			DeviceCode:  device.DeviceCode,
+			DeviceName:  device.DeviceName,
+			EventName:   "RETRY_STARTED",
+			Description: fmt.Sprintf("Reconnection attempt initiated for %s (failures: %d)", device.DeviceCode, health.ConsecutiveFailures+1),
+		})
+		mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+			s.PollingState = PollingStateReconnecting
+			s.RecoveryState = "RECONNECTING"
+			s.RetryCount++
+		})
+	}
+
 	// 5. Clean disconnect before reconnecting
 	_ = m.DisconnectDevice(device.ID)
 
@@ -252,16 +288,52 @@ func (m *ConnectionManager) ReconnectDevice(ctx context.Context, device *model.D
 		} else {
 			_, _ = m.stateMachine.Transition(device.ID, StateDegraded, fmt.Sprintf("reconnect failed: %v", err))
 		}
+		if mon := m.getActivityMonitor(); mon != nil {
+			mon.RecordEvent(ActivityEvent{
+				Severity:    SeverityWarning,
+				Category:    CategoryCommunication,
+				Component:   "ConnectionManager",
+				DeviceID:    device.ID,
+				DeviceCode:  device.DeviceCode,
+				DeviceName:  device.DeviceName,
+				EventName:   "RETRY_FAILED",
+				Description: fmt.Sprintf("Reconnection attempt failed for %s: %v", device.DeviceCode, err),
+				ErrorDetail: err.Error(),
+			})
+			mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+				s.PollingState = PollingStateRetrying
+				s.RecoveryState = "BACKOFF"
+				s.LastError = err.Error()
+			})
+		}
 		return err
 	}
 
-	// 7. Success
+	// 7. Success: Physical or socket transport re-established
 	m.healthTracker.RecordReconnectSuccess(device.ID)
-	_, _ = m.stateMachine.Transition(device.ID, StateConnected, "reconnect successful")
-	if m.deviceService != nil {
-		_ = m.deviceService.SetOnline(device.ID)
+	_, _ = m.stateMachine.Transition(device.ID, StateConnected, "transport re-established")
+
+	// NOTE: We deliberately do NOT set device to ONLINE here!
+	// Opening the serial port or TCP socket only confirms physical/network transport.
+	// Status ONLINE must be confirmed strictly upon receiving a valid Modbus response in polling.
+	if mon := m.getActivityMonitor(); mon != nil {
+		mon.RecordEvent(ActivityEvent{
+			Severity:    SeverityInfo,
+			Category:    CategorySerial,
+			Component:   "ConnectionManager",
+			DeviceID:    device.ID,
+			DeviceCode:  device.DeviceCode,
+			DeviceName:  device.DeviceName,
+			EventName:   "SERIAL_PORT_REOPENED",
+			Description: fmt.Sprintf("Transport link re-opened for %s. Awaiting verified Modbus response to confirm ONLINE.", device.DeviceCode),
+		})
+		mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+			s.PollingState = PollingStateWaiting
+			s.RecoveryState = "NORMAL"
+			s.LastError = ""
+		})
 	}
-	logger.Info("Device %s (%d) successfully recovered and reconnected", device.DeviceCode, device.ID)
+	logger.Info("Device %s (%d) transport link reopened, awaiting verified Modbus response", device.DeviceCode, device.ID)
 	return nil
 }
 
@@ -339,8 +411,35 @@ func (m *ConnectionManager) ExecuteWithRetry(
 
 			// Recover state if degraded or reconnecting
 			curState := m.stateMachine.GetState(device.ID)
-			if curState == StateDegraded || curState == StateReconnecting || curState == StateError {
+			wasOfflineOrDegraded := curState == StateDegraded || curState == StateReconnecting || curState == StateError
+			if wasOfflineOrDegraded {
 				_, _ = m.stateMachine.Transition(device.ID, StateConnected, "successful communication read")
+				if mon := m.getActivityMonitor(); mon != nil {
+					mon.RecordEvent(ActivityEvent{
+						Severity:    SeverityInfo,
+						Category:    CategoryCommunication,
+						Component:   "ConnectionManager",
+						DeviceID:    device.ID,
+						DeviceCode:  device.DeviceCode,
+						DeviceName:  device.DeviceName,
+						EventName:   "COMMUNICATION_RECOVERED",
+						Description: fmt.Sprintf("Communication successfully recovered for %s (latency: %dms)", device.DeviceCode, latencyMs),
+						DurationMs:  latencyMs,
+					})
+				}
+			}
+
+			if mon := m.getActivityMonitor(); mon != nil {
+				now := time.Now()
+				mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+					s.CommunicationStatus = "ONLINE"
+					s.PollingState = PollingStateSuccess
+					s.LastSuccessfulResponse = &now
+					s.LastLatencyMs = latencyMs
+					s.ConsecutiveFailures = 0
+					s.RecoveryState = "NORMAL"
+					s.LastError = ""
+				})
 			}
 
 			if m.deviceService != nil {
@@ -361,6 +460,25 @@ func (m *ConnectionManager) ExecuteWithRetry(
 			retryDelay := time.Duration(50*(attempt+1)) * time.Millisecond
 			logger.Debug("Device %s read failed (attempt %d/%d): %v. Retrying in %v...",
 				device.DeviceCode, attempt+1, retryLimit+1, err, retryDelay)
+
+			if mon := m.getActivityMonitor(); mon != nil {
+				mon.RecordEvent(ActivityEvent{
+					Severity:    SeverityWarning,
+					Category:    CategoryModbus,
+					Component:   "ConnectionManager",
+					DeviceID:    device.ID,
+					DeviceCode:  device.DeviceCode,
+					DeviceName:  device.DeviceName,
+					EventName:   "RETRY_STARTED",
+					Description: fmt.Sprintf("Retrying Modbus read on %s (attempt %d/%d): %v", device.DeviceCode, attempt+1, retryLimit+1, err),
+					ErrorDetail: err.Error(),
+				})
+				mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+					s.PollingState = PollingStateRetrying
+					s.RetryCount++
+				})
+			}
+
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -376,6 +494,29 @@ func (m *ConnectionManager) ExecuteWithRetry(
 	// If failures exceed degraded threshold, transition state machine
 	if consec >= m.healthTracker.degradedThreshold {
 		_, _ = m.stateMachine.Transition(device.ID, StateDegraded, fmt.Sprintf("%d consecutive failures: %v", consec, lastErr))
+	}
+
+	if mon := m.getActivityMonitor(); mon != nil {
+		sev := SeverityWarning
+		if consec >= m.healthTracker.errorThreshold {
+			sev = SeverityError
+		}
+		mon.RecordEvent(ActivityEvent{
+			Severity:    sev,
+			Category:    CategoryModbus,
+			Component:   "ConnectionManager",
+			DeviceID:    device.ID,
+			DeviceCode:  device.DeviceCode,
+			DeviceName:  device.DeviceName,
+			EventName:   "MODBUS_READ_FAILED",
+			Description: fmt.Sprintf("Modbus read on %s failed after %d attempts: %v", device.DeviceCode, retryLimit+1, lastErr),
+			ErrorDetail: lastErr.Error(),
+		})
+		mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+			s.PollingState = PollingStateTimeout
+			s.ConsecutiveFailures = consec
+			s.LastError = lastErr.Error()
+		})
 	}
 
 	if m.deviceService != nil {

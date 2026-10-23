@@ -182,9 +182,15 @@ func main() {
 	connManager := communication.NewConnectionManager(deviceService, communication.DefaultAdapterFactory)
 	commTracer := communication.NewCommTracer(hub)
 	connManager.SetCommTracer(commTracer)
+
+	// 8c. Initialize Superadmin System Activity Monitor
+	activityMonitor := communication.NewActivityMonitor(hub, systemRepo, commTracer)
+	connManager.SetActivityMonitor(activityMonitor)
+
 	pollingEngine := communication.NewPollingEngine(connManager, deviceService, hub)
 	pollingEngine.SetTelemetryService(telemetryService)
 	pollingEngine.SetAlarmEvaluator(alarmEvaluator)
+	pollingEngine.SetActivityMonitor(activityMonitor)
 	pollingEngine.Start()
 	defer pollingEngine.Stop()
 
@@ -220,6 +226,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	commTraceHandler := handler.NewCommTraceHandler(commTracer, deviceService)
+	activityHandler := handler.NewActivityMonitorHandler(activityMonitor, deviceService, commTracer)
 
 	// Phase 7.5 — ISPU Module (Permen LHK No. 14 Tahun 2020)
 	ispuRepo := repository.NewISPURepository(db)
@@ -415,6 +422,20 @@ func main() {
 			alarmsGroup.GET("/live-comm/frames", middleware.RequirePermission("alarm.view"), commTraceHandler.GetFrames)
 			alarmsGroup.POST("/live-comm/toggle", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ToggleTrace)
 			alarmsGroup.DELETE("/live-comm/frames", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ClearFrames)
+		}
+
+		// Superadmin System Activity Monitor (Strictly SUPERADMIN Only)
+		activityGroup := api.Group("/system/activity-monitor")
+		activityGroup.Use(middleware.JWTAuth(authService))
+		activityGroup.Use(middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR"))
+		{
+			activityGroup.GET("/overview", activityHandler.GetOverview)
+			activityGroup.GET("/events", activityHandler.GetEvents)
+			activityGroup.GET("/polling", activityHandler.GetPollingSnapshots)
+			activityGroup.GET("/device/:id", activityHandler.GetDeviceDetail)
+			activityGroup.GET("/background-jobs", activityHandler.GetBackgroundJobs)
+			activityGroup.POST("/events/clear", activityHandler.ClearEvents)
+			activityGroup.GET("/export", activityHandler.ExportEvents)
 		}
 
 		// Logs

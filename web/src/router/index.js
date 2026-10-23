@@ -93,8 +93,14 @@ const routes = [
   { path: '/alarm/queue', name: 'DeliveryQueue', component: AlarmsView },
   { path: '/alarm/delivery', redirect: '/alarm/queue' },
   { path: '/monitoring/delivery', redirect: '/alarm/queue' },
-  { path: '/alarm/channels', redirect: '/alarm/active?tab=channels' },
   { path: '/alarm/live-comm', name: 'LiveComm', component: () => import('../views/LiveCommView.vue') },
+  {
+    path: '/alarm/activity-monitor',
+    name: 'SystemActivityMonitor',
+    component: () => import('../views/SystemActivityMonitorView.vue'),
+    meta: { roles: ['SUPERADMIN'] },
+  },
+  { path: '/system/activity-monitor', redirect: '/alarm/activity-monitor' },
 
   // System Logs & Audit
   { path: '/system/logs', name: 'SystemLogs', component: LogsView },
