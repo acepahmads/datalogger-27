@@ -4,9 +4,9 @@
     <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md pt-2 pb-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
       <div class="flex items-center space-x-3">
         <router-link
-          to="/dashboard"
+          :to="isSuperAdmin ? '/dashboard' : '/monitoring/operator'"
           class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition"
-          title="Back to Dashboard"
+          :title="isSuperAdmin ? 'Back to Dashboard' : 'Back to Operator Console'"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />

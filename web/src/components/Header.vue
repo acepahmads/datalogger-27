@@ -654,10 +654,10 @@ export default {
       }
 
       if (!allowed) {
-        if (currentRole === 'OPERATOR') {
-          this.$router.push('/monitoring/operator');
-        } else {
+        if (isSuper) {
           this.$router.push('/dashboard');
+        } else {
+          this.$router.push('/monitoring/operator');
         }
       } else {
         // Re-trigger router refresh

@@ -420,6 +420,13 @@ export default {
       return this.$store.state.activities.slice(0, 5);
     },
   },
+  mounted() {
+    if (!this.isSuperAdmin) {
+      this.$router.replace('/access-denied');
+      return;
+    }
+    this.refreshAll();
+  },
   methods: {
     cleanLabel(str) {
       if (!str) return '';

@@ -288,32 +288,39 @@ export default {
         const user = this.$store.state.user || {};
         const role = (user.role || '').toUpperCase();
 
+        const isSuper = role === 'SUPERADMIN' || role === 'ADMINISTRATOR';
+
         if (redirect && redirect !== '/login') {
           // Check if destination is restricted for non-superadmin
           const isDevRoute = redirect.startsWith('/development');
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
+          const isQualityRoute = redirect === '/dashboard' || redirect.startsWith('/dashboard') || redirect === '/quality' || redirect.startsWith('/monitoring/quality');
 
-          if (isDevRoute && role !== 'SUPERADMIN' && role !== 'ADMINISTRATOR') {
-            this.$router.push('/dashboard');
+          if (isQualityRoute && !isSuper) {
+            this.$router.push('/monitoring/operator');
             return;
           }
-          if (isUsersRoute && role !== 'SUPERADMIN' && role !== 'ADMINISTRATOR' && role !== 'ADMIN') {
-            this.$router.push('/dashboard');
+          if (isDevRoute && !isSuper) {
+            this.$router.push('/monitoring/operator');
             return;
           }
-          if (isRolesRoute && role !== 'SUPERADMIN' && role !== 'ADMINISTRATOR') {
-            this.$router.push('/dashboard');
+          if (isUsersRoute && !isSuper && role !== 'ADMIN') {
+            this.$router.push('/monitoring/operator');
+            return;
+          }
+          if (isRolesRoute && !isSuper) {
+            this.$router.push('/monitoring/operator');
             return;
           }
 
           this.$router.push(redirect);
         } else {
-          // If operator, default to operator console or dashboard
-          if (role === 'OPERATOR') {
-            this.$router.push('/monitoring/operator');
-          } else {
+          // If superadmin, default to overview/quality dashboard; otherwise default to operator console
+          if (isSuper) {
             this.$router.push('/dashboard');
+          } else {
+            this.$router.push('/monitoring/operator');
           }
         }
       } catch (err) {

@@ -171,7 +171,7 @@
             <span>{{ $t('navigation.reports') || 'Reports' }}</span>
           </router-link>
 
-          <router-link to="/dashboard" class="nav-item" :class="{ 'nav-active': $route.path === '/dashboard' }">
+          <router-link v-if="isSuperAdmin" to="/dashboard" class="nav-item" :class="{ 'nav-active': $route.path === '/dashboard' || $route.path === '/quality' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>

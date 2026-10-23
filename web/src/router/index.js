@@ -32,7 +32,14 @@ const routes = [
   { path: '/', redirect: '/monitoring/operator' },
   { path: '/operator', redirect: '/monitoring/operator' },
   { path: '/monitoring/operator', name: 'OperatorCommandCenter', component: OperatorCommandCenterView },
-  { path: '/dashboard', name: 'Dashboard', component: DashboardView },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: DashboardView,
+    meta: { roles: ['SUPERADMIN'] },
+  },
+  { path: '/quality', redirect: '/dashboard' },
+  { path: '/monitoring/quality', redirect: '/dashboard' },
   { path: '/monitoring/ispu', name: 'ISPUAnalysis', component: ISPUAnalysisView },
   { path: '/ispu', redirect: '/monitoring/ispu' },
 
