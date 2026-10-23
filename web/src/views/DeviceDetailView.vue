@@ -27,16 +27,18 @@
       <div v-if="device" class="flex items-center space-x-2.5">
         <button
           @click="toggleEnabled"
-          :class="device.enabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'"
-          class="px-3 py-1.5 rounded-xl border text-xs font-semibold transition flex items-center space-x-1.5"
+          :class="device.enabled
+            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/20'
+            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20'"
+          class="px-3 py-1.5 rounded-xl border text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
         >
-          <span class="w-2 h-2 rounded-full" :class="device.enabled ? 'bg-amber-400' : 'bg-emerald-400'"></span>
+          <span class="w-2 h-2 rounded-full" :class="device.enabled ? 'bg-amber-500' : 'bg-emerald-500'"></span>
           <span>{{ device.enabled ? $t('deviceDetail.disableDevice') : $t('deviceDetail.enableDevice') }}</span>
         </button>
 
         <button
           @click="openEditModal"
-          class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-[#C7D5E8] shadow-2xs dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -46,7 +48,7 @@
 
         <button
           @click="openCopyDeviceModal"
-          class="px-3 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-800/60 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 shadow-2xs dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 dark:text-cyan-300 dark:border-cyan-800/60 text-xs font-semibold transition flex items-center space-x-1.5"
           :title="$t('deviceDetail.copyDevice')"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,7 +59,7 @@
 
         <button
           @click="confirmDelete"
-          class="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 text-xs font-semibold transition flex items-center space-x-1.5"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -68,7 +70,7 @@
         <router-link
           v-if="device"
           :to="'/monitoring/analysis?device_id=' + device.id"
-          class="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-2xs dark:bg-indigo-600/20 dark:hover:bg-indigo-600/30 dark:text-indigo-400 dark:border-indigo-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
           :title="$t('analysis.openInAnalysis')"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -128,42 +130,42 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <div v-if="device" class="border-b border-slate-800 flex space-x-6 text-xs font-semibold">
+    <div v-if="device" class="border-b border-[#D5E2F0] dark:border-slate-800 flex space-x-6 text-xs font-semibold overflow-x-auto">
       <button
         @click="activeTab = 'overview'"
-        :class="activeTab === 'overview' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'overview' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.overview') }}</span>
       </button>
       <button
         @click="activeTab = 'connection'"
-        :class="activeTab === 'connection' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'connection' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.connectionConfig') }}</span>
       </button>
       <button
         @click="activeTab = 'parameters'"
-        :class="activeTab === 'parameters' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'parameters' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.parameters') }}</span>
-        <span class="px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 text-3xs font-mono">
+        <span class="px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 text-3xs font-mono font-bold">
           {{ device.parameters ? device.parameters.length : 0 }}
         </span>
       </button>
       <button
         @click="switchTab('telemetry')"
-        :class="activeTab === 'telemetry' ? 'border-b-2 border-emerald-500 text-emerald-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'telemetry' ? 'border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-500 dark:text-emerald-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
-        <span class="w-2 h-2 rounded-full bg-emerald-400" :class="{ 'animate-pulse': livePacketBlink }"></span>
+        <span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400" :class="{ 'animate-pulse': livePacketBlink }"></span>
         <span>{{ $t('deviceDetail.liveTelemetry') }}</span>
       </button>
       <button
         @click="switchTab('history')"
-        :class="activeTab === 'history' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'history' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.historical') }}</span>
@@ -171,29 +173,29 @@
       <button
         v-if="isSuperAdmin"
         @click="switchTab('raw')"
-        :class="activeTab === 'raw' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'raw' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.rawTelemetry') }}</span>
       </button>
       <button
         @click="switchTab('aggregation')"
-        :class="activeTab === 'aggregation' ? 'border-b-2 border-indigo-500 text-indigo-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'aggregation' ? 'border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.aggregation') }}</span>
-        <span v-if="aggregationDefinitions && aggregationDefinitions.length" class="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded-full font-mono">{{ aggregationDefinitions.length }}</span>
+        <span v-if="aggregationDefinitions && aggregationDefinitions.length" class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30 px-1.5 py-0.5 rounded-full font-mono">{{ aggregationDefinitions.length }}</span>
       </button>
       <button
         @click="activeTab = 'activity'"
-        :class="activeTab === 'activity' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'activity' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.activityAudit') }}</span>
       </button>
       <button
         @click="activeTab = 'health'"
-        :class="activeTab === 'health' ? 'border-b-2 border-blue-500 text-blue-400 pb-2.5' : 'text-slate-400 hover:text-slate-200 pb-2.5'"
+        :class="activeTab === 'health' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
       >
         <span>{{ $t('deviceDetail.healthDiagnostics') }}</span>
@@ -719,14 +721,28 @@
 
     <!-- TAB 3: PARAMETERS -->
     <div v-if="device && activeTab === 'parameters'" class="saas-card p-5 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
-          <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.telemetryParamsCount', { count: device.parameters ? device.parameters.length : 0 }) }}</h3>
-          <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.paramDefSubtitle') }}</p>
+          <div class="flex items-center space-x-2">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('deviceDetail.telemetryParamsCount', { count: device.parameters ? device.parameters.length : 0 }) }}</h3>
+            <!-- Active Sort Indicator Pill with Reset -->
+            <span
+              v-if="paramSortKey"
+              class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-3xs font-mono font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700/50 shadow-2xs"
+            >
+              <span>{{ paramSortKey.toUpperCase() }}: {{ paramSortDir.toUpperCase() }}</span>
+              <button
+                @click.stop="toggleParamSort(paramSortKey); toggleParamSort(paramSortKey)"
+                class="hover:text-blue-900 dark:hover:text-white ml-0.5 font-bold"
+                :title="$t('deviceDetail.resetSort')"
+              >✕</button>
+            </span>
+          </div>
+          <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $t('deviceDetail.paramDefSubtitle') }}</p>
         </div>
         <button
           @click="openAddParamModal"
-          class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition flex items-center space-x-1.5"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -739,26 +755,100 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs font-sans">
           <thead>
-            <tr class="border-b border-slate-800 text-3xs uppercase font-semibold text-slate-400 tracking-wider">
-              <th class="py-2.5 px-3">{{ $t('deviceDetail.code') }}</th>
-              <th class="py-2.5 px-3">{{ $t('deviceDetail.colName') }}</th>
+            <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 text-3xs uppercase font-semibold text-slate-600 dark:text-slate-400 tracking-wider">
+              <th
+                @click="toggleParamSort('code')"
+                class="py-2.5 px-3 cursor-pointer select-none group hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                :title="$t('deviceDetail.sortByCode') || 'Sort by Code'"
+              >
+                <div class="inline-flex items-center space-x-1">
+                  <span>{{ $t('deviceDetail.code') }}</span>
+                  <span
+                    class="p-0.5 rounded transition"
+                    :class="paramSortKey === 'code' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-400 opacity-40 group-hover:opacity-100'"
+                  >
+                    <svg v-if="paramSortKey === 'code' && paramSortDir === 'asc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+                    <svg v-else-if="paramSortKey === 'code' && paramSortDir === 'desc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+                  </span>
+                </div>
+              </th>
+              <th
+                @click="toggleParamSort('name')"
+                class="py-2.5 px-3 cursor-pointer select-none group hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                :title="$t('deviceDetail.sortByName') || 'Sort by Parameter Name'"
+              >
+                <div class="inline-flex items-center space-x-1.5">
+                  <span class="font-bold">{{ $t('deviceDetail.colName') }}</span>
+                  <!-- DEDICATED SORT ICON IMMEDIATELY TO THE RIGHT OF PARAMETER NAME -->
+                  <span
+                    class="inline-flex items-center justify-center p-0.5 rounded transition shadow-2xs"
+                    :class="paramSortKey === 'name' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700/60' : 'text-slate-400 opacity-60 group-hover:opacity-100 group-hover:text-slate-700 dark:group-hover:text-slate-200'"
+                  >
+                    <svg v-if="paramSortKey === 'name' && paramSortDir === 'asc'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/>
+                    </svg>
+                    <svg v-else-if="paramSortKey === 'name' && paramSortDir === 'desc'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                    </svg>
+                  </span>
+                  <span v-if="paramSortKey === 'name'" class="text-[9px] font-mono font-bold uppercase px-1 py-0.2 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                    {{ paramSortDir }}
+                  </span>
+                </div>
+              </th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.dataType') }}</th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.unit') }}</th>
-              <th class="py-2.5 px-3">{{ $t('deviceDetail.register') }}</th>
+              <th
+                @click="toggleParamSort('register')"
+                class="py-2.5 px-3 cursor-pointer select-none group hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                :title="$t('deviceDetail.sortByRegister') || 'Sort by Register'"
+              >
+                <div class="inline-flex items-center space-x-1">
+                  <span>{{ $t('deviceDetail.register') }}</span>
+                  <span
+                    class="p-0.5 rounded transition"
+                    :class="paramSortKey === 'register' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-400 opacity-40 group-hover:opacity-100'"
+                  >
+                    <svg v-if="paramSortKey === 'register' && paramSortDir === 'asc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+                    <svg v-else-if="paramSortKey === 'register' && paramSortDir === 'desc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+                  </span>
+                </div>
+              </th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.colScaleOffset') }}</th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.colLimits') }}</th>
-              <th class="py-2.5 px-3">{{ $t('deviceDetail.colCurrentValue') }}</th>
+              <th
+                @click="toggleParamSort('current_value')"
+                class="py-2.5 px-3 cursor-pointer select-none group hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+                :title="$t('deviceDetail.sortByValue') || 'Sort by Current Value'"
+              >
+                <div class="inline-flex items-center space-x-1">
+                  <span>{{ $t('deviceDetail.colCurrentValue') }}</span>
+                  <span
+                    class="p-0.5 rounded transition"
+                    :class="paramSortKey === 'current_value' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-400 opacity-40 group-hover:opacity-100'"
+                  >
+                    <svg v-if="paramSortKey === 'current_value' && paramSortDir === 'asc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+                    <svg v-else-if="paramSortKey === 'current_value' && paramSortDir === 'desc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+                  </span>
+                </div>
+              </th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.colEnabled') }}</th>
               <th class="py-2.5 px-3 text-right">{{ $t('deviceDetail.colActions') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-800/60">
-            <tr v-for="param in device.parameters" :key="param.id" class="hover:bg-slate-800/30 transition-colors">
-              <td class="py-2.5 px-3 font-mono font-bold text-blue-400">{{ param.parameter_code || param.code }}</td>
-              <td class="py-2.5 px-3 font-medium text-slate-200">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
+            <tr v-for="param in sortedParameters" :key="param.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+              <td class="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">{{ param.parameter_code || param.code }}</td>
+              <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
                 <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
                   <ParameterIcon :icon="param.icon" :code="param.parameter_code || param.code" :name="param.parameter_name || param.name" :unit="param.unit" size-class="w-3.5 h-3.5" />
-                  <span>{{ param.parameter_name || param.name }}</span>
+                  <span class="font-semibold text-slate-900 dark:text-slate-100">{{ param.parameter_name || param.name }}</span>
                   <span
                     v-if="param.category"
                     class="px-1.5 py-0.2 rounded text-4xs font-bold border ml-1 font-mono"
@@ -775,91 +865,102 @@
                   </span>
                   <span
                     v-else
-                    class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-800/80 text-slate-400 border border-slate-700/60 ml-1 font-mono"
+                    class="px-1.5 py-0.2 rounded text-4xs font-medium bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800/80 dark:text-slate-400 dark:border-slate-700/60 ml-1 font-mono"
                   >
                     {{ $t('operator.uncategorized') || 'Uncategorized' }}
                   </span>
                 </div>
               </td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">{{ param.data_type }}</td>
-              <td class="py-2.5 px-3 font-medium text-slate-400">{{ param.unit || '--' }}</td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-300">
-                <span class="font-bold text-slate-200">#{{ param.register_address !== undefined ? param.register_address : 0 }}</span>
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-700 dark:text-slate-300">{{ param.data_type }}</td>
+              <td class="py-2.5 px-3 font-medium text-slate-600 dark:text-slate-400">{{ param.unit || '--' }}</td>
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-700 dark:text-slate-300">
+                <span class="font-bold text-slate-900 dark:text-slate-200">#{{ param.register_address !== undefined ? param.register_address : 0 }}</span>
                 <span class="block text-4xs text-slate-500 font-sans uppercase">{{ param.register_type || 'HOLDING' }}</span>
                 <span
                   v-if="isModbusDevice"
                   class="inline-block mt-0.5 px-1 py-0.2 rounded text-[9px] font-mono font-bold uppercase"
-                  :class="param.batch_mode === 'SINGLE' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'"
+                  :class="param.batch_mode === 'SINGLE' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20'"
                 >
                   {{ param.batch_mode === 'SINGLE' ? 'SINGLE' : 'AUTO BATCH' }}
                 </span>
               </td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                 <div>×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</div>
-                <div v-if="param.formula" class="text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
+                <div v-if="param.formula" class="text-blue-600 dark:text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
                   ƒ: {{ param.formula }}
                 </div>
-                <div v-if="param.hold_last_value_enabled" class="text-amber-400/90 text-3xs flex items-center space-x-1" :title="$t('parameters.heldTooltip')">
+                <div v-if="param.hold_last_value_enabled" class="text-amber-600 dark:text-amber-400/90 text-3xs flex items-center space-x-1" :title="$t('parameters.heldTooltip')">
                   <span>🛡️</span>
                   <span>{{ param.hold_last_value_seconds || 120 }}s</span>
                 </div>
               </td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-400">
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                 <div>Hard: {{ param.min_value !== null && param.min_value !== undefined ? param.min_value : (param.low_limit || '-∞') }} .. {{ param.max_value !== null && param.max_value !== undefined ? param.max_value : (param.high_limit || '+∞') }}</div>
-                <div v-if="param.warning_low !== null && param.warning_low !== undefined || param.warning_high !== null && param.warning_high !== undefined" class="text-amber-400/80">
+                <div v-if="param.warning_low !== null && param.warning_low !== undefined || param.warning_high !== null && param.warning_high !== undefined" class="text-amber-600 dark:text-amber-400/80">
                   Warn: {{ param.warning_low !== null && param.warning_low !== undefined ? param.warning_low : '-∞' }} .. {{ param.warning_high !== null && param.warning_high !== undefined ? param.warning_high : '+∞' }}
                 </div>
               </td>
-              <td class="py-2.5 px-3 font-mono text-slate-200">
+              <td class="py-2.5 px-3 font-mono text-slate-800 dark:text-slate-200">
                 <div class="font-bold flex items-center space-x-1.5">
-                  <span>{{ formatParamValue(param) }}</span>
+                  <span class="text-slate-900 dark:text-slate-100">{{ formatParamValue(param) }}</span>
                   <span
                     class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold uppercase"
                     :class="qualityBadgeClass(getParamQuality(param))"
                   >
                     {{ getParamQuality(param) }}
                   </span>
-                  <span v-if="isParamHeld(param)" class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse" :title="$t('parameters.heldTooltip')">
+                  <span v-if="isParamHeld(param)" class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 animate-pulse" :title="$t('parameters.heldTooltip')">
                     {{ $t('parameters.heldBadge') }}
                   </span>
                 </div>
-                <div v-if="getParamQuality(param) !== 'GOOD' && getParamQualityReason(param)" class="text-4xs font-mono text-amber-400/90 truncate max-w-[140px]" :title="getParamQualityReason(param)">
+                <div v-if="getParamQuality(param) !== 'GOOD' && getParamQualityReason(param)" class="text-4xs font-mono text-amber-600 dark:text-amber-400/90 truncate max-w-[140px]" :title="getParamQualityReason(param)">
                   {{ getParamQualityReason(param) }}
                 </div>
-                <div v-if="getParamFormulaValue(param) !== null" class="text-3xs text-blue-400 font-mono font-medium">
+                <div v-if="getParamFormulaValue(param) !== null" class="text-3xs text-blue-600 dark:text-blue-400 font-mono font-medium">
                   ƒ(x): {{ getParamFormulaValue(param) }}
                 </div>
               </td>
               <td class="py-2.5 px-3">
                 <button
                   @click="toggleParamEnabled(param)"
-                  :class="param.enabled ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-400'"
-                  class="font-mono text-3xs font-semibold transition"
+                  :class="param.enabled
+                    ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                    : 'text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
+                  class="font-mono text-3xs font-semibold px-2 py-0.5 rounded transition"
                 >
                   {{ param.enabled ? $t('deviceDetail.active') : $t('deviceDetail.disabled') }}
                 </button>
               </td>
-              <td class="py-2.5 px-3 text-right space-x-2">
+              <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
                 <button
                   @click="openTestReadModal(param)"
-                  class="text-emerald-400 hover:text-emerald-300 transition text-2xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
+                  class="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"
                 >
-                  {{ $t('deviceDetail.testRead') }}
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>{{ $t('deviceDetail.testRead') }}</span>
                 </button>
                 <button
                   @click="openCopyParamModal(param)"
-                  class="text-cyan-400 hover:text-cyan-300 transition text-2xs font-semibold px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 inline-flex items-center space-x-1"
+                  class="text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 dark:bg-cyan-500/10 dark:hover:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30 transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"
                   :title="$t('deviceDetail.copyParameter') || 'Copy Parameter'"
                 >
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                   </svg>
-                  <span>{{ $t('deviceDetail.copyParameter') || 'Copy' }}</span>
+                  <span>{{ $t('deviceDetail.copyParameter') || 'Copy Parameter' }}</span>
                 </button>
-                <button @click="openEditParamModal(param)" class="text-blue-400 hover:text-blue-300 transition text-2xs font-semibold">
+                <button
+                  @click="openEditParamModal(param)"
+                  class="text-slate-700 hover:text-blue-600 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-blue-400 transition text-2xs font-semibold px-2 py-1 rounded-lg shadow-2xs"
+                >
                   {{ $t('common.edit') }}
                 </button>
-                <button @click="confirmDeleteParam(param)" class="text-rose-400 hover:text-rose-300 transition text-2xs font-semibold">
+                <button
+                  @click="confirmDeleteParam(param)"
+                  class="text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 transition text-2xs font-semibold px-2 py-1 rounded-lg shadow-2xs"
+                >
                   {{ $t('common.delete') }}
                 </button>
               </td>
@@ -895,7 +996,7 @@
           <button
             @click="loadActivity"
             :disabled="activityLoading"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-2xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 shadow-2xs"
           >
             <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': activityLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -1056,7 +1157,7 @@
           </div>
           <button
             @click="fetchLatestTelemetry"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-2xs font-semibold transition flex items-center space-x-1.5"
+            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -1229,7 +1330,7 @@
                 class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition"
                 :class="historyTimeRange === tr.value
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
-                  : 'bg-[#0B0F19] text-slate-400 hover:text-slate-200 border border-slate-700/60'"
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 dark:bg-[#0B0F19] dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-700/60'"
               >
                 {{ tr.label }}
               </button>
@@ -1297,7 +1398,7 @@
           </button>
           <router-link
             :to="'/monitoring/analysis?device_id=' + device.id + '&mode=HISTORICAL'"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5"
+            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
           >
             <span>{{ $t('analysis.openInAnalysis') }}</span>
           </router-link>
@@ -1941,17 +2042,17 @@
           <button
             @click="prevHistoryPage"
             :disabled="historyPage <= 1 || historyLoading"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+            class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 disabled:opacity-40 transition font-semibold shadow-2xs"
           >
             {{ $t('common.previous') }}
           </button>
-          <span class="text-slate-400 text-2xs font-mono">
+          <span class="text-slate-500 dark:text-slate-400 text-2xs font-mono">
             {{ $t('deviceDetail.showingPagination', { start: (historyPage - 1) * historyPageSize + 1, end: Math.min(historyPage * historyPageSize, historyTotal), total: historyTotal }) }}
           </span>
           <button
             @click="nextHistoryPage"
             :disabled="historyPage * historyPageSize >= historyTotal || historyLoading"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+            class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 disabled:opacity-40 transition font-semibold shadow-2xs"
           >
             {{ $t('common.next') }}
           </button>
@@ -1982,13 +2083,13 @@
           <button
             @click="fetchRawTelemetry"
             :disabled="rawLoading"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition"
+            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition shadow-2xs"
           >
             {{ $t('common.refresh') }}
           </button>
           <router-link
             :to="'/monitoring/analysis?device_id=' + device.id + '&mode=RAW'"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5"
+            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
           >
             <span>{{ $t('analysis.openInAnalysis') }}</span>
           </router-link>
@@ -2096,10 +2197,10 @@
             @click="customerViewMode = !customerViewMode"
             class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-2 border"
             :class="customerViewMode 
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-sm shadow-emerald-500/10' 
-              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'"
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30 shadow-2xs' 
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700 shadow-2xs'"
           >
-            <span class="w-2 h-2 rounded-full" :class="customerViewMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
+            <span class="w-2 h-2 rounded-full" :class="customerViewMode ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-500'"></span>
             <span>{{ customerViewMode ? $t('aggregation.customerMode') : $t('aggregation.engineeringMode') }}</span>
           </button>
 
@@ -2108,10 +2209,10 @@
             @click="toggleAutoRefreshAgg"
             class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center space-x-1.5 border"
             :class="autoRefreshAgg 
-              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10' 
-              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'"
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/40 shadow-2xs' 
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:text-slate-200 shadow-2xs'"
           >
-            <span class="w-2 h-2 rounded-full" :class="autoRefreshAgg ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
+            <span class="w-2 h-2 rounded-full" :class="autoRefreshAgg ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400 dark:bg-slate-500'"></span>
             <span>{{ $t('aggregation.autoRefresh') }} (3s)</span>
           </button>
 
@@ -2119,9 +2220,9 @@
           <button
             @click="runAllAggBuckets"
             :title="$t('aggregation.runBucketsTooltip')"
-            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm"
+            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 hover:text-slate-900 dark:text-slate-200 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
           >
-            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
@@ -2131,7 +2232,7 @@
           <!-- New Definition Button -->
           <button
             @click="openCreateAggDefModal"
-            class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm shadow-indigo-500/20"
+            class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -2141,7 +2242,7 @@
 
           <router-link
             :to="'/monitoring/analysis?device_id=' + device.id + '&mode=AGGREGATED'"
-            class="px-3 py-1.5 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-800/40 text-indigo-300 text-xs font-semibold transition flex items-center space-x-1.5"
+            class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 dark:border-indigo-800/40 text-indigo-700 dark:text-indigo-300 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
           >
             <span>{{ $t('analysis.openInAnalysis') }}</span>
           </router-link>
@@ -3341,6 +3442,10 @@ export default {
       testReadLoading: false,
       testReadResult: null,
 
+      // Parameters Table Sorting (Persistent)
+      paramSortKey: localStorage.getItem('datalogger_param_sort_key') || '',
+      paramSortDir: localStorage.getItem('datalogger_param_sort_dir') || '',
+
       // Modbus Multi-Address Batch Read Polling Plan
       pollingPlan: null,
       pollingPlanLoading: false,
@@ -3443,8 +3548,40 @@ export default {
       ];
     },
     displayParameters() {
+      return this.sortedParameters;
+    },
+    sortedParameters() {
       if (!this.device || !this.device.parameters) return [];
-      return this.device.parameters;
+      const list = [...this.device.parameters];
+      if (!this.paramSortKey || !this.paramSortDir) {
+        return list;
+      }
+      const dir = this.paramSortDir === 'desc' ? -1 : 1;
+      const key = this.paramSortKey;
+
+      return list.sort((a, b) => {
+        if (key === 'name') {
+          const nameA = (a.parameter_name || a.name || '').toLowerCase();
+          const nameB = (b.parameter_name || b.name || '').toLowerCase();
+          return nameA.localeCompare(nameB) * dir;
+        }
+        if (key === 'code') {
+          const codeA = (a.parameter_code || a.code || '').toLowerCase();
+          const codeB = (b.parameter_code || b.code || '').toLowerCase();
+          return codeA.localeCompare(codeB) * dir;
+        }
+        if (key === 'register') {
+          const regA = Number(a.register_address !== undefined ? a.register_address : (a.address || 0));
+          const regB = Number(b.register_address !== undefined ? b.register_address : (b.address || 0));
+          return (regA - regB) * dir;
+        }
+        if (key === 'current_value') {
+          const valA = parseFloat(this.formatParamValue(a)) || 0;
+          const valB = parseFloat(this.formatParamValue(b)) || 0;
+          return (valA - valB) * dir;
+        }
+        return 0;
+      });
     },
     deviceQualitySummary() {
       if (!this.device || !this.device.parameters || this.device.parameters.length === 0) {
@@ -3807,6 +3944,35 @@ export default {
     }
   },
   methods: {
+    toggleParamSort(key) {
+      if (this.paramSortKey !== key) {
+        this.paramSortKey = key;
+        this.paramSortDir = 'asc';
+      } else if (this.paramSortDir === 'asc') {
+        this.paramSortDir = 'desc';
+      } else if (this.paramSortDir === 'desc') {
+        this.paramSortKey = '';
+        this.paramSortDir = '';
+      } else {
+        this.paramSortDir = 'asc';
+      }
+
+      if (this.paramSortKey && this.paramSortDir) {
+        try {
+          localStorage.setItem('datalogger_param_sort_key', this.paramSortKey);
+          localStorage.setItem('datalogger_param_sort_dir', this.paramSortDir);
+        } catch (e) {
+          console.warn('Failed to save param sort preference:', e);
+        }
+      } else {
+        try {
+          localStorage.removeItem('datalogger_param_sort_key');
+          localStorage.removeItem('datalogger_param_sort_dir');
+        } catch (e) {
+          console.warn('Failed to clear param sort preference:', e);
+        }
+      }
+    },
     getTelemetryVal(rec) {
       if (!rec) return 0;
       if (this.chartValueMode === 'raw') {
