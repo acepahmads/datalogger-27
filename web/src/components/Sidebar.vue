@@ -215,6 +215,18 @@
             </svg>
             <span>{{ $t('navigation.deliveryStatus') || 'Delivery Status' }}</span>
           </router-link>
+
+          <router-link to="/alarm/live-comm" class="nav-item" :class="{ 'nav-active': $route.path === '/alarm/live-comm' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+            <span>{{ $t('navigation.liveComm') || 'Live Sensor Comm' }}</span>
+            <span v-if="liveCommActive" class="ml-auto flex h-2 w-2 relative" :title="$t('navigation.liveCommActiveTooltip') || 'Live Stream Active'">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+          </router-link>
         </div>
       </div>
 
@@ -322,6 +334,11 @@ export default {
       default: false,
     },
   },
+  data() {
+    return {
+      liveCommActive: false,
+    };
+  },
   computed: {
     userRole() {
       const u = this.$store.state.user || {};
@@ -357,6 +374,24 @@ export default {
     onNavClick() {
       this.$emit('navigate');
     },
+    onTraceStatus(e) {
+      if (e && e.detail) {
+        this.liveCommActive = !!e.detail.active;
+      }
+    },
+    async checkLiveCommStatus() {
+      const res = await this.$store.dispatch('fetchLiveCommStatus');
+      if (res) {
+        this.liveCommActive = !!res.active;
+      }
+    },
+  },
+  mounted() {
+    this.checkLiveCommStatus();
+    window.addEventListener('comm-trace-status', this.onTraceStatus);
+  },
+  beforeDestroy() {
+    window.removeEventListener('comm-trace-status', this.onTraceStatus);
   },
 };
 </script>

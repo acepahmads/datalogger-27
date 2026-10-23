@@ -658,6 +658,32 @@ export default new Vuex.Store({
         throw err;
       }
     },
+    async fetchLiveCommStatus() {
+      try {
+        const res = await axios.get(`${API_BASE}/alarms/live-comm/status`);
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to fetch live comm status:', err);
+        return null;
+      }
+    },
+    async fetchLiveCommFrames(_, { limit = 50, deviceId = 0 } = {}) {
+      try {
+        const res = await axios.get(`${API_BASE}/alarms/live-comm/frames?limit=${limit}&device_id=${deviceId}`);
+        return res.data ? res.data.data : [];
+      } catch (err) {
+        console.error('Failed to fetch live comm frames:', err);
+        return [];
+      }
+    },
+    async toggleLiveCommTrace(_, payload) {
+      const res = await axios.post(`${API_BASE}/alarms/live-comm/toggle`, payload);
+      return res.data;
+    },
+    async clearLiveCommFrames() {
+      const res = await axios.delete(`${API_BASE}/alarms/live-comm/frames`);
+      return res.data;
+    },
     async testReadParameter(_, payload) {
       const deviceId = payload.deviceId || payload.device_id;
       const paramId = payload.paramId || payload.parameterId || payload.parameter_id;
@@ -841,6 +867,10 @@ export default new Vuex.Store({
             commit('UPSERT_ACTIVE_ALARM', msg.data);
           } else if (msg.type === 'alarm.acknowledged' && msg.data) {
             commit('UPDATE_ALARM_STATUS', msg.data);
+          } else if (msg.type === 'comm.live.frame' && msg.data) {
+            window.dispatchEvent(new CustomEvent('comm-live-frame', { detail: msg.data }));
+          } else if (msg.type === 'comm.trace.status' && msg.data) {
+            window.dispatchEvent(new CustomEvent('comm-trace-status', { detail: msg.data }));
           } else if (msg.type === 'alarm.cleared' && msg.data) {
             commit('REMOVE_ACTIVE_ALARM', msg.data.id || msg.data.ID);
           }

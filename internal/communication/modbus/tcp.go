@@ -232,12 +232,16 @@ func (a *ModbusTCPAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	a.status.SuccessCount++
 	a.status.LastError = ""
 
+	fullRespADU := append(append([]byte{}, mbapHdr...), pdu...)
 	return &ModbusReadResponse{
 		SlaveID:      respUnitID,
 		FunctionCode: fc,
 		ByteCount:    byteCount,
 		Data:         data,
 		ResponseTime: elapsed,
+		RequestADU:   reqBuf,
+		ResponseADU:  fullRespADU,
+		CRCPassed:    true,
 	}, nil
 }
 

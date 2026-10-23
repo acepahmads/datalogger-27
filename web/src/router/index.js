@@ -87,6 +87,7 @@ const routes = [
   { path: '/alarm/delivery', redirect: '/alarm/queue' },
   { path: '/monitoring/delivery', redirect: '/alarm/queue' },
   { path: '/alarm/channels', redirect: '/alarm/active?tab=channels' },
+  { path: '/alarm/live-comm', name: 'LiveComm', component: () => import('../views/LiveCommView.vue') },
 
   // System Logs & Audit
   { path: '/system/logs', name: 'SystemLogs', component: LogsView },

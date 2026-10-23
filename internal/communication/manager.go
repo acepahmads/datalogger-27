@@ -30,6 +30,7 @@ type ConnectionManager struct {
 	reconnecting   map[uint]bool
 	diagMu         sync.Mutex
 	diagActive     map[uint]time.Time
+	tracer         *CommTracer
 }
 
 // NewConnectionManager initializes the communication connection manager
@@ -264,6 +265,20 @@ func (m *ConnectionManager) ReconnectDevice(ctx context.Context, device *model.D
 	return nil
 }
 
+// SetCommTracer attaches a live frame sniffer to capture TX/RX packets
+func (m *ConnectionManager) SetCommTracer(t *CommTracer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.tracer = t
+}
+
+// GetCommTracer returns the active communication tracer
+func (m *ConnectionManager) GetCommTracer() *CommTracer {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.tracer
+}
+
 // ResetDeviceBackoff resets consecutive failures and backoff delay for immediate hot-plug recovery
 func (m *ConnectionManager) ResetDeviceBackoff(deviceID uint) {
 	if m.healthTracker != nil {
@@ -280,6 +295,9 @@ func (m *ConnectionManager) ExecuteWithRetry(
 	adapter, err := m.GetOrCreateAdapter(device)
 	if err != nil {
 		m.healthTracker.RecordCommunicationFailure(device.ID, err)
+		if tracer := m.GetCommTracer(); tracer != nil && tracer.IsActive() {
+			tracer.Record(device, req, nil, err, 0)
+		}
 		return nil, err
 	}
 
@@ -299,11 +317,17 @@ func (m *ConnectionManager) ExecuteWithRetry(
 		default:
 		}
 
+		attemptStart := time.Now()
 		resp, err := adapter.ReadRegisters(ctx, req)
 		if err == nil {
 			// Successful read
 			latencyMs := int(resp.ResponseTime.Milliseconds())
 			m.healthTracker.RecordCommunicationSuccess(device.ID, latencyMs)
+
+			// Record in live communication tracer if active
+			if tracer := m.GetCommTracer(); tracer != nil && tracer.IsActive() {
+				tracer.Record(device, req, resp, nil, latencyMs)
+			}
 
 			// Recover state if degraded or reconnecting
 			curState := m.stateMachine.GetState(device.ID)
@@ -320,6 +344,10 @@ func (m *ConnectionManager) ExecuteWithRetry(
 		}
 
 		lastErr = err
+		// Record failed attempt in live communication tracer if active
+		if tracer := m.GetCommTracer(); tracer != nil && tracer.IsActive() {
+			tracer.Record(device, req, nil, err, int(time.Since(attemptStart).Milliseconds()))
+		}
 		if attempt < retryLimit {
 			// Bounded jittered retry delay: (attempt + 1) * 50ms +/- 20%
 			retryDelay := time.Duration(50*(attempt+1)) * time.Millisecond

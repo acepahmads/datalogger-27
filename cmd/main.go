@@ -180,6 +180,8 @@ func main() {
 
 	// 8b. Initialize Communication Engine (Phase 2.2)
 	connManager := communication.NewConnectionManager(deviceService, communication.DefaultAdapterFactory)
+	commTracer := communication.NewCommTracer(hub)
+	connManager.SetCommTracer(commTracer)
 	pollingEngine := communication.NewPollingEngine(connManager, deviceService, hub)
 	pollingEngine.SetTelemetryService(telemetryService)
 	pollingEngine.SetAlarmEvaluator(alarmEvaluator)
@@ -217,6 +219,7 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+	commTraceHandler := handler.NewCommTraceHandler(commTracer, deviceService)
 
 	// Phase 7.5 — ISPU Module (Permen LHK No. 14 Tahun 2020)
 	ispuRepo := repository.NewISPURepository(db)
@@ -406,6 +409,12 @@ func main() {
 			alarmsGroup.POST("", middleware.RequirePermission("alarm.manage"), systemHandler.CreateAlarm)
 			alarmsGroup.PUT("/:id/acknowledge", middleware.RequirePermission("alarm.acknowledge"), systemHandler.AcknowledgeAlarm)
 			alarmsGroup.PUT("/:id/clear", middleware.RequirePermission("alarm.manage"), systemHandler.ClearAlarm)
+
+			// Live Sensor Communication Sniffer & Frame Inspector (Alarms & Events Menu)
+			alarmsGroup.GET("/live-comm/status", middleware.RequirePermission("alarm.view"), commTraceHandler.GetStatus)
+			alarmsGroup.GET("/live-comm/frames", middleware.RequirePermission("alarm.view"), commTraceHandler.GetFrames)
+			alarmsGroup.POST("/live-comm/toggle", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ToggleTrace)
+			alarmsGroup.DELETE("/live-comm/frames", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ClearFrames)
 		}
 
 		// Logs
@@ -583,6 +592,10 @@ func main() {
 			apiV1.GET("/devices/:id/polling-plan", middleware.RequirePermission("device.view"), deviceHandler.GetDevicePollingPlan)
 			apiV1.GET("/devices/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
 			apiV1.GET("/devices/:id/parameters", middleware.RequirePermission("device.view"), deviceHandler.ListParameters)
+			apiV1.GET("/alarms/live-comm/status", middleware.RequirePermission("alarm.view"), commTraceHandler.GetStatus)
+			apiV1.GET("/alarms/live-comm/frames", middleware.RequirePermission("alarm.view"), commTraceHandler.GetFrames)
+			apiV1.POST("/alarms/live-comm/toggle", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ToggleTrace)
+			apiV1.DELETE("/alarms/live-comm/frames", middleware.RequireRole("SUPERADMIN"), commTraceHandler.ClearFrames)
 		}
 	}
 
