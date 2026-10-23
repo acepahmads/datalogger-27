@@ -228,45 +228,45 @@
           v-for="pollutant in sevenOfficialParameters"
           :key="pollutant.code"
           @click="selectDisplayParameter(pollutant.code)"
-          class="p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer hover:border-cyan-400 select-none overflow-hidden"
+          class="p-2 sm:p-2.5 rounded-xl border-2 transition-all flex flex-col justify-between cursor-pointer hover:scale-[1.02] hover:shadow-md select-none overflow-hidden"
           :class="[
             getCardClass(pollutant.code),
-            selectedDisplayParam === pollutant.code ? 'ring-2 ring-cyan-400 shadow-md bg-cyan-500/10' : ''
+            selectedDisplayParam === pollutant.code ? 'ring-2 ring-cyan-400 dark:ring-cyan-300 shadow-lg' : ''
           ]"
           :title="`Klik untuk menampilkan ISPU ${pollutant.code} pada bar utama`"
         >
           <!-- Card Header -->
-          <div class="flex items-center justify-between text-3xs font-mono mb-1">
-            <span class="font-bold text-slate-900 dark:text-white">{{ pollutant.code }}</span>
+          <div class="flex items-center justify-between text-3xs font-mono mb-1.5">
+            <span class="font-extrabold text-xs tracking-tight text-slate-900 dark:text-white">{{ pollutant.code }}</span>
             <span
               v-if="selectedDisplayParam === pollutant.code"
-              class="px-1 py-0.2 rounded text-4xs font-bold bg-cyan-500 text-slate-950 uppercase"
+              class="px-1.5 py-0.5 rounded text-4xs font-extrabold bg-cyan-600 text-white uppercase shadow-2xs"
             >
               Active
             </span>
             <span
               v-else-if="isDominant(pollutant.code)"
-              class="px-1 py-0.2 rounded text-4xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40"
+              class="px-1.5 py-0.5 rounded text-4xs font-extrabold bg-amber-500 text-white dark:bg-amber-400 dark:text-slate-950 border border-amber-600 dark:border-amber-300 shadow-2xs"
               title="Dominant Pollutant"
             >
               ⭐ Dominant
             </span>
             <span
               v-else-if="!getParameterResult(pollutant.code)"
-              class="px-1 py-0.2 rounded text-4xs bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700"
+              class="px-1 py-0.5 rounded text-4xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700"
             >
               Unmapped
             </span>
           </div>
 
           <!-- Metric (Fit tightly without overflowing card boundaries) -->
-          <div class="flex items-center justify-between gap-1 my-0.5 min-w-0">
-            <span class="text-base sm:text-lg font-bold font-mono tabular-nums leading-none shrink-0" :class="getTextClass(pollutant.code)">
+          <div class="flex items-baseline justify-between gap-1 my-1 min-w-0">
+            <span class="text-xl sm:text-2xl font-black font-mono tabular-nums leading-none shrink-0" :class="getTextClass(pollutant.code)">
               {{ getISPUValue(pollutant.code) }}
             </span>
             <span
               v-if="getParameterResult(pollutant.code)"
-              class="px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-tight border text-center leading-none max-w-full truncate shrink"
+              class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border text-center leading-none max-w-full truncate shrink shadow-2xs"
               :class="getBadgeClass(pollutant.code)"
               :title="formatCategoryLabel(getParameterResult(pollutant.code).category)"
             >
@@ -275,11 +275,11 @@
           </div>
 
           <!-- Concentration & Formula hint -->
-          <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 truncate mt-1">
+          <div class="text-4xs font-mono font-bold text-slate-700 dark:text-slate-300 truncate mt-1">
             <span v-if="getParameterResult(pollutant.code)">
               {{ getParameterResult(pollutant.code).concentration.toFixed(1) }} {{ getParameterResult(pollutant.code).source_unit || 'µg/m³' }}
             </span>
-            <span v-else class="italic text-slate-400">
+            <span v-else class="italic text-slate-400 dark:text-slate-500">
               No mapped sensor
             </span>
           </div>
@@ -823,39 +823,55 @@ export default {
     },
     getCardClass(pollutantCode) {
       const pr = this.getParameterResult(pollutantCode);
-      if (!pr) return 'bg-slate-50 dark:bg-[#101B2B]/60 border-slate-200 dark:border-slate-800 opacity-60';
-      if (this.isDominant(pollutantCode)) return 'bg-amber-500/10 dark:bg-amber-950/20 border-amber-500/50 shadow-xs';
+      if (!pr) {
+        return 'bg-slate-100/80 dark:bg-[#101B2B] border-slate-300 dark:border-slate-800 opacity-60';
+      }
+      if (this.isDominant(pollutantCode)) {
+        return 'bg-amber-100/95 dark:bg-amber-950/70 border-amber-500 dark:border-amber-400 shadow-md ring-2 ring-amber-400/50';
+      }
       switch (pr.category) {
-        case 'BAIK': return 'bg-emerald-500/5 dark:bg-emerald-950/15 border-emerald-500/30';
-        case 'SEDANG': return 'bg-blue-500/5 dark:bg-blue-950/15 border-blue-500/30';
-        case 'TIDAK_SEHAT': return 'bg-amber-500/5 dark:bg-amber-950/15 border-amber-500/30';
-        case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/5 dark:bg-rose-950/15 border-rose-500/30';
-        case 'BERBAHAYA': return 'bg-purple-900/20 border-purple-500/40';
-        default: return 'bg-slate-50 dark:bg-[#101B2B] border-slate-200 dark:border-slate-800';
+        case 'BAIK':
+          return 'bg-emerald-100/90 dark:bg-emerald-950/70 border-emerald-500 dark:border-emerald-500 shadow-sm';
+        case 'SEDANG':
+          return 'bg-blue-100/90 dark:bg-blue-950/70 border-blue-500 dark:border-blue-500 shadow-sm';
+        case 'TIDAK_SEHAT':
+          return 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-500 dark:border-amber-500 shadow-sm';
+        case 'SANGAT_TIDAK_SEHAT':
+          return 'bg-rose-100/90 dark:bg-rose-950/70 border-rose-500 dark:border-rose-500 shadow-sm';
+        case 'BERBAHAYA':
+          return 'bg-purple-100/95 dark:bg-purple-950/80 border-purple-600 dark:border-purple-400 shadow-sm';
+        default:
+          return 'bg-slate-100 dark:bg-[#101B2B] border-slate-300 dark:border-slate-700';
       }
     },
     getTextClass(pollutantCode) {
       const pr = this.getParameterResult(pollutantCode);
-      if (!pr) return 'text-slate-400';
+      if (!pr) return 'text-slate-400 dark:text-slate-500';
       switch (pr.category) {
-        case 'BAIK': return 'text-emerald-600 dark:text-emerald-400';
-        case 'SEDANG': return 'text-blue-600 dark:text-blue-400';
-        case 'TIDAK_SEHAT': return 'text-amber-600 dark:text-amber-400';
-        case 'SANGAT_TIDAK_SEHAT': return 'text-rose-600 dark:text-rose-400';
-        case 'BERBAHAYA': return 'text-purple-600 dark:text-purple-400';
-        default: return 'text-slate-600 dark:text-slate-400';
+        case 'BAIK': return 'text-emerald-700 dark:text-emerald-300';
+        case 'SEDANG': return 'text-blue-700 dark:text-blue-300';
+        case 'TIDAK_SEHAT': return 'text-amber-800 dark:text-amber-300';
+        case 'SANGAT_TIDAK_SEHAT': return 'text-rose-700 dark:text-rose-300';
+        case 'BERBAHAYA': return 'text-purple-800 dark:text-purple-300';
+        default: return 'text-slate-700 dark:text-slate-300';
       }
     },
     getBadgeClass(pollutantCode) {
       const pr = this.getParameterResult(pollutantCode);
-      if (!pr) return 'bg-slate-200 text-slate-500 border-slate-300';
+      if (!pr) return 'bg-slate-200 text-slate-600 border border-slate-300';
       switch (pr.category) {
-        case 'BAIK': return 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40';
-        case 'SEDANG': return 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/40';
-        case 'TIDAK_SEHAT': return 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40';
-        case 'SANGAT_TIDAK_SEHAT': return 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/40';
-        case 'BERBAHAYA': return 'bg-purple-900/40 text-purple-300 border-purple-500/50';
-        default: return 'bg-slate-200 text-slate-500 border-slate-300';
+        case 'BAIK':
+          return 'bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950 border border-emerald-700 dark:border-emerald-400';
+        case 'SEDANG':
+          return 'bg-blue-600 text-white dark:bg-blue-500 dark:text-slate-950 border border-blue-700 dark:border-blue-400';
+        case 'TIDAK_SEHAT':
+          return 'bg-amber-500 text-slate-950 dark:bg-amber-400 dark:text-slate-950 border border-amber-600 dark:border-amber-300 font-black';
+        case 'SANGAT_TIDAK_SEHAT':
+          return 'bg-rose-600 text-white dark:bg-rose-500 dark:text-white border border-rose-700 dark:border-rose-400';
+        case 'BERBAHAYA':
+          return 'bg-purple-800 text-white dark:bg-purple-500 dark:text-slate-950 border border-purple-900 dark:border-purple-300';
+        default:
+          return 'bg-slate-200 text-slate-600 border border-slate-300';
       }
     },
     formatCategoryLabel(cat) {
