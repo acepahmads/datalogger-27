@@ -49,8 +49,8 @@
           class="px-3 py-2 text-xs rounded-xl bg-white dark:bg-[#111827] border border-[#C7D5E8] dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-2xs focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
         >
           <option :value="0">{{ $t('liveComm.allDevices') }}</option>
-          <option v-for="dev in devices" :key="dev.id" :value="dev.id">
-            {{ dev.device_code || dev.name }} (ID: {{ dev.id }})
+          <option v-for="dev in deviceList" :key="dev.id" :value="dev.id">
+            {{ dev.device_code || dev.device_name || dev.name || ('Device #' + dev.id) }} (ID: {{ dev.id }})
           </option>
         </select>
 
@@ -193,8 +193,8 @@
               class="px-2.5 py-1 text-xs rounded-lg bg-white dark:bg-slate-900 border border-[#C7D5E8] dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none"
             >
               <option value="">{{ $t('liveComm.allDevices') }}</option>
-              <option v-for="dev in devices" :key="dev.id" :value="dev.device_code">
-                {{ dev.device_code || dev.name }}
+              <option v-for="dev in deviceList" :key="dev.id" :value="dev.device_code">
+                {{ dev.device_code || dev.device_name || dev.name || ('Device #' + dev.id) }}
               </option>
             </select>
           </div>
@@ -687,6 +687,15 @@ export default {
     canToggle() {
       return this.isSuperAdmin || (this.status && this.status.can_toggle);
     },
+    deviceList() {
+      if (Array.isArray(this.devices) && this.devices.length > 0) {
+        return this.devices;
+      }
+      if (Array.isArray(this.$store.state.devices) && this.$store.state.devices.length > 0) {
+        return this.$store.state.devices;
+      }
+      return [];
+    },
     countdownFormatted() {
       const sec = this.remainingSeconds > 0 ? this.remainingSeconds : (this.status ? this.status.remaining_seconds : 0);
       if (sec <= 0) return '00:00';
@@ -751,7 +760,7 @@ export default {
       }
 
       // 2. Client-side resolution fallback using loaded devices with parameters
-      const dev = this.devices.find(d => (frame.device_id && d.id === frame.device_id) || (frame.device_code && d.device_code === frame.device_code));
+      const dev = (this.deviceList || []).find(d => (frame.device_id && d.id === frame.device_id) || (frame.device_code && d.device_code === frame.device_code));
       if (!dev || !dev.parameters || dev.parameters.length === 0) {
         return null;
       }
@@ -836,7 +845,7 @@ export default {
       }
       // 3. Fallback resolution via loaded devices list
       if (frame.status !== 'SUCCESS') return [];
-      const dev = this.devices.find(d => (frame.device_id && d.id === frame.device_id) || (frame.device_code && d.device_code === frame.device_code));
+      const dev = (this.deviceList || []).find(d => (frame.device_id && d.id === frame.device_id) || (frame.device_code && d.device_code === frame.device_code));
       if (!dev || !dev.parameters || dev.parameters.length === 0) {
         return [];
       }
@@ -946,10 +955,24 @@ export default {
     },
     async loadDevices() {
       try {
-        const res = await this.$store.dispatch('fetchDevices');
-        this.devices = (res && res.data) ? res.data : (res || []);
+        const res = await this.$store.dispatch('fetchDevices', { all: true, pageSize: 100 });
+        let list = [];
+        if (Array.isArray(res)) {
+          list = res;
+        } else if (res && Array.isArray(res.items)) {
+          list = res.items;
+        } else if (res && res.data && Array.isArray(res.data.items)) {
+          list = res.data.items;
+        } else if (res && Array.isArray(res.data)) {
+          list = res.data;
+        } else if (Array.isArray(this.$store.state.devices)) {
+          list = this.$store.state.devices;
+        }
+        this.devices = list;
       } catch (e) {
-        // ignore
+        if (Array.isArray(this.$store.state.devices)) {
+          this.devices = this.$store.state.devices;
+        }
       }
     },
     async toggleTrace() {
