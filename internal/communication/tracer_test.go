@@ -121,3 +121,97 @@ func TestCommTracer_LifecycleAndAutoTimeout(t *testing.T) {
 		t.Errorf("Expected no new frames recorded after deactivation (count should remain 2)")
 	}
 }
+
+func TestCommTracer_DecodedAndConvertedValues(t *testing.T) {
+	tracer := NewCommTracer(nil)
+	tracer.Start("admin", 10*time.Minute, 0)
+
+	dev := &model.Device{
+		ID:         10,
+		DeviceCode: "AQMS-01",
+		DeviceName: "Station Central",
+		Connection: &model.DeviceConnection{
+			Protocol:  model.ProtocolModbusRTU,
+			ByteOrder: "ABCD",
+		},
+		Parameters: []model.Parameter{
+			{
+				ID:              101,
+				DeviceID:        10,
+				ParameterCode:   "pm2.5",
+				ParameterName:   "Particulate Matter 2.5",
+				RegisterAddress: 40021, // PDU 20
+				RegisterType:    "HOLDING_REGISTER",
+				DataType:        model.DataTypeFloat32,
+				Precision:       2,
+				Scale:           1.0,
+				Unit:            "µg/m³",
+				Enabled:         true,
+			},
+			{
+				ID:              102,
+				DeviceID:        10,
+				ParameterCode:   "pm10",
+				ParameterName:   "Particulate Matter 10",
+				RegisterAddress: 40023, // PDU 22
+				RegisterType:    "HOLDING_REGISTER",
+				DataType:        model.DataTypeFloat32,
+				Precision:       2,
+				Scale:           1.0,
+				Formula:         "x * 1.5", // Setup custom formula
+				Unit:            "µg/m³",
+				Enabled:         true,
+			},
+		},
+	}
+
+	// 0x41C80000 = 25.0f, 0x41A00000 = 20.0f
+	req := modbus.ModbusReadRequest{
+		SlaveID:         1,
+		FunctionCode:    3,
+		StartingAddress: 20,
+		Quantity:        4,
+	}
+	resp := &modbus.ModbusReadResponse{
+		SlaveID:      1,
+		FunctionCode: 3,
+		ByteCount:    8,
+		Data:         []byte{0x41, 0xC8, 0x00, 0x00, 0x41, 0xA0, 0x00, 0x00},
+		ResponseTime: 50 * time.Millisecond,
+		RequestADU:   []byte{0x01, 0x03, 0x00, 0x14, 0x00, 0x04, 0x04, 0x0B},
+		ResponseADU:  []byte{0x01, 0x03, 0x08, 0x41, 0xC8, 0x00, 0x00, 0x41, 0xA0, 0x00, 0x00, 0x00, 0x00},
+	}
+
+	tracer.Record(dev, req, resp, nil, 50)
+	frames := tracer.GetRecentFrames(1, 0)
+	if len(frames) != 1 {
+		t.Fatalf("Expected 1 frame, got %d", len(frames))
+	}
+
+	f := frames[0]
+	if len(f.DecodedValues) != 2 {
+		t.Fatalf("Expected 2 decoded values, got %d: %+v", len(f.DecodedValues), f.DecodedValues)
+	}
+
+	// First parameter: PM2.5 = 25.00
+	if f.DecodedValues[0].ParameterCode != "pm2.5" || f.DecodedValues[0].Formatted != "25.00" {
+		t.Errorf("Unexpected DecodedValues[0]: %+v", f.DecodedValues[0])
+	}
+	if f.DecodedValues[0].Unit != "µg/m³" {
+		t.Errorf("Expected unit µg/m³, got '%s'", f.DecodedValues[0].Unit)
+	}
+
+	// Second parameter: PM10 raw 20.0, formula x * 1.5 = 30.00
+	if f.DecodedValues[1].ParameterCode != "pm10" || f.DecodedValues[1].Formatted != "30.00" {
+		t.Errorf("Unexpected DecodedValues[1]: %+v", f.DecodedValues[1])
+	}
+	if f.DecodedValues[1].Value != 30.0 {
+		t.Errorf("Expected formula calculated value 30.0, got %f", f.DecodedValues[1].Value)
+	}
+
+	// ConvertedValues string summary
+	expectedStr := "pm2.5: 25.00 µg/m³, pm10: 30.00 µg/m³"
+	if f.ConvertedValues != expectedStr {
+		t.Errorf("Expected ConvertedValues '%s', got '%s'", expectedStr, f.ConvertedValues)
+	}
+}

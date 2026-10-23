@@ -12,31 +12,46 @@ import (
 	"datalogger/internal/websocket"
 )
 
+// DecodedValueItem represents a decoded, scaled, and formula-calculated parameter value from a captured frame
+type DecodedValueItem struct {
+	ParameterID   uint     `json:"parameter_id,omitempty"`
+	ParameterCode string   `json:"parameter_code"`
+	ParameterName string   `json:"parameter_name,omitempty"`
+	RawValue      float64  `json:"raw_value"`
+	ScaledValue   float64  `json:"scaled_value"`
+	FormulaValue  *float64 `json:"formula_value,omitempty"`
+	Value         float64  `json:"value"`
+	Formatted     string   `json:"formatted"`
+	Unit          string   `json:"unit,omitempty"`
+}
+
 // CommTraceFrame represents a captured live communication transaction frame
 type CommTraceFrame struct {
-	ID              int64     `json:"id"`
-	Timestamp       time.Time `json:"timestamp"`
-	DeviceID        uint      `json:"device_id"`
-	DeviceCode      string    `json:"device_code"`
-	DeviceName      string    `json:"device_name"`
-	Protocol        string    `json:"protocol"`  // MODBUS_RTU, MODBUS_TCP
-	Transport       string    `json:"transport"` // /dev/ttyUSB0 (9600 8-N-1) or 192.168.1.50:502
-	SlaveID         byte      `json:"slave_id"`
-	FunctionCode    byte      `json:"function_code"`
-	FCName          string    `json:"fc_name"`
-	StartingAddress uint16    `json:"starting_address"`
-	DisplayAddress  int       `json:"display_address"` // Modicon notation (e.g. 40021)
-	Quantity        uint16    `json:"quantity"`
-	ParameterCodes  string    `json:"parameter_codes,omitempty"` // e.g. "PM25" or "SO2, NO2"
-	ParameterNames  string    `json:"parameter_names,omitempty"` // e.g. "Particulate Matter 2.5"
-	TXHex           string    `json:"tx_hex"`
-	TXBytes         int       `json:"tx_bytes"`
-	RXHex           string    `json:"rx_hex"`
-	RXBytes         int       `json:"rx_bytes"`
-	LatencyMs       int       `json:"latency_ms"`
-	Status          string    `json:"status"` // SUCCESS, TIMEOUT, CRC_ERROR, EXCEPTION, ERROR
-	ErrorMessage    string    `json:"error_message,omitempty"`
-	Summary         string    `json:"summary"`
+	ID              int64              `json:"id"`
+	Timestamp       time.Time          `json:"timestamp"`
+	DeviceID        uint               `json:"device_id"`
+	DeviceCode      string             `json:"device_code"`
+	DeviceName      string             `json:"device_name"`
+	Protocol        string             `json:"protocol"`  // MODBUS_RTU, MODBUS_TCP
+	Transport       string             `json:"transport"` // /dev/ttyUSB0 (9600 8-N-1) or 192.168.1.50:502
+	SlaveID         byte               `json:"slave_id"`
+	FunctionCode    byte               `json:"function_code"`
+	FCName          string             `json:"fc_name"`
+	StartingAddress uint16             `json:"starting_address"`
+	DisplayAddress  int                `json:"display_address"` // Modicon notation (e.g. 40021)
+	Quantity        uint16             `json:"quantity"`
+	ParameterCodes  string             `json:"parameter_codes,omitempty"`  // e.g. "PM25" or "SO2, NO2"
+	ParameterNames  string             `json:"parameter_names,omitempty"`  // e.g. "Particulate Matter 2.5"
+	ConvertedValues string             `json:"converted_values,omitempty"` // Formatted converted values string: e.g. "35.00 µg/m³" or "PM2.5: 35.00 µg/m³, PM10: 44.00 µg/m³"
+	DecodedValues   []DecodedValueItem `json:"decoded_values,omitempty"`   // Structured decoded parameters with raw, scaled, and formula values
+	TXHex           string             `json:"tx_hex"`
+	TXBytes         int                `json:"tx_bytes"`
+	RXHex           string             `json:"rx_hex"`
+	RXBytes         int                `json:"rx_bytes"`
+	LatencyMs       int                `json:"latency_ms"`
+	Status          string             `json:"status"` // SUCCESS, TIMEOUT, CRC_ERROR, EXCEPTION, ERROR
+	ErrorMessage    string             `json:"error_message,omitempty"`
+	Summary         string             `json:"summary"`
 }
 
 // CommTraceStatus represents the operational state of the live communication sniffer
@@ -307,17 +322,14 @@ func (t *CommTracer) Record(
 	// Match target parameter(s) if configured on the device or passed in request
 	var matchedCodes []string
 	var matchedNames []string
+	var decodedItems []DecodedValueItem
+	var convertedParts []string
 
-	if req.ParameterCode != "" {
-		matchedCodes = append(matchedCodes, req.ParameterCode)
-		if req.ParameterName != "" {
-			matchedNames = append(matchedNames, req.ParameterName)
-		} else {
-			matchedNames = append(matchedNames, req.ParameterCode)
-		}
-	} else if len(device.Parameters) > 0 {
-		reqStart := req.StartingAddress
-		reqEnd := req.StartingAddress + req.Quantity - 1
+	reqStart := req.StartingAddress
+	reqEnd := req.StartingAddress + req.Quantity - 1
+	seenParams := make(map[string]bool)
+
+	if len(device.Parameters) > 0 {
 		for _, p := range device.Parameters {
 			if !p.Enabled {
 				continue
@@ -343,6 +355,13 @@ func (t *CommTracer) Record(
 				if name == "" {
 					name = strings.TrimSpace(p.Name)
 				}
+
+				paramKey := fmt.Sprintf("%d_%s", p.ID, code)
+				if seenParams[paramKey] {
+					continue
+				}
+				seenParams[paramKey] = true
+
 				if code != "" {
 					matchedCodes = append(matchedCodes, code)
 					if name != "" && name != code {
@@ -351,9 +370,108 @@ func (t *CommTracer) Record(
 						matchedNames = append(matchedNames, code)
 					}
 				}
+
+				// If read succeeded and we have response register data, decode value according to setup
+				if status == "SUCCESS" && resp != nil && len(resp.Data) > 0 {
+					// Verify parameter registers are fully contained within request
+					if paramStart >= reqStart && paramEnd <= reqEnd {
+						var paramBytes []byte
+						if req.FunctionCode == modbus.FunctionReadCoils || req.FunctionCode == modbus.FunctionReadDiscreteInputs {
+							bitOffset := int(paramStart - reqStart)
+							val, bitErr := modbus.DecodeCoilBit(resp.Data, bitOffset)
+							if bitErr == nil {
+								if val {
+									paramBytes = []byte{0x01}
+								} else {
+									paramBytes = []byte{0x00}
+								}
+							}
+						} else {
+							regOffset := int(paramStart - reqStart)
+							byteOffset := regOffset * 2
+							byteLen := int(paramQty) * 2
+							if byteOffset >= 0 && byteOffset+byteLen <= len(resp.Data) {
+								paramBytes = resp.Data[byteOffset : byteOffset+byteLen]
+							}
+						}
+
+						if len(paramBytes) > 0 {
+							byteOrder := p.ByteOrder
+							if byteOrder == "" && device.Connection != nil {
+								byteOrder = device.Connection.ByteOrder
+							}
+							if byteOrder == "" {
+								byteOrder = "ABCD"
+							}
+
+							decoded, decErr := modbus.DecodeRegisters(paramBytes, p.DataType, byteOrder)
+							if decErr == nil {
+								engVal := modbus.ApplyScaleAndOffset(decoded.RawValue, p.Scale, p.Offset, p.Precision)
+								finalVal := engVal
+								var formulaVal *float64
+								if p.Formula != "" {
+									formulaVal = evalParamFormula(p.Formula, engVal, decoded.RawValue)
+									if formulaVal != nil {
+										finalVal = *formulaVal
+									}
+								}
+
+								prec := p.Precision
+								if prec < 0 {
+									prec = 2
+								} else if prec > 6 {
+									prec = 6
+								}
+								formattedNum := fmt.Sprintf("%.*f", prec, finalVal)
+								unitStr := strings.TrimSpace(p.Unit)
+
+								displayStr := formattedNum
+								if unitStr != "" {
+									displayStr = fmt.Sprintf("%s %s", formattedNum, unitStr)
+								}
+
+								decodedItems = append(decodedItems, DecodedValueItem{
+									ParameterID:   p.ID,
+									ParameterCode: code,
+									ParameterName: name,
+									RawValue:      decoded.RawValue,
+									ScaledValue:   engVal,
+									FormulaValue:  formulaVal,
+									Value:         finalVal,
+									Formatted:     formattedNum,
+									Unit:          unitStr,
+								})
+
+								convertedParts = append(convertedParts, fmt.Sprintf("%s: %s", code, displayStr))
+							}
+						}
+					}
+				}
 			}
 		}
 	}
+
+	if len(matchedCodes) == 0 && req.ParameterCode != "" {
+		matchedCodes = append(matchedCodes, req.ParameterCode)
+		if req.ParameterName != "" {
+			matchedNames = append(matchedNames, req.ParameterName)
+		} else {
+			matchedNames = append(matchedNames, req.ParameterCode)
+		}
+	}
+
+	convertedValuesStr := ""
+	if len(decodedItems) == 1 {
+		item := decodedItems[0]
+		if item.Unit != "" {
+			convertedValuesStr = fmt.Sprintf("%s %s", item.Formatted, item.Unit)
+		} else {
+			convertedValuesStr = item.Formatted
+		}
+	} else if len(convertedParts) > 1 {
+		convertedValuesStr = strings.Join(convertedParts, ", ")
+	}
+
 	paramCodesStr := strings.Join(matchedCodes, ", ")
 	paramNamesStr := strings.Join(matchedNames, ", ")
 
@@ -379,6 +497,8 @@ func (t *CommTracer) Record(
 		Quantity:        req.Quantity,
 		ParameterCodes:  paramCodesStr,
 		ParameterNames:  paramNamesStr,
+		ConvertedValues: convertedValuesStr,
+		DecodedValues:   decodedItems,
 		TXHex:           txHex,
 		TXBytes:         len(txBytes),
 		RXHex:           rxHex,

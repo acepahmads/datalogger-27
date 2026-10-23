@@ -2242,6 +2242,7 @@ export default {
     "function": "Fungsi",
     "address": "Alamat / Rentang",
     "hexPayload": "Frame Mentah (HEX)",
+    "convertedValue": "Nilai Konversi",
     "latency": "Latensi",
     "status": "Status",
     "packetDetails": "Detail Inspeksi Paket",

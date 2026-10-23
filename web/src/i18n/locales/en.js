@@ -2242,6 +2242,7 @@ export default {
     "function": "Function",
     "address": "Address / Range",
     "hexPayload": "Raw Frame (HEX)",
+    "convertedValue": "Converted Value",
     "latency": "Latency",
     "status": "Status",
     "packetDetails": "Packet Inspection Details",

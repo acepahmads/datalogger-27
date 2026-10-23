@@ -288,6 +288,7 @@
               <th class="py-2.5 px-3 w-36">{{ $t('liveComm.function') }}</th>
               <th class="py-2.5 px-3 w-36">{{ $t('liveComm.address') }}</th>
               <th class="py-2.5 px-3">{{ $t('liveComm.hexPayload') }}</th>
+              <th class="py-2.5 px-3 min-w-[150px]">{{ $t('liveComm.convertedValue') }}</th>
               <th class="py-2.5 px-3 w-20 text-right">{{ $t('liveComm.latency') }}</th>
               <th class="py-2.5 px-3 w-24 text-center">{{ $t('liveComm.status') }}</th>
               <th class="py-2.5 px-3 w-20 text-center">Inspect</th>
@@ -295,7 +296,7 @@
           </thead>
           <tbody class="divide-y divide-[#E2ECF7] dark:divide-slate-800/60 font-mono text-3xs bg-white dark:bg-[#0B1524]">
             <tr v-if="filteredFrames.length === 0">
-              <td colspan="9" class="py-16 text-center text-slate-500 font-sans">
+              <td colspan="10" class="py-16 text-center text-slate-500 font-sans">
                 <div class="flex flex-col items-center justify-center space-y-2">
                   <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -387,6 +388,39 @@
                     </span>
                     <span v-if="frame.rx_bytes > 0" class="text-4xs text-slate-400 font-sans">({{ frame.rx_bytes }}B)</span>
                   </div>
+                </div>
+              </td>
+
+              <!-- Converted Value (Sesuai Setup Parameter) -->
+              <td class="py-2 px-3 whitespace-nowrap">
+                <div v-if="getDecodedValues(frame).length > 0" class="space-y-1">
+                  <div
+                    v-for="(valItem, vIdx) in getDecodedValues(frame)"
+                    :key="vIdx"
+                    class="flex items-center space-x-1.5"
+                  >
+                    <span
+                      v-if="getDecodedValues(frame).length > 1"
+                      class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                    >
+                      {{ valItem.parameter_code }}
+                    </span>
+                    <span class="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                      {{ valItem.formatted }}
+                    </span>
+                    <span v-if="valItem.unit" class="text-4xs font-sans text-slate-500 dark:text-slate-400 font-medium">
+                      {{ valItem.unit }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else-if="frame.converted_values" class="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                  {{ frame.converted_values }}
+                </div>
+                <div v-else-if="frame.status !== 'SUCCESS'" class="text-rose-500 dark:text-rose-400 text-4xs italic">
+                  --
+                </div>
+                <div v-else class="text-slate-400 dark:text-slate-500 text-4xs italic">
+                  --
                 </div>
               </td>
 
@@ -506,6 +540,46 @@
             <span class="font-mono text-3xs font-semibold px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/30 text-indigo-800 dark:text-indigo-300">
               #{{ inspectedFrame.display_address }} (Qty: {{ inspectedFrame.quantity }})
             </span>
+          </div>
+
+          <!-- Converted Value Inspection Panel in Modal -->
+          <div v-if="getDecodedValues(inspectedFrame).length > 0" class="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/30 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div class="text-4xs text-emerald-800 dark:text-emerald-300 uppercase font-bold flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span>{{ $t('liveComm.convertedValue') }} (Sesuai Setup Parameter)</span>
+              </div>
+              <span class="text-4xs font-mono font-semibold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
+                {{ getDecodedValues(inspectedFrame).length }} Parameter
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div
+                v-for="(valItem, vIdx) in getDecodedValues(inspectedFrame)"
+                :key="vIdx"
+                class="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-emerald-500/30 flex items-center justify-between"
+              >
+                <div>
+                  <div class="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <span>{{ valItem.parameter_code }}</span>
+                    <span v-if="valItem.parameter_name && valItem.parameter_name !== valItem.parameter_code" class="text-4xs font-normal text-slate-500 truncate max-w-[120px]">
+                      ({{ valItem.parameter_name }})
+                    </span>
+                  </div>
+                  <div v-if="valItem.raw_value !== undefined" class="text-4xs text-slate-400 font-mono mt-0.5">
+                    Raw: {{ valItem.raw_value }}
+                  </div>
+                </div>
+                <div class="text-right pl-2">
+                  <div class="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                    {{ valItem.formatted }} <span v-if="valItem.unit" class="text-xs font-normal text-slate-500">{{ valItem.unit }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- TX Request Inspector Panel -->
@@ -633,9 +707,10 @@ export default {
           const matchHex = (f.tx_hex && f.tx_hex.toLowerCase().includes(q)) || (f.rx_hex && f.rx_hex.toLowerCase().includes(q));
           const matchErr = f.error_message && f.error_message.toLowerCase().includes(q);
           const matchSummary = f.summary && f.summary.toLowerCase().includes(q);
+          const matchVal = f.converted_values && f.converted_values.toLowerCase().includes(q);
           const pInfo = this.getFrameParams(f);
           const matchParam = pInfo && ((pInfo.codes && pInfo.codes.toLowerCase().includes(q)) || (pInfo.name && pInfo.name.toLowerCase().includes(q)) || (pInfo.primary && pInfo.primary.toLowerCase().includes(q)));
-          if (!matchHex && !matchErr && !matchSummary && !matchParam) {
+          if (!matchHex && !matchErr && !matchSummary && !matchParam && !matchVal) {
             return false;
           }
         }
@@ -743,6 +818,95 @@ export default {
         name: names !== codes ? names : '',
         primary: names && names !== codes ? `${codes} (${names})` : codes,
       };
+    },
+    getDecodedValues(frame) {
+      if (!frame) return [];
+      // 1. Backend-provided structured decoded values
+      if (Array.isArray(frame.decoded_values) && frame.decoded_values.length > 0) {
+        return frame.decoded_values;
+      }
+      // 2. Converted values formatted string directly on frame
+      if (frame.converted_values) {
+        return [{
+          parameter_code: frame.parameter_codes || '',
+          parameter_name: frame.parameter_names || '',
+          formatted: frame.converted_values,
+          unit: '',
+        }];
+      }
+      // 3. Fallback resolution via loaded devices list
+      if (frame.status !== 'SUCCESS') return [];
+      const dev = this.devices.find(d => (frame.device_id && d.id === frame.device_id) || (frame.device_code && d.device_code === frame.device_code));
+      if (!dev || !dev.parameters || dev.parameters.length === 0) {
+        return [];
+      }
+
+      const matches = [];
+      const reqStart = Number(frame.starting_address || 0);
+      const reqQty = Number(frame.quantity || 1);
+      const reqEnd = reqStart + reqQty - 1;
+
+      for (const p of dev.parameters) {
+        if (p.enabled === false) continue;
+        const rawAddr = Number(p.register_address);
+        let pduAddr = rawAddr;
+        let fc = 3;
+        const regType = String(p.register_type || 'HOLDING_REGISTER').toUpperCase();
+
+        if (rawAddr >= 400001 && rawAddr <= 465536) {
+          pduAddr = rawAddr - 400001;
+          fc = 3;
+        } else if (rawAddr >= 300001 && rawAddr <= 365536) {
+          pduAddr = rawAddr - 300001;
+          fc = 4;
+        } else if (rawAddr >= 40001 && rawAddr <= 49999) {
+          pduAddr = rawAddr - 40001;
+          fc = 3;
+        } else if (rawAddr >= 30001 && rawAddr <= 39999) {
+          pduAddr = rawAddr - 30001;
+          fc = 4;
+        } else if (rawAddr >= 10001 && rawAddr <= 19999) {
+          pduAddr = rawAddr - 10001;
+          fc = 2;
+        } else if (rawAddr >= 1 && rawAddr <= 9999 && regType.includes('COIL')) {
+          pduAddr = rawAddr - 1;
+          fc = 1;
+        } else {
+          if (regType.includes('INPUT')) fc = 4;
+          else if (regType.includes('DISCRETE')) fc = 2;
+          else if (regType.includes('COIL')) fc = 1;
+          else fc = 3;
+        }
+
+        if (frame.function_code && Number(frame.function_code) !== fc) {
+          continue;
+        }
+
+        let qty = 2;
+        const dt = String(p.data_type || 'FLOAT32').toUpperCase();
+        if (dt.includes('INT16') || dt.includes('UINT16')) qty = 1;
+        else if (dt.includes('INT64') || dt.includes('FLOAT64') || dt.includes('DOUBLE')) qty = 4;
+
+        const pEnd = pduAddr + qty - 1;
+        if (reqStart <= pEnd && reqEnd >= pduAddr) {
+          const code = p.parameter_code || p.code || p.parameter_name || p.name;
+          const name = p.parameter_name || p.name;
+          const val = (p.current_processed_value !== undefined && p.current_processed_value !== null)
+            ? p.current_processed_value
+            : ((p.current_value !== undefined && p.current_value !== null) ? p.current_value : null);
+          if (val !== null) {
+            const prec = (p.precision !== undefined && p.precision !== null) ? p.precision : 2;
+            matches.push({
+              parameter_code: code,
+              parameter_name: name,
+              formatted: Number(val).toFixed(prec),
+              unit: p.unit || '',
+              value: val,
+            });
+          }
+        }
+      }
+      return matches;
     },
     statusBadgeClass(status) {
       switch (status) {
@@ -901,7 +1065,8 @@ export default {
         content = data.map(f => {
           const pInfo = this.getFrameParams(f);
           const pStr = pInfo ? ` [Param: ${pInfo.primary}]` : '';
-          return `[${f.timestamp}] [${f.device_code}]${pStr} ${f.fc_name} Addr:#${f.display_address} Status:${f.status} Latency:${f.latency_ms}ms\nTX: ${f.tx_hex}\nRX: ${f.rx_hex || f.error_message}\n`;
+          const valStr = f.converted_values ? ` [Val: ${f.converted_values}]` : '';
+          return `[${f.timestamp}] [${f.device_code}]${pStr}${valStr} ${f.fc_name} Addr:#${f.display_address} Status:${f.status} Latency:${f.latency_ms}ms\nTX: ${f.tx_hex}\nRX: ${f.rx_hex || f.error_message}\n`;
         }).join('\n----------------------------------------\n');
       }
 

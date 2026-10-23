@@ -326,7 +326,15 @@ func (m *ConnectionManager) ExecuteWithRetry(
 
 			// Record in live communication tracer if active
 			if tracer := m.GetCommTracer(); tracer != nil && tracer.IsActive() {
-				tracer.Record(device, req, resp, nil, latencyMs)
+				devRecord := device
+				if len(devRecord.Parameters) == 0 && m.deviceService != nil {
+					if params, pErr := m.deviceService.ListParameters(device.ID); pErr == nil && len(params) > 0 {
+						cp := *device
+						cp.Parameters = params
+						devRecord = &cp
+					}
+				}
+				tracer.Record(devRecord, req, resp, nil, latencyMs)
 			}
 
 			// Recover state if degraded or reconnecting
