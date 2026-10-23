@@ -760,6 +760,26 @@ func (s *BackupService) GetStatus() map[string]interface{} {
 		"active_operation":        activeOp,
 	}
 
+	s.jobMu.RLock()
+	var activeJob *model.BackupJob
+	var lastJob *model.BackupJob
+	for _, j := range s.jobs {
+		if j.Status == model.JobStatusRunning || j.Status == model.JobStatusQueued {
+			activeJob = j
+			break
+		}
+		if lastJob == nil || j.StartTime.After(lastJob.StartTime) {
+			lastJob = j
+		}
+	}
+	s.jobMu.RUnlock()
+
+	if activeJob != nil {
+		res["active_job"] = activeJob
+	} else if lastJob != nil {
+		res["last_job"] = lastJob
+	}
+
 	if latestCompleted != nil {
 		latestCompleted.PopulateVirtualFields()
 		res["last_backup_id"] = latestCompleted.ID

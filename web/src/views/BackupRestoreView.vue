@@ -42,26 +42,69 @@
 
     <!-- Active Job Progress Banner (if any running job) -->
     <div v-if="activeJob && (activeJob.status === 'RUNNING' || activeJob.status === 'PENDING')"
-         class="saas-card p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/50 border border-blue-200 dark:border-blue-500/30 flex items-center justify-between shadow-xs">
+         class="saas-card p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/50 border border-blue-200 dark:border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
       <div class="flex items-center space-x-3">
-        <span class="flex h-3 w-3 relative">
+        <span class="flex h-3 w-3 relative flex-shrink-0">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
         </span>
         <div>
-          <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
-            {{ activeJob.type }} OPERATION IN PROGRESS ({{ activeJob.stage }})
-          </span>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              {{ activeJob.type }} SEDANG BERJALAN
+            </span>
+            <span class="px-1.5 py-0.2 rounded text-3xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              {{ activeJob.stage || 'Memproses...' }}
+            </span>
+          </div>
           <span class="text-2xs text-slate-600 dark:text-slate-300 font-sans block mt-0.5">
-            Job ID: <code class="font-mono text-blue-600 dark:text-blue-300">{{ activeJob.id }}</code> • Started: {{ activeJob.started_at | formatDate }}
+            Job ID: <code class="font-mono text-blue-600 dark:text-blue-300">{{ activeJob.id }}</code> • Waktu: {{ jobElapsedSeconds }}s
           </span>
         </div>
       </div>
-      <div class="text-right">
-        <span class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400">{{ activeJob.progress || 0 }}%</span>
-        <div class="w-32 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
-          <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" :style="{ width: (activeJob.progress || 10) + '%' }"></div>
+      <div class="flex items-center space-x-3 justify-between sm:justify-end">
+        <div class="text-right">
+          <span class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400">{{ Math.round(activeJob.progress || 0) }}%</span>
+          <div class="w-32 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
+            <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" :style="{ width: Math.max(activeJob.progress || 8, 8) + '%' }"></div>
+          </div>
         </div>
+        <button @click="showProgressModal = true"
+                class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-2xs font-semibold shadow-xs flex-shrink-0">
+          Lihat Progress
+        </button>
+      </div>
+    </div>
+
+    <!-- Recently Completed Job Banner -->
+    <div v-else-if="lastCompletedJob"
+         class="saas-card p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-between shadow-xs">
+      <div class="flex items-center space-x-3">
+        <div class="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+            {{ lastCompletedJob.type }} Berhasil Diselesaikan (100%)
+          </span>
+          <span class="text-2xs text-emerald-700 dark:text-emerald-300 font-sans block mt-0.5">
+            Arsip ID: <code class="font-mono font-bold">{{ lastCompletedJob.backup_id || lastCompletedJob.id }}</code> • Selesai dalam {{ lastCompletedJob.duration_sec }}s
+          </span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button v-if="lastCompletedJob.backup_id"
+                @click="openDetails({ id: lastCompletedJob.backup_id })"
+                class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-3xs font-semibold shadow-xs">
+          Lihat Manifest
+        </button>
+        <button @click="lastCompletedJob = null"
+                class="text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-white text-xs p-1"
+                title="Tutup notifikasi">
+          ✕
+        </button>
       </div>
     </div>
 
@@ -413,6 +456,166 @@
       </div>
     </div>
 
+    <!-- MODAL 0: Live Backup / Restore Progress Modal -->
+    <div v-if="showProgressModal && activeJob" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-5 shadow-2xl font-sans">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-3">
+            <span v-if="activeJob.status === 'RUNNING' || activeJob.status === 'PENDING'" class="flex h-3.5 w-3.5 relative flex-shrink-0">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-600"></span>
+            </span>
+            <span v-else-if="activeJob.status === 'COMPLETED'" class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+              ✓
+            </span>
+            <span v-else class="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+              ✕
+            </span>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+                {{ activeJob.status === 'COMPLETED' ? (activeJob.type + ' Selesai') : activeJob.status === 'FAILED' ? (activeJob.type + ' Gagal') : ('Memproses ' + activeJob.type + '...') }}
+              </h3>
+              <p class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
+                Job ID: {{ activeJob.id }} • {{ jobElapsedSeconds }}s berjalan
+              </p>
+            </div>
+          </div>
+
+          <button v-if="activeJob.status === 'COMPLETED' || activeJob.status === 'FAILED'"
+                  @click="showProgressModal = false"
+                  class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-sm font-bold p-1 rounded-lg">
+            ✕
+          </button>
+          <button v-else
+                  @click="showProgressModal = false"
+                  class="text-2xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
+                  title="Biarkan proses berjalan di latar belakang">
+            Minimize
+          </button>
+        </div>
+
+        <!-- Big Linear Progress Bar with Pulsing Effect -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-baseline text-xs">
+            <span class="font-bold text-slate-800 dark:text-slate-200 text-xs">
+              {{ activeJob.stage || 'Memproses operasi...' }}
+            </span>
+            <span class="font-mono font-bold text-base" :class="activeJob.status === 'COMPLETED' ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'">
+              {{ Math.round(activeJob.progress || 0) }}%
+            </span>
+          </div>
+
+          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+            <div class="h-full rounded-full transition-all duration-300 relative overflow-hidden"
+                 :class="activeJob.status === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : activeJob.status === 'FAILED' ? 'bg-rose-500' : 'bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400'"
+                 :style="{ width: Math.max(activeJob.progress || 6, 6) + '%' }">
+              <div v-if="activeJob.status === 'RUNNING' || activeJob.status === 'PENDING'"
+                   class="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Step Milestones (for BACKUP) -->
+        <div v-if="activeJob.type === 'BACKUP'" class="space-y-2 text-2xs p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800/80">
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 10)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 10)">
+                {{ activeJob.progress >= 10 ? '✓' : '1' }}
+              </span>
+              <span>1. Validasi Pra-Backup & Kapasitas Disk</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 10 ? 'OK' : '...' }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 25)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 25)">
+                {{ activeJob.progress >= 25 ? '✓' : '2' }}
+              </span>
+              <span>2. Koordinasi Snapshot Persistent WAL Queue</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 25 ? 'OK' : '...' }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 45)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 45)">
+                {{ activeJob.progress >= 45 ? '✓' : '3' }}
+              </span>
+              <span>3. Ekspor Tabel & Skema Database MariaDB</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 45 ? 'OK' : '...' }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 70)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 70)">
+                {{ activeJob.progress >= 70 ? '✓' : '4' }}
+              </span>
+              <span>4. Generasi Manifest & Checksum SHA-256</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 70 ? 'OK' : '...' }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 100)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 100)">
+                {{ activeJob.progress >= 100 ? '✓' : '5' }}
+              </span>
+              <span>5. Kompresi Tar.Gz & Registrasi Katalog</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 100 ? 'OK' : '...' }}</span>
+          </div>
+        </div>
+
+        <!-- Success Details Card (when completed) -->
+        <div v-if="activeJob.status === 'COMPLETED'"
+             class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
+          <div class="font-bold flex items-center space-x-1.5">
+            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Arsip Backup Berhasil Dibuat!</span>
+          </div>
+          <p v-if="activeJob.backup_id" class="text-2xs font-mono text-emerald-800 dark:text-emerald-300">
+            ID: <strong class="select-all">{{ activeJob.backup_id }}</strong>
+          </p>
+          <p class="text-3xs text-emerald-700 dark:text-emerald-400">
+            Arsip telah tervalidasi konsisten dan siap digunakan untuk pemulihan (disaster recovery).
+          </p>
+        </div>
+
+        <!-- Error Card (when failed) -->
+        <div v-if="activeJob.status === 'FAILED'"
+             class="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-xs text-rose-900 dark:text-rose-200 space-y-1">
+          <div class="font-bold flex items-center space-x-1.5">
+            <svg class="w-4 h-4 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span>Operasi Gagal</span>
+          </div>
+          <p class="text-2xs font-mono text-rose-800 dark:text-rose-300">
+            {{ activeJob.error || 'Terjadi kesalahan sistem yang tidak diketahui' }}
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <button v-if="activeJob.status === 'RUNNING' || activeJob.status === 'PENDING'"
+                  @click="showProgressModal = false"
+                  class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors">
+            Jalankan di Background
+          </button>
+          <button v-else
+                  @click="showProgressModal = false"
+                  class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors shadow-sm">
+            Tutup & Lihat Katalog
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL 1: Create Backup Confirmation -->
     <div v-if="showCreateModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 max-w-md w-full space-y-4 shadow-2xl">
@@ -637,9 +840,14 @@ export default {
         next_scheduled_run: null,
       },
       activeJob: null,
+      lastCompletedJob: null,
       jobPollInterval: null,
+      jobPollTimer: null,
+      jobElapsedSeconds: '0.0',
+      jobElapsedTimer: null,
 
       // Modals
+      showProgressModal: false,
       showCreateModal: false,
       createNotes: '',
 
@@ -681,9 +889,9 @@ export default {
     this.startJobPolling();
   },
   beforeDestroy() {
-    if (this.jobPollInterval) {
-      clearInterval(this.jobPollInterval);
-    }
+    if (this.jobPollInterval) clearInterval(this.jobPollInterval);
+    if (this.jobPollTimer) clearInterval(this.jobPollTimer);
+    if (this.jobElapsedTimer) clearInterval(this.jobElapsedTimer);
   },
   methods: {
     formatBytes(bytes) {
@@ -762,6 +970,9 @@ export default {
           this.statusData = res.data.data;
           if (res.data.data.active_job) {
             this.activeJob = res.data.data.active_job;
+            if (!this.jobPollTimer && (this.activeJob.status === 'RUNNING' || this.activeJob.status === 'PENDING')) {
+              this.startFastJobPolling(this.activeJob.id);
+            }
           }
         }
       } catch (err) {
@@ -785,27 +996,73 @@ export default {
         console.warn('Failed fetching schedule config:', err);
       }
     },
+    startFastJobPolling(jobId) {
+      if (this.jobPollTimer) clearInterval(this.jobPollTimer);
+      const startTime = Date.now();
+      this.jobElapsedSeconds = '0.0';
+
+      if (this.jobElapsedTimer) clearInterval(this.jobElapsedTimer);
+      this.jobElapsedTimer = setInterval(() => {
+        this.jobElapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+      }, 100);
+
+      const poll = async () => {
+        try {
+          const res = await axios.get(`/api/backups/jobs/${jobId}`);
+          if (res.data && res.data.data) {
+            const job = res.data.data;
+            this.activeJob = job;
+            if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+              if (this.jobPollTimer) {
+                clearInterval(this.jobPollTimer);
+                this.jobPollTimer = null;
+              }
+              if (this.jobElapsedTimer) {
+                clearInterval(this.jobElapsedTimer);
+                this.jobElapsedTimer = null;
+              }
+              if (job.status === 'COMPLETED') {
+                this.lastCompletedJob = {
+                  ...job,
+                  duration_sec: this.jobElapsedSeconds,
+                };
+              }
+              this.fetchBackups();
+              this.fetchStatus();
+            }
+          }
+        } catch (err) {
+          console.warn('Poll error:', err);
+        }
+      };
+
+      poll();
+      this.jobPollTimer = setInterval(poll, 350);
+    },
     startJobPolling() {
       this.jobPollInterval = setInterval(async () => {
-        if (this.activeJob && (this.activeJob.status === 'RUNNING' || this.activeJob.status === 'PENDING')) {
-          try {
-            const res = await axios.get(`/api/backups/jobs/${this.activeJob.id}`);
-            if (res.data && res.data.data) {
-              this.activeJob = res.data.data;
-              if (this.activeJob.status === 'COMPLETED' || this.activeJob.status === 'FAILED') {
-                this.fetchBackups();
-                this.fetchStatus();
-              }
-            }
-          } catch (err) {
-            // Job may have finished
-            this.fetchBackups();
-            this.fetchStatus();
-          }
-        } else {
+        if (!this.jobPollTimer) {
           this.fetchStatus();
         }
-      }, 3000);
+      }, 5000);
+    },
+    getStepClass(progress, threshold) {
+      if (progress >= threshold) {
+        return 'text-emerald-700 dark:text-emerald-400 font-semibold';
+      }
+      if (progress >= threshold - 20) {
+        return 'text-blue-600 dark:text-blue-400 font-bold animate-pulse';
+      }
+      return 'text-slate-400 dark:text-slate-500 opacity-60';
+    },
+    getStepBadge(progress, threshold) {
+      if (progress >= threshold) {
+        return 'bg-emerald-500 text-white';
+      }
+      if (progress >= threshold - 20) {
+        return 'bg-blue-600 text-white animate-pulse';
+      }
+      return 'bg-slate-200 dark:bg-slate-800 text-slate-500';
     },
     changePage(newPage) {
       if (newPage >= 1 && newPage <= this.totalPages) {
@@ -827,15 +1084,17 @@ export default {
             id: jobId,
             type: 'BACKUP',
             status: 'RUNNING',
-            stage: 'INITIALIZING',
-            started_at: new Date().toISOString(),
+            progress: 8,
+            stage: 'Inisialisasi backup & cek ruang disk',
+            start_time: new Date().toISOString(),
           };
+          this.showCreateModal = false;
+          this.showProgressModal = true;
+          this.startFastJobPolling(jobId);
         }
-        this.showCreateModal = false;
         this.createNotes = '';
-        this.fetchBackups();
       } catch (err) {
-        alert('Failed starting backup: ' + (err.response?.data?.error || err.message));
+        alert('Gagal memulai backup: ' + (err.response?.data?.error || err.message));
       } finally {
         this.creating = false;
       }
@@ -898,13 +1157,16 @@ export default {
             id: jobId,
             type: 'RESTORE',
             status: 'RUNNING',
-            stage: 'PREPARING',
-            started_at: new Date().toISOString(),
+            progress: 10,
+            stage: 'Validasi pra-pemulihan & cek integritas',
+            start_time: new Date().toISOString(),
           };
+          this.showRestoreModal = false;
+          this.showProgressModal = true;
+          this.startFastJobPolling(jobId);
         }
-        this.showRestoreModal = false;
       } catch (err) {
-        alert('Restore operation failed: ' + (err.response?.data?.error || err.message));
+        alert('Gagal memulai pemulihan: ' + (err.response?.data?.error || err.message));
       } finally {
         this.restoring = false;
       }
