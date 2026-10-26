@@ -167,6 +167,22 @@ runTest('4.1: TelemetryMonitorView guards formula value display and raw device l
   );
 });
 
+// PARAMETERS TAB RESTRICTION
+runTest('5.1: Telemetry Parameters table hides SCALE / OFFSET column for non-admin/superadmin', () => {
+  assert(
+    ddContent.includes('<th v-if="canAccessRawMode" class="py-2.5 px-3">{{ $t(\'deviceDetail.colScaleOffset\') }}</th>'),
+    'Parameters table header for colScaleOffset must be guarded by canAccessRawMode'
+  );
+  assert(
+    ddContent.includes('<td v-if="canAccessRawMode" class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">'),
+    'Parameters table data cell for scale/offset must be guarded by canAccessRawMode'
+  );
+  assert(
+    ddContent.includes('<td :colspan="canAccessRawMode ? 10 : 9" class="py-8 text-center text-xs text-slate-400">'),
+    'Parameters table empty row colspan must adapt to canAccessRawMode'
+  );
+});
+
 console.log('===============================================================');
-console.log('TEST SUMMARY: ALL REALTIME & HISTORICAL TESTS PASSED (12/12)');
+console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (13/13)');
 console.log('===============================================================');

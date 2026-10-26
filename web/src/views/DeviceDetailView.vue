@@ -819,7 +819,7 @@
                   </span>
                 </div>
               </th>
-              <th class="py-2.5 px-3">{{ $t('deviceDetail.colScaleOffset') }}</th>
+              <th v-if="canAccessRawMode" class="py-2.5 px-3">{{ $t('deviceDetail.colScaleOffset') }}</th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.colLimits') }}</th>
               <th
                 @click="toggleParamSort('current_value')"
@@ -884,7 +884,7 @@
                   {{ param.batch_mode === 'SINGLE' ? 'SINGLE' : 'AUTO BATCH' }}
                 </span>
               </td>
-              <td class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
+              <td v-if="canAccessRawMode" class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                 <div>×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</div>
                 <div v-if="param.formula" class="text-blue-600 dark:text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
                   ƒ: {{ param.formula }}
@@ -966,7 +966,7 @@
               </td>
             </tr>
             <tr v-if="!device.parameters || device.parameters.length === 0">
-              <td colspan="10" class="py-8 text-center text-xs text-slate-400">
+              <td :colspan="canAccessRawMode ? 10 : 9" class="py-8 text-center text-xs text-slate-400">
                 {{ $t('deviceDetail.noParamsConfigured') }}
               </td>
             </tr>
