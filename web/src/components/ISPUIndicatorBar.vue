@@ -228,10 +228,10 @@
           v-for="pollutant in sevenOfficialParameters"
           :key="pollutant.code"
           @click="selectDisplayParameter(pollutant.code)"
-          class="p-2 sm:p-2.5 rounded-xl border-2 transition-all flex flex-col justify-between cursor-pointer hover:scale-[1.02] hover:shadow-md select-none overflow-hidden"
+          class="p-2 sm:p-2.5 rounded-xl border transition-all flex flex-col justify-between cursor-pointer hover:scale-[1.02] hover:shadow-md select-none overflow-hidden"
           :class="[
             getCardClass(pollutant.code),
-            selectedDisplayParam === pollutant.code ? 'ring-2 ring-cyan-400 dark:ring-cyan-300 shadow-lg' : ''
+            selectedDisplayParam === pollutant.code ? '!border-cyan-500 dark:!border-cyan-400 shadow-md' : ''
           ]"
           :title="`Klik untuk menampilkan ISPU ${pollutant.code} pada bar utama`"
         >
@@ -827,19 +827,19 @@ export default {
         return 'bg-slate-100/80 dark:bg-[#101B2B] border-slate-300 dark:border-slate-800 opacity-60';
       }
       if (this.isDominant(pollutantCode)) {
-        return 'bg-amber-100/95 dark:bg-amber-950/70 border-amber-500 dark:border-amber-400 shadow-md ring-2 ring-amber-400/50';
+        return 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-500 dark:border-amber-400 shadow-sm';
       }
       switch (pr.category) {
         case 'BAIK':
-          return 'bg-emerald-100/90 dark:bg-emerald-950/70 border-emerald-500 dark:border-emerald-500 shadow-sm';
+          return 'bg-emerald-100/90 dark:bg-emerald-950/70 border-emerald-500/80 dark:border-emerald-500/70 shadow-2xs';
         case 'SEDANG':
-          return 'bg-blue-100/90 dark:bg-blue-950/70 border-blue-500 dark:border-blue-500 shadow-sm';
+          return 'bg-blue-100/90 dark:bg-blue-950/70 border-blue-500/80 dark:border-blue-500/70 shadow-2xs';
         case 'TIDAK_SEHAT':
-          return 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-500 dark:border-amber-500 shadow-sm';
+          return 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-500/80 dark:border-amber-500/70 shadow-2xs';
         case 'SANGAT_TIDAK_SEHAT':
-          return 'bg-rose-100/90 dark:bg-rose-950/70 border-rose-500 dark:border-rose-500 shadow-sm';
+          return 'bg-rose-100/90 dark:bg-rose-950/70 border-rose-500/80 dark:border-rose-500/70 shadow-2xs';
         case 'BERBAHAYA':
-          return 'bg-purple-100/95 dark:bg-purple-950/80 border-purple-600 dark:border-purple-400 shadow-sm';
+          return 'bg-purple-100/95 dark:bg-purple-950/80 border-purple-600/80 dark:border-purple-400/70 shadow-2xs';
         default:
           return 'bg-slate-100 dark:bg-[#101B2B] border-slate-300 dark:border-slate-700';
       }

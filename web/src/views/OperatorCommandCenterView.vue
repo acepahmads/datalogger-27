@@ -1797,7 +1797,7 @@
                             ? 'border-rose-500/70 bg-rose-500/5 dark:bg-rose-950/20 transition-colors duration-300'
                             : 'border-amber-500/70 bg-amber-500/5 dark:bg-amber-950/20 transition-colors duration-300'))
                     : (isParamSelectedForTrend(param)
-                        ? 'bg-white dark:bg-[#0B1422] border-cyan-500/75 dark:border-cyan-400/65 ring-1 ring-cyan-500/25 dark:ring-cyan-400/20 shadow-xs hover:border-cyan-500 dark:hover:border-cyan-400'
+                        ? 'bg-white dark:bg-[#0B1422] border-cyan-500 dark:border-cyan-400 shadow-xs hover:border-cyan-600 dark:hover:border-cyan-300'
                         : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-[#334b66] shadow-xs dark:shadow-none'),
                   liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
                 ]"
@@ -10980,11 +10980,12 @@ export default {
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
-/* Selected Parameter Card: Cyan #22B8D4 */
+/* Selected Parameter Card: Crisp 1px Cyan #22B8D4 without simulated ring */
+.light-mode .scada-param-tile.border-cyan-500,
 .light-mode .scada-param-tile.border-cyan-500\/75,
 .light-mode .scada-param-tile[class*="border-cyan-500"] {
   border-color: #22B8D4 !important;
-  box-shadow: 0 0 0 1px rgba(34, 184, 212, 0.35), 0 2px 6px rgba(34, 184, 212, 0.16) !important;
+  box-shadow: 0 1px 3px rgba(34, 184, 212, 0.15) !important;
 }
 
 /* Alarm Priority Over Selection */
@@ -11010,10 +11011,11 @@ export default {
   border-color: #33566f !important;
 }
 
+.dark-mode .scada-param-tile.border-cyan-500,
 .dark-mode .scada-param-tile.border-cyan-500\/75,
 .dark-mode .scada-param-tile[class*="border-cyan-500"] {
   border-color: #21C7E8 !important;
-  box-shadow: 0 0 0 1px rgba(33, 199, 232, 0.35) !important;
+  box-shadow: 0 1px 3px rgba(33, 199, 232, 0.12) !important;
 }
 
 /* ISPU Summary Card */
