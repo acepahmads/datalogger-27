@@ -265,8 +265,9 @@
             <thead class="bg-slate-50 dark:bg-[#0A0E18] text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th class="py-3 px-4">Perangkat</th>
-                <th class="py-3 px-3">Protokol / Transport</th>
-                <th class="py-3 px-3 text-center">Status Link</th>
+                <th class="py-3 px-3">Protokol / Port</th>
+                <th class="py-3 px-3 text-center">Status Transport</th>
+                <th class="py-3 px-3 text-center">Status Komunikasi</th>
                 <th class="py-3 px-3 text-center">Polling State</th>
                 <th class="py-3 px-3 text-right">Latency</th>
                 <th class="py-3 px-3 text-center">Failures / Retry</th>
@@ -284,7 +285,7 @@
                   class="cursor-pointer transition-colors hover:bg-blue-50/40 dark:hover:bg-blue-950/20"
                   :class="{ 'bg-blue-50/60 dark:bg-blue-950/30 font-medium': expandedDeviceId === dev.device_id }"
                 >
-                  <!-- Device Code & Name -->
+                  <!-- Device Code, Name & Administrative Status -->
                   <td class="py-3.5 px-4">
                     <div class="flex items-center space-x-2.5">
                       <button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -300,13 +301,20 @@
                         <div class="font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
                           <span>{{ dev.device_code }}</span>
                           <span class="text-3xs font-mono text-slate-400">#{{ dev.device_id }}</span>
+                          <span
+                            class="inline-flex items-center px-1.5 py-0.2 rounded text-4xs font-mono font-medium border"
+                            :class="adminStatusBadge(dev.administrative_status)"
+                            :title="'Administrative: ' + (dev.administrative_status || 'ACTIVE')"
+                          >
+                            {{ dev.administrative_status || 'ACTIVE' }}
+                          </span>
                         </div>
                         <div class="text-3xs text-slate-500">{{ dev.device_name }}</div>
                       </div>
                     </div>
                   </td>
 
-                  <!-- Protocol & Transport -->
+                  <!-- Protocol & Transport Path -->
                   <td class="py-3.5 px-3">
                     <div class="font-mono text-2xs font-semibold text-slate-700 dark:text-slate-300">
                       {{ dev.protocol || 'MODBUS' }}
@@ -316,15 +324,43 @@
                     </div>
                   </td>
 
-                  <!-- Status Link (Online / Offline / Error / Reconnecting) -->
+                  <!-- Status Transport (AVAILABLE / PORT_MISSING / OPEN_FAILED / DISCONNECTED) -->
                   <td class="py-3.5 px-3 text-center">
                     <span
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-3xs font-mono font-bold uppercase tracking-wider border shadow-2xs"
-                      :class="commStatusBadge(dev.communication_status)"
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-3xs font-mono font-bold uppercase tracking-wider border shadow-2xs"
+                      :class="transportStatusBadge(dev.transport_status)"
+                      :title="'Transport: ' + (dev.transport_status || 'UNKNOWN')"
                     >
-                      <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="commStatusDot(dev.communication_status)"></span>
-                      {{ dev.communication_status || 'UNKNOWN' }}
+                      <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="transportStatusDot(dev.transport_status)"></span>
+                      {{ dev.transport_status || 'UNKNOWN' }}
                     </span>
+                  </td>
+
+                  <!-- Status Komunikasi (ONLINE / OFFLINE / DEGRADED) + Freshness -->
+                  <td class="py-3.5 px-3 text-center">
+                    <div class="flex flex-col items-center space-y-0.5">
+                      <span
+                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-3xs font-mono font-bold uppercase tracking-wider border shadow-2xs"
+                        :class="commStatusBadge(dev.communication_status)"
+                        :title="'Communication: ' + (dev.communication_status || 'UNKNOWN')"
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="commStatusDot(dev.communication_status)"></span>
+                        {{ dev.communication_status || 'UNKNOWN' }}
+                      </span>
+                      <span
+                        v-if="dev.communication_status === 'ONLINE' && dev.is_fresh === false"
+                        class="inline-flex items-center px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300"
+                        title="Data respons kedaluwarsa melampaui batas toleransi freshness"
+                      >
+                        STALE
+                      </span>
+                      <span
+                        v-else-if="dev.communication_status === 'ONLINE' && dev.is_fresh"
+                        class="text-4xs text-emerald-600 dark:text-emerald-400 font-mono font-medium"
+                      >
+                        ● Fresh
+                      </span>
+                    </div>
                   </td>
 
                   <!-- Polling State -->
@@ -404,7 +440,7 @@
 
                 <!-- SECTION D: INLINE EXPANDED DEVICE ACTIVITY DETAIL -->
                 <tr v-if="expandedDeviceId === dev.device_id" :key="'detail-' + dev.device_id">
-                  <td colspan="10" class="p-0 bg-slate-50/70 dark:bg-[#0A0E18]/80 border-y border-slate-200 dark:border-slate-800">
+                  <td colspan="11" class="p-0 bg-slate-50/70 dark:bg-[#0A0E18]/80 border-y border-slate-200 dark:border-slate-800">
                     <div class="p-6 space-y-4">
                       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
                         <div class="flex items-center space-x-3">
@@ -471,10 +507,28 @@
                               <span class="text-slate-400">Polling Cadence:</span>
                               <span>{{ deviceDetailData.connection.polling_interval }}ms</span>
                             </div>
-                            <div class="flex justify-between py-1">
+                            <div class="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
                               <span class="text-slate-400">Batch Read:</span>
                               <span :class="deviceDetailData.connection.batch_read_enabled ? 'text-emerald-500 font-bold' : 'text-slate-400'">
                                 {{ deviceDetailData.connection.batch_read_enabled ? 'ENABLED' : 'DISABLED' }}
+                              </span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                              <span class="text-slate-400">Status Transport:</span>
+                              <span class="font-bold font-mono text-3xs px-1.5 py-0.5 rounded" :class="transportStatusBadge((deviceDetailData.snapshot && deviceDetailData.snapshot.transport_status) || dev.transport_status)">
+                                {{ (deviceDetailData.snapshot && deviceDetailData.snapshot.transport_status) || dev.transport_status || 'UNKNOWN' }}
+                              </span>
+                            </div>
+                            <div class="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                              <span class="text-slate-400">Status Komunikasi:</span>
+                              <span class="font-bold font-mono text-3xs px-1.5 py-0.5 rounded" :class="commStatusBadge((deviceDetailData.snapshot && deviceDetailData.snapshot.communication_status) || dev.communication_status)">
+                                {{ (deviceDetailData.snapshot && deviceDetailData.snapshot.communication_status) || dev.communication_status || 'UNKNOWN' }}
+                              </span>
+                            </div>
+                            <div class="flex justify-between py-1">
+                              <span class="text-slate-400">Data Freshness:</span>
+                              <span class="font-bold font-mono text-3xs" :class="((deviceDetailData.snapshot && deviceDetailData.snapshot.is_fresh) || dev.is_fresh) ? 'text-emerald-500' : 'text-amber-500'">
+                                {{ ((deviceDetailData.snapshot && deviceDetailData.snapshot.is_fresh) || dev.is_fresh) ? 'VALID & FRESH' : 'STALE / EXPIRED' }}
                               </span>
                             </div>
                           </div>
@@ -1123,6 +1177,46 @@ export default {
             });
           }
         }
+
+        // Live update polling snapshots based on activity events
+        const ev = msg.data;
+        if (ev.device_id && this.pollingSnapshots) {
+          const target = this.pollingSnapshots.find(s => s.device_id === ev.device_id);
+          if (target) {
+            if (ev.event_name === 'USB_PORT_MISSING') {
+              target.transport_status = 'PORT_MISSING';
+              target.communication_status = 'OFFLINE';
+              target.polling_state = 'STOPPED';
+              target.is_fresh = false;
+              target.last_error = ev.description;
+            } else if (ev.event_name === 'SERIAL_OPEN_FAILED') {
+              target.transport_status = 'OPEN_FAILED';
+              target.communication_status = 'OFFLINE';
+              target.is_fresh = false;
+              target.last_error = ev.description;
+            } else if (ev.event_name === 'COMMUNICATION_TIMEOUT') {
+              target.polling_state = 'TIMEOUT';
+              target.last_error = ev.description;
+            } else if (ev.event_name === 'DEVICE_OFFLINE') {
+              target.communication_status = 'OFFLINE';
+              target.is_fresh = false;
+              target.last_error = ev.description;
+            } else if (ev.event_name === 'RECONNECT_STARTED') {
+              target.recovery_state = 'RECONNECTING';
+              target.polling_state = 'RECONNECTING';
+            } else if (ev.event_name === 'SERIAL_PORT_REOPENED') {
+              target.transport_status = 'AVAILABLE';
+              target.recovery_state = 'RECONNECTING';
+            } else if (ev.event_name === 'COMMUNICATION_RECOVERED') {
+              target.transport_status = 'AVAILABLE';
+              target.communication_status = 'ONLINE';
+              target.polling_state = 'SUCCESS';
+              target.recovery_state = 'NORMAL';
+              target.is_fresh = true;
+              target.consecutive_failures = 0;
+            }
+          }
+        }
       }
 
       // 2. Real-time Device Connection Status change
@@ -1132,14 +1226,27 @@ export default {
         const target = this.pollingSnapshots.find(s => s.device_id === dId);
         if (target) {
           target.communication_status = newStatus;
+          if (msg.data.transport_status) {
+            target.transport_status = msg.data.transport_status;
+          }
+          if (msg.data.administrative_status) {
+            target.administrative_status = msg.data.administrative_status;
+          }
           if (newStatus === 'ONLINE') {
             target.polling_state = 'SUCCESS';
             target.consecutive_failures = 0;
             target.recovery_state = 'NORMAL';
+            target.is_fresh = true;
           } else if (newStatus === 'OFFLINE') {
-            target.polling_state = 'STOPPED';
+            target.is_fresh = false;
+            if (target.transport_status === 'PORT_MISSING') {
+              target.polling_state = 'STOPPED';
+            } else {
+              target.polling_state = 'TIMEOUT';
+            }
           } else if (newStatus === 'ERROR') {
             target.polling_state = 'TIMEOUT';
+            target.is_fresh = false;
           }
         }
         // Update overview counters
@@ -1151,9 +1258,11 @@ export default {
         const dId = msg.data.device_id;
         const target = this.pollingSnapshots.find(s => s.device_id === dId);
         if (target) {
+          target.transport_status = 'AVAILABLE';
           target.communication_status = 'ONLINE';
           target.polling_state = 'SUCCESS';
           target.consecutive_failures = 0;
+          target.is_fresh = true;
           target.last_latency_ms = msg.data.latency_ms || target.last_latency_ms;
           const nowStr = new Date().toISOString();
           target.last_successful_response = nowStr;
@@ -1311,6 +1420,47 @@ export default {
           return 'text-rose-600 dark:text-rose-400';
         default:
           return 'text-slate-600 dark:text-slate-400';
+      }
+    },
+
+    adminStatusBadge(status) {
+      switch ((status || '').toUpperCase()) {
+        case 'ACTIVE':
+          return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900';
+        case 'INACTIVE':
+          return 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+        default:
+          return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+      }
+    },
+
+    transportStatusBadge(status) {
+      switch ((status || '').toUpperCase()) {
+        case 'AVAILABLE':
+          return 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800';
+        case 'PORT_MISSING':
+          return 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 font-bold';
+        case 'OPEN_FAILED':
+          return 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800';
+        case 'DISCONNECTED':
+          return 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
+        default:
+          return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+      }
+    },
+
+    transportStatusDot(status) {
+      switch ((status || '').toUpperCase()) {
+        case 'AVAILABLE':
+          return 'bg-emerald-500';
+        case 'PORT_MISSING':
+          return 'bg-rose-500 animate-pulse';
+        case 'OPEN_FAILED':
+          return 'bg-rose-500';
+        case 'DISCONNECTED':
+          return 'bg-amber-500';
+        default:
+          return 'bg-slate-400';
       }
     },
 

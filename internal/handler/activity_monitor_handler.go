@@ -161,34 +161,73 @@ func (h *ActivityMonitorHandler) GetPollingSnapshots(c *gin.Context) {
 					if snap.CommunicationStatus == "UNKNOWN" || snap.CommunicationStatus == "" {
 						snap.CommunicationStatus = string(dev.ConnectionStatus)
 					}
+					if snap.AdministrativeStatus == "" {
+						if dev.Enabled && dev.Status == model.DeviceStatusActive {
+							snap.AdministrativeStatus = communication.AdminActive
+						} else {
+							snap.AdministrativeStatus = communication.AdminInactive
+						}
+					}
+					if snap.TransportStatus == "" {
+						if dev.Connection != nil && dev.Connection.Protocol == model.ProtocolModbusRTU {
+							if !communication.IsPortPhysicallyPresent(dev.Connection.SerialPort) {
+								snap.TransportStatus = communication.TransportPortMissing
+							} else {
+								snap.TransportStatus = communication.TransportAvailable
+							}
+						} else {
+							snap.TransportStatus = communication.TransportAvailable
+						}
+					}
+					if snap.FreshnessThresholdMs == 0 && dev.Connection != nil {
+						snap.FreshnessThresholdMs = communication.CalculateFreshnessThreshold(dev.Connection).Milliseconds()
+					}
+					snap.IsFresh = communication.EvaluateDeviceFreshness(snap)
 				} else {
 					// Create snapshot for device if not yet tracked
 					transport := ""
 					protocol := ""
+					transportStatus := communication.TransportUnknown
+					var freshnessMs int64
 					if dev.Connection != nil {
 						protocol = string(dev.Connection.Protocol)
 						if dev.Connection.Protocol == model.ProtocolModbusRTU {
 							transport = fmt.Sprintf("Serial (%s)", dev.Connection.SerialPort)
+							if !communication.IsPortPhysicallyPresent(dev.Connection.SerialPort) {
+								transportStatus = communication.TransportPortMissing
+							} else {
+								transportStatus = communication.TransportAvailable
+							}
 						} else {
 							transport = fmt.Sprintf("TCP (%s:%d)", dev.Connection.Host, dev.Connection.Port)
+							transportStatus = communication.TransportAvailable
 						}
+						freshnessMs = communication.CalculateFreshnessThreshold(dev.Connection).Milliseconds()
 					}
+					adminStatus := communication.AdminInactive
 					state := communication.PollingStateWaiting
-					if !dev.Enabled || dev.Status != model.DeviceStatusActive {
+					if dev.Enabled && dev.Status == model.DeviceStatusActive {
+						adminStatus = communication.AdminActive
+					} else {
 						state = communication.PollingStateStopped
 					}
-					snapshots = append(snapshots, communication.DevicePollingSnapshot{
-						DeviceID:            dev.ID,
-						DeviceCode:          dev.DeviceCode,
-						DeviceName:          dev.DeviceName,
-						Protocol:            protocol,
-						Transport:           transport,
-						CommunicationStatus: string(dev.ConnectionStatus),
-						PollingState:        state,
-						RecoveryState:       "NORMAL",
-						LastSuccessfulResponse: dev.LastDataAt,
+					newSnap := communication.DevicePollingSnapshot{
+						DeviceID:                dev.ID,
+						DeviceCode:              dev.DeviceCode,
+						DeviceName:              dev.DeviceName,
+						Protocol:                protocol,
+						Transport:               transport,
+						AdministrativeStatus:    adminStatus,
+						TransportStatus:         transportStatus,
+						CommunicationStatus:     string(dev.ConnectionStatus),
+						PollingState:            state,
+						RecoveryState:           "NORMAL",
+						LastSuccessfulResponse:  dev.LastDataAt,
 						LastSuccessfulTelemetry: dev.LastDataAt,
-					})
+						FreshnessThresholdMs:    freshnessMs,
+					}
+					newSnap.IsFresh = communication.EvaluateDeviceFreshness(&newSnap)
+					snapshots = append(snapshots, newSnap)
 				}
 			}
 		}
@@ -216,7 +255,66 @@ func (h *ActivityMonitorHandler) GetDeviceDetail(c *gin.Context) {
 		}
 	}
 
-	snapshot, _ := h.monitor.GetDevicePollingSnapshot(deviceID)
+	snapshot, exists := h.monitor.GetDevicePollingSnapshot(deviceID)
+	if !exists || snapshot == nil {
+		transport := ""
+		protocol := ""
+		transportStatus := communication.TransportUnknown
+		var freshnessMs int64
+		if dev != nil && dev.Connection != nil {
+			protocol = string(dev.Connection.Protocol)
+			if dev.Connection.Protocol == model.ProtocolModbusRTU {
+				transport = fmt.Sprintf("Serial (%s)", dev.Connection.SerialPort)
+				if !communication.IsPortPhysicallyPresent(dev.Connection.SerialPort) {
+					transportStatus = communication.TransportPortMissing
+				} else {
+					transportStatus = communication.TransportAvailable
+				}
+			} else {
+				transport = fmt.Sprintf("TCP (%s:%d)", dev.Connection.Host, dev.Connection.Port)
+				transportStatus = communication.TransportAvailable
+			}
+			freshnessMs = communication.CalculateFreshnessThreshold(dev.Connection).Milliseconds()
+		}
+		adminStatus := communication.AdminInactive
+		state := communication.PollingStateWaiting
+		if dev != nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			adminStatus = communication.AdminActive
+		} else {
+			state = communication.PollingStateStopped
+		}
+		connStatus := "UNKNOWN"
+		var lastData *time.Time
+		var dCode, dName string
+		if dev != nil {
+			connStatus = string(dev.ConnectionStatus)
+			lastData = dev.LastDataAt
+			dCode = dev.DeviceCode
+			dName = dev.DeviceName
+		}
+		s := communication.DevicePollingSnapshot{
+			DeviceID:                deviceID,
+			DeviceCode:              dCode,
+			DeviceName:              dName,
+			Protocol:                protocol,
+			Transport:               transport,
+			AdministrativeStatus:    adminStatus,
+			TransportStatus:         transportStatus,
+			CommunicationStatus:     connStatus,
+			PollingState:            state,
+			RecoveryState:           "NORMAL",
+			LastSuccessfulResponse:  lastData,
+			LastSuccessfulTelemetry: lastData,
+			FreshnessThresholdMs:    freshnessMs,
+		}
+		s.IsFresh = communication.EvaluateDeviceFreshness(&s)
+		snapshot = &s
+	} else if dev != nil {
+		if snapshot.FreshnessThresholdMs == 0 && dev.Connection != nil {
+			snapshot.FreshnessThresholdMs = communication.CalculateFreshnessThreshold(dev.Connection).Milliseconds()
+		}
+		snapshot.IsFresh = communication.EvaluateDeviceFreshness(snapshot)
+	}
 
 	var recentFrames []communication.CommTraceFrame
 	if h.commTracer != nil {

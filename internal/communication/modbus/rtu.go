@@ -50,10 +50,20 @@ func (w *defaultSerialWrapper) SetDeadline(t time.Time) error {
 // SerialOpenerFunc is a factory function for opening serial transports
 type SerialOpenerFunc func(cfg *model.DeviceConnection) (SerialTransport, error)
 
+var portPresenceHook func(port string) bool
+
+// SetPortPresenceHookForTest registers an override for physical serial port detection in tests
+func SetPortPresenceHookForTest(hook func(port string) bool) {
+	portPresenceHook = hook
+}
+
 // IsPortPhysicallyPresent checks if the serial port device node/COM port is present on the OS
 func IsPortPhysicallyPresent(port string) bool {
 	if port == "" {
 		return false
+	}
+	if portPresenceHook != nil {
+		return portPresenceHook(port)
 	}
 	if runtime.GOOS == "windows" {
 		available := sysinfo.GetAvailableSerialPorts()
@@ -70,6 +80,8 @@ func IsPortPhysicallyPresent(port string) bool {
 		if _, statErr := os.Stat(realPath); statErr == nil {
 			return true
 		}
+		// If realPath exists as a symlink target but doesn't stat, the symlink is broken!
+		return false
 	}
 	if _, err := os.Stat(port); err == nil {
 		return true
@@ -83,6 +95,16 @@ func IsPortPhysicallyPresent(port string) bool {
 		}
 	}
 	return false
+}
+
+func (a *ModbusRTUAdapter) isPortMissing(port string) bool {
+	if portPresenceHook != nil {
+		return !IsPortPhysicallyPresent(port)
+	}
+	if a.isMock {
+		return false
+	}
+	return !IsPortPhysicallyPresent(port)
 }
 
 // ResolvePortAddress evaluates symlinks and performs self-healing port migration
@@ -357,8 +379,8 @@ func (a *ModbusRTUAdapter) Connect(ctx context.Context) error {
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
 
-	// Proactive Check: Ensure target port physically exists on system before opening (skipped in mock/test mode)
-	if !a.isMock && !IsPortPhysicallyPresent(targetPort) {
+	// Proactive Check: Ensure target port physically exists on system before opening (skipped in mock/test mode unless hook set)
+	if a.isPortMissing(targetPort) {
 		a.status.State = StateError
 		a.status.LastError = fmt.Sprintf("serial port offline: '%s' not found on system", targetPort)
 		a.status.FailedCount++
@@ -541,8 +563,8 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 
 	reqADU := AppendCRC16(reqPDU)
 
-	// Proactive Hardware Check: Verify port physically exists before communicating (skipped in mock/test mode)
-	if !a.isMock && !IsPortPhysicallyPresent(targetPort) {
+	// Proactive Hardware Check: Verify port physically exists before communicating
+	if a.isPortMissing(targetPort) {
 		a.handleSerialError(fmt.Errorf("serial port offline: '%s' physically disconnected from system", targetPort))
 		return nil, &ModbusTransactionError{
 			Category:    FailCategoryPortNotFound,
@@ -822,7 +844,7 @@ func (a *ModbusRTUAdapter) handleSerialError(err error) {
 	if targetPort == "" {
 		targetPort = a.config.SerialPort
 	}
-	portMissing := !a.isMock && !IsPortPhysicallyPresent(targetPort)
+	portMissing := a.isPortMissing(targetPort)
 
 	// Release physical transport handle if hardware error OR port physically missing from OS
 	if portMissing || isFatalSerialError(err) {

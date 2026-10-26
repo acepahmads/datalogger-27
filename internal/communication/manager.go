@@ -171,11 +171,34 @@ func (m *ConnectionManager) ConnectDevice(ctx context.Context, device *model.Dev
 		if m.deviceService != nil {
 			_ = m.deviceService.SetConnectionError(device.ID, err.Error())
 		}
+		if mon := m.getActivityMonitor(); mon != nil {
+			mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+				s.TransportStatus = TransportOpenFailed
+				s.CommunicationStatus = CommOffline
+				s.LastError = err.Error()
+			})
+			mon.RecordEvent(ActivityEvent{
+				Severity:    SeverityError,
+				Category:    CategorySerial,
+				Component:   "ConnectionManager",
+				DeviceID:    device.ID,
+				DeviceCode:  device.DeviceCode,
+				DeviceName:  device.DeviceName,
+				EventName:   "SERIAL_OPEN_FAILED",
+				Description: fmt.Sprintf("Failed to open transport link for %s: %v", device.DeviceCode, err),
+				ErrorDetail: err.Error(),
+			})
+		}
 		return err
 	}
 
 	m.healthTracker.RecordConnectionSuccess(device.ID)
 	_, _ = m.stateMachine.Transition(device.ID, StateConnected, "connection established")
+	if mon := m.getActivityMonitor(); mon != nil {
+		mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
+			s.TransportStatus = TransportAvailable
+		})
+	}
 	return nil
 }
 
@@ -390,7 +413,13 @@ func (m *ConnectionManager) ExecuteWithRetry(
 		}
 
 		attemptStart := time.Now()
-		resp, err := adapter.ReadRegisters(ctx, req)
+		timeoutMs := device.Connection.Timeout
+		if timeoutMs <= 0 {
+			timeoutMs = 1000
+		}
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Duration(timeoutMs+500)*time.Millisecond)
+		resp, err := adapter.ReadRegisters(attemptCtx, req)
+		attemptCancel()
 		if err == nil {
 			// Successful read
 			latencyMs := int(resp.ResponseTime.Milliseconds())
@@ -432,13 +461,15 @@ func (m *ConnectionManager) ExecuteWithRetry(
 			if mon := m.getActivityMonitor(); mon != nil {
 				now := time.Now()
 				mon.UpdateDevicePollingSnapshot(device.ID, func(s *DevicePollingSnapshot) {
-					s.CommunicationStatus = "ONLINE"
+					s.CommunicationStatus = CommOnline
+					s.TransportStatus = TransportAvailable
 					s.PollingState = PollingStateSuccess
 					s.LastSuccessfulResponse = &now
 					s.LastLatencyMs = latencyMs
 					s.ConsecutiveFailures = 0
 					s.RecoveryState = "NORMAL"
 					s.LastError = ""
+					s.IsFresh = true
 				})
 			}
 
@@ -501,6 +532,13 @@ func (m *ConnectionManager) ExecuteWithRetry(
 		if consec >= m.healthTracker.errorThreshold {
 			sev = SeverityError
 		}
+		failEvent := "MODBUS_READ_FAILED"
+		if isTimeoutError(lastErr) {
+			failEvent = "COMMUNICATION_TIMEOUT"
+		} else if strings.Contains(strings.ToLower(lastErr.Error()), "offline") || strings.Contains(strings.ToLower(lastErr.Error()), "not found") {
+			failEvent = "USB_PORT_MISSING"
+		}
+
 		mon.RecordEvent(ActivityEvent{
 			Severity:    sev,
 			Category:    CategoryModbus,
@@ -508,7 +546,7 @@ func (m *ConnectionManager) ExecuteWithRetry(
 			DeviceID:    device.ID,
 			DeviceCode:  device.DeviceCode,
 			DeviceName:  device.DeviceName,
-			EventName:   "MODBUS_READ_FAILED",
+			EventName:   failEvent,
 			Description: fmt.Sprintf("Modbus read on %s failed after %d attempts: %v", device.DeviceCode, retryLimit+1, lastErr),
 			ErrorDetail: lastErr.Error(),
 		})
@@ -516,6 +554,11 @@ func (m *ConnectionManager) ExecuteWithRetry(
 			s.PollingState = PollingStateTimeout
 			s.ConsecutiveFailures = consec
 			s.LastError = lastErr.Error()
+			if consec >= m.healthTracker.errorThreshold {
+				s.CommunicationStatus = CommOffline
+			} else {
+				s.CommunicationStatus = CommDegraded
+			}
 		})
 	}
 
@@ -822,5 +865,16 @@ func (m *ConnectionManager) IsDiagnosticActive(deviceID uint) bool {
 		return time.Since(startedAt) < 10*time.Second
 	}
 	return false
+}
+
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	errLower := strings.ToLower(err.Error())
+	return strings.Contains(errLower, "timeout") || strings.Contains(errLower, "deadline exceeded") || strings.Contains(errLower, "i/o timeout")
 }
 

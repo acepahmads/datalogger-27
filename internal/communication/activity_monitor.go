@@ -40,7 +40,30 @@ const (
 	CategorySecurity      = "SECURITY"
 )
 
-// PollingState represents the immediate operational phase of a device's polling loop
+// TransportStatus represents the physical/network link availability (Section 3B)
+const (
+	TransportAvailable    = "AVAILABLE"
+	TransportPortMissing  = "PORT_MISSING"
+	TransportOpenFailed   = "OPEN_FAILED"
+	TransportDisconnected = "DISCONNECTED"
+	TransportUnknown      = "UNKNOWN"
+)
+
+// CommunicationStatus represents the verified higher-layer protocol health (Section 3C)
+const (
+	CommOnline   = "ONLINE"
+	CommOffline  = "OFFLINE"
+	CommDegraded = "DEGRADED"
+	CommUnknown  = "UNKNOWN"
+)
+
+// AdministrativeStatus represents administrative configuration (Section 3A)
+const (
+	AdminActive   = "ACTIVE"
+	AdminInactive = "INACTIVE"
+)
+
+// PollingState represents the immediate operational phase of a device's polling loop (Section 3D)
 type PollingState string
 
 const (
@@ -80,8 +103,10 @@ type DevicePollingSnapshot struct {
 	DeviceName              string       `json:"device_name"`
 	Protocol                string       `json:"protocol"`
 	Transport               string       `json:"transport"`
-	CommunicationStatus     string       `json:"communication_status"` // ONLINE, OFFLINE, DEGRADED, RECONNECTING, ERROR
-	PollingState            PollingState `json:"polling_state"`        // WAITING, POLLING, SUCCESS, TIMEOUT, RETRYING, etc.
+	TransportStatus         string       `json:"transport_status"`         // AVAILABLE, PORT_MISSING, OPEN_FAILED, DISCONNECTED, UNKNOWN
+	AdministrativeStatus    string       `json:"administrative_status"`    // ACTIVE, INACTIVE
+	CommunicationStatus     string       `json:"communication_status"`     // ONLINE, OFFLINE, DEGRADED, UNKNOWN
+	PollingState            PollingState `json:"polling_state"`            // WAITING, POLLING, SUCCESS, TIMEOUT, RETRYING, STOPPED
 	LastPollingStarted      *time.Time   `json:"last_polling_started,omitempty"`
 	LastPollingCompleted    *time.Time   `json:"last_polling_completed,omitempty"`
 	LastSuccessfulResponse  *time.Time   `json:"last_successful_response,omitempty"`
@@ -97,6 +122,8 @@ type DevicePollingSnapshot struct {
 	SuccessParameters       int          `json:"success_parameters"`
 	FailedParameters        int          `json:"failed_parameters"`
 	PendingParameters       int          `json:"pending_parameters"`
+	FreshnessThresholdMs    int64        `json:"freshness_threshold_ms,omitempty"`
+	IsFresh                 bool         `json:"is_fresh"`
 }
 
 // BackgroundJobSnapshot captures the execution status of system background routines
@@ -351,10 +378,12 @@ func (m *ActivityMonitor) UpdateDevicePollingSnapshot(deviceID uint, updateFn fu
 	snap, exists := m.snapshots[deviceID]
 	if !exists {
 		snap = &DevicePollingSnapshot{
-			DeviceID:            deviceID,
-			PollingState:        PollingStateWaiting,
-			CommunicationStatus: "UNKNOWN",
-			RecoveryState:       "NORMAL",
+			DeviceID:             deviceID,
+			PollingState:         PollingStateWaiting,
+			TransportStatus:      TransportUnknown,
+			AdministrativeStatus: AdminActive,
+			CommunicationStatus:  CommUnknown,
+			RecoveryState:        "NORMAL",
 		}
 		m.snapshots[deviceID] = snap
 	}
@@ -422,6 +451,23 @@ func (m *ActivityMonitor) GetSystemOverview(devices []model.Device) SystemOvervi
 		commStatus := string(d.ConnectionStatus)
 		if hasSnap && snap.CommunicationStatus != "" {
 			commStatus = snap.CommunicationStatus
+		}
+
+		// Freshness and transport verification (Section 3 & 5)
+		if hasSnap && snap != nil {
+			if snap.TransportStatus == TransportPortMissing || snap.TransportStatus == TransportDisconnected {
+				commStatus = CommOffline
+			} else if strings.ToUpper(commStatus) == "ONLINE" {
+				// Evaluate freshness window
+				thresh := CalculateFreshnessThreshold(d.Connection)
+				snap.FreshnessThresholdMs = thresh.Milliseconds()
+				if snap.LastSuccessfulResponse == nil || time.Since(*snap.LastSuccessfulResponse) > thresh {
+					snap.IsFresh = false
+					commStatus = CommOffline
+				} else {
+					snap.IsFresh = true
+				}
+			}
 		}
 
 		switch strings.ToUpper(commStatus) {

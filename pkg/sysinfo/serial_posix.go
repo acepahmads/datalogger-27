@@ -4,6 +4,7 @@ package sysinfo
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 )
@@ -30,7 +31,10 @@ func GetDetailedSerialPorts() []SerialPortDetail {
 		for _, p := range byIDMatches {
 			realTarget, err := filepath.EvalSymlinks(p)
 			if err != nil {
-				realTarget = p
+				continue // Skip broken symlinks
+			}
+			if _, statErr := os.Stat(realTarget); statErr != nil {
+				continue // Target device node does not exist
 			}
 			baseName := filepath.Base(p)
 			results = append(results, SerialPortDetail{
@@ -50,7 +54,10 @@ func GetDetailedSerialPorts() []SerialPortDetail {
 		for _, p := range byPathMatches {
 			realTarget, err := filepath.EvalSymlinks(p)
 			if err != nil {
-				realTarget = p
+				continue // Skip broken symlinks
+			}
+			if _, statErr := os.Stat(realTarget); statErr != nil {
+				continue // Target device node does not exist
 			}
 			results = append(results, SerialPortDetail{
 				Path:        p,
