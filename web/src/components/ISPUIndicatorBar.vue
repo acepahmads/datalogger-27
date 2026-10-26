@@ -228,10 +228,10 @@
           v-for="pollutant in sevenOfficialParameters"
           :key="pollutant.code"
           @click="selectDisplayParameter(pollutant.code)"
-          class="p-2 sm:p-2.5 rounded-xl border transition-all flex flex-col justify-between cursor-pointer hover:scale-[1.02] hover:shadow-md select-none overflow-hidden"
+          class="ispu-breakdown-tile p-2 sm:p-2.5 rounded-lg border transition-all flex flex-col justify-between cursor-pointer hover:scale-[1.01] select-none overflow-hidden"
           :class="[
             getCardClass(pollutant.code),
-            selectedDisplayParam === pollutant.code ? '!border-cyan-500 dark:!border-cyan-400 shadow-md' : ''
+            selectedDisplayParam === pollutant.code ? '!border-cyan-500/50 dark:!border-cyan-400/40' : ''
           ]"
           :title="`Klik untuk menampilkan ISPU ${pollutant.code} pada bar utama`"
         >
@@ -824,24 +824,24 @@ export default {
     getCardClass(pollutantCode) {
       const pr = this.getParameterResult(pollutantCode);
       if (!pr) {
-        return 'bg-slate-100/80 dark:bg-[#101B2B] border-slate-300 dark:border-slate-800 opacity-60';
+        return 'bg-slate-100/60 dark:bg-[#101B2B] border-slate-200/80 dark:border-slate-800 opacity-60';
       }
       if (this.isDominant(pollutantCode)) {
-        return 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-500 dark:border-amber-400 shadow-sm';
+        return 'bg-amber-500/10 dark:bg-amber-950/25 border-amber-500/35 dark:border-amber-400/30';
       }
       switch (pr.category) {
         case 'BAIK':
-          return 'bg-emerald-100/90 dark:bg-emerald-950/70 border-emerald-500/80 dark:border-emerald-500/70 shadow-2xs';
+          return 'bg-emerald-500/10 dark:bg-emerald-950/20 border-emerald-500/25 dark:border-emerald-500/20';
         case 'SEDANG':
-          return 'bg-blue-100/90 dark:bg-blue-950/70 border-blue-500/80 dark:border-blue-500/70 shadow-2xs';
+          return 'bg-blue-500/10 dark:bg-blue-950/20 border-blue-500/25 dark:border-blue-500/20';
         case 'TIDAK_SEHAT':
-          return 'bg-amber-100/90 dark:bg-amber-950/70 border-amber-500/80 dark:border-amber-500/70 shadow-2xs';
+          return 'bg-amber-500/10 dark:bg-amber-950/20 border-amber-500/25 dark:border-amber-500/20';
         case 'SANGAT_TIDAK_SEHAT':
-          return 'bg-rose-100/90 dark:bg-rose-950/70 border-rose-500/80 dark:border-rose-500/70 shadow-2xs';
+          return 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-500/25 dark:border-rose-500/20';
         case 'BERBAHAYA':
-          return 'bg-purple-100/95 dark:bg-purple-950/80 border-purple-600/80 dark:border-purple-400/70 shadow-2xs';
+          return 'bg-purple-500/10 dark:bg-purple-950/20 border-purple-500/25 dark:border-purple-400/20';
         default:
-          return 'bg-slate-100 dark:bg-[#101B2B] border-slate-300 dark:border-slate-700';
+          return 'bg-slate-100/60 dark:bg-[#101B2B] border-slate-200 dark:border-[#20354B]';
       }
     },
     getTextClass(pollutantCode) {
@@ -1047,3 +1047,10 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.ispu-breakdown-tile {
+  border-width: 1px !important;
+  box-shadow: none !important;
+}
+</style>

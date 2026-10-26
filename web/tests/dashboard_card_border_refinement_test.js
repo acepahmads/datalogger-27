@@ -27,52 +27,50 @@ const ispuPath = path.join(__dirname, '../src/components/ISPUIndicatorBar.vue');
 const occContent = fs.readFileSync(occPath, 'utf8');
 const ispuContent = fs.readFileSync(ispuPath, 'utf8');
 
-// Test 1: Parameter Card when selected for Trend Analysis does NOT have ring-1 or double-stroke shadow
+// Test 1: Parameter Card when selected for Trend Analysis uses delicate subtle border and no shadow
 total++;
-if (runTest('1.1: Parameter card selected state in OCC template uses clean 1px border without ring-1', () => {
-  assert(occContent.includes("isParamSelectedForTrend(param)\n                        ? 'bg-white dark:bg-[#0B1422] border-cyan-500 dark:border-cyan-400"),
-    'Must use border-cyan-500 dark:border-cyan-400 without ring-1');
+if (runTest('1.1: Parameter card selected state in OCC template uses delicate border without ring-1', () => {
+  assert(occContent.includes("isParamSelectedForTrend(param)\n                        ? 'bg-white dark:bg-[#0B1422] border-cyan-500/40 dark:border-cyan-400/35"),
+    'Must use border-cyan-500/40 dark:border-cyan-400/35 without ring-1');
   assert(!occContent.includes('ring-1 ring-cyan-500/25'),
-    'Template must not have ring-1 ring-cyan-500/25');
+    'Template parameter card must not have ring-1 ring-cyan-500/25');
 })) passed++;
 
 total++;
-if (runTest('1.2: Parameter card CSS in OCC does not simulate thick 2px border with 0 0 0 1px shadow', () => {
-  // Check light mode
-  assert(!occContent.includes('box-shadow: 0 0 0 1px rgba(34, 184, 212'),
-    'Light mode selected card must not have 0 0 0 1px ring shadow');
-  // Check dark mode
-  assert(!occContent.includes('box-shadow: 0 0 0 1px rgba(33, 199, 232'),
-    'Dark mode selected card must not have 0 0 0 1px ring shadow');
-  assert(occContent.includes('.light-mode .scada-param-tile.border-cyan-500'),
-    'Light mode must have rule for .border-cyan-500');
-  assert(occContent.includes('.dark-mode .scada-param-tile.border-cyan-500'),
-    'Dark mode must have rule for .border-cyan-500');
+if (runTest('1.2: Parameter card CSS in OCC uses delicate rgba cyan and box-shadow: none', () => {
+  assert(occContent.includes('border-color: rgba(6, 182, 212, 0.45) !important;\n  box-shadow: none !important;'),
+    'Light mode selected card must have rgba(6, 182, 212, 0.45) with box-shadow: none');
+  assert(occContent.includes('border-color: rgba(33, 199, 232, 0.35) !important;\n  box-shadow: none !important;'),
+    'Dark mode selected card must have rgba(33, 199, 232, 0.35) with box-shadow: none');
 })) passed++;
 
 // Test 2: ISPU Breakdown Cards border refinement
 total++;
-if (runTest('2.1: ISPU Breakdown Cards use 1px border instead of thick border-2', () => {
-  assert(!ispuContent.includes('rounded-xl border-2 transition-all flex flex-col justify-between cursor-pointer'),
+if (runTest('2.1: ISPU Breakdown Cards use delicate 1px border instead of thick border-2', () => {
+  assert(!ispuContent.includes('rounded-xl border-2'),
     'Cards must not use border-2');
-  assert(ispuContent.includes('rounded-xl border transition-all flex flex-col justify-between cursor-pointer'),
-    'Cards must use border (1px)');
+  assert(ispuContent.includes('class="ispu-breakdown-tile p-2 sm:p-2.5 rounded-lg border'),
+    'Cards must use ispu-breakdown-tile with 1px border');
+  assert(ispuContent.includes('.ispu-breakdown-tile {\n  border-width: 1px !important;\n  box-shadow: none !important;\n}'),
+    'Must have scoped style enforcing 1px border and box-shadow: none');
 })) passed++;
 
 total++;
-if (runTest('2.2: Active ISPU card does not use heavy ring-2 ring-cyan-400', () => {
-  assert(!ispuContent.includes("ring-2 ring-cyan-400 dark:ring-cyan-300"),
+if (runTest('2.2: Active ISPU card uses delicate !border-cyan-500/50 without ring-2 or shadow-md', () => {
+  assert(!ispuContent.includes("ring-2 ring-cyan-400"),
     'Must not have ring-2 ring-cyan-400 on active ISPU card');
-  assert(ispuContent.includes("selectedDisplayParam === pollutant.code ? '!border-cyan-500 dark:!border-cyan-400 shadow-md' : ''"),
-    'Active ISPU card must use crisp !border-cyan-500 with shadow-md');
+  assert(ispuContent.includes("selectedDisplayParam === pollutant.code ? '!border-cyan-500/50 dark:!border-cyan-400/40' : ''"),
+    'Active ISPU card must use delicate !border-cyan-500/50 dark:!border-cyan-400/40');
 })) passed++;
 
 total++;
-if (runTest('2.3: Dominant ISPU card does not use heavy ring-2 ring-amber-400/50', () => {
-  assert(!ispuContent.includes("ring-2 ring-amber-400/50"),
-    'Must not have ring-2 ring-amber-400/50 on dominant ISPU card');
-  assert(ispuContent.includes("border-amber-500 dark:border-amber-400 shadow-sm"),
-    'Dominant ISPU card must have clean border-amber-500 without ring-2');
+if (runTest('2.3: Dominant and category ISPU cards use delicate 20-35% opacity borders without ring-2', () => {
+  assert(!ispuContent.includes("ring-2 ring-amber-400"),
+    'Must not have ring-2 ring-amber-400 on dominant ISPU card');
+  assert(ispuContent.includes("border-amber-500/35 dark:border-amber-400/30"),
+    'Dominant ISPU card must have delicate border-amber-500/35');
+  assert(ispuContent.includes("border-emerald-500/25 dark:border-emerald-500/20"),
+    'Category card must have delicate 20-25% opacity border');
 })) passed++;
 
 console.log('===============================================================');
