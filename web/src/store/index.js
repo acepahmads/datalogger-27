@@ -834,51 +834,59 @@ export default new Vuex.Store({
       };
 
       socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'HEALTH_UPDATE' && msg.data) {
-            commit('SET_SYSTEM_STATUS', {
-              cpu_percent: msg.data.cpu_percent,
-              process_cpu_percent: msg.data.process_cpu_percent != null ? msg.data.process_cpu_percent : 0,
-              cpu_per_core: msg.data.cpu_per_core || [],
-              ram_percent: msg.data.ram_percent,
-              ram_used_mb: msg.data.ram_used_bytes / (1024 * 1024),
-              ram_total_mb: msg.data.ram_total_bytes / (1024 * 1024),
-              disk_percent: msg.data.disk_percent,
-              uptime_human: msg.data.uptime_human,
-              goroutines: msg.data.goroutines,
-            });
-          } else if (msg.type === 'TASK_UPDATE') {
-            dispatch('fetchProgress');
-            dispatch('fetchTasks');
-          } else if (msg.type === 'ACTIVITY_LOG' && msg.data) {
-            commit('ADD_ACTIVITY', msg.data);
-          } else if (msg.type === 'SYSTEM_ACTIVITY_EVENT' && msg.data) {
-            window.dispatchEvent(new CustomEvent('system-activity-event', { detail: msg.data }));
-            window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
-          } else if (msg.type === 'device.connection.changed' || msg.type === 'device.communication.success' || msg.type === 'device.communication.error') {
-            window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
-          } else if (msg.type === 'device.telemetry.received' && msg.data) {
-            window.dispatchEvent(new CustomEvent('device-telemetry-event', { detail: msg.data }));
-          } else if (msg.type === 'aggregation.result.updated' && msg.data) {
-            window.dispatchEvent(new CustomEvent('aggregation-result-event', { detail: msg.data }));
-          } else if (msg.type === 'ispu.calculated' && msg.data) {
-            window.dispatchEvent(new CustomEvent('ispu-calculated-event', { detail: msg.data }));
-          } else if (msg.type === 'notification.alert' && msg.data) {
-            dispatch('fetchActiveAlarms');
-          } else if (msg.type === 'alarm.created' && msg.data) {
-            commit('UPSERT_ACTIVE_ALARM', msg.data);
-          } else if (msg.type === 'alarm.acknowledged' && msg.data) {
-            commit('UPDATE_ALARM_STATUS', msg.data);
-          } else if (msg.type === 'comm.live.frame' && msg.data) {
-            window.dispatchEvent(new CustomEvent('comm-live-frame', { detail: msg.data }));
-          } else if (msg.type === 'comm.trace.status' && msg.data) {
-            window.dispatchEvent(new CustomEvent('comm-trace-status', { detail: msg.data }));
-          } else if (msg.type === 'alarm.cleared' && msg.data) {
-            commit('REMOVE_ACTIVE_ALARM', msg.data.id || msg.data.ID);
+        const raw = event.data;
+        if (!raw) return;
+        const chunks = typeof raw === 'string' ? raw.split('\n') : [raw];
+        for (const chunk of chunks) {
+          const trimmed = typeof chunk === 'string' ? chunk.trim() : chunk;
+          if (!trimmed) continue;
+          try {
+            const msg = typeof trimmed === 'string' ? JSON.parse(trimmed) : trimmed;
+            if (!msg || !msg.type) continue;
+            if (msg.type === 'HEALTH_UPDATE' && msg.data) {
+              commit('SET_SYSTEM_STATUS', {
+                cpu_percent: msg.data.cpu_percent,
+                process_cpu_percent: msg.data.process_cpu_percent != null ? msg.data.process_cpu_percent : 0,
+                cpu_per_core: msg.data.cpu_per_core || [],
+                ram_percent: msg.data.ram_percent,
+                ram_used_mb: msg.data.ram_used_bytes / (1024 * 1024),
+                ram_total_mb: msg.data.ram_total_bytes / (1024 * 1024),
+                disk_percent: msg.data.disk_percent,
+                uptime_human: msg.data.uptime_human,
+                goroutines: msg.data.goroutines,
+              });
+            } else if (msg.type === 'TASK_UPDATE') {
+              dispatch('fetchProgress');
+              dispatch('fetchTasks');
+            } else if (msg.type === 'ACTIVITY_LOG' && msg.data) {
+              commit('ADD_ACTIVITY', msg.data);
+            } else if (msg.type === 'SYSTEM_ACTIVITY_EVENT' && msg.data) {
+              window.dispatchEvent(new CustomEvent('system-activity-event', { detail: msg.data }));
+              window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
+            } else if (msg.type === 'device.connection.changed' || msg.type === 'device.communication.success' || msg.type === 'device.communication.error') {
+              window.dispatchEvent(new CustomEvent('device-comm-event', { detail: { type: msg.type, data: msg.data } }));
+            } else if (msg.type === 'device.telemetry.received' && msg.data) {
+              window.dispatchEvent(new CustomEvent('device-telemetry-event', { detail: msg.data }));
+            } else if (msg.type === 'aggregation.result.updated' && msg.data) {
+              window.dispatchEvent(new CustomEvent('aggregation-result-event', { detail: msg.data }));
+            } else if (msg.type === 'ispu.calculated' && msg.data) {
+              window.dispatchEvent(new CustomEvent('ispu-calculated-event', { detail: msg.data }));
+            } else if (msg.type === 'notification.alert' && msg.data) {
+              dispatch('fetchActiveAlarms');
+            } else if (msg.type === 'alarm.created' && msg.data) {
+              commit('UPSERT_ACTIVE_ALARM', msg.data);
+            } else if (msg.type === 'alarm.acknowledged' && msg.data) {
+              commit('UPDATE_ALARM_STATUS', msg.data);
+            } else if (msg.type === 'comm.live.frame' && msg.data) {
+              window.dispatchEvent(new CustomEvent('comm-live-frame', { detail: msg.data }));
+            } else if (msg.type === 'comm.trace.status' && msg.data) {
+              window.dispatchEvent(new CustomEvent('comm-trace-status', { detail: msg.data }));
+            } else if (msg.type === 'alarm.cleared' && msg.data) {
+              commit('REMOVE_ACTIVE_ALARM', msg.data.id || msg.data.ID);
+            }
+          } catch (e) {
+            // ignore parse errors for non-JSON lines
           }
-        } catch (e) {
-          // ignore parse errors
         }
       };
     },

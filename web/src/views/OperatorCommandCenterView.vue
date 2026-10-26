@@ -2185,7 +2185,19 @@
                 AUTO 1M
               </span>
 
-              <!-- Dynamic Communication & Freshness Diagnostic Status Badge -->
+              <!-- Real-time WebSocket Transport Connection Indicator (Section 6) -->
+              <span
+                class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold leading-none select-none transition"
+                :class="$store.state.wsConnected
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/40 animate-pulse'"
+                :title="$store.state.wsConnected ? 'WebSocket live connection active' : 'WebSocket connection lost. Retrying...'"
+              >
+                <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="$store.state.wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"></span>
+                <span>{{ $store.state.wsConnected ? 'LIVE CONNECTED' : 'DISCONNECTED' }}</span>
+              </span>
+
+              <!-- Dynamic Communication & Freshness Diagnostic Status Badge (Data Freshness, Last Time, & Age) -->
               <span
                 class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[8.5px] font-mono leading-none transition select-none"
                 :class="trendCommDiagnostics.badgeClass"
@@ -5052,6 +5064,7 @@ export default {
         start: Date.now() - 15 * 60 * 1000,
         end: Date.now(),
       },
+      trendLiveTick: 0,
       showTrendDownloadMenu: false,
       showTrendFullscreen: false,
       showLineSmoothMenu: false,
@@ -5549,6 +5562,13 @@ export default {
         for (const p of (s.dataPoints || [])) {
           if (p.y !== null && isFinite(p.y) && p.x > lastTimestamp) {
             lastTimestamp = p.x;
+          }
+        }
+        const live = this.liveMap[s.parameterId];
+        if (live && live.received_at && (live.quality === 'GOOD' || !live.quality)) {
+          const lts = new Date(live.received_at).getTime();
+          if (lts > lastTimestamp) {
+            lastTimestamp = lts;
           }
         }
       }
@@ -6522,6 +6542,15 @@ export default {
     },
     trendLineSmooth() {
       this.saveOperatorPreferences();
+    },
+    '$store.state.wsConnected'(newVal, oldVal) {
+      if (newVal && !oldVal) {
+        // Reconnected to WebSocket: reconcile immediately without manual refresh
+        this.refreshLatestOnly();
+        if (this.activeTrendSeries && this.activeTrendSeries.length > 0) {
+          this.fetchTrendData(true);
+        }
+      }
     },
   },
   mounted() {
@@ -7830,7 +7859,7 @@ export default {
       const arr = this.sparklinesMap[pid];
 
       // Check if device is offline or in communication error
-      const dev = sample.deviceId ? (this.devicesList || []).find(d => d.id === sample.deviceId) : null;
+      const dev = sample.deviceId ? (this.devicesList || []).find(d => Number(d.id) === Number(sample.deviceId)) : null;
       const isDevOffline = dev && (dev.connection_status === 'OFFLINE' || dev.connection_status === 'ERROR' || dev.connection_status === 'DISCONNECTED' || dev.connection_status === 'FAILED');
 
       // Requirement: When device is offline, PRESERVE valid history; do NOT add synthetic/repeated samples or fake moving points!
@@ -7843,9 +7872,12 @@ export default {
       const existingIdx = arr.findIndex(p => Math.abs(p.time - sample.time) < 500);
       if (existingIdx >= 0) {
         // Update in-place to avoid duplicate points
-        arr[existingIdx].val = sample.val;
-        arr[existingIdx].quality = sample.quality;
-        if (sample.deviceId) arr[existingIdx].deviceId = sample.deviceId;
+        this.$set(arr, existingIdx, {
+          ...arr[existingIdx],
+          val: sample.val,
+          quality: sample.quality,
+          deviceId: sample.deviceId || arr[existingIdx].deviceId,
+        });
       } else {
         // Add new sample
         arr.push({
@@ -8396,7 +8428,7 @@ export default {
 
       // Update device connection status when telemetry arrives
       if (data.device_id) {
-        const target = this.devicesList.find(d => d.id === data.device_id);
+        const target = this.devicesList.find(d => Number(d.id) === Number(data.device_id));
         if (target) {
           if (data.quality === 'GOOD') {
             target.connection_status = 'ONLINE';
@@ -9651,7 +9683,7 @@ export default {
       if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) return;
 
       const pid = Number(data.parameter_id);
-      const series = this.activeTrendSeries.find(s => Number(s.parameterId) === pid);
+      const series = this.activeTrendSeries.find(s => Number(s.parameterId) === pid && (!s.deviceId || !data.device_id || Number(s.deviceId) === Number(data.device_id)));
       if (!series) return;
 
       const rawVal = data.processed_value !== undefined ? data.processed_value : data.value;
@@ -9665,7 +9697,7 @@ export default {
         : (data.timestamp ? new Date(data.timestamp).getTime() : Date.now());
 
       if (!series.dataPoints) {
-        series.dataPoints = [];
+        this.$set(series, 'dataPoints', []);
       }
 
       const span = this.getTimeframeSpan(this.currentTimeframe);
@@ -9681,11 +9713,11 @@ export default {
       };
 
       if (pts.length > 0 && pts[pts.length - 1].x === alignedX) {
-        pts[pts.length - 1] = newPt;
+        this.$set(pts, pts.length - 1, newPt);
       } else if (pts.length > 0 && pts[pts.length - 1].x > alignedX) {
         const idx = pts.findIndex(p => p.x === alignedX);
         if (idx >= 0) {
-          pts[idx] = newPt;
+          this.$set(pts, idx, newPt);
         } else {
           pts.push(newPt);
           pts.sort((a, b) => a.x - b.x);
@@ -9695,7 +9727,7 @@ export default {
       }
 
       // If live point is at or past current right edge, slide right edge to encompass it
-      if (!this.fullscreenIsCustom && alignedX > this.trendTimeBounds.end) {
+      if (!this.fullscreenIsCustom && alignedX >= this.trendTimeBounds.end) {
         this.trendTimeBounds = {
           start: alignedX - span,
           end: alignedX,
@@ -9720,14 +9752,14 @@ export default {
         const sum = yVals.reduce((acc, v) => acc + v, 0);
         const avg = sum / yVals.length;
         const prec = series.precision !== undefined ? series.precision : (Math.abs(max) >= 100 ? 1 : 2);
-        series.stats = {
+        this.$set(series, 'stats', {
           min: min.toFixed(prec),
           max: max.toFixed(prec),
           avg: avg.toFixed(prec),
           count: yVals.length,
-        };
+        });
         const lastVal = yVals[yVals.length - 1];
-        series.latestVal = lastVal.toFixed(prec);
+        this.$set(series, 'latestVal', lastVal.toFixed(prec));
       }
 
       // Invalidate memoization cache key so latest right-edge point renders immediately
@@ -9735,6 +9767,7 @@ export default {
       if (this.activeTrendSeries.length > 0 && this.activeTrendSeries[0].id === series.id) {
         this._cachedAreaKey = null;
       }
+      this.trendLiveTick = (this.trendLiveTick || 0) + 1;
     },
     buildSplinePath(coords, smooth) {
       if (!coords || coords.length === 0) return '';
@@ -9908,7 +9941,8 @@ export default {
       const smoothKey = this.trendLineSmooth ? 'smooth' : 'sharp';
       const lastPt = pts.length > 0 ? pts[pts.length - 1] : null;
       const pollStep = this.configuredPollingIntervalMs || 5000;
-      const cacheKey = isStandard ? `${series.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / pollStep)}_${Math.floor(timeEnd / pollStep)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}` : null;
+      const liveTick = this.trendLiveTick || 0;
+      const cacheKey = isStandard ? `${series.id}_${pts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(timeStart / pollStep)}_${Math.floor(timeEnd / pollStep)}_${plotW}_${plotH}_${minY}_${maxY}_${smoothKey}_${liveTick}` : null;
       if (isStandard && series._cachedPathKey === cacheKey && series._cachedPath) {
         return series._cachedPath;
       }

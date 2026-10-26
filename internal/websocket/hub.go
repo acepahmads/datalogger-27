@@ -61,7 +61,7 @@ func SetTokenValidator(validator func(token string) (role string, username strin
 func NewHub() *Hub {
 	h := &Hub{
 		clients:    make(map[*Client]bool),
-		broadcast:  make(chan WSMessage, 100),
+		broadcast:  make(chan WSMessage, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 	}
@@ -207,7 +207,7 @@ func ServeWS(hub *Hub, c *gin.Context) {
 	client := &Client{
 		hub:      hub,
 		conn:     conn,
-		send:     make(chan []byte, 64),
+		send:     make(chan []byte, 256),
 		role:     role,
 		username: username,
 	}
