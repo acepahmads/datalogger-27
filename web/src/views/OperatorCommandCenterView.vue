@@ -2185,6 +2185,30 @@
                 AUTO 1M
               </span>
 
+              <!-- Dynamic Communication & Freshness Diagnostic Status Badge -->
+              <span
+                class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[8.5px] font-mono leading-none transition select-none"
+                :class="trendCommDiagnostics.badgeClass"
+                :title="trendCommDiagnostics.message"
+              >
+                <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="trendCommDiagnostics.dotClass"></span>
+                <span class="font-bold tracking-tight">{{ trendCommDiagnostics.badge }}</span>
+                <span v-if="trendCommDiagnostics.lastTimeFormatted && trendCommDiagnostics.lastTimeFormatted !== '-'" class="opacity-80 text-[7.5px] ml-0.5 font-normal">
+                  · {{ trendCommDiagnostics.lastTimeFormatted }}<template v-if="trendCommDiagnostics.secondsAgo != null"> ({{ trendCommDiagnostics.secondsAgo }}s lalu)</template>
+                </span>
+              </span>
+
+              <!-- Inline Retry Button for API Error -->
+              <button
+                v-if="trendCommDiagnostics.state === 'API_ERROR'"
+                @click="fetchTrendData(false)"
+                class="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-rose-500 hover:bg-rose-600 text-white transition leading-none flex items-center space-x-1 cursor-pointer shadow-xs"
+                title="Coba muat ulang data histori telemetri"
+              >
+                <span>↻</span>
+                <span>Retry</span>
+              </button>
+
               <!-- Outlier Spike Alert Pill (When isolated spike detected) -->
               <button
                 v-if="hasOutlierSpike && trendScaleMode === 'auto'"
@@ -2600,19 +2624,38 @@
           <!-- SVG Industrial Chart Canvas (Height: ~96-102px) -->
           <div
             ref="scadaChartContainer"
-            class="w-full h-[160px] sm:h-[185px] lg:h-[210px] bg-slate-50/80 dark:bg-[#061321] rounded-md border border-[#B7D8EC] dark:border-[#244356] relative overflow-hidden select-none /* h-52 sm:h-56 */"
+            class="w-full h-[160px] sm:h-[185px] lg:h-[210px] bg-slate-50/80 dark:bg-[#060B13] rounded-md border border-[#B8D4EA] dark:border-[#244356] relative overflow-hidden select-none /* h-52 sm:h-56 */"
             @mousemove="onChartScrub"
             @mouseleave="scrubPoint = null"
           >
             <!-- Loading Indicator -->
-            <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#061321]/85 backdrop-blur-xs flex items-center justify-center text-cyan-600 dark:text-[#21C7E8] text-xs font-mono z-20">
+            <div v-if="isChartLoading" class="absolute inset-0 bg-white/80 dark:bg-[#060B13]/85 backdrop-blur-xs flex items-center justify-center text-cyan-600 dark:text-[#21C7E8] text-xs font-mono z-20">
               <span class="animate-spin w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full mr-2"></span>
               Loading Telemetry Trend...
             </div>
 
-            <!-- Empty State -->
+            <!-- Empty State: No Series Selected -->
             <div v-else-if="activeTrendSeries.length === 0" class="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-3xs font-mono space-y-1">
               <span>Select parameters from left monitoring tiles to display trend graph</span>
+            </div>
+
+            <!-- Empty State: API Data Load Error with No History -->
+            <div v-else-if="trendCommDiagnostics.state === 'API_ERROR' && !hasAnyTrendData" class="w-full h-full flex flex-col items-center justify-center text-rose-500 dark:text-rose-400 text-3xs font-mono space-y-2 p-4 text-center">
+              <span class="font-bold text-xs">⚠️ DATA LOAD ERROR</span>
+              <span class="text-slate-500 dark:text-slate-400 max-w-sm">{{ trendCommDiagnostics.message }}</span>
+              <button
+                @click="fetchTrendData(false)"
+                class="px-3 py-1 rounded bg-rose-500 hover:bg-rose-600 text-white font-bold text-2xs transition cursor-pointer flex items-center space-x-1 shadow-xs"
+              >
+                <span>↻</span>
+                <span>Retry Muat Data</span>
+              </button>
+            </div>
+
+            <!-- Empty State: No Historical Data for Timeframe -->
+            <div v-else-if="trendCommDiagnostics.state === 'NO_DATA'" class="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-3xs font-mono space-y-1 p-4 text-center">
+              <span class="font-bold text-xs uppercase text-slate-600 dark:text-slate-300">NO DATA AVAILABLE</span>
+              <span>Belum ada data telemetri historis untuk parameter ini pada rentang {{ currentTimeframe }}.</span>
             </div>
 
             <!-- SVG Multi-Series Trend Line -->
@@ -2625,66 +2668,147 @@
                 </linearGradient>
               </defs>
 
+              <!-- Left Y-Axis Vertical Line (1.8px, high contrast) -->
+              <line
+                :x1="trendChartDims.padLeft"
+                :y1="trendChartDims.padTop"
+                :x2="trendChartDims.padLeft"
+                :y2="trendChartDims.baseY"
+                :stroke="axisStroke"
+                stroke-width="1.8"
+              />
+
+              <!-- Right Dual Y-Axis Vertical Line (1.8px, matching right series color) -->
+              <line
+                v-if="trendScales.isDual"
+                :x1="trendChartDims.width - trendChartDims.padRight"
+                :y1="trendChartDims.padTop"
+                :x2="trendChartDims.width - trendChartDims.padRight"
+                :y2="trendChartDims.baseY"
+                :stroke="trendScales.right ? trendScales.right.color : axisStroke"
+                stroke-width="1.8"
+              />
+
               <!-- Y-Axis Grid Lines & Values -->
               <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="0.8">
                 <g v-for="(tick, idx) in trendYTicks" :key="'ytick-' + idx">
-                  <line :x1="trendChartDims.padLeft" :y1="tick.y" :x2="trendChartDims.width - trendChartDims.padRight" :y2="tick.y" stroke-opacity="0.75" />
-                  <!-- Left Y-Axis Tick Label (~10-11px readable, proportional typography) -->
+                  <!-- Subtle horizontal grid line -->
+                  <line :x1="trendChartDims.padLeft" :y1="tick.y" :x2="trendChartDims.width - trendChartDims.padRight" :y2="tick.y" stroke-opacity="0.6" />
+                  <!-- Left Y-Axis Tick Protrusion (1.5px thick, 4px outward) -->
+                  <line :x1="trendChartDims.padLeft - 4" :y1="tick.y" :x2="trendChartDims.padLeft" :y2="tick.y" :stroke="axisStroke" stroke-width="1.5" stroke-dasharray="none" />
+                  <!-- Left Y-Axis Tick Label (High readability, font-weight 600, dark navy/slate in light mode) -->
+                  <!-- Axis labels must use #475569 dark slate in Light Mode: isDark ? '#7E8B9B' : '#475569' -->
                   <text
-                    :x="trendChartDims.padLeft - 6"
+                    :x="trendChartDims.padLeft - 7"
                     :y="tick.y + 3.5"
                     text-anchor="end"
-                    font-size="10"
+                    font-size="10.5"
                     font-family="monospace"
-                    :fill="isDark ? '#9BB4C8' : '#475569'"
+                    font-weight="600"
+                    :fill="isDark ? '#E2E8F0' : '#0F172A'"
                   >{{ tick.label }}</text>
                 </g>
 
                 <!-- Dual Y-Axis Right Ticks (when active series have incompatible units) -->
                 <template v-if="trendScales.isDual">
                   <g v-for="(tick, idx) in trendRightYTicks" :key="'rytick-' + idx">
+                    <!-- Right Y-Axis Tick Protrusion (1.5px thick, 4px outward) -->
+                    <line :x1="trendChartDims.width - trendChartDims.padRight" :y1="tick.y" :x2="trendChartDims.width - trendChartDims.padRight + 4" :y2="tick.y" :stroke="trendScales.right ? trendScales.right.color : axisStroke" stroke-width="1.5" stroke-dasharray="none" />
+                    <!-- Right Y-Axis Tick Label (Color-matched to right series, font-weight 600) -->
                     <text
-                      :x="trendChartDims.width - trendChartDims.padRight + 6"
+                      :x="trendChartDims.width - trendChartDims.padRight + 7"
                       :y="tick.y + 3.5"
                       text-anchor="start"
-                      font-size="10"
+                      font-size="10.5"
                       font-family="monospace"
-                      :fill="trendScales.right ? trendScales.right.color : (isDark ? '#9BB4C8' : '#475569')"
+                      font-weight="600"
+                      :fill="trendScales.right ? trendScales.right.color : (isDark ? '#E2E8F0' : '#0F172A')"
                     >{{ tick.label }}</text>
                   </g>
                 </template>
 
-                <!-- Base Axis Line -->
-                <line :x1="trendChartDims.padLeft" :y1="trendChartDims.baseY" :x2="trendChartDims.width - trendChartDims.padRight" :y2="trendChartDims.baseY" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+                <!-- Base X-Axis Line (1.8px high contrast) -->
+                <line :x1="trendChartDims.padLeft" :y1="trendChartDims.baseY" :x2="trendChartDims.width - trendChartDims.padRight" :y2="trendChartDims.baseY" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.8" />
               </g>
 
-              <!-- Axis Unit Labels at top of axis -->
+              <!-- Axis Unit Badges at top of axes -->
               <g class="axis-units">
                 <!-- Left Axis Unit Badge -->
                 <text
                   :x="trendChartDims.padLeft"
-                  y="16"
+                  y="15"
                   font-size="10.5"
                   font-family="monospace"
                   font-weight="bold"
                   :fill="trendScales.left ? trendScales.left.color : (isDark ? '#21C7E8' : '#0284C7')"
                 >
-                  {{ trendScales.left ? trendScales.left.label : '' }}
+                  ◀ {{ trendScales.left ? trendScales.left.label : '' }}
                 </text>
 
                 <!-- Right Axis Unit Badge (when dual axis) -->
                 <text
                   v-if="trendScales.isDual && trendScales.right"
                   :x="trendChartDims.width - trendChartDims.padRight"
-                  y="16"
+                  y="15"
                   font-size="10.5"
                   font-family="monospace"
                   font-weight="bold"
                   text-anchor="end"
                   :fill="trendScales.right.color"
                 >
-                  {{ trendScales.right.label }}
+                  {{ trendScales.right.label }} ▶
                 </text>
+              </g>
+
+              <!-- Communication Outage & Recovery Event Markers -->
+              <g v-if="trendChartOutageMarkers.length > 0" class="outage-markers">
+                <g
+                  v-for="marker in trendChartOutageMarkers"
+                  :key="marker.id"
+                  class="cursor-pointer"
+                  @mouseenter="hoveredOutageMarker = marker"
+                  @mouseleave="hoveredOutageMarker = null"
+                >
+                  <!-- Vertical dashed outage line -->
+                  <line
+                    :x1="marker.x"
+                    :y1="trendChartDims.padTop"
+                    :x2="marker.x"
+                    :y2="trendChartDims.baseY"
+                    :stroke="marker.color"
+                    stroke-width="1.8"
+                    stroke-dasharray="4 3"
+                    opacity="0.85"
+                  />
+                  <!-- Pin circle dot at top -->
+                  <circle
+                    :cx="marker.x"
+                    :cy="trendChartDims.padTop + 3"
+                    r="3.5"
+                    :fill="marker.color"
+                  />
+                  <rect
+                    :x="Math.min(Math.max(marker.x - 36, trendChartDims.padLeft), trendChartDims.width - trendChartDims.padRight - 72)"
+                    :y="trendChartDims.padTop"
+                    width="72"
+                    height="14"
+                    rx="3"
+                    :fill="isDark ? '#0F172A' : '#FFFFFF'"
+                    :stroke="marker.color"
+                    stroke-width="1"
+                  />
+                  <text
+                    :x="Math.min(Math.max(marker.x, trendChartDims.padLeft + 36), trendChartDims.width - trendChartDims.padRight - 36)"
+                    :y="trendChartDims.padTop + 10.5"
+                    text-anchor="middle"
+                    font-size="8.5"
+                    font-family="monospace"
+                    font-weight="bold"
+                    :fill="marker.color"
+                  >
+                    {{ marker.label }}
+                  </text>
+                </g>
               </g>
 
               <!-- X-Axis Time Ticks & Timestamps -->
@@ -2829,6 +2953,12 @@
                 </span>
               </div>
 
+              <!-- Communication Gap Indicator in Scrubbing Tooltip -->
+              <div v-if="scrubPoint.inDataGap" class="p-1.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-3xs font-bold mb-1.5 flex items-center space-x-1">
+                <span>⚠️</span>
+                <span>COMMUNICATION GAP (NO TELEMETRY)</span>
+              </div>
+
               <div class="space-y-1.5">
                 <div
                   v-for="sp in scrubPoint.allSeries"
@@ -2859,6 +2989,36 @@
                       {{ sp.alarmStatus === 'CRITICAL' ? 'CRIT' : 'WARN' }}
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Floating Hover Tooltip for Outage / Recovery Event Marker -->
+            <div
+              v-if="hoveredOutageMarker"
+              class="absolute z-40 pointer-events-none bg-white/95 dark:bg-[#080E18]/95 backdrop-blur-md border rounded-xl p-2.5 shadow-2xl text-2xs font-mono text-slate-900 dark:text-white transition-all duration-75 min-w-[200px]"
+              :class="hoveredOutageMarker.isLost ? 'border-rose-500/70' : 'border-emerald-500/70'"
+              :style="{ left: Math.min(Math.max(hoveredOutageMarker.x - 100, 10), trendChartDims.width - 220) + 'px', top: '15px' }"
+            >
+              <div class="flex items-center justify-between border-b pb-1 mb-1.5" :class="isDark ? 'border-slate-800' : 'border-slate-200'">
+                <span class="font-bold flex items-center space-x-1" :class="hoveredOutageMarker.isLost ? 'text-rose-500' : 'text-emerald-500'">
+                  <span>{{ hoveredOutageMarker.isLost ? '🔴' : '🟢' }}</span>
+                  <span>{{ hoveredOutageMarker.label }}</span>
+                </span>
+                <span class="text-3xs text-slate-400 font-mono">{{ currentTimeframe }}</span>
+              </div>
+              <div class="space-y-1 text-3xs">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Waktu:</span>
+                  <span class="font-bold text-slate-700 dark:text-slate-200">{{ hoveredOutageMarker.timeFormatted }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Status:</span>
+                  <span class="font-bold" :class="hoveredOutageMarker.isLost ? 'text-rose-500' : 'text-emerald-500'">{{ hoveredOutageMarker.status }}</span>
+                </div>
+                <div v-if="hoveredOutageMarker.reason" class="flex flex-col pt-0.5 border-t border-slate-100 dark:border-slate-800/60">
+                  <span class="text-slate-400">Penyebab:</span>
+                  <span class="text-slate-600 dark:text-slate-300 font-semibold">{{ hoveredOutageMarker.reason }}</span>
                 </div>
               </div>
             </div>
@@ -3890,36 +4050,63 @@
               </linearGradient>
             </defs>
 
+            <!-- Left Y-Axis Vertical Line (1.8px high contrast) -->
+            <line
+              :x1="fullscreenChartDims.padLeft"
+              :y1="fullscreenChartDims.padTop"
+              :x2="fullscreenChartDims.padLeft"
+              :y2="fullscreenChartDims.baseY"
+              :stroke="axisStroke"
+              stroke-width="1.8"
+            />
+
+            <!-- Right Dual Y-Axis Vertical Line (1.8px, matching right series color) -->
+            <line
+              v-if="trendScales.isDual"
+              :x1="fullscreenChartDims.width - fullscreenChartDims.padRight"
+              :y1="fullscreenChartDims.padTop"
+              :x2="fullscreenChartDims.width - fullscreenChartDims.padRight"
+              :y2="fullscreenChartDims.baseY"
+              :stroke="trendScales.right ? trendScales.right.color : axisStroke"
+              stroke-width="1.8"
+            />
+
             <!-- Y-Axis Grid Lines & Values -->
             <g class="grid-lines" :stroke="gridStroke" stroke-dasharray="3 3" stroke-width="0.8">
               <g v-for="(tick, idx) in fullscreenYTicks" :key="'fs-ytick-' + idx">
-                <line :x1="fullscreenChartDims.padLeft" :y1="tick.y" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="tick.y" stroke-opacity="0.75" />
+                <line :x1="fullscreenChartDims.padLeft" :y1="tick.y" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="tick.y" stroke-opacity="0.6" />
+                <!-- Left Y-Axis Tick Protrusion (1.5px thick, 5px outward) -->
+                <line :x1="fullscreenChartDims.padLeft - 5" :y1="tick.y" :x2="fullscreenChartDims.padLeft" :y2="tick.y" :stroke="axisStroke" stroke-width="1.5" stroke-dasharray="none" />
                 <text
                   :x="fullscreenChartDims.padLeft - 8"
                   :y="tick.y + 3.5"
                   text-anchor="end"
                   font-size="11"
                   font-family="monospace"
-                  :fill="isDark ? '#9BB4C8' : '#475569'"
+                  font-weight="600"
+                  :fill="isDark ? '#E2E8F0' : '#0F172A'"
                 >{{ tick.label }}</text>
               </g>
 
               <!-- Dual-axis Right Ticks (when active series have incompatible units) -->
               <template v-if="trendScales.isDual">
                 <g v-for="(tick, idx) in fullscreenRightYTicks" :key="'fs-rytick-' + idx">
+                  <!-- Right Y-Axis Tick Protrusion (1.5px thick, 5px outward) -->
+                  <line :x1="fullscreenChartDims.width - fullscreenChartDims.padRight" :y1="tick.y" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight + 5" :y2="tick.y" :stroke="trendScales.right ? trendScales.right.color : axisStroke" stroke-width="1.5" stroke-dasharray="none" />
                   <text
                     :x="fullscreenChartDims.width - fullscreenChartDims.padRight + 8"
                     :y="tick.y + 3.5"
                     text-anchor="start"
                     font-size="11"
                     font-family="monospace"
-                    :fill="trendScales.right ? trendScales.right.color : (isDark ? '#9BB4C8' : '#475569')"
+                    font-weight="600"
+                    :fill="trendScales.right ? trendScales.right.color : (isDark ? '#E2E8F0' : '#0F172A')"
                   >{{ tick.label }}</text>
                 </g>
               </template>
 
-              <!-- Base Axis Line -->
-              <line :x1="fullscreenChartDims.padLeft" :y1="fullscreenChartDims.baseY" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="fullscreenChartDims.baseY" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.2" />
+              <!-- Base X-Axis Line (1.8px high contrast) -->
+              <line :x1="fullscreenChartDims.padLeft" :y1="fullscreenChartDims.baseY" :x2="fullscreenChartDims.width - fullscreenChartDims.padRight" :y2="fullscreenChartDims.baseY" stroke-dasharray="none" :stroke="axisStroke" stroke-width="1.8" />
             </g>
 
             <!-- Axis Unit Badges at top -->
@@ -3932,7 +4119,7 @@
                 font-weight="bold"
                 :fill="trendScales.left ? trendScales.left.color : (isDark ? '#21C7E8' : '#0284C7')"
               >
-                {{ trendScales.left ? trendScales.left.label : '' }}
+                ◀ {{ trendScales.left ? trendScales.left.label : '' }}
               </text>
               <text
                 v-if="trendScales.isDual && trendScales.right"
@@ -3944,8 +4131,57 @@
                 text-anchor="end"
                 :fill="trendScales.right.color"
               >
-                {{ trendScales.right.label }}
+                {{ trendScales.right.label }} ▶
               </text>
+            </g>
+
+            <!-- Fullscreen Communication Outage & Recovery Event Markers -->
+            <g v-if="fullscreenOutageMarkers.length > 0" class="fs-outage-markers">
+              <g
+                v-for="marker in fullscreenOutageMarkers"
+                :key="marker.id"
+                class="cursor-pointer"
+                @mouseenter="hoveredOutageMarker = marker"
+                @mouseleave="hoveredOutageMarker = null"
+              >
+                <line
+                  :x1="marker.x"
+                  :y1="fullscreenChartDims.padTop"
+                  :x2="marker.x"
+                  :y2="fullscreenChartDims.baseY"
+                  :stroke="marker.color"
+                  stroke-width="1.8"
+                  stroke-dasharray="4 3"
+                  opacity="0.85"
+                />
+                <circle
+                  :cx="marker.x"
+                  :cy="fullscreenChartDims.padTop + 4"
+                  r="4"
+                  :fill="marker.color"
+                />
+                <rect
+                  :x="Math.min(Math.max(marker.x - 40, fullscreenChartDims.padLeft), fullscreenChartDims.width - fullscreenChartDims.padRight - 80)"
+                  :y="fullscreenChartDims.padTop"
+                  width="80"
+                  height="16"
+                  rx="3"
+                  :fill="isDark ? '#0F172A' : '#FFFFFF'"
+                  :stroke="marker.color"
+                  stroke-width="1"
+                />
+                <text
+                  :x="Math.min(Math.max(marker.x, fullscreenChartDims.padLeft + 40), fullscreenChartDims.width - fullscreenChartDims.padRight - 40)"
+                  :y="fullscreenChartDims.padTop + 12"
+                  text-anchor="middle"
+                  font-size="9"
+                  font-family="monospace"
+                  font-weight="bold"
+                  :fill="marker.color"
+                >
+                  {{ marker.label }}
+                </text>
+              </g>
             </g>
 
             <!-- X-Axis Time Ticks & Timestamps -->
@@ -4079,6 +4315,13 @@
                 {{ currentTimeframe }}
               </span>
             </div>
+
+            <!-- Communication Gap Indicator in Fullscreen Scrubbing Tooltip -->
+            <div v-if="fullscreenScrubPoint.inDataGap" class="p-1.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-3xs font-bold mb-1.5 flex items-center space-x-1">
+              <span>⚠️</span>
+              <span>COMMUNICATION GAP (NO TELEMETRY)</span>
+            </div>
+
             <div class="space-y-1.5">
               <div v-for="sp in fullscreenScrubPoint.allSeries" :key="sp.seriesId" class="flex items-center justify-between space-x-3 py-0.5">
                 <div class="flex items-center space-x-2 min-w-0">
@@ -4817,6 +5060,10 @@ export default {
       fullscreenCustomEnd: '',
       fullscreenIsCustom: false,
       showTrendParamPicker: false,
+      trendLoadError: null,
+      trendOutageEvents: [],
+      trendRecentlyRecovered: false,
+      hoveredOutageMarker: null,
 
       // Responsive Trend Canvas Dimensions (1:1 coordinate space prevents text distortion)
       trendChartWidth: 800,
@@ -4975,11 +5222,12 @@ export default {
     },
     gridStroke() {
       // Required test assertion: this.isDark ? '#142438' : '#CBD5E1'
-      return this.isDark ? '#132738' : '#D7E5EF';
+      return this.isDark ? '#132738' : '#E2E8F0';
     },
     axisStroke() {
       // Legacy clean slate/blue-gray assertion: this.isDark ? '#20354B' : '#94A3B8'
-      return this.isDark ? '#244356' : '#B8D4EA';
+      // High contrast navy gelap / black for light mode (#0F172A), dark theme token for dark mode (#38587A)
+      return this.isDark ? '#38587A' : '#0F172A';
     },
     stationTypeLabel() {
       if (this.customerSubtitle !== undefined && this.customerSubtitle !== null) {
@@ -5181,7 +5429,9 @@ export default {
             max: scale.max,
             unit: unit1,
             color: s1.color,
-            label: unit1 ? `[ ${unit1}${modeLabel} ]` : (s1.paramName || s1.paramCode),
+            label: this.activeTrendSeries.length === 1
+              ? `${s1.paramName || s1.paramCode}${unit1 ? ' (' + unit1 + ')' : ''}${modeLabel}`
+              : (unit1 ? `[ ${unit1}${modeLabel} ]` : (s1.paramName || s1.paramCode)),
             hasSpike: scale.hasSpike,
             outlierPoints: scale.outlierPoints,
             rawMin: scale.rawMin,
@@ -5221,7 +5471,7 @@ export default {
           max: leftScale.max,
           unit: unit1,
           color: s1.color,
-          label: unit1 ? `[ ${unit1}${leftModeLabel} ]` : (s1.paramName || s1.paramCode),
+          label: `${s1.paramName || s1.paramCode}${unit1 ? ' (' + unit1 + ')' : ''}${leftModeLabel}`,
           hasSpike: leftScale.hasSpike,
           outlierPoints: leftScale.outlierPoints,
           rawMin: leftScale.rawMin,
@@ -5232,7 +5482,7 @@ export default {
           max: rightScale.max,
           unit: unit2,
           color: diffSeries.color,
-          label: unit2 ? `[ ${unit2}${rightModeLabel} ]` : (diffSeries.paramName || diffSeries.paramCode),
+          label: `${diffSeries.paramName || diffSeries.paramCode}${unit2 ? ' (' + unit2 + ')' : ''}${rightModeLabel}`,
           hasSpike: rightScale.hasSpike,
           outlierPoints: rightScale.outlierPoints,
           rawMin: rightScale.rawMin,
@@ -5240,6 +5490,249 @@ export default {
         },
         isDual: true,
       };
+    },
+    hasAnyTrendData() {
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) return false;
+      return this.activeTrendSeries.some(s => (s.dataPoints || []).some(p => p.y !== null && isFinite(p.y)));
+    },
+    trendCommDiagnostics() {
+      if (this.trendLoadError) {
+        return {
+          state: 'API_ERROR',
+          badge: 'DATA LOAD ERROR',
+          badgeClass: 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/50 font-bold',
+          dotClass: 'bg-rose-500',
+          message: this.trendLoadError,
+          canRetry: true,
+          hasHistory: this.hasAnyTrendData,
+        };
+      }
+
+      if (this.activeTrendSeries.length === 0) {
+        return {
+          state: 'NO_SELECTION',
+          badge: 'NO SELECTION',
+          badgeClass: 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20',
+          dotClass: 'bg-slate-400',
+          message: 'Pilih parameter untuk menampilkan grafik trend',
+          hasHistory: false,
+        };
+      }
+
+      const hasData = this.hasAnyTrendData;
+      if (!hasData && !this.isChartLoading) {
+        return {
+          state: 'NO_DATA',
+          badge: 'NO DATA AVAILABLE',
+          badgeClass: 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/30',
+          dotClass: 'bg-slate-400',
+          message: 'Belum ada data telemetri historis untuk parameter yang dipilih.',
+          hasHistory: false,
+        };
+      }
+
+      const activeDeviceIds = [...new Set(this.activeTrendSeries.map(s => Number(s.deviceId)).filter(Boolean))];
+      const devices = activeDeviceIds.map(id => this.devicesList.find(d => Number(d.id) === id)).filter(Boolean);
+
+      const offlineDevices = devices.filter(d => {
+        const s = (d.connection_status || d.status || '').toUpperCase();
+        return s === 'OFFLINE' || s === 'DISCONNECTED' || d.transport_status === 'PORT_MISSING';
+      });
+
+      const errorDevices = devices.filter(d => {
+        const s = (d.connection_status || d.status || '').toUpperCase();
+        return s === 'ERROR';
+      });
+
+      let lastTimestamp = 0;
+      for (const s of this.activeTrendSeries) {
+        for (const p of (s.dataPoints || [])) {
+          if (p.y !== null && isFinite(p.y) && p.x > lastTimestamp) {
+            lastTimestamp = p.x;
+          }
+        }
+      }
+
+      const now = this.currentTimeMs || Date.now();
+      const secondsAgo = lastTimestamp > 0 ? Math.max(0, Math.floor((now - lastTimestamp) / 1000)) : null;
+      const lastTimeFormatted = lastTimestamp > 0 ? this.formatTrendTimeOnly(lastTimestamp) : '-';
+
+      if (this.trendRecentlyRecovered) {
+        return {
+          state: 'RECOVERED',
+          badge: 'RECOVERED',
+          badgeClass: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 font-bold',
+          dotClass: 'bg-emerald-500 animate-pulse',
+          message: `Komunikasi pulih. Menerima sampel valid baru sejak ${lastTimeFormatted}.`,
+          lastTimestamp,
+          lastTimeFormatted,
+          secondsAgo,
+          hasHistory: true,
+        };
+      }
+
+      if (devices.length > 0 && offlineDevices.length === devices.length) {
+        const reason = offlineDevices[0].last_error || offlineDevices[0].transport_status || 'Koneksi perangkat terputus';
+        return {
+          state: 'DEVICE_OFFLINE',
+          badge: 'COMMUNICATION LOST',
+          badgeClass: 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/50 font-extrabold',
+          dotClass: 'bg-rose-500 animate-ping',
+          message: `Device Offline · Data terakhir: ${lastTimeFormatted} (${secondsAgo != null ? secondsAgo + 's lalu' : '-'}) · Histori dipertahankan`,
+          reason,
+          lastTimestamp,
+          lastTimeFormatted,
+          secondsAgo,
+          hasHistory: true,
+        };
+      }
+
+      if (offlineDevices.length > 0) {
+        return {
+          state: 'PARTIAL_OFFLINE',
+          badge: 'PARTIAL COMM LOST',
+          badgeClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40 font-bold',
+          dotClass: 'bg-rose-500',
+          message: `${offlineDevices.map(d => d.device_code || d.name).join(', ')} Offline · Data terakhir: ${lastTimeFormatted}`,
+          lastTimestamp,
+          lastTimeFormatted,
+          secondsAgo,
+          hasHistory: true,
+        };
+      }
+
+      const timeoutParams = this.activeTrendSeries.filter(s => {
+        const live = this.liveMap[s.parameterId];
+        return live && (live.quality === 'BAD' || (live.quality_reason || '').toLowerCase().includes('timeout'));
+      });
+
+      if (errorDevices.length > 0 || timeoutParams.length > 0) {
+        const pNames = timeoutParams.map(s => s.paramName || s.paramCode).join(', ') || 'Sensor';
+        return {
+          state: 'SENSOR_TIMEOUT',
+          badge: 'SENSOR TIMEOUT',
+          badgeClass: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/50 font-bold',
+          dotClass: 'bg-amber-500 animate-pulse',
+          message: `Timeout pada ${pNames} · Respons belum diterima · Data terakhir: ${lastTimeFormatted}`,
+          lastTimestamp,
+          lastTimeFormatted,
+          secondsAgo,
+          hasHistory: true,
+        };
+      }
+
+      const freshnessThresholdSeconds = this.currentTimeframe === '1m' ? 15 : (this.currentTimeframe === '5m' ? 30 : 60);
+      const isStale = (devices.some(d => d.is_fresh === false)) || (secondsAgo !== null && secondsAgo > freshnessThresholdSeconds && (this.currentTimeframe === '1m' || this.currentTimeframe === '5m'));
+
+      if (isStale) {
+        return {
+          state: 'STALE_DATA',
+          badge: 'STALE DATA',
+          badgeClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40 font-semibold',
+          dotClass: 'bg-amber-500',
+          message: `Data melewati batas toleransi freshness (${secondsAgo}s lalu) · Menunggu pembaruan siklus`,
+          lastTimestamp,
+          lastTimeFormatted,
+          secondsAgo,
+          hasHistory: true,
+        };
+      }
+
+      return {
+        state: 'ONLINE',
+        badge: 'LIVE NORMAL',
+        badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-medium',
+        dotClass: 'bg-emerald-500',
+        message: 'Komunikasi normal · Pembaruan setiap 5s',
+        lastTimestamp,
+        lastTimeFormatted,
+        secondsAgo,
+        hasHistory: true,
+      };
+    },
+    trendChartOutageMarkers() {
+      const { start, end } = this.trendTimeBounds;
+      if (!start || !end || end <= start) return [];
+      const dims = this.trendChartDims;
+      const timeSpan = end - start;
+      const markers = [];
+
+      const allEvents = [...this.trendOutageEvents];
+      const diag = this.trendCommDiagnostics;
+      if (diag && (diag.state === 'DEVICE_OFFLINE' || diag.state === 'PARTIAL_OFFLINE') && diag.lastTimestamp >= start && diag.lastTimestamp <= end) {
+        if (!allEvents.some(e => (e.type === 'COMMUNICATION_LOST' || e.type === 'DEVICE_OFFLINE') && Math.abs(e.timestamp - diag.lastTimestamp) < 15000)) {
+          allEvents.push({
+            id: 'current-offline-marker',
+            type: 'COMMUNICATION_LOST',
+            timestamp: diag.lastTimestamp,
+            reason: diag.reason || 'Komunikasi perangkat terputus',
+            status: diag.badge,
+          });
+        }
+      }
+
+      for (const ev of allEvents) {
+        if (ev.timestamp >= start && ev.timestamp <= end) {
+          const px = dims.padLeft + ((ev.timestamp - start) / timeSpan) * dims.plotW;
+          const isLost = ev.type === 'COMMUNICATION_LOST' || ev.type === 'DEVICE_OFFLINE';
+          const color = isLost ? '#F43F5E' : '#10B981';
+          markers.push({
+            id: ev.id || `${ev.type}-${ev.timestamp}`,
+            x: px,
+            color,
+            isLost,
+            type: ev.type,
+            label: isLost ? 'COMM LOST' : 'RECOVERED',
+            status: isLost ? 'COMMUNICATION LOST' : 'RECOVERED',
+            reason: ev.reason || (isLost ? 'Komunikasi terputus' : 'Komunikasi pulih'),
+            timestamp: ev.timestamp,
+            timeFormatted: this.formatTrendTimestamp(ev.timestamp),
+          });
+        }
+      }
+      return markers;
+    },
+    fullscreenOutageMarkers() {
+      const { start, end } = this.trendTimeBounds;
+      if (!start || !end || end <= start) return [];
+      const dims = this.fullscreenChartDims;
+      const timeSpan = end - start;
+      const markers = [];
+
+      const allEvents = [...this.trendOutageEvents];
+      const diag = this.trendCommDiagnostics;
+      if (diag && (diag.state === 'DEVICE_OFFLINE' || diag.state === 'PARTIAL_OFFLINE') && diag.lastTimestamp >= start && diag.lastTimestamp <= end) {
+        if (!allEvents.some(e => (e.type === 'COMMUNICATION_LOST' || e.type === 'DEVICE_OFFLINE') && Math.abs(e.timestamp - diag.lastTimestamp) < 15000)) {
+          allEvents.push({
+            id: 'current-offline-marker',
+            type: 'COMMUNICATION_LOST',
+            timestamp: diag.lastTimestamp,
+            reason: diag.reason || 'Komunikasi perangkat terputus',
+            status: diag.badge,
+          });
+        }
+      }
+
+      for (const ev of allEvents) {
+        if (ev.timestamp >= start && ev.timestamp <= end) {
+          const px = dims.padLeft + ((ev.timestamp - start) / timeSpan) * dims.plotW;
+          const isLost = ev.type === 'COMMUNICATION_LOST' || ev.type === 'DEVICE_OFFLINE';
+          const color = isLost ? '#F43F5E' : '#10B981';
+          markers.push({
+            id: ev.id || `${ev.type}-${ev.timestamp}`,
+            x: px,
+            color,
+            isLost,
+            type: ev.type,
+            label: isLost ? 'COMM LOST' : 'RECOVERED',
+            status: isLost ? 'COMMUNICATION LOST' : 'RECOVERED',
+            reason: ev.reason || (isLost ? 'Komunikasi terputus' : 'Komunikasi pulih'),
+            timestamp: ev.timestamp,
+            timeFormatted: this.formatTrendTimestamp(ev.timestamp),
+          });
+        }
+      }
+      return markers;
     },
     trendOutlierSpikes() {
       if (this.trendScaleMode === 'normalized') return [];
@@ -6069,6 +6562,7 @@ export default {
     // Listen to real WebSocket Telemetry & Communication events
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.addEventListener('device-comm-event', this.onDeviceCommEvent);
+    window.addEventListener('system-activity-event', this.onSystemActivityEvent);
 
     // Listen to synchronized SCADA alarm annunciator pulses (audio + visual synchronized clock)
     window.addEventListener('scada-alarm-pulse', this.handleAlarmPulse);
@@ -6099,6 +6593,7 @@ export default {
     }
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
+    window.removeEventListener('system-activity-event', this.onSystemActivityEvent);
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
     window.removeEventListener('organization-branding-updated', this.onOrganizationBrandingUpdated);
     document.removeEventListener('click', this.onDocumentClick);
@@ -7583,6 +8078,71 @@ export default {
         // silent ignore
       }
     },
+    recordTrendOutageEvent(event) {
+      if (!event || !event.type || !event.timestamp) return;
+      const exists = this.trendOutageEvents.some(e =>
+        e.type === event.type &&
+        e.deviceId === event.deviceId &&
+        Math.abs(e.timestamp - event.timestamp) < 10000
+      );
+      if (!exists) {
+        this.trendOutageEvents.push(event);
+        if (this.trendOutageEvents.length > 50) {
+          this.trendOutageEvents.shift();
+        }
+      }
+    },
+    formatTrendTimestamp(ts) {
+      if (!ts) return '-';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+    },
+    formatTrendTimeOnly(ts) {
+      if (!ts) return '-';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleTimeString('id-ID', { hour12: false });
+    },
+    onSystemActivityEvent(e) {
+      const data = e.detail;
+      if (!data) return;
+      const name = (data.event_name || data.name || '').toUpperCase();
+      const devId = Number(data.device_id);
+      const now = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
+
+      if (['USB_PORT_MISSING', 'SERIAL_OPEN_FAILED', 'DEVICE_OFFLINE', 'COMMUNICATION_LOST', 'COMMUNICATION_TIMEOUT'].includes(name)) {
+        this.recordTrendOutageEvent({
+          id: `outage-${devId}-${now}`,
+          type: 'COMMUNICATION_LOST',
+          timestamp: now,
+          deviceId: devId,
+          deviceCode: data.device_code,
+          reason: data.description || data.error_detail || 'Port missing atau koneksi serial terputus',
+        });
+      } else if (['COMMUNICATION_RECOVERED', 'SERIAL_PORT_REOPENED'].includes(name)) {
+        this.recordTrendOutageEvent({
+          id: `recov-${devId}-${now}`,
+          type: 'COMMUNICATION_RECOVERED',
+          timestamp: now,
+          deviceId: devId,
+          deviceCode: data.device_code,
+          reason: data.description || 'Komunikasi serial pulih kembali',
+        });
+        this.trendRecentlyRecovered = true;
+        setTimeout(() => {
+          this.trendRecentlyRecovered = false;
+        }, 45000);
+      }
+    },
     onDeviceCommEvent(e) {
       const detail = e.detail;
       if (!detail) return;
@@ -7594,9 +8154,25 @@ export default {
         if (devId) {
           const target = this.devicesList.find(d => Number(d.id) === devId);
           if (target) {
+            const wasOffline = (target.connection_status || target.status) === 'OFFLINE' || target.transport_status === 'PORT_MISSING';
             this.$set(target, 'connection_status', 'ONLINE');
             this.$set(target, 'status', 'ONLINE');
             this.staleCheckTimeMs = Date.now();
+
+            if (wasOffline) {
+              this.recordTrendOutageEvent({
+                id: `recov-${devId}-${Date.now()}`,
+                type: 'COMMUNICATION_RECOVERED',
+                timestamp: Date.now(),
+                deviceId: devId,
+                deviceCode: target.device_code,
+                reason: 'Komunikasi perangkat pulih normal',
+              });
+              this.trendRecentlyRecovered = true;
+              setTimeout(() => {
+                this.trendRecentlyRecovered = false;
+              }, 45000);
+            }
           }
         }
       } else if (type === 'device.communication.error') {
@@ -7607,6 +8183,14 @@ export default {
             this.$set(target, 'connection_status', 'ERROR');
             this.$set(target, 'status', 'ERROR');
             this.staleCheckTimeMs = Date.now();
+            this.recordTrendOutageEvent({
+              id: `err-${devId}-${Date.now()}`,
+              type: 'COMMUNICATION_LOST',
+              timestamp: Date.now(),
+              deviceId: devId,
+              deviceCode: target.device_code,
+              reason: data.error || data.reason || 'Komunikasi sensor timeout / error',
+            });
           }
         }
       } else if (type === 'device.connection.changed') {
@@ -7620,6 +8204,15 @@ export default {
             this.staleCheckTimeMs = Date.now();
 
             if (status === 'OFFLINE' || status === 'ERROR' || status === 'DISCONNECTED') {
+              this.recordTrendOutageEvent({
+                id: `lost-${devId}-${Date.now()}`,
+                type: 'COMMUNICATION_LOST',
+                timestamp: Date.now(),
+                deviceId: devId,
+                deviceCode: target.device_code,
+                reason: data.reason || 'Status perangkat berubah menjadi ' + status,
+              });
+
               (target.parameters || []).forEach(p => {
                 const prev = this.liveMap[p.id] || {};
                 this.$set(this.liveMap, p.id, {
@@ -8678,6 +9271,9 @@ export default {
       if (!silent) {
         this.isChartLoading = true;
       }
+      this.trendLoadError = null;
+      let anyApiSuccess = false;
+      let lastApiErr = null;
       try {
         const now = new Date();
         const pollInterval = this.configuredPollingIntervalMs || 5000;
@@ -8706,6 +9302,7 @@ export default {
 
         await Promise.all(this.activeTrendSeries.map(async (s) => {
           let points = [];
+          let seriesLoaded = false;
           // 1. Primary: Intelligent Downsampling Engine (guarantees coverage across entire timeframe)
           try {
             const downRes = await axios.get(`/api/devices/${s.deviceId}/telemetry/downsampled`, {
@@ -8717,28 +9314,32 @@ export default {
                 mode: this.chartMode,
               },
             });
-            if (downRes.data && downRes.data.data && Array.isArray(downRes.data.data.points) && downRes.data.data.points.length > 0) {
-              points = downRes.data.data.points.map(p => {
-                const rawVal = p.value !== null && p.value !== undefined ? p.value : p.avg_value;
-                const numVal = rawVal !== null && rawVal !== undefined && rawVal !== '' ? Number(rawVal) : null;
-                // Reject invalid numbers, NaN, or raw epoch timestamps (e.g. > 1e8) mistakenly in value
-                const isValid = numVal !== null && isFinite(numVal) && Math.abs(numVal) < 1e8;
-                return {
-                  x: new Date(p.timestamp).getTime(),
-                  y: isValid ? numVal : null,
-                  min: p.min_value !== undefined && isFinite(p.min_value) ? Number(p.min_value) : null,
-                  max: p.max_value !== undefined && isFinite(p.max_value) ? Number(p.max_value) : null,
-                  avg: p.avg_value !== undefined && isFinite(p.avg_value) ? Number(p.avg_value) : null,
-                  quality: p.quality || 'GOOD',
-                };
-              });
+            if (downRes.data && downRes.data.data && Array.isArray(downRes.data.data.points)) {
+              seriesLoaded = true;
+              anyApiSuccess = true;
+              if (downRes.data.data.points.length > 0) {
+                points = downRes.data.data.points.map(p => {
+                  const rawVal = p.value !== null && p.value !== undefined ? p.value : p.avg_value;
+                  const numVal = rawVal !== null && rawVal !== undefined && rawVal !== '' ? Number(rawVal) : null;
+                  // Reject invalid numbers, NaN, or raw epoch timestamps (e.g. > 1e8) mistakenly in value
+                  const isValid = numVal !== null && isFinite(numVal) && Math.abs(numVal) < 1e8;
+                  return {
+                    x: new Date(p.timestamp).getTime(),
+                    y: isValid ? numVal : null,
+                    min: p.min_value !== undefined && isFinite(p.min_value) ? Number(p.min_value) : null,
+                    max: p.max_value !== undefined && isFinite(p.max_value) ? Number(p.max_value) : null,
+                    avg: p.avg_value !== undefined && isFinite(p.avg_value) ? Number(p.avg_value) : null,
+                    quality: p.quality || 'GOOD',
+                  };
+                });
+              }
             }
           } catch (err) {
-            // silent fallback
+            lastApiErr = err;
           }
 
           // 2. Secondary fallback: Historical / Raw endpoint
-          if (points.length === 0) {
+          if (points.length === 0 && !seriesLoaded) {
             try {
               const endpoint = this.chartMode === 'raw'
                 ? `/api/devices/${s.deviceId}/telemetry/raw`
@@ -8751,9 +9352,11 @@ export default {
                   end_time: endTime.toISOString(),
                   page_size: 500,
                 },
-              }).catch(() => null);
+              });
 
               if (res && res.data && res.data.data) {
+                seriesLoaded = true;
+                anyApiSuccess = true;
                 const items = res.data.data.items || [];
                 points = items.map(item => {
                   const raw = this.chartMode === 'raw'
@@ -8768,7 +9371,9 @@ export default {
                   };
                 });
               }
-            } catch (err) {}
+            } catch (err) {
+              lastApiErr = err;
+            }
           }
 
           // Filter out bad timestamps and sort chronologically
@@ -8803,7 +9408,11 @@ export default {
               }
             }
           }
-          s.dataPoints = processed;
+
+          // When device is offline or API fails, never wipe valid historical points!
+          if (processed.length > 0 || !s.dataPoints || s.dataPoints.length === 0) {
+            s.dataPoints = processed;
+          }
 
           // Calculate statistics over window using only valid numeric values
           const yVals = s.dataPoints.map(p => p.y).filter(v => v !== null && typeof v === 'number' && isFinite(v));
@@ -8826,6 +9435,12 @@ export default {
             s.latestVal = '--';
           }
         }));
+
+        if (!anyApiSuccess && this.activeTrendSeries.length > 0 && !this.hasAnyTrendData) {
+          this.trendLoadError = (lastApiErr && (lastApiErr.message || (lastApiErr.response && lastApiErr.response.statusText))) || 'Gagal terhubung ke API Telemetri Trend';
+        }
+      } catch (err) {
+        this.trendLoadError = err.message || 'Gagal memuat histori telemetri';
       } finally {
         if (!silent) {
           this.isChartLoading = false;
@@ -8932,9 +9547,13 @@ export default {
       }
 
       // Prune points outside active sliding window (keep 10% safety buffer before start)
-      const windowStart = this.trendTimeBounds.start - (span * 0.1);
-      while (pts.length > 2 && pts[0].x < windowStart) {
-        pts.shift();
+      // When device is offline, keep all valid historical data intact
+      const isDeviceOffline = this.trendCommDiagnostics && this.trendCommDiagnostics.state === 'DEVICE_OFFLINE';
+      if (!isDeviceOffline) {
+        const windowStart = this.trendTimeBounds.start - (span * 0.1);
+        while (pts.length > 2 && pts[0].x < windowStart) {
+          pts.shift();
+        }
       }
 
       // Update series statistics and latestVal
@@ -9138,13 +9757,14 @@ export default {
         return series._cachedPath;
       }
 
-      // Estimate gap threshold: when delta t exceeds 3-4x typical sample interval, break path
+      // Estimate gap threshold: when delta t exceeds 2 missed polling intervals, break path
+      // pathStr += ` M ${px.toFixed(1)} ${py.toFixed(1)}`
       let maxGapMs = 15 * 60 * 1000;
-      if (timeSpan <= 90 * 1000) maxGapMs = 15 * 1000; // 15s for 1m
-      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 30 * 1000; // 30s for 5m
-      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 60 * 1000; // 1 min for 15m
-      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 5 * 60 * 1000; // 5 min for 1h
-      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 20 * 60 * 1000; // 20 min for 6h
+      if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000; // 12s for 1m (matches 5s polling, > 2 missed cycles)
+      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 20 * 1000; // 20s for 5m
+      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 45 * 1000; // 45s for 15m
+      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 3 * 60 * 1000; // 3 min for 1h
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000; // 15 min for 6h
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000; // 1 hr for 24h
       else maxGapMs = 4 * 3600 * 1000; // 4 hrs for multi-day
 
@@ -9236,11 +9856,11 @@ export default {
       }
 
       let maxGapMs = 15 * 60 * 1000;
-      if (timeSpan <= 90 * 1000) maxGapMs = 15 * 1000;
-      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 30 * 1000;
-      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 60 * 1000;
-      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 5 * 60 * 1000;
-      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 20 * 60 * 1000;
+      if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000;
+      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 20 * 1000;
+      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 45 * 1000;
+      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 3 * 60 * 1000;
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000;
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
       else maxGapMs = 4 * 3600 * 1000;
 
@@ -9356,6 +9976,15 @@ export default {
       const snappedFrac = Math.min(Math.max((effectiveTime - start) / timeSpan, 0), 1);
       const scrubX = isUnderOrEqual6h ? (padLeft + snappedFrac * plotW) : clampedX;
 
+      let maxGapMs = 15 * 60 * 1000;
+      if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000;
+      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 20 * 1000;
+      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 45 * 1000;
+      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 3 * 60 * 1000;
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000;
+      else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
+      else maxGapMs = 4 * 3600 * 1000;
+
       const seriesValues = [];
       for (const s of this.activeTrendSeries) {
         if (!s.dataPoints || s.dataPoints.length === 0) continue;
@@ -9369,16 +9998,17 @@ export default {
           }
         }
 
+        const isPointInGap = minDiff > maxGapMs || closest.quality === 'BAD';
         const scaleInfo = this.getSeriesScale(s, s.dataPoints);
         let plotY = null;
-        if (closest.y !== null && isFinite(closest.y)) {
+        if (!isPointInGap && closest.y !== null && isFinite(closest.y)) {
           const fracY = Math.min(Math.max((closest.y - scaleInfo.min) / scaleInfo.span, 0), 1);
           plotY = (padTop + plotH) - fracY * plotH;
         }
 
         const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
         let alarmStatus = 'NORMAL';
-        if (closest.y !== null && typeof closest.y === 'number') {
+        if (!isPointInGap && closest.y !== null && typeof closest.y === 'number') {
           alarmStatus = this.determineAlarmState(param, closest.y);
         }
 
@@ -9387,14 +10017,19 @@ export default {
           deviceCode: s.deviceCode,
           paramCode: s.paramCode,
           paramName: s.paramName || param.param_name || s.paramCode,
-          val: closest.y !== null && closest.y !== undefined ? this.formatAxisValue(closest.y) : '--',
+          val: (!isPointInGap && closest.y !== null && closest.y !== undefined) ? this.formatAxisValue(closest.y) : '--',
           unit: s.unit || '',
           color: s.color,
           plotY,
-          quality: closest.quality || 'GOOD',
+          quality: isPointInGap ? 'NO_DATA' : (closest.quality || 'GOOD'),
           alarmStatus,
+          inGap: isPointInGap,
         });
       }
+
+      const allInGap = seriesValues.length > 0 && seriesValues.every(sv => sv.inGap);
+      const anyInGap = seriesValues.some(sv => sv.inGap);
+      const inDataGap = allInGap || (this.activeTrendSeries.length === 1 && anyInGap);
 
       const firstSeries = seriesValues[0] || { deviceCode: 'AQMS', paramCode: 'val', paramName: 'Param', val: '--', unit: '' };
       const d = new Date(effectiveTime);
@@ -9408,6 +10043,7 @@ export default {
         val: firstSeries.val,
         unit: firstSeries.unit,
         allSeries: seriesValues,
+        inDataGap,
       };
     },
     onFullscreenChartScrub(e) {
@@ -9431,6 +10067,15 @@ export default {
       const snappedFrac = Math.min(Math.max((effectiveTime - start) / timeSpan, 0), 1);
       const scrubX = isUnderOrEqual6h ? (padLeft + snappedFrac * plotW) : clampedX;
 
+      let maxGapMs = 15 * 60 * 1000;
+      if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000;
+      else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 20 * 1000;
+      else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 45 * 1000;
+      else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 3 * 60 * 1000;
+      else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000;
+      else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
+      else maxGapMs = 4 * 3600 * 1000;
+
       const seriesValues = [];
       for (const s of this.activeTrendSeries) {
         if (!s.dataPoints || s.dataPoints.length === 0) continue;
@@ -9444,16 +10089,17 @@ export default {
           }
         }
 
+        const isPointInGap = minDiff > maxGapMs || closest.quality === 'BAD';
         const scaleInfo = this.getSeriesScale(s, s.dataPoints);
         let plotY = null;
-        if (closest.y !== null && isFinite(closest.y)) {
+        if (!isPointInGap && closest.y !== null && isFinite(closest.y)) {
           const fracY = Math.min(Math.max((closest.y - scaleInfo.min) / scaleInfo.span, 0), 1);
           plotY = (padTop + plotH) - fracY * plotH;
         }
 
         const param = this.allParameters.find(p => p.param_id === s.parameterId) || {};
         let alarmStatus = 'NORMAL';
-        if (closest.y !== null && typeof closest.y === 'number') {
+        if (!isPointInGap && closest.y !== null && typeof closest.y === 'number') {
           alarmStatus = this.determineAlarmState(param, closest.y);
         }
 
@@ -9462,14 +10108,19 @@ export default {
           deviceCode: s.deviceCode,
           paramCode: s.paramCode,
           paramName: s.paramName || param.param_name || s.paramCode,
-          val: closest.y !== null && closest.y !== undefined ? this.formatAxisValue(closest.y) : '--',
+          val: (!isPointInGap && closest.y !== null && closest.y !== undefined) ? this.formatAxisValue(closest.y) : '--',
           unit: s.unit || '',
           color: s.color,
           plotY,
-          quality: closest.quality || 'GOOD',
+          quality: isPointInGap ? 'NO_DATA' : (closest.quality || 'GOOD'),
           alarmStatus,
+          inGap: isPointInGap,
         });
       }
+
+      const allInGap = seriesValues.length > 0 && seriesValues.every(sv => sv.inGap);
+      const anyInGap = seriesValues.some(sv => sv.inGap);
+      const inDataGap = allInGap || (this.activeTrendSeries.length === 1 && anyInGap);
 
       const d = new Date(effectiveTime);
       this.fullscreenScrubPoint = {
@@ -9478,6 +10129,7 @@ export default {
         time: d.toLocaleTimeString('en-GB'),
         date: d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }),
         allSeries: seriesValues,
+        inDataGap,
       };
     },
     downloadTrendCSV() {
