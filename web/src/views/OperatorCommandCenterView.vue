@@ -2348,8 +2348,8 @@
                   </div>
 
                   <div class="space-y-2">
-                    <!-- 1. Mode: Processed vs Raw -->
-                    <div>
+                    <!-- 1. Mode: Processed vs Raw (Admin & Superadmin only) -->
+                    <div v-if="canAccessRawTrendMode">
                       <div class="text-[9px] text-slate-400 dark:text-slate-500 mb-1 font-semibold uppercase flex items-center justify-between">
                         <span>1. Mode</span>
                         <span class="text-[8px] font-bold text-cyan-600 dark:text-cyan-400 uppercase">{{ chartMode }}</span>
@@ -2377,7 +2377,7 @@
                     <!-- 2. Scale: Actual Value vs Norm % -->
                     <div>
                       <div class="text-[9px] text-slate-400 dark:text-slate-500 mb-1 font-semibold uppercase flex items-center justify-between">
-                        <span>2. Scale</span>
+                        <span>{{ canAccessRawTrendMode ? '2. Scale' : '1. Scale' }}</span>
                         <span class="text-[8px] font-bold text-cyan-600 dark:text-cyan-400 uppercase">
                           {{ trendScaleMode === 'auto' ? (trendScales.isDual ? 'Dual-Axis' : 'Actual Value') : 'Norm %' }}
                         </span>
@@ -3669,7 +3669,7 @@
             <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               {{ $t('operator.dataSource') || 'Data Source Mode' }}
             </label>
-            <div class="grid grid-cols-3 gap-2 font-mono text-2xs">
+            <div class="grid gap-2 font-mono text-2xs" :class="canAccessRawTrendMode ? 'grid-cols-3' : 'grid-cols-2'">
               <button
                 @click="exportForm.mode = 'PROCESSED'"
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
@@ -3680,6 +3680,7 @@
                 PROCESSED
               </button>
               <button
+                v-if="canAccessRawTrendMode"
                 @click="exportForm.mode = 'RAW'"
                 class="px-2 py-1.5 rounded-lg border font-semibold transition"
                 :class="exportForm.mode === 'RAW'
@@ -3854,7 +3855,7 @@
             <div>
               <h2 class="text-sm sm:text-base font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center space-x-2">
                 <span>SCADA TELEMETRY TREND ANALYZER</span>
-                <span class="text-3xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                <span v-if="canAccessRawTrendMode" class="text-3xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                   {{ chartMode.toUpperCase() }}
                 </span>
               </h2>
@@ -3943,8 +3944,8 @@
               </button>
             </div>
 
-            <!-- Mode Selector -->
-            <div class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
+            <!-- Mode Selector (Admin & Superadmin only) -->
+            <div v-if="canAccessRawTrendMode" class="flex items-center bg-white dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B]">
               <button
                 @click="setChartMode('processed')"
                 class="px-2.5 py-1 rounded transition font-bold"
@@ -6522,6 +6523,13 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    canAccessRawTrendMode() {
+      if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
+        return !!this.$store.getters.canAccessRawTrendMode;
+      }
+      const role = (this.userRole || '').toUpperCase();
+      return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN'].includes(role);
+    },
   },
   watch: {
     allParameters: {
@@ -6576,6 +6584,18 @@ export default {
     selectedAlarmFilter() {
       this.saveOperatorPreferences();
     },
+    canAccessRawTrendMode(canAccess) {
+      if (!canAccess && this.chartMode === 'raw') {
+        this.chartMode = 'processed';
+        this.fetchTrendData();
+      }
+    },
+    userRole() {
+      if (!this.canAccessRawTrendMode && this.chartMode === 'raw') {
+        this.chartMode = 'processed';
+        this.fetchTrendData();
+      }
+    },
     currentTimeframe() {
       this.saveOperatorPreferences();
     },
@@ -6610,6 +6630,11 @@ export default {
     this.loadPanelLayoutConfig();
     this.loadGridColumnsConfig();
     this.loadOperatorPreferences();
+
+    // Guard: ensure non-admin/superadmin cannot retain raw chart mode
+    if (!this.canAccessRawTrendMode && this.chartMode === 'raw') {
+      this.chartMode = 'processed';
+    }
 
     // Telemetry Freshness Ticker
     this.tickerInterval = setInterval(() => {
@@ -6711,7 +6736,7 @@ export default {
             this.currentTimeframe = p.currentTimeframe;
           }
           if (p.chartMode && ['processed', 'raw'].includes(p.chartMode)) {
-            this.chartMode = p.chartMode;
+            this.chartMode = (p.chartMode === 'raw' && !this.canAccessRawTrendMode) ? 'processed' : p.chartMode;
           }
           if (p.trendScaleMode && ['auto', 'normalized'].includes(p.trendScaleMode)) {
             this.trendScaleMode = p.trendScaleMode;
@@ -9527,6 +9552,13 @@ export default {
       this.fetchTrendData();
     },
     setChartMode(mode) {
+      if (mode === 'raw' && !this.canAccessRawTrendMode) {
+        this.chartMode = 'processed';
+        if (this.$toast) {
+          this.$toast.warning('Akses Terbatas: Mode Raw Sensor hanya tersedia untuk Admin dan Superadmin.');
+        }
+        return;
+      }
       this.chartMode = mode;
       this.fetchTrendData();
     },
@@ -9609,6 +9641,8 @@ export default {
           end: endTime.getTime(),
         };
 
+        const activeMode = (this.canAccessRawTrendMode && this.chartMode === 'raw') ? 'raw' : 'processed';
+
         await Promise.all(this.activeTrendSeries.map(async (s) => {
           let points = [];
           let seriesLoaded = false;
@@ -9620,7 +9654,7 @@ export default {
                 start_time: startTime.toISOString(),
                 end_time: endTime.toISOString(),
                 resolution: 'auto',
-                mode: this.chartMode,
+                mode: activeMode,
               },
             });
             if (downRes.data && downRes.data.data && Array.isArray(downRes.data.data.points)) {
@@ -9650,7 +9684,8 @@ export default {
           // 2. Secondary fallback: Historical / Raw endpoint
           if (points.length === 0 && !seriesLoaded) {
             try {
-              const endpoint = this.chartMode === 'raw'
+              const activeMode = (this.canAccessRawTrendMode && this.chartMode === 'raw') ? 'raw' : 'processed';
+              const endpoint = activeMode === 'raw'
                 ? `/api/devices/${s.deviceId}/telemetry/raw`
                 : `/api/devices/${s.deviceId}/telemetry/history`;
 
@@ -9668,7 +9703,7 @@ export default {
                 anyApiSuccess = true;
                 const items = res.data.data.items || [];
                 points = items.map(item => {
-                  const raw = this.chartMode === 'raw'
+                  const raw = activeMode === 'raw'
                     ? (item.raw_value !== undefined ? item.raw_value : item.value)
                     : (item.processed_value !== undefined ? item.processed_value : item.value);
                   const num = raw !== null && raw !== undefined && raw !== '' ? Number(raw) : null;
@@ -9812,7 +9847,10 @@ export default {
       const series = this.activeTrendSeries.find(s => Number(s.parameterId) === pid && (!s.deviceId || !data.device_id || Number(s.deviceId) === Number(data.device_id)));
       if (!series) return;
 
-      const rawVal = data.processed_value !== undefined ? data.processed_value : data.value;
+      const isRaw = this.canAccessRawTrendMode && this.chartMode === 'raw';
+      const rawVal = isRaw
+        ? (data.raw_value !== undefined ? data.raw_value : data.value)
+        : (data.processed_value !== undefined ? data.processed_value : data.value);
       const numVal = (rawVal !== null && rawVal !== undefined && rawVal !== '' && !isNaN(rawVal))
         ? Number(rawVal)
         : null;

@@ -87,7 +87,7 @@
 
     <!-- Data Source / Semantic Mode Selector Bar -->
     <div class="saas-card p-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-      <div class="grid gap-1.5 w-full md:w-auto" :class="isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'">
+      <div class="grid gap-1.5 w-full md:w-auto" :class="canAccessRawMode ? 'grid-cols-3' : 'grid-cols-2'">
         <!-- MODE 1: HISTORICAL / PROCESSED -->
         <button
           @click="setMode('HISTORICAL')"
@@ -105,9 +105,9 @@
           </div>
         </button>
 
-        <!-- MODE 2: RAW TELEMETRY (SUPERADMIN ONLY) -->
+        <!-- MODE 2: RAW TELEMETRY (ADMIN & SUPERADMIN ONLY) -->
         <button
-          v-if="isSuperAdmin"
+          v-if="canAccessRawMode"
           @click="setMode('RAW')"
           class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
           :class="activeMode === 'RAW'
@@ -706,7 +706,7 @@
           <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-600 dark:text-rose-400 font-mono mt-0.5">
             Reason: {{ activePoint.qualityReason }}
           </div>
-          <div v-if="isSuperAdmin && activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+          <div v-if="canAccessRawMode && activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
             Hex: {{ activePoint.rawHex }} (Reg: {{ activePoint.rawValue }})
           </div>
         </div>
@@ -745,7 +745,7 @@
               <th class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
               <th class="py-2.5 px-4">{{ $t('telemetry.parameterName') }}</th>
               <th class="py-2.5 px-4 text-right">{{ $t('analysis.processedVal') }}</th>
-              <th v-if="isSuperAdmin" class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
+              <th v-if="canAccessRawMode" class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
               <th class="py-2.5 px-4">{{ $t('common.unit') }}</th>
               <th class="py-2.5 px-4 text-center">{{ $t('common.quality') }}</th>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.details') || 'Reason / Flags' }}</th>
@@ -764,7 +764,7 @@
               <td class="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white text-xs">
                 {{ formatVal(r.processed_value !== undefined ? r.processed_value : r.value) }}
               </td>
-              <td v-if="isSuperAdmin" class="py-2.5 px-4 text-right text-slate-500 dark:text-slate-400">{{ formatVal(r.raw_value) }}</td>
+              <td v-if="canAccessRawMode" class="py-2.5 px-4 text-right text-slate-500 dark:text-slate-400">{{ formatVal(r.raw_value) }}</td>
               <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400 font-sans">{{ getParamUnit(r.parameter_id) }}</td>
               <td class="py-2.5 px-4 text-center">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
@@ -1074,6 +1074,12 @@ export default {
     },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    canAccessRawMode() {
+      if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
+        return !!this.$store.getters.canAccessRawTrendMode;
+      }
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR' || this.userRole === 'ADMIN';
     },
     availableParameters() {
       if (!this.filters.deviceId) {
@@ -1565,7 +1571,7 @@ export default {
     applyUrlParams(query) {
       if (query.mode && ['HISTORICAL', 'RAW', 'AGGREGATED'].includes(query.mode.toUpperCase())) {
         const targetMode = query.mode.toUpperCase();
-        this.activeMode = (targetMode === 'RAW' && !this.isSuperAdmin) ? 'HISTORICAL' : targetMode;
+        this.activeMode = (targetMode === 'RAW' && !this.canAccessRawMode) ? 'HISTORICAL' : targetMode;
       }
       if (query.device_id) {
         this.filters.deviceId = Number(query.device_id);
@@ -1599,7 +1605,7 @@ export default {
       }
     },
     setMode(mode) {
-      if (mode === 'RAW' && !this.isSuperAdmin) {
+      if (mode === 'RAW' && !this.canAccessRawMode) {
         this.activeMode = 'HISTORICAL';
         return;
       }
@@ -1861,11 +1867,11 @@ export default {
     exportCSV() {
       this.exportDropdownOpen = false;
       if (this.records.length === 0) return;
-      if (this.activeMode === 'RAW' && !this.isSuperAdmin) return;
+      if (this.activeMode === 'RAW' && !this.canAccessRawMode) return;
 
       let csv = '';
       if (this.activeMode === 'HISTORICAL') {
-        if (this.isSuperAdmin) {
+        if (this.canAccessRawMode) {
           csv = 'Timestamp,Device,Parameter,ProcessedValue,RawValue,Quality,QualityReason\n';
           this.records.forEach((r) => {
             csv += `"${r.received_at || r.timestamp}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}",${r.processed_value !== undefined ? r.processed_value : r.value},${r.raw_value},"${r.quality}","${r.quality_reason || ''}"\n`;
@@ -1876,7 +1882,7 @@ export default {
             csv += `"${r.received_at || r.timestamp}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}",${r.processed_value !== undefined ? r.processed_value : r.value},"${r.quality}","${r.quality_reason || ''}"\n`;
           });
         }
-      } else if (this.activeMode === 'RAW' && this.isSuperAdmin) {
+      } else if (this.activeMode === 'RAW' && this.canAccessRawMode) {
         csv = 'ReceivedAt,Device,Parameter,RawHex,RawValue,ScaledValue,Quality,Source,RecordUUID\n';
         this.records.forEach((r) => {
           csv += `"${r.received_at || r.timestamp}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}","${r.raw_hex || ''}",${r.raw_value},${r.value},"${r.quality}","${r.source || ''}","${r.record_uuid || ''}"\n`;
@@ -1899,7 +1905,7 @@ export default {
     exportJSON() {
       this.exportDropdownOpen = false;
       if (this.records.length === 0) return;
-      if (this.activeMode === 'RAW' && !this.isSuperAdmin) return;
+      if (this.activeMode === 'RAW' && !this.canAccessRawMode) return;
 
       const payload = {
         mode: this.activeMode,

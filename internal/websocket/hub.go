@@ -95,15 +95,16 @@ func (h *Hub) Run() {
 			h.mu.RLock()
 			for client := range h.clients {
 				isSuper := strings.EqualFold(client.role, "SUPERADMIN") || strings.EqualFold(client.role, "Administrator")
+				canRaw := isSuper || strings.EqualFold(client.role, "ADMIN")
 
 				// 1. Strict restriction: Non-superadmin CANNOT receive development events or activity monitor events
 				if (message.Type == "TASK_UPDATE" || message.Type == "ACTIVITY_LOG" || message.Type == "SYSTEM_ACTIVITY_EVENT" || message.Type == "activity.event") && !isSuper {
 					continue
 				}
 
-				// 2. Strict restriction: Non-superadmin CANNOT receive raw telemetry fields
+				// 2. Strict restriction: Non-admin/superadmin CANNOT receive raw telemetry fields
 				msgToSend := message
-				if !isSuper && message.Type == "device.telemetry.received" {
+				if !canRaw && message.Type == "device.telemetry.received" {
 					if mData, ok := message.Data.(map[string]interface{}); ok {
 						sanitized := make(map[string]interface{}, len(mData))
 						for k, v := range mData {

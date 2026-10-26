@@ -92,11 +92,20 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Strict restriction: Non-superadmin CANNOT access development.* or telemetry.raw
-		if strings.HasPrefix(permissionCode, "development.") || permissionCode == "telemetry.raw" {
+		// Strict restriction: Non-superadmin CANNOT access development.*
+		if strings.HasPrefix(permissionCode, "development.") {
 			response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")
 			c.Abort()
 			return
+		}
+
+		// Mode raw value / telemetry.raw restriction: only ADMIN and SUPERADMIN/Administrator
+		if permissionCode == "telemetry.raw" {
+			if !strings.EqualFold(role, "ADMIN") {
+				response.Forbidden(c, "Access denied: missing required permission 'telemetry.raw' (Admin and Superadmin only)")
+				c.Abort()
+				return
+			}
 		}
 
 		// Check dynamic permission checker if registered
@@ -108,9 +117,9 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// ADMIN fallback: Operational & administrative permissions (strictly no dev, raw, or role.manage)
+		// ADMIN fallback: Operational & administrative permissions (strictly no dev or role.manage; telemetry.raw is permitted)
 		if strings.EqualFold(role, "ADMIN") {
-			if !strings.HasPrefix(permissionCode, "development.") && permissionCode != "telemetry.raw" && permissionCode != "role.manage" {
+			if !strings.HasPrefix(permissionCode, "development.") && permissionCode != "role.manage" {
 				c.Next()
 				return
 			}

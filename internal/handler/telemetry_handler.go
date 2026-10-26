@@ -23,13 +23,13 @@ func NewTelemetryHandler(telemetryService *service.TelemetryService) *TelemetryH
 	return &TelemetryHandler{telemetryService: telemetryService}
 }
 
-func isSuperAdmin(c *gin.Context) bool {
+func canAccessRawTelemetry(c *gin.Context) bool {
 	roleVal, exists := c.Get("role")
 	if !exists {
 		return false
 	}
 	role, ok := roleVal.(string)
-	return ok && (strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator"))
+	return ok && (strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator") || strings.EqualFold(role, "ADMIN"))
 }
 
 func sanitizeRawData(records []model.RawData) {
@@ -61,7 +61,7 @@ func (h *TelemetryHandler) GetLatestForDevice(c *gin.Context) {
 		return
 	}
 
-	if !isSuperAdmin(c) {
+	if !canAccessRawTelemetry(c) {
 		sanitizeLatest(results)
 	}
 
@@ -88,7 +88,7 @@ func (h *TelemetryHandler) GetLatestForParameter(c *gin.Context) {
 		return
 	}
 
-	if !isSuperAdmin(c) && result != nil {
+	if !canAccessRawTelemetry(c) && result != nil {
 		result.RawValue = 0
 		result.RawHex = ""
 	}
@@ -175,7 +175,7 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 		return
 	}
 
-	if !isSuperAdmin(c) {
+	if !canAccessRawTelemetry(c) {
 		sanitizeRawData(records)
 	}
 
@@ -196,7 +196,7 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 		return
 	}
 
-	if !isSuperAdmin(c) {
+	if !canAccessRawTelemetry(c) {
 		sanitizeRawData(records)
 	}
 
@@ -210,8 +210,8 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 
 // GetRawTelemetry handles GET /api/devices/:id/telemetry/raw for diagnostic telemetry inspection
 func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
-	if !isSuperAdmin(c) {
-		response.Forbidden(c, "Access denied: raw telemetry inspection requires SUPERADMIN privileges")
+	if !canAccessRawTelemetry(c) {
+		response.Forbidden(c, "Access denied: raw telemetry inspection requires Admin or Superadmin privileges")
 		return
 	}
 
@@ -238,8 +238,8 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 
 // GetAllRawTelemetry handles GET /api/telemetry/raw for unified multi-device raw telemetry inspection
 func (h *TelemetryHandler) GetAllRawTelemetry(c *gin.Context) {
-	if !isSuperAdmin(c) {
-		response.Forbidden(c, "Access denied: raw telemetry inspection requires SUPERADMIN privileges")
+	if !canAccessRawTelemetry(c) {
+		response.Forbidden(c, "Access denied: raw telemetry inspection requires Admin or Superadmin privileges")
 		return
 	}
 

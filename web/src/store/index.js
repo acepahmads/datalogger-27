@@ -95,7 +95,8 @@ export default new Vuex.Store({
     isEngineer: (state, getters) => getters.userRole === 'ENGINEER',
     isOperator: (state, getters) => getters.userRole === 'OPERATOR',
     canAccessDev: (state, getters) => getters.isSuperAdmin,
-    canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin,
+    canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
+    canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
   },
   mutations: {
     SET_TOKEN(state, token) {

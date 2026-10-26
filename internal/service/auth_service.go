@@ -673,8 +673,13 @@ func (s *AuthService) HasPermission(roleName, permCode string) bool {
 		return true
 	}
 
-	// Strictly prohibit non-SUPERADMIN from accessing development or raw telemetry
-	if strings.HasPrefix(permCode, "development.") || permCode == "telemetry.raw" {
+	// Mode raw value / telemetry.raw restriction: only ADMIN and SUPERADMIN/Administrator
+	if permCode == "telemetry.raw" {
+		return strings.EqualFold(roleName, "ADMIN")
+	}
+
+	// Strictly prohibit non-SUPERADMIN from accessing development
+	if strings.HasPrefix(permCode, "development.") {
 		return false
 	}
 
