@@ -18,8 +18,9 @@ assert(
 );
 
 assert(
-  occContent.includes('const pollStepMs = isUnderOrEqual6h ? 5000 : null;'),
-  'Must set pollStepMs = 5000 ms for filters 1m to 6h'
+  occContent.includes('const pollStepMs = isUnderOrEqual6h ? 5000 : null;') ||
+  occContent.includes('const pollStepMs = isUnderOrEqual6h ? (this.configuredPollingIntervalMs || 5000) : null;'),
+  'Must set pollStepMs = 5000 ms (or configuredPollingIntervalMs) for filters 1m to 6h'
 );
 
 assert(
@@ -57,8 +58,9 @@ console.log('✓ PASS: 1.2: Bucketing logic correctly aligns unaligned 1-second 
 console.log('Checking Requirement 2: onChartScrub snaps crosshair and tooltip time to 5 seconds for 1m to 6h...');
 
 assert(
-  occContent.includes('let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;'),
-  'onChartScrub must snap effectiveTime to 5000ms multiples for 1m to 6h'
+  occContent.includes('let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;') ||
+  occContent.includes('let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / pollStep) * pollStep) : hoverTime;'),
+  'onChartScrub must snap effectiveTime to polling interval multiples for 1m to 6h'
 );
 
 assert(
@@ -83,8 +85,9 @@ assert(
 
 const fsScrubSection = occContent.substring(occContent.indexOf('onFullscreenChartScrub(e)'), occContent.indexOf('downloadTrendCSV()'));
 assert(
-  fsScrubSection.includes('let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;'),
-  'onFullscreenChartScrub must snap effectiveTime to 5000ms'
+  fsScrubSection.includes('let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;') ||
+  fsScrubSection.includes('let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / pollStep) * pollStep) : hoverTime;'),
+  'onFullscreenChartScrub must snap effectiveTime to polling interval'
 );
 assert(
   fsScrubSection.includes('x: scrubX,'),

@@ -208,6 +208,9 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 	}
 
 	baseIntervalMs := dev.Connection.PollingInterval
+	if baseIntervalMs > 0 && baseIntervalMs <= 60 {
+		baseIntervalMs = baseIntervalMs * 1000
+	}
 	if baseIntervalMs < 200 {
 		baseIntervalMs = 1000
 	}
@@ -252,8 +255,17 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 					}
 				} else if freshDev != nil {
 					cachedDev = freshDev
-					if freshDev.Connection != nil && freshDev.Connection.PollingInterval >= 200 {
-						baseIntervalMs = freshDev.Connection.PollingInterval
+					if freshDev.Connection != nil {
+						newInt := freshDev.Connection.PollingInterval
+						if newInt > 0 && newInt <= 60 {
+							newInt = newInt * 1000
+						}
+						if newInt >= 200 && newInt != baseIntervalMs {
+							baseIntervalMs = newInt
+							currentIntervalMs = baseIntervalMs
+							ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+							logger.Info("Device %s (%d) dynamic polling interval updated to %dms", freshDev.DeviceCode, deviceID, baseIntervalMs)
+						}
 					}
 					if params, pErr := p.deviceService.ListParameters(deviceID); pErr == nil {
 						cachedParams = cachedParams[:0]

@@ -1625,6 +1625,9 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 	interval := dto.PollingInterval
 	if interval <= 0 {
 		interval = 1000
+	} else if interval <= 60 {
+		// User configured in seconds (e.g. 2s -> 2000ms)
+		interval = interval * 1000
 	}
 
 	port := dto.Port

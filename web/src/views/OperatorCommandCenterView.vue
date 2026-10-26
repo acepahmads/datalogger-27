@@ -2210,6 +2210,16 @@
                 </span>
               </span>
 
+              <!-- Live Telemetry Pipeline Latency & Polling Cadence Badge -->
+              <span
+                v-if="pipelineDiagnostics && pipelineDiagnostics.sampleCount > 0"
+                class="hidden sm:inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[8.5px] font-mono leading-none bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 transition select-none cursor-help"
+                :title="`Pipeline Latency: Modbus ${pipelineDiagnostics.modbusToProcessMs}ms → Decode ${pipelineDiagnostics.processToBroadcastMs}ms → WS ${pipelineDiagnostics.broadcastToFrontendMs}ms → UI ${(pipelineDiagnostics.frontendToSparklineMs + pipelineDiagnostics.sparklineToTrendMs)}ms (Total: ${pipelineDiagnostics.totalEndToEndMs}ms) | Cadence: ${(pipelineDiagnostics.lastIntervalMs ? (pipelineDiagnostics.lastIntervalMs/1000).toFixed(1) : (configuredPollingIntervalMs/1000).toFixed(0))}s`"
+              >
+                <span>⚡ {{ (pipelineDiagnostics.lastIntervalMs ? (pipelineDiagnostics.lastIntervalMs/1000).toFixed(1) : (configuredPollingIntervalMs/1000).toFixed(0)) }}s</span>
+                <span class="opacity-75">· {{ pipelineDiagnostics.totalEndToEndMs }}ms</span>
+              </span>
+
               <!-- Inline Retry Button for API Error -->
               <button
                 v-if="trendCommDiagnostics.state === 'API_ERROR'"
@@ -5077,6 +5087,23 @@ export default {
       trendOutageEvents: [],
       trendRecentlyRecovered: false,
       hoveredOutageMarker: null,
+      pipelineDiagnostics: {
+        lastModbusResponse: null,
+        lastTelemetryProcessed: null,
+        lastTelemetryBroadcast: null,
+        lastFrontendReceived: null,
+        lastSparklineUpdate: null,
+        lastTrendUpdate: null,
+        lastIntervalMs: null,
+        modbusToProcessMs: 0,
+        processToBroadcastMs: 0,
+        broadcastToFrontendMs: 0,
+        frontendToSparklineMs: 0,
+        frontendToTrendMs: 0,
+        totalEndToEndMs: 0,
+        sampleCount: 0,
+        recentSamples: [],
+      },
 
       // Responsive Trend Canvas Dimensions (1:1 coordinate space prevents text distortion)
       trendChartWidth: 800,
@@ -5658,12 +5685,16 @@ export default {
         };
       }
 
+      const pollSec = (this.configuredPollingIntervalMs ? (this.configuredPollingIntervalMs / 1000).toFixed(0) : '2');
+      const latencyStr = this.pipelineDiagnostics && this.pipelineDiagnostics.totalEndToEndMs
+        ? ` · Latency ${this.pipelineDiagnostics.totalEndToEndMs}ms`
+        : '';
       return {
         state: 'ONLINE',
         badge: 'LIVE NORMAL',
         badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-medium',
         dotClass: 'bg-emerald-500',
-        message: 'Komunikasi normal · Pembaruan setiap 5s',
+        message: `Komunikasi normal · Pembaruan setiap ${pollSec}s${latencyStr}`,
         lastTimestamp,
         lastTimeFormatted,
         secondsAgo,
@@ -6094,16 +6125,33 @@ export default {
       if (this.selectedDeviceFilter) {
         const dev = (this.devicesList || []).find(d => d.id === Number(this.selectedDeviceFilter));
         const conn = dev?.connection;
-        const iv = conn?.polling_interval || conn?.poll_interval_ms;
-        if (iv && iv >= 500) return iv;
+        let iv = conn?.polling_interval || conn?.poll_interval_ms;
+        if (iv && iv > 0 && iv <= 60) iv = iv * 1000;
+        if (iv && iv >= 200) return iv;
       }
-      // 2. Otherwise find minimum interval among active enabled devices
+      // 2. If active trend series has specific devices, check their configured interval
+      if (this.activeTrendSeries && this.activeTrendSeries.length > 0) {
+        const activeDevIds = new Set(this.activeTrendSeries.map(s => Number(s.deviceId)).filter(Boolean));
+        const activeSeriesDevs = (this.devicesList || []).filter(d => activeDevIds.has(Number(d.id)));
+        const sIntervals = [];
+        for (const dev of activeSeriesDevs) {
+          const conn = dev.connection;
+          let iv = conn?.polling_interval || conn?.poll_interval_ms;
+          if (iv && iv > 0 && iv <= 60) iv = iv * 1000;
+          if (iv && iv >= 200) sIntervals.push(iv);
+        }
+        if (sIntervals.length > 0) {
+          return Math.min(...sIntervals);
+        }
+      }
+      // 3. Otherwise find minimum interval among active enabled devices
       const activeDevs = (this.devicesList || []).filter(d => d.enabled !== false && d.status !== 'DISABLED');
       const intervals = [];
       for (const dev of activeDevs) {
         const conn = dev.connection;
-        const iv = conn?.polling_interval || conn?.poll_interval_ms;
-        if (iv && iv >= 500) {
+        let iv = conn?.polling_interval || conn?.poll_interval_ms;
+        if (iv && iv > 0 && iv <= 60) iv = iv * 1000;
+        if (iv && iv >= 200) {
           intervals.push(iv);
         }
       }
@@ -8414,6 +8462,12 @@ export default {
       const data = e.detail;
       if (!data) return;
 
+      const frontendRecvTime = Date.now();
+      const modbusTime = data.received_at ? new Date(data.received_at).getTime() : frontendRecvTime;
+      const processTime = data.processed_at ? new Date(data.processed_at).getTime() : modbusTime;
+      const broadcastTime = data.broadcast_at ? new Date(data.broadcast_at).getTime() : processTime;
+      const sparklineStartTime = Date.now();
+
       // Only update last valid telemetry timestamp from GOOD data packets
       // This prevents failed comm/error packets from resetting the operator's offline counter!
       if (data.quality === 'GOOD') {
@@ -8441,7 +8495,10 @@ export default {
       if (data.parameter_id && data.value !== undefined) {
         this.$set(this.liveMap, data.parameter_id, data);
         this.recordSparkline(data);
+        const sparklineEndTime = Date.now();
+
         this.recordTrendPoint(data);
+        const trendEndTime = Date.now();
 
         // Flash row/tile briefly with consolidated clear timer
         this.$set(this.liveBlinks, data.parameter_id, true);
@@ -8449,6 +8506,75 @@ export default {
         this.blinkClearTimer = setTimeout(() => {
           this.liveBlinks = {};
         }, 600);
+
+        this.recordPipelineDiagnostics(data, {
+          modbusTime,
+          processTime,
+          broadcastTime,
+          frontendRecvTime,
+          sparklineEndTime,
+          trendEndTime,
+        });
+      }
+    },
+    recordPipelineDiagnostics(data, times) {
+      if (!this.pipelineDiagnostics) return;
+      const prevFrontend = this.pipelineDiagnostics.lastFrontendReceived
+        ? new Date(this.pipelineDiagnostics.lastFrontendReceived).getTime()
+        : null;
+      const actualIntervalMs = prevFrontend ? (times.frontendRecvTime - prevFrontend) : null;
+
+      const modbusToProcessMs = Math.max(0, times.processTime - times.modbusTime);
+      const processToBroadcastMs = Math.max(0, times.broadcastTime - times.processTime);
+      const broadcastToFrontendMs = Math.max(0, times.frontendRecvTime - times.broadcastTime);
+      const frontendToSparklineMs = Math.max(0, times.sparklineEndTime - times.frontendRecvTime);
+      const sparklineToTrendMs = Math.max(0, times.trendEndTime - times.sparklineEndTime);
+      const totalEndToEndMs = Math.max(0, times.trendEndTime - times.modbusTime);
+
+      const sample = {
+        sample_index: (this.pipelineDiagnostics.sampleCount || 0) + 1,
+        parameter_id: data.parameter_id,
+        parameter_code: data.parameter_code,
+        last_modbus_response: new Date(times.modbusTime).toISOString(),
+        last_telemetry_processed: new Date(times.processTime).toISOString(),
+        last_telemetry_broadcast: new Date(times.broadcastTime).toISOString(),
+        last_frontend_received: new Date(times.frontendRecvTime).toISOString(),
+        last_sparkline_update: new Date(times.sparklineEndTime).toISOString(),
+        last_trend_update: new Date(times.trendEndTime).toISOString(),
+        actual_interval_ms: actualIntervalMs,
+        modbus_to_process_ms: modbusToProcessMs,
+        process_to_broadcast_ms: processToBroadcastMs,
+        broadcast_to_frontend_ms: broadcastToFrontendMs,
+        frontend_to_sparkline_ms: frontendToSparklineMs,
+        sparkline_to_trend_ms: sparklineToTrendMs,
+        total_end_to_end_ms: totalEndToEndMs,
+      };
+
+      this.pipelineDiagnostics.lastModbusResponse = sample.last_modbus_response;
+      this.pipelineDiagnostics.lastTelemetryProcessed = sample.last_telemetry_processed;
+      this.pipelineDiagnostics.lastTelemetryBroadcast = sample.last_telemetry_broadcast;
+      this.pipelineDiagnostics.lastFrontendReceived = sample.last_frontend_received;
+      this.pipelineDiagnostics.lastSparklineUpdate = sample.last_sparkline_update;
+      this.pipelineDiagnostics.lastTrendUpdate = sample.last_trend_update;
+      this.pipelineDiagnostics.lastIntervalMs = actualIntervalMs;
+      this.pipelineDiagnostics.modbusToProcessMs = modbusToProcessMs;
+      this.pipelineDiagnostics.processToBroadcastMs = processToBroadcastMs;
+      this.pipelineDiagnostics.broadcastToFrontendMs = broadcastToFrontendMs;
+      this.pipelineDiagnostics.frontendToSparklineMs = frontendToSparklineMs;
+      this.pipelineDiagnostics.sparklineToTrendMs = sparklineToTrendMs;
+      this.pipelineDiagnostics.totalEndToEndMs = totalEndToEndMs;
+      this.pipelineDiagnostics.sampleCount = (this.pipelineDiagnostics.sampleCount || 0) + 1;
+
+      if (!this.pipelineDiagnostics.recentSamples) {
+        this.pipelineDiagnostics.recentSamples = [];
+      }
+      this.pipelineDiagnostics.recentSamples.push(sample);
+      if (this.pipelineDiagnostics.recentSamples.length > 25) {
+        this.pipelineDiagnostics.recentSamples.shift();
+      }
+
+      if (typeof window !== 'undefined') {
+        window.__dlPipelineDiagnostics = this.pipelineDiagnostics;
       }
     },
     scheduleStorageSave() {
@@ -9564,10 +9690,10 @@ export default {
             .filter(p => p.x && !isNaN(p.x))
             .sort((a, b) => a.x - b.x);
 
-          // For all filters from 1m to 6h, enforce 5-second polling interval alignment matching hardware setup
+          // For all filters from 1m to 6h, enforce polling interval alignment matching hardware setup (e.g. 2s or 5s)
           const timeSpan = endTime.getTime() - startTime.getTime();
           const isUnderOrEqual6h = timeSpan <= (6 * 3600 * 1000 + 1000);
-          const pollStepMs = isUnderOrEqual6h ? 5000 : null;
+          const pollStepMs = isUnderOrEqual6h ? (this.configuredPollingIntervalMs || 5000) : null;
 
           let processed = [];
           if (pollStepMs) {
@@ -9658,8 +9784,8 @@ export default {
       const pollInterval = this.configuredPollingIntervalMs || 5000;
       const span = this.getTimeframeSpan(this.currentTimeframe);
 
-      // Trend analysis update cadence strictly matches the sensor polling interval (5 seconds according to setup)
-      let threshold = Math.max(pollInterval, 5000);
+      // Trend analysis update cadence strictly matches the sensor polling interval (e.g. 2s or 5s)
+      let threshold = Math.max(pollInterval, 1000);
       if (span >= 6 * 3600 * 1000) {
         threshold = Math.max(pollInterval * 3, 15000);
       } else if (span >= 3600 * 1000) {
@@ -9702,7 +9828,7 @@ export default {
 
       const span = this.getTimeframeSpan(this.currentTimeframe);
       const isUnderOrEqual6h = span <= (6 * 3600 * 1000 + 1000);
-      const pollStepMs = isUnderOrEqual6h ? 5000 : null;
+      const pollStepMs = isUnderOrEqual6h ? (this.configuredPollingIntervalMs || 5000) : null;
       const alignedX = pollStepMs ? Math.round(ts / pollStepMs) * pollStepMs : ts;
 
       const pts = series.dataPoints;
@@ -9950,7 +10076,9 @@ export default {
       // Estimate gap threshold: when delta t exceeds 2 missed polling intervals, break path
       // pathStr += ` M ${px.toFixed(1)} ${py.toFixed(1)}`
       let maxGapMs = 15 * 60 * 1000;
-      if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000; // 12s for 1m (matches 5s polling, > 2 missed cycles)
+      if (pollStep <= 2500 && timeSpan <= 90 * 1000) maxGapMs = 6 * 1000;
+      else if (pollStep <= 2500 && timeSpan <= 7 * 60 * 1000) maxGapMs = 10 * 1000;
+      else if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000; // 12s for 1m (matches 5s polling, > 2 missed cycles)
       else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 20 * 1000; // 20s for 5m
       else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 45 * 1000; // 45s for 15m
       else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 3 * 60 * 1000; // 3 min for 1h
@@ -10046,7 +10174,9 @@ export default {
       }
 
       let maxGapMs = 15 * 60 * 1000;
-      if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000;
+      if (pollStep <= 2500 && timeSpan <= 90 * 1000) maxGapMs = 6 * 1000;
+      else if (pollStep <= 2500 && timeSpan <= 7 * 60 * 1000) maxGapMs = 10 * 1000;
+      else if (timeSpan <= 90 * 1000) maxGapMs = 12 * 1000;
       else if (timeSpan <= 7 * 60 * 1000) maxGapMs = 20 * 1000;
       else if (timeSpan <= 20 * 60 * 1000) maxGapMs = 45 * 1000;
       else if (timeSpan <= 2 * 3600 * 1000) maxGapMs = 3 * 60 * 1000;
@@ -10157,11 +10287,12 @@ export default {
       const end = this.trendTimeBounds.end;
       const timeSpan = Math.max(end - start, 1000);
       const isUnderOrEqual6h = timeSpan <= (6 * 3600 * 1000 + 1000);
+      const pollStep = this.configuredPollingIntervalMs || 5000;
 
       const hoverTime = start + frac * timeSpan;
-      let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;
+      let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / pollStep) * pollStep) : hoverTime;
       if (isUnderOrEqual6h) {
-        effectiveTime = Math.max(Math.floor(start / 5000) * 5000, Math.min(Math.ceil(end / 5000) * 5000, effectiveTime));
+        effectiveTime = Math.max(Math.floor(start / pollStep) * pollStep, Math.min(Math.ceil(end / pollStep) * pollStep, effectiveTime));
       }
       const snappedFrac = Math.min(Math.max((effectiveTime - start) / timeSpan, 0), 1);
       const scrubX = isUnderOrEqual6h ? (padLeft + snappedFrac * plotW) : clampedX;
@@ -10248,11 +10379,12 @@ export default {
       const end = this.trendTimeBounds.end;
       const timeSpan = Math.max(end - start, 1000);
       const isUnderOrEqual6h = timeSpan <= (6 * 3600 * 1000 + 1000);
+      const pollStep = this.configuredPollingIntervalMs || 5000;
 
       const hoverTime = start + frac * timeSpan;
-      let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / 5000) * 5000) : hoverTime;
+      let effectiveTime = isUnderOrEqual6h ? (Math.round(hoverTime / pollStep) * pollStep) : hoverTime;
       if (isUnderOrEqual6h) {
-        effectiveTime = Math.max(Math.floor(start / 5000) * 5000, Math.min(Math.ceil(end / 5000) * 5000, effectiveTime));
+        effectiveTime = Math.max(Math.floor(start / pollStep) * pollStep, Math.min(Math.ceil(end / pollStep) * pollStep, effectiveTime));
       }
       const snappedFrac = Math.min(Math.max((effectiveTime - start) / timeSpan, 0), 1);
       const scrubX = isUnderOrEqual6h ? (padLeft + snappedFrac * plotW) : clampedX;

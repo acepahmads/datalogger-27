@@ -75,6 +75,7 @@ type LatestTelemetry struct {
 	DeviceTimestamp *time.Time              `json:"device_timestamp,omitempty"`
 	ReceivedAt      time.Time               `json:"received_at"`
 	ProcessedAt     *time.Time              `json:"processed_at,omitempty"`
+	BroadcastAt     *time.Time              `json:"broadcast_at,omitempty"`
 	UpdatedAt       time.Time               `json:"updated_at"`
 }
 
@@ -347,6 +348,8 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	}
 
 	// 3. Realtime WebSocket Broadcast
+	bcastNow := time.Now().UTC()
+	latest.BroadcastAt = &bcastNow
 	if s.hub != nil {
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "device.telemetry.received",
