@@ -83,8 +83,8 @@ runTest('Test 5: Parameter cards display name, device ID, unit, status, sparklin
   assert(occContent.includes('getParamCategoryShortLabel(param)'), 'Card header must display category badge');
 });
 
-// Test 6: Layout order: Toolbar -> Single Parameter Panel -> ISPU Panel -> Trend Analysis
-runTest('Test 6: Layout order strictly satisfies Toolbar -> Single Parameter Panel -> ISPU Panel -> Trend Analysis', () => {
+// Test 6: Layout order: Toolbar -> ISPU Panel -> Single Parameter Panel -> Trend Analysis
+runTest('Test 6: Layout order strictly satisfies Toolbar -> ISPU Panel -> Single Parameter Panel -> Trend Analysis', () => {
   const panelIdx = occContent.indexOf('scada-single-main-panel');
   const ispuIdx = occContent.indexOf('<ISPUIndicatorBar');
   const trendIdx = occContent.indexOf('SECTION 2: OPERATIONAL ANALYTICAL SUITE');
@@ -93,8 +93,8 @@ runTest('Test 6: Layout order strictly satisfies Toolbar -> Single Parameter Pan
   assert(ispuIdx !== -1, '<ISPUIndicatorBar must exist');
   assert(trendIdx !== -1, 'Trend section must exist');
 
-  assert(panelIdx < ispuIdx, 'Parameter Panel must appear BEFORE ISPU Panel');
-  assert(ispuIdx < trendIdx, 'ISPU Panel must appear BEFORE Trend Analysis');
+  assert(ispuIdx < panelIdx, 'ISPU Panel must appear BEFORE Parameter Panel');
+  assert(panelIdx < trendIdx, 'Parameter Panel must appear BEFORE Trend Analysis');
 });
 
 // Test 7: Preserves ISPU functionality without separate columns

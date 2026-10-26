@@ -1748,9 +1748,17 @@
     <!-- END OF SCADA UNIFIED HEADER CARD -->
 
     <!-- ======================================================== -->
-    <!-- SECTION 1: SINGLE MAIN PARAMETER PANEL & ISPU BELOW      -->
+    <!-- SECTION 1: ISPU PANEL & PARAMETER PANEL BELOW             -->
     <!-- ======================================================== -->
     <div class="w-full flex flex-col space-y-1">
+
+        <!-- ISPU SCADA Indicator Bar (Permen LHK No. 14 Tahun 2020) - Placed directly above parameter panel -->
+        <ISPUIndicatorBar
+          v-if="isAQMSDomain && isIspuBarVisible"
+          :device-id="selectedDeviceFilter ? Number(selectedDeviceFilter) : ((devicesList[0] && devicesList[0].id) || 1)"
+          :is-dark="isDark"
+          :is-aqms-domain="isAQMSDomain"
+        />
 
         <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Single Main Parameter Panel) -->
         <div
@@ -2158,14 +2166,6 @@
             </div>
           </div>
         </div>
-
-        <!-- ISPU SCADA Indicator Bar (Permen LHK No. 14 Tahun 2020) - Placed directly below single parameter panel -->
-        <ISPUIndicatorBar
-          v-if="isAQMSDomain && isIspuBarVisible"
-          :device-id="selectedDeviceFilter ? Number(selectedDeviceFilter) : ((devicesList[0] && devicesList[0].id) || 1)"
-          :is-dark="isDark"
-          :is-aqms-domain="isAQMSDomain"
-        />
       </div>
 
     <!-- ======================================================== -->
