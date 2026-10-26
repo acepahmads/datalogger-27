@@ -1378,7 +1378,7 @@
               @change="fetchHistory"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500 font-mono"
             >
-              <option v-if="canAccessRawMode" value="raw">{{ $t('deviceDetail.resolutionRaw') }}</option>
+              <option value="raw">{{ $t('deviceDetail.resolutionRaw') }}</option>
               <option value="auto">{{ $t('deviceDetail.resolutionAuto') }}</option>
               <option value="5m">5 {{ $t('aggregation.minutes') }}</option>
               <option value="30m">30 {{ $t('aggregation.minutes') }}</option>
@@ -3925,10 +3925,6 @@ export default {
             this.chartValueMode = 'scaled';
             this.fetchHistory();
           }
-          if (this.historyDownsampleResolution === 'raw') {
-            this.historyDownsampleResolution = 'auto';
-            this.fetchHistory();
-          }
         }
       },
     },
@@ -3938,10 +3934,6 @@ export default {
           if (this.activeTab === 'raw') this.switchTab('telemetry');
           if (this.chartValueMode === 'raw') {
             this.chartValueMode = 'scaled';
-            this.fetchHistory();
-          }
-          if (this.historyDownsampleResolution === 'raw') {
-            this.historyDownsampleResolution = 'auto';
             this.fetchHistory();
           }
         }
@@ -3964,9 +3956,6 @@ export default {
     }
     if (!this.canAccessRawMode) {
       this.chartValueMode = 'scaled';
-      if (this.historyDownsampleResolution === 'raw') {
-        this.historyDownsampleResolution = 'auto';
-      }
     }
     this.loadDevice();
     this.fetchCategories();
@@ -4600,15 +4589,36 @@ export default {
         if (startTimeStr) params.start_time = startTimeStr;
 
         let url = `/api/devices/${this.device.id}/telemetry/history`;
+        let isDownsampling = false;
         if (this.historyDownsampleResolution && this.historyDownsampleResolution !== 'raw') {
-          url = `/api/devices/${this.device.id}/telemetry/downsampled`;
-          params.resolution = this.historyDownsampleResolution;
+          const targetParamId = this.historyParamId || this.activeChartParamId || (this.device.parameters && this.device.parameters[0] ? this.device.parameters[0].id : null);
+          if (targetParamId) {
+            url = `/api/devices/${this.device.id}/telemetry/downsampled`;
+            params.parameter_id = targetParamId;
+            params.resolution = this.historyDownsampleResolution;
+            isDownsampling = true;
+          }
         }
 
         const res = await axios.get(url, { params });
         if (res.data && res.data.data) {
-          this.historyRecords = res.data.data.items || [];
-          this.historyTotal = res.data.data.total || 0;
+          if (isDownsampling && Array.isArray(res.data.data.points)) {
+            const paramId = Number(params.parameter_id);
+            this.historyRecords = res.data.data.points.map((p, idx) => ({
+              id: p.id || (Date.now() - idx * 1000),
+              device_id: this.device.id,
+              parameter_id: paramId,
+              value: p.value !== null && p.value !== undefined ? Number(p.value) : (p.avg_value !== undefined ? Number(p.avg_value) : 0),
+              raw_value: p.raw_value !== undefined ? p.raw_value : null,
+              quality: p.quality || 'GOOD',
+              received_at: p.timestamp,
+              timestamp: p.timestamp,
+            }));
+            this.historyTotal = res.data.data.count || this.historyRecords.length;
+          } else {
+            this.historyRecords = res.data.data.items || [];
+            this.historyTotal = res.data.data.total || 0;
+          }
         }
       } catch (err) {
         console.error('Failed to query historical telemetry:', err);

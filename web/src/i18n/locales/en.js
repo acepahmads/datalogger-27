@@ -593,7 +593,7 @@ export default {
     "status": "Status",
     "aggregation": "Aggregation & Rollup",
     "downsamplingResolution": "Resolution / Downsampling",
-    "resolutionRaw": "Raw (Full Resolution)",
+    "resolutionRaw": "Full Resolution (All Samples)",
     "resolutionAuto": "Auto Downsampling",
     "pollingPlan": "Modbus Polling Plan & Batch Optimization",
     "pollingPlanSubtitle": "Live calculated request frames, register spans, and estimated network traffic reduction",

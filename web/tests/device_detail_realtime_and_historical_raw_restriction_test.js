@@ -72,10 +72,10 @@ runTest('2.1: Historical Data Mode Switch (Scaled vs Raw Value) is guarded by ca
   );
 });
 
-runTest('2.2: Downsampling resolution dropdown hides raw option for non-admin/superadmin', () => {
+runTest('2.2: Downsampling resolution dropdown preserves full resolution option for instant telemetry load', () => {
   assert(
-    ddContent.includes('<option v-if="canAccessRawMode" value="raw">{{ $t(\'deviceDetail.resolutionRaw\') }}</option>'),
-    'Downsampling resolution raw option must be guarded by v-if="canAccessRawMode"'
+    ddContent.includes('<option value="raw">{{ $t(\'deviceDetail.resolutionRaw\') }}</option>'),
+    'Downsampling resolution must support full resolution telemetry loading'
   );
 });
 
@@ -144,14 +144,10 @@ runTest('3.2: switchTab and mounted redirect tab=raw to telemetry for non-admin/
   );
 });
 
-runTest('3.3: Watchers reset chartValueMode to scaled and resolution to auto when raw is unauthorized', () => {
+runTest('3.3: Watchers reset chartValueMode to scaled when raw mode is unauthorized', () => {
   assert(
     ddContent.includes("if (this.chartValueMode === 'raw') {\n            this.chartValueMode = 'scaled';"),
     'Watchers must reset chartValueMode to scaled'
-  );
-  assert(
-    ddContent.includes("if (this.historyDownsampleResolution === 'raw') {\n            this.historyDownsampleResolution = 'auto';"),
-    'Watchers must reset resolution from raw to auto'
   );
 });
 

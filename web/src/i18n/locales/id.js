@@ -593,7 +593,7 @@ export default {
     "status": "Status",
     "aggregation": "Agregasi & Rollup",
     "downsamplingResolution": "Resolusi / Downsampling",
-    "resolutionRaw": "Raw (Resolusi Penuh)",
+    "resolutionRaw": "Resolusi Penuh (Semua Sampel)",
     "resolutionAuto": "Downsampling Otomatis",
     "pollingPlan": "Rencana Polling Modbus & Optimasi Batch",
     "pollingPlanSubtitle": "Perhitungan aktual pembagian frame Modbus, rentang register, dan efisiensi lalu lintas jaringan",
