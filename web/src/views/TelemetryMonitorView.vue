@@ -280,8 +280,8 @@
                 {{ item.unit || '--' }}
               </div>
             </div>
-            <!-- Formula Display if configured -->
-            <div v-if="item.formula_value !== undefined && item.formula_value !== null" class="pt-2 border-t border-slate-200 dark:border-slate-800/70 flex items-center justify-between text-3xs font-mono">
+            <!-- Formula Display if configured (Admin and Superadmin only) -->
+            <div v-if="canAccessRawMode && item.formula_value !== undefined && item.formula_value !== null" class="pt-2 border-t border-slate-200 dark:border-slate-800/70 flex items-center justify-between text-3xs font-mono">
               <div class="flex items-center space-x-1 text-blue-600 dark:text-blue-400 min-w-0">
                 <span class="font-bold">ƒ(x):</span>
                 <span class="text-slate-600 dark:text-slate-400 truncate max-w-[110px]" :title="'Formula: ' + item.formula">{{ item.formula }}</span>
@@ -316,6 +316,7 @@
                 {{ $t('telemetry.chart') }}
               </router-link>
               <router-link
+                v-if="canAccessRawMode"
                 :to="'/monitoring/devices/' + item.device_id + '?tab=raw'"
                 class="text-3xs text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 font-medium px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:border-transparent transition"
               >
@@ -344,7 +345,7 @@
               <th class="py-3 px-4">{{ $t('telemetry.parameterName') }}</th>
               <th class="py-3 px-4">{{ $t('common.code') }}</th>
               <th class="py-3 px-4 text-right">{{ $t('telemetry.currentValue') }}</th>
-              <th class="py-3 px-4 text-right">{{ $t('parameters.formula') }}</th>
+              <th v-if="canAccessRawMode" class="py-3 px-4 text-right">{{ $t('parameters.formula') }}</th>
               <th class="py-3 px-4">{{ $t('common.unit') }}</th>
               <th class="py-3 px-4 text-center">{{ $t('common.quality') }}</th>
               <th class="py-3 px-4">{{ $t('telemetry.lastTimestamp') }}</th>
@@ -392,8 +393,8 @@
                 </div>
               </td>
 
-              <!-- Formula Result -->
-              <td class="py-3 px-4 text-right font-mono text-3xs">
+              <!-- Formula Result (Admin and Superadmin only) -->
+              <td v-if="canAccessRawMode" class="py-3 px-4 text-right font-mono text-3xs">
                 <div v-if="item.formula_value !== undefined && item.formula_value !== null" class="text-blue-400 font-bold">
                   <span>{{ formatFormula(item) }}</span>
                   <div v-if="item.formula" class="text-slate-400 text-3xs truncate max-w-[110px] ml-auto font-normal" :title="'Formula: ' + item.formula">
@@ -551,6 +552,19 @@ export default {
         healthPercent,
       };
     },
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    canAccessRawMode() {
+      if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
+        return !!this.$store.getters.canAccessRawTrendMode;
+      }
+      return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN'].includes(this.userRole);
+    },
   },
   mounted() {
     this.fetchTelemetry();
@@ -622,6 +636,7 @@ export default {
       return '--';
     },
     formatFormula(item) {
+      if (!this.canAccessRawMode) return '--';
       if (item.formula_value !== null && item.formula_value !== undefined) {
         return Number(item.formula_value).toFixed(item.precision || 2);
       }

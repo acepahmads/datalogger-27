@@ -171,7 +171,7 @@
         <span>{{ $t('deviceDetail.historical') }}</span>
       </button>
       <button
-        v-if="isSuperAdmin"
+        v-if="canAccessRawMode"
         @click="switchTab('raw')"
         :class="activeTab === 'raw' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -916,7 +916,7 @@
                 <div v-if="getParamQuality(param) !== 'GOOD' && getParamQualityReason(param)" class="text-4xs font-mono text-amber-600 dark:text-amber-400/90 truncate max-w-[140px]" :title="getParamQualityReason(param)">
                   {{ getParamQualityReason(param) }}
                 </div>
-                <div v-if="getParamFormulaValue(param) !== null" class="text-3xs text-blue-600 dark:text-blue-400 font-mono font-medium">
+                <div v-if="canAccessRawMode && getParamFormulaValue(param) !== null" class="text-3xs text-blue-600 dark:text-blue-400 font-mono font-medium">
                   ƒ(x): {{ getParamFormulaValue(param) }}
                 </div>
               </td>
@@ -1252,8 +1252,8 @@
                 {{ $t('parameters.heldBadge') }}
               </span>
             </div>
-            <!-- Formula Result if defined -->
-            <div v-if="getParamFormulaValue(param) !== null" class="flex items-center space-x-2 text-xs font-mono text-blue-400">
+            <!-- Formula Result if defined (Admin and Superadmin only) -->
+            <div v-if="canAccessRawMode && getParamFormulaValue(param) !== null" class="flex items-center space-x-2 text-xs font-mono text-blue-400">
               <span class="font-bold">ƒ(x):</span>
               <span class="font-bold text-white bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
                 {{ getParamFormulaValue(param) }} {{ param.unit }}
@@ -1262,9 +1262,12 @@
             </div>
           </div>
 
-          <!-- Raw & Decoded Diagnostics Sub-bar -->
-          <div class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800/80 grid grid-cols-2 gap-2 text-3xs font-mono text-slate-400">
-            <div>
+          <!-- Raw & Decoded Diagnostics Sub-bar (Raw/Hex Admin and Superadmin only) -->
+          <div
+            class="p-2.5 rounded-lg bg-[#0B0F19] border border-slate-800/80 text-3xs font-mono text-slate-400"
+            :class="canAccessRawMode ? 'grid grid-cols-2 gap-2' : 'flex items-center justify-between'"
+          >
+            <div v-if="canAccessRawMode">
               <span class="text-slate-500 block uppercase">{{ $t('telemetry.rawHex') }}</span>
               <span class="text-slate-300 truncate block">
                 {{ getParamRaw(param) }}
@@ -1375,7 +1378,7 @@
               @change="fetchHistory"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500 font-mono"
             >
-              <option value="raw">{{ $t('deviceDetail.resolutionRaw') }}</option>
+              <option v-if="canAccessRawMode" value="raw">{{ $t('deviceDetail.resolutionRaw') }}</option>
               <option value="auto">{{ $t('deviceDetail.resolutionAuto') }}</option>
               <option value="5m">5 {{ $t('aggregation.minutes') }}</option>
               <option value="30m">30 {{ $t('aggregation.minutes') }}</option>
@@ -1447,8 +1450,8 @@
 
           <!-- Chart Visual Controls Toolbar -->
           <div class="flex items-center space-x-2 text-2xs font-sans flex-wrap gap-y-1.5">
-            <!-- Mode Switch: Scaled / Formula vs Raw Value -->
-            <div class="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex items-center shadow-sm">
+            <!-- Mode Switch: Scaled / Formula vs Raw Value (Admin and Superadmin only) -->
+            <div v-if="canAccessRawMode" class="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex items-center shadow-sm">
               <button
                 @click="chartValueMode = 'scaled'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans flex items-center space-x-1"
@@ -1621,7 +1624,7 @@
             <span>
               {{ $t('deviceDetail.yScale') }}
               <b class="text-slate-300 font-medium">{{ chartActiveUnit || $t('common.value') }}</b>
-              <span class="ml-1 text-slate-500 font-mono text-4xs">[{{ chartValueMode === 'raw' ? $t('deviceDetail.modeRaw') : $t('deviceDetail.modeScaled') }}]</span>
+              <span v-if="canAccessRawMode" class="ml-1 text-slate-500 font-mono text-4xs">[{{ chartValueMode === 'raw' ? $t('deviceDetail.modeRaw') : $t('deviceDetail.modeScaled') }}]</span>
             </span>
           </div>
 
@@ -1930,6 +1933,7 @@
                 </span>
                 <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
                 <span
+                  v-if="canAccessRawMode"
                   class="text-4xs font-sans font-bold px-1.5 py-0.5 rounded ml-1.5 uppercase"
                   :class="chartValueMode === 'raw' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'"
                 >
@@ -1940,7 +1944,7 @@
                 <span>{{ formatTimestamp(hoveredPoint.timestamp) }}</span>
                 <span class="text-slate-500 font-sans">#{{ hoveredPoint.index + 1 }}/{{ chartPoints.length }}</span>
               </div>
-              <div class="text-4xs text-slate-400 font-sans flex items-center justify-between pt-1 border-t border-slate-800/60">
+              <div v-if="canAccessRawMode" class="text-4xs text-slate-400 font-sans flex items-center justify-between pt-1 border-t border-slate-800/60">
                 <span v-if="chartValueMode === 'raw'">
                   {{ $t('deviceDetail.modeScaled') }}: <b class="text-blue-300">{{ hoveredPoint.scaledValue !== null ? hoveredPoint.scaledValue.toFixed(2) : '--' }} {{ chartActiveParam ? chartActiveParam.unit : '' }}</b>
                 </span>
@@ -1996,7 +2000,7 @@
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTimeCol') }}</th>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
                 <th class="py-2.5 px-4">{{ $t('common.value') }}</th>
-                <th class="py-2.5 px-4">{{ $t('deviceDetail.rawDecodedCol') }}</th>
+                <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('deviceDetail.rawDecodedCol') }}</th>
                 <th class="py-2.5 px-4">{{ $t('telemetry.quality') }}</th>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.protocolSourceCol') }}</th>
               </tr>
@@ -2013,7 +2017,7 @@
                   {{ rec.value !== undefined ? rec.value.toFixed(2) : '--' }}
                   <span class="text-slate-400 font-normal ml-0.5">{{ getParamUnit(rec.parameter_id) }}</span>
                 </td>
-                <td class="py-2.5 px-4 text-slate-400">
+                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-slate-400">
                   {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
                 </td>
                 <td class="py-2.5 px-4">
@@ -2029,7 +2033,7 @@
                 </td>
               </tr>
               <tr v-if="historyRecords.length === 0">
-                <td colspan="6" class="py-8 text-center text-xs text-slate-400 font-sans">
+                <td :colspan="canAccessRawMode ? 6 : 5" class="py-8 text-center text-xs text-slate-400 font-sans">
                   {{ historyLoading ? $t('deviceDetail.loadingRecords') : $t('deviceDetail.noRecordsFound') }}
                 </td>
               </tr>
@@ -2060,8 +2064,8 @@
       </div>
     </div>
 
-    <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - SUPERADMIN ONLY) -->
-    <div v-if="device && activeTab === 'raw' && isSuperAdmin" class="space-y-4">
+    <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - ADMIN & SUPERADMIN ONLY) -->
+    <div v-if="device && activeTab === 'raw' && canAccessRawMode" class="space-y-4">
       <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
         <div>
           <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.rawInspectionTitle') }}</h3>
@@ -3538,6 +3542,12 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    canAccessRawMode() {
+      if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
+        return !!this.$store.getters.canAccessRawTrendMode;
+      }
+      return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN'].includes(this.userRole);
+    },
     timeRangeOptions() {
       return [
         { label: '15m', value: '15m' },
@@ -3635,7 +3645,7 @@ export default {
       return this.device.parameters.find(p => p.id === this.activeChartParamId) || null;
     },
     chartActiveUnit() {
-      if (this.chartValueMode === 'raw') {
+      if (this.canAccessRawMode && this.chartValueMode === 'raw') {
         return 'RAW';
       }
       return this.chartActiveParam ? (this.chartActiveParam.unit || '') : '';
@@ -3907,6 +3917,36 @@ export default {
     },
   },
   watch: {
+    canAccessRawMode: {
+      handler(newVal) {
+        if (!newVal) {
+          if (this.activeTab === 'raw') this.switchTab('telemetry');
+          if (this.chartValueMode === 'raw') {
+            this.chartValueMode = 'scaled';
+            this.fetchHistory();
+          }
+          if (this.historyDownsampleResolution === 'raw') {
+            this.historyDownsampleResolution = 'auto';
+            this.fetchHistory();
+          }
+        }
+      },
+    },
+    userRole: {
+      handler() {
+        if (!this.canAccessRawMode) {
+          if (this.activeTab === 'raw') this.switchTab('telemetry');
+          if (this.chartValueMode === 'raw') {
+            this.chartValueMode = 'scaled';
+            this.fetchHistory();
+          }
+          if (this.historyDownsampleResolution === 'raw') {
+            this.historyDownsampleResolution = 'auto';
+            this.fetchHistory();
+          }
+        }
+      },
+    },
     '$route.query.tab'(newTab) {
       if (newTab) {
         this.switchTab(newTab);
@@ -3920,7 +3960,13 @@ export default {
   },
   mounted() {
     if (this.$route.query.tab) {
-      this.activeTab = this.$route.query.tab;
+      this.activeTab = (this.$route.query.tab === 'raw' && !this.canAccessRawMode) ? 'telemetry' : this.$route.query.tab;
+    }
+    if (!this.canAccessRawMode) {
+      this.chartValueMode = 'scaled';
+      if (this.historyDownsampleResolution === 'raw') {
+        this.historyDownsampleResolution = 'auto';
+      }
     }
     this.loadDevice();
     this.fetchCategories();
@@ -3975,7 +4021,7 @@ export default {
     },
     getTelemetryVal(rec) {
       if (!rec) return 0;
-      if (this.chartValueMode === 'raw') {
+      if (this.canAccessRawMode && this.chartValueMode === 'raw') {
         if (rec.raw_value !== undefined && rec.raw_value !== null) {
           return Number(rec.raw_value);
         }
@@ -4422,7 +4468,7 @@ export default {
       }
     },
     switchTab(tab) {
-      if (tab === 'raw' && !this.isSuperAdmin) {
+      if (tab === 'raw' && !this.canAccessRawMode) {
         this.activeTab = 'telemetry';
         return;
       }
@@ -4702,6 +4748,7 @@ export default {
       return !!param.is_current_held;
     },
     getParamFormulaValue(param) {
+      if (!this.canAccessRawMode) return null;
       if (!param) return null;
       if (this.liveTelemetry[param.id] && this.liveTelemetry[param.id].formula_value !== undefined && this.liveTelemetry[param.id].formula_value !== null) {
         return Number(this.liveTelemetry[param.id].formula_value).toFixed(param.precision || 2);
@@ -4990,6 +5037,8 @@ export default {
       return param.current_quality || 'UNKNOWN';
     },
     getParamRaw(param) {
+      if (!this.canAccessRawMode) return '--';
+      if (!param) return '--';
       if (this.liveTelemetry[param.id]) {
         const item = this.liveTelemetry[param.id];
         if (item.raw_hex) return item.raw_hex;
