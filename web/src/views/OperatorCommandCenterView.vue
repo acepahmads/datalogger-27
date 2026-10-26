@@ -6154,7 +6154,9 @@ export default {
         for (const p of dev.parameters) {
           const live = this.liveMap[p.id] || {};
           const isHeld = live.is_held_value !== undefined ? live.is_held_value : !!p.is_current_held;
-          const val = live.value !== undefined ? live.value : p.current_value;
+          const val = (live.processed_value !== undefined && live.processed_value !== null)
+            ? live.processed_value
+            : (live.value !== undefined ? live.value : (p.current_processed_value !== undefined && p.current_processed_value !== null ? p.current_processed_value : p.current_value));
           const alarmState = this.determineAlarmState(p, val);
 
           const receivedAt = live.received_at || p.current_received_at || p.last_updated;
@@ -7772,31 +7774,142 @@ export default {
       if (param.quality === 'STALE') return '#A855F7';
       return getParamSeriesColor(param, this.isDark);
     },
-    recordSparkline(paramId, val, time, quality = 'GOOD') {
-      if (paramId == null) return;
-      if (!this.sparklinesMap[paramId]) {
-        this.$set(this.sparklinesMap, paramId, []);
-      }
-      const arr = this.sparklinesMap[paramId];
-      const num = (val !== null && val !== undefined && val !== '' && !isNaN(val)) ? Number(val) : null;
-      const ts = time ? new Date(time).getTime() : Date.now();
+    normalizeTelemetryData(data) {
+      if (!data) return null;
+      const pid = data.parameter_id != null ? Number(data.parameter_id) : (data.param_id != null ? Number(data.param_id) : null);
+      if (pid == null || isNaN(pid)) return null;
 
-      // If last item has same or near-identical timestamp, update in place
-      if (arr.length > 0 && Math.abs(arr[arr.length - 1].time - ts) < 500) {
-        arr[arr.length - 1].val = num;
-        arr[arr.length - 1].quality = quality;
+      const devId = data.device_id != null ? Number(data.device_id) : null;
+      // Prioritize processed/calibrated engineering value over raw integer register value
+      const raw = data.processed_value !== undefined ? data.processed_value : (data.current_processed_value !== undefined ? data.current_processed_value : data.value);
+      const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw)) ? Number(raw) : null;
+      // Filter out invalid numbers, NaN, or raw epoch timestamps (> 1e8) mistakenly in value
+      const isValid = num !== null && isFinite(num) && Math.abs(num) < 1e8;
+
+      let ts = null;
+      if (data.received_at) {
+        ts = new Date(data.received_at).getTime();
+      } else if (data.timestamp) {
+        ts = new Date(data.timestamp).getTime();
+      } else if (data.time) {
+        ts = typeof data.time === 'number' ? data.time : new Date(data.time).getTime();
       } else {
-        arr.push({ val: num, time: ts, quality });
-        // Preserve strictly chronological ascending order
-        if (arr.length > 1 && arr[arr.length - 1].time < arr[arr.length - 2].time) {
-          arr.sort((a, b) => a.time - b.time);
+        ts = Date.now();
+      }
+
+      return {
+        deviceId: devId,
+        paramId: pid,
+        val: isValid ? num : null,
+        time: ts,
+        quality: data.quality || data.current_quality || 'GOOD',
+      };
+    },
+    recordSparkline(paramOrData, val, time, quality = 'GOOD', deviceId = null) {
+      let sample = null;
+      if (typeof paramOrData === 'object' && paramOrData !== null) {
+        sample = this.normalizeTelemetryData(paramOrData);
+      } else if (paramOrData != null) {
+        const raw = val;
+        const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw) && Math.abs(Number(raw)) < 1e8) ? Number(raw) : null;
+        const ts = time ? new Date(time).getTime() : Date.now();
+        sample = {
+          paramId: Number(paramOrData),
+          deviceId: deviceId != null ? Number(deviceId) : null,
+          val: num,
+          time: ts,
+          quality: quality || 'GOOD',
+        };
+      }
+      if (!sample || sample.paramId == null) return;
+      const pid = sample.paramId;
+
+      if (!this.sparklinesMap[pid]) {
+        this.$set(this.sparklinesMap, pid, []);
+      }
+      const arr = this.sparklinesMap[pid];
+
+      // Check if device is offline or in communication error
+      const dev = sample.deviceId ? (this.devicesList || []).find(d => d.id === sample.deviceId) : null;
+      const isDevOffline = dev && (dev.connection_status === 'OFFLINE' || dev.connection_status === 'ERROR' || dev.connection_status === 'DISCONNECTED' || dev.connection_status === 'FAILED');
+
+      // Requirement: When device is offline, PRESERVE valid history; do NOT add synthetic/repeated samples or fake moving points!
+      if (isDevOffline && (sample.val === null || sample.quality === 'BAD')) {
+        this.recomputeSparklineMeta(pid);
+        return;
+      }
+
+      // Check for duplicate or near-identical timestamp (within 500ms)
+      const existingIdx = arr.findIndex(p => Math.abs(p.time - sample.time) < 500);
+      if (existingIdx >= 0) {
+        // Update in-place to avoid duplicate points
+        arr[existingIdx].val = sample.val;
+        arr[existingIdx].quality = sample.quality;
+        if (sample.deviceId) arr[existingIdx].deviceId = sample.deviceId;
+      } else {
+        // Add new sample
+        arr.push({
+          deviceId: sample.deviceId,
+          paramId: pid,
+          val: sample.val,
+          time: sample.time,
+          quality: sample.quality,
+        });
+
+        // Ensure strictly chronological ascending order
+        arr.sort((a, b) => a.time - b.time);
+
+        // Deduplicate any exact timestamp matches after sort
+        for (let i = arr.length - 1; i > 0; i--) {
+          if (arr[i].time === arr[i - 1].time) {
+            arr.splice(i, 1);
+          }
         }
-        // Bound the number of sparkline points to keep memory and rendering lightweight
-        if (arr.length > 30) {
+
+        // Bounded buffer (max 40 samples) to prevent memory leak
+        if (arr.length > 40) {
           arr.shift();
         }
       }
-      this.recomputeSparklineMeta(paramId);
+
+      this.recomputeSparklineMeta(pid);
+    },
+    syncTrendPointsToSparkline(paramId, deviceId, points) {
+      if (!paramId || !points || points.length === 0) return;
+      const pid = Number(paramId);
+      const devId = deviceId != null ? Number(deviceId) : null;
+
+      // Extract up to 40 most recent valid samples from Trend Analysis data points
+      const sparkSamples = [];
+      for (const p of points) {
+        if (!p || p.x == null) continue;
+        const raw = p.y !== undefined ? p.y : (p.value !== undefined ? p.value : p.val);
+        const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw) && Math.abs(Number(raw)) < 1e8)
+          ? Number(raw)
+          : null;
+        sparkSamples.push({
+          deviceId: devId,
+          paramId: pid,
+          val: num,
+          time: typeof p.x === 'number' ? p.x : new Date(p.x).getTime(),
+          quality: p.quality || 'GOOD',
+        });
+      }
+
+      if (sparkSamples.length === 0) return;
+
+      const existing = this.sparklinesMap[pid] || [];
+      const combined = [...existing, ...sparkSamples];
+      const dedupMap = new Map();
+      for (const pt of combined) {
+        if (pt && pt.time) {
+          dedupMap.set(pt.time, pt);
+        }
+      }
+      const sorted = Array.from(dedupMap.values()).sort((a, b) => a.time - b.time);
+      const sliced = sorted.slice(-40);
+      this.$set(this.sparklinesMap, pid, sliced);
+      this.recomputeSparklineMeta(pid);
     },
     async fetchInitialSparklines() {
       for (const dev of this.devicesList || []) {
@@ -7807,23 +7920,32 @@ export default {
             const items = res.data.data.items;
             const grouped = {};
             for (const item of items) {
-              const pid = item.parameter_id;
+              const pid = Number(item.parameter_id);
               if (!pid) continue;
               if (!grouped[pid]) grouped[pid] = [];
               const raw = item.processed_value !== undefined ? item.processed_value : item.value;
-              const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw)) ? Number(raw) : null;
+              const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw) && Math.abs(Number(raw)) < 1e8) ? Number(raw) : null;
               const ts = new Date(item.received_at || item.timestamp || 0).getTime();
-              grouped[pid].push({ val: num, time: ts, quality: item.quality || 'GOOD' });
+              grouped[pid].push({
+                deviceId: item.device_id != null ? Number(item.device_id) : Number(dev.id),
+                paramId: pid,
+                val: num,
+                time: ts,
+                quality: item.quality || 'GOOD',
+              });
             }
-            for (const pid in grouped) {
+            for (const strPid in grouped) {
+              const pid = Number(strPid);
               const existing = this.sparklinesMap[pid] || [];
               const combined = [...grouped[pid], ...existing];
               const dedupMap = new Map();
               for (const pt of combined) {
-                dedupMap.set(pt.time, pt);
+                if (pt && pt.time) {
+                  dedupMap.set(pt.time, pt);
+                }
               }
               const sorted = Array.from(dedupMap.values()).sort((a, b) => a.time - b.time);
-              const sliced = sorted.slice(-30);
+              const sliced = sorted.slice(-40);
               this.$set(this.sparklinesMap, pid, sliced);
               this.recomputeSparklineMeta(pid);
             }
@@ -7832,13 +7954,37 @@ export default {
           // silent fallback
         }
       }
+
+      // Pre-populate any parameters that had 0 history records from catalog's current values
+      for (const dev of this.devicesList || []) {
+        for (const p of dev.parameters || []) {
+          const pid = Number(p.id);
+          if (!this.sparklinesMap[pid] || this.sparklinesMap[pid].length === 0) {
+            const raw = p.current_processed_value !== undefined ? p.current_processed_value : p.current_value;
+            const num = (raw !== null && raw !== undefined && raw !== '' && !isNaN(raw) && Math.abs(Number(raw)) < 1e8) ? Number(raw) : null;
+            if (num !== null && (p.current_received_at || dev.last_data_at)) {
+              const ts = new Date(p.current_received_at || dev.last_data_at).getTime();
+              const initialPt = {
+                deviceId: Number(dev.id),
+                paramId: pid,
+                val: num,
+                time: ts,
+                quality: p.current_quality || 'GOOD',
+              };
+              this.$set(this.sparklinesMap, pid, [initialPt]);
+              this.recomputeSparklineMeta(pid);
+            }
+          }
+        }
+      }
     },
     recomputeSparklineMeta(paramId) {
-      const rawList = this.sparklinesMap[paramId] || [];
+      const pid = Number(paramId);
+      const rawList = this.sparklinesMap[pid] || [];
       const validItems = rawList.filter(item => item && item.val !== null && item.val !== undefined && isFinite(item.val));
 
       if (validItems.length === 0) {
-        this.$set(this.sparklineMetaCache, paramId, {
+        this.$set(this.sparklineMetaCache, pid, {
           hasHistory: false,
           validCount: 0,
           strokePaths: [],
@@ -7859,7 +8005,7 @@ export default {
       if (validItems.length === 1) {
         const val = validItems[0].val;
         const y = 10.0;
-        this.$set(this.sparklineMetaCache, paramId, {
+        this.$set(this.sparklineMetaCache, pid, {
           hasHistory: true,
           validCount: 1,
           strokePaths: [`M 0,${y} L 100,${y}`],
@@ -7898,15 +8044,19 @@ export default {
       const segments = [];
       let currentSegment = [];
 
+      // Adaptive gap threshold matching sampling cadence (> 3 missed cycles or > 20s)
+      const pollMs = this.configuredPollingIntervalMs || 5000;
+      const gapThresholdMs = Math.max(pollMs * 3, 20000);
+
       for (let i = 0; i < total; i++) {
         const item = rawList[i];
         const isValValid = item && item.val !== null && item.val !== undefined && isFinite(item.val);
 
-        // Detect substantial time gap (> 15 minutes) as legitimate telemetry outage
+        // Detect substantial time gap (> 15 minutes or missed polling cycles) as legitimate telemetry outage
         let isTimeGap = false;
         if (isValValid && currentSegment.length > 0) {
           const prevItem = currentSegment[currentSegment.length - 1].raw;
-          if (item.time && prevItem.time && (item.time - prevItem.time > 15 * 60 * 1000)) {
+          if (item.time && prevItem.time && (item.time - prevItem.time > gapThresholdMs)) {
             isTimeGap = true;
           }
         }
@@ -7955,7 +8105,7 @@ export default {
         }
       }
 
-      this.$set(this.sparklineMetaCache, paramId, {
+      this.$set(this.sparklineMetaCache, pid, {
         hasHistory: true,
         validCount: validItems.length,
         strokePaths,
@@ -7965,11 +8115,12 @@ export default {
       });
     },
     getSparkline(paramId) {
-      if (this.sparklineMetaCache[paramId]) {
-        return this.sparklineMetaCache[paramId];
+      const pid = Number(paramId);
+      if (this.sparklineMetaCache[pid]) {
+        return this.sparklineMetaCache[pid];
       }
-      this.recomputeSparklineMeta(paramId);
-      return this.sparklineMetaCache[paramId] || { hasHistory: false, strokePaths: [], areaPaths: [] };
+      this.recomputeSparklineMeta(pid);
+      return this.sparklineMetaCache[pid] || { hasHistory: false, strokePaths: [], areaPaths: [] };
     },
     getSparklinePoints(paramId) {
       const meta = this.getSparkline(paramId);
@@ -8257,7 +8408,7 @@ export default {
 
       if (data.parameter_id && data.value !== undefined) {
         this.$set(this.liveMap, data.parameter_id, data);
-        this.recordSparkline(data.parameter_id, data.value, data.received_at, data.quality);
+        this.recordSparkline(data);
         this.recordTrendPoint(data);
 
         // Flash row/tile briefly with consolidated clear timer
@@ -8330,7 +8481,7 @@ export default {
           if (res.data && res.data.data) {
             for (const item of res.data.data) {
               this.$set(this.liveMap, item.parameter_id, item);
-              this.recordSparkline(item.parameter_id, item.value, item.received_at, item.quality);
+              this.recordSparkline(item);
               this.recordTrendPoint(item);
 
               // Only update last valid telemetry timestamp from GOOD quality data
@@ -9412,6 +9563,11 @@ export default {
           // When device is offline or API fails, never wipe valid historical points!
           if (processed.length > 0 || !s.dataPoints || s.dataPoints.length === 0) {
             s.dataPoints = processed;
+          }
+
+          // Synchronize verified Trend Analysis telemetry points to this parameter's sparkline
+          if (s.dataPoints && s.dataPoints.length > 0) {
+            this.syncTrendPointsToSparkline(s.parameterId, s.deviceId, s.dataPoints);
           }
 
           // Calculate statistics over window using only valid numeric values
