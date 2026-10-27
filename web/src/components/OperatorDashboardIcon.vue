@@ -378,6 +378,18 @@
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="currentColor" fill-opacity="0.35" />
       </g>
 
+      <!-- Sun / Day Mode -->
+      <g v-else-if="name === 'sun' || name === 'day'">
+        <circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.25" />
+        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </g>
+
+      <!-- Moon / Night Mode -->
+      <g v-else-if="name === 'moon' || name === 'night'">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="currentColor" fill-opacity="0.25" />
+        <circle cx="17" cy="7" r="1" fill="currentColor" fill-opacity="0.6" />
+      </g>
+
       <!-- Close / Cross -->
       <g v-else-if="name === 'close'">
         <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />

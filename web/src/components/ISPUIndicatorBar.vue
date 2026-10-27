@@ -192,7 +192,7 @@
     <!-- Collapsible 7 Official Parameters SCADA Tray -->
     <div
       v-if="showBreakdown"
-      class="p-2.5 rounded-xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-md transition-all"
+      class="ispu-breakdown-tray p-2.5 rounded-xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-md transition-all"
     >
       <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800 text-3xs font-mono">
         <div class="flex items-center space-x-2">

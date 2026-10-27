@@ -558,6 +558,22 @@
               </button>
             </div>
           </div>
+
+          <!-- G. Day / Night Mode Switch (Mode Siang / Mode Malam) -->
+          <button
+            type="button"
+            id="btn-operator-theme-toggle"
+            @click="toggleTheme"
+            class="w-8 h-8 flex items-center justify-center rounded transition-all duration-200 border cursor-pointer relative"
+            :class="isDark
+              ? 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-amber-400 hover:text-amber-300 border-slate-200 dark:border-[#20354B] hover:border-amber-400/50 shadow-xs'
+              : 'bg-white hover:bg-blue-50/80 text-amber-500 hover:text-amber-600 border-[#1E3A8A] hover:border-blue-900 shadow-xs'"
+            :title="isDark ? ($t('operator.switchToDayMode') || 'Beralih ke Mode Siang (Day Mode)') : ($t('operator.switchToNightMode') || 'Beralih ke Mode Malam (Night Mode)')"
+            :aria-label="isDark ? 'Switch to Day Mode' : 'Switch to Night Mode'"
+          >
+            <OperatorDashboardIcon v-if="isDark" name="moon" :size="16" class="text-cyan-300 dark:text-cyan-300" />
+            <OperatorDashboardIcon v-else name="sun" :size="16" class="text-amber-500" />
+          </button>
           </div>
 
           <!-- Active Filter Dismissible Badges (Minimalist) -->
@@ -10847,15 +10863,17 @@ export default {
   min-height: calc(100vh - 36px);
 }
 
-/* 1. Light Mode: Soft Slate-Sky Gradient Background */
+/* 1. Light Mode: Dynamic Sky-to-Ocean Blue Gradient Background (Mode Siang) */
 .operator-dashboard.light-mode,
 .operator-command-center.light-mode {
   background: linear-gradient(
     180deg,
-    #E6EFF7 0%,
-    #EDF3F9 12%,
-    #F4F7FB 40%,
-    #F8FAFD 100%
+    #BFDBFE 0%,
+    #CFE4FC 15%,
+    #DBEAFE 35%,
+    #E9F3FE 60%,
+    #CCE2FC 85%,
+    #B9D7FA 100%
   ) !important;
   background-attachment: fixed;
 }
@@ -10888,8 +10906,8 @@ export default {
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-color: #CBD5E1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-color: #1E3A8A !important;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08);
 }
 
 .light-mode .scada-unified-header-card button.bg-slate-100 {
@@ -10915,7 +10933,7 @@ export default {
 
 .light-mode .scada-unified-header-card .toolbar-popover-anchor > div.absolute {
   background-color: #FFFFFF;
-  border-color: #CBD5E1;
+  border-color: #1E3A8A;
   box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
 }
 
@@ -10955,8 +10973,8 @@ export default {
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border-color: #CBD5E1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-color: #1E3A8A !important;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08);
 }
 
 .dark-mode .scada-single-main-panel {
@@ -10968,16 +10986,16 @@ export default {
   border-bottom-color: #1A3447 !important;
 }
 
-/* 4. Parameter Cards (Light Mode: crisp solid #FFFFFF with #CBD5E1 border) */
+/* 4. Parameter Cards (Light Mode: crisp solid #FFFFFF with #1E3A8A dark blue border) */
 .light-mode .scada-param-tile {
   background-color: #FFFFFF !important;
-  border-color: #CBD5E1 !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-color: #1E3A8A !important;
+  box-shadow: 0 1px 3px rgba(30, 58, 138, 0.08);
 }
 
 .light-mode .scada-param-tile:hover {
-  border-color: #94A3B8 !important;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  border-color: #2563EB !important;
+  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.16);
 }
 
 /* Selected Parameter Card: Ultra-delicate 1px subtle cyan border, no glow shadow */
@@ -11022,11 +11040,16 @@ export default {
   box-shadow: none !important;
 }
 
-/* ISPU Summary Card */
+/* ISPU Summary Card & Breakdown Tray (Light Mode) */
 .light-mode .ispu-summary-card {
   background-color: #FFFFFF !important;
-  border-color: #CBD5E1 !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-color: #1E3A8A !important;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08);
+}
+
+.light-mode .ispu-breakdown-tray {
+  border-color: #1E3A8A !important;
+  box-shadow: 0 2px 6px rgba(30, 58, 138, 0.08);
 }
 
 .dark-mode .ispu-summary-card {
@@ -11035,11 +11058,16 @@ export default {
   box-shadow: none;
 }
 
-/* 5. Trend Analysis Panel */
+/* 5. Trend Analysis Panel & Main SCADA Panels (Light Mode) */
 .light-mode .scada-panel {
   background: rgba(255, 255, 255, 0.96);
-  border-color: #CBD5E1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border-color: #1E3A8A !important;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08);
+}
+
+.light-mode .scada-card,
+.light-mode .operator-card {
+  border-color: #1E3A8A !important;
 }
 
 .light-mode .scada-panel button.bg-slate-100 {
