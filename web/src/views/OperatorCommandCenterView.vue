@@ -549,6 +549,35 @@
                 </button>
               </div>
 
+              <!-- Active Station / Device Selector Row -->
+              <div v-if="devicesList && devicesList.length > 0" class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5 space-y-1.5 font-mono">
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-slate-900 dark:text-white">
+                    {{ $t('operator.ispuStation') || 'Target Station / Device' }}
+                  </span>
+                  <span class="text-4xs text-cyan-600 dark:text-cyan-400 font-bold">
+                    {{ devicesList.length }} {{ $t('operator.devicesAvailable') || 'Devices' }}
+                  </span>
+                </div>
+                <select
+                  :value="selectedIspuDeviceId || ((devicesList[0] && devicesList[0].id) || 1)"
+                  @change="handleIspuDeviceChange(Number($event.target.value))"
+                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-[#244356] bg-white dark:bg-[#070D18] text-slate-800 dark:text-cyan-300 text-3xs font-bold focus:outline-hidden cursor-pointer"
+                >
+                  <option
+                    v-for="d in devicesList"
+                    :key="d.id"
+                    :value="d.id"
+                    class="bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+                  >
+                    {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
+                  </option>
+                </select>
+                <div class="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
+                  {{ $t('operator.ispuDeviceSelectDesc') || 'Pilih stasiun AQMS yang datanya dihitung menjadi nilai ISPU resmi.' }}
+                </div>
+              </div>
+
               <!-- Toggle Show/Hide ISPU Panel Row -->
               <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5">
                 <div class="flex items-center justify-between">
@@ -1820,9 +1849,11 @@
         <!-- ISPU SCADA Indicator Bar (Permen LHK No. 14 Tahun 2020) - Placed directly above parameter panel -->
         <ISPUIndicatorBar
           v-if="isAQMSDomain && isIspuBarVisible"
-          :device-id="selectedDeviceFilter ? Number(selectedDeviceFilter) : ((devicesList[0] && devicesList[0].id) || 1)"
+          :device-id="selectedIspuDeviceId || ((devicesList[0] && devicesList[0].id) || 1)"
+          :devices-list="devicesList"
           :is-dark="isDark"
           :is-aqms-domain="isAQMSDomain"
+          @device-change="handleIspuDeviceChange"
         />
 
         <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Single Main Parameter Panel) -->
@@ -5082,6 +5113,13 @@ export default {
       brandingSaving: false,
       showTrendSettingsMenu: false, // 'categories' | 'pinned' | 'displayMode' | 'panelLayout' | 'systemSetup' | 'ispuSettings' | null
       isIspuBarVisible: localStorage.getItem('operator_ispu_bar_visible') !== 'false',
+      selectedIspuDeviceId: (() => {
+        try {
+          const s = localStorage.getItem('scada_ispu_selected_device_id');
+          if (s) return Number(s);
+        } catch (e) {}
+        return 0;
+      })(),
 
       // Environmental Visualizations (Wind Rose & Pollutant Map) Visibility
       showEnvironmentalVisualizations: localStorage.getItem('dl_show_environmental_viz') === 'true',
@@ -7615,6 +7653,14 @@ export default {
       this.isIspuBarVisible = !this.isIspuBarVisible;
       try {
         localStorage.setItem('operator_ispu_bar_visible', this.isIspuBarVisible ? 'true' : 'false');
+      } catch (e) {}
+    },
+    handleIspuDeviceChange(devId) {
+      const id = Number(devId);
+      if (!id) return;
+      this.selectedIspuDeviceId = id;
+      try {
+        localStorage.setItem('scada_ispu_selected_device_id', String(id));
       } catch (e) {}
     },
     clearAllPinned() {

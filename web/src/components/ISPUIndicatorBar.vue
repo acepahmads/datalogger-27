@@ -155,10 +155,33 @@
 
       <!-- Right: Action Controls -->
       <div class="flex items-center space-x-1.5 flex-shrink-0">
+        <!-- Station / Device Selector -->
+        <div
+          v-if="availableDevices && availableDevices.length > 0"
+          class="flex items-center space-x-1 bg-slate-100 dark:bg-[#081522] px-2 py-0.5 rounded-lg border border-slate-300 dark:border-[#244356] text-3xs font-mono flex-shrink-0"
+          title="Pilih Stasiun / Device untuk kalkulasi ISPU"
+        >
+          <span class="text-slate-500 font-semibold hidden md:inline">Station:</span>
+          <select
+            :value="effectiveDeviceId"
+            @change="handleDeviceChange(Number($event.target.value))"
+            class="bg-transparent font-bold text-slate-800 dark:text-cyan-300 focus:outline-hidden cursor-pointer text-3xs py-0.5"
+          >
+            <option
+              v-for="d in availableDevices"
+              :key="d.id"
+              :value="d.id"
+              class="bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+            >
+              {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
+            </option>
+          </select>
+        </div>
+
         <!-- Setup Mappings Button -->
         <button
           @click="openMappingsModal"
-          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-white/80 dark:bg-[#0D2232] text-slate-600 dark:text-[#9BB4C8] border-slate-300 dark:border-[#244356] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-[#21C7E8]"
+          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-white/80 dark:bg-[#0D2232] text-slate-600 dark:text-[#9BB4C8] border-slate-300 dark:border-[#244356] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-[#21C7E8] cursor-pointer"
           title="Configure & Setup ISPU Parameter Mappings"
         >
           <span>⚙️</span>
@@ -168,7 +191,7 @@
         <!-- Inline Trend Toggle -->
         <button
           @click="toggleTrend"
-          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1"
+          class="px-2 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 cursor-pointer"
           :class="showTrend
             ? 'bg-cyan-500/20 text-cyan-700 dark:text-[#21C7E8] border-cyan-500/50 shadow-xs'
             : 'bg-white/80 dark:bg-[#0D2232] text-slate-600 dark:text-[#9BB4C8] border-slate-300 dark:border-[#244356] hover:border-cyan-500'"
@@ -181,7 +204,7 @@
         <!-- Full Analysis Page Link -->
         <button
           @click="navigateToAnalysis"
-          class="px-2.5 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-400 shadow-xs"
+          class="px-2.5 py-1 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-400 shadow-xs cursor-pointer"
           title="Open Dedicated ISPU Analysis & Official Breakdowns"
         >
           <span class="whitespace-nowrap">Full ISPU →</span>
@@ -199,6 +222,9 @@
           <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
           <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
             All 7 Official ISPU Parameters Breakdown (Permen LHK No. 14/2020)
+          </span>
+          <span v-if="currentDeviceName" class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+            {{ currentDeviceName }}
           </span>
         </div>
         <div class="flex items-center space-x-2">
@@ -313,33 +339,58 @@
     >
       <div class="w-full max-w-2xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <!-- Header -->
-        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-lg">⚙️</span>
-            <div>
-              <h3 class="text-sm font-bold font-mono text-slate-900 dark:text-white">
+        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+          <div class="flex items-center space-x-2 min-w-0">
+            <span class="text-lg flex-shrink-0">⚙️</span>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold font-mono text-slate-900 dark:text-white truncate">
                 ISPU Parameter Mapping Setup
               </h3>
-              <p class="text-4xs font-mono text-slate-500 dark:text-slate-400">
+              <p class="text-4xs font-mono text-slate-500 dark:text-slate-400 truncate">
                 Map physical/virtual station telemetry channels to official Permen LHK 14/2020 pollutants
               </p>
             </div>
           </div>
-          <button
-            @click="showMappingsModal = false"
-            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none"
-          >
-            ✕
-          </button>
+          <div class="flex items-center space-x-2 flex-shrink-0">
+            <!-- Station Dropdown inside Modal -->
+            <div v-if="availableDevices && availableDevices.length > 0" class="flex items-center space-x-1.5 bg-slate-100 dark:bg-[#061321] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-[#244356] text-3xs font-mono">
+              <span class="text-slate-500 font-semibold">Station:</span>
+              <select
+                :value="effectiveDeviceId"
+                @change="handleDeviceChange(Number($event.target.value))"
+                class="bg-transparent font-bold text-cyan-600 dark:text-cyan-300 focus:outline-hidden cursor-pointer text-3xs"
+              >
+                <option
+                  v-for="d in availableDevices"
+                  :key="d.id"
+                  :value="d.id"
+                  class="bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
+                >
+                  {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
+                </option>
+              </select>
+            </div>
+            <button
+              @click="showMappingsModal = false"
+              class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <!-- Body -->
         <div class="p-4 space-y-4 overflow-y-auto custom-scroller">
           <!-- Current Mappings Table -->
           <div>
-            <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-              Active Mappings for this Station
-            </h4>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Active Mappings for this Station
+              </h4>
+              <span v-if="currentDeviceName" class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                {{ currentDeviceName }}
+              </span>
+            </div>
             <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <table class="w-full text-left text-3xs font-mono">
                 <thead class="bg-slate-50 dark:bg-[#101B2B] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
@@ -368,7 +419,7 @@
                     <td class="p-2 text-right">
                       <button
                         @click="deleteMapping(m.id)"
-                        class="text-rose-500 hover:text-rose-700 font-bold px-1.5 py-0.5 rounded hover:bg-rose-500/10 transition"
+                        class="text-rose-500 hover:text-rose-700 font-bold px-1.5 py-0.5 rounded hover:bg-rose-500/10 transition cursor-pointer"
                         title="Remove Mapping"
                       >
                         🗑️
@@ -377,7 +428,7 @@
                   </tr>
                   <tr v-if="stationMappings.length === 0">
                     <td colspan="7" class="p-3 text-center text-slate-400 italic">
-                      No parameter mappings configured yet. Add one below.
+                      No parameter mappings configured yet for this station. Add one below.
                     </td>
                   </tr>
                 </tbody>
@@ -387,9 +438,14 @@
 
           <!-- Add / Update Mapping Form -->
           <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-slate-800 space-y-3">
-            <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Add or Map Parameter
-            </h4>
+            <div class="flex items-center justify-between">
+              <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Add or Map Parameter
+              </h4>
+              <span class="text-4xs text-slate-400 font-mono">
+                Sensor Channels: {{ stationParameters.length }} available
+              </span>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-3xs font-mono">
               <div>
                 <label class="block text-slate-500 dark:text-slate-400 mb-1">Official Pollutant</label>
@@ -409,6 +465,9 @@
                   v-model="newMapping.parameter_id"
                   class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
                 >
+                  <option v-if="stationParameters.length === 0" :value="null" disabled>
+                    -- Tidak ada sensor channel ditemukan --
+                  </option>
                   <option v-for="sp in stationParameters" :key="sp.id" :value="sp.id">
                     {{ sp.name || sp.parameter_name }} ({{ sp.parameter_code || sp.code }})
                   </option>
@@ -486,18 +545,28 @@ export default {
   },
   props: {
     deviceId: { type: Number, default: 0 },
+    devicesList: { type: Array, default: () => [] },
     isDark: { type: Boolean, default: true },
     isAqmsDomain: { type: Boolean, default: true }
   },
   data() {
     return {
+      selectedDeviceId: (() => {
+        try {
+          const saved = localStorage.getItem('scada_ispu_selected_device_id');
+          if (saved) return Number(saved);
+        } catch (e) {}
+        return null;
+      })(),
+      internalDevicesList: [],
       ispuData: null,
       loading: false,
       recalculating: false,
       showTrend: false,
       showBreakdown: (() => {
         try {
-          const devId = this.deviceId;
+          const savedDev = localStorage.getItem('scada_ispu_selected_device_id');
+          const devId = savedDev ? Number(savedDev) : this.deviceId;
           if (devId) {
             const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${devId}`);
             if (devSaved !== null) return devSaved === 'true';
@@ -511,6 +580,7 @@ export default {
       trendRecords: [],
       trendLoading: false,
       pollTimer: null,
+      aggTimeout: null,
       showWindowPopover: false,
 
       // Seven official parameters defined in Permen LHK 14/2020
@@ -543,6 +613,28 @@ export default {
     };
   },
   computed: {
+    availableDevices() {
+      if (this.devicesList && this.devicesList.length > 0) {
+        return this.devicesList;
+      }
+      return this.internalDevicesList || [];
+    },
+    effectiveDeviceId() {
+      if (this.selectedDeviceId) return Number(this.selectedDeviceId);
+      if (this.deviceId) return Number(this.deviceId);
+      if (this.availableDevices.length > 0 && this.availableDevices[0].id) {
+        return Number(this.availableDevices[0].id);
+      }
+      return 1;
+    },
+    currentDeviceName() {
+      const dev = this.availableDevices.find(d => Number(d.id) === Number(this.effectiveDeviceId));
+      if (!dev) return '';
+      const code = dev.device_code || dev.code || '';
+      const name = dev.device_name || dev.name || '';
+      if (code && name) return `${code} - ${name}`;
+      return code || name || `Device #${this.effectiveDeviceId}`;
+    },
     effectiveIsDark() {
       if (typeof this.isDark === 'boolean') {
         return this.isDark;
@@ -698,6 +790,14 @@ export default {
     deviceId: {
       immediate: true,
       handler(newId) {
+        if (newId && (!this.selectedDeviceId || this.selectedDeviceId === 0)) {
+          this.selectedDeviceId = newId;
+        }
+      }
+    },
+    effectiveDeviceId: {
+      immediate: true,
+      handler(newId) {
         if (newId && this.isAqmsDomain) {
           try {
             const saved = localStorage.getItem(`scada_ispu_selected_param_${newId}`);
@@ -705,11 +805,6 @@ export default {
             const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${newId}`);
             if (devSaved !== null) {
               this.showBreakdown = devSaved === 'true';
-            } else {
-              const globalSaved = localStorage.getItem('scada_ispu_show_breakdown');
-              if (globalSaved !== null) {
-                this.showBreakdown = globalSaved === 'true';
-              }
             }
           } catch (e) {}
           this.fetchLatestISPU();
@@ -723,20 +818,31 @@ export default {
       try {
         const valStr = newVal ? 'true' : 'false';
         localStorage.setItem('scada_ispu_show_breakdown', valStr);
-        if (this.deviceId) {
-          localStorage.setItem(`scada_ispu_show_breakdown_${this.deviceId}`, valStr);
+        if (this.effectiveDeviceId) {
+          localStorage.setItem(`scada_ispu_show_breakdown_${this.effectiveDeviceId}`, valStr);
         }
       } catch (e) {}
+    },
+    'newMapping.parameter_id': function(newId) {
+      if (!newId || !this.stationParameters) return;
+      const p = this.stationParameters.find(item => item.id === newId);
+      if (p && p.unit && (!this.newMapping.source_unit || this.newMapping.source_unit === 'µg/m³')) {
+        this.newMapping.source_unit = p.unit;
+      }
     }
   },
   mounted() {
     try {
-      const saved = localStorage.getItem(`scada_ispu_selected_param_${this.deviceId}`);
+      const savedDev = localStorage.getItem('scada_ispu_selected_device_id');
+      if (savedDev) {
+        this.selectedDeviceId = Number(savedDev);
+      }
+      const saved = localStorage.getItem(`scada_ispu_selected_param_${this.effectiveDeviceId}`);
       if (saved) {
         this.selectedDisplayParam = saved;
       }
-      if (this.deviceId) {
-        const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${this.deviceId}`);
+      if (this.effectiveDeviceId) {
+        const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${this.effectiveDeviceId}`);
         if (devSaved !== null) {
           this.showBreakdown = devSaved === 'true';
         } else {
@@ -748,9 +854,12 @@ export default {
       }
     } catch (e) {}
 
+    // Fetch devices list if empty
+    this.fetchDevicesList();
+
     // 1. Polling fallback every 30 seconds
     this.pollTimer = setInterval(() => {
-      if (this.deviceId && this.isAqmsDomain) {
+      if (this.effectiveDeviceId && this.isAqmsDomain) {
         this.fetchLatestISPU();
       }
     }, 30000);
@@ -793,7 +902,7 @@ export default {
     },
     handleISPUCalculated(event) {
       const data = event.detail;
-      if (data && data.device_id === this.deviceId) {
+      if (data && Number(data.device_id) === Number(this.effectiveDeviceId)) {
         this.ispuData = data;
         if (this.showTrend) {
           this.fetchTrend();
@@ -802,7 +911,7 @@ export default {
     },
     handleAggregationUpdated(event) {
       const data = event.detail;
-      if (data && data.device_id === this.deviceId) {
+      if (data && Number(data.device_id) === Number(this.effectiveDeviceId)) {
         // Debounced latest fetch
         if (this.aggTimeout) clearTimeout(this.aggTimeout);
         this.aggTimeout = setTimeout(() => {
@@ -889,13 +998,50 @@ export default {
     getAuthToken() {
       return localStorage.getItem('datalogger_token') || localStorage.getItem('token') || (this.$store?.state?.token) || '';
     },
+    handleDeviceChange(newId) {
+      const id = Number(newId);
+      if (!id || id === this.selectedDeviceId) return;
+      this.selectedDeviceId = id;
+      try {
+        localStorage.setItem('scada_ispu_selected_device_id', String(id));
+        const savedParam = localStorage.getItem(`scada_ispu_selected_param_${id}`);
+        this.selectedDisplayParam = savedParam || 'OVERALL';
+        const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${id}`);
+        if (devSaved !== null) {
+          this.showBreakdown = devSaved === 'true';
+        }
+      } catch (e) {}
+      this.$emit('device-change', id);
+      this.fetchLatestISPU();
+      if (this.showTrend) {
+        this.fetchTrend();
+      }
+      if (this.showMappingsModal) {
+        this.loadMappingsForDevice(id);
+      }
+    },
+    async fetchDevicesList() {
+      try {
+        const token = this.getAuthToken();
+        const res = await axios.get('/api/devices', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const items = res.data?.data?.items || res.data?.data || [];
+        this.internalDevicesList = Array.isArray(items) ? items : [];
+        if (!this.selectedDeviceId && this.internalDevicesList.length > 0) {
+          this.selectedDeviceId = this.internalDevicesList[0].id;
+        }
+      } catch (err) {
+        // silent ignore
+      }
+    },
     toggleBreakdown() {
       this.showBreakdown = !this.showBreakdown;
       try {
         const valStr = this.showBreakdown ? 'true' : 'false';
         localStorage.setItem('scada_ispu_show_breakdown', valStr);
-        if (this.deviceId) {
-          localStorage.setItem(`scada_ispu_show_breakdown_${this.deviceId}`, valStr);
+        if (this.effectiveDeviceId) {
+          localStorage.setItem(`scada_ispu_show_breakdown_${this.effectiveDeviceId}`, valStr);
         }
       } catch (e) {}
     },
@@ -906,15 +1052,17 @@ export default {
       }
     },
     async fetchLatestISPU() {
-      if (!this.deviceId) return;
+      if (!this.effectiveDeviceId) return;
       this.loading = true;
       try {
         const token = this.getAuthToken();
-        const res = await axios.get(`/api/ispu/latest?device_id=${this.deviceId}`, {
+        const res = await axios.get(`/api/ispu/latest?device_id=${this.effectiveDeviceId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data && res.data.success && res.data.data) {
           this.ispuData = res.data.data;
+        } else {
+          this.ispuData = null;
         }
       } catch (err) {
         // Silently preserve stale or previous state
@@ -923,11 +1071,11 @@ export default {
       }
     },
     async fetchTrend() {
-      if (!this.deviceId) return;
+      if (!this.effectiveDeviceId) return;
       this.trendLoading = true;
       try {
         const token = this.getAuthToken();
-        const res = await axios.get(`/api/ispu/trend?device_id=${this.deviceId}&range=${this.trendRange}`, {
+        const res = await axios.get(`/api/ispu/trend?device_id=${this.effectiveDeviceId}&range=${this.trendRange}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data && res.data.success && res.data.data) {
@@ -946,20 +1094,20 @@ export default {
     navigateToAnalysis() {
       this.$router.push({
         path: '/monitoring/ispu',
-        query: { device_id: this.deviceId }
+        query: { device_id: this.effectiveDeviceId }
       });
     },
     async triggerRecalculation() {
-      if (!this.deviceId || this.recalculating) return;
+      if (!this.effectiveDeviceId || this.recalculating) return;
       this.recalculating = true;
       try {
         const token = this.getAuthToken();
         // Trigger both backfill and recalculate for immediate rich history
         await Promise.all([
-          axios.post('/api/ispu/backfill', { device_id: this.deviceId, hours: 24 }, {
+          axios.post('/api/ispu/backfill', { device_id: this.effectiveDeviceId, hours: 24 }, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           }),
-          axios.post('/api/ispu/recalculate', { device_id: this.deviceId }, {
+          axios.post('/api/ispu/recalculate', { device_id: this.effectiveDeviceId }, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           })
         ]);
@@ -972,27 +1120,32 @@ export default {
     },
     async openMappingsModal() {
       this.showMappingsModal = true;
+      await this.loadMappingsForDevice(this.effectiveDeviceId);
+    },
+    async loadMappingsForDevice(devId) {
+      const targetId = devId || this.effectiveDeviceId;
+      if (!targetId) return;
       try {
         const token = this.getAuthToken();
-        const [mapRes, devRes] = await Promise.all([
-          axios.get(`/api/ispu/mappings?device_id=${this.deviceId}`, {
+        const [mapRes, paramRes] = await Promise.all([
+          axios.get(`/api/ispu/mappings?device_id=${targetId}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           }),
-          axios.get(`/api/devices`, {
+          axios.get(`/api/devices/${targetId}/parameters`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           })
         ]);
         this.stationMappings = mapRes.data?.data || [];
-        
-        // Find parameters for this device
-        const devices = devRes.data?.data?.items || devRes.data?.data || [];
-        const currentDev = devices.find(d => d.id === this.deviceId) || devices[0];
-        this.stationParameters = currentDev?.parameters || [];
-        if (this.stationParameters.length > 0 && !this.newMapping.parameter_id) {
-          this.newMapping.parameter_id = this.stationParameters[0].id;
+        this.stationParameters = paramRes.data?.data?.items || paramRes.data?.data || [];
+        if (this.stationParameters.length > 0) {
+          if (!this.newMapping.parameter_id || !this.stationParameters.some(p => p.id === this.newMapping.parameter_id)) {
+            this.newMapping.parameter_id = this.stationParameters[0].id;
+          }
+        } else {
+          this.newMapping.parameter_id = null;
         }
       } catch (err) {
-        console.error('Failed to load mappings:', err);
+        console.error('Failed to load mappings for device:', targetId, err);
       }
     },
     selectDisplayParameter(code) {
@@ -1002,7 +1155,7 @@ export default {
         this.selectedDisplayParam = code;
       }
       try {
-        localStorage.setItem(`scada_ispu_selected_param_${this.deviceId}`, this.selectedDisplayParam);
+        localStorage.setItem(`scada_ispu_selected_param_${this.effectiveDeviceId}`, this.selectedDisplayParam);
       } catch (e) {}
     },
     formatStartHour(h) {
@@ -1014,7 +1167,7 @@ export default {
       try {
         const token = this.getAuthToken();
         await axios.post('/api/ispu/mappings', {
-          device_id: this.deviceId,
+          device_id: this.effectiveDeviceId,
           parameter_id: this.newMapping.parameter_id,
           pollutant_code: this.newMapping.pollutant_code,
           source_unit: this.newMapping.source_unit || 'µg/m³',
@@ -1025,7 +1178,7 @@ export default {
         }, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        await this.openMappingsModal();
+        await this.loadMappingsForDevice(this.effectiveDeviceId);
         this.triggerRecalculation();
       } catch (err) {
         alert('Failed to save mapping: ' + (err.response?.data?.error || err.message));
@@ -1038,7 +1191,7 @@ export default {
         await axios.delete(`/api/ispu/mappings/${id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        await this.openMappingsModal();
+        await this.loadMappingsForDevice(this.effectiveDeviceId);
         this.triggerRecalculation();
       } catch (err) {
         alert('Failed to delete mapping: ' + (err.response?.data?.error || err.message));
