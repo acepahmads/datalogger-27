@@ -547,11 +547,14 @@ func TestAlarmService_Wave4_ConcurrentAcknowledgement(t *testing.T) {
 }
 
 func TestAlarmService_ClearDeviceAlarms(t *testing.T) {
-	_, svc, _, _ := setupTestAlarmEnvironment(t)
+	db, svc, _, _ := setupTestAlarmEnvironment(t)
 	ctx := context.Background()
 
 	devID := uint(42)
 	otherDevID := uint(99)
+
+	db.Create(&model.Device{ID: devID, DeviceCode: "DEV-42", DeviceName: "Dev 42", Enabled: true, Status: model.DeviceStatusActive})
+	db.Create(&model.Device{ID: otherDevID, DeviceCode: "DEV-99", DeviceName: "Dev 99", Enabled: true, Status: model.DeviceStatusActive})
 
 	// Create 3 DEVICE_OFFLINE alarms for devID
 	for i := 0; i < 3; i++ {

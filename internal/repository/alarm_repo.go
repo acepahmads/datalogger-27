@@ -107,7 +107,7 @@ func (r *AlarmRepository) List(ctx context.Context, params AlarmFilterParams) ([
 		st := strings.ToUpper(strings.TrimSpace(params.Status))
 		query = query.Where("status = ?", st)
 		if (st == string(model.AlarmActive) || st == string(model.AlarmAcked)) && params.DeviceID == 0 {
-			query = query.Where("(device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')) AND (parameter_id IS NULL OR parameter_id NOT IN (SELECT id FROM parameters WHERE enabled = 0))")
+			query = query.Where("(device_id IS NULL OR device_id IN (SELECT id FROM devices WHERE (enabled = 1 OR enabled = true) AND status != 'DISABLED')) AND (parameter_id IS NULL OR parameter_id IN (SELECT id FROM parameters WHERE (enabled = 1 OR enabled = true)))")
 		}
 	}
 	if params.Severity != "" {
@@ -171,7 +171,7 @@ func (r *AlarmRepository) GetActive(ctx context.Context) ([]model.Alarm, error) 
 	err := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("Parameter").
-		Where("status = ? AND (device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')) AND (parameter_id IS NULL OR parameter_id NOT IN (SELECT id FROM parameters WHERE enabled = 0))", model.AlarmActive).
+		Where("status = ? AND (device_id IS NULL OR device_id IN (SELECT id FROM devices WHERE (enabled = 1 OR enabled = true) AND status != 'DISABLED')) AND (parameter_id IS NULL OR parameter_id IN (SELECT id FROM parameters WHERE (enabled = 1 OR enabled = true)))", model.AlarmActive).
 		Order("triggered_at DESC").
 		Find(&alarms).Error
 	return alarms, err
@@ -241,7 +241,7 @@ func (r *AlarmRepository) GetActiveOrAcked(ctx context.Context) ([]model.Alarm, 
 	err := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("Parameter").
-		Where("status IN ? AND (device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')) AND (parameter_id IS NULL OR parameter_id NOT IN (SELECT id FROM parameters WHERE enabled = 0))", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Where("status IN ? AND (device_id IS NULL OR device_id IN (SELECT id FROM devices WHERE (enabled = 1 OR enabled = true) AND status != 'DISABLED')) AND (parameter_id IS NULL OR parameter_id IN (SELECT id FROM parameters WHERE (enabled = 1 OR enabled = true)))", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
 		Order("triggered_at DESC").
 		Find(&alarms).Error
 	return alarms, err

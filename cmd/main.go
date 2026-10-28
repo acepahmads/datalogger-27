@@ -146,6 +146,14 @@ func main() {
 	alarmService.SetHub(hub)
 	systemService.SetAlarmService(alarmService)
 
+	// Startup hygiene: clear active alarms belonging to disabled or deleted devices
+	_ = db.Model(&model.Alarm{}).
+		Where("status IN ? AND (device_id IS NOT NULL AND (device_id NOT IN (SELECT id FROM devices) OR device_id IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')))", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Updates(map[string]interface{}{
+			"status":     model.AlarmCleared,
+			"cleared_at": time.Now().UTC(),
+		}).Error
+
 	// 7h. Initialize Notification Engine Subsystem (Phase 6 Wave 3)
 	notificationRepo := repository.NewNotificationRepository(db)
 	notificationEngine := service.NewNotificationEngine(notificationRepo, alarmRepo, systemRepo, service.DefaultNotificationEngineConfig())

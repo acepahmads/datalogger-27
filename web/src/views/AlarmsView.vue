@@ -1119,7 +1119,8 @@ export default {
         const devId = a.device_id || (a.device && a.device.id);
         if (devId && this.devices && this.devices.length) {
           const d = this.devices.find(x => Number(x.id) === Number(devId));
-          if (d && (d.enabled === false || (d.status || d.administrative_status || '').toUpperCase() === 'DISABLED')) {
+          if (!d) return false;
+          if (d.enabled === false || (d.status || d.admin_status || d.administrative_status || '').toUpperCase() === 'DISABLED') {
             return false;
           }
         }

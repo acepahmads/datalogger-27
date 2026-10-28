@@ -781,6 +781,9 @@ func (s *DeviceService) ToggleDeviceEnabled(id uint, enabled bool, username, ipA
 	action := "ENABLE_DEVICE"
 	if !enabled {
 		action = "DISABLE_DEVICE"
+		if s.systemRepo != nil {
+			_ = s.systemRepo.ClearActiveAlarmsByDevice(id)
+		}
 	}
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
@@ -808,6 +811,10 @@ func (s *DeviceService) UpdateDeviceStatus(id uint, status model.DeviceAdminStat
 
 	if err := s.repo.SetStatus(id, status); err != nil {
 		return err
+	}
+
+	if (status == model.DeviceStatusDisabled || status == model.DeviceStatusInactive) && s.systemRepo != nil {
+		_ = s.systemRepo.ClearActiveAlarmsByDevice(id)
 	}
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{

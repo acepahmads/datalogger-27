@@ -977,7 +977,7 @@
                     </div>
                     <div class="max-h-36 overflow-y-auto custom-scroller space-y-1.5 pr-0.5">
                       <div
-                        v-for="dev in devicesList"
+                        v-for="dev in activeFleetDevices"
                         :key="'popover-dev-' + dev.id"
                         class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9.5px]"
                       >
@@ -6209,8 +6209,32 @@ export default {
     systemStatus() {
       return this.$store.state.systemStatus || {};
     },
+    activeFleetDevices() {
+      return (this.devicesList || []).filter(d => d && d.enabled !== false && (d.status || d.admin_status || '').toUpperCase() !== 'DISABLED');
+    },
     activeAlarmsList() {
-      return (this.$store.state.activeAlarms || []).filter(a => a && a.status !== 'CLEARED');
+      const isDevDisabled = (devId) => {
+        if (!devId) return false;
+        const list = (this.devicesList && this.devicesList.length) ? this.devicesList : (this.$store.state.devices || []);
+        if (!list.length) return false;
+        const d = list.find(x => Number(x.id) === Number(devId));
+        if (!d) return true; // Exclude deleted/unregistered devices
+        return d.enabled === false || (d.status || d.admin_status || d.administrative_status || '').toUpperCase() === 'DISABLED';
+      };
+      const isParamDisabled = (paramId) => {
+        if (!paramId) return false;
+        const p = (this.allParameters || []).find(x => Number(x.id) === Number(paramId));
+        if (p && p.enabled === false) return true;
+        return false;
+      };
+      return (this.$store.state.activeAlarms || []).filter(a => {
+        if (!a || a.status === 'CLEARED') return false;
+        const devId = a.device_id || (a.device && a.device.id);
+        if (isDevDisabled(devId)) return false;
+        const paramId = a.parameter_id || (a.parameter && a.parameter.id);
+        if (isParamDisabled(paramId)) return false;
+        return true;
+      });
     },
     activeCriticalCount() {
       return this.activeAlarmsList.filter(a => a.severity === 'CRITICAL' && a.status === 'ACTIVE').length;
@@ -6521,11 +6545,11 @@ export default {
       ];
     },
     summaryStats() {
-      const devs = this.devicesList || [];
-      const totalDevs = devs.length;
-      const onlineDevs = devs.filter(d => this.isDeviceActiveOnline(d)).length;
-      const offlineDevs = totalDevs - onlineDevs;
-      const disabledDevs = devs.filter(d => d.admin_status === 'DISABLED' || d.status === 'DISABLED' || d.enabled === false).length;
+      const activeDevs = (this.devicesList || []).filter(d => d && d.enabled !== false && (d.status || d.admin_status || '').toUpperCase() !== 'DISABLED');
+      const totalDevs = activeDevs.length;
+      const onlineDevs = activeDevs.filter(d => this.isDeviceActiveOnline(d)).length;
+      const offlineDevs = Math.max(0, totalDevs - onlineDevs);
+      const disabledDevs = (this.devicesList || []).filter(d => d && (d.admin_status === 'DISABLED' || d.status === 'DISABLED' || d.enabled === false)).length;
 
       const params = this.allParameters;
       const goodParams = params.filter(p => p.quality === 'GOOD').length;
@@ -8506,6 +8530,7 @@ export default {
         if (res.data?.data) {
           const items = res.data.data.items || res.data.data || [];
           this.devicesList = items;
+          this.$store.commit('SET_DEVICES', items);
         }
       } catch (err) {
         // silent ignore
@@ -8876,6 +8901,7 @@ export default {
         const res = await axios.get('/api/devices?page_size=100');
         if (res.data && res.data.data) {
           this.devicesList = res.data.data.items || res.data.data || [];
+          this.$store.commit('SET_DEVICES', this.devicesList);
           await this.refreshLatestOnly();
           await this.fetchInitialSparklines();
 
