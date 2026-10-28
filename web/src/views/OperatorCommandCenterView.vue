@@ -336,7 +336,7 @@
                             {{ param.param_name || param.param_code }}
                           </div>
                           <div class="text-[8px] text-slate-500 dark:text-slate-400 flex items-center space-x-1 truncate">
-                            <span>{{ param.device_code }}</span>
+                            <span v-if="!isOperator">{{ param.device_code }}</span>
                             <span v-if="param.unit">· {{ param.unit }}</span>
                           </div>
                         </div>
@@ -2100,7 +2100,7 @@
                   <thead class="bg-slate-50 dark:bg-[#080E18] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-[#20354B]">
                     <tr>
                       <th class="py-2 px-1 text-center w-6">⭐</th>
-                      <th class="py-2 px-1.5">{{ $t('telemetry.device') || 'Device' }}</th>
+                      <th v-if="!isOperator" class="py-2 px-1.5">{{ $t('telemetry.device') || 'Device' }}</th>
                       <th class="py-2 px-1.5">{{ $t('telemetry.parameterName') || 'Parameter' }}</th>
                       <th class="py-2 px-1.5">{{ $t('operator.categories') || 'Category' }}</th>
                       <th class="py-2 px-1.5 text-right">{{ $t('common.value') || 'Value' }}</th>
@@ -2135,7 +2135,7 @@
                       </td>
 
                       <!-- Device -->
-                      <td class="py-1.5 px-1.5 text-cyan-600 dark:text-cyan-400 font-bold whitespace-nowrap text-3xs">
+                      <td v-if="!isOperator" class="py-1.5 px-1.5 text-cyan-600 dark:text-cyan-400 font-bold whitespace-nowrap text-3xs">
                         <router-link :to="'/monitoring/devices/' + p.device_id" class="hover:underline">
                           {{ p.device_code }}
                         </router-link>
@@ -6677,6 +6677,12 @@ export default {
     },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    isAdmin() {
+      return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN'].includes(this.userRole);
+    },
+    isOperator() {
+      return this.userRole === 'OPERATOR' || !this.isAdmin;
     },
     canAccessRawTrendMode() {
       if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {

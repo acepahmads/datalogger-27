@@ -910,9 +910,8 @@
               </tr>
               <tr v-for="m in stationMappings" :key="m.id">
                 <td class="p-2 font-bold text-cyan-400">{{ m.pollutant_code }}</td>
-                <td class="p-2">
-                  <span v-if="m.device" class="text-slate-400 font-normal">[{{ m.device.device_code }}] </span>
-                  {{ m.parameter?.parameter_name || m.parameter?.parameter_code || m.parameter_id }}
+                <td class="p-2 font-bold">
+                  {{ m.parameter?.parameter_name || m.parameter?.name || m.parameter?.parameter_code || m.parameter_id }}
                 </td>
                 <td class="p-2">{{ m.source_unit }}</td>
                 <td class="p-2">{{ m.conversion_factor }}</td>
@@ -947,7 +946,7 @@
               <label class="block text-slate-400 mb-1">Datalogger Parameter</label>
               <select v-model="newMapping.parameter_id" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700">
                 <option v-for="p in stationParameters" :key="p.id" :value="p.id">
-                  [{{ p.device_code || p.device?.device_code || 'DEV' }}] {{ p.parameter_code }} - {{ p.parameter_name }} ({{ p.unit }})
+                  {{ p.parameter_name || p.name || p.parameter_code }} ({{ p.unit || 'µg/m³' }})
                 </option>
               </select>
             </div>

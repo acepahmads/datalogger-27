@@ -200,9 +200,6 @@
           <span class="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
             All 7 Official ISPU Parameters Breakdown (Permen LHK No. 14/2020)
           </span>
-          <span v-if="currentDeviceName" class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-            {{ currentDeviceName }}
-          </span>
         </div>
         <div class="flex items-center space-x-2">
           <span class="text-slate-500 dark:text-slate-400 text-4xs">
@@ -344,7 +341,7 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Active ISPU Parameter Mappings (All Active Devices)
+                Active ISPU Parameter Mappings
               </h4>
             </div>
             <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
@@ -365,9 +362,8 @@
                     <td class="p-2 font-bold text-slate-900 dark:text-white">
                       {{ m.pollutant_code }}
                     </td>
-                    <td class="p-2 text-cyan-600 dark:text-cyan-400">
-                      <span v-if="m.device" class="font-bold text-slate-500 dark:text-slate-400 mr-1">[{{ m.device.device_code || m.device.name }}]</span>
-                      {{ m.parameter ? (m.parameter.name || m.parameter.parameter_name) : `ID ${m.parameter_id}` }}
+                    <td class="p-2 text-cyan-600 dark:text-cyan-400 font-bold">
+                      {{ m.parameter ? (m.parameter.name || m.parameter.parameter_name || m.parameter.code || m.parameter.parameter_code) : (m.pollutant_code || `ID ${m.parameter_id}`) }}
                     </td>
                     <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.source_unit }}</td>
                     <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.conversion_factor }}</td>
@@ -1128,7 +1124,7 @@ export default {
                   device_id: d.id,
                   deviceCode: devCode,
                   deviceName: d.device_name || d.name,
-                  displayName: `[${devCode}] ${paramName}${paramCode ? ' (' + paramCode + ')' : ''}`
+                  displayName: `${paramName}${paramCode && paramCode !== paramName ? ' (' + paramCode + ')' : ''}`
                 });
               }
             });
