@@ -2008,7 +2008,7 @@
                   <!-- Right: Mini Sparkline (Vertically centered, consistent 20px height) -->
                   <div class="w-[52px] sm:w-[56px] h-[20px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative my-auto flex items-center justify-center">
                     <svg
-                      v-if="getSparkline(param.param_id).hasHistory"
+                      v-if="getSparkline(param).hasHistory"
                       class="w-full h-full block"
                       viewBox="0 0 100 20"
                       preserveAspectRatio="none"
@@ -2020,13 +2020,13 @@
                         </linearGradient>
                       </defs>
                       <path
-                        v-for="(areaD, aIdx) in getSparkline(param.param_id).areaPaths"
+                        v-for="(areaD, aIdx) in getSparkline(param).areaPaths"
                         :key="'a-' + param.param_id + '-' + aIdx"
                         :d="areaD"
                         :fill="'url(#sparkGrad-' + param.param_id + ')'"
                       />
                       <path
-                        v-for="(strokeD, sIdx) in getSparkline(param.param_id).strokePaths"
+                        v-for="(strokeD, sIdx) in getSparkline(param).strokePaths"
                         :key="'s-' + param.param_id + '-' + sIdx"
                         :d="strokeD"
                         fill="none"
@@ -8538,6 +8538,110 @@ export default {
       if (p.low_warning != null && num <= p.low_warning) return 'WARNING';
       return 'NORMAL';
     },
+    isParamInAlarmOrFault(param) {
+      if (!param) return false;
+
+      // 1. Device Disruption / Trouble / Offline / Disconnected
+      const devStatus = (param.device_status || '').toUpperCase();
+      if (
+        devStatus === 'OFFLINE' ||
+        devStatus === 'ERROR' ||
+        devStatus === 'DISCONNECTED' ||
+        devStatus === 'FAILED' ||
+        devStatus === 'TIMEOUT'
+      ) {
+        return true;
+      }
+
+      const devId = param.device_id != null ? Number(param.device_id) : (param.deviceId != null ? Number(param.deviceId) : null);
+      if (devId != null && this.devicesList && this.devicesList.length > 0) {
+        const dev = this.devicesList.find(d => Number(d.id) === devId);
+        if (dev) {
+          const cStatus = (dev.connection_status || '').toUpperCase();
+          if (cStatus === 'OFFLINE' || cStatus === 'ERROR' || cStatus === 'DISCONNECTED' || cStatus === 'FAILED') {
+            return true;
+          }
+          if (typeof this.isDeviceActiveOnline === 'function' && !this.isDeviceActiveOnline(dev)) {
+            return true;
+          }
+        }
+      }
+
+      const reason = (param.quality_reason || '').toUpperCase();
+      if (
+        reason === 'DEVICE_OFFLINE' ||
+        reason === 'COMMUNICATION_ERROR' ||
+        reason === 'TIMEOUT' ||
+        reason === 'SENSOR_FAULT' ||
+        reason.includes('OFFLINE') ||
+        reason.includes('COMM') ||
+        reason.includes('TIMEOUT')
+      ) {
+        return true;
+      }
+
+      // 2. Active Alarms on Parameter
+      const almStatus = (param.alarm_status || '').toUpperCase();
+      if (almStatus === 'CRITICAL' || almStatus === 'WARNING' || almStatus === 'ALARM') {
+        return true;
+      }
+      if (param.has_alarm) {
+        return true;
+      }
+
+      const pid = Number(param.param_id || param.id);
+      if (this.activeAlarmsList && this.activeAlarmsList.length > 0) {
+        const hasAlarm = this.activeAlarmsList.some(a => {
+          if (a.status !== 'ACTIVE') return false;
+          if (a.parameter_id && Number(a.parameter_id) === pid) return true;
+          if (param.param_code && a.parameter &&
+              (a.parameter.parameter_code === param.param_code || a.parameter.code === param.param_code) &&
+              (devId == null || Number(a.device_id) === devId)) {
+            return true;
+          }
+          // Communication / offline alarm on parent device
+          if (devId != null && Number(a.device_id) === devId) {
+            const aType = (a.alarm_type || a.type || '').toUpperCase();
+            if (aType.includes('COMM') || aType.includes('OFFLINE') || aType.includes('DEVICE') || aType.includes('TIMEOUT')) {
+              return true;
+            }
+          }
+          return false;
+        });
+        if (hasAlarm) return true;
+      }
+
+      // 3. Telemetry Data Anomaly
+      const q = (param.quality || '').toUpperCase();
+      if (q === 'BAD' || q === 'STALE' || q === 'UNCERTAIN' || q === 'ANOMALY' || q === 'ERROR') {
+        // Zero-value policy exemption
+        const isZeroVal = param.value !== null && param.value !== undefined && param.value !== '' && Math.abs(Number(param.value)) < 1e-9;
+        if (isZeroVal && param.zero_value_alarm_policy === 'SUPPRESS_THRESHOLD' && q === 'UNCERTAIN') {
+          // not anomaly
+        } else {
+          return true;
+        }
+      }
+      if (param.is_anomaly || param.is_stale || param.is_held_value) {
+        return true;
+      }
+      if (typeof this.formatParamValue === 'function' && this.formatParamValue(param) === '--') {
+        return true;
+      }
+      if (param.value == null || param.value === '' || isNaN(Number(param.value))) {
+        return true;
+      }
+
+      // 4. Fallback checks from existing helpers
+      if (typeof this.isParamAlarmOrStaleBad === 'function' && this.isParamAlarmOrStaleBad(param)) {
+        return true;
+      }
+      if (typeof this.isParamDataQualityIssue === 'function' && this.isParamDataQualityIssue(param)) {
+        return true;
+      }
+
+      return false;
+    },
     isParamAlarmOrStaleBad(param) {
       if (!param) return false;
       // 1. If parameter is GOOD and has no alarm, it MUST NOT have gray card or red border
@@ -8733,9 +8837,27 @@ export default {
     },
     getSparklineColor(param) {
       if (!param) return this.isDark ? '#27D9F2' : '#0284C7';
-      if (param.alarm_status === 'CRITICAL' || param.quality === 'BAD') return this.isDark ? '#FF6577' : '#C93449';
-      if (param.alarm_status === 'WARNING' || param.quality === 'UNCERTAIN') return this.isDark ? '#F1BD61' : '#A96C0A';
-      if (param.quality === 'STALE') return '#A855F7';
+      const isDevOffline = param.device_status === 'OFFLINE' ||
+        param.device_status === 'ERROR' ||
+        param.device_status === 'DISCONNECTED' ||
+        param.device_status === 'FAILED' ||
+        param.device_status === 'TIMEOUT';
+      const isBadQuality = param.quality === 'BAD';
+      const isCritAlarm = param.alarm_status === 'CRITICAL';
+      const isCommFault = param.quality_reason === 'DEVICE_OFFLINE' ||
+        param.quality_reason === 'COMMUNICATION_ERROR' ||
+        param.quality_reason === 'TIMEOUT' ||
+        param.quality_reason === 'SENSOR_FAULT';
+
+      if (isDevOffline || isBadQuality || isCritAlarm || isCommFault) {
+        return this.isDark ? '#FF6577' : '#C93449';
+      }
+      if (param.alarm_status === 'WARNING' || param.quality === 'UNCERTAIN') {
+        return this.isDark ? '#F1BD61' : '#A96C0A';
+      }
+      if (param.quality === 'STALE') {
+        return '#A855F7';
+      }
       return getParamSeriesColor(param, this.isDark);
     },
     normalizeTelemetryData(data) {
@@ -8950,9 +9072,49 @@ export default {
       const rawList = this.sparklinesMap[pid] || [];
       const validItems = rawList.filter(item => item && item.val !== null && item.val !== undefined && isFinite(item.val));
 
+      // Resolve parameter to check alarm, device disruption, or anomaly state
+      let param = null;
+      if (this.allParameters && this.allParameters.length > 0) {
+        param = this.allParameters.find(p => Number(p.param_id) === pid || Number(p.id) === pid);
+      }
+      if (!param && this.devicesList) {
+        for (const dev of this.devicesList) {
+          if (dev.parameters) {
+            const found = dev.parameters.find(p => Number(p.id) === pid || Number(p.param_id) === pid);
+            if (found) {
+              param = {
+                ...found,
+                device_id: dev.id,
+                device_code: dev.device_code,
+                device_status: dev.connection_status,
+                quality: found.current_quality || (dev.connection_status === 'OFFLINE' ? 'BAD' : 'GOOD'),
+              };
+              break;
+            }
+          }
+        }
+      }
+
+      // When in alarm, device disruption, or data anomaly: produce clean flat line
+      if (param && this.isParamInAlarmOrFault(param)) {
+        const y = 10.0;
+        const H = 20;
+        this.$set(this.sparklineMetaCache, pid, {
+          hasHistory: true,
+          isFlat: true,
+          validCount: validItems.length > 0 ? validItems.length : 2,
+          strokePaths: [`M 0,${y} L 100,${y}`],
+          areaPaths: [`M 0,${H} L 0,${y} L 100,${y} L 100,${H} Z`],
+          min: 0,
+          max: 0,
+        });
+        return;
+      }
+
       if (validItems.length === 0) {
         this.$set(this.sparklineMetaCache, pid, {
           hasHistory: false,
+          isFlat: false,
           validCount: 0,
           strokePaths: [],
           areaPaths: [],
@@ -9074,6 +9236,7 @@ export default {
 
       this.$set(this.sparklineMetaCache, pid, {
         hasHistory: true,
+        isFlat: false,
         validCount: validItems.length,
         strokePaths,
         areaPaths,
@@ -9082,12 +9245,61 @@ export default {
       });
     },
     getSparkline(paramId) {
-      const pid = Number(paramId);
-      if (this.sparklineMetaCache[pid]) {
+      let param = null;
+      let pid = null;
+      if (typeof paramId === 'object' && paramId !== null) {
+        param = paramId;
+        pid = Number(param.param_id || param.id);
+      } else if (paramId != null) {
+        pid = Number(paramId);
+        if (this.allParameters && this.allParameters.length > 0) {
+          param = this.allParameters.find(p => Number(p.param_id) === pid || Number(p.id) === pid);
+        }
+        if (!param && this.devicesList) {
+          for (const dev of this.devicesList) {
+            if (dev.parameters) {
+              const found = dev.parameters.find(p => Number(p.id) === pid || Number(p.param_id) === pid);
+              if (found) {
+                param = {
+                  ...found,
+                  device_id: dev.id,
+                  device_code: dev.device_code,
+                  device_status: dev.connection_status,
+                  quality: found.current_quality || (dev.connection_status === 'OFFLINE' ? 'BAD' : 'GOOD'),
+                };
+                break;
+              }
+            }
+          }
+        }
+      }
+      if (!pid) {
+        return { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
+      }
+
+      // 1. If parameter is in alarm, device disruption, or data anomaly: immediate flatline
+      if (param && this.isParamInAlarmOrFault(param)) {
+        const y = 10.0;
+        const H = 20;
+        return {
+          hasHistory: true,
+          isFlat: true,
+          validCount: 2,
+          strokePaths: [`M 0,${y} L 100,${y}`],
+          areaPaths: [`M 0,${H} L 0,${y} L 100,${y} L 100,${H} Z`],
+          min: 0,
+          max: 0,
+        };
+      }
+
+      // 2. Return cached metadata if healthy and not flagged flat
+      if (this.sparklineMetaCache[pid] && !this.sparklineMetaCache[pid].isFlat) {
         return this.sparklineMetaCache[pid];
       }
+
+      // 3. Otherwise recompute
       this.recomputeSparklineMeta(pid);
-      return this.sparklineMetaCache[pid] || { hasHistory: false, strokePaths: [], areaPaths: [] };
+      return this.sparklineMetaCache[pid] || { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
     },
     getSparklinePoints(paramId) {
       const meta = this.getSparkline(paramId);
