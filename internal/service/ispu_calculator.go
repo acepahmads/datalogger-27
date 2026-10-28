@@ -437,3 +437,32 @@ func resolveDominantTie(tied []model.ISPUParameter) model.ISPUParameter {
 
 	return tied[0]
 }
+
+// DetectOfficialPollutant inspects parameter code and name to match one of the 7 official pollutants.
+func DetectOfficialPollutant(code, name, unit string) (model.ISPUParameter, string, float64) {
+	upper := strings.ToUpper(code + " " + name)
+	upperUnit := strings.TrimSpace(unit)
+	if upperUnit == "" {
+		upperUnit = "µg/m³"
+	}
+
+	switch {
+	case strings.Contains(upper, "PM25") || strings.Contains(upper, "PM2.5") || strings.Contains(upper, "PM 2.5"):
+		return model.PollutantPM25, upperUnit, 1.0
+	case strings.Contains(upper, "PM10") || strings.Contains(upper, "PM 10"):
+		return model.PollutantPM10, upperUnit, 1.0
+	case strings.Contains(upper, "SO2") || strings.Contains(upper, "SULFUR"):
+		return model.PollutantSO2, upperUnit, 1.0
+	case strings.Contains(upper, "CO") && !strings.Contains(upper, "CO2") && !strings.Contains(upper, "COND"):
+		return model.PollutantCO, upperUnit, 1.0
+	case strings.Contains(upper, "O3") || strings.Contains(upper, "OZONE") || strings.Contains(upper, "OZON"):
+		return model.PollutantO3, upperUnit, 1.0
+	case strings.Contains(upper, "NO2") || strings.Contains(upper, "NITROGEN"):
+		return model.PollutantNO2, upperUnit, 1.0
+	case strings.Contains(upper, "HC") || strings.Contains(upper, "HYDROCARBON") || strings.Contains(upper, "HIDROKARBON"):
+		return model.PollutantHC, upperUnit, 1.0
+	default:
+		return "", "", 1.0
+	}
+}
+

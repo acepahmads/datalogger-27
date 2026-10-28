@@ -549,32 +549,18 @@
                 </button>
               </div>
 
-              <!-- Active Station / Device Selector Row -->
-              <div v-if="devicesList && devicesList.length > 0" class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5 space-y-1.5 font-mono">
+              <!-- Unified Station Scope Row -->
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5 space-y-1 font-mono">
                 <div class="flex items-center justify-between text-[11px]">
                   <span class="font-bold text-slate-900 dark:text-white">
-                    {{ $t('operator.ispuStation') || 'Target Station / Device' }}
+                    Lingkup Kalkulasi ISPU
                   </span>
                   <span class="text-4xs text-cyan-600 dark:text-cyan-400 font-bold">
-                    {{ devicesList.length }} {{ $t('operator.devicesAvailable') || 'Devices' }}
+                    UNIFIED
                   </span>
                 </div>
-                <select
-                  :value="selectedIspuDeviceId || ((devicesList[0] && devicesList[0].id) || 1)"
-                  @change="handleIspuDeviceChange(Number($event.target.value))"
-                  class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-[#244356] bg-white dark:bg-[#070D18] text-slate-800 dark:text-cyan-300 text-3xs font-bold focus:outline-hidden cursor-pointer"
-                >
-                  <option
-                    v-for="d in devicesList"
-                    :key="d.id"
-                    :value="d.id"
-                    class="bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
-                  >
-                    {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
-                  </option>
-                </select>
                 <div class="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
-                  {{ $t('operator.ispuDeviceSelectDesc') || 'Pilih stasiun AQMS yang datanya dihitung menjadi nilai ISPU resmi.' }}
+                  Menggabungkan seluruh parameter resmi yang aktif dari semua device yang aktif di stasiun ini.
                 </div>
               </div>
 
@@ -1849,7 +1835,7 @@
         <!-- ISPU SCADA Indicator Bar (Permen LHK No. 14 Tahun 2020) - Placed directly above parameter panel -->
         <ISPUIndicatorBar
           v-if="isAQMSDomain && isIspuBarVisible"
-          :device-id="selectedIspuDeviceId || ((devicesList[0] && devicesList[0].id) || 1)"
+          :device-id="0"
           :devices-list="devicesList"
           :is-dark="isDark"
           :is-aqms-domain="isAQMSDomain"

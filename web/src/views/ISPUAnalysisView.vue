@@ -30,23 +30,10 @@
 
       <!-- Station Selector & Top Controls -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Station Dropdown -->
+        <!-- Unified Station Badge -->
         <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
-          <span class="text-slate-500">Station:</span>
-          <select
-            v-model="selectedDeviceId"
-            @change="handleDeviceChange"
-            class="bg-transparent font-bold text-slate-800 dark:text-white focus:outline-hidden cursor-pointer"
-          >
-            <option
-              v-for="d in devicesList"
-              :key="d.id"
-              :value="d.id"
-              class="bg-white dark:bg-slate-900 text-slate-800 dark:text-white"
-            >
-              {{ d.device_code }} - {{ d.device_name }}
-            </option>
-          </select>
+          <span class="text-slate-500">Stasiun:</span>
+          <span class="font-bold text-cyan-600 dark:text-cyan-400">AQMS Station (Semua Device Aktif)</span>
         </div>
 
         <!-- Mode Toggle: 24-Hour (Regulatory) vs Per Agregasi (Real-time Interval) -->
@@ -923,7 +910,10 @@
               </tr>
               <tr v-for="m in stationMappings" :key="m.id">
                 <td class="p-2 font-bold text-cyan-400">{{ m.pollutant_code }}</td>
-                <td class="p-2">{{ m.parameter?.parameter_name || m.parameter?.parameter_code || m.parameter_id }}</td>
+                <td class="p-2">
+                  <span v-if="m.device" class="text-slate-400 font-normal">[{{ m.device.device_code }}] </span>
+                  {{ m.parameter?.parameter_name || m.parameter?.parameter_code || m.parameter_id }}
+                </td>
                 <td class="p-2">{{ m.source_unit }}</td>
                 <td class="p-2">{{ m.conversion_factor }}</td>
                 <td class="p-2 text-cyan-400 font-bold font-mono">{{ formatStartHour(m.daily_start_hour) }}</td>
@@ -957,7 +947,7 @@
               <label class="block text-slate-400 mb-1">Datalogger Parameter</label>
               <select v-model="newMapping.parameter_id" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700">
                 <option v-for="p in stationParameters" :key="p.id" :value="p.id">
-                  {{ p.parameter_code }} - {{ p.parameter_name }} ({{ p.unit }})
+                  [{{ p.device_code || p.device?.device_code || 'DEV' }}] {{ p.parameter_code }} - {{ p.parameter_name }} ({{ p.unit }})
                 </option>
               </select>
             </div>
@@ -1194,10 +1184,10 @@ export default {
     await this.fetchDevices();
     if (this.$route.query.device_id) {
       this.selectedDeviceId = Number(this.$route.query.device_id);
+    } else {
+      this.selectedDeviceId = 0;
     }
-    if (this.selectedDeviceId) {
-      this.loadStationData();
-    }
+    this.loadStationData();
     window.addEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.addEventListener('aggregation-result-event', this.handleAggregationUpdated);
   },
@@ -1236,9 +1226,6 @@ export default {
         const raw = res.data?.data;
         const items = Array.isArray(raw?.items) ? raw.items : (Array.isArray(raw) ? raw : []);
         this.devicesList = items;
-        if (!this.selectedDeviceId && this.devicesList.length > 0) {
-          this.selectedDeviceId = this.devicesList[0].id;
-        }
       } catch (err) {
         console.error('Failed to load devices:', err);
       }
@@ -1248,7 +1235,6 @@ export default {
       this.loadStationData();
     },
     async loadStationData() {
-      if (!this.selectedDeviceId) return;
       await Promise.all([
         this.fetchLatestISPU(),
         this.fetchTrend(),
@@ -1258,7 +1244,8 @@ export default {
     async fetchLatestISPU() {
       try {
         const token = this.getAuthToken();
-        const res = await axios.get(`/api/ispu/latest?device_id=${this.selectedDeviceId}&mode=${this.ispuMode}`, {
+        const devParam = this.selectedDeviceId ? `device_id=${this.selectedDeviceId}&` : '';
+        const res = await axios.get(`/api/ispu/latest?${devParam}mode=${this.ispuMode}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data?.success && res.data?.data) {
@@ -1272,7 +1259,8 @@ export default {
       this.trendLoading = true;
       try {
         const token = this.getAuthToken();
-        const res = await axios.get(`/api/ispu/trend?device_id=${this.selectedDeviceId}&range=${this.trendRange}&mode=${this.ispuMode}`, {
+        const devParam = this.selectedDeviceId ? `device_id=${this.selectedDeviceId}&` : '';
+        const res = await axios.get(`/api/ispu/trend?${devParam}range=${this.trendRange}&mode=${this.ispuMode}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data?.success && res.data?.data) {
@@ -1293,7 +1281,8 @@ export default {
       this.historyPage = page;
       try {
         const token = this.getAuthToken();
-        let url = `/api/ispu/history?device_id=${this.selectedDeviceId}&page=${page}&limit=${this.historyLimit}&mode=${this.ispuMode}`;
+        const devParam = this.selectedDeviceId ? `device_id=${this.selectedDeviceId}&` : '';
+        let url = `/api/ispu/history?${devParam}page=${page}&limit=${this.historyLimit}&mode=${this.ispuMode}`;
         if (this.filterCategory) url += `&category=${this.filterCategory}`;
         if (this.filterStatus) url += `&status=${this.filterStatus}`;
         if (this.filterDominant) url += `&dominant_pollutant=${this.filterDominant}`;
@@ -1313,7 +1302,7 @@ export default {
     },
     handleISPUCalculated(event) {
       const data = event.detail;
-      if (data && data.device_id === this.selectedDeviceId) {
+      if (data && (!this.selectedDeviceId || data.device_id === 0 || data.device_id === this.selectedDeviceId)) {
         if (!data.calculation_mode || data.calculation_mode === this.ispuMode) {
           this.latestData = data;
           this.fetchTrend();
@@ -1322,24 +1311,21 @@ export default {
       }
     },
     handleAggregationUpdated(event) {
-      const data = event.detail;
-      if (data && data.device_id === this.selectedDeviceId) {
-        if (this.aggTimer) clearTimeout(this.aggTimer);
-        this.aggTimer = setTimeout(() => {
-          this.fetchLatestISPU();
-        }, 1000);
-      }
+      if (this.aggTimer) clearTimeout(this.aggTimer);
+      this.aggTimer = setTimeout(() => {
+        this.fetchLatestISPU();
+      }, 1000);
     },
     async triggerRecalculation() {
-      if (!this.selectedDeviceId || this.recalculating) return;
+      if (this.recalculating) return;
       this.recalculating = true;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         await Promise.all([
-          axios.post('/api/ispu/backfill', { device_id: this.selectedDeviceId, hours: 24 }, {
+          axios.post('/api/ispu/backfill', { device_id: this.selectedDeviceId || 0, hours: 24 }, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           }),
-          axios.post('/api/ispu/recalculate', { device_id: this.selectedDeviceId }, {
+          axios.post('/api/ispu/recalculate', { device_id: this.selectedDeviceId || 0 }, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           })
         ]);
@@ -1595,18 +1581,26 @@ export default {
       const endTime = toDtLocal(new Date(t + 30 * 60 * 1000));
 
       const paramId = this.getParamIdForPollutant(this.activeInspectPollutant);
+      const devId = this.getDeviceIdForPollutant(this.activeInspectPollutant) || this.selectedDeviceId || '';
       this.showDetailModal = false;
       this.$router.push({
         path: '/monitoring/analysis',
         query: {
           mode: 'AGGREGATED',
-          device_id: this.selectedDeviceId,
+          device_id: devId,
           parameter_id: paramId,
           preset: 'custom',
           start_time: startTime,
           end_time: endTime,
         },
       });
+    },
+    getDeviceIdForPollutant(code) {
+      const pr = (this.selectedRecord?.parameter_results || []).find((p) => p.pollutant_code === code);
+      if (pr && pr.parameter?.device_id) return pr.parameter.device_id;
+      const m = (this.stationMappings || []).find((x) => x.pollutant_code === code);
+      if (m && m.device_id) return m.device_id;
+      return '';
     },
     getParamIdForPollutant(code) {
       const pr = (this.selectedRecord?.parameter_results || []).find((p) => p.pollutant_code === code);
@@ -1627,18 +1621,41 @@ export default {
       this.showMappingsModal = true;
       try {
         const token = this.getAuthToken();
-        const [mapRes, paramRes] = await Promise.all([
-          axios.get(`/api/ispu/mappings?device_id=${this.selectedDeviceId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          }),
-          axios.get(`/api/devices/${this.selectedDeviceId}/parameters`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          })
-        ]);
+        const mapRes = await axios.get('/api/ispu/mappings', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         this.stationMappings = mapRes.data?.data || [];
-        this.stationParameters = paramRes.data?.data || [];
+
+        // Fetch all active devices and their active parameters
+        const devRes = await axios.get('/api/devices', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const devs = (devRes.data?.data?.items || devRes.data?.data || []).filter(d => d.enabled !== false);
+        const allParams = [];
+        for (const d of devs) {
+          try {
+            const pRes = await axios.get(`/api/devices/${d.id}/parameters`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
+            const pItems = (pRes.data?.data || []).filter(p => p.enabled !== false);
+            pItems.forEach(p => {
+              allParams.push({
+                ...p,
+                device_id: d.id,
+                device_code: d.device_code,
+                device_name: d.device_name
+              });
+            });
+          } catch (e) {
+            console.error('Failed to load parameters for device', d.id, e);
+          }
+        }
+        this.stationParameters = allParams;
         if (this.stationParameters.length > 0) {
-          this.newMapping.parameter_id = this.stationParameters[0].id;
+          const exists = this.stationParameters.some(p => p.id === this.newMapping.parameter_id);
+          if (!exists) {
+            this.newMapping.parameter_id = this.stationParameters[0].id;
+          }
         }
       } catch (err) {
         console.error('Failed to load mappings:', err);
@@ -1652,8 +1669,9 @@ export default {
       if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
       try {
         const token = this.getAuthToken();
+        const selectedParam = this.stationParameters.find(p => p.id === this.newMapping.parameter_id);
         await axios.post('/api/ispu/mappings', {
-          device_id: this.selectedDeviceId,
+          device_id: selectedParam?.device_id || 0,
           parameter_id: this.newMapping.parameter_id,
           pollutant_code: this.newMapping.pollutant_code,
           source_unit: this.newMapping.source_unit || 'µg/m³',
@@ -1673,7 +1691,7 @@ export default {
     async deleteMapping(id) {
       if (!confirm('Are you sure you want to remove this ISPU parameter mapping?')) return;
       try {
-        const token = localStorage.getItem('token');
+        const token = this.getAuthToken();
         await axios.delete(`/api/ispu/mappings/${id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -1684,8 +1702,9 @@ export default {
       }
     },
     exportData(type) {
-      const token = localStorage.getItem('token');
-      const url = `/api/ispu/export/${type}?device_id=${this.selectedDeviceId}&mode=${this.ispuMode}`;
+      const token = this.getAuthToken();
+      const devParam = this.selectedDeviceId ? `device_id=${this.selectedDeviceId}&` : '';
+      const url = `/api/ispu/export/${type}?${devParam}mode=${this.ispuMode}`;
       const a = document.createElement('a');
       a.href = url + (token ? `&token=${token}` : '');
       a.setAttribute('download', `ispu_${this.ispuMode.toLowerCase()}_export_${Date.now()}.${type === 'excel' ? 'csv' : 'csv'}`);

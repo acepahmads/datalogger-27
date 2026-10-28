@@ -163,6 +163,7 @@ func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event Aggr
 	}
 
 	s.EnqueueCalculation(event.DeviceID, event.PeriodEnd, "AGGREGATION_COMPLETED")
+	s.EnqueueCalculation(0, event.PeriodEnd, "AGGREGATION_COMPLETED")
 }
 
 // workerLoop coordinates job debouncing/coalescing and invokes calculation.
@@ -328,8 +329,19 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 // CalculateStationWindowWithReason performs a 24-hour regulatory ISPU evaluation with explicit reason and persists the result.
 func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, deviceID uint, targetEnd time.Time, reason string) (*model.ISPUCalculationResult, error) {
 	var dev model.Device
-	if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
-		return nil, fmt.Errorf("station/device %d not found: %w", deviceID, err)
+	if deviceID > 0 {
+		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
+			return nil, fmt.Errorf("station/device %d not found: %w", deviceID, err)
+		}
+	} else {
+		// Unified station: resolve timezone and parameters from active devices
+		if err := s.db.WithContext(ctx).Where("enabled = true AND status = 'ACTIVE'").First(&dev).Error; err != nil {
+			_ = s.db.WithContext(ctx).First(&dev)
+		}
+		if dev.DeviceCode == "" {
+			dev.DeviceCode = "AQMS"
+			dev.DeviceName = "Air Quality Monitoring Station"
+		}
 	}
 
 	tzName := dev.Timezone
@@ -341,14 +353,15 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		loc = time.FixedZone("WIB", 7*3600)
 	}
 
-	// 1. Determine active aggregation definitions and interval for this device
+	// 1. Determine active aggregation definitions and interval for this device/station
 	var intervalSec int = 120
 	aggFunction := "AVG"
 	var aggDefs []model.AggregationDefinition
-	if err := s.db.WithContext(ctx).
-		Where("device_id = ? AND enabled = ?", deviceID, true).
-		Order("interval_seconds ASC").
-		Find(&aggDefs).Error; err == nil && len(aggDefs) > 0 {
+	aggQuery := s.db.WithContext(ctx).Where("enabled = ?", true)
+	if deviceID > 0 {
+		aggQuery = aggQuery.Where("device_id = ?", deviceID)
+	}
+	if err := aggQuery.Order("interval_seconds ASC").Find(&aggDefs).Error; err == nil && len(aggDefs) > 0 {
 		intervalSec = aggDefs[0].IntervalSeconds
 		if aggDefs[0].Function != "" {
 			aggFunction = string(aggDefs[0].Function)
@@ -362,10 +375,11 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	refTime := targetEnd.In(loc)
 	if targetEnd.IsZero() {
 		var latestAgg model.AggregationResult
-		if err := s.db.WithContext(ctx).
-			Where("device_id = ?", deviceID).
-			Order("period_end DESC").
-			First(&latestAgg).Error; err == nil && !latestAgg.PeriodEnd.IsZero() {
+		aggQ := s.db.WithContext(ctx)
+		if deviceID > 0 {
+			aggQ = aggQ.Where("device_id = ?", deviceID)
+		}
+		if err := aggQ.Order("period_end DESC").First(&latestAgg).Error; err == nil && !latestAgg.PeriodEnd.IsZero() {
 			refTime = latestAgg.PeriodEnd.In(loc)
 		} else {
 			refTime = time.Now().In(loc)
@@ -381,8 +395,8 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		reason = "AGGREGATION_COMPLETED"
 	}
 
-	// Fetch active parameter mappings for station
-	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, deviceID)
+	// Fetch active parameter mappings for station (cross-device if deviceID == 0)
+	mappings, err := s.GetMappings(ctx, deviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch parameter mappings: %w", err)
 	}
@@ -1148,8 +1162,12 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	}
 
 	var dev model.Device
-	if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
-		return 0, fmt.Errorf("station/device %d not found: %w", deviceID, err)
+	if deviceID > 0 {
+		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
+			return 0, fmt.Errorf("station/device %d not found: %w", deviceID, err)
+		}
+	} else {
+		_ = s.db.WithContext(ctx).Where("enabled = ?", true).First(&dev).Error
 	}
 
 	tzName := dev.Timezone
@@ -1198,7 +1216,11 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	// 4. Clean up any unaligned historical ISPU records (e.g. odd minutes when interval is 2m even)
 	// and any sub-hourly unaligned REGULATORY records (where minute != 0 and trigger_reason = 'AGGREGATION_COMPLETED')
 	var allRes []model.ISPUCalculationResult
-	if err := s.db.WithContext(ctx).Where("device_id = ?", deviceID).Select("id, calculation_mode, period_end, trigger_reason").Find(&allRes).Error; err == nil {
+	allQuery := s.db.WithContext(ctx)
+	if deviceID > 0 {
+		allQuery = allQuery.Where("device_id = ?", deviceID)
+	}
+	if err := allQuery.Select("id, calculation_mode, period_end, trigger_reason").Find(&allRes).Error; err == nil {
 		var idsToDelete []uint
 		for _, r := range allRes {
 			aligned := s.AlignToAggregationInterval(r.PeriodEnd, intervalSec, loc)
@@ -1645,9 +1667,60 @@ func (s *ISPUService) ExportExcel(ctx context.Context, filter repository.ISPUHis
 	return excelData, nil
 }
 
-// GetMappings retrieves station parameter mappings.
+// GetMappings retrieves station parameter mappings with auto-detection of missing pollutants from all enabled devices.
 func (s *ISPUService) GetMappings(ctx context.Context, deviceID uint) ([]model.ISPUParameterMapping, error) {
-	return s.ispuRepo.GetMappingsByDeviceID(ctx, deviceID)
+	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, deviceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Auto-detect missing official pollutants from all enabled devices
+	mappedPollutants := make(map[model.ISPUParameter]bool)
+	for _, m := range mappings {
+		mappedPollutants[m.PollutantCode] = true
+	}
+
+	var allParams []model.Parameter
+	pQuery := s.db.WithContext(ctx).
+		Preload("Device").
+		Where("enabled = true AND device_id IN (SELECT id FROM devices WHERE enabled = true AND status = 'ACTIVE')")
+	if deviceID > 0 {
+		pQuery = pQuery.Where("device_id = ?", deviceID)
+	}
+	if err := pQuery.Find(&allParams).Error; err == nil {
+		for _, p := range allParams {
+			pollutant, unit, conv := DetectOfficialPollutant(p.ParameterCode, p.ParameterName, p.Unit)
+			if pollutant == "" || mappedPollutants[pollutant] {
+				continue
+			}
+
+			// Automatically create mapping for detected pollutant
+			autoMapping := model.ISPUParameterMapping{
+				DeviceID:         p.DeviceID,
+				ParameterID:      p.ID,
+				PollutantCode:    pollutant,
+				SourceUnit:       unit,
+				NormalizedUnit:   "µg/m³",
+				ConversionFactor: conv,
+				ConversionRule:   "DIRECT",
+				MinCompleteness:  75.0,
+				DailyStartHour:   0,
+				Enabled:          true,
+			}
+			if err := s.db.WithContext(ctx).Create(&autoMapping).Error; err == nil {
+				paramCopy := p
+				autoMapping.Parameter = &paramCopy
+				var dev model.Device
+				if s.db.WithContext(ctx).First(&dev, p.DeviceID).Error == nil {
+					autoMapping.Device = &dev
+				}
+				mappings = append(mappings, autoMapping)
+				mappedPollutants[pollutant] = true
+			}
+		}
+	}
+
+	return mappings, nil
 }
 
 // SaveMapping creates or updates an ISPU parameter mapping with audit logging.
@@ -1655,6 +1728,23 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 	action := "ISPU_MAPPING_CREATE"
 	if mapping.ID > 0 {
 		action = "ISPU_MAPPING_UPDATE"
+	}
+
+	// Resolve DeviceID from ParameterID if missing
+	if mapping.DeviceID == 0 && mapping.ParameterID > 0 {
+		var param model.Parameter
+		if err := s.db.WithContext(ctx).First(&param, mapping.ParameterID).Error; err == nil {
+			mapping.DeviceID = param.DeviceID
+		}
+	}
+
+	// Single global mapping per pollutant: if an existing mapping for this pollutant exists, update it
+	if mapping.ID == 0 {
+		var existing model.ISPUParameterMapping
+		if err := s.db.WithContext(ctx).Where("pollutant_code = ?", mapping.PollutantCode).First(&existing).Error; err == nil {
+			mapping.ID = existing.ID
+			action = "ISPU_MAPPING_UPDATE"
+		}
 	}
 
 	if err := s.ispuRepo.SaveMapping(ctx, mapping); err != nil {

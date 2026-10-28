@@ -26,15 +26,11 @@ func NewISPUHandler(ispuService *service.ISPUService) *ISPUHandler {
 
 // GetLatest returns the latest ISPU calculation summary and parameter breakdown for a station.
 func (h *ISPUHandler) GetLatest(c *gin.Context) {
-	deviceIDStr := c.Query("device_id")
-	if deviceIDStr == "" {
-		response.BadRequest(c, "device_id is required")
-		return
-	}
-	deviceID, err := strconv.ParseUint(deviceIDStr, 10, 32)
-	if err != nil {
-		response.BadRequest(c, "invalid device_id")
-		return
+	var deviceID uint
+	if deviceIDStr := c.Query("device_id"); deviceIDStr != "" {
+		if id, err := strconv.ParseUint(deviceIDStr, 10, 32); err == nil {
+			deviceID = uint(id)
+		}
 	}
 
 	mode := c.DefaultQuery("mode", "REGULATORY")
@@ -49,15 +45,11 @@ func (h *ISPUHandler) GetLatest(c *gin.Context) {
 
 // GetTrend returns historical calculation results for time-series charts.
 func (h *ISPUHandler) GetTrend(c *gin.Context) {
-	deviceIDStr := c.Query("device_id")
-	if deviceIDStr == "" {
-		response.BadRequest(c, "device_id is required")
-		return
-	}
-	deviceID, err := strconv.ParseUint(deviceIDStr, 10, 32)
-	if err != nil {
-		response.BadRequest(c, "invalid device_id")
-		return
+	var deviceID uint
+	if deviceIDStr := c.Query("device_id"); deviceIDStr != "" {
+		if id, err := strconv.ParseUint(deviceIDStr, 10, 32); err == nil {
+			deviceID = uint(id)
+		}
 	}
 
 	rangeStr := c.DefaultQuery("range", "24h")
@@ -169,12 +161,12 @@ func (h *ISPUHandler) GetAuditTracking(c *gin.Context) {
 // Recalculate triggers on-demand recalculation for a station and time window.
 func (h *ISPUHandler) Recalculate(c *gin.Context) {
 	var req struct {
-		DeviceID   uint   `json:"device_id" binding:"required"`
+		DeviceID   uint   `json:"device_id"`
 		TargetTime string `json:"target_time"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "device_id is required")
+		response.BadRequest(c, "invalid recalculate payload: "+err.Error())
 		return
 	}
 
@@ -201,18 +193,14 @@ func (h *ISPUHandler) Recalculate(c *gin.Context) {
 
 // GetMappings lists station parameter mappings.
 func (h *ISPUHandler) GetMappings(c *gin.Context) {
-	deviceIDStr := c.Query("device_id")
-	if deviceIDStr == "" {
-		response.BadRequest(c, "device_id is required")
-		return
-	}
-	deviceID, err := strconv.ParseUint(deviceIDStr, 10, 32)
-	if err != nil {
-		response.BadRequest(c, "invalid device_id")
-		return
+	var deviceID uint
+	if deviceIDStr := c.Query("device_id"); deviceIDStr != "" {
+		if id, err := strconv.ParseUint(deviceIDStr, 10, 32); err == nil {
+			deviceID = uint(id)
+		}
 	}
 
-	mappings, err := h.ispuService.GetMappings(c.Request.Context(), uint(deviceID))
+	mappings, err := h.ispuService.GetMappings(c.Request.Context(), deviceID)
 	if err != nil {
 		response.InternalError(c, "failed to get mappings: "+err.Error())
 		return
@@ -229,8 +217,8 @@ func (h *ISPUHandler) SaveMapping(c *gin.Context) {
 		return
 	}
 
-	if mapping.DeviceID == 0 || mapping.ParameterID == 0 || mapping.PollutantCode == "" {
-		response.BadRequest(c, "device_id, parameter_id, and pollutant_code are required")
+	if mapping.ParameterID == 0 || mapping.PollutantCode == "" {
+		response.BadRequest(c, "parameter_id and pollutant_code are required")
 		return
 	}
 
@@ -329,10 +317,6 @@ func (h *ISPUHandler) Backfill(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request: "+err.Error())
-		return
-	}
-	if req.DeviceID == 0 {
-		response.BadRequest(c, "device_id is required")
 		return
 	}
 	if req.Hours <= 0 {

@@ -81,17 +81,23 @@ func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint,
 	query := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("ParameterResults").
-		Preload("ParameterResults.Parameter").
-		Where("device_id = ?", deviceID)
+		Preload("ParameterResults.Parameter")
+	if deviceID > 0 {
+		query = query.Where("device_id = ?", deviceID)
+	}
 	if mode != "" && mode != "ALL" {
 		if mode == string(model.CalculationModeRegulatory) {
 			// First attempt to query strictly cadence-aligned hourly regulatory checkpoint
 			var hourlyRes model.ISPUCalculationResult
-			err := r.db.WithContext(ctx).
+			hourlyQuery := r.db.WithContext(ctx).
 				Preload("Device").
 				Preload("ParameterResults").
 				Preload("ParameterResults.Parameter").
-				Where("device_id = ? AND calculation_mode = ? AND MINUTE(period_end) = 0 AND SECOND(period_end) = 0", deviceID, mode).
+				Where("calculation_mode = ? AND MINUTE(period_end) = 0 AND SECOND(period_end) = 0", mode)
+			if deviceID > 0 {
+				hourlyQuery = hourlyQuery.Where("device_id = ?", deviceID)
+			}
+			err := hourlyQuery.
 				Order("period_end DESC, calculated_at DESC").
 				First(&hourlyRes).Error
 			if err == nil {
@@ -186,7 +192,10 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime, endTime time.Time, mode string) ([]model.ISPUCalculationResult, error) {
 	var results []model.ISPUCalculationResult
 	query := r.db.WithContext(ctx).
-		Where("device_id = ? AND period_end >= ? AND period_end <= ?", deviceID, startTime.UTC(), endTime.UTC())
+		Where("period_end >= ? AND period_end <= ?", startTime.UTC(), endTime.UTC())
+	if deviceID > 0 {
+		query = query.Where("device_id = ?", deviceID)
+	}
 	if mode != "" && mode != "ALL" {
 		query = query.Where("calculation_mode = ?", mode)
 	}
@@ -217,13 +226,16 @@ func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime,
 }
 
 
-// GetMappingsByDeviceID retrieves configured ISPU parameter mappings for a device.
+// GetMappingsByDeviceID retrieves configured ISPU parameter mappings for a device (or all devices if deviceID == 0).
 func (r *ISPURepository) GetMappingsByDeviceID(ctx context.Context, deviceID uint) ([]model.ISPUParameterMapping, error) {
 	var mappings []model.ISPUParameterMapping
-	err := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Preload("Parameter").
-		Where("device_id = ?", deviceID).
-		Find(&mappings).Error
+		Preload("Device")
+	if deviceID > 0 {
+		query = query.Where("device_id = ?", deviceID)
+	}
+	err := query.Find(&mappings).Error
 	return mappings, err
 }
 

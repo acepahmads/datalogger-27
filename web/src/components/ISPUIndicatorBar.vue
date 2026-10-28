@@ -155,29 +155,6 @@
 
       <!-- Right: Action Controls -->
       <div class="flex items-center space-x-1.5 flex-shrink-0">
-        <!-- Station / Device Selector -->
-        <div
-          v-if="availableDevices && availableDevices.length > 0"
-          class="flex items-center space-x-1 bg-slate-100 dark:bg-[#081522] px-2 py-0.5 rounded-lg border border-slate-300 dark:border-[#244356] text-3xs font-mono flex-shrink-0"
-          title="Pilih Stasiun / Device untuk kalkulasi ISPU"
-        >
-          <span class="text-slate-500 font-semibold hidden md:inline">Station:</span>
-          <select
-            :value="effectiveDeviceId"
-            @change="handleDeviceChange(Number($event.target.value))"
-            class="bg-transparent font-bold text-slate-800 dark:text-cyan-300 focus:outline-hidden cursor-pointer text-3xs py-0.5"
-          >
-            <option
-              v-for="d in availableDevices"
-              :key="d.id"
-              :value="d.id"
-              class="bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
-            >
-              {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
-            </option>
-          </select>
-        </div>
-
         <!-- Setup Mappings Button -->
         <button
           @click="openMappingsModal"
@@ -352,24 +329,6 @@
             </div>
           </div>
           <div class="flex items-center space-x-2 flex-shrink-0">
-            <!-- Station Dropdown inside Modal -->
-            <div v-if="availableDevices && availableDevices.length > 0" class="flex items-center space-x-1.5 bg-slate-100 dark:bg-[#061321] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-[#244356] text-3xs font-mono">
-              <span class="text-slate-500 font-semibold">Station:</span>
-              <select
-                :value="effectiveDeviceId"
-                @change="handleDeviceChange(Number($event.target.value))"
-                class="bg-transparent font-bold text-cyan-600 dark:text-cyan-300 focus:outline-hidden cursor-pointer text-3xs"
-              >
-                <option
-                  v-for="d in availableDevices"
-                  :key="d.id"
-                  :value="d.id"
-                  class="bg-white dark:bg-[#0B1422] text-slate-900 dark:text-white"
-                >
-                  {{ d.device_code || d.code }} - {{ d.device_name || d.name }}
-                </option>
-              </select>
-            </div>
             <button
               @click="showMappingsModal = false"
               class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none cursor-pointer"
@@ -385,11 +344,8 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Active Mappings for this Station
+                Active ISPU Parameter Mappings (All Active Devices)
               </h4>
-              <span v-if="currentDeviceName" class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-                {{ currentDeviceName }}
-              </span>
             </div>
             <div class="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <table class="w-full text-left text-3xs font-mono">
@@ -410,6 +366,7 @@
                       {{ m.pollutant_code }}
                     </td>
                     <td class="p-2 text-cyan-600 dark:text-cyan-400">
+                      <span v-if="m.device" class="font-bold text-slate-500 dark:text-slate-400 mr-1">[{{ m.device.device_code || m.device.name }}]</span>
                       {{ m.parameter ? (m.parameter.name || m.parameter.parameter_name) : `ID ${m.parameter_id}` }}
                     </td>
                     <td class="p-2 text-slate-500 dark:text-slate-400">{{ m.source_unit }}</td>
@@ -469,7 +426,7 @@
                     -- Tidak ada sensor channel ditemukan --
                   </option>
                   <option v-for="sp in stationParameters" :key="sp.id" :value="sp.id">
-                    {{ sp.name || sp.parameter_name }} ({{ sp.parameter_code || sp.code }})
+                    {{ sp.displayName || (sp.name || sp.parameter_name) }}
                   </option>
                 </select>
               </div>
@@ -622,10 +579,7 @@ export default {
     effectiveDeviceId() {
       if (this.selectedDeviceId) return Number(this.selectedDeviceId);
       if (this.deviceId) return Number(this.deviceId);
-      if (this.availableDevices.length > 0 && this.availableDevices[0].id) {
-        return Number(this.availableDevices[0].id);
-      }
-      return 1;
+      return 0;
     },
     currentDeviceName() {
       const dev = this.availableDevices.find(d => Number(d.id) === Number(this.effectiveDeviceId));
@@ -902,7 +856,7 @@ export default {
     },
     handleISPUCalculated(event) {
       const data = event.detail;
-      if (data && Number(data.device_id) === Number(this.effectiveDeviceId)) {
+      if (data && (!this.effectiveDeviceId || Number(data.device_id) === Number(this.effectiveDeviceId) || Number(data.device_id) === 0)) {
         this.ispuData = data;
         if (this.showTrend) {
           this.fetchTrend();
@@ -911,7 +865,7 @@ export default {
     },
     handleAggregationUpdated(event) {
       const data = event.detail;
-      if (data && Number(data.device_id) === Number(this.effectiveDeviceId)) {
+      if (data && (!this.effectiveDeviceId || Number(data.device_id) === Number(this.effectiveDeviceId) || Number(data.device_id) === 0)) {
         // Debounced latest fetch
         if (this.aggTimeout) clearTimeout(this.aggTimeout);
         this.aggTimeout = setTimeout(() => {
@@ -1052,11 +1006,11 @@ export default {
       }
     },
     async fetchLatestISPU() {
-      if (!this.effectiveDeviceId) return;
       this.loading = true;
       try {
         const token = this.getAuthToken();
-        const res = await axios.get(`/api/ispu/latest?device_id=${this.effectiveDeviceId}`, {
+        const url = this.effectiveDeviceId ? `/api/ispu/latest?device_id=${this.effectiveDeviceId}` : '/api/ispu/latest';
+        const res = await axios.get(url, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data && res.data.success && res.data.data) {
@@ -1071,11 +1025,13 @@ export default {
       }
     },
     async fetchTrend() {
-      if (!this.effectiveDeviceId) return;
       this.trendLoading = true;
       try {
         const token = this.getAuthToken();
-        const res = await axios.get(`/api/ispu/trend?device_id=${this.effectiveDeviceId}&range=${this.trendRange}`, {
+        const url = this.effectiveDeviceId
+          ? `/api/ispu/trend?device_id=${this.effectiveDeviceId}&range=${this.trendRange}`
+          : `/api/ispu/trend?range=${this.trendRange}`;
+        const res = await axios.get(url, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (res.data && res.data.success && res.data.data) {
@@ -1120,23 +1076,39 @@ export default {
     },
     async openMappingsModal() {
       this.showMappingsModal = true;
-      await this.loadMappingsForDevice(this.effectiveDeviceId);
+      await this.loadAllMappings();
     },
-    async loadMappingsForDevice(devId) {
-      const targetId = devId || this.effectiveDeviceId;
-      if (!targetId) return;
+    async loadAllMappings() {
       try {
         const token = this.getAuthToken();
-        const [mapRes, paramRes] = await Promise.all([
-          axios.get(`/api/ispu/mappings?device_id=${targetId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          }),
-          axios.get(`/api/devices/${targetId}/parameters`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          })
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const [mapRes, devRes] = await Promise.all([
+          axios.get('/api/ispu/mappings', { headers }),
+          axios.get('/api/devices', { headers, params: { page_size: 100 } })
         ]);
         this.stationMappings = mapRes.data?.data || [];
-        this.stationParameters = paramRes.data?.data?.items || paramRes.data?.data || [];
+        const devices = devRes.data?.data?.items || devRes.data?.data || [];
+        const activeDevs = devices.filter(d => d.enabled !== false && d.status === 'ACTIVE');
+
+        const allParams = [];
+        await Promise.all(activeDevs.map(async (d) => {
+          try {
+            const pRes = await axios.get(`/api/devices/${d.id}/parameters`, { headers });
+            const pList = pRes.data?.data?.items || pRes.data?.data || [];
+            pList.forEach(p => {
+              if (p.enabled !== false) {
+                allParams.push({
+                  ...p,
+                  deviceId: d.id,
+                  deviceCode: d.device_code || d.code,
+                  deviceName: d.device_name || d.name,
+                  displayName: `[${d.device_code || d.code}] ${p.parameter_name || p.name} (${p.parameter_code || p.code})`
+                });
+              }
+            });
+          } catch (e) {}
+        }));
+        this.stationParameters = allParams;
         if (this.stationParameters.length > 0) {
           if (!this.newMapping.parameter_id || !this.stationParameters.some(p => p.id === this.newMapping.parameter_id)) {
             this.newMapping.parameter_id = this.stationParameters[0].id;
@@ -1145,7 +1117,7 @@ export default {
           this.newMapping.parameter_id = null;
         }
       } catch (err) {
-        console.error('Failed to load mappings for device:', targetId, err);
+        console.error('Failed to load ISPU mappings:', err);
       }
     },
     selectDisplayParameter(code) {
@@ -1155,7 +1127,7 @@ export default {
         this.selectedDisplayParam = code;
       }
       try {
-        localStorage.setItem(`scada_ispu_selected_param_${this.effectiveDeviceId}`, this.selectedDisplayParam);
+        localStorage.setItem(`scada_ispu_selected_param`, this.selectedDisplayParam);
       } catch (e) {}
     },
     formatStartHour(h) {
@@ -1164,10 +1136,12 @@ export default {
     },
     async saveMapping() {
       if (!this.newMapping.parameter_id || !this.newMapping.pollutant_code) return;
+      const selectedParam = this.stationParameters.find(p => p.id === this.newMapping.parameter_id);
+      const devId = selectedParam ? selectedParam.deviceId : 0;
       try {
         const token = this.getAuthToken();
         await axios.post('/api/ispu/mappings', {
-          device_id: this.effectiveDeviceId,
+          device_id: devId,
           parameter_id: this.newMapping.parameter_id,
           pollutant_code: this.newMapping.pollutant_code,
           source_unit: this.newMapping.source_unit || 'µg/m³',
@@ -1178,23 +1152,23 @@ export default {
         }, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        await this.loadMappingsForDevice(this.effectiveDeviceId);
-        this.triggerRecalculation();
+        await this.loadAllMappings();
+        await this.fetchLatestISPU();
       } catch (err) {
-        alert('Failed to save mapping: ' + (err.response?.data?.error || err.message));
+        console.error('Failed to save mapping:', err);
       }
     },
     async deleteMapping(id) {
-      if (!confirm('Are you sure you want to remove this ISPU parameter mapping?')) return;
+      if (!confirm('Remove this pollutant parameter mapping?')) return;
       try {
         const token = this.getAuthToken();
         await axios.delete(`/api/ispu/mappings/${id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
-        await this.loadMappingsForDevice(this.effectiveDeviceId);
-        this.triggerRecalculation();
+        await this.loadAllMappings();
+        await this.fetchLatestISPU();
       } catch (err) {
-        alert('Failed to delete mapping: ' + (err.response?.data?.error || err.message));
+        console.error('Failed to delete mapping:', err);
       }
     }
   }
