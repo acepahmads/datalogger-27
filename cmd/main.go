@@ -298,6 +298,8 @@ func main() {
 		api.GET("/system/status", systemHandler.GetStatus)
 		api.GET("/system/health", systemHandler.GetHealth)
 		api.GET("/system/network", systemHandler.GetNetworkStatus)
+		api.GET("/system/storage/usb", systemHandler.GetRemovableStorage)
+		api.POST("/system/storage/usb/export", systemHandler.SaveToRemovableStorage)
 		api.GET("/system/serial-ports", systemHandler.GetSerialPorts)
 		api.GET("/system/serial-ports/details", systemHandler.GetDetailedSerialPorts)
 		api.GET("/devices/serial-ports", systemHandler.GetSerialPorts)

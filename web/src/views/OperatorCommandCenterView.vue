@@ -3983,12 +3983,64 @@
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
           <button
-            @click="executeTelemetryExport"
+            @click="initiateExportWithUsbCheck"
             :disabled="isExporting"
             class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center space-x-1.5"
           >
             <span v-if="isExporting" class="animate-spin w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full"></span>
             <span>{{ isExporting ? 'Generating...' : ($t('operator.downloadExport') || 'Download Export') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: USB FLASHDISK NOT DETECTED NOTIFICATION -->
+    <div
+      v-if="showUsbWarningModal"
+      class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 dark:bg-slate-950/85 backdrop-blur-sm animate-fade-in"
+    >
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-amber-500/40 p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+        <div class="flex items-center space-x-3 border-b border-slate-200 dark:border-[#20354B] pb-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
+            🔌
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
+              Tidak Ada USB Drive Terdeteksi
+            </h3>
+            <p class="text-3xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">
+              Peringatan Penyimpanan Eksternal
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 text-amber-800 dark:text-amber-300 text-xs font-sans leading-relaxed">
+          Sistem tidak mendeteksi adanya USB flashdisk yang terpasang pada port perangkat datalogger.
+          <p class="mt-2 font-semibold text-slate-800 dark:text-slate-200">
+            Apakah Anda ingin tetap melanjutkan ekspor data dan menyimpannya di drive lokal (Local Drive)?
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
+          <button
+            @click="showUsbWarningModal = false"
+            class="w-full sm:w-auto px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          >
+            Batal (Pasang Flashdisk)
+          </button>
+          <button
+            @click="retryUsbDetection"
+            :disabled="isRetryingUsb"
+            class="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold flex items-center justify-center space-x-1"
+          >
+            <span v-if="isRetryingUsb" class="animate-spin w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full mr-1"></span>
+            <span>🔄 Cek Ulang USB</span>
+          </button>
+          <button
+            @click="proceedExportToLocalDrive"
+            class="w-full sm:w-auto px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center space-x-1"
+          >
+            <span>💾 Lanjut ke Local Drive</span>
           </button>
         </div>
       </div>
@@ -5416,6 +5468,11 @@ export default {
       exportSettingsFeedback: '',
       isExporting: false,
       exportStatusMessage: '',
+      showUsbWarningModal: false,
+      isCheckingUsb: false,
+      isRetryingUsb: false,
+      detectedUsbDrives: [],
+      targetExportLocation: 'usb',
 
       showReportModal: false,
       reportForm: {
@@ -11141,6 +11198,118 @@ export default {
     isParamExportSelected(id) {
       return this.exportForm.selectedParamIds.some(x => Number(x) === Number(id));
     },
+    async initiateExportWithUsbCheck() {
+      this.isExporting = true;
+      this.exportStatusMessage = 'Memeriksa perangkat USB Flashdisk...';
+      try {
+        const res = await axios.get('/api/system/storage/usb');
+        const data = res.data?.data || {};
+        if (data.detected && data.drives && data.drives.length > 0) {
+          this.detectedUsbDrives = data.drives;
+          this.targetExportLocation = 'usb';
+          const driveLabel = data.drives[0].volume_name || data.drives[0].device || 'Flashdisk';
+          this.exportStatusMessage = `✓ Flashdisk terdeteksi (${driveLabel}). Memulai pengunduhan data...`;
+          await this.executeTelemetryExport();
+        } else {
+          this.detectedUsbDrives = [];
+          this.isExporting = false;
+          this.exportStatusMessage = '';
+          this.showUsbWarningModal = true;
+        }
+      } catch (err) {
+        this.detectedUsbDrives = [];
+        this.isExporting = false;
+        this.exportStatusMessage = '';
+        this.showUsbWarningModal = true;
+      }
+    },
+    async retryUsbDetection() {
+      this.isRetryingUsb = true;
+      try {
+        const res = await axios.get('/api/system/storage/usb');
+        const data = res.data?.data || {};
+        if (data.detected && data.drives && data.drives.length > 0) {
+          this.detectedUsbDrives = data.drives;
+          this.targetExportLocation = 'usb';
+          this.showUsbWarningModal = false;
+          const driveLabel = data.drives[0].volume_name || data.drives[0].device || 'Flashdisk';
+          this.exportStatusMessage = `✓ Flashdisk terdeteksi (${driveLabel}). Memulai pengunduhan data...`;
+          await this.executeTelemetryExport();
+        } else {
+          alert('Belum ada USB Flashdisk yang terdeteksi. Silakan pasang USB flashdisk pada port perangkat datalogger lalu klik Cek Ulang.');
+        }
+      } catch (e) {
+        alert('Pemeriksaan port USB gagal: ' + (e.message || 'Network error'));
+      } finally {
+        this.isRetryingUsb = false;
+      }
+    },
+    proceedExportToLocalDrive() {
+      this.showUsbWarningModal = false;
+      this.targetExportLocation = 'local';
+      this.executeTelemetryExport();
+    },
+    async finalizeExportDownload(blob, filename, mimeType, description) {
+      // 1. Direct edge copy if target is USB and a server-side USB drive is mounted
+      if (this.targetExportLocation === 'usb' && this.detectedUsbDrives && this.detectedUsbDrives.length > 0) {
+        const drive = this.detectedUsbDrives[0];
+        try {
+          const base64Content = await this.blobToBase64(blob);
+          await axios.post('/api/system/storage/usb/export', {
+            mount_point: drive.mount_point,
+            filename: filename,
+            content_base64: base64Content,
+          });
+        } catch (usbErr) {
+          console.warn('[Export] Could not write directly to edge USB mount:', usbErr);
+        }
+      }
+
+      // 2. Open native OS File Explorer (Save As dialog) via showSaveFilePicker if available
+      let pickerHandled = false;
+      if (window.showSaveFilePicker) {
+        try {
+          const ext = '.' + filename.split('.').pop();
+          const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: description || 'Export Data File',
+              accept: { [mimeType]: [ext] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          pickerHandled = true;
+          this.exportStatusMessage = `✓ Berkas berhasil disimpan ke ${this.targetExportLocation === 'usb' ? 'flashdisk' : 'lokasi pilihan'}.`;
+        } catch (pickerErr) {
+          if (pickerErr.name === 'AbortError') {
+            this.exportStatusMessage = 'Penyimpanan berkas dibatalkan oleh pengguna.';
+            return;
+          }
+          console.warn('showSaveFilePicker not supported/cancelled, falling back to download:', pickerErr);
+        }
+      }
+
+      // 3. Fallback to standard browser download
+      if (!pickerHandled) {
+        this.triggerDownloadBlob(blob, filename);
+        const destLabel = this.targetExportLocation === 'usb' ? 'flashdisk' : 'local drive';
+        this.exportStatusMessage = `✓ Berkas berhasil diekspor dan diunduh ke ${destLabel}.`;
+      }
+    },
+    blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result;
+          const base64 = typeof res === 'string' ? res.split(',')[1] : '';
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    },
     async executeTelemetryExport() {
       this.isExporting = true;
       this.exportStatusMessage = 'Menghubungi edge database...';
@@ -11288,7 +11457,8 @@ export default {
             quality_reason: (i.quality_reason && i.quality_reason !== 'NONE') ? i.quality_reason : null,
           }));
           const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
-          this.triggerDownloadBlob(blob, `telemetry_export_${timestampStr}.json`);
+          const filename = `telemetry_export_${timestampStr}.json`;
+          await this.finalizeExportDownload(blob, filename, 'application/json', 'JSON Records');
         } else if (this.exportForm.format === 'xlsx' || this.exportForm.format === 'xls') {
           this.exportStatusMessage = `Menghasilkan berkas Excel (${items.length} data)...`;
           const headers = ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
@@ -11315,7 +11485,8 @@ export default {
           XLSX.utils.book_append_sheet(wb, ws, 'Telemetry_Data');
           const xlsBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
           const blob = new Blob([xlsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          this.triggerDownloadBlob(blob, `telemetry_export_${timestampStr}.xlsx`);
+          const filename = `telemetry_export_${timestampStr}.xlsx`;
+          await this.finalizeExportDownload(blob, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Excel Spreadsheet');
         } else if (this.exportForm.format === 'pdf') {
           this.exportStatusMessage = `Menghasilkan dokumen PDF (${items.length} data)...`;
           const doc = new jsPDF({
@@ -11399,7 +11570,9 @@ export default {
             doc.text(`Halaman ${p} dari ${totalPages}`, 196, 290, { align: 'right' });
           }
 
-          doc.save(`telemetry_export_${timestampStr}.pdf`);
+          const filename = `telemetry_export_${timestampStr}.pdf`;
+          const pdfBlob = doc.output('blob');
+          await this.finalizeExportDownload(pdfBlob, filename, 'application/pdf', 'PDF Report');
         } else {
           // CSV Spreadsheet
           this.exportStatusMessage = `Menyiapkan berkas CSV (${items.length} data)...`;
@@ -11414,10 +11587,10 @@ export default {
           ]);
           const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-          this.triggerDownloadBlob(blob, `telemetry_export_${timestampStr}.csv`);
+          const filename = `telemetry_export_${timestampStr}.csv`;
+          await this.finalizeExportDownload(blob, filename, 'text/csv', 'CSV Spreadsheet');
         }
 
-        this.exportStatusMessage = `Ekspor berkas (${items.length} baris) berhasil diunduh.`;
         setTimeout(() => {
           this.showExportModal = false;
         }, 1500);

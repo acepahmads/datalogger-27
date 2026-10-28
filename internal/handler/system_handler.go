@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,6 +35,80 @@ func NewSystemHandler(systemService *service.SystemService) *SystemHandler {
 // SetOutboundService injects outbound integration service for network & delivery monitoring
 func (h *SystemHandler) SetOutboundService(outboundService service.OutboundService) {
 	h.outboundService = outboundService
+}
+
+// GetRemovableStorage reports detected removable USB drives / flash drives
+func (h *SystemHandler) GetRemovableStorage(c *gin.Context) {
+	status := sysinfo.GetRemovableDrives()
+	response.OK(c, status)
+}
+
+type SaveToUSBRequest struct {
+	MountPoint    string `json:"mount_point"`
+	Filename      string `json:"filename"`
+	ContentBase64 string `json:"content_base64"`
+}
+
+// SaveToRemovableStorage saves exported telemetry file directly to a detected USB mount point on edge system
+func (h *SystemHandler) SaveToRemovableStorage(c *gin.Context) {
+	var req SaveToUSBRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request payload: "+err.Error())
+		return
+	}
+
+	if req.Filename == "" || req.ContentBase64 == "" {
+		response.BadRequest(c, "Filename and content_base64 are required")
+		return
+	}
+
+	// Verify that mount point is an actual detected removable drive
+	status := sysinfo.GetRemovableDrives()
+	if !status.Detected || len(status.Drives) == 0 {
+		response.BadRequest(c, "No removable USB storage detected on edge hardware")
+		return
+	}
+
+	targetMount := status.Drives[0].MountPoint
+	if req.MountPoint != "" {
+		found := false
+		for _, d := range status.Drives {
+			if strings.EqualFold(d.MountPoint, req.MountPoint) || strings.EqualFold(d.Device, req.MountPoint) {
+				targetMount = d.MountPoint
+				found = true
+				break
+			}
+		}
+		if !found {
+			response.BadRequest(c, "Specified mount point is not a recognized removable drive")
+			return
+		}
+	}
+
+	// Sanitize filename to prevent directory traversal
+	cleanFilename := filepath.Base(req.Filename)
+	outDir := filepath.Join(targetMount, "telemetry_exports")
+	_ = os.MkdirAll(outDir, 0755)
+
+	outPath := filepath.Join(outDir, cleanFilename)
+	data, err := base64.StdEncoding.DecodeString(req.ContentBase64)
+	if err != nil {
+		response.BadRequest(c, "Invalid base64 content: "+err.Error())
+		return
+	}
+
+	if err := os.WriteFile(outPath, data, 0644); err != nil {
+		response.InternalError(c, "Failed to write file to USB drive: "+err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"saved":       true,
+		"file_path":   outPath,
+		"mount_point": targetMount,
+		"filename":    cleanFilename,
+		"bytes":       len(data),
+	})
 }
 
 // GetNetworkStatus reports local network interfaces, gateway connectivity, internet probe, and outbound links
