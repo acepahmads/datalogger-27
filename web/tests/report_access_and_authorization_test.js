@@ -105,6 +105,19 @@ it('Test 9: Backend opAllowed does not grant report.generate to OPERATOR', () =>
   assert(opSection.includes('"report.view":       true'), 'OPERATOR should still have report.view');
 });
 
+// Test 10: Device Monitoring, Telemetry Analysis, and System Health shortcut buttons have v-if="isNonOperator"
+it('Test 10: Device Monitoring, Telemetry Analysis, and System Health buttons have v-if="isNonOperator"', () => {
+  assert(occContent.includes('v-if="isNonOperator"\n          to="/monitoring/devices"'), 'Device Monitoring button must have v-if="isNonOperator"');
+  assert(occContent.includes('v-if="isNonOperator"\n          to="/monitoring/analysis"'), 'Telemetry Analysis button must have v-if="isNonOperator"');
+  assert(occContent.includes('v-if="isNonOperator"\n          to="/monitoring/system"'), 'System Health button must have v-if="isNonOperator"');
+});
+
+// Test 11: isNonOperator computed property defined
+it('Test 11: isNonOperator computed property defined to exclude OPERATOR', () => {
+  assert(occContent.includes('isNonOperator() {'), 'Missing isNonOperator computed property');
+  assert(occContent.includes("return role !== 'OPERATOR' && role !== '';"), 'isNonOperator logic mismatch');
+});
+
 console.log('===================================================================');
 console.log(`TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED (TOTAL: ${passedTests + failedTests})`);
 console.log('===================================================================');

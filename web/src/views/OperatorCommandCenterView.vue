@@ -3264,19 +3264,23 @@
 
       <!-- Right: Navigation Shortcuts & Audio State -->
       <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 text-[9.5px] font-mono leading-none">
+        <!-- Shortcut Buttons (Accessible by all roles EXCEPT Operator) -->
         <router-link
+          v-if="isNonOperator"
           to="/monitoring/devices"
           class="h-[22px] px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
         >
           {{ $t('operator.deviceMonitoring') || 'Devices' }}
         </router-link>
         <router-link
+          v-if="isNonOperator"
           to="/monitoring/analysis"
           class="h-[22px] px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
         >
           {{ $t('operator.telemetryAnalysis') || 'Analysis' }}
         </router-link>
         <router-link
+          v-if="isNonOperator"
           to="/monitoring/system"
           class="h-[22px] px-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#20354B] font-medium transition hidden lg:flex items-center"
         >
@@ -7356,11 +7360,14 @@ export default {
       return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN'].includes(this.userRole);
     },
     isOperator() {
-      return this.userRole === 'OPERATOR' || !this.isAdmin;
+      return this.userRole === 'OPERATOR';
     },
-    canAccessOperationalReport() {
+    isNonOperator() {
       const role = (this.userRole || '').toUpperCase();
       return role !== 'OPERATOR' && role !== '';
+    },
+    canAccessOperationalReport() {
+      return this.isNonOperator;
     },
     canAccessRawTrendMode() {
       if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
