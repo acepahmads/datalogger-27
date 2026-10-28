@@ -418,6 +418,14 @@ func (h *DeviceHandler) UpdateParameter(c *gin.Context) {
 	}
 
 	if h.pollingEngine != nil {
+		if req.Enabled != nil && !*req.Enabled {
+			if ae := h.pollingEngine.GetAlarmEvaluator(); ae != nil {
+				ae.ClearParameterAlarms(c.Request.Context(), uint(id), uint(paramID))
+			}
+			if ts := h.pollingEngine.GetTelemetryService(); ts != nil {
+				ts.ClearParameterCache(uint(paramID))
+			}
+		}
 		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
 			h.pollingEngine.StartDeviceWorker(dev)
 		}
@@ -448,6 +456,12 @@ func (h *DeviceHandler) DeleteParameter(c *gin.Context) {
 	}
 
 	if h.pollingEngine != nil {
+		if ae := h.pollingEngine.GetAlarmEvaluator(); ae != nil {
+			ae.ClearParameterAlarms(c.Request.Context(), uint(id), uint(paramID))
+		}
+		if ts := h.pollingEngine.GetTelemetryService(); ts != nil {
+			ts.ClearParameterCache(uint(paramID))
+		}
 		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
 			h.pollingEngine.StartDeviceWorker(dev)
 		}
@@ -486,6 +500,14 @@ func (h *DeviceHandler) ToggleParameterEnabled(c *gin.Context) {
 	}
 
 	if h.pollingEngine != nil {
+		if !req.Enabled {
+			if ae := h.pollingEngine.GetAlarmEvaluator(); ae != nil {
+				ae.ClearParameterAlarms(c.Request.Context(), uint(id), uint(paramID))
+			}
+			if ts := h.pollingEngine.GetTelemetryService(); ts != nil {
+				ts.ClearParameterCache(uint(paramID))
+			}
+		}
 		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
 			h.pollingEngine.StartDeviceWorker(dev)
 		}

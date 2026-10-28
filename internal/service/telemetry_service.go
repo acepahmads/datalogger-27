@@ -187,6 +187,9 @@ type TelemetryService struct {
 
 	// Device status resolver
 	deviceLookup func(deviceID uint) (*model.Device, error)
+
+	// Parameter status resolver
+	paramLookup func(paramID uint) (*model.Parameter, error)
 }
 
 // NewTelemetryService constructs and starts the background ingestion worker
@@ -298,6 +301,11 @@ func (s *TelemetryService) SetDeviceLookup(lookup func(deviceID uint) (*model.De
 	s.deviceLookup = lookup
 }
 
+// SetParamLookup registers a parameter lookup callback for checking enabled and active status
+func (s *TelemetryService) SetParamLookup(lookup func(paramID uint) (*model.Parameter, error)) {
+	s.paramLookup = lookup
+}
+
 // ClearDeviceCache removes cached instantaneous telemetry for a specific device (e.g. when disabled or deleted)
 func (s *TelemetryService) ClearDeviceCache(deviceID uint) {
 	s.latestMu.Lock()
@@ -309,6 +317,13 @@ func (s *TelemetryService) ClearDeviceCache(deviceID uint) {
 	}
 }
 
+// ClearParameterCache removes cached instantaneous telemetry for a specific parameter (e.g. when disabled or deleted)
+func (s *TelemetryService) ClearParameterCache(paramID uint) {
+	s.latestMu.Lock()
+	defer s.latestMu.Unlock()
+	delete(s.latestCache, paramID)
+}
+
 // Ingest receives a telemetry measurement, validates, updates cache, broadcasts, and enqueues
 func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	if payload == nil {
@@ -316,6 +331,16 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	}
 	if atomic.LoadInt32(&s.stopped) == 1 {
 		return fmt.Errorf("telemetry service is stopped")
+	}
+
+	// Skip disabled parameters from ingestion pipeline
+	if payload.Parameter != nil && !payload.Parameter.Enabled {
+		return nil
+	}
+	if s.paramLookup != nil {
+		if p, err := s.paramLookup(payload.ParameterID); err == nil && p != nil && !p.Enabled {
+			return nil
+		}
 	}
 
 	// 1. Validation & Quality Processing (Phase 3.2)
@@ -572,6 +597,15 @@ func (s *TelemetryService) evaluateStaleParameters() {
 		if s.deviceLookup != nil {
 			if dev, err := s.deviceLookup(item.DeviceID); err == nil && dev != nil {
 				if !dev.Enabled || dev.Status != model.DeviceStatusActive {
+					continue
+				}
+			}
+		}
+
+		// Skip disabled parameters from stale checks
+		if s.paramLookup != nil {
+			if param, err := s.paramLookup(item.ParameterID); err == nil && param != nil {
+				if !param.Enabled {
 					continue
 				}
 			}

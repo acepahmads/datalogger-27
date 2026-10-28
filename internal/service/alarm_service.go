@@ -264,3 +264,39 @@ func (s *AlarmService) ClearAllDeviceAlarms(ctx context.Context, deviceID uint) 
 	}
 	return nil
 }
+
+// ClearAllParameterAlarms clears all active and acknowledged alarms for a parameter (e.g. when disabled or deleted)
+func (s *AlarmService) ClearAllParameterAlarms(ctx context.Context, paramID uint) error {
+	clearedAt := time.Now().UTC()
+	clearedList, err := s.alarmRepo.ClearActiveByParameter(ctx, paramID, clearedAt)
+	if err != nil {
+		return err
+	}
+
+	for i := range clearedList {
+		alarmCopy := clearedList[i]
+		alarmCopy.Status = model.AlarmCleared
+		alarmCopy.ClearedAt = &clearedAt
+
+		logger.Info("Parameter alarm %d (%s) for param %d auto-cleared upon disablement", alarmCopy.ID, alarmCopy.AlarmCode, paramID)
+
+		if s.systemRepo != nil {
+			_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+				Username:  "system",
+				Action:    "ALARM_CLEAR",
+				Resource:  "ALARM",
+				Details:   fmt.Sprintf("Alarm %d (%s) auto-cleared upon parameter disablement", alarmCopy.ID, alarmCopy.AlarmCode),
+				CreatedAt: clearedAt,
+			})
+		}
+
+		if s.hub != nil {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "alarm.cleared",
+				Timestamp: clearedAt,
+				Data:      &alarmCopy,
+			})
+		}
+	}
+	return nil
+}

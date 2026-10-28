@@ -6363,6 +6363,11 @@ export default {
       const nowMs = this.staleCheckTimeMs || Date.now();
       for (const dev of this.devicesList) {
         if (!dev.parameters) continue;
+        // Skip administratively disabled or inactive devices
+        if (dev.enabled === false || dev.enabled === 0) continue;
+        const devStatus = (dev.status || dev.administrative_status || '').toUpperCase();
+        if (devStatus === 'DISABLED' || devStatus === 'INACTIVE') continue;
+
         const isOnline = this.isDeviceActiveOnline(dev);
         const isDevOffline = !isOnline && (
           dev.connection_status === 'OFFLINE' ||
@@ -6371,6 +6376,8 @@ export default {
           dev.connection_status === 'FAILED'
         );
         for (const p of dev.parameters) {
+          // Skip disabled parameters
+          if (p.enabled === false || p.enabled === 0) continue;
           const live = this.liveMap[p.id] || {};
           const isHeld = live.is_held_value !== undefined ? live.is_held_value : !!p.is_current_held;
           const val = (live.processed_value !== undefined && live.processed_value !== null)
@@ -6698,6 +6705,14 @@ export default {
       handler(newParams) {
         if (!this.trendSelectionRestored && newParams && newParams.length > 0) {
           this.restoreOrInitTrendSelection();
+        } else if (newParams && this.activeTrendSeries.length > 0) {
+          // Remove any active trend series belonging to disabled devices or parameters
+          const validParamIds = new Set(newParams.map(p => Number(p.param_id)));
+          const filteredSeries = this.activeTrendSeries.filter(s => validParamIds.has(Number(s.parameterId)));
+          if (filteredSeries.length !== this.activeTrendSeries.length) {
+            this.activeTrendSeries = filteredSeries;
+            this.saveTrendSelection();
+          }
         }
       },
     },

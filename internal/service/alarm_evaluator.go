@@ -283,6 +283,18 @@ func (e *AlarmEvaluator) ReloadActiveAlarms(ctx context.Context) error {
 		if alm.ParameterID == nil {
 			continue
 		}
+
+		// Skip loading active alarms for parameters that are currently disabled
+		if e.paramLookup != nil {
+			param, err := e.paramLookup(ctx, *alm.ParameterID)
+			if err == nil && param != nil && !param.Enabled {
+				go func(paramID uint) {
+					_ = e.alarmService.ClearAllParameterAlarms(context.Background(), paramID)
+				}(*alm.ParameterID)
+				continue
+			}
+		}
+
 		key := fmt.Sprintf("%d:%d", *alm.DeviceID, *alm.ParameterID)
 
 		switch alm.AlarmCode {
@@ -881,6 +893,45 @@ func (e *AlarmEvaluator) ClearDeviceAlarms(ctx context.Context, deviceID uint) {
 		_ = e.alarmService.ClearAllDeviceAlarms(ctx, deviceID)
 	}
 }
+
+// ClearParameterAlarms clears all active alarms associated with a specific parameter
+// and clears tracking state. Call this when a parameter is disabled or deleted.
+func (e *AlarmEvaluator) ClearParameterAlarms(ctx context.Context, deviceID, paramID uint) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	key := fmt.Sprintf("%d:%d", deviceID, paramID)
+	suffix := fmt.Sprintf(":%d", paramID)
+
+	for k, existing := range e.activeHigh {
+		if (deviceID > 0 && k == key) || (deviceID == 0 && strings.HasSuffix(k, suffix)) {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeHigh, k)
+		}
+	}
+	for k, existing := range e.activeLow {
+		if (deviceID > 0 && k == key) || (deviceID == 0 && strings.HasSuffix(k, suffix)) {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeLow, k)
+		}
+	}
+	for k, existing := range e.activeAbnormality {
+		if (deviceID > 0 && k == key) || (deviceID == 0 && strings.HasSuffix(k, suffix)) {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, k)
+		}
+	}
+	for k := range e.abnormalityTracking {
+		if (deviceID > 0 && k == key) || (deviceID == 0 && strings.HasSuffix(k, suffix)) {
+			delete(e.abnormalityTracking, k)
+		}
+	}
+
+	if e.alarmService != nil {
+		_ = e.alarmService.ClearAllParameterAlarms(ctx, paramID)
+	}
+}
+
 
 // evaluateHighSide manages Warning High and Critical High limits with hysteresis
 func (e *AlarmEvaluator) evaluateHighSide(ctx context.Context, key string, latest *LatestTelemetry, param *model.Parameter, val float64) {

@@ -46,7 +46,7 @@ func (r *SystemRepository) GetAllAlarms(status string) ([]model.Alarm, error) {
 		st := strings.ToUpper(strings.TrimSpace(status))
 		query = query.Where("status = ?", st)
 		if st == "ACTIVE" || st == "ACKNOWLEDGED" {
-			query = query.Where("device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')")
+			query = query.Where("(device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')) AND (parameter_id IS NULL OR parameter_id NOT IN (SELECT id FROM parameters WHERE enabled = 0))")
 		}
 	}
 	err := query.Limit(100).Find(&alarms).Error

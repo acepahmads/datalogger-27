@@ -65,9 +65,19 @@ func (p *PollingEngine) SetTelemetryService(ts *service.TelemetryService) {
 	p.telemetryService = ts
 }
 
+// GetTelemetryService retrieves the Phase 3.1 Telemetry Ingestion Pipeline
+func (p *PollingEngine) GetTelemetryService() *service.TelemetryService {
+	return p.telemetryService
+}
+
 // SetAlarmEvaluator injects the Phase 6 Alarm Evaluator
 func (p *PollingEngine) SetAlarmEvaluator(ae *service.AlarmEvaluator) {
 	p.alarmEvaluator = ae
+}
+
+// GetAlarmEvaluator retrieves the Phase 6 Alarm Evaluator
+func (p *PollingEngine) GetAlarmEvaluator() *service.AlarmEvaluator {
+	return p.alarmEvaluator
 }
 
 // SetActivityMonitor attaches the system activity monitor
