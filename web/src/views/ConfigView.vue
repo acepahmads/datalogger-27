@@ -819,6 +819,48 @@
             </div>
           </div>
 
+          <!-- Telemetry Export Governance -->
+          <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Telemetry Export & Auto-Pagination Limit
+                </h3>
+                <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Batas maksimal rekaman data telemetri yang diizinkan untuk diunduh per operasi ekspor data. Berlaku otomatis untuk semua pengguna/operator.
+                </p>
+              </div>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
+                Admin & Engineer Only
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+              <div>
+                <label class="block text-3xs text-slate-700 dark:text-slate-400 uppercase tracking-wider mb-1.5 font-semibold">
+                  Batas Maksimal Baris Data (Records)
+                </label>
+                <select
+                  v-model.number="exportMaxRecords"
+                  @change="saveExportLimitFromConfig"
+                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-cyan-500 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white text-xs"
+                >
+                  <option v-for="preset in exportPresets" :key="'cfg-pres-' + preset.value" :value="preset.value">
+                    {{ preset.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="flex items-center">
+                <p class="text-3xs text-slate-500 dark:text-slate-400 font-sans">
+                  * Sistem auto-pagination akan memanggil server secara bertahap (@ 1.000 data/halaman) hingga batas ini tercapai atau seluruh data selesai diunduh.
+                </p>
+              </div>
+            </div>
+            <p v-if="exportSavedMessage" class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono mt-2">
+              ✓ {{ exportSavedMessage }}
+            </p>
+          </div>
+
           <div class="pt-3 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-end space-x-3">
             <button type="submit" :disabled="saving"
                     class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
@@ -1108,6 +1150,11 @@ import {
   removeMakerLogo,
   resetOrganizationBranding
 } from '../utils/companyBranding';
+import {
+  getExportSettings,
+  saveExportSettings,
+  EXPORT_LIMIT_PRESETS,
+} from '../utils/exportSettings';
 
 export default {
   name: 'ConfigView',
@@ -1122,6 +1169,9 @@ export default {
       customerLogoPreview: null,
       makerLogoFile: null,
       makerLogoPreview: null,
+      exportMaxRecords: 10000,
+      exportPresets: EXPORT_LIMIT_PRESETS,
+      exportSavedMessage: '',
       brandingSaving: false,
       brandingSuccessMsg: '',
       brandingErrorMsg: '',
@@ -1189,6 +1239,8 @@ export default {
     this.fetchDbStatus();
     this.fetchConfig();
     this.loadBrandingConfig();
+    const exp = getExportSettings();
+    this.exportMaxRecords = exp.maxRecords;
   },
   methods: {
     async loadBrandingConfig() {
@@ -1441,10 +1493,20 @@ export default {
           this.saveResult = res.data.data;
           this.fetchDbStatus();
         }
+        this.saveExportLimitFromConfig();
       } catch (err) {
         alert('Failed to save config: ' + (err.response?.data?.error || err.message));
       } finally {
         this.saving = false;
+      }
+    },
+    saveExportLimitFromConfig() {
+      const role = this.$store.state.user?.role || 'ADMIN';
+      const username = this.$store.state.user?.username || 'admin';
+      const res = saveExportSettings({ maxRecords: this.exportMaxRecords }, role, username);
+      if (res.success) {
+        this.exportSavedMessage = 'Pengaturan batas ekspor data berhasil disimpan.';
+        setTimeout(() => { this.exportSavedMessage = ''; }, 3500);
       }
     },
   },

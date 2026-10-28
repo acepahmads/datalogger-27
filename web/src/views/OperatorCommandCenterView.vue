@@ -3916,6 +3916,58 @@
               </label>
             </div>
           </div>
+
+          <!-- Export Limit Governance (Auto-Pagination Setup) -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                {{ canConfigureExportLimit ? 'Batas Maksimal Data (Setup Auto-Pagination)' : 'Batas Unduhan Data' }}
+              </label>
+              <button
+                v-if="canConfigureExportLimit"
+                type="button"
+                @click="saveAsSystemDefaultExportLimit"
+                class="text-3xs text-cyan-600 dark:text-cyan-400 hover:underline font-semibold font-mono"
+                title="Simpan batas ini sebagai setup default sistem untuk semua pengguna/operator"
+              >
+                💾 Simpan Setup Sistem
+              </button>
+            </div>
+
+            <!-- If Role is Admin/Engineer (Can Setup) -->
+            <div v-if="canConfigureExportLimit" class="space-y-1">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select
+                  v-model.number="exportForm.maxRecords"
+                  @change="onExportLimitChanged"
+                  class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
+                >
+                  <option v-for="preset in exportLimitPresets" :key="'pres-' + preset.value" :value="preset.value">
+                    {{ preset.label }}
+                  </option>
+                </select>
+                <div class="flex items-center text-3xs text-slate-500 dark:text-slate-400 font-mono">
+                  Auto-pagination aktif (@ 1.000 data/halaman).
+                </div>
+              </div>
+              <p v-if="exportSettingsFeedback" class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono">
+                ✓ {{ exportSettingsFeedback }}
+              </p>
+            </div>
+
+            <!-- If Role is Operator (Read-Only Bound to Setup) -->
+            <div v-else class="p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] flex items-center justify-between text-2xs font-mono">
+              <div class="flex items-center space-x-2">
+                <span class="text-amber-500 text-xs">🔒</span>
+                <span class="text-slate-700 dark:text-slate-300">
+                  Batas Sistem: <strong class="text-cyan-600 dark:text-cyan-400 font-bold">{{ currentExportLimitLabel }}</strong>
+                </span>
+              </div>
+              <span class="text-3xs text-slate-400 dark:text-slate-500">
+                Setup oleh Admin/Engineer
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- Export Progress / Feedback -->
@@ -4913,6 +4965,13 @@ import {
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  getExportSettings,
+  saveExportSettings,
+  canUserManageExportSettings,
+  formatExportLimitLabel,
+  EXPORT_LIMIT_PRESETS,
+} from '../utils/exportSettings';
 
 // Curated high-contrast SCADA non-alarm palette (Cyans, Blues, Emeralds, Teals, Mints, Indigos, Violets, Purples)
 // Strictly excludes red, crimson, rose, orange, amber, and yellow to avoid alarm/error confusion
@@ -5352,7 +5411,9 @@ export default {
         mode: 'PROCESSED',
         selectedParamIds: [],
         format: 'xlsx',
+        maxRecords: 10000,
       },
+      exportSettingsFeedback: '',
       isExporting: false,
       exportStatusMessage: '',
 
@@ -6515,6 +6576,15 @@ export default {
         map[p.id] = p;
       }
       return map;
+    },
+    canConfigureExportLimit() {
+      return canUserManageExportSettings(this.userRole);
+    },
+    currentExportLimitLabel() {
+      return formatExportLimitLabel(this.exportForm.maxRecords);
+    },
+    exportLimitPresets() {
+      return EXPORT_LIMIT_PRESETS;
     },
     allParameters() {
       const list = [];
@@ -11029,10 +11099,29 @@ export default {
       this.exportForm.endTime = this.toLocalISO(now);
       this.exportForm.startTime = this.toLocalISO(past24h);
       this.exportStatusMessage = '';
+      this.exportSettingsFeedback = '';
+
+      // Load active system export limit from setup
+      const currentSettings = getExportSettings();
+      this.exportForm.maxRecords = currentSettings.maxRecords;
+
       if (!this.exportForm.selectedParamIds || this.exportForm.selectedParamIds.length === 0) {
         this.exportForm.selectedParamIds = this.availableExportParameters.map(p => p.id);
       }
       this.showExportModal = true;
+    },
+    onExportLimitChanged() {
+      if (this.canConfigureExportLimit) {
+        saveExportSettings({ maxRecords: this.exportForm.maxRecords }, this.userRole, this.$store.state.user?.username);
+      }
+    },
+    saveAsSystemDefaultExportLimit() {
+      if (!this.canConfigureExportLimit) return;
+      const res = saveExportSettings({ maxRecords: this.exportForm.maxRecords }, this.userRole, this.$store.state.user?.username);
+      if (res.success) {
+        this.exportSettingsFeedback = `Setup tersimpan sebagai default sistem: ${this.currentExportLimitLabel}`;
+        setTimeout(() => { this.exportSettingsFeedback = ''; }, 3000);
+      }
     },
     selectAllExportParams() {
       this.exportForm.selectedParamIds = this.availableExportParameters.map(p => p.id);
@@ -11054,7 +11143,7 @@ export default {
     },
     async executeTelemetryExport() {
       this.isExporting = true;
-      this.exportStatusMessage = 'Mengambil data dari edge database...';
+      this.exportStatusMessage = 'Menghubungi edge database...';
       try {
         const startISO = new Date(this.exportForm.startTime).toISOString();
         const endISO = new Date(this.exportForm.endTime).toISOString();
@@ -11071,30 +11160,86 @@ export default {
           endpoint = '/api/aggregations/results';
         }
 
-        const params = {
-          start_time: startISO,
-          end_time: endISO,
-          page_size: 5000,
-        };
-
         const hasParamFilter = this.exportForm.selectedParamIds && this.exportForm.selectedParamIds.length > 0;
-        if (hasParamFilter) {
-          params.parameter_ids = this.exportForm.selectedParamIds.join(',');
+        const selectedSet = hasParamFilter ? new Set(this.exportForm.selectedParamIds.map(Number)) : null;
+
+        // Resolve max limit:
+        // Operators are strictly bound to system setup (cannot exceed getExportSettings().maxRecords)
+        const sysSettings = getExportSettings();
+        const configuredMax = this.canConfigureExportLimit
+          ? (this.exportForm.maxRecords !== undefined ? Number(this.exportForm.maxRecords) : sysSettings.maxRecords)
+          : sysSettings.maxRecords;
+
+        const batchSize = 1000;
+        let page = 1;
+        let allItems = [];
+        let serverTotal = null;
+
+        // Auto-Pagination Loop
+        while (true) {
+          const params = {
+            start_time: startISO,
+            end_time: endISO,
+            page: page,
+            page_size: batchSize,
+          };
+          if (hasParamFilter) {
+            params.parameter_ids = this.exportForm.selectedParamIds.join(',');
+          }
+
+          const targetDisplayTotal = serverTotal !== null
+            ? (configuredMax > 0 ? Math.min(serverTotal, configuredMax) : serverTotal)
+            : '...';
+
+          this.exportStatusMessage = `Mengunduh data: ${allItems.length.toLocaleString('id-ID')} / ${typeof targetDisplayTotal === 'number' ? targetDisplayTotal.toLocaleString('id-ID') : targetDisplayTotal} baris (Halaman ${page})...`;
+
+          const res = await axios.get(endpoint, { params });
+          let pageItems = res.data?.data?.items || res.data?.data || [];
+
+          if (serverTotal === null && res.data?.data?.total !== undefined) {
+            serverTotal = Number(res.data.data.total);
+          }
+
+          if (pageItems.length === 0) {
+            break; // No more data available
+          }
+
+          if (hasParamFilter) {
+            pageItems = pageItems.filter(i => selectedSet.has(Number(i.parameter_id)));
+          }
+
+          allItems.push(...pageItems);
+
+          // Check if configured max limit reached (0 = unlimited)
+          if (configuredMax > 0 && allItems.length >= configuredMax) {
+            allItems = allItems.slice(0, configuredMax);
+            break;
+          }
+
+          // Check if all available records in database have been fetched
+          if (serverTotal !== null && allItems.length >= serverTotal) {
+            break;
+          }
+
+          // If current batch had fewer items than batchSize, we reached the end
+          if (pageItems.length < batchSize) {
+            break;
+          }
+
+          page++;
+
+          // Safety circuit breaker (max 500 pages = 500,000 records)
+          if (page > 500) {
+            break;
+          }
         }
 
-        const res = await axios.get(endpoint, { params });
-        let items = res.data?.data?.items || res.data?.data || [];
-
-        // If specific parameters selected, strictly filter on client side as well
-        if (hasParamFilter) {
-          const selectedSet = new Set(this.exportForm.selectedParamIds.map(Number));
-          items = items.filter(i => selectedSet.has(Number(i.parameter_id)));
-        }
-
-        if (items.length === 0) {
+        if (allItems.length === 0) {
           this.exportStatusMessage = 'Tidak ada catatan data untuk interval waktu atau parameter yang dipilih.';
           return;
         }
+
+        const items = allItems;
 
         const formatTime = (ts) => {
           if (!ts) return '';
