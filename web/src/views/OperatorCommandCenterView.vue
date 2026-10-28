@@ -412,25 +412,36 @@
                       </div>
                     </button>
 
-                    <!-- Uncategorized -->
+                    <!-- Uncategorized Filter (All Parameters without category) -->
                     <button
                       type="button"
-                      v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'uncategorized'"
+                      id="btn-filter-uncategorized"
                       @click="selectedCategoryFilter = 'uncategorized'"
-                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left group"
                       :class="selectedCategoryFilter === 'uncategorized'
-                        ? 'bg-slate-500/20 text-slate-200 border-slate-400/50 shadow-xs font-bold'
-                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-800 dark:hover:text-slate-200'"
+                        ? 'bg-slate-200/90 dark:bg-slate-700/60 text-slate-900 dark:text-white border-slate-400 dark:border-slate-500 shadow-xs font-bold ring-1 ring-slate-400/40'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
+                      :title="$t('operator.uncategorizedDesc') || 'Semua parameter yang tidak masuk ke category'"
                     >
                       <div class="flex items-center space-x-2 truncate">
-                        <span>📦</span>
-                        <span class="truncate">{{ $t('operator.uncategorized') || 'Uncategorized' }}</span>
+                        <span class="w-2 h-2 rounded-full flex-shrink-0 bg-slate-400 dark:bg-slate-400 ring-1 ring-slate-400/50"></span>
+                        <div class="truncate">
+                          <span class="truncate block leading-tight font-medium" :class="selectedCategoryFilter === 'uncategorized' ? 'font-bold' : ''">
+                            {{ $t('operator.uncategorized') || 'Tanpa Kategori' }}
+                          </span>
+                          <span class="text-[8.5px] text-slate-500 dark:text-slate-400 block font-normal leading-none mt-0.5">
+                            {{ $t('operator.uncategorizedDesc') || 'Tidak masuk ke category' }}
+                          </span>
+                        </div>
                       </div>
                       <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        <span class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        <span
+                          class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
+                          :class="selectedCategoryFilter === 'uncategorized' ? 'bg-slate-300 dark:bg-slate-600 text-slate-900 dark:text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
+                        >
                           {{ uncategorizedParamCount }}
                         </span>
-                        <span v-if="selectedCategoryFilter === 'uncategorized'" class="text-slate-300 font-bold text-xs">✓</span>
+                        <span v-if="selectedCategoryFilter === 'uncategorized'" class="text-cyan-600 dark:text-cyan-400 font-bold text-xs">✓</span>
                       </div>
                     </button>
                   </div>
@@ -582,11 +593,14 @@
               type="button"
               v-if="selectedCategoryFilter !== 'all'"
               @click="selectedCategoryFilter = 'all'"
-              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25 transition leading-none"
-              title="Clear category filter"
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold transition leading-none"
+              :class="selectedCategoryFilter === 'uncategorized'
+                ? 'bg-slate-200 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 border border-slate-400 dark:border-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'
+                : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25'"
+              :title="$t('operator.clearCategoryFilter') || 'Hapus filter kategori'"
             >
-              <span>🏷️</span>
-              <span class="max-w-[120px] truncate">{{ selectedCategoryTitle }}</span>
+              <span>{{ selectedCategoryFilter === 'uncategorized' ? '📦' : '🏷️' }}</span>
+              <span class="max-w-[150px] truncate">{{ selectedCategoryTitle }}</span>
               <span class="text-xs font-bold leading-none ml-0.5">×</span>
             </button>
             <button
@@ -5255,7 +5269,7 @@ export default {
         return this.$t('operator.allParameters') || 'All Monitored Parameters';
       }
       if (this.selectedCategoryFilter === 'uncategorized') {
-        return this.$t('operator.uncategorized') || 'Uncategorized';
+        return this.$t('operator.uncategorizedLong') || (this.$i18n && this.$i18n.locale === 'id' ? 'Tanpa Kategori (Tidak Masuk Kategori)' : 'Uncategorized (No Category)');
       }
       const cat = (this.activeCategoriesList || []).find(c => c.id === this.selectedCategoryFilter);
       return cat ? cat.name : (this.$t('operator.allParameters') || 'All Monitored Parameters');
@@ -6345,7 +6359,8 @@ export default {
         // Category Filter
         if (this.selectedCategoryFilter && this.selectedCategoryFilter !== 'all') {
           if (this.selectedCategoryFilter === 'uncategorized') {
-            if (p.category_id && this.categoryMap[p.category_id] && this.categoryMap[p.category_id].enabled) {
+            const activeCatIds = new Set((this.activeCategoriesList || []).map(c => Number(c.id)));
+            if (p.category_id && activeCatIds.has(Number(p.category_id))) {
               return false;
             }
           } else {
@@ -6465,7 +6480,8 @@ export default {
       return map;
     },
     uncategorizedParamCount() {
-      return this.allParameters.filter(p => !p.category_id || !this.categoryMap[p.category_id] || !this.categoryMap[p.category_id].enabled).length;
+      const activeCatIds = new Set((this.activeCategoriesList || []).map(c => Number(c.id)));
+      return (this.allParameters || []).filter(p => !p.category_id || !activeCatIds.has(Number(p.category_id))).length;
     },
     categorySections() {
       if (this.selectedCategoryFilter !== 'all') {
@@ -11041,21 +11057,48 @@ export default {
 }
 
 /* ISPU Summary Card & Breakdown Tray (Light Mode) */
+.light-mode :deep(.ispu-summary-card),
+:deep(.light-mode) .ispu-summary-card,
 .light-mode .ispu-summary-card {
   background-color: #FFFFFF !important;
   border-color: #1E3A8A !important;
   box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08);
 }
 
+.light-mode :deep(.ispu-breakdown-tray),
+:deep(.light-mode) .ispu-breakdown-tray,
 .light-mode .ispu-breakdown-tray {
   border-color: #1E3A8A !important;
   box-shadow: 0 2px 6px rgba(30, 58, 138, 0.08);
 }
 
+.light-mode :deep(.ispu-trend-drawer),
+:deep(.light-mode) .ispu-trend-drawer,
+.light-mode .ispu-trend-drawer {
+  border-color: #1E3A8A !important;
+  box-shadow: 0 2px 6px rgba(30, 58, 138, 0.08);
+}
+
+.dark-mode :deep(.ispu-summary-card),
+:deep(.dark-mode) .ispu-summary-card,
 .dark-mode .ispu-summary-card {
   background-color: #0D2232 !important;
   border-color: #244356 !important;
   box-shadow: none;
+}
+
+.dark-mode :deep(.ispu-breakdown-tray),
+:deep(.dark-mode) .ispu-breakdown-tray,
+.dark-mode .ispu-breakdown-tray {
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
+}
+
+.dark-mode :deep(.ispu-trend-drawer),
+:deep(.dark-mode) .ispu-trend-drawer,
+.dark-mode .ispu-trend-drawer {
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
 }
 
 /* 5. Trend Analysis Panel & Main SCADA Panels (Light Mode) */

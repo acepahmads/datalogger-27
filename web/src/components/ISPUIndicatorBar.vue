@@ -2,7 +2,7 @@
   <div v-if="isAqmsDomain" class="w-full flex flex-col space-y-1.5 transition-all">
     <!-- Compact Single-Row SCADA ISPU Indicator Bar -->
     <div
-      class="ispu-summary-card w-full px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#244356] bg-white dark:bg-[#0D2232] flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2 gap-y-1 transition-colors duration-150 shadow-xs"
+      class="ispu-summary-card w-full px-2.5 py-1 rounded-lg border border-[#1E3A8A] dark:border-[#244356] bg-white dark:bg-[#0D2232] flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-2 gap-y-1 transition-colors duration-150 shadow-xs"
     >
       <!-- Left: ISPU Metric, Category, Dominant Pollutant & Parameter Pill -->
       <div class="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
@@ -192,7 +192,7 @@
     <!-- Collapsible 7 Official Parameters SCADA Tray -->
     <div
       v-if="showBreakdown"
-      class="ispu-breakdown-tray p-2.5 rounded-xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-md transition-all"
+      class="ispu-breakdown-tray p-2.5 rounded-xl bg-white dark:bg-[#0B1C2B] border border-[#1E3A8A] dark:border-[#244356] shadow-md transition-all"
     >
       <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800 text-3xs font-mono">
         <div class="flex items-center space-x-2">
@@ -290,7 +290,7 @@
     <!-- Collapsible Embedded Trend Chart Drawer -->
     <div
       v-if="showTrend"
-      class="p-3 rounded-xl bg-white dark:bg-[#0B1C2B] border border-slate-200 dark:border-[#244356] shadow-md transition-all"
+      class="ispu-trend-drawer p-3 rounded-xl bg-white dark:bg-[#0B1C2B] border border-[#1E3A8A] dark:border-[#244356] shadow-md transition-all"
     >
       <ISPUTrendChart
         :records="trendRecords"
@@ -1052,5 +1052,38 @@ export default {
 .ispu-breakdown-tile {
   border-width: 1px !important;
   box-shadow: none !important;
+}
+
+/* Match other main SCADA cards: #1E3A8A dark blue border in light mode, #244356 in dark mode */
+.ispu-summary-card,
+.ispu-breakdown-tray,
+.ispu-trend-drawer {
+  border-color: #1E3A8A !important;
+}
+
+:not(.dark) .ispu-summary-card,
+:not(.dark) .ispu-breakdown-tray,
+:not(.dark) .ispu-trend-drawer,
+:global(.light-mode) .ispu-summary-card,
+:global(.light-mode) .ispu-breakdown-tray,
+:global(.light-mode) .ispu-trend-drawer {
+  border-color: #1E3A8A !important;
+  box-shadow: 0 1px 4px rgba(30, 58, 138, 0.08);
+}
+
+:global(.dark) .ispu-summary-card,
+:global(.dark-mode) .ispu-summary-card {
+  background-color: #0D2232 !important;
+  border-color: #244356 !important;
+  box-shadow: none;
+}
+
+:global(.dark) .ispu-breakdown-tray,
+:global(.dark-mode) .ispu-breakdown-tray,
+:global(.dark) .ispu-trend-drawer,
+:global(.dark-mode) .ispu-trend-drawer {
+  background-color: #0B1C2B !important;
+  border-color: #244356 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 </style>
