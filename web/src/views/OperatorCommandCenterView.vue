@@ -386,6 +386,40 @@
                       </div>
                     </button>
 
+                    <!-- Not Uncategorized (Categorized Only - Excludes uncategorized parameters) -->
+                    <button
+                      type="button"
+                      id="btn-filter-not-uncategorized"
+                      v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'not_uncategorized'"
+                      @click="selectedCategoryFilter = 'not_uncategorized'"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left group"
+                      :class="selectedCategoryFilter === 'not_uncategorized'
+                        ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-500/50 shadow-xs font-bold ring-1 ring-emerald-500/30'
+                        : 'border-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'"
+                      :title="$t('operator.notUncategorizedDesc') || 'Menampilkan semua parameter di luar Tanpa Kategori'"
+                    >
+                      <div class="flex items-center space-x-2 truncate">
+                        <OperatorDashboardIcon name="filter" :size="12" class="text-emerald-500 flex-shrink-0" />
+                        <div class="truncate">
+                          <span class="truncate block leading-tight font-medium" :class="selectedCategoryFilter === 'not_uncategorized' ? 'font-bold' : ''">
+                            {{ $t('operator.notUncategorized') || 'Not Uncategorized' }}
+                          </span>
+                          <span class="text-[8.5px] text-slate-500 dark:text-slate-400 block font-normal leading-none mt-0.5">
+                            {{ $t('operator.notUncategorizedDesc') || 'Di luar uncategorized' }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <span
+                          class="px-1.5 py-0.2 rounded-full text-[9px] font-bold"
+                          :class="selectedCategoryFilter === 'not_uncategorized' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
+                        >
+                          {{ categorizedParamCount }}
+                        </span>
+                        <span v-if="selectedCategoryFilter === 'not_uncategorized'" class="text-emerald-600 dark:text-emerald-400 font-bold text-xs">✓</span>
+                      </div>
+                    </button>
+
                     <!-- Dynamic Category Tabs -->
                     <button
                       type="button"
@@ -596,11 +630,13 @@
               class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold transition leading-none"
               :class="selectedCategoryFilter === 'uncategorized'
                 ? 'bg-slate-200 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 border border-slate-400 dark:border-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'
-                : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25'"
+                : selectedCategoryFilter === 'not_uncategorized'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25'
+                  : 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25'"
               :title="$t('operator.clearCategoryFilter') || 'Hapus filter kategori'"
             >
-              <span>{{ selectedCategoryFilter === 'uncategorized' ? '📦' : '🏷️' }}</span>
-              <span class="max-w-[150px] truncate">{{ selectedCategoryTitle }}</span>
+              <span>{{ selectedCategoryFilter === 'uncategorized' ? '📦' : selectedCategoryFilter === 'not_uncategorized' ? '🏷️' : '🏷️' }}</span>
+              <span class="max-w-[160px] truncate">{{ selectedCategoryTitle }}</span>
               <span class="text-xs font-bold leading-none ml-0.5">×</span>
             </button>
             <button
@@ -5268,6 +5304,9 @@ export default {
       if (this.selectedCategoryFilter === 'all') {
         return this.$t('operator.allParameters') || 'All Monitored Parameters';
       }
+      if (this.selectedCategoryFilter === 'not_uncategorized') {
+        return this.$t('operator.notUncategorizedTitle') || (this.$i18n && this.$i18n.locale === 'id' ? 'Di Luar Tanpa Kategori (Hanya Berkategori)' : 'Not Uncategorized (Categorized Only)');
+      }
       if (this.selectedCategoryFilter === 'uncategorized') {
         return this.$t('operator.uncategorizedLong') || (this.$i18n && this.$i18n.locale === 'id' ? 'Tanpa Kategori (Tidak Masuk Kategori)' : 'Uncategorized (No Category)');
       }
@@ -6358,9 +6397,13 @@ export default {
         }
         // Category Filter
         if (this.selectedCategoryFilter && this.selectedCategoryFilter !== 'all') {
+          const activeCatIds = new Set((this.activeCategoriesList || []).map(c => Number(c.id)));
           if (this.selectedCategoryFilter === 'uncategorized') {
-            const activeCatIds = new Set((this.activeCategoriesList || []).map(c => Number(c.id)));
             if (p.category_id && activeCatIds.has(Number(p.category_id))) {
+              return false;
+            }
+          } else if (this.selectedCategoryFilter === 'not_uncategorized') {
+            if (!p.category_id || !activeCatIds.has(Number(p.category_id))) {
               return false;
             }
           } else {
@@ -6483,8 +6526,12 @@ export default {
       const activeCatIds = new Set((this.activeCategoriesList || []).map(c => Number(c.id)));
       return (this.allParameters || []).filter(p => !p.category_id || !activeCatIds.has(Number(p.category_id))).length;
     },
+    categorizedParamCount() {
+      const activeCatIds = new Set((this.activeCategoriesList || []).map(c => Number(c.id)));
+      return (this.allParameters || []).filter(p => p.category_id && activeCatIds.has(Number(p.category_id))).length;
+    },
     categorySections() {
-      if (this.selectedCategoryFilter !== 'all') {
+      if (this.selectedCategoryFilter !== 'all' && this.selectedCategoryFilter !== 'not_uncategorized') {
         let cat = null;
         if (this.selectedCategoryFilter === 'uncategorized') {
           cat = {
@@ -6520,17 +6567,19 @@ export default {
         }
       }
 
-      const uncatParams = this.filteredParameters.filter(p => !usedParamIds.has(p.param_id));
-      if (uncatParams.length > 0) {
-        sections.push({
-          id: 'uncategorized',
-          code: 'uncategorized',
-          name: this.$t('operator.uncategorized') || 'Uncategorized',
-          color_key: 'slate',
-          icon_key: 'box',
-          default_column_span: 4,
-          parameters: uncatParams,
-        });
+      if (this.selectedCategoryFilter !== 'not_uncategorized') {
+        const uncatParams = this.filteredParameters.filter(p => !usedParamIds.has(p.param_id));
+        if (uncatParams.length > 0) {
+          sections.push({
+            id: 'uncategorized',
+            code: 'uncategorized',
+            name: this.$t('operator.uncategorized') || 'Uncategorized',
+            color_key: 'slate',
+            icon_key: 'box',
+            default_column_span: 4,
+            parameters: uncatParams,
+          });
+        }
       }
 
       return sections;
