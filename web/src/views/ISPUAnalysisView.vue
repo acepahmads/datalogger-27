@@ -1621,29 +1621,37 @@ export default {
       this.showMappingsModal = true;
       try {
         const token = this.getAuthToken();
-        const mapRes = await axios.get('/api/ispu/mappings', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        this.stationMappings = mapRes.data?.data || [];
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
         // Fetch all active devices and their active parameters
-        const devRes = await axios.get('/api/devices', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        const devs = (devRes.data?.data?.items || devRes.data?.data || []).filter(d => d.enabled !== false);
+        const devRes = await axios.get('/api/devices', { headers, params: { page_size: 100 } });
+        const rawDevs = devRes.data?.data?.items || devRes.data?.data || [];
+        const isDevActive = (d) => {
+          if (!d) return false;
+          if (d.enabled === false) return false;
+          const st = (d.status || d.administrative_status || '').toUpperCase();
+          return st !== 'DISABLED' && st !== 'INACTIVE';
+        };
+        let devs = rawDevs.filter(isDevActive);
+        if (devs.length === 0 && rawDevs.length > 0) {
+          devs = rawDevs.filter(d => d.enabled !== false);
+        }
+        if (devs.length === 0 && rawDevs.length > 0) {
+          devs = rawDevs;
+        }
+
         const allParams = [];
         for (const d of devs) {
           try {
-            const pRes = await axios.get(`/api/devices/${d.id}/parameters`, {
-              headers: token ? { Authorization: `Bearer ${token}` } : {}
-            });
-            const pItems = (pRes.data?.data || []).filter(p => p.enabled !== false);
+            const pRes = await axios.get(`/api/devices/${d.id}/parameters`, { headers });
+            const pItems = (pRes.data?.data?.items || pRes.data?.data || []).filter(p => p.enabled !== false);
             pItems.forEach(p => {
               allParams.push({
                 ...p,
                 device_id: d.id,
-                device_code: d.device_code,
-                device_name: d.device_name
+                deviceId: d.id,
+                device_code: d.device_code || d.code || `DEV-${d.id}`,
+                device_name: d.device_name || d.name
               });
             });
           } catch (e) {
@@ -1657,6 +1665,44 @@ export default {
             this.newMapping.parameter_id = this.stationParameters[0].id;
           }
         }
+
+        // Fetch mappings: try unified endpoint first, fallback to per-device
+        let mappings = [];
+        try {
+          const mapRes = await axios.get('/api/ispu/mappings', { headers });
+          if (mapRes.data?.success && Array.isArray(mapRes.data?.data)) {
+            mappings = mapRes.data.data;
+          }
+        } catch (e) {}
+
+        if (mappings.length === 0 && devs.length > 0) {
+          const perDevResults = await Promise.all(devs.map(async (d) => {
+            try {
+              const res = await axios.get(`/api/ispu/mappings?device_id=${d.id}`, { headers });
+              return res.data?.data || [];
+            } catch (err) {
+              return [];
+            }
+          }));
+          const seen = new Set();
+          for (const list of perDevResults) {
+            for (const m of list) {
+              if (!seen.has(m.id)) {
+                seen.add(m.id);
+                mappings.push(m);
+              }
+            }
+          }
+        }
+
+        mappings.forEach(m => {
+          if (!m.device && m.device_id) {
+            const d = devs.find(dev => Number(dev.id) === Number(m.device_id));
+            if (d) m.device = d;
+          }
+        });
+
+        this.stationMappings = mappings;
       } catch (err) {
         console.error('Failed to load mappings:', err);
       }

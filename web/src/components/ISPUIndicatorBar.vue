@@ -1082,14 +1082,36 @@ export default {
       try {
         const token = this.getAuthToken();
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const [mapRes, devRes] = await Promise.all([
-          axios.get('/api/ispu/mappings', { headers }),
-          axios.get('/api/devices', { headers, params: { page_size: 100 } })
-        ]);
-        this.stationMappings = mapRes.data?.data || [];
-        const devices = devRes.data?.data?.items || devRes.data?.data || [];
-        const activeDevs = devices.filter(d => d.enabled !== false && d.status === 'ACTIVE');
 
+        // 1. Fetch devices (prefer availableDevices from props, fallback to API)
+        let devs = (this.availableDevices && this.availableDevices.length > 0) ? this.availableDevices : [];
+        if (devs.length === 0) {
+          try {
+            const devRes = await axios.get('/api/devices', { headers, params: { page_size: 100 } });
+            devs = devRes.data?.data?.items || devRes.data?.data || [];
+            this.internalDevicesList = devs;
+          } catch (e) {
+            console.error('Failed to load devices list:', e);
+          }
+        }
+
+        // Active devices filter: enabled !== false and not explicitly DISABLED / INACTIVE
+        const isDevActive = (d) => {
+          if (!d) return false;
+          if (d.enabled === false) return false;
+          const st = (d.status || d.administrative_status || '').toUpperCase();
+          if (st === 'DISABLED' || st === 'INACTIVE') return false;
+          return true;
+        };
+        let activeDevs = (devs || []).filter(isDevActive);
+        if (activeDevs.length === 0 && devs.length > 0) {
+          activeDevs = devs.filter(d => d.enabled !== false);
+        }
+        if (activeDevs.length === 0 && devs.length > 0) {
+          activeDevs = devs;
+        }
+
+        // 2. Fetch parameters for all active devices
         const allParams = [];
         await Promise.all(activeDevs.map(async (d) => {
           try {
@@ -1097,16 +1119,22 @@ export default {
             const pList = pRes.data?.data?.items || pRes.data?.data || [];
             pList.forEach(p => {
               if (p.enabled !== false) {
+                const devCode = d.device_code || d.code || `DEV-${d.id}`;
+                const paramName = p.parameter_name || p.name || p.parameter_code || p.code || `Param ${p.id}`;
+                const paramCode = p.parameter_code || p.code || '';
                 allParams.push({
                   ...p,
                   deviceId: d.id,
-                  deviceCode: d.device_code || d.code,
+                  device_id: d.id,
+                  deviceCode: devCode,
                   deviceName: d.device_name || d.name,
-                  displayName: `[${d.device_code || d.code}] ${p.parameter_name || p.name} (${p.parameter_code || p.code})`
+                  displayName: `[${devCode}] ${paramName}${paramCode ? ' (' + paramCode + ')' : ''}`
                 });
               }
             });
-          } catch (e) {}
+          } catch (e) {
+            console.error('Failed to load parameters for device', d.id, e);
+          }
         }));
         this.stationParameters = allParams;
         if (this.stationParameters.length > 0) {
@@ -1116,6 +1144,48 @@ export default {
         } else {
           this.newMapping.parameter_id = null;
         }
+
+        // 3. Fetch mappings: try unified endpoint first, fallback to per-device if empty/error
+        let mappings = [];
+        try {
+          const mapRes = await axios.get('/api/ispu/mappings', { headers });
+          if (mapRes.data?.success && Array.isArray(mapRes.data?.data)) {
+            mappings = mapRes.data.data;
+          }
+        } catch (e) {
+          // If unified endpoint throws error (e.g. backend expecting device_id), fall through to per-device
+        }
+
+        // Fallback: if mappings are empty, query per active device
+        if (mappings.length === 0 && activeDevs.length > 0) {
+          const perDevResults = await Promise.all(activeDevs.map(async (d) => {
+            try {
+              const res = await axios.get(`/api/ispu/mappings?device_id=${d.id}`, { headers });
+              return res.data?.data || [];
+            } catch (err) {
+              return [];
+            }
+          }));
+          const seen = new Set();
+          for (const list of perDevResults) {
+            for (const m of list) {
+              if (!seen.has(m.id)) {
+                seen.add(m.id);
+                mappings.push(m);
+              }
+            }
+          }
+        }
+
+        // Ensure each mapping has device information attached
+        mappings.forEach(m => {
+          if (!m.device && m.device_id) {
+            const d = activeDevs.find(dev => Number(dev.id) === Number(m.device_id));
+            if (d) m.device = d;
+          }
+        });
+
+        this.stationMappings = mappings;
       } catch (err) {
         console.error('Failed to load ISPU mappings:', err);
       }

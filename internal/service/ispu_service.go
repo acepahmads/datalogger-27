@@ -335,8 +335,8 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		}
 	} else {
 		// Unified station: resolve timezone and parameters from active devices
-		if err := s.db.WithContext(ctx).Where("enabled = true AND status = 'ACTIVE'").First(&dev).Error; err != nil {
-			_ = s.db.WithContext(ctx).First(&dev)
+		if err := s.db.WithContext(ctx).Where("enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE").First(&dev).Error; err != nil {
+			_ = s.db.WithContext(ctx).Where("enabled = ?", true).First(&dev).Error
 		}
 		if dev.DeviceCode == "" {
 			dev.DeviceCode = "AQMS"
@@ -1683,7 +1683,7 @@ func (s *ISPUService) GetMappings(ctx context.Context, deviceID uint) ([]model.I
 	var allParams []model.Parameter
 	pQuery := s.db.WithContext(ctx).
 		Preload("Device").
-		Where("enabled = true AND device_id IN (SELECT id FROM devices WHERE enabled = true AND status = 'ACTIVE')")
+		Where("enabled = ? AND device_id IN (SELECT id FROM devices WHERE enabled = ? AND (status != ? AND status != ?))", true, true, "DISABLED", "INACTIVE")
 	if deviceID > 0 {
 		pQuery = pQuery.Where("device_id = ?", deviceID)
 	}
