@@ -103,8 +103,42 @@ it('Test 9: Custom Trend SVG generator and rasterizer methods are properly defin
   assert(occContent.includes('downloadCustomTrendPdf('), 'Missing downloadCustomTrendPdf method');
 });
 
+// Test 10: Trend dropdown & Fullscreen toolbar contain PDF and XLS options
+it('Test 10: Trend download dropdown and Fullscreen toolbar contain PDF & XLS options', () => {
+  assert(occContent.includes('@click="downloadTrendPDF(); showTrendDownloadMenu = false"'), 'Missing downloadTrendPDF in dropdown');
+  assert(occContent.includes('@click="downloadTrendXLS(); showTrendDownloadMenu = false"'), 'Missing downloadTrendXLS in dropdown');
+  assert(occContent.includes('Unduh Laporan (PDF)'), 'Missing "Unduh Laporan (PDF)" label in dropdown');
+  assert(occContent.includes('Unduh Data Excel (XLS)'), 'Missing "Unduh Data Excel (XLS)" label in dropdown');
+  assert(occContent.includes('@click="downloadTrendPDF"'), 'Missing downloadTrendPDF in fullscreen toolbar');
+  assert(occContent.includes('@click="downloadTrendXLS"'), 'Missing downloadTrendXLS in fullscreen toolbar');
+});
+
+// Test 11: downloadTrendPDF role governance and PDF report construction
+it('Test 11: downloadTrendPDF creates landscape PDF with chart and hides Kode for Operator', () => {
+  assert(occContent.includes('async downloadTrendPDF() {'), 'Missing downloadTrendPDF implementation');
+  assert(occContent.includes("doc.addImage(chartPngUrl, 'PNG', 13.5, 24, 270, 118);"), 'Missing doc.addImage in downloadTrendPDF');
+  assert(occContent.includes("const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';"), 'Missing isOperator check in downloadTrendPDF');
+  assert(occContent.includes("head: head,\n          body: body,\n          theme: 'grid',"), 'Missing autoTable config in downloadTrendPDF');
+});
+
+// Test 12: downloadTrendXLS multi-sheet workbook and role governance
+it('Test 12: downloadTrendXLS builds Data_Telemetri and Ringkasan_Statistik with operator privacy', () => {
+  assert(occContent.includes('downloadTrendXLS() {'), 'Missing downloadTrendXLS implementation');
+  assert(occContent.includes("XLSX.utils.book_append_sheet(wb, wsData, 'Data_Telemetri');"), 'Missing Data_Telemetri sheet');
+  assert(occContent.includes("XLSX.utils.book_append_sheet(wb, wsStats, 'Ringkasan_Statistik');"), 'Missing Ringkasan_Statistik sheet');
+  assert(occContent.includes("const headers = isOperator\n          ? ['No', 'Waktu (Timestamp)', 'Parameter', 'Nilai', 'Satuan']\n          : ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];"), 'Missing operator column filter in downloadTrendXLS');
+});
+
+// Test 13: Custom Period Modal supports Excel XLS with downloadCustomTrendXls
+it('Test 13: Custom period modal supports Excel XLS with downloadCustomTrendXls', () => {
+  assert(occContent.includes('customTrendForm.format === \'xlsx\''), 'Missing customTrendForm format xlsx handling');
+  assert(occContent.includes('downloadCustomTrendXls(seriesList, timeBounds, filename)'), 'Missing downloadCustomTrendXls implementation');
+  assert(occContent.includes('downloadCustomTrendXls(activeSeriesList, timeBounds, `data_telemetri_${periodSafe}.xlsx`)'), 'Missing call to downloadCustomTrendXls in submitDownloadCustomTrendChart');
+});
+
 console.log('===============================================================');
 console.log(`TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED (TOTAL: ${passedTests + failedTests})`);
 console.log('===============================================================');
 
 if (failedTests > 0) process.exit(1);
+

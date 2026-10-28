@@ -2407,9 +2407,29 @@
                     <span>Unduh Grafik (SVG)</span>
                   </button>
 
+                  <!-- Option 4: Current PDF Report -->
+                  <button
+                    type="button"
+                    @click="downloadTrendPDF(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="report" :size="13" class="text-rose-500 dark:text-rose-400" />
+                    <span>Unduh Laporan (PDF)</span>
+                  </button>
+
                   <div class="my-1 border-t border-slate-100 dark:border-[#1E3048]"></div>
 
-                  <!-- Option 4: CSV Data -->
+                  <!-- Option 5: Excel XLS -->
+                  <button
+                    type="button"
+                    @click="downloadTrendXLS(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="export" :size="13" class="text-emerald-500 dark:text-emerald-400" />
+                    <span>Unduh Data Excel (XLS)</span>
+                  </button>
+
+                  <!-- Option 6: CSV Data -->
                   <button
                     type="button"
                     @click="downloadTrendCSV(); showTrendDownloadMenu = false"
@@ -2419,7 +2439,7 @@
                     <span>Data Telemetri (CSV)</span>
                   </button>
 
-                  <!-- Option 5: JSON Data -->
+                  <!-- Option 7: JSON Data -->
                   <button
                     type="button"
                     @click="downloadTrendJSON(); showTrendDownloadMenu = false"
@@ -4326,7 +4346,7 @@
             <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
               4. Format Grafik Berkas
             </label>
-            <div class="grid grid-cols-3 gap-2 font-mono text-2xs">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-2xs">
               <label
                 class="flex flex-col items-center justify-center p-2.5 rounded-lg border cursor-pointer transition text-center space-y-1"
                 :class="customTrendForm.format === 'png'
@@ -4361,6 +4381,18 @@
                 <span class="text-base">📑</span>
                 <span class="text-[10px]">Dokumen PDF</span>
                 <span class="text-[8px] opacity-75">Grafik &amp; Tabel Stats</span>
+              </label>
+
+              <label
+                class="flex flex-col items-center justify-center p-2.5 rounded-lg border cursor-pointer transition text-center space-y-1"
+                :class="customTrendForm.format === 'xlsx'
+                  ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-bold ring-1 ring-emerald-500/30'
+                  : 'bg-slate-50 dark:bg-[#101B2B] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:border-slate-300'"
+              >
+                <input type="radio" value="xlsx" v-model="customTrendForm.format" class="sr-only" />
+                <span class="text-base">📊</span>
+                <span class="text-[10px]">Excel (XLS)</span>
+                <span class="text-[8px] opacity-75">Data &amp; Ringkasan</span>
               </label>
             </div>
           </div>
@@ -4447,6 +4479,26 @@
             >
               <OperatorDashboardIcon name="calendar" :size="13" class="text-cyan-500" />
               <span>Grafik Periode...</span>
+            </button>
+
+            <!-- PDF Report Download -->
+            <button
+              @click="downloadTrendPDF"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+              title="Download Laporan PDF Grafik & Statistik"
+            >
+              <OperatorDashboardIcon name="report" :size="13" class="text-rose-500 dark:text-rose-400" />
+              <span>PDF</span>
+            </button>
+
+            <!-- Excel XLS Download -->
+            <button
+              @click="downloadTrendXLS"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#1E2E42] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-200 text-3xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+              title="Download Data Telemetri Excel (.xlsx)"
+            >
+              <OperatorDashboardIcon name="export" :size="13" class="text-emerald-500 dark:text-emerald-400" />
+              <span>Excel (XLS)</span>
             </button>
 
             <!-- CSV Download -->
@@ -11468,6 +11520,274 @@ export default {
       };
       img.src = url;
     },
+    async downloadTrendPDF() {
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) {
+        alert('Tidak ada parameter yang sedang ditampilkan di grafik. Pilih minimal satu parameter terlebih dahulu.');
+        return;
+      }
+      const svgEl = this.showTrendFullscreen ? this.$refs.fullscreenTrendSvg : this.$refs.trendPanelSvg;
+      if (!svgEl) {
+        alert('Grafik sedang memuat data atau belum siap diunduh. Silakan tunggu beberapa detik dan coba lagi.');
+        return;
+      }
+
+      try {
+        const serializer = new XMLSerializer();
+        let svgString = serializer.serializeToString(svgEl);
+
+        const width = svgEl.clientWidth || (this.showTrendFullscreen ? this.fullscreenChartDims.width : this.trendChartDims.width) || 960;
+        const height = svgEl.clientHeight || (this.showTrendFullscreen ? this.fullscreenChartDims.height : this.trendChartDims.height) || 280;
+
+        if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
+          svgString = svgString.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        if (!svgString.includes('width=')) {
+          svgString = svgString.replace(/^<svg/, `<svg width="${width}" height="${height}"`);
+        }
+
+        // Render SVG to Canvas / PNG Data URL
+        const canvas = document.createElement('canvas');
+        canvas.width = width * 2;
+        canvas.height = height * 2;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(2, 2);
+
+        await new Promise((resolve, reject) => {
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(svgBlob);
+          const img = new Image();
+          img.onload = () => {
+            ctx.fillStyle = this.isDark ? '#070D18' : '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+            resolve();
+          };
+          img.onerror = (e) => {
+            URL.revokeObjectURL(url);
+            reject(e);
+          };
+          img.src = url;
+        });
+
+        const chartPngUrl = canvas.toDataURL('image/png');
+
+        // Create PDF (Landscape A4: 297mm x 210mm)
+        const doc = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+        });
+
+        // Top Header
+        doc.setFillColor(15, 23, 42); // Navy slate #0f172a
+        doc.rect(0, 0, 297, 20, 'F');
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text('LAPORAN GRAFIK TREN TELEMETRI OPERASIONAL', 14, 10);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(203, 213, 225);
+        doc.text('CBI INDUSTRIAL ENVIRONMENT MONITORING & TELEMETRY SYSTEM', 14, 16);
+
+        const timeframeLabel = this.fullscreenIsCustom
+          ? `${this.fullscreenCustomStart} s/d ${this.fullscreenCustomEnd}`
+          : `Rentang: ${this.currentTimeframe.toUpperCase()}`;
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Periode: ${timeframeLabel}`, 283, 10, { align: 'right' });
+        doc.text(`Dicetak: ${this.formatTimeFmt(new Date())}`, 283, 16, { align: 'right' });
+
+        // Embed Chart Image
+        doc.addImage(chartPngUrl, 'PNG', 13.5, 24, 270, 118);
+
+        // Stats Table (Hide Kode & Kualitas for Operator)
+        const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
+        const head = isOperator
+          ? [['No', 'Parameter', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel']]
+          : [['No', 'Parameter', 'Kode', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel']];
+
+        const body = this.activeTrendSeries.map((s, idx) => {
+          const stats = s.stats || {};
+          const min = stats.min != null ? stats.min : (s.dataPoints?.length ? Math.min(...s.dataPoints.map(p => p.y)) : '-');
+          const max = stats.max != null ? stats.max : (s.dataPoints?.length ? Math.max(...s.dataPoints.map(p => p.y)) : '-');
+          const avg = stats.avg != null ? stats.avg : (s.dataPoints?.length ? (s.dataPoints.reduce((a, b) => a + b.y, 0) / s.dataPoints.length).toFixed(2) : '-');
+          const latest = s.latestVal != null ? s.latestVal : (s.dataPoints?.length ? s.dataPoints[s.dataPoints.length - 1].y : '-');
+          const paramName = s.paramName || s.paramCode;
+
+          if (isOperator) {
+            return [
+              String(idx + 1),
+              paramName,
+              String(min),
+              String(max),
+              String(avg),
+              String(latest),
+              s.unit || '-',
+              String(s.dataPoints ? s.dataPoints.length : 0),
+            ];
+          }
+          return [
+            String(idx + 1),
+            paramName,
+            s.paramCode || '-',
+            String(min),
+            String(max),
+            String(avg),
+            String(latest),
+            s.unit || '-',
+            String(s.dataPoints ? s.dataPoints.length : 0),
+          ];
+        });
+
+        autoTable(doc, {
+          startY: 145,
+          head: head,
+          body: body,
+          theme: 'grid',
+          styles: {
+            fontSize: 7.5,
+            cellPadding: 1.5,
+            textColor: [30, 41, 59],
+          },
+          headStyles: {
+            fillColor: [15, 23, 42],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252],
+          },
+          margin: { left: 13.5, right: 13.5 },
+        });
+
+        const totalPages = doc.getNumberOfPages();
+        for (let p = 1; p <= totalPages; p++) {
+          doc.setPage(p);
+          doc.setFontSize(7.5);
+          doc.setTextColor(148, 163, 184);
+          doc.text(`Halaman ${p} dari ${totalPages}`, 283, 203, { align: 'right' });
+        }
+
+        const filename = `laporan_trend_${this.currentTimeframe}_${Date.now()}.pdf`;
+        const pdfBlob = doc.output('blob');
+        this.triggerDownloadBlob(pdfBlob, filename);
+      } catch (err) {
+        console.error('[Trend PDF Export Error]:', err);
+        alert('Gagal menghasilkan laporan PDF grafik: ' + (err.message || 'Error'));
+      }
+    },
+    downloadTrendXLS() {
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) {
+        alert('Pilih minimal satu parameter pada grafik terlebih dahulu.');
+        return;
+      }
+      try {
+        const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
+
+        // 1. Flatten all points from active series into rows
+        const flatItems = [];
+        this.activeTrendSeries.forEach(s => {
+          (s.dataPoints || []).forEach(pt => {
+            flatItems.push({
+              timestamp: pt.x,
+              iso: new Date(pt.x).toISOString(),
+              timeFormatted: this.formatTimeFmt(pt.x),
+              paramName: s.paramName || s.paramCode,
+              paramCode: s.paramCode || '',
+              deviceCode: s.deviceCode || '',
+              val: pt.y,
+              unit: s.unit || '',
+              quality: pt.quality || 'GOOD',
+            });
+          });
+        });
+
+        flatItems.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 2. Build Sheet 1: Data_Telemetri (Hide Kode & Kualitas for Operator)
+        const headers = isOperator
+          ? ['No', 'Waktu (Timestamp)', 'Parameter', 'Nilai', 'Satuan']
+          : ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+
+        const rows = flatItems.map((item, idx) => {
+          if (isOperator) {
+            return [idx + 1, item.timeFormatted, item.paramName, item.val, item.unit];
+          }
+          return [idx + 1, item.timeFormatted, item.paramName, item.paramCode, item.val, item.unit, item.quality];
+        });
+
+        const wb = XLSX.utils.book_new();
+        const wsData = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        wsData['!cols'] = isOperator ? [
+          { wch: 8 },  // No
+          { wch: 22 }, // Waktu
+          { wch: 30 }, // Parameter
+          { wch: 14 }, // Nilai
+          { wch: 12 }, // Satuan
+        ] : [
+          { wch: 8 },  // No
+          { wch: 22 }, // Waktu
+          { wch: 28 }, // Parameter
+          { wch: 12 }, // Kode
+          { wch: 14 }, // Nilai
+          { wch: 12 }, // Satuan
+          { wch: 12 }, // Kualitas
+        ];
+        XLSX.utils.book_append_sheet(wb, wsData, 'Data_Telemetri');
+
+        // 3. Build Sheet 2: Ringkasan_Statistik
+        const statHeaders = isOperator
+          ? ['No', 'Parameter', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel']
+          : ['No', 'Parameter', 'Kode', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel'];
+
+        const statRows = this.activeTrendSeries.map((s, idx) => {
+          const stats = s.stats || {};
+          const min = stats.min != null ? stats.min : (s.dataPoints?.length ? Math.min(...s.dataPoints.map(p => p.y)) : '-');
+          const max = stats.max != null ? stats.max : (s.dataPoints?.length ? Math.max(...s.dataPoints.map(p => p.y)) : '-');
+          const avg = stats.avg != null ? stats.avg : (s.dataPoints?.length ? Number((s.dataPoints.reduce((a, b) => a + b.y, 0) / s.dataPoints.length).toFixed(2)) : '-');
+          const latest = s.latestVal != null ? s.latestVal : (s.dataPoints?.length ? s.dataPoints[s.dataPoints.length - 1].y : '-');
+          const paramName = s.paramName || s.paramCode;
+
+          if (isOperator) {
+            return [idx + 1, paramName, min, max, avg, latest, s.unit || '-', s.dataPoints?.length || 0];
+          }
+          return [idx + 1, paramName, s.paramCode || '-', min, max, avg, latest, s.unit || '-', s.dataPoints?.length || 0];
+        });
+
+        const wsStats = XLSX.utils.aoa_to_sheet([statHeaders, ...statRows]);
+        wsStats['!cols'] = isOperator ? [
+          { wch: 8 },  // No
+          { wch: 28 }, // Parameter
+          { wch: 12 }, // Min
+          { wch: 12 }, // Maks
+          { wch: 14 }, // Rata-rata
+          { wch: 14 }, // Terakhir
+          { wch: 12 }, // Satuan
+          { wch: 14 }, // Sampel
+        ] : [
+          { wch: 8 },  // No
+          { wch: 28 }, // Parameter
+          { wch: 12 }, // Kode
+          { wch: 12 }, // Min
+          { wch: 12 }, // Maks
+          { wch: 14 }, // Rata-rata
+          { wch: 14 }, // Terakhir
+          { wch: 12 }, // Satuan
+          { wch: 14 }, // Sampel
+        ];
+        XLSX.utils.book_append_sheet(wb, wsStats, 'Ringkasan_Statistik');
+
+        const xlsBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([xlsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const filename = `trend_telemetry_${this.currentTimeframe}_${Date.now()}.xlsx`;
+        this.triggerDownloadBlob(blob, filename);
+      } catch (err) {
+        console.error('[Trend XLS Export Error]:', err);
+        alert('Gagal menghasilkan berkas Excel: ' + (err.message || 'Error'));
+      }
+    },
 
     // ----------------------------------------------------
     // CUSTOM PERIOD TELEMETRY TREND CHART DOWNLOAD
@@ -11840,6 +12160,103 @@ export default {
       const pdfBlob = doc.output('blob');
       this.triggerDownloadBlob(pdfBlob, filename);
     },
+    downloadCustomTrendXls(seriesList, timeBounds, filename) {
+      try {
+        const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
+
+        // 1. Flatten all points from seriesList into chronological rows
+        const flatItems = [];
+        seriesList.forEach(s => {
+          (s.points || []).forEach(pt => {
+            flatItems.push({
+              timestamp: pt.x,
+              iso: new Date(pt.x).toISOString(),
+              timeFormatted: this.formatTimeFmt(pt.x),
+              paramName: s.name || s.code,
+              paramCode: s.code || '',
+              val: pt.y,
+              unit: s.unit || '',
+              quality: 'GOOD',
+            });
+          });
+        });
+
+        flatItems.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 2. Build Sheet 1: Data_Telemetri (Omit Kode & Kualitas for Operator)
+        const headers = isOperator
+          ? ['No', 'Waktu (Timestamp)', 'Parameter', 'Nilai', 'Satuan']
+          : ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+
+        const rows = flatItems.map((item, idx) => {
+          if (isOperator) {
+            return [idx + 1, item.timeFormatted, item.paramName, item.val, item.unit];
+          }
+          return [idx + 1, item.timeFormatted, item.paramName, item.paramCode, item.val, item.unit, item.quality];
+        });
+
+        const wb = XLSX.utils.book_new();
+        const wsData = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        wsData['!cols'] = isOperator ? [
+          { wch: 8 },  // No
+          { wch: 22 }, // Waktu
+          { wch: 30 }, // Parameter
+          { wch: 14 }, // Nilai
+          { wch: 12 }, // Satuan
+        ] : [
+          { wch: 8 },  // No
+          { wch: 22 }, // Waktu
+          { wch: 28 }, // Parameter
+          { wch: 12 }, // Kode
+          { wch: 14 }, // Nilai
+          { wch: 12 }, // Satuan
+          { wch: 12 }, // Kualitas
+        ];
+        XLSX.utils.book_append_sheet(wb, wsData, 'Data_Telemetri');
+
+        // 3. Build Sheet 2: Ringkasan_Statistik
+        const statHeaders = isOperator
+          ? ['No', 'Parameter', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel']
+          : ['No', 'Parameter', 'Kode', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel'];
+
+        const statRows = seriesList.map((s, idx) => {
+          if (isOperator) {
+            return [idx + 1, s.name, s.min, s.max, s.avg, s.latest, s.unit || '-', s.points?.length || 0];
+          }
+          return [idx + 1, s.name, s.code || '-', s.min, s.max, s.avg, s.latest, s.unit || '-', s.points?.length || 0];
+        });
+
+        const wsStats = XLSX.utils.aoa_to_sheet([statHeaders, ...statRows]);
+        wsStats['!cols'] = isOperator ? [
+          { wch: 8 },  // No
+          { wch: 28 }, // Parameter
+          { wch: 12 }, // Min
+          { wch: 12 }, // Maks
+          { wch: 14 }, // Rata-rata
+          { wch: 14 }, // Terakhir
+          { wch: 12 }, // Satuan
+          { wch: 14 }, // Sampel
+        ] : [
+          { wch: 8 },  // No
+          { wch: 28 }, // Parameter
+          { wch: 12 }, // Kode
+          { wch: 12 }, // Min
+          { wch: 12 }, // Maks
+          { wch: 14 }, // Rata-rata
+          { wch: 14 }, // Terakhir
+          { wch: 12 }, // Satuan
+          { wch: 14 }, // Sampel
+        ];
+        XLSX.utils.book_append_sheet(wb, wsStats, 'Ringkasan_Statistik');
+
+        const xlsBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([xlsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        this.triggerDownloadBlob(blob, filename);
+      } catch (err) {
+        console.error('[Custom Trend XLS Export Error]:', err);
+        alert('Gagal menghasilkan berkas Excel: ' + (err.message || 'Error'));
+      }
+    },
     async submitDownloadCustomTrendChart() {
       if (!this.customTrendForm.startTime || !this.customTrendForm.endTime) {
         alert('Tentukan waktu mulai dan waktu selesai terlebih dahulu.');
@@ -11961,6 +12378,8 @@ export default {
           await this.downloadSvgAsPng(svgString, `grafik_telemetri_${periodSafe}.png`, 1200, 560);
         } else if (this.customTrendForm.format === 'pdf') {
           await this.downloadCustomTrendPdf(svgString, activeSeriesList, timeBounds, `laporan_grafik_${periodSafe}.pdf`);
+        } else if (this.customTrendForm.format === 'xlsx') {
+          this.downloadCustomTrendXls(activeSeriesList, timeBounds, `data_telemetri_${periodSafe}.xlsx`);
         }
 
         if (this.customTrendForm.applyToMainChart) {
