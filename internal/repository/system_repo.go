@@ -43,7 +43,11 @@ func (r *SystemRepository) GetAllAlarms(status string) ([]model.Alarm, error) {
 	var alarms []model.Alarm
 	query := r.db.Preload("Device").Preload("Parameter").Order("triggered_at DESC")
 	if status != "" {
-		query = query.Where("status = ?", status)
+		st := strings.ToUpper(strings.TrimSpace(status))
+		query = query.Where("status = ?", st)
+		if st == "ACTIVE" || st == "ACKNOWLEDGED" {
+			query = query.Where("device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')")
+		}
 	}
 	err := query.Limit(100).Find(&alarms).Error
 	return alarms, err

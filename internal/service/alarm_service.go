@@ -228,3 +228,39 @@ func (s *AlarmService) ClearDeviceAlarms(ctx context.Context, deviceID uint, ala
 	}
 	return nil
 }
+
+// ClearAllDeviceAlarms clears all active and acknowledged alarms for a device (e.g. when disabled or deleted)
+func (s *AlarmService) ClearAllDeviceAlarms(ctx context.Context, deviceID uint) error {
+	clearedAt := time.Now().UTC()
+	clearedList, err := s.alarmRepo.ClearActiveByDevice(ctx, deviceID, clearedAt)
+	if err != nil {
+		return err
+	}
+
+	for i := range clearedList {
+		alarmCopy := clearedList[i]
+		alarmCopy.Status = model.AlarmCleared
+		alarmCopy.ClearedAt = &clearedAt
+
+		logger.Info("Device alarm %d (%s) for device %d auto-cleared upon device disablement", alarmCopy.ID, alarmCopy.AlarmCode, deviceID)
+
+		if s.systemRepo != nil {
+			_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+				Username:  "system",
+				Action:    "ALARM_CLEAR",
+				Resource:  "ALARM",
+				Details:   fmt.Sprintf("Alarm %d (%s) auto-cleared upon device disablement", alarmCopy.ID, alarmCopy.AlarmCode),
+				CreatedAt: clearedAt,
+			})
+		}
+
+		if s.hub != nil {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "alarm.cleared",
+				Timestamp: clearedAt,
+				Data:      &alarmCopy,
+			})
+		}
+	}
+	return nil
+}

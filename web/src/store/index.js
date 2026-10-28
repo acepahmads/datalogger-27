@@ -188,7 +188,18 @@ export default new Vuex.Store({
     },
     SET_ACTIVE_ALARMS(state, alarms) {
       const list = Array.isArray(alarms) ? alarms : [];
-      state.activeAlarms = list.filter(a => a && a.status !== 'CLEARED');
+      const isDevDisabled = (devId) => {
+        if (!devId || !state.devices || !state.devices.length) return false;
+        const d = state.devices.find(x => Number(x.id) === Number(devId));
+        if (!d) return false;
+        return d.enabled === false || (d.status || d.administrative_status || '').toUpperCase() === 'DISABLED';
+      };
+      state.activeAlarms = list.filter(a => {
+        if (!a || a.status === 'CLEARED') return false;
+        const devId = a.device_id || (a.device && a.device.id);
+        if (isDevDisabled(devId)) return false;
+        return true;
+      });
       if (state.systemStatus) {
         state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
       }
@@ -196,7 +207,14 @@ export default new Vuex.Store({
     UPSERT_ACTIVE_ALARM(state, alarm) {
       if (!alarm || !alarm.id) return;
       const alarmIdNum = Number(alarm.id);
-      if (alarm.status === 'CLEARED') {
+      const isDevDisabled = (devId) => {
+        if (!devId || !state.devices || !state.devices.length) return false;
+        const d = state.devices.find(x => Number(x.id) === Number(devId));
+        if (!d) return false;
+        return d.enabled === false || (d.status || d.administrative_status || '').toUpperCase() === 'DISABLED';
+      };
+      const devId = alarm.device_id || (alarm.device && alarm.device.id);
+      if (alarm.status === 'CLEARED' || isDevDisabled(devId)) {
         state.activeAlarms = state.activeAlarms.filter(a => Number(a.id) !== alarmIdNum);
         if (state.systemStatus) {
           state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;

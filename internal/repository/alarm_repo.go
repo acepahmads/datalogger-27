@@ -104,7 +104,11 @@ func (r *AlarmRepository) List(ctx context.Context, params AlarmFilterParams) ([
 		Preload("Parameter")
 
 	if params.Status != "" {
-		query = query.Where("status = ?", strings.ToUpper(strings.TrimSpace(params.Status)))
+		st := strings.ToUpper(strings.TrimSpace(params.Status))
+		query = query.Where("status = ?", st)
+		if (st == string(model.AlarmActive) || st == string(model.AlarmAcked)) && params.DeviceID == 0 {
+			query = query.Where("device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')")
+		}
 	}
 	if params.Severity != "" {
 		query = query.Where("severity = ?", strings.ToUpper(strings.TrimSpace(params.Severity)))
@@ -167,7 +171,7 @@ func (r *AlarmRepository) GetActive(ctx context.Context) ([]model.Alarm, error) 
 	err := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("Parameter").
-		Where("status = ?", model.AlarmActive).
+		Where("status = ? AND (device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED'))", model.AlarmActive).
 		Order("triggered_at DESC").
 		Find(&alarms).Error
 	return alarms, err
@@ -237,7 +241,7 @@ func (r *AlarmRepository) GetActiveOrAcked(ctx context.Context) ([]model.Alarm, 
 	err := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("Parameter").
-		Where("status IN ?", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Where("status IN ? AND (device_id IS NULL OR device_id NOT IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED'))", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
 		Order("triggered_at DESC").
 		Find(&alarms).Error
 	return alarms, err
@@ -293,6 +297,33 @@ func (r *AlarmRepository) ClearActiveByDeviceAndCode(ctx context.Context, device
 
 	res := r.db.WithContext(ctx).Model(&model.Alarm{}).
 		Where("device_id = ? AND alarm_code = ? AND status IN ?", deviceID, alarmCode, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Updates(map[string]interface{}{
+			"status":     model.AlarmCleared,
+			"cleared_at": &clearedAt,
+		})
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	return activeAlarms, nil
+}
+
+// ClearActiveByDevice marks ALL active and acknowledged alarms for a given device as CLEARED
+func (r *AlarmRepository) ClearActiveByDevice(ctx context.Context, deviceID uint, clearedAt time.Time) ([]model.Alarm, error) {
+	if clearedAt.IsZero() {
+		clearedAt = time.Now().UTC()
+	}
+
+	var activeAlarms []model.Alarm
+	err := r.db.WithContext(ctx).
+		Where("device_id = ? AND status IN ?", deviceID, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Find(&activeAlarms).Error
+	if err != nil || len(activeAlarms) == 0 {
+		return activeAlarms, err
+	}
+
+	res := r.db.WithContext(ctx).Model(&model.Alarm{}).
+		Where("device_id = ? AND status IN ?", deviceID, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
 		Updates(map[string]interface{}{
 			"status":     model.AlarmCleared,
 			"cleared_at": &clearedAt,

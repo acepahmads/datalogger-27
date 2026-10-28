@@ -113,11 +113,15 @@ func DefaultAlarmEvaluatorConfig() AlarmEvaluatorConfig {
 // ParameterLookupFunc allows the evaluator to resolve full parameter metadata if omitted in payload
 type ParameterLookupFunc func(ctx context.Context, paramID uint) (*model.Parameter, error)
 
+// DeviceLookupFunc allows the evaluator to resolve full device metadata to check enabled status
+type DeviceLookupFunc func(ctx context.Context, deviceID uint) (*model.Device, error)
+
 // AlarmEvaluator performs thread-safe threshold, device health, communication error, and data abnormality evaluation
 type AlarmEvaluator struct {
 	alarmService *AlarmService
 	cfg          AlarmEvaluatorConfig
 	paramLookup  ParameterLookupFunc
+	deviceLookup DeviceLookupFunc
 	mu           sync.RWMutex
 	startTime    time.Time
 
@@ -139,6 +143,13 @@ type AlarmEvaluator struct {
 	alarmsTriggeredCount  uint64
 	alarmsClearedCount    uint64
 	evaluationErrorsCount uint64
+}
+
+// SetDeviceLookup registers a callback for looking up device metadata
+func (e *AlarmEvaluator) SetDeviceLookup(lookup DeviceLookupFunc) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.deviceLookup = lookup
 }
 
 // SetDeviceStatusUpdater registers a callback for syncing device online/offline state to repository/DB
@@ -229,6 +240,17 @@ func (e *AlarmEvaluator) ReloadActiveAlarms(ctx context.Context) error {
 			continue
 		}
 
+		// Skip loading active alarms for devices that are currently disabled
+		if e.deviceLookup != nil {
+			dev, err := e.deviceLookup(ctx, *alm.DeviceID)
+			if err == nil && dev != nil && (!dev.Enabled || dev.Status != model.DeviceStatusActive) {
+				go func(devID uint) {
+					_ = e.alarmService.ClearAllDeviceAlarms(context.Background(), devID)
+				}(*alm.DeviceID)
+				continue
+			}
+		}
+
 		entry := &ActiveAlarmEntry{
 			AlarmID:     alm.ID,
 			AlarmCode:   alm.AlarmCode,
@@ -284,6 +306,16 @@ func (e *AlarmEvaluator) ReloadActiveAlarms(ctx context.Context) error {
 func (e *AlarmEvaluator) EvaluateTelemetry(ctx context.Context, latest *LatestTelemetry, param *model.Parameter) {
 	if latest == nil {
 		return
+	}
+
+	// Device administrative suppression check
+	if e.deviceLookup != nil {
+		dev, err := e.deviceLookup(ctx, latest.DeviceID)
+		if err == nil && dev != nil {
+			if !dev.Enabled || dev.Status != model.DeviceStatusActive {
+				return // Do not evaluate telemetry or abnormalities for disabled devices
+			}
+		}
 	}
 
 	atomic.AddUint64(&e.evaluationsCount, 1)
@@ -578,16 +610,39 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 			delete(e.activeDeviceOffline, device.ID)
 		}
-		if e.alarmService != nil {
-			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeDeviceOffline)
-		}
 		// Also clear comm error if device was disabled
 		if commExisting, ok := e.activeCommErrors[device.ID]; ok {
 			e.clearActiveAlarm(ctx, commExisting.AlarmID, commExisting.AlarmCode)
 			delete(e.activeCommErrors, device.ID)
 		}
+
+		prefix := fmt.Sprintf("%d:", device.ID)
+		for k, existing := range e.activeHigh {
+			if strings.HasPrefix(k, prefix) {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeHigh, k)
+			}
+		}
+		for k, existing := range e.activeLow {
+			if strings.HasPrefix(k, prefix) {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeLow, k)
+			}
+		}
+		for k, existing := range e.activeAbnormality {
+			if strings.HasPrefix(k, prefix) {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeAbnormality, k)
+			}
+		}
+		for k := range e.abnormalityTracking {
+			if strings.HasPrefix(k, prefix) {
+				delete(e.abnormalityTracking, k)
+			}
+		}
+
 		if e.alarmService != nil {
-			_ = e.alarmService.ClearDeviceAlarms(ctx, device.ID, AlarmCodeCommError)
+			_ = e.alarmService.ClearAllDeviceAlarms(ctx, device.ID)
 		}
 		return
 	}
@@ -783,7 +838,7 @@ func (e *AlarmEvaluator) EvaluateDeviceCommSuccess(ctx context.Context, device *
 	}
 }
 
-// ClearDeviceAlarms clears all active device-level alarms when a device is deleted or disabled
+// ClearDeviceAlarms clears all active device and parameter alarms when a device is deleted or disabled
 func (e *AlarmEvaluator) ClearDeviceAlarms(ctx context.Context, deviceID uint) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -796,9 +851,34 @@ func (e *AlarmEvaluator) ClearDeviceAlarms(ctx context.Context, deviceID uint) {
 		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
 		delete(e.activeCommErrors, deviceID)
 	}
+
+	prefix := fmt.Sprintf("%d:", deviceID)
+	for k, existing := range e.activeHigh {
+		if strings.HasPrefix(k, prefix) {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeHigh, k)
+		}
+	}
+	for k, existing := range e.activeLow {
+		if strings.HasPrefix(k, prefix) {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeLow, k)
+		}
+	}
+	for k, existing := range e.activeAbnormality {
+		if strings.HasPrefix(k, prefix) {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, k)
+		}
+	}
+	for k := range e.abnormalityTracking {
+		if strings.HasPrefix(k, prefix) {
+			delete(e.abnormalityTracking, k)
+		}
+	}
+
 	if e.alarmService != nil {
-		_ = e.alarmService.ClearDeviceAlarms(ctx, deviceID, AlarmCodeDeviceOffline)
-		_ = e.alarmService.ClearDeviceAlarms(ctx, deviceID, AlarmCodeCommError)
+		_ = e.alarmService.ClearAllDeviceAlarms(ctx, deviceID)
 	}
 }
 

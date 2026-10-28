@@ -1114,7 +1114,17 @@ export default {
       return this.$store.state.alarms || [];
     },
     activeAlarmsList() {
-      return this.alarms.filter((a) => a.status === 'ACTIVE');
+      return this.alarms.filter((a) => {
+        if (a.status !== 'ACTIVE') return false;
+        const devId = a.device_id || (a.device && a.device.id);
+        if (devId && this.devices && this.devices.length) {
+          const d = this.devices.find(x => Number(x.id) === Number(devId));
+          if (d && (d.enabled === false || (d.status || d.administrative_status || '').toUpperCase() === 'DISABLED')) {
+            return false;
+          }
+        }
+        return true;
+      });
     },
     activeCount() {
       return this.activeAlarmsList.length;
@@ -1160,6 +1170,7 @@ export default {
     },
   },
   mounted() {
+    this.$store.dispatch('fetchDevices');
     if (this.$route.query.tab && ['alarms', 'history', 'queue', 'channels'].includes(this.$route.query.tab)) {
       this.activeTab = this.$route.query.tab;
     } else if (this.$route.path.includes('/queue') || this.$route.path.includes('/delivery')) {

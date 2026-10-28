@@ -162,7 +162,11 @@ func main() {
 			return deviceRepo.FindParameterByID(paramID)
 		},
 	)
+	alarmEvaluator.SetDeviceLookup(func(ctx context.Context, deviceID uint) (*model.Device, error) {
+		return deviceRepo.GetByID(deviceID)
+	})
 	alarmEvaluator.SetDeviceStatusUpdater(deviceRepo.SetConnectionStatus)
+	telemetryService.SetDeviceLookup(deviceRepo.GetByID)
 	telemetryService.SetAlarmEvaluator(alarmEvaluator)
 	logger.Info("AlarmEvaluator initialized with active DB alarm synchronization and attached to TelemetryService")
 

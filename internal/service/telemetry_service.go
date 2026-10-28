@@ -184,6 +184,9 @@ type TelemetryService struct {
 
 	// Phase 6 Wave 1: Automated Alarm Threshold Evaluator
 	alarmEvaluator *AlarmEvaluator
+
+	// Device status resolver
+	deviceLookup func(deviceID uint) (*model.Device, error)
 }
 
 // NewTelemetryService constructs and starts the background ingestion worker
@@ -288,6 +291,22 @@ func (s *TelemetryService) SetAlarmEvaluator(evaluator *AlarmEvaluator) {
 // GetAlarmEvaluator returns the attached AlarmEvaluator
 func (s *TelemetryService) GetAlarmEvaluator() *AlarmEvaluator {
 	return s.alarmEvaluator
+}
+
+// SetDeviceLookup registers a device lookup callback for checking enabled and active status
+func (s *TelemetryService) SetDeviceLookup(lookup func(deviceID uint) (*model.Device, error)) {
+	s.deviceLookup = lookup
+}
+
+// ClearDeviceCache removes cached instantaneous telemetry for a specific device (e.g. when disabled or deleted)
+func (s *TelemetryService) ClearDeviceCache(deviceID uint) {
+	s.latestMu.Lock()
+	defer s.latestMu.Unlock()
+	for k, item := range s.latestCache {
+		if item != nil && item.DeviceID == deviceID {
+			delete(s.latestCache, k)
+		}
+	}
 }
 
 // Ingest receives a telemetry measurement, validates, updates cache, broadcasts, and enqueues
@@ -548,6 +567,16 @@ func (s *TelemetryService) evaluateStaleParameters() {
 		if item == nil {
 			continue
 		}
+
+		// Skip disabled devices from stale checks
+		if s.deviceLookup != nil {
+			if dev, err := s.deviceLookup(item.DeviceID); err == nil && dev != nil {
+				if !dev.Enabled || dev.Status != model.DeviceStatusActive {
+					continue
+				}
+			}
+		}
+
 		if cur, ok := devLastData[item.DeviceID]; !ok || item.ReceivedAt.After(cur) {
 			devLastData[item.DeviceID] = item.ReceivedAt
 			devCodes[item.DeviceID] = item.DeviceCode
@@ -585,12 +614,22 @@ func (s *TelemetryService) evaluateStaleParameters() {
 
 		for devID, lastData := range devLastData {
 			lastDataCopy := lastData
-			dev := &model.Device{
-				ID:         devID,
-				DeviceCode: devCodes[devID],
-				Enabled:    true,
-				Status:     model.DeviceStatusActive,
-				LastDataAt: &lastDataCopy,
+			var dev *model.Device
+			if s.deviceLookup != nil {
+				if d, err := s.deviceLookup(devID); err == nil && d != nil {
+					devCopy := *d
+					devCopy.LastDataAt = &lastDataCopy
+					dev = &devCopy
+				}
+			}
+			if dev == nil {
+				dev = &model.Device{
+					ID:         devID,
+					DeviceCode: devCodes[devID],
+					Enabled:    true,
+					Status:     model.DeviceStatusActive,
+					LastDataAt: &lastDataCopy,
+				}
 			}
 			s.alarmEvaluator.EvaluateDeviceOffline(s.ctx, dev, nil)
 		}

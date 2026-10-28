@@ -1520,4 +1520,71 @@ func TestAlarmEvaluator_ZeroValueAlarmPolicies(t *testing.T) {
 	}
 }
 
+func TestAlarmEvaluator_DisabledDeviceClearsAllAlarms(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	critHigh := 100.0
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, &critHigh, nil)
+
+	// Set deviceLookup
+	evaluator.SetDeviceLookup(func(ctx context.Context, deviceID uint) (*model.Device, error) {
+		var d model.Device
+		if err := db.First(&d, deviceID).Error; err != nil {
+			return nil, err
+		}
+		return &d, nil
+	})
+
+	// 1. Trigger threshold alarm
+	tHigh := &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ProcessedValue: 120.0,
+		Quality:        model.QualityGood,
+		ReceivedAt:     time.Now().UTC(),
+	}
+	evaluator.EvaluateTelemetry(ctx, tHigh, param)
+	if evaluator.GetActiveCount() != 1 {
+		t.Fatalf("expected 1 active threshold alarm, got %d", evaluator.GetActiveCount())
+	}
+
+	// 2. Trigger offline alarm
+	oldSuccess := time.Now().UTC().Add(-120 * time.Second)
+	health := &service.DeviceHealthInput{
+		DeviceID:        dev.ID,
+		State:           "ERROR",
+		LastCommSuccess: &oldSuccess,
+	}
+	evaluator.EvaluateDeviceOffline(ctx, dev, health)
+	if evaluator.GetActiveDeviceOfflineCount() != 1 {
+		t.Fatalf("expected 1 active offline alarm, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// 3. Disable the device in DB
+	db.Model(&model.Device{}).Where("id = ?", dev.ID).Update("enabled", false)
+
+	// 4. Call ClearDeviceAlarms
+	evaluator.ClearDeviceAlarms(ctx, dev.ID)
+
+	if evaluator.GetActiveCount() != 0 {
+		t.Errorf("expected 0 active threshold alarms after ClearDeviceAlarms, got %d", evaluator.GetActiveCount())
+	}
+	if evaluator.GetActiveDeviceOfflineCount() != 0 {
+		t.Errorf("expected 0 active offline alarms after ClearDeviceAlarms, got %d", evaluator.GetActiveDeviceOfflineCount())
+	}
+
+	// Verify DB active alarms are cleared
+	active, err := alarmRepo.GetActive(ctx)
+	if err != nil {
+		t.Fatalf("failed to query active alarms: %v", err)
+	}
+	if len(active) != 0 {
+		t.Errorf("expected 0 active alarms in DB for disabled device, got %d", len(active))
+	}
+}
+
+
 

@@ -186,6 +186,9 @@ func (p *PollingEngine) StopDeviceWorker(deviceID uint) {
 	if p.alarmEvaluator != nil {
 		p.alarmEvaluator.ClearDeviceAlarms(p.ctx, deviceID)
 	}
+	if p.telemetryService != nil {
+		p.telemetryService.ClearDeviceCache(deviceID)
+	}
 }
 
 // ActiveWorkerCount returns the number of active polling workers currently running

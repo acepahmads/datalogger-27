@@ -5681,12 +5681,21 @@ export default {
       const activeDeviceIds = [...new Set(this.activeTrendSeries.map(s => Number(s.deviceId)).filter(Boolean))];
       const devices = activeDeviceIds.map(id => this.devicesList.find(d => Number(d.id) === id)).filter(Boolean);
 
-      const offlineDevices = devices.filter(d => {
+      const isDeviceDisabled = (d) => {
+        if (!d) return false;
+        if (d.enabled === false) return true;
+        const s = (d.status || d.administrative_status || '').toUpperCase();
+        return s === 'DISABLED' || s === 'INACTIVE';
+      };
+
+      const enabledDevices = devices.filter(d => !isDeviceDisabled(d));
+
+      const offlineDevices = enabledDevices.filter(d => {
         const s = (d.connection_status || d.status || '').toUpperCase();
         return s === 'OFFLINE' || s === 'DISCONNECTED' || d.transport_status === 'PORT_MISSING';
       });
 
-      const errorDevices = devices.filter(d => {
+      const errorDevices = enabledDevices.filter(d => {
         const s = (d.connection_status || d.status || '').toUpperCase();
         return s === 'ERROR';
       });
@@ -5711,6 +5720,21 @@ export default {
       const secondsAgo = lastTimestamp > 0 ? Math.max(0, Math.floor((now - lastTimestamp) / 1000)) : null;
       const lastTimeFormatted = lastTimestamp > 0 ? this.formatTrendTimeOnly(lastTimestamp) : '-';
 
+      // If all selected trend devices are disabled administratively
+      if (devices.length > 0 && enabledDevices.length === 0) {
+        return {
+          state: 'DEVICE_DISABLED',
+          badge: 'DEVICE DISABLED',
+          badgeClass: 'bg-slate-500/20 text-slate-600 dark:text-slate-400 border border-slate-500/40 font-semibold',
+          dotClass: 'bg-slate-400',
+          message: `Perangkat dinonaktifkan secara administratif · Histori telemetri tetap ditampilkan`,
+          lastTimestamp,
+          lastTimeFormatted,
+          secondsAgo,
+          hasHistory: true,
+        };
+      }
+
       if (this.trendRecentlyRecovered) {
         return {
           state: 'RECOVERED',
@@ -5725,7 +5749,7 @@ export default {
         };
       }
 
-      if (devices.length > 0 && offlineDevices.length === devices.length) {
+      if (enabledDevices.length > 0 && offlineDevices.length === enabledDevices.length) {
         const reason = offlineDevices[0].last_error || offlineDevices[0].transport_status || 'Koneksi perangkat terputus';
         return {
           state: 'DEVICE_OFFLINE',
@@ -5756,6 +5780,8 @@ export default {
       }
 
       const timeoutParams = this.activeTrendSeries.filter(s => {
+        const dev = this.devicesList.find(d => Number(d.id) === Number(s.deviceId));
+        if (isDeviceDisabled(dev)) return false;
         const live = this.liveMap[s.parameterId];
         return live && (live.quality === 'BAD' || (live.quality_reason || '').toLowerCase().includes('timeout'));
       });
@@ -5776,7 +5802,7 @@ export default {
       }
 
       const freshnessThresholdSeconds = this.currentTimeframe === '1m' ? 15 : (this.currentTimeframe === '5m' ? 30 : 60);
-      const isStale = (devices.some(d => d.is_fresh === false)) || (secondsAgo !== null && secondsAgo > freshnessThresholdSeconds && (this.currentTimeframe === '1m' || this.currentTimeframe === '5m'));
+      const isStale = (enabledDevices.some(d => d.is_fresh === false)) || (secondsAgo !== null && secondsAgo > freshnessThresholdSeconds && (this.currentTimeframe === '1m' || this.currentTimeframe === '5m'));
 
       if (isStale) {
         return {
@@ -5815,7 +5841,16 @@ export default {
       const timeSpan = end - start;
       const markers = [];
 
-      const allEvents = [...this.trendOutageEvents];
+      const isDevDisabled = (devId) => {
+        if (!devId) return false;
+        const d = this.devicesList.find(x => Number(x.id) === Number(devId));
+        if (!d) return false;
+        if (d.enabled === false) return true;
+        const s = (d.status || d.administrative_status || '').toUpperCase();
+        return s === 'DISABLED' || s === 'INACTIVE';
+      };
+
+      const allEvents = this.trendOutageEvents.filter(e => !isDevDisabled(e.deviceId));
       const diag = this.trendCommDiagnostics;
       if (diag && (diag.state === 'DEVICE_OFFLINE' || diag.state === 'PARTIAL_OFFLINE') && diag.lastTimestamp >= start && diag.lastTimestamp <= end) {
         if (!allEvents.some(e => (e.type === 'COMMUNICATION_LOST' || e.type === 'DEVICE_OFFLINE') && Math.abs(e.timestamp - diag.lastTimestamp) < 15000)) {
@@ -5857,7 +5892,16 @@ export default {
       const timeSpan = end - start;
       const markers = [];
 
-      const allEvents = [...this.trendOutageEvents];
+      const isDevDisabled = (devId) => {
+        if (!devId) return false;
+        const d = this.devicesList.find(x => Number(x.id) === Number(devId));
+        if (!d) return false;
+        if (d.enabled === false) return true;
+        const s = (d.status || d.administrative_status || '').toUpperCase();
+        return s === 'DISABLED' || s === 'INACTIVE';
+      };
+
+      const allEvents = this.trendOutageEvents.filter(e => !isDevDisabled(e.deviceId));
       const diag = this.trendCommDiagnostics;
       if (diag && (diag.state === 'DEVICE_OFFLINE' || diag.state === 'PARTIAL_OFFLINE') && diag.lastTimestamp >= start && diag.lastTimestamp <= end) {
         if (!allEvents.some(e => (e.type === 'COMMUNICATION_LOST' || e.type === 'DEVICE_OFFLINE') && Math.abs(e.timestamp - diag.lastTimestamp) < 15000)) {
@@ -8500,6 +8544,14 @@ export default {
       const name = (data.event_name || data.name || '').toUpperCase();
       const devId = Number(data.device_id);
       const now = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
+
+      // Ignore outage events for devices that are administratively disabled
+      if (devId && this.devicesList && this.devicesList.length) {
+        const targetDev = this.devicesList.find(d => Number(d.id) === devId);
+        if (targetDev && (targetDev.enabled === false || (targetDev.status || targetDev.administrative_status || '').toUpperCase() === 'DISABLED')) {
+          return;
+        }
+      }
 
       if (['USB_PORT_MISSING', 'SERIAL_OPEN_FAILED', 'DEVICE_OFFLINE', 'COMMUNICATION_LOST', 'COMMUNICATION_TIMEOUT'].includes(name)) {
         this.recordTrendOutageEvent({
