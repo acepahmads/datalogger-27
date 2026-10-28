@@ -876,7 +876,7 @@
                     </div>
                     <div class="text-[9.5px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/50 dark:border-slate-800/80 leading-relaxed">
                       <span v-if="highestPriorityAlarm">
-                        Top Priority: <strong class="text-rose-600 dark:text-rose-400">{{ highestPriorityAlarm.param_name || highestPriorityAlarm.alarm_code }}</strong> ({{ highestPriorityAlarm.message }})
+                        Top Priority: <strong class="text-rose-600 dark:text-rose-400">{{ getAlarmDisplayTitle(highestPriorityAlarm) }}</strong> ({{ highestPriorityAlarm.message }})
                       </span>
                       <span v-else class="text-slate-600 dark:text-slate-400">
                         All sensor measurements are currently within regulatory thresholds.
@@ -896,15 +896,15 @@
                         Full History →
                       </router-link>
                     </div>
-                    <div v-if="activeAlarmsList.length > 0" class="max-h-36 overflow-y-auto custom-scroller space-y-1.5 pr-0.5">
+                    <div v-if="activeAlarmsList.length > 0" class="max-h-48 overflow-y-auto custom-scroller space-y-1.5 pr-0.5">
                       <div
                         v-for="alm in activeAlarmsList.slice(0, 6)"
-                        :key="'popover-alm-' + alm.alarm_id"
+                        :key="'popover-alm-' + (alm.alarm_id || alm.id)"
                         class="p-2 rounded bg-slate-50/70 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] text-[9.5px]"
                       >
                         <div class="flex items-center justify-between mb-1">
-                          <span class="font-bold text-slate-800 dark:text-slate-200 truncate pr-1">
-                            {{ alm.param_name || alm.alarm_code }}
+                          <span class="font-bold text-slate-800 dark:text-slate-200 truncate pr-1" :title="getAlarmDisplayTitle(alm)">
+                            {{ getAlarmDisplayTitle(alm) }}
                           </span>
                           <span
                             class="px-1.5 py-0.2 rounded text-[7.5px] font-bold flex-shrink-0 uppercase"
@@ -913,9 +913,15 @@
                             {{ alm.severity }}
                           </span>
                         </div>
-                        <div class="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                          <span>Val: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ alm.trigger_value != null ? alm.trigger_value : '—' }}</strong> (Limit: {{ alm.threshold_value != null ? alm.threshold_value : '—' }})</span>
-                          <span class="opacity-80">{{ formatRelative(alm.created_at) }}</span>
+                        <div class="text-[8.5px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1.5">
+                          <span v-if="alm.trigger_value != null" class="truncate">
+                            Val: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ alm.trigger_value }}</strong>
+                            <span v-if="alm.threshold_value != null"> (Limit: {{ alm.threshold_value }})</span>
+                          </span>
+                          <span v-else class="truncate pr-1 text-slate-600 dark:text-slate-400" :title="alm.message">
+                            {{ alm.message || formatAlarmCode(alm.alarm_code) }}
+                          </span>
+                          <span class="opacity-80 flex-shrink-0 ml-auto whitespace-nowrap">{{ formatRelative(alm.triggered_at || alm.created_at) }}</span>
                         </div>
                       </div>
                     </div>
@@ -6223,9 +6229,11 @@ export default {
       };
       const isParamDisabled = (paramId) => {
         if (!paramId) return false;
-        const p = (this.allParameters || []).find(x => Number(x.id) === Number(paramId));
-        if (p && p.enabled === false) return true;
-        return false;
+        const list = this.allParameters || [];
+        if (!list.length) return false;
+        const p = list.find(x => Number(x.id) === Number(paramId));
+        if (!p) return true; // Exclude deleted/unregistered parameter
+        return p.enabled === false;
       };
       return (this.$store.state.activeAlarms || []).filter(a => {
         if (!a || a.status === 'CLEARED') return false;
@@ -8437,6 +8445,54 @@ export default {
       const meta = this.getSparkline(paramId);
       if (!meta.hasHistory || meta.areaPaths.length === 0) return '';
       return meta.areaPaths[0].replace(/M |L |Z/g, '');
+    },
+    getAlarmParamName(alm) {
+      if (!alm) return '';
+      if (alm.param_name) return alm.param_name;
+      if (alm.parameter) {
+        return alm.parameter.parameter_name || alm.parameter.name || alm.parameter.parameter_code || alm.parameter.code || '';
+      }
+      const paramId = alm.parameter_id;
+      if (paramId && this.allParameters && this.allParameters.length) {
+        const p = this.allParameters.find(x => Number(x.id) === Number(paramId));
+        if (p) return p.param_name || p.param_code || p.name || '';
+      }
+      if (alm.message) {
+        const m = alm.message.match(/Parameter\s+([^on]+?)\s+on\s+device/i);
+        if (m && m[1]) return m[1].trim();
+      }
+      return '';
+    },
+    getAlarmDeviceName(alm) {
+      if (!alm) return '';
+      if (alm.device) {
+        return alm.device.device_code || alm.device.code || alm.device.device_name || alm.device.name || '';
+      }
+      const devId = alm.device_id;
+      if (devId && this.devicesList && this.devicesList.length) {
+        const d = this.devicesList.find(x => Number(x.id) === Number(devId));
+        if (d) return d.device_code || d.code || d.device_name || '';
+      }
+      if (alm.message) {
+        const m = alm.message.match(/device\s+([A-Za-z0-9_-]+)/i);
+        if (m && m[1]) return m[1].trim();
+      }
+      return '';
+    },
+    getAlarmDisplayTitle(alm) {
+      if (!alm) return '';
+      const pName = this.getAlarmParamName(alm);
+      const dName = this.getAlarmDeviceName(alm);
+      if (pName && dName) {
+        return `${pName} (${dName})`;
+      }
+      if (pName) return pName;
+      if (dName) return `Device ${dName}`;
+      return this.formatAlarmCode(alm.alarm_code || 'ALARM');
+    },
+    formatAlarmCode(code) {
+      if (!code) return 'Alarm';
+      return String(code).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     },
     isDeviceActiveOnline(dev) {
       if (!dev) return false;
