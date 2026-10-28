@@ -447,7 +447,7 @@
                             {{ getMappingChannelName(m) }}
                           </span>
                         </div>
-                        <div v-if="getMappingDeviceName(m)" class="text-[9.5px] text-slate-500 dark:text-[#9BB4C8] font-mono mt-0.5">
+                        <div v-if="!isOperator && getMappingDeviceName(m)" class="text-[9.5px] text-slate-500 dark:text-[#9BB4C8] font-mono mt-0.5">
                           Device: {{ getMappingDeviceName(m) }}
                         </div>
                       </td>
@@ -746,6 +746,12 @@ export default {
     };
   },
   computed: {
+    isOperator() {
+      if (this.$route && this.$route.path && this.$route.path.includes('/operator')) {
+        return true;
+      }
+      return (this.$store && this.$store.getters && this.$store.getters.isOperator) || false;
+    },
     uniqueMappedPollutantsCount() {
       const set = new Set();
       (this.stationMappings || []).forEach(m => {
@@ -1306,7 +1312,7 @@ export default {
                 const devCode = d.device_code || d.code || `DEV-${d.id}`;
                 const paramName = p.parameter_name || p.name || p.parameter_code || p.code || `Param ${p.id}`;
                 const paramCode = p.parameter_code || p.code || '';
-                const unitVal = p.unit || p.source_unit || p.parameter_unit || 'µg/m³';
+                const baseDisplayName = `${paramName}${paramCode && paramCode !== paramName ? ' (' + paramCode + ')' : ''}`;
                 allParams.push({
                   ...p,
                   deviceId: d.id,
@@ -1314,7 +1320,7 @@ export default {
                   deviceCode: devCode,
                   deviceName: d.device_name || d.name,
                   unit: unitVal,
-                  displayName: `[${devCode}] ${paramName}${paramCode && paramCode !== paramName ? ' (' + paramCode + ')' : ''}`
+                  displayName: (this.isOperator || !devCode) ? baseDisplayName : `[${devCode}] ${baseDisplayName}`
                 });
               }
             });
