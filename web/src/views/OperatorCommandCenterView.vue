@@ -390,7 +390,6 @@
                     <button
                       type="button"
                       id="btn-filter-not-uncategorized"
-                      v-if="uncategorizedParamCount > 0 || selectedCategoryFilter === 'not_uncategorized'"
                       @click="selectedCategoryFilter = 'not_uncategorized'"
                       class="w-full flex items-center justify-between px-2 py-1.5 rounded transition border text-left group"
                       :class="selectedCategoryFilter === 'not_uncategorized'
