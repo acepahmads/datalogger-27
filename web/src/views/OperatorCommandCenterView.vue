@@ -3789,35 +3789,130 @@
             </div>
           </div>
 
-          <!-- Target Device -->
+          <!-- Parameter Selection (Multi-parameter filter) -->
           <div>
-            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-              {{ $t('operator.selectDevices') || 'Device Selection' }}
-            </label>
-            <select
-              v-model="exportForm.deviceId"
-              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-cyan-500 font-mono"
-            >
-              <option value="">{{ $t('operator.allDevicesSelected') || 'All Fleet Devices (Unified)' }}</option>
-              <option v-for="dev in devicesList" :key="'exp-dev-' + dev.id" :value="dev.id">
-                {{ dev.device_code || dev.code }} — {{ dev.device_name || dev.name }}
-              </option>
-            </select>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                Parameter Selection
+                <span class="ml-1 px-1.5 py-0.5 rounded text-3xs font-mono font-bold"
+                  :class="exportForm.selectedParamIds.length === 0
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30'">
+                  {{ exportForm.selectedParamIds.length === 0 ? 'Semua Parameter' : `${exportForm.selectedParamIds.length} Dipilih` }}
+                </span>
+              </label>
+              <div class="flex items-center space-x-2 text-3xs font-mono">
+                <button
+                  type="button"
+                  @click="selectAllExportParams"
+                  class="text-cyan-600 dark:text-cyan-400 hover:underline hover:text-cyan-500 font-semibold"
+                >
+                  Pilih Semua
+                </button>
+                <span class="text-slate-300 dark:text-slate-700">|</span>
+                <button
+                  type="button"
+                  @click="clearAllExportParams"
+                  class="text-slate-500 dark:text-slate-400 hover:underline hover:text-rose-400 font-semibold"
+                >
+                  Kosongkan
+                </button>
+              </div>
+            </div>
+
+            <!-- Scrollable Parameter Checkboxes Grid -->
+            <div class="max-h-36 overflow-y-auto p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] grid grid-cols-2 gap-1.5 custom-scrollbar">
+              <div
+                v-for="param in availableExportParameters"
+                :key="'exp-p-' + param.id"
+                @click="toggleExportParam(param.id)"
+                class="flex items-center space-x-2 p-1.5 rounded cursor-pointer transition select-none text-2xs"
+                :class="isParamExportSelected(param.id)
+                  ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 font-semibold shadow-xs'
+                  : 'bg-white/40 dark:bg-[#0d1624]/60 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-[#1a2c3f] hover:border-slate-300 dark:hover:border-slate-600'"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isParamExportSelected(param.id)"
+                  @click.stop="toggleExportParam(param.id)"
+                  class="rounded text-cyan-500 focus:ring-0 focus:outline-none pointer-events-none w-3.5 h-3.5"
+                />
+                <span class="truncate flex-1 font-mono text-2xs">{{ param.name }}</span>
+                <span v-if="param.unit" class="text-3xs text-slate-500 dark:text-slate-400 shrink-0 font-mono">{{ param.unit }}</span>
+              </div>
+              <div v-if="availableExportParameters.length === 0" class="col-span-2 text-center py-3 text-slate-400 text-3xs font-mono">
+                Tidak ada parameter aktif ditemukan
+              </div>
+            </div>
+            <p class="text-3xs text-slate-500 dark:text-slate-400 mt-1 font-sans">
+              * Mendukung multi-parameter. Jika tidak ada yang dicentang, sistem otomatis mengekspor seluruh parameter.
+            </p>
           </div>
 
           <!-- Format Selection -->
           <div>
-            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
               {{ $t('operator.selectFormat') || 'Export Format' }}
             </label>
-            <div class="flex items-center space-x-3 font-mono text-2xs">
-              <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="radio" value="csv" v-model="exportForm.format" class="text-cyan-500" />
-                <span class="text-slate-700 dark:text-slate-300">CSV Spreadsheet</span>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-2xs">
+              <!-- Excel XLS / XLSX -->
+              <label
+                @click="exportForm.format = 'xlsx'"
+                class="flex items-center space-x-2 p-2 rounded-lg border cursor-pointer transition"
+                :class="exportForm.format === 'xlsx'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/50 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-slate-600'"
+              >
+                <input type="radio" value="xlsx" v-model="exportForm.format" class="text-emerald-500 focus:ring-0" />
+                <div class="flex flex-col">
+                  <span class="font-bold text-xs">Excel (XLS)</span>
+                  <span class="text-3xs opacity-75">.xlsx Sheet</span>
+                </div>
               </label>
-              <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="radio" value="json" v-model="exportForm.format" class="text-cyan-500" />
-                <span class="text-slate-700 dark:text-slate-300">JSON Records</span>
+
+              <!-- PDF Document -->
+              <label
+                @click="exportForm.format = 'pdf'"
+                class="flex items-center space-x-2 p-2 rounded-lg border cursor-pointer transition"
+                :class="exportForm.format === 'pdf'
+                  ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/50 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-slate-600'"
+              >
+                <input type="radio" value="pdf" v-model="exportForm.format" class="text-rose-500 focus:ring-0" />
+                <div class="flex flex-col">
+                  <span class="font-bold text-xs">PDF</span>
+                  <span class="text-3xs opacity-75">.pdf Report</span>
+                </div>
+              </label>
+
+              <!-- CSV Spreadsheet -->
+              <label
+                @click="exportForm.format = 'csv'"
+                class="flex items-center space-x-2 p-2 rounded-lg border cursor-pointer transition"
+                :class="exportForm.format === 'csv'
+                  ? 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/50 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-slate-600'"
+              >
+                <input type="radio" value="csv" v-model="exportForm.format" class="text-cyan-500 focus:ring-0" />
+                <div class="flex flex-col">
+                  <span class="font-bold text-xs">CSV</span>
+                  <span class="text-3xs opacity-75">.csv Comma</span>
+                </div>
+              </label>
+
+              <!-- JSON Records -->
+              <label
+                @click="exportForm.format = 'json'"
+                class="flex items-center space-x-2 p-2 rounded-lg border cursor-pointer transition"
+                :class="exportForm.format === 'json'
+                  ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/50 shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-slate-600'"
+              >
+                <input type="radio" value="json" v-model="exportForm.format" class="text-indigo-500 focus:ring-0" />
+                <div class="flex flex-col">
+                  <span class="font-bold text-xs">JSON</span>
+                  <span class="text-3xs opacity-75">.json Records</span>
+                </div>
               </label>
             </div>
           </div>
@@ -4815,6 +4910,9 @@ import {
   DASHBOARD_THEME_TOKENS,
   SCADA_FALLBACK_PALETTE,
 } from '../utils/trendPalette.js';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Curated high-contrast SCADA non-alarm palette (Cyans, Blues, Emeralds, Teals, Mints, Indigos, Violets, Purples)
 // Strictly excludes red, crimson, rose, orange, amber, and yellow to avoid alarm/error confusion
@@ -5252,8 +5350,8 @@ export default {
         startTime: '',
         endTime: '',
         mode: 'PROCESSED',
-        deviceId: '',
-        format: 'csv',
+        selectedParamIds: [],
+        format: 'xlsx',
       },
       isExporting: false,
       exportStatusMessage: '',
@@ -6375,6 +6473,48 @@ export default {
         maxHeight: `calc(100vh - ${overhead}px)`,
         overflowY: 'auto',
       };
+    },
+    availableExportParameters() {
+      const map = new Map();
+      for (const dev of (this.devicesList || [])) {
+        if (dev.enabled === false || dev.enabled === 0) continue;
+        const devStatus = (dev.status || dev.administrative_status || '').toUpperCase();
+        if (devStatus === 'DISABLED') continue;
+        for (const p of (dev.parameters || [])) {
+          if (p.enabled === false || p.enabled === 0) continue;
+          const pid = Number(p.id || p.param_id);
+          if (!pid || map.has(pid)) continue;
+          const rawName = p.parameter_name || p.name || p.param_name || p.parameter_code || p.code || `Param #${pid}`;
+          const cleanName = rawName.replace(/^\[[^\]]+\]\s*/, '').trim();
+          map.set(pid, {
+            id: pid,
+            code: p.parameter_code || p.code || p.param_code || '',
+            name: cleanName,
+            unit: p.unit || p.source_unit || p.parameter_unit || '',
+          });
+        }
+      }
+      for (const p of (this.allParameters || [])) {
+        const pid = Number(p.param_id || p.id);
+        if (pid && !map.has(pid)) {
+          const rawName = p.param_name || p.name || p.parameter_name || p.param_code || `Param #${pid}`;
+          const cleanName = rawName.replace(/^\[[^\]]+\]\s*/, '').trim();
+          map.set(pid, {
+            id: pid,
+            code: p.param_code || p.code || '',
+            name: cleanName,
+            unit: p.unit || '',
+          });
+        }
+      }
+      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    exportParamMap() {
+      const map = {};
+      for (const p of this.availableExportParameters) {
+        map[p.id] = p;
+      }
+      return map;
     },
     allParameters() {
       const list = [];
@@ -10889,11 +11029,32 @@ export default {
       this.exportForm.endTime = this.toLocalISO(now);
       this.exportForm.startTime = this.toLocalISO(past24h);
       this.exportStatusMessage = '';
+      if (!this.exportForm.selectedParamIds || this.exportForm.selectedParamIds.length === 0) {
+        this.exportForm.selectedParamIds = this.availableExportParameters.map(p => p.id);
+      }
       this.showExportModal = true;
+    },
+    selectAllExportParams() {
+      this.exportForm.selectedParamIds = this.availableExportParameters.map(p => p.id);
+    },
+    clearAllExportParams() {
+      this.exportForm.selectedParamIds = [];
+    },
+    toggleExportParam(id) {
+      const numId = Number(id);
+      const idx = this.exportForm.selectedParamIds.findIndex(x => Number(x) === numId);
+      if (idx > -1) {
+        this.exportForm.selectedParamIds.splice(idx, 1);
+      } else {
+        this.exportForm.selectedParamIds.push(numId);
+      }
+    },
+    isParamExportSelected(id) {
+      return this.exportForm.selectedParamIds.some(x => Number(x) === Number(id));
     },
     async executeTelemetryExport() {
       this.isExporting = true;
-      this.exportStatusMessage = 'Querying dataset from edge database...';
+      this.exportStatusMessage = 'Mengambil data dari edge database...';
       try {
         const startISO = new Date(this.exportForm.startTime).toISOString();
         const endISO = new Date(this.exportForm.endTime).toISOString();
@@ -10906,47 +11067,215 @@ export default {
           } else {
             endpoint = '/api/telemetry/raw';
           }
+        } else if (this.exportForm.mode === 'AGGREGATED') {
+          endpoint = '/api/aggregations/results';
         }
-        else if (this.exportForm.mode === 'AGGREGATED') endpoint = '/api/aggregations/results';
 
         const params = {
           start_time: startISO,
           end_time: endISO,
           page_size: 5000,
         };
-        if (this.exportForm.deviceId) params.device_id = this.exportForm.deviceId;
+
+        const hasParamFilter = this.exportForm.selectedParamIds && this.exportForm.selectedParamIds.length > 0;
+        if (hasParamFilter) {
+          params.parameter_ids = this.exportForm.selectedParamIds.join(',');
+        }
 
         const res = await axios.get(endpoint, { params });
-        const items = res.data?.data?.items || res.data?.data || [];
+        let items = res.data?.data?.items || res.data?.data || [];
+
+        // If specific parameters selected, strictly filter on client side as well
+        if (hasParamFilter) {
+          const selectedSet = new Set(this.exportForm.selectedParamIds.map(Number));
+          items = items.filter(i => selectedSet.has(Number(i.parameter_id)));
+        }
 
         if (items.length === 0) {
-          this.exportStatusMessage = 'No records found for specified interval.';
+          this.exportStatusMessage = 'Tidak ada catatan data untuk interval waktu atau parameter yang dipilih.';
           return;
         }
 
-        this.exportStatusMessage = `Preparing download of ${items.length} records...`;
+        const formatTime = (ts) => {
+          if (!ts) return '';
+          const d = new Date(ts);
+          if (isNaN(d.getTime())) return String(ts);
+          const pad = n => (n < 10 ? '0' + n : n);
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        };
+
+        const formatName = (i) => {
+          const p = this.exportParamMap[i.parameter_id];
+          if (p && p.name) return p.name;
+          if (i.parameter?.parameter_name) return i.parameter.parameter_name.replace(/^\[[^\]]+\]\s*/, '').trim();
+          return `Param #${i.parameter_id}`;
+        };
+
+        const formatCode = (i) => {
+          const p = this.exportParamMap[i.parameter_id];
+          return p?.code || i.parameter?.parameter_code || '';
+        };
+
+        const formatUnit = (i) => {
+          const p = this.exportParamMap[i.parameter_id];
+          return p?.unit || i.parameter?.unit || '';
+        };
+
+        const formatVal = (i) => {
+          const raw = i.processed_value != null ? i.processed_value : (i.value != null ? i.value : '');
+          if (raw !== '' && !isNaN(Number(raw))) {
+            return Number(Number(raw).toFixed(2));
+          }
+          return raw;
+        };
+
+        const timestampStr = Date.now();
 
         if (this.exportForm.format === 'json') {
-          const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
-          this.triggerDownloadBlob(blob, `telemetry_export_${Date.now()}.json`);
-        } else {
-          // Generate CSV
-          const headers = ['Timestamp', 'Device ID', 'Parameter ID', 'Value', 'Quality'];
-          const rows = items.map(i => [
-            i.received_at || i.timestamp || '',
-            i.device_id || '',
-            i.parameter_id || '',
-            i.value != null ? i.value : '',
+          this.exportStatusMessage = `Menyiapkan berkas JSON (${items.length} data)...`;
+          const records = items.map(i => ({
+            timestamp: formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
+            parameter_name: formatName(i),
+            parameter_code: formatCode(i),
+            value: formatVal(i),
+            unit: formatUnit(i),
+            quality: i.quality || 'GOOD',
+            quality_reason: (i.quality_reason && i.quality_reason !== 'NONE') ? i.quality_reason : null,
+          }));
+          const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+          this.triggerDownloadBlob(blob, `telemetry_export_${timestampStr}.json`);
+        } else if (this.exportForm.format === 'xlsx' || this.exportForm.format === 'xls') {
+          this.exportStatusMessage = `Menghasilkan berkas Excel (${items.length} data)...`;
+          const headers = ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+          const rows = items.map((i, idx) => [
+            idx + 1,
+            formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
+            formatName(i),
+            formatCode(i),
+            formatVal(i),
+            formatUnit(i),
             i.quality || 'GOOD',
           ]);
-          const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+          ws['!cols'] = [
+            { wch: 8 },  // No
+            { wch: 22 }, // Waktu
+            { wch: 28 }, // Parameter
+            { wch: 12 }, // Kode
+            { wch: 14 }, // Nilai
+            { wch: 12 }, // Satuan
+            { wch: 12 }, // Kualitas
+          ];
+          XLSX.utils.book_append_sheet(wb, ws, 'Telemetry_Data');
+          const xlsBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([xlsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          this.triggerDownloadBlob(blob, `telemetry_export_${timestampStr}.xlsx`);
+        } else if (this.exportForm.format === 'pdf') {
+          this.exportStatusMessage = `Menghasilkan dokumen PDF (${items.length} data)...`;
+          const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+          });
+
+          // Header Bar
+          doc.setFillColor(15, 23, 42); // Navy slate #0f172a
+          doc.rect(0, 0, 210, 22, 'F');
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(255, 255, 255);
+          doc.text('LAPORAN DATA TELEMETRI OPERASIONAL', 14, 12);
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(203, 213, 225);
+          doc.text('CBI INDUSTRIAL ENVIRONMENT MONITORING & TELEMETRY SYSTEM', 14, 18);
+
+          // Metadata Box
+          doc.setFontSize(8);
+          doc.setTextColor(51, 65, 85);
+          const startFmt = formatTime(this.exportForm.startTime);
+          const endFmt = formatTime(this.exportForm.endTime);
+          doc.text(`Periode: ${startFmt} s/d ${endFmt}`, 14, 28);
+          doc.text(`Mode Data: ${this.exportForm.mode}  |  Total Rekaman: ${items.length} baris`, 14, 33);
+          const printTime = formatTime(new Date());
+          doc.text(`Dicetak: ${printTime}`, 14, 38);
+
+          // Table Rows
+          const head = [['No', 'Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']];
+          const body = items.map((i, idx) => [
+            String(idx + 1),
+            formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
+            formatName(i),
+            formatCode(i),
+            String(formatVal(i)),
+            formatUnit(i),
+            i.quality || 'GOOD',
+          ]);
+
+          autoTable(doc, {
+            startY: 42,
+            head: head,
+            body: body,
+            theme: 'grid',
+            styles: {
+              fontSize: 7.5,
+              cellPadding: 1.8,
+              textColor: [30, 41, 59],
+              overflow: 'linebreak',
+            },
+            headStyles: {
+              fillColor: [15, 23, 42],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
+              halign: 'left',
+            },
+            alternateRowStyles: {
+              fillColor: [248, 250, 252],
+            },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' },
+              1: { cellWidth: 36 },
+              2: { cellWidth: 46 },
+              3: { cellWidth: 18 },
+              4: { cellWidth: 20, halign: 'right' },
+              5: { cellWidth: 18, halign: 'center' },
+              6: { cellWidth: 22, halign: 'center' },
+            },
+            margin: { top: 26, bottom: 15, left: 14, right: 14 },
+          });
+
+          // Page numbers in footer
+          const totalPages = doc.getNumberOfPages();
+          for (let p = 1; p <= totalPages; p++) {
+            doc.setPage(p);
+            doc.setFontSize(7.5);
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Halaman ${p} dari ${totalPages}`, 196, 290, { align: 'right' });
+          }
+
+          doc.save(`telemetry_export_${timestampStr}.pdf`);
+        } else {
+          // CSV Spreadsheet
+          this.exportStatusMessage = `Menyiapkan berkas CSV (${items.length} data)...`;
+          const headers = ['Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+          const rows = items.map(i => [
+            formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
+            `"${formatName(i).replace(/"/g, '""')}"`,
+            formatCode(i),
+            formatVal(i),
+            formatUnit(i),
+            i.quality || 'GOOD',
+          ]);
+          const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-          this.triggerDownloadBlob(blob, `telemetry_export_${Date.now()}.csv`);
+          this.triggerDownloadBlob(blob, `telemetry_export_${timestampStr}.csv`);
         }
 
+        this.exportStatusMessage = `Ekspor berkas (${items.length} baris) berhasil diunduh.`;
         setTimeout(() => {
           this.showExportModal = false;
-        }, 1200);
+        }, 1500);
       } catch (err) {
         this.exportStatusMessage = 'Export failed: ' + (err.message || 'API error');
       } finally {
