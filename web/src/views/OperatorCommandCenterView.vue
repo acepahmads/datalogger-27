@@ -3997,11 +3997,12 @@
     <!-- MODAL: USB FLASHDISK NOT DETECTED NOTIFICATION -->
     <div
       v-if="showUsbWarningModal"
-      class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 dark:bg-slate-950/85 backdrop-blur-sm animate-fade-in"
+      class="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/80 dark:bg-slate-950/90 backdrop-blur-sm animate-fade-in"
+      style="z-index: 99999;"
     >
-      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-amber-500/40 p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-[#0B1422] border border-amber-500/50 p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
         <div class="flex items-center space-x-3 border-b border-slate-200 dark:border-[#20354B] pb-3">
-          <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-xl shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-xl shrink-0">
             🔌
           </div>
           <div>
@@ -4014,9 +4015,9 @@
           </div>
         </div>
 
-        <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 text-amber-800 dark:text-amber-300 text-xs font-sans leading-relaxed">
+        <div class="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-amber-900 dark:text-amber-200 text-xs font-sans leading-relaxed">
           Sistem tidak mendeteksi adanya USB flashdisk yang terpasang pada port perangkat datalogger.
-          <p class="mt-2 font-semibold text-slate-800 dark:text-slate-200">
+          <p class="mt-2.5 font-semibold text-slate-800 dark:text-slate-100">
             Apakah Anda ingin tetap melanjutkan ekspor data dan menyimpannya di drive lokal (Local Drive)?
           </p>
         </div>
@@ -4024,14 +4025,14 @@
         <div class="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
           <button
             @click="showUsbWarningModal = false"
-            class="w-full sm:w-auto px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            class="w-full sm:w-auto px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
           >
             Batal (Pasang Flashdisk)
           </button>
           <button
             @click="retryUsbDetection"
             :disabled="isRetryingUsb"
-            class="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold flex items-center justify-center space-x-1"
+            class="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold flex items-center justify-center space-x-1 transition"
           >
             <span v-if="isRetryingUsb" class="animate-spin w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full mr-1"></span>
             <span>🔄 Cek Ulang USB</span>
@@ -11202,7 +11203,7 @@ export default {
       this.isExporting = true;
       this.exportStatusMessage = 'Memeriksa perangkat USB Flashdisk...';
       try {
-        const res = await axios.get('/api/system/storage/usb');
+        const res = await axios.get('/api/system/storage/usb', { timeout: 4000 });
         const data = res.data?.data || {};
         if (data.detected && data.drives && data.drives.length > 0) {
           this.detectedUsbDrives = data.drives;
@@ -11217,6 +11218,7 @@ export default {
           this.showUsbWarningModal = true;
         }
       } catch (err) {
+        console.warn('[Export] USB check skipped or endpoint returned error:', err?.message || err);
         this.detectedUsbDrives = [];
         this.isExporting = false;
         this.exportStatusMessage = '';
@@ -11226,7 +11228,7 @@ export default {
     async retryUsbDetection() {
       this.isRetryingUsb = true;
       try {
-        const res = await axios.get('/api/system/storage/usb');
+        const res = await axios.get('/api/system/storage/usb', { timeout: 4000 });
         const data = res.data?.data || {};
         if (data.detected && data.drives && data.drives.length > 0) {
           this.detectedUsbDrives = data.drives;
@@ -11239,7 +11241,7 @@ export default {
           alert('Belum ada USB Flashdisk yang terdeteksi. Silakan pasang USB flashdisk pada port perangkat datalogger lalu klik Cek Ulang.');
         }
       } catch (e) {
-        alert('Pemeriksaan port USB gagal: ' + (e.message || 'Network error'));
+        alert('Pemeriksaan port USB gagal atau endpoint belum tersedia (' + (e?.message || 'Network error') + '). Anda dapat memilih tombol "Lanjut ke Local Drive" untuk menyimpan hasil ekspor.');
       } finally {
         this.isRetryingUsb = false;
       }
@@ -11700,7 +11702,8 @@ export default {
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
       const isPlotted = this.isParamSelectedForTrend(param);
       const trendHint = isPlotted ? ' • Plotted in Trend Analysis (Click to remove)' : ' • Click to Plot Trend';
-      return `Last Reading: ${timeFull} (${timeIso}) [${rel}] | Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status}${trendHint}`;
+      const lastValidText = this.$t('operator.sinceLastValidData') || 'sinceLastValidData';
+      return `Last Reading: ${timeFull} (${timeIso}) [${rel} ${lastValidText}] | Quality: ${param.quality || 'N/A'} | Reason: ${param.quality_reason || 'NORMAL'} | Device: ${param.device_status}${trendHint}`;
     },
     toggleEnvironmentalVisualizations() {
       this.showEnvironmentalVisualizations = !this.showEnvironmentalVisualizations;
