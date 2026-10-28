@@ -848,7 +848,16 @@ export default {
     },
     activeParametersCount() {
       if (!this.ispuData || !this.ispuData.parameter_results) return 0;
-      return this.ispuData.parameter_results.filter(p => p.calculated_ispu !== undefined).length;
+      const validCodes = new Set();
+      (this.ispuData.parameter_results || []).forEach(p => {
+        if (p.calculated_ispu !== undefined && p.category && p.category !== 'TIDAK_TERSEDIA') {
+          const code = (p.pollutant_code || '').toUpperCase();
+          if (this.sevenOfficialParameters.some(sp => sp.code === code)) {
+            validCodes.add(code);
+          }
+        }
+      });
+      return validCodes.size;
     },
     formattedPeriod() {
       if (!this.ispuData || !this.ispuData.period_end) return '-';

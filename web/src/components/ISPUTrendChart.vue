@@ -320,10 +320,13 @@
       <!-- Compact Adaptive Tooltip (Theme Adaptive: White in Light Mode, Slate in Dark Mode) -->
       <div
         v-if="hoveredPoint"
-        class="absolute z-30 pointer-events-none p-3 rounded-xl backdrop-blur-md text-[11px] font-mono transform -translate-x-1/2 -translate-y-full transition-transform duration-75 select-none"
-        :class="resolvedIsDark
-          ? 'bg-[#0B1C2B]/95 text-white border border-[#244356] shadow-2xl'
-          : 'bg-white/95 text-slate-800 border border-[#B7D8EC] shadow-xl'"
+        class="absolute z-30 pointer-events-none p-3 rounded-xl backdrop-blur-md text-[11px] font-mono transition-all duration-75 select-none"
+        :class="[
+          resolvedIsDark
+            ? 'bg-[#0B1C2B]/95 text-white border border-[#244356] shadow-2xl'
+            : 'bg-white/95 text-slate-800 border border-[#B7D8EC] shadow-xl',
+          tooltipTransformClass
+        ]"
         :style="{
           left: `${tooltipLeft}px`,
           top: `${tooltipTop}px`
@@ -782,16 +785,43 @@ export default {
       }
       return ticks;
     },
-    tooltipLeft() {
-      if (!this.hoveredPoint) return 0;
-      const minX = 115;
-      const maxX = Math.max(minX, this.chartWidth - 115);
-      return Math.max(minX, Math.min(this.hoveredPoint.clientX, maxX));
+    isTooltipBelow() {
+      if (!this.hoveredPoint) return false;
+      const cy = (this.hoveredPoint.clientY != null) ? this.hoveredPoint.clientY : (this.padTop + this.plotHeight / 2);
+      // Tooltip height is ~175px. If cy is less than 185px from the top, placing it above will cut off.
+      // So flip it below the point!
+      return cy < 185;
     },
     tooltipTop() {
       if (!this.hoveredPoint) return 0;
       const cy = (this.hoveredPoint.clientY != null) ? this.hoveredPoint.clientY : (this.padTop + this.plotHeight / 2);
+      if (this.isTooltipBelow) {
+        return Math.min(this.chartHeight - 30, cy + 14);
+      }
       return Math.max(14, cy - 14);
+    },
+    tooltipTransformClass() {
+      const yTransform = this.isTooltipBelow ? 'translate-y-0' : '-translate-y-full';
+      if (!this.hoveredPoint) return `-translate-x-1/2 ${yTransform}`;
+      const cx = this.hoveredPoint.clientX || 0;
+      if (cx > this.chartWidth - 150) {
+        return `-translate-x-full ${yTransform}`;
+      }
+      if (cx < 150) {
+        return `translate-x-0 ${yTransform}`;
+      }
+      return `-translate-x-1/2 ${yTransform}`;
+    },
+    tooltipLeft() {
+      if (!this.hoveredPoint) return 0;
+      const cx = this.hoveredPoint.clientX || 0;
+      if (cx > this.chartWidth - 150) {
+        return Math.min(this.chartWidth - 14, cx - 10);
+      }
+      if (cx < 150) {
+        return Math.max(14, cx + 10);
+      }
+      return cx;
     }
   },
   mounted() {
