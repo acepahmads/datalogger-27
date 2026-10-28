@@ -4015,11 +4015,17 @@
           </div>
         </div>
 
-        <div class="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-amber-900 dark:text-amber-200 text-xs font-sans leading-relaxed">
-          Sistem tidak mendeteksi adanya USB flashdisk yang terpasang pada port perangkat datalogger.
-          <p class="mt-2.5 font-semibold text-slate-800 dark:text-slate-100">
+        <div class="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40 text-amber-900 dark:text-amber-200 text-xs font-sans leading-relaxed space-y-2">
+          <div>
+            Sistem tidak mendeteksi adanya USB flashdisk yang terpasang pada port fisik datalogger.
+          </div>
+          <p class="font-semibold text-slate-800 dark:text-slate-100">
             Apakah Anda ingin tetap melanjutkan ekspor data dan menyimpannya di drive lokal (Local Drive)?
           </p>
+          <div class="pt-2 border-t border-amber-200/50 dark:border-amber-800/40 flex items-start space-x-2 text-3xs text-amber-700 dark:text-amber-300/90 font-mono">
+            <span class="text-xs">📁</span>
+            <span>Jendela File Explorer ("Save As") akan terbuka untuk memilih folder penyimpanan di komputer Anda.</span>
+          </div>
         </div>
 
         <div class="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
@@ -11246,12 +11252,57 @@ export default {
         this.isRetryingUsb = false;
       }
     },
-    proceedExportToLocalDrive() {
+    async proceedExportToLocalDrive() {
       this.showUsbWarningModal = false;
       this.targetExportLocation = 'local';
-      this.executeTelemetryExport();
+
+      // 1. Prepare export details & suggested filename
+      const timestampStr = Date.now();
+      const format = this.exportForm.format || 'xlsx';
+      let ext = 'xlsx';
+      let mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      let desc = 'Excel Spreadsheet (*.xlsx)';
+
+      if (format === 'pdf') {
+        ext = 'pdf';
+        mime = 'application/pdf';
+        desc = 'PDF Report Document (*.pdf)';
+      } else if (format === 'json') {
+        ext = 'json';
+        mime = 'application/json';
+        desc = 'JSON Data Records (*.json)';
+      } else if (format === 'csv') {
+        ext = 'csv';
+        mime = 'text/csv';
+        desc = 'CSV Spreadsheet (*.csv)';
+      }
+
+      const suggestedFilename = `telemetry_export_${timestampStr}.${ext}`;
+      let fileHandle = null;
+
+      // 2. Open native File Explorer ("Save As" dialog) immediately on direct user click event
+      if (typeof window.showSaveFilePicker === 'function') {
+        try {
+          fileHandle = await window.showSaveFilePicker({
+            suggestedName: suggestedFilename,
+            types: [{
+              description: desc,
+              accept: { [mime]: ['.' + ext] }
+            }]
+          });
+        } catch (pickerErr) {
+          if (pickerErr.name === 'AbortError') {
+            this.exportStatusMessage = 'Penyimpanan berkas dibatalkan oleh pengguna.';
+            return;
+          }
+          console.warn('[Export] showSaveFilePicker could not open, fallback to browser download:', pickerErr);
+        }
+      }
+
+      // 3. Execute export with the chosen fileHandle (or triggerDownloadBlob)
+      await this.executeTelemetryExport(fileHandle, suggestedFilename);
     },
-    async finalizeExportDownload(blob, filename, mimeType, description) {
+    async finalizeExportDownload(blob, filename, mimeType, description, fileHandle = null) {
       // 1. Direct edge copy if target is USB and a server-side USB drive is mounted
       if (this.targetExportLocation === 'usb' && this.detectedUsbDrives && this.detectedUsbDrives.length > 0) {
         const drive = this.detectedUsbDrives[0];
@@ -11267,38 +11318,23 @@ export default {
         }
       }
 
-      // 2. Open native OS File Explorer (Save As dialog) via showSaveFilePicker if available
-      let pickerHandled = false;
-      if (window.showSaveFilePicker) {
+      // 2. If a preselected fileHandle was picked via the File Explorer dialog:
+      if (fileHandle) {
         try {
-          const ext = '.' + filename.split('.').pop();
-          const handle = await window.showSaveFilePicker({
-            suggestedName: filename,
-            types: [{
-              description: description || 'Export Data File',
-              accept: { [mimeType]: [ext] }
-            }]
-          });
-          const writable = await handle.createWritable();
+          const writable = await fileHandle.createWritable();
           await writable.write(blob);
           await writable.close();
-          pickerHandled = true;
-          this.exportStatusMessage = `✓ Berkas berhasil disimpan ke ${this.targetExportLocation === 'usb' ? 'flashdisk' : 'lokasi pilihan'}.`;
-        } catch (pickerErr) {
-          if (pickerErr.name === 'AbortError') {
-            this.exportStatusMessage = 'Penyimpanan berkas dibatalkan oleh pengguna.';
-            return;
-          }
-          console.warn('showSaveFilePicker not supported/cancelled, falling back to download:', pickerErr);
+          this.exportStatusMessage = `✓ Berkas berhasil disimpan ke folder pilihan Anda melalui File Explorer.`;
+          return;
+        } catch (writeErr) {
+          console.warn('[Export] Failed writing to preselected fileHandle, fallback to browser download:', writeErr);
         }
       }
 
-      // 3. Fallback to standard browser download
-      if (!pickerHandled) {
-        this.triggerDownloadBlob(blob, filename);
-        const destLabel = this.targetExportLocation === 'usb' ? 'flashdisk' : 'local drive';
-        this.exportStatusMessage = `✓ Berkas berhasil diekspor dan diunduh ke ${destLabel}.`;
-      }
+      // 3. Fallback to standard browser download (which triggers native File Explorer if browser download prompt is on)
+      this.triggerDownloadBlob(blob, filename);
+      const destLabel = this.targetExportLocation === 'usb' ? 'flashdisk' : 'local drive';
+      this.exportStatusMessage = `✓ Berkas berhasil diekspor dan diarahkan ke ${destLabel}.`;
     },
     blobToBase64(blob) {
       return new Promise((resolve, reject) => {
@@ -11312,7 +11348,7 @@ export default {
         reader.readAsDataURL(blob);
       });
     },
-    async executeTelemetryExport() {
+    async executeTelemetryExport(preselectedFileHandle = null, preselectedFilename = null) {
       this.isExporting = true;
       this.exportStatusMessage = 'Menghubungi edge database...';
       try {
@@ -11459,8 +11495,8 @@ export default {
             quality_reason: (i.quality_reason && i.quality_reason !== 'NONE') ? i.quality_reason : null,
           }));
           const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
-          const filename = `telemetry_export_${timestampStr}.json`;
-          await this.finalizeExportDownload(blob, filename, 'application/json', 'JSON Records');
+          const filename = preselectedFilename || `telemetry_export_${timestampStr}.json`;
+          await this.finalizeExportDownload(blob, filename, 'application/json', 'JSON Records', preselectedFileHandle);
         } else if (this.exportForm.format === 'xlsx' || this.exportForm.format === 'xls') {
           this.exportStatusMessage = `Menghasilkan berkas Excel (${items.length} data)...`;
           const headers = ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
@@ -11487,8 +11523,8 @@ export default {
           XLSX.utils.book_append_sheet(wb, ws, 'Telemetry_Data');
           const xlsBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
           const blob = new Blob([xlsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          const filename = `telemetry_export_${timestampStr}.xlsx`;
-          await this.finalizeExportDownload(blob, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Excel Spreadsheet');
+          const filename = preselectedFilename || `telemetry_export_${timestampStr}.xlsx`;
+          await this.finalizeExportDownload(blob, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Excel Spreadsheet', preselectedFileHandle);
         } else if (this.exportForm.format === 'pdf') {
           this.exportStatusMessage = `Menghasilkan dokumen PDF (${items.length} data)...`;
           const doc = new jsPDF({
@@ -11572,9 +11608,9 @@ export default {
             doc.text(`Halaman ${p} dari ${totalPages}`, 196, 290, { align: 'right' });
           }
 
-          const filename = `telemetry_export_${timestampStr}.pdf`;
+          const filename = preselectedFilename || `telemetry_export_${timestampStr}.pdf`;
           const pdfBlob = doc.output('blob');
-          await this.finalizeExportDownload(pdfBlob, filename, 'application/pdf', 'PDF Report');
+          await this.finalizeExportDownload(pdfBlob, filename, 'application/pdf', 'PDF Report', preselectedFileHandle);
         } else {
           // CSV Spreadsheet
           this.exportStatusMessage = `Menyiapkan berkas CSV (${items.length} data)...`;
@@ -11589,8 +11625,8 @@ export default {
           ]);
           const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-          const filename = `telemetry_export_${timestampStr}.csv`;
-          await this.finalizeExportDownload(blob, filename, 'text/csv', 'CSV Spreadsheet');
+          const filename = preselectedFilename || `telemetry_export_${timestampStr}.csv`;
+          await this.finalizeExportDownload(blob, filename, 'text/csv', 'CSV Spreadsheet', preselectedFileHandle);
         }
 
         setTimeout(() => {
