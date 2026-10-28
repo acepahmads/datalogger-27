@@ -317,6 +317,14 @@
         <rect x="7" y="16" width="10" height="3" rx="1" fill="currentColor" fill-opacity="0.25" />
       </g>
 
+      <!-- Calendar / Date Picker -->
+      <g v-else-if="name === 'calendar' || name === 'date'">
+        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.1" />
+        <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </g>
+
       <!-- Operational Report -->
       <g v-else-if="name === 'report'">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="currentColor" fill-opacity="0.18" />

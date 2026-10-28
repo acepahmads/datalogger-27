@@ -2343,42 +2343,90 @@
                   :key="tf"
                   @click="setTimeframe(tf)"
                   class="h-full px-2 flex items-center justify-center rounded transition font-semibold leading-none cursor-pointer"
-                  :class="currentTimeframe === tf
+                  :class="currentTimeframe === tf && !fullscreenIsCustom
                     ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'"
                 >
                   {{ tf }}
                 </button>
+                <button
+                  type="button"
+                  @click="openCustomTrendModal"
+                  class="h-full px-1.5 flex items-center space-x-1 rounded transition font-semibold leading-none cursor-pointer text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 ml-0.5"
+                  :class="fullscreenIsCustom ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 font-bold' : ''"
+                  title="Pilih & Unduh Grafik Periode Khusus"
+                >
+                  <OperatorDashboardIcon name="calendar" :size="11" />
+                  <span>Periode</span>
+                </button>
               </div>
 
               <!-- Download Menu -->
-              <div class="relative">
+              <div class="relative trend-download-anchor">
                 <button
-                  @click="showTrendDownloadMenu = !showTrendDownloadMenu"
+                  type="button"
+                  @click.stop="toggleTrendDownloadMenu"
                   class="w-[24px] h-[24px] flex items-center justify-center rounded border border-slate-200 dark:border-[#1E3048] bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#16253B] text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition leading-none cursor-pointer"
-                  title="Download Data / Chart"
+                  title="Download Grafik / Data"
+                  aria-label="Download Grafik / Data"
                 >
                   <OperatorDashboardIcon name="download" :size="14" />
                 </button>
                 <div
                   v-if="showTrendDownloadMenu"
-                  class="absolute right-0 mt-1 w-44 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-xl py-1 z-40 text-3xs font-mono"
+                  @click.stop
+                  class="absolute right-0 mt-1 w-56 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-2xl py-1.5 z-50 text-3xs font-mono select-none"
                 >
-                  <button @click="downloadTrendCSV(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
-                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>CSV Data</span>
+                  <!-- Option 1: Custom Period Graphic Download -->
+                  <button
+                    type="button"
+                    @click="openCustomTrendModal(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/10 dark:hover:bg-cyan-500/15 flex items-center space-x-2 text-cyan-600 dark:text-cyan-400 font-bold transition cursor-pointer border-b border-slate-100 dark:border-[#1E3048]"
+                  >
+                    <OperatorDashboardIcon name="calendar" :size="13" class="text-cyan-500" />
+                    <span>Download Grafik Periode...</span>
                   </button>
-                  <button @click="downloadTrendJSON(); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
+
+                  <!-- Option 2: Current PNG Graphic -->
+                  <button
+                    type="button"
+                    @click="downloadTrendChart('png'); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
                     <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>JSON Data</span>
+                    <span>Unduh Grafik (PNG)</span>
                   </button>
-                  <button @click="downloadTrendChart('png'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
+
+                  <!-- Option 3: Current SVG Graphic -->
+                  <button
+                    type="button"
+                    @click="downloadTrendChart('svg'); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
                     <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>PNG Graphic</span>
+                    <span>Unduh Grafik (SVG)</span>
                   </button>
-                  <button @click="downloadTrendChart('svg'); showTrendDownloadMenu = false" class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer">
+
+                  <div class="my-1 border-t border-slate-100 dark:border-[#1E3048]"></div>
+
+                  <!-- Option 4: CSV Data -->
+                  <button
+                    type="button"
+                    @click="downloadTrendCSV(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
                     <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>SVG Graphic</span>
+                    <span>Data Telemetri (CSV)</span>
+                  </button>
+
+                  <!-- Option 5: JSON Data -->
+                  <button
+                    type="button"
+                    @click="downloadTrendJSON(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
+                    <span>Data Telemetri (JSON)</span>
                   </button>
                 </div>
               </div>
@@ -4134,6 +4182,236 @@
     </div>
 
     <!-- ======================================================== -->
+    <!-- MODAL: DOWNLOAD GRAFIK TELEMETRI (PERIODE KHUSUS)        -->
+    <!-- ======================================================== -->
+    <div
+      v-if="showCustomTrendModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 dark:bg-slate-950/85 backdrop-blur-sm animate-fade-in"
+      @keydown.esc="showCustomTrendModal = false"
+    >
+      <div class="w-full max-w-xl max-h-[92vh] flex flex-col rounded-2xl bg-white dark:bg-[#0B1422] border border-cyan-500/40 p-5 shadow-2xl text-slate-900 dark:text-slate-100 font-mono text-xs overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3 shrink-0">
+          <div class="flex items-center space-x-2.5">
+            <span class="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-base text-cyan-500 shrink-0">
+              <OperatorDashboardIcon name="calendar" :size="16" />
+            </span>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans leading-tight">
+                Download Grafik Telemetri (Periode Khusus)
+              </h3>
+              <p class="text-3xs text-slate-500 dark:text-slate-400 font-sans mt-0.5">
+                Tentukan rentang tanggal/waktu, parameter sensor, dan format berkas grafik yang diinginkan
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="showCustomTrendModal = false"
+            class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition p-1 cursor-pointer"
+            title="Tutup (Esc)"
+          >✕</button>
+        </div>
+
+        <!-- Form Body (Scrollable) -->
+        <div class="space-y-3.5 font-sans text-xs py-3 overflow-y-auto pr-1">
+          <!-- 1. Quick Presets -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider font-mono">
+                1. Preset Waktu Cepat
+              </label>
+              <span class="text-[9px] text-cyan-600 dark:text-cyan-400 font-mono">Klik untuk set waktu otomatis</span>
+            </div>
+            <div class="grid grid-cols-4 sm:grid-cols-7 gap-1.5 font-mono text-2xs">
+              <button
+                type="button"
+                v-for="p in [
+                  { id: '1h', label: '1 Jam' },
+                  { id: '3h', label: '3 Jam' },
+                  { id: '6h', label: '6 Jam' },
+                  { id: '12h', label: '12 Jam' },
+                  { id: 'today', label: 'Hari Ini' },
+                  { id: '24h', label: '24 Jam' },
+                  { id: '7d', label: '7 Hari' },
+                ]"
+                :key="'ctf-' + p.id"
+                @click="applyCustomTrendPreset(p.id)"
+                class="px-2 py-1.5 rounded-lg border font-semibold transition text-center cursor-pointer"
+                :class="customTrendForm.preset === p.id
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-bold shadow-xs'
+                  : 'bg-slate-50 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-cyan-500/50'"
+              >
+                {{ p.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Custom Date Range Pickers -->
+          <div>
+            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+              2. Rentang Tanggal &amp; Waktu
+            </label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div class="p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] space-y-1">
+                <span class="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-mono block">Waktu Mulai:</span>
+                <input
+                  type="datetime-local"
+                  v-model="customTrendForm.startTime"
+                  class="w-full bg-transparent text-slate-900 dark:text-white text-xs font-mono border-none focus:outline-none focus:ring-0 p-0"
+                />
+              </div>
+              <div class="p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] space-y-1">
+                <span class="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-mono block">Waktu Selesai:</span>
+                <input
+                  type="datetime-local"
+                  v-model="customTrendForm.endTime"
+                  class="w-full bg-transparent text-slate-900 dark:text-white text-xs font-mono border-none focus:outline-none focus:ring-0 p-0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Parameter Selection -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5 font-mono">
+              <label class="text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                3. Parameter Ditampilkan ({{ customTrendForm.selectedParamIds.length }}/{{ allParameters.length }})
+              </label>
+              <div class="flex items-center space-x-2 text-[9.5px]">
+                <button
+                  type="button"
+                  @click="toggleSelectAllCustomTrendParams"
+                  class="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer font-bold"
+                >
+                  {{ customTrendForm.selectedParamIds.length === allParameters.length ? 'Batal Semua' : 'Pilih Semua' }}
+                </button>
+                <span class="text-slate-400">·</span>
+                <button
+                  type="button"
+                  @click="selectPlottedCustomTrendParams"
+                  class="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer font-bold"
+                >
+                  Sesuai Grafik Aktif
+                </button>
+              </div>
+            </div>
+
+            <!-- Parameters Grid / Checklist -->
+            <div class="max-h-36 overflow-y-auto p-2 rounded-lg bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] grid grid-cols-1 sm:grid-cols-2 gap-1.5 font-mono text-2xs">
+              <label
+                v-for="(p, pIdx) in allParameters"
+                :key="'ctparam-' + p.param_id"
+                class="flex items-center space-x-2 p-1 rounded hover:bg-slate-200/60 dark:hover:bg-[#16253B] transition cursor-pointer select-none"
+              >
+                <input
+                  type="checkbox"
+                  :value="p.param_id"
+                  v-model="customTrendForm.selectedParamIds"
+                  class="rounded text-cyan-600 focus:ring-cyan-500"
+                />
+                <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: getParamColorHelper(p, pIdx) }"></span>
+                <span class="font-bold text-slate-900 dark:text-white truncate" :title="p.param_name">
+                  {{ p.param_name }}
+                </span>
+                <span class="text-[8px] text-slate-500 dark:text-slate-400 ml-auto shrink-0 font-mono">
+                  {{ p.unit || '' }}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 4. Output Graphic Format -->
+          <div>
+            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+              4. Format Grafik Berkas
+            </label>
+            <div class="grid grid-cols-3 gap-2 font-mono text-2xs">
+              <label
+                class="flex flex-col items-center justify-center p-2.5 rounded-lg border cursor-pointer transition text-center space-y-1"
+                :class="customTrendForm.format === 'png'
+                  ? 'bg-cyan-500/15 border-cyan-500 text-cyan-700 dark:text-cyan-300 font-bold ring-1 ring-cyan-500/30'
+                  : 'bg-slate-50 dark:bg-[#101B2B] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:border-slate-300'"
+              >
+                <input type="radio" value="png" v-model="customTrendForm.format" class="sr-only" />
+                <span class="text-base">🖼️</span>
+                <span class="text-[10px]">Gambar PNG</span>
+                <span class="text-[8px] opacity-75">Resolusi Tinggi 2x</span>
+              </label>
+
+              <label
+                class="flex flex-col items-center justify-center p-2.5 rounded-lg border cursor-pointer transition text-center space-y-1"
+                :class="customTrendForm.format === 'svg'
+                  ? 'bg-cyan-500/15 border-cyan-500 text-cyan-700 dark:text-cyan-300 font-bold ring-1 ring-cyan-500/30'
+                  : 'bg-slate-50 dark:bg-[#101B2B] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:border-slate-300'"
+              >
+                <input type="radio" value="svg" v-model="customTrendForm.format" class="sr-only" />
+                <span class="text-base">📐</span>
+                <span class="text-[10px]">Vektor SVG</span>
+                <span class="text-[8px] opacity-75">Vektor Skalabilitas</span>
+              </label>
+
+              <label
+                class="flex flex-col items-center justify-center p-2.5 rounded-lg border cursor-pointer transition text-center space-y-1"
+                :class="customTrendForm.format === 'pdf'
+                  ? 'bg-cyan-500/15 border-cyan-500 text-cyan-700 dark:text-cyan-300 font-bold ring-1 ring-cyan-500/30'
+                  : 'bg-slate-50 dark:bg-[#101B2B] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:border-slate-300'"
+              >
+                <input type="radio" value="pdf" v-model="customTrendForm.format" class="sr-only" />
+                <span class="text-base">📑</span>
+                <span class="text-[10px]">Dokumen PDF</span>
+                <span class="text-[8px] opacity-75">Grafik &amp; Tabel Stats</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 5. Options -->
+          <div class="pt-1">
+            <label class="flex items-center space-x-2 text-2xs text-slate-700 dark:text-slate-300 font-mono cursor-pointer select-none">
+              <input
+                type="checkbox"
+                v-model="customTrendForm.applyToMainChart"
+                class="rounded text-cyan-600 focus:ring-cyan-500"
+              />
+              <span>Tampilkan juga rentang waktu ini pada grafik Trend utama di dashboard</span>
+            </label>
+          </div>
+
+          <!-- Status Message / Spinner -->
+          <div
+            v-if="isCustomTrendExporting || customTrendStatusMsg"
+            class="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 font-mono text-2xs flex items-center space-x-2 animate-pulse"
+          >
+            <span v-if="isCustomTrendExporting" class="animate-spin w-3.5 h-3.5 border-2 border-cyan-500 border-t-transparent rounded-full shrink-0"></span>
+            <span>{{ customTrendStatusMsg }}</span>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-[#20354B] shrink-0 font-mono">
+          <button
+            type="button"
+            @click="showCustomTrendModal = false"
+            :disabled="isCustomTrendExporting"
+            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+          >
+            {{ $t('common.cancel') || 'Batal' }}
+          </button>
+          <button
+            type="button"
+            @click="submitDownloadCustomTrendChart"
+            :disabled="isCustomTrendExporting"
+            class="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
+          >
+            <span v-if="isCustomTrendExporting" class="animate-spin w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full"></span>
+            <OperatorDashboardIcon v-else name="download" :size="13" />
+            <span>Unduh Grafik Periode</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
     <!-- MODAL 4: FULLSCREEN SCADA TELEMETRY TREND ANALYZER       -->
     <!-- ======================================================== -->
     <div
@@ -4161,6 +4439,16 @@
 
           <!-- Header Action Buttons -->
           <div class="flex items-center space-x-2 font-mono text-xs">
+            <!-- Custom Period Graphic Modal -->
+            <button
+              @click="openCustomTrendModal"
+              class="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 text-3xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+              title="Download Grafik Berdasarkan Periode Pilihan"
+            >
+              <OperatorDashboardIcon name="calendar" :size="13" class="text-cyan-500" />
+              <span>Grafik Periode...</span>
+            </button>
+
             <!-- CSV Download -->
             <button
               @click="downloadTrendCSV"
@@ -5486,6 +5774,19 @@ export default {
         type: 'COMPREHENSIVE',
         preset: '24h',
         format: 'html',
+      },
+
+      // Custom Period Trend Chart Download State
+      showCustomTrendModal: false,
+      isCustomTrendExporting: false,
+      customTrendStatusMsg: '',
+      customTrendForm: {
+        startTime: '',
+        endTime: '',
+        format: 'png', // 'png' | 'svg' | 'pdf'
+        selectedParamIds: [],
+        applyToMainChart: false,
+        preset: '24h',
       },
 
       // Audio & Alarm Sound Setup State
@@ -11033,13 +11334,26 @@ export default {
         inDataGap,
       };
     },
+    toggleTrendDownloadMenu() {
+      this.showTrendDownloadMenu = !this.showTrendDownloadMenu;
+    },
     downloadTrendCSV() {
-      if (this.activeTrendSeries.length === 0) return;
-      let csv = 'Timestamp,DateTimeISO,DeviceCode,ParamCode,Value,Unit,Quality\n';
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) {
+        alert('Pilih minimal satu parameter pada grafik terlebih dahulu.');
+        return;
+      }
+      const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
+      let csv = isOperator
+        ? 'Timestamp,DateTimeISO,Parameter,Nilai,Satuan\n'
+        : 'Timestamp,DateTimeISO,DeviceCode,ParamCode,Value,Unit,Quality\n';
       this.activeTrendSeries.forEach(s => {
         (s.dataPoints || []).forEach(pt => {
           const iso = new Date(pt.x).toISOString();
-          csv += `${pt.x},"${iso}","${s.deviceCode}","${s.paramCode}",${pt.y},"${s.unit || ''}","${pt.quality || 'GOOD'}"\n`;
+          if (isOperator) {
+            csv += `${pt.x},"${iso}","${(s.paramName || s.paramCode).replace(/"/g, '""')}",${pt.y},"${s.unit || ''}"\n`;
+          } else {
+            csv += `${pt.x},"${iso}","${s.deviceCode || ''}","${s.paramCode}",${pt.y},"${s.unit || ''}","${pt.quality || 'GOOD'}"\n`;
+          }
         });
       });
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -11051,18 +11365,28 @@ export default {
       URL.revokeObjectURL(url);
     },
     downloadTrendJSON() {
-      if (this.activeTrendSeries.length === 0) return;
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) {
+        alert('Pilih minimal satu parameter pada grafik terlebih dahulu.');
+        return;
+      }
+      const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
       const payload = {
         exportedAt: new Date().toISOString(),
         timeframe: this.currentTimeframe,
         mode: this.chartMode,
-        series: this.activeTrendSeries.map(s => ({
-          deviceCode: s.deviceCode,
-          paramCode: s.paramCode,
-          unit: s.unit,
-          stats: s.stats,
-          points: s.dataPoints,
-        })),
+        series: this.activeTrendSeries.map(s => {
+          const item = {
+            parameterName: s.paramName || s.paramCode,
+            unit: s.unit,
+            stats: s.stats,
+            points: s.dataPoints,
+          };
+          if (!isOperator) {
+            item.deviceCode = s.deviceCode;
+            item.paramCode = s.paramCode;
+          }
+          return item;
+        }),
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -11073,22 +11397,37 @@ export default {
       URL.revokeObjectURL(url);
     },
     downloadTrendChart(format = 'png') {
+      if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) {
+        alert('Tidak ada parameter yang sedang ditampilkan di grafik. Pilih minimal satu parameter terlebih dahulu.');
+        return;
+      }
       const svgEl = this.showTrendFullscreen ? this.$refs.fullscreenTrendSvg : this.$refs.trendPanelSvg;
-      if (!svgEl) return;
+      if (!svgEl) {
+        alert('Grafik sedang memuat data atau belum siap diunduh. Silakan tunggu beberapa detik dan coba lagi.');
+        return;
+      }
 
       const serializer = new XMLSerializer();
       let svgString = serializer.serializeToString(svgEl);
 
+      const width = svgEl.clientWidth || (this.showTrendFullscreen ? this.fullscreenChartDims.width : this.trendChartDims.width) || 960;
+      const height = svgEl.clientHeight || (this.showTrendFullscreen ? this.fullscreenChartDims.height : this.trendChartDims.height) || 280;
+
       if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
         svgString = svgString.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
       }
+      if (!svgString.includes('width=')) {
+        svgString = svgString.replace(/^<svg/, `<svg width="${width}" height="${height}"`);
+      }
+
+      const timeframeLabel = this.fullscreenIsCustom ? 'custom' : this.currentTimeframe;
 
       if (format === 'svg') {
         const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `trend_chart_${this.currentTimeframe}_${Date.now()}.svg`;
+        a.download = `grafik_trend_${timeframeLabel}_${Date.now()}.svg`;
         a.click();
         URL.revokeObjectURL(url);
         return;
@@ -11098,27 +11437,551 @@ export default {
       const url = URL.createObjectURL(svgBlob);
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const width = svgEl.clientWidth || 960;
-        const height = svgEl.clientHeight || 380;
-        canvas.width = width * 2;
-        canvas.height = height * 2;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(2, 2);
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = width * 2;
+          canvas.height = height * 2;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(2, 2);
 
-        ctx.fillStyle = this.isDark ? '#070D18' : '#ffffff';
-        ctx.fillRect(0, 0, width, height);
+          ctx.fillStyle = this.isDark ? '#070D18' : '#ffffff';
+          ctx.fillRect(0, 0, width, height);
 
-        ctx.drawImage(img, 0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+
+          const pngUrl = canvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = pngUrl;
+          a.download = `grafik_trend_${timeframeLabel}_${Date.now()}.png`;
+          a.click();
+        } catch (e) {
+          console.warn('[Trend Export] Canvas draw failed, falling back to SVG:', e);
+          URL.revokeObjectURL(url);
+          this.downloadTrendChart('svg');
+        }
+      };
+      img.onerror = (e) => {
+        console.warn('[Trend Export] Image load failed, falling back to SVG vector download:', e);
         URL.revokeObjectURL(url);
-
-        const pngUrl = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = pngUrl;
-        a.download = `trend_chart_${this.currentTimeframe}_${Date.now()}.png`;
-        a.click();
+        this.downloadTrendChart('svg');
       };
       img.src = url;
+    },
+
+    // ----------------------------------------------------
+    // CUSTOM PERIOD TELEMETRY TREND CHART DOWNLOAD
+    // ----------------------------------------------------
+    openCustomTrendModal() {
+      const now = new Date();
+      const past24h = new Date(now.getTime() - 24 * 3600 * 1000);
+      this.customTrendForm.endTime = this.toLocalISO(now);
+      this.customTrendForm.startTime = this.toLocalISO(past24h);
+      this.customTrendForm.format = 'png';
+      this.customTrendForm.preset = '24h';
+      this.customTrendStatusMsg = '';
+
+      // Default selected parameters: currently active trend series or first 6 parameters
+      if (this.activeTrendSeries.length > 0) {
+        this.customTrendForm.selectedParamIds = this.activeTrendSeries.map(s => s.parameterId);
+      } else if (this.allParameters.length > 0) {
+        this.customTrendForm.selectedParamIds = this.allParameters.slice(0, 4).map(p => p.param_id);
+      }
+      this.showCustomTrendModal = true;
+    },
+    applyCustomTrendPreset(preset) {
+      this.customTrendForm.preset = preset;
+      const now = new Date();
+      let start = new Date(now.getTime() - 24 * 3600 * 1000);
+      if (preset === '1h') start = new Date(now.getTime() - 3600 * 1000);
+      else if (preset === '3h') start = new Date(now.getTime() - 3 * 3600 * 1000);
+      else if (preset === '6h') start = new Date(now.getTime() - 6 * 3600 * 1000);
+      else if (preset === '12h') start = new Date(now.getTime() - 12 * 3600 * 1000);
+      else if (preset === 'today') {
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      } else if (preset === '24h') start = new Date(now.getTime() - 24 * 3600 * 1000);
+      else if (preset === '7d') start = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+
+      this.customTrendForm.startTime = this.toLocalISO(start);
+      this.customTrendForm.endTime = this.toLocalISO(now);
+    },
+    toggleSelectAllCustomTrendParams() {
+      if (this.customTrendForm.selectedParamIds.length === this.allParameters.length) {
+        this.customTrendForm.selectedParamIds = [];
+      } else {
+        this.customTrendForm.selectedParamIds = this.allParameters.map(p => p.param_id);
+      }
+    },
+    selectPlottedCustomTrendParams() {
+      if (this.activeTrendSeries.length > 0) {
+        this.customTrendForm.selectedParamIds = this.activeTrendSeries.map(s => s.parameterId);
+      }
+    },
+    getParamColorHelper(param, idx = 0) {
+      return getParamSeriesColor(param, this.isDark, idx);
+    },
+    formatTimeFmt(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return String(ts);
+      const pad = n => (n < 10 ? '0' + n : n);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    },
+    generateCustomTrendSvgString(seriesList, timeBounds) {
+      const width = 1200;
+      const height = 560;
+      const padLeft = 70;
+      const padRight = 70;
+      const padTop = 95;
+      const padBottom = 45;
+      const plotW = width - padLeft - padRight; // 1060
+      const plotH = height - padTop - padBottom; // 420
+      const baseY = padTop + plotH; // 515
+
+      const bg = this.isDark ? '#070D18' : '#FFFFFF';
+      const borderCol = this.isDark ? '#1E3048' : '#CBD5E1';
+      const textMain = this.isDark ? '#FFFFFF' : '#0F172A';
+      const textSub = this.isDark ? '#94A3B8' : '#64748B';
+      const gridCol = this.isDark ? '#162338' : '#E2E8F0';
+      const axisCol = this.isDark ? '#334155' : '#94A3B8';
+
+      // Detect units & scale
+      const units = [...new Set(seriesList.map(s => (s.unit || '').trim()))];
+      const isDual = units.length >= 2;
+      const leftUnit = units[0] || '';
+      const rightUnit = isDual ? units[1] : '';
+
+      const leftSeries = seriesList.filter(s => (s.unit || '').trim() === leftUnit);
+      const rightSeries = isDual ? seriesList.filter(s => (s.unit || '').trim() === rightUnit) : [];
+
+      // Calculate Left Y Bounds
+      let leftMin = Math.min(...leftSeries.map(s => s.min));
+      let leftMax = Math.max(...leftSeries.map(s => s.max));
+      if (leftMin === leftMax) { leftMin -= 1; leftMax += 1; }
+      const leftSpan = leftMax - leftMin || 1;
+
+      // Calculate Right Y Bounds
+      let rightMin = rightSeries.length ? Math.min(...rightSeries.map(s => s.min)) : 0;
+      let rightMax = rightSeries.length ? Math.max(...rightSeries.map(s => s.max)) : 100;
+      if (rightMin === rightMax) { rightMin -= 1; rightMax += 1; }
+      const rightSpan = rightMax - rightMin || 1;
+
+      const timeSpan = timeBounds.end - timeBounds.start || 1;
+
+      // Y Grid ticks (5 lines)
+      let yTicksSvg = '';
+      for (let i = 0; i <= 4; i++) {
+        const frac = i / 4;
+        const y = baseY - frac * plotH;
+        const leftVal = (leftMin + frac * leftSpan).toFixed(leftSpan < 10 ? 2 : 1);
+        yTicksSvg += `
+          <line x1="${padLeft}" y1="${y}" x2="${width - padRight}" y2="${y}" stroke="${gridCol}" stroke-width="1" stroke-dasharray="4 4" />
+          <text x="${padLeft - 8}" y="${y + 4}" text-anchor="end" font-size="11" font-family="monospace" font-weight="600" fill="${textSub}">${leftVal}</text>
+        `;
+        if (isDual) {
+          const rightVal = (rightMin + frac * rightSpan).toFixed(rightSpan < 10 ? 2 : 1);
+          yTicksSvg += `
+            <text x="${width - padRight + 8}" y="${y + 4}" text-anchor="start" font-size="11" font-family="monospace" font-weight="600" fill="${rightSeries[0]?.color || textSub}">${rightVal}</text>
+          `;
+        }
+      }
+
+      // X Time ticks (6 ticks)
+      let xTicksSvg = '';
+      for (let i = 0; i <= 5; i++) {
+        const frac = i / 5;
+        const x = padLeft + frac * plotW;
+        const tickTs = new Date(timeBounds.start + frac * timeSpan);
+        const pad = n => (n < 10 ? '0' + n : n);
+        const tickFmt = timeSpan > 24 * 3600 * 1000
+          ? `${pad(tickTs.getDate())}/${pad(tickTs.getMonth() + 1)} ${pad(tickTs.getHours())}:${pad(tickTs.getMinutes())}`
+          : `${pad(tickTs.getHours())}:${pad(tickTs.getMinutes())}`;
+        xTicksSvg += `
+          <line x1="${x}" y1="${baseY}" x2="${x}" y2="${baseY + 5}" stroke="${axisCol}" stroke-width="1.5" />
+          <text x="${x}" y="${baseY + 20}" text-anchor="middle" font-size="10.5" font-family="monospace" fill="${textSub}">${tickFmt}</text>
+        `;
+      }
+
+      // Series Paths
+      let seriesSvg = '';
+      seriesList.forEach((s) => {
+        const isRight = isDual && (s.unit || '').trim() === rightUnit;
+        const sMin = isRight ? rightMin : leftMin;
+        const sSpan = isRight ? rightSpan : leftSpan;
+
+        const coords = s.points.map(pt => {
+          const px = padLeft + ((pt.x - timeBounds.start) / timeSpan) * plotW;
+          const py = baseY - ((pt.y - sMin) / sSpan) * plotH;
+          return { x: Math.max(padLeft, Math.min(width - padRight, px)), y: Math.max(padTop, Math.min(baseY, py)) };
+        });
+
+        if (coords.length > 0) {
+          let pathD = `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+          for (let i = 1; i < coords.length; i++) {
+            pathD += ` L ${coords[i].x.toFixed(1)} ${coords[i].y.toFixed(1)}`;
+          }
+          seriesSvg += `<path d="${pathD}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />`;
+
+          // Small dots if points <= 60
+          if (coords.length <= 60) {
+            coords.forEach(c => {
+              seriesSvg += `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="2.5" fill="${s.color}" />`;
+            });
+          }
+        }
+      });
+
+      // Legend Badges
+      let legendSvg = '';
+      let legX = padLeft;
+      seriesList.forEach(s => {
+        const legLabel = `${s.name}: Min ${s.min} | Avg ${s.avg} | Max ${s.max} ${s.unit}`;
+        const itemW = Math.max(140, legLabel.length * 6.5 + 24);
+        legendSvg += `
+          <g transform="translate(${legX}, 65)">
+            <circle cx="6" cy="6" r="4.5" fill="${s.color}" />
+            <text x="15" y="9.5" font-size="10" font-family="monospace" font-weight="600" fill="${textMain}">${s.name} (${s.unit}):</text>
+            <text x="${18 + s.name.length * 6.5 + (s.unit.length * 6.5)}" y="9.5" font-size="9.5" font-family="monospace" fill="${textSub}">Min ${s.min} · Avg ${s.avg} · Max ${s.max}</text>
+          </g>
+        `;
+        legX += itemW + 16;
+      });
+
+      const totalSampel = seriesList.reduce((acc, s) => acc + s.points.length, 0);
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  <!-- Background -->
+  <rect width="${width}" height="${height}" fill="${bg}" rx="12" />
+  <rect width="${width}" height="${height}" fill="none" stroke="${borderCol}" stroke-width="1.5" rx="12" />
+
+  <!-- Top Header Bar -->
+  <rect x="0" y="0" width="${width}" height="52" fill="${this.isDark ? '#0B1422' : '#F1F5F9'}" rx="12" />
+  <line x1="0" y1="52" x2="${width}" y2="52" stroke="${borderCol}" stroke-width="1" />
+
+  <!-- Header Titles -->
+  <text x="24" y="24" font-size="13" font-family="monospace" font-weight="bold" fill="${textMain}">CBI INDUSTRIAL MONITORING SYSTEM — GRAFIK TELEMETRI</text>
+  <text x="24" y="42" font-size="10" font-family="monospace" fill="${textSub}">Periode: ${timeBounds.startFmt} s/d ${timeBounds.endFmt} · Total Titik: ${totalSampel.toLocaleString('id-ID')}</text>
+  <text x="${width - 24}" y="32" text-anchor="end" font-size="9.5" font-family="monospace" fill="${textSub}">Dicetak: ${this.formatTimeFmt(new Date())}</text>
+
+  <!-- Legend -->
+  ${legendSvg}
+
+  <!-- Axis Units -->
+  <text x="${padLeft}" y="${padTop - 8}" font-size="10.5" font-family="monospace" font-weight="bold" fill="${leftSeries[0]?.color || textSub}">${leftUnit}</text>
+  ${isDual ? `<text x="${width - padRight}" y="${padTop - 8}" text-anchor="end" font-size="10.5" font-family="monospace" font-weight="bold" fill="${rightSeries[0]?.color || textSub}">${rightUnit}</text>` : ''}
+
+  <!-- Grid & Ticks -->
+  ${yTicksSvg}
+  ${xTicksSvg}
+
+  <!-- Axis Baseline -->
+  <line x1="${padLeft}" y1="${baseY}" x2="${width - padRight}" y2="${baseY}" stroke="${axisCol}" stroke-width="1.8" />
+  <line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${baseY}" stroke="${axisCol}" stroke-width="1.8" />
+  ${isDual ? `<line x1="${width - padRight}" y1="${padTop}" x2="${width - padRight}" y2="${baseY}" stroke="${rightSeries[0]?.color || axisCol}" stroke-width="1.8" />` : ''}
+
+  <!-- Series Lines -->
+  ${seriesSvg}
+
+  <!-- Watermark / Footer note -->
+  <text x="${width / 2}" y="${height - 10}" text-anchor="middle" font-size="8.5" font-family="monospace" fill="${textSub}" opacity="0.6">Datalogger Industrial Telemetry System • Authentic &amp; Verified Data Record</text>
+</svg>`;
+    },
+    downloadSvgAsPng(svgString, filename, width = 1200, height = 560) {
+      return new Promise((resolve, reject) => {
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(2, 2);
+
+            ctx.fillStyle = this.isDark ? '#070D18' : '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+
+            const pngUrl = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = pngUrl;
+            a.download = filename;
+            a.click();
+            resolve();
+          } catch (e) {
+            URL.revokeObjectURL(url);
+            reject(e);
+          }
+        };
+        img.onerror = (e) => {
+          URL.revokeObjectURL(url);
+          reject(e);
+        };
+        img.src = url;
+      });
+    },
+    async downloadCustomTrendPdf(svgString, seriesList, timeBounds, filename) {
+      const canvas = document.createElement('canvas');
+      const width = 1200;
+      const height = 560;
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+
+      await new Promise((resolve, reject) => {
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = () => {
+          ctx.fillStyle = this.isDark ? '#070D18' : '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Failed to load chart image for PDF'));
+        };
+        img.src = url;
+      });
+
+      const chartPngUrl = canvas.toDataURL('image/png');
+
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, 297, 20, 'F');
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('LAPORAN GRAFIK TREN TELEMETRI OPERASIONAL', 14, 10);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(203, 213, 225);
+      doc.text('CBI INDUSTRIAL ENVIRONMENT MONITORING & TELEMETRY SYSTEM', 14, 16);
+
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Periode: ${timeBounds.startFmt} s/d ${timeBounds.endFmt}`, 283, 10, { align: 'right' });
+      doc.text(`Dicetak: ${this.formatTimeFmt(new Date())}`, 283, 16, { align: 'right' });
+
+      doc.addImage(chartPngUrl, 'PNG', 13.5, 24, 270, 118);
+
+      const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
+      const head = isOperator
+        ? [['No', 'Parameter', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel']]
+        : [['No', 'Parameter', 'Kode', 'Min', 'Maks', 'Rata-rata', 'Nilai Terakhir', 'Satuan', 'Total Sampel']];
+
+      const body = seriesList.map((s, idx) => {
+        if (isOperator) {
+          return [
+            String(idx + 1),
+            s.name,
+            String(s.min),
+            String(s.max),
+            String(s.avg),
+            String(s.latest),
+            s.unit || '-',
+            String(s.points.length),
+          ];
+        }
+        return [
+          String(idx + 1),
+          s.name,
+          s.code || '-',
+          String(s.min),
+          String(s.max),
+          String(s.avg),
+          String(s.latest),
+          s.unit || '-',
+          String(s.points.length),
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 145,
+        head: head,
+        body: body,
+        theme: 'grid',
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 1.5,
+          textColor: [30, 41, 59],
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: { left: 13.5, right: 13.5 },
+      });
+
+      const totalPages = doc.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Halaman ${p} dari ${totalPages}`, 283, 203, { align: 'right' });
+      }
+
+      const pdfBlob = doc.output('blob');
+      this.triggerDownloadBlob(pdfBlob, filename);
+    },
+    async submitDownloadCustomTrendChart() {
+      if (!this.customTrendForm.startTime || !this.customTrendForm.endTime) {
+        alert('Tentukan waktu mulai dan waktu selesai terlebih dahulu.');
+        return;
+      }
+      const startD = new Date(this.customTrendForm.startTime);
+      const endD = new Date(this.customTrendForm.endTime);
+      if (startD.getTime() >= endD.getTime()) {
+        alert('Waktu mulai harus lebih awal dari waktu selesai.');
+        return;
+      }
+      if (!this.customTrendForm.selectedParamIds || this.customTrendForm.selectedParamIds.length === 0) {
+        alert('Pilih minimal satu parameter untuk digambarkan pada grafik.');
+        return;
+      }
+
+      this.isCustomTrendExporting = true;
+      this.customTrendStatusMsg = 'Mengambil data telemetri dari database edge...';
+
+      try {
+        const startISO = startD.toISOString();
+        const endISO = endD.toISOString();
+        const pIds = this.customTrendForm.selectedParamIds.join(',');
+
+        const batchSize = 1000;
+        let page = 1;
+        let allItems = [];
+        while (page <= 10) {
+          this.customTrendStatusMsg = `Mengunduh sampel data (Halaman ${page})...`;
+          const res = await axios.get('/api/telemetry/history', {
+            params: {
+              start_time: startISO,
+              end_time: endISO,
+              parameter_ids: pIds,
+              page,
+              page_size: batchSize,
+            },
+            timeout: 45000,
+          });
+          const items = res.data?.data?.items || res.data?.data || [];
+          if (!items || items.length === 0) break;
+          allItems.push(...items);
+          if (items.length < batchSize) break;
+          page++;
+        }
+
+        if (allItems.length === 0) {
+          alert('Tidak ada catatan telemetri pada rentang waktu yang dipilih.');
+          this.isCustomTrendExporting = false;
+          this.customTrendStatusMsg = '';
+          return;
+        }
+
+        this.customTrendStatusMsg = `Memproses grafik untuk ${allItems.length.toLocaleString('id-ID')} titik data...`;
+
+        // 1. Group points by parameter
+        const seriesMap = {};
+        this.customTrendForm.selectedParamIds.forEach((pId, idx) => {
+          const numId = Number(pId);
+          const pMeta = this.exportParamMap[numId] || this.allParameters.find(p => p.param_id === numId) || {};
+          const color = getParamSeriesColor(pMeta, this.isDark, idx);
+          seriesMap[numId] = {
+            id: numId,
+            name: pMeta.name || pMeta.param_name || `Param #${numId}`,
+            code: pMeta.code || pMeta.param_code || '',
+            unit: pMeta.unit || '',
+            color: color,
+            points: [],
+          };
+        });
+
+        allItems.forEach(item => {
+          const pId = Number(item.parameter_id);
+          if (seriesMap[pId]) {
+            const rawVal = item.processed_value != null ? item.processed_value : item.value;
+            if (rawVal != null && !isNaN(Number(rawVal))) {
+              const ts = new Date(item.received_at || item.timestamp || item.period_start || item.created_at).getTime();
+              seriesMap[pId].points.push({ x: ts, y: Number(Number(rawVal).toFixed(2)) });
+            }
+          }
+        });
+
+        const activeSeriesList = Object.values(seriesMap).filter(s => s.points.length > 0);
+        if (activeSeriesList.length === 0) {
+          alert('Data telemetri yang ditemukan tidak memiliki nilai numerik yang valid untuk digambarkan.');
+          this.isCustomTrendExporting = false;
+          this.customTrendStatusMsg = '';
+          return;
+        }
+
+        activeSeriesList.forEach(s => {
+          s.points.sort((a, b) => a.x - b.x);
+          const vals = s.points.map(p => p.y);
+          s.min = Math.min(...vals);
+          s.max = Math.max(...vals);
+          s.avg = Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2));
+          s.latest = vals[vals.length - 1];
+        });
+
+        const timeBounds = {
+          start: startD.getTime(),
+          end: endD.getTime(),
+          startFmt: this.formatTimeFmt(startD),
+          endFmt: this.formatTimeFmt(endD),
+        };
+
+        const svgString = this.generateCustomTrendSvgString(activeSeriesList, timeBounds);
+        const periodSafe = `${startD.getFullYear()}${String(startD.getMonth() + 1).padStart(2, '0')}${String(startD.getDate()).padStart(2, '0')}_${String(startD.getHours()).padStart(2, '0')}${String(startD.getMinutes()).padStart(2, '0')}`;
+
+        if (this.customTrendForm.format === 'svg') {
+          const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `grafik_telemetri_${periodSafe}.svg`;
+          a.click();
+          URL.revokeObjectURL(url);
+        } else if (this.customTrendForm.format === 'png') {
+          await this.downloadSvgAsPng(svgString, `grafik_telemetri_${periodSafe}.png`, 1200, 560);
+        } else if (this.customTrendForm.format === 'pdf') {
+          await this.downloadCustomTrendPdf(svgString, activeSeriesList, timeBounds, `laporan_grafik_${periodSafe}.pdf`);
+        }
+
+        if (this.customTrendForm.applyToMainChart) {
+          this.fullscreenCustomStart = this.customTrendForm.startTime;
+          this.fullscreenCustomEnd = this.customTrendForm.endTime;
+          this.fullscreenIsCustom = true;
+          this.fetchTrendData();
+        }
+
+        this.customTrendStatusMsg = '✓ Berhasil diunduh!';
+        setTimeout(() => {
+          this.showCustomTrendModal = false;
+          this.isCustomTrendExporting = false;
+          this.customTrendStatusMsg = '';
+        }, 1200);
+      } catch (err) {
+        console.error('[Custom Trend Download Error]:', err);
+        alert('Gagal mengunduh grafik telemetri: ' + (err?.response?.data?.message || err?.message || 'Server error'));
+        this.isCustomTrendExporting = false;
+        this.customTrendStatusMsg = '';
+      }
     },
 
     // ----------------------------------------------------
@@ -11495,36 +12358,60 @@ export default {
         };
 
         const timestampStr = Date.now();
+        const isOperator = (this.userRole || '').toUpperCase() === 'OPERATOR';
 
         if (this.exportForm.format === 'json') {
           this.exportStatusMessage = `Menyiapkan berkas JSON (${items.length} data)...`;
-          const records = items.map(i => ({
-            timestamp: formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
-            parameter_name: formatName(i),
-            parameter_code: formatCode(i),
-            value: formatVal(i),
-            unit: formatUnit(i),
-            quality: i.quality || 'GOOD',
-            quality_reason: (i.quality_reason && i.quality_reason !== 'NONE') ? i.quality_reason : null,
-          }));
+          const records = items.map(i => {
+            const rec = {
+              timestamp: formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
+              parameter_name: formatName(i),
+              value: formatVal(i),
+              unit: formatUnit(i),
+            };
+            if (!isOperator) {
+              rec.parameter_code = formatCode(i);
+              rec.quality = i.quality || 'GOOD';
+              rec.quality_reason = (i.quality_reason && i.quality_reason !== 'NONE') ? i.quality_reason : null;
+            }
+            return rec;
+          });
           const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
           const filename = preselectedFilename || `telemetry_export_${timestampStr}.json`;
           await this.finalizeExportDownload(blob, filename, 'application/json', 'JSON Records', preselectedFileHandle);
         } else if (this.exportForm.format === 'xlsx' || this.exportForm.format === 'xls') {
           this.exportStatusMessage = `Menghasilkan berkas Excel (${items.length} data)...`;
-          const headers = ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
-          const rows = items.map((i, idx) => [
-            idx + 1,
-            formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
-            formatName(i),
-            formatCode(i),
-            formatVal(i),
-            formatUnit(i),
-            i.quality || 'GOOD',
-          ]);
+          // Operator Role: Hide 'Kode' and 'Kualitas' columns
+          const headers = isOperator
+            ? ['No', 'Waktu (Timestamp)', 'Parameter', 'Nilai', 'Satuan']
+            : ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+          const rows = items.map((i, idx) => {
+            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.created_at);
+            const name = formatName(i);
+            const val = formatVal(i);
+            const unit = formatUnit(i);
+            if (isOperator) {
+              return [idx + 1, time, name, val, unit];
+            }
+            return [
+              idx + 1,
+              time,
+              name,
+              formatCode(i),
+              val,
+              unit,
+              i.quality || 'GOOD',
+            ];
+          });
           const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-          ws['!cols'] = [
+          ws['!cols'] = isOperator ? [
+            { wch: 8 },  // No
+            { wch: 22 }, // Waktu
+            { wch: 30 }, // Parameter
+            { wch: 14 }, // Nilai
+            { wch: 12 }, // Satuan
+          ] : [
             { wch: 8 },  // No
             { wch: 22 }, // Waktu
             { wch: 28 }, // Parameter
@@ -11568,17 +12455,44 @@ export default {
           const printTime = formatTime(new Date());
           doc.text(`Dicetak: ${printTime}`, 14, 38);
 
-          // Table Rows
-          const head = [['No', 'Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']];
-          const body = items.map((i, idx) => [
-            String(idx + 1),
-            formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
-            formatName(i),
-            formatCode(i),
-            String(formatVal(i)),
-            formatUnit(i),
-            i.quality || 'GOOD',
-          ]);
+          // Table Rows (Hide 'Kode' and 'Kualitas' for Operator)
+          const head = isOperator
+            ? [['No', 'Waktu', 'Parameter', 'Nilai', 'Satuan']]
+            : [['No', 'Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']];
+          const body = items.map((i, idx) => {
+            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.created_at);
+            const name = formatName(i);
+            const val = String(formatVal(i));
+            const unit = formatUnit(i);
+            if (isOperator) {
+              return [String(idx + 1), time, name, val, unit];
+            }
+            return [
+              String(idx + 1),
+              time,
+              name,
+              formatCode(i),
+              val,
+              unit,
+              i.quality || 'GOOD',
+            ];
+          });
+
+          const columnStyles = isOperator ? {
+            0: { cellWidth: 12, halign: 'center' },
+            1: { cellWidth: 46 },
+            2: { cellWidth: 64 },
+            3: { cellWidth: 30, halign: 'right' },
+            4: { cellWidth: 30, halign: 'center' },
+          } : {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 36 },
+            2: { cellWidth: 46 },
+            3: { cellWidth: 18 },
+            4: { cellWidth: 20, halign: 'right' },
+            5: { cellWidth: 18, halign: 'center' },
+            6: { cellWidth: 22, halign: 'center' },
+          };
 
           autoTable(doc, {
             startY: 42,
@@ -11600,15 +12514,7 @@ export default {
             alternateRowStyles: {
               fillColor: [248, 250, 252],
             },
-            columnStyles: {
-              0: { cellWidth: 10, halign: 'center' },
-              1: { cellWidth: 36 },
-              2: { cellWidth: 46 },
-              3: { cellWidth: 18 },
-              4: { cellWidth: 20, halign: 'right' },
-              5: { cellWidth: 18, halign: 'center' },
-              6: { cellWidth: 22, halign: 'center' },
-            },
+            columnStyles: columnStyles,
             margin: { top: 26, bottom: 15, left: 14, right: 14 },
           });
 
@@ -11625,17 +12531,28 @@ export default {
           const pdfBlob = doc.output('blob');
           await this.finalizeExportDownload(pdfBlob, filename, 'application/pdf', 'PDF Report', preselectedFileHandle);
         } else {
-          // CSV Spreadsheet
+          // CSV Spreadsheet (Hide 'Kode' and 'Kualitas' for Operator)
           this.exportStatusMessage = `Menyiapkan berkas CSV (${items.length} data)...`;
-          const headers = ['Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
-          const rows = items.map(i => [
-            formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
-            `"${formatName(i).replace(/"/g, '""')}"`,
-            formatCode(i),
-            formatVal(i),
-            formatUnit(i),
-            i.quality || 'GOOD',
-          ]);
+          const headers = isOperator
+            ? ['Waktu', 'Parameter', 'Nilai', 'Satuan']
+            : ['Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+          const rows = items.map(i => {
+            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.created_at);
+            const name = `"${formatName(i).replace(/"/g, '""')}"`;
+            const val = formatVal(i);
+            const unit = formatUnit(i);
+            if (isOperator) {
+              return [time, name, val, unit];
+            }
+            return [
+              time,
+              name,
+              formatCode(i),
+              val,
+              unit,
+              i.quality || 'GOOD',
+            ];
+          });
           const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
           const filename = preselectedFilename || `telemetry_export_${timestampStr}.csv`;
