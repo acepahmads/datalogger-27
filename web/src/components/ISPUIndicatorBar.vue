@@ -1312,6 +1312,7 @@ export default {
                 const devCode = d.device_code || d.code || `DEV-${d.id}`;
                 const paramName = p.parameter_name || p.name || p.parameter_code || p.code || `Param ${p.id}`;
                 const paramCode = p.parameter_code || p.code || '';
+                const unitVal = p.unit || p.source_unit || p.parameter_unit || 'µg/m³';
                 const baseDisplayName = `${paramName}${paramCode && paramCode !== paramName ? ' (' + paramCode + ')' : ''}`;
                 allParams.push({
                   ...p,
