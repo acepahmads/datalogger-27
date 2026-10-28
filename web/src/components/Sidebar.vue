@@ -101,7 +101,7 @@
             </svg>
             <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ $t('navigation.operatorConsole') || 'Operator Console' }}</span>
             <span class="ml-auto text-4xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
-              SCADA
+              CBI
             </span>
           </router-link>
 

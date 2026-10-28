@@ -1243,7 +1243,7 @@ func (h *SystemHandler) SearchLocation(c *gin.Context) {
 		response.OK(c, []LocationSearchResult{})
 		return
 	}
-	req.Header.Set("User-Agent", "Datalogger-SCADA/1.0 (LocationSearch; contact: admin@datalogger.local)")
+	req.Header.Set("User-Agent", "Datalogger-CBI/1.0 (LocationSearch; contact: admin@datalogger.local)")
 	req.Header.Set("Accept", "application/json")
 
 	client := &http.Client{Timeout: 4 * time.Second}

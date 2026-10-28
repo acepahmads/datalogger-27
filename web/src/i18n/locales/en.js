@@ -1806,13 +1806,13 @@ export default {
   },
   "operator": {
     "title": "Operator Command Center",
-    "subtitle": "Industrial SCADA monitoring console and real-time supervisory control",
+    "subtitle": "Industrial CBI monitoring console and real-time supervisory control",
     "station": "Station",
     "site": "Primary Site Node",
     "systemHealth": "Application Health",
     "appStatus": "Application Health",
     "commHealth": "Device Comm Health",
-    "fullWidth": "Full Width SCADA",
+    "fullWidth": "Full Width CBI",
     "exitFullWidth": "Exit Full Width",
     "healthy": "HEALTHY",
     "degraded": "DEGRADED",
@@ -1885,7 +1885,7 @@ export default {
     "clearAllPinned": "Clear All Pinned",
     "noPinnedParams": "No parameters pinned yet. Click the star icon on any card to add favorites.",
     "displayMode": "Display Mode",
-    "cardsViewDesc": "Real-time SCADA tiles with sparklines and status badges",
+    "cardsViewDesc": "Real-time CBI tiles with sparklines and status badges",
     "tableViewDesc": "Dense tabular spreadsheet view with sortable columns",
     "panelLayout": "Panel Layout",
     "panelLayoutDesc": "Card columns inside the single parameter panel",
@@ -2064,7 +2064,7 @@ export default {
     "spans": {
       "span1": "1 Column (Standard)",
       "span2": "2 Columns (Double Wide)",
-      "span3": "3 Columns (Wide SCADA)",
+      "span3": "3 Columns (Wide CBI)",
       "span4": "4 Columns (Full Width Row)"
     },
     "actions": {

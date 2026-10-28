@@ -15,7 +15,7 @@
         <div>
           <div class="text-xs font-black tracking-widest uppercase text-slate-900 dark:text-white flex items-center gap-1.5 font-mono">
             DATALOGGER-27
-            <span class="px-1.5 py-0.5 rounded text-4xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-bold">AQMS &bull; SCADA</span>
+            <span class="px-1.5 py-0.5 rounded text-4xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-bold">AQMS &bull; CBI</span>
           </div>
           <div class="text-3xs text-slate-500 dark:text-slate-400">Continuous Environmental Monitoring Platform</div>
         </div>

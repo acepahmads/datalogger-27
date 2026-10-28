@@ -1806,7 +1806,7 @@ export default {
   },
   "operator": {
     "title": "Pusat Komando Operator",
-    "subtitle": "Konsol pemantauan SCADA industri dan kendali pengawasan waktu nyata",
+    "subtitle": "Konsol pemantauan CBI industri dan kendali pengawasan waktu nyata",
     "station": "Stasiun",
     "site": "Node Situs Utama",
     "systemHealth": "Kesehatan Aplikasi",
@@ -1885,7 +1885,7 @@ export default {
     "clearAllPinned": "Hapus Semua Sematan",
     "noPinnedParams": "Belum ada parameter yang disematkan. Klik ikon bintang pada kartu untuk menambahkan favorit.",
     "displayMode": "Mode Tampilan",
-    "cardsViewDesc": "Kartu SCADA real-time dengan grafik sparkline dan status",
+    "cardsViewDesc": "Kartu CBI real-time dengan grafik sparkline dan status",
     "tableViewDesc": "Tampilan tabel lembar kerja padat dengan kolom yang dapat diurutkan",
     "panelLayout": "Tata Letak Panel",
     "panelLayoutDesc": "Jumlah kolom kartu di dalam panel parameter tunggal",
@@ -2064,7 +2064,7 @@ export default {
     "spans": {
       "span1": "1 Kolom (Standar)",
       "span2": "2 Kolom (Ganda)",
-      "span3": "3 Kolom (Lebar SCADA)",
+      "span3": "3 Kolom (Lebar CBI)",
       "span4": "4 Kolom (Penuh Baris)"
     },
     "actions": {

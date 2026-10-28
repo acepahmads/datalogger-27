@@ -665,7 +665,7 @@
                 <option value="MULTI_DEVICE_NESTED">Multi-Device Nested by Device</option>
                 <option value="MULTI_DEVICE_ARRAY">Multi-Device Array of Devices</option>
                 <option value="KLHK_SPARING">KLHK SPARING (Flat Standard)</option>
-                <option value="NESTED_SCADA">Nested SCADA Telemetry</option>
+                <option value="NESTED_SCADA">Nested CBI Telemetry</option>
                 <option value="CUSTOM">Custom Schema</option>
               </select>
             </div>

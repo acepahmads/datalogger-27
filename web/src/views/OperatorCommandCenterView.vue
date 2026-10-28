@@ -43,7 +43,7 @@
               <h1 class="text-[11px] font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center gap-1 leading-none truncate">
                 <span class="truncate" :title="customerCompanyName">{{ customerCompanyName || 'PT. Mitra Industri Enviro' }}</span>
                 <span class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 flex-shrink-0">
-                  SCADA
+                  CBI
                 </span>
               </h1>
             </div>
@@ -136,8 +136,8 @@
             :class="isSidebarCollapsed
               ? 'bg-cyan-600/15 hover:bg-cyan-600/25 border-cyan-500/50 shadow-xs'
               : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] border-slate-200 dark:border-[#20354B]'"
-            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
-            :aria-label="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width SCADA')"
+            :title="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width CBI')"
+            :aria-label="isSidebarCollapsed ? ($t('operator.exitFullWidth') || 'Exit Fullscreen') : ($t('operator.fullWidth') || 'Full Width CBI')"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path v-if="!isSidebarCollapsed" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -293,7 +293,7 @@
                           {{ $t('operator.pinnedOnly') || 'Pinned Only' }}
                         </div>
                         <div class="text-[8.5px] text-slate-500 dark:text-slate-400">
-                          Filter SCADA cards to favorites
+                          Filter CBI cards to favorites
                         </div>
                       </div>
                     </div>
@@ -1801,7 +1801,7 @@
                         <span>Internet IP Geolocation (Perkiraan Kasar)</span>
                       </div>
                       <p class="text-[9px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        Lokasi berbasis IP hanya merupakan estimasi kasar level kota/ISP dan tidak seakurat GPS. Sesuai kebijakan SCADA privat, data IP tidak dikirim ke pihak ketiga tanpa konfigurasi provider terverifikasi.
+                        Lokasi berbasis IP hanya merupakan estimasi kasar level kota/ISP dan tidak seakurat GPS. Sesuai kebijakan CBI privat, data IP tidak dikirim ke pihak ketiga tanpa konfigurasi provider terverifikasi.
                       </p>
                     </div>
 
@@ -3563,7 +3563,7 @@
                   alt="Customer Logo preview"
                   class="max-h-7 max-w-[120px] object-contain"
                 />
-                <span v-else class="text-[9px] text-slate-500 italic">Default SCADA Icon</span>
+                <span v-else class="text-[9px] text-slate-500 italic">Default CBI Icon</span>
               </div>
               <div class="p-3 rounded-lg bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[64px]">
                 <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Light Header</span>
@@ -3573,7 +3573,7 @@
                   alt="Customer Logo preview"
                   class="max-h-7 max-w-[120px] object-contain"
                 />
-                <span v-else class="text-[9px] text-slate-400 italic">Default SCADA Icon</span>
+                <span v-else class="text-[9px] text-slate-400 italic">Default CBI Icon</span>
               </div>
             </div>
           </div>
@@ -4475,7 +4475,7 @@
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
             <div>
               <h2 class="text-sm sm:text-base font-black tracking-wider uppercase text-slate-900 dark:text-white font-mono flex items-center space-x-2">
-                <span>SCADA TELEMETRY TREND ANALYZER</span>
+                <span>CBI TELEMETRY TREND ANALYZER</span>
                 <span v-if="canAccessRawTrendMode" class="text-3xs font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                   {{ chartMode.toUpperCase() }}
                 </span>

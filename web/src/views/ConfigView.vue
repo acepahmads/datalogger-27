@@ -384,7 +384,7 @@
             <div class="leading-none">
               <div class="text-[11px] font-bold text-slate-900 dark:text-white font-mono flex items-center gap-1">
                 <span>{{ branding.customer.name || 'PT. Mitra Industri Enviro' }}</span>
-                <span class="px-1 py-0.2 rounded text-[7.5px] bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30">SCADA</span>
+                <span class="px-1 py-0.2 rounded text-[7.5px] bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30">CBI</span>
               </div>
               <div v-if="branding.customer.subtitle && branding.customer.subtitle !== 'Local Autonomous Edge'" class="text-[9px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
                 Station: <strong class="text-cyan-600 dark:text-cyan-400">{{ branding.customer.subtitle }}</strong>

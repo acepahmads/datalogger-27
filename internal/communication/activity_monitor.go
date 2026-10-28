@@ -271,7 +271,7 @@ func (m *ActivityMonitor) initBackgroundJobs() {
 		Status:        "RUNNING",
 		LastStarted:   &now,
 		LastResult:    "WebSocket hub active",
-		Details:       "Real-time event and telemetry push to connected SCADA clients",
+		Details:       "Real-time event and telemetry push to connected CBI clients",
 	}
 }
 

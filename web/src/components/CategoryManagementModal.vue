@@ -425,7 +425,7 @@
                   >
                     <option :value="1">1 Column (Standard 3-4 Grid)</option>
                     <option :value="2">2 Columns (Double Width Span)</option>
-                    <option :value="3">3 Columns (Wide SCADA Panel)</option>
+                    <option :value="3">3 Columns (Wide CBI Panel)</option>
                     <option :value="4">4 Columns (Full Desktop Row)</option>
                   </select>
                 </div>

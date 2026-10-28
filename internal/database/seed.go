@@ -267,7 +267,7 @@ func Seed(db *gorm.DB) error {
 				Result      string
 			}{
 				{"REST API", "Outbound HTTP webhooks pushing telemetry batches to third-party endpoints", model.StatusPending, 0, model.PriorityHigh, ""},
-				{"TCP", "Raw TCP streaming socket client for SCADA/MES upstream integration", model.StatusPending, 0, model.PriorityMedium, ""},
+				{"TCP", "Raw TCP streaming socket client for CBI/MES upstream integration", model.StatusPending, 0, model.PriorityMedium, ""},
 				{"UDP", "Broadcast/multicast UDP telemetry transmitter for local displays", model.StatusPending, 0, model.PriorityMedium, ""},
 				{"MQTT", "Outbound MQTT publisher with QoS 1/2 and retained messages", model.StatusPending, 0, model.PriorityHigh, ""},
 				{"WebSocket", "Real-time WebSocket streaming feed for third-party dashboards", model.StatusWorking, 50, model.PriorityHigh, "WebSocket hub implemented for Phase 1"},
