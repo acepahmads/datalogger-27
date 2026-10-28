@@ -3242,8 +3242,9 @@
           <span>{{ $t('operator.exportData') || 'Export Data' }}</span>
         </button>
 
-        <!-- Generate Report -->
+        <!-- Generate Report (Only for non-Operator roles: Admin, Engineer, Superadmin) -->
         <button
+          v-if="canAccessOperationalReport"
           @click="openReportModal"
           class="h-[22px] px-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-[9.5px] font-mono transition-colors flex items-center space-x-1 shadow-xs leading-none cursor-pointer"
         >
@@ -4184,18 +4185,30 @@
           </div>
         </div>
 
+        <!-- Status / Progress message -->
+        <div
+          v-if="reportStatusMessage"
+          class="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-700 dark:text-blue-300 font-mono text-2xs flex items-center space-x-2"
+        >
+          <span v-if="isGeneratingReport" class="animate-spin w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full shrink-0"></span>
+          <span>{{ reportStatusMessage }}</span>
+        </div>
+
         <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-[#20354B]">
           <button
             @click="showReportModal = false"
-            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            :disabled="isGeneratingReport"
+            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-50 cursor-pointer"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
           <button
             @click="executeReportGenerate"
-            class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition"
+            :disabled="isGeneratingReport"
+            class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
           >
-            Generate & Download
+            <span v-if="isGeneratingReport" class="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span>
+            <span>{{ isGeneratingReport ? 'Generating...' : 'Generate & Download' }}</span>
           </button>
         </div>
       </div>
@@ -5822,6 +5835,8 @@ export default {
       targetExportLocation: 'usb',
 
       showReportModal: false,
+      isGeneratingReport: false,
+      reportStatusMessage: '',
       reportForm: {
         type: 'COMPREHENSIVE',
         preset: '24h',
@@ -7342,6 +7357,10 @@ export default {
     },
     isOperator() {
       return this.userRole === 'OPERATOR' || !this.isAdmin;
+    },
+    canAccessOperationalReport() {
+      const role = (this.userRole || '').toUpperCase();
+      return role !== 'OPERATOR' && role !== '';
     },
     canAccessRawTrendMode() {
       if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
@@ -12990,27 +13009,94 @@ export default {
       }
     },
     openReportModal() {
+      if (!this.canAccessOperationalReport) {
+        alert('Fitur Generate Report hanya dapat diakses selain Operator (Administrator / Engineer).');
+        return;
+      }
+      this.reportStatusMessage = '';
+      this.isGeneratingReport = false;
       this.showReportModal = true;
     },
-    executeReportGenerate() {
-      const now = new Date();
-      let startTime = new Date(now.getTime() - 24 * 3600 * 1000);
-      if (this.reportForm.preset === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
-      else if (this.reportForm.preset === '7d') startTime = new Date(now.getTime() - 7 * 86400 * 1000);
-      else if (this.reportForm.preset === '30d') startTime = new Date(now.getTime() - 30 * 86400 * 1000);
-
-      const params = new URLSearchParams({
-        start_time: startTime.toISOString(),
-        end_time: now.toISOString(),
-        report_type: this.reportForm.type,
-        format: this.reportForm.format,
-      });
-
-      if (this.reportForm.format === 'html') {
-        params.append('download', '1');
+    async executeReportGenerate() {
+      if (!this.canAccessOperationalReport) {
+        alert('Fitur Generate Report hanya dapat diakses selain Operator.');
+        return;
       }
-      window.open(`/api/reports/generate?${params.toString()}`, '_blank');
-      this.showReportModal = false;
+      this.isGeneratingReport = true;
+      this.reportStatusMessage = 'Sedang membuat dan mengunduh laporan...';
+
+      try {
+        const now = new Date();
+        let startTime = new Date(now.getTime() - 24 * 3600 * 1000);
+        if (this.reportForm.preset === '1h') startTime = new Date(now.getTime() - 3600 * 1000);
+        else if (this.reportForm.preset === '7d') startTime = new Date(now.getTime() - 7 * 86400 * 1000);
+        else if (this.reportForm.preset === '30d') startTime = new Date(now.getTime() - 30 * 86400 * 1000);
+
+        const token = this.$store?.state?.token || localStorage.getItem('token') || localStorage.getItem('datalogger_token') || '';
+
+        const queryParams = {
+          start_time: startTime.toISOString(),
+          end_time: now.toISOString(),
+          report_type: this.reportForm.type,
+          format: this.reportForm.format,
+        };
+
+        if (this.reportForm.format === 'html') {
+          queryParams.download = '1';
+        }
+        if (token) {
+          queryParams.token = token;
+        }
+
+        const res = await axios.get('/api/reports/generate', {
+          params: queryParams,
+          responseType: 'blob',
+          timeout: 45000,
+        });
+
+        const isCsv = this.reportForm.format === 'csv';
+        const mimeType = isCsv ? 'text/csv;charset=utf-8' : 'text/html;charset=utf-8';
+        const ext = isCsv ? 'csv' : 'html';
+        const filename = `operational_report_${this.reportForm.type.toLowerCase()}_${this.reportForm.preset}_${Date.now()}.${ext}`;
+
+        const blob = new Blob([res.data], { type: mimeType });
+
+        if (isCsv) {
+          this.triggerDownloadBlob(blob, filename);
+        } else {
+          const blobUrl = URL.createObjectURL(blob);
+          const reportWin = window.open(blobUrl, '_blank');
+          if (!reportWin) {
+            this.triggerDownloadBlob(blob, filename);
+          }
+        }
+
+        this.reportStatusMessage = '✓ Laporan berhasil dibuat!';
+        setTimeout(() => {
+          this.showReportModal = false;
+          this.isGeneratingReport = false;
+          this.reportStatusMessage = '';
+        }, 800);
+      } catch (err) {
+        console.error('[Generate Report Error]:', err);
+        let errMsg = err.message || 'Gagal menghasilkan laporan';
+        if (err.response && err.response.data) {
+          if (typeof err.response.data === 'string') {
+            try {
+              const parsed = JSON.parse(err.response.data);
+              errMsg = parsed.error || errMsg;
+            } catch (e) {
+              errMsg = err.response.data;
+            }
+          } else if (err.response.data.error) {
+            errMsg = err.response.data.error;
+          }
+        }
+        this.reportStatusMessage = 'Gagal: ' + errMsg;
+        alert('Gagal menghasilkan laporan: ' + errMsg);
+      } finally {
+        this.isGeneratingReport = false;
+      }
     },
     triggerDownloadBlob(blob, filename) {
       const url = URL.createObjectURL(blob);

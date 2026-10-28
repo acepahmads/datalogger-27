@@ -30,24 +30,30 @@ func CORS() gin.HandlerFunc {
 	}
 }
 
-// JWTAuth verifies the Bearer token in the Authorization header
+// JWTAuth verifies the Bearer token in the Authorization header or query parameter 'token'
 func JWTAuth(authService *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		tokenString := ""
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if !(len(parts) == 2 && strings.EqualFold(parts[0], "Bearer")) {
+				response.Unauthorized(c, "Authorization header format must be Bearer {token}")
+				c.Abort()
+				return
+			}
+			tokenString = parts[1]
+		} else {
+			tokenString = c.Query("token")
+		}
+
+		if tokenString == "" {
 			response.Unauthorized(c, "Authorization header required")
 			c.Abort()
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if !(len(parts) == 2 && parts[0] == "Bearer") {
-			response.Unauthorized(c, "Authorization header format must be Bearer {token}")
-			c.Abort()
-			return
-		}
-
-		claims, err := authService.ValidateToken(parts[1])
+		claims, err := authService.ValidateToken(tokenString)
 		if err != nil {
 			response.Unauthorized(c, "Invalid or expired token")
 			c.Abort()
@@ -154,8 +160,8 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"category.view": true,
 				"alarm.view": true, "alarm.acknowledge": true,
 				"notification.view": true,
-				"report.view": true, "report.generate": true,
-				"ispu.view": true, "ispu.export": true,
+				"report.view":       true,
+				"ispu.view":         true, "ispu.export": true,
 			}
 			if opAllowed[permissionCode] {
 				c.Next()

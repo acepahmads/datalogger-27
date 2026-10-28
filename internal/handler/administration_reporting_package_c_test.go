@@ -689,6 +689,25 @@ func TestPackageC3_RBACEnforcementAccessAllowedAndDenied(t *testing.T) {
 	if wAllowed.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK for operator viewing reports, got %d: %s", wAllowed.Code, wAllowed.Body.String())
 	}
+
+	// Operator tries to generate reports (report.generate) -> MUST BE 403 Forbidden
+	reqGenDenied, _ := http.NewRequest(http.MethodGet, "/api/reports/generate?format=html", nil)
+	reqGenDenied.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wGenDenied := httptest.NewRecorder()
+	env.Router.ServeHTTP(wGenDenied, reqGenDenied)
+
+	if wGenDenied.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for operator generating reports, got %d: %s", wGenDenied.Code, wGenDenied.Body.String())
+	}
+
+	// Admin generates reports using token query parameter -> MUST BE 200 OK
+	reqGenQuery, _ := http.NewRequest(http.MethodGet, "/api/reports/generate?format=html&token="+env.AdminToken, nil)
+	wGenQuery := httptest.NewRecorder()
+	env.Router.ServeHTTP(wGenQuery, reqGenQuery)
+
+	if wGenQuery.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for admin generating reports via token query, got %d: %s", wGenQuery.Code, wGenQuery.Body.String())
+	}
 }
 
 // -------------------------------------------------------------

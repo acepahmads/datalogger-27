@@ -82,8 +82,12 @@ const routes = [
   { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/devices/:id', redirect: to => `/monitoring/devices/${to.params.id}` },
-  { path: '/monitoring/parameters', name: 'Parameters', component: DevicesView },
-  { path: '/monitoring/reports', name: 'Reports', component: ReportsView },
+  {
+    path: '/monitoring/reports',
+    name: 'Reports',
+    component: ReportsView,
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+  },
 
   // Alarms
   { path: '/alarm', redirect: '/alarm/active' },

@@ -2713,13 +2713,13 @@ func ensureAdministrationAndReportPermissions(db *gorm.DB) {
 		_ = db.Model(&engRole).Association("Permissions").Replace(engPerms)
 	}
 
-	// Operator gets report.view, report.generate
+	// Operator gets report.view (report.generate is restricted to non-operator roles: Admin, Engineer, Superadmin)
 	var opRole model.Role
-	if db.Where("name = ?", "Operator").First(&opRole).Error == nil {
+	if db.Where("name = ? OR name = ?", "Operator", "OPERATOR").First(&opRole).Error == nil {
 		var opPerms []model.Permission
 		db.Where("code IN ?", []string{
 			"device.view", "device.communication.view", "alarm.view", "alarm.acknowledge",
-			"notification.view", "report.view", "report.generate",
+			"notification.view", "report.view",
 		}).Find(&opPerms)
 		_ = db.Model(&opRole).Association("Permissions").Replace(opPerms)
 	}
@@ -3476,9 +3476,9 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"category.view": true,
 			"alarm.view": true, "alarm.acknowledge": true,
 			"notification.view": true,
-			"report.view": true, "report.generate": true,
-			"ispu.view": true, "ispu.export": true,
-			"integration.view": true,
+			"report.view":       true,
+			"ispu.view":         true, "ispu.export": true,
+			"integration.view":  true,
 		}
 		for _, p := range dbAllPerms {
 			if opAllowed[p.Code] {

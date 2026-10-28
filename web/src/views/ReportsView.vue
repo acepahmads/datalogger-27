@@ -538,13 +538,56 @@ export default {
         this.loading = false;
       }
     },
-    exportReport(format) {
-      const params = this.buildQueryParams();
-      params.append('format', format);
-      if (format === 'html') {
-        params.append('download', '1');
+    async exportReport(format) {
+      try {
+        const params = this.buildQueryParams();
+        params.append('format', format);
+        if (format === 'html') {
+          params.append('download', '1');
+        }
+        const token = this.$store?.state?.token || localStorage.getItem('token') || localStorage.getItem('datalogger_token') || '';
+        if (token) {
+          params.append('token', token);
+        }
+
+        const res = await axios.get('/api/reports/generate', {
+          params: Object.fromEntries(params.entries()),
+          responseType: 'blob',
+          timeout: 45000,
+        });
+
+        const isCsv = format === 'csv';
+        const mimeType = isCsv ? 'text/csv;charset=utf-8' : 'text/html;charset=utf-8';
+        const ext = isCsv ? 'csv' : 'html';
+        const filename = `report_${this.reportType.toLowerCase()}_${Date.now()}.${ext}`;
+        const blob = new Blob([res.data], { type: mimeType });
+
+        if (isCsv) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else {
+          const blobUrl = URL.createObjectURL(blob);
+          const reportWin = window.open(blobUrl, '_blank');
+          if (!reportWin) {
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          }
+        }
+      } catch (err) {
+        console.error('[ReportsView Export Error]:', err);
+        alert('Gagal mengekspor laporan: ' + (err?.response?.data?.error || err.message));
       }
-      window.open(`/api/reports/generate?${params.toString()}`, '_blank');
     },
     printReport() {
       window.print();
