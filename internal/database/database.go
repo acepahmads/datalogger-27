@@ -98,17 +98,17 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 
 	// 2. Open connection to the target database with fallback candidate DSNs
 	candidateDSNs := []string{
-		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s&readTimeout=5s&writeTimeout=5s",
+		fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=60s&writeTimeout=60s",
 			dbUser, cfg.DBPassword, dbHost, dbPort, dbName),
 	}
 	if dbHost == "127.0.0.1" || dbHost == "localhost" {
 		for _, sock := range []string{"/var/run/mysqld/mysqld.sock", "/run/mysqld/mysqld.sock", "/tmp/mysql.sock"} {
 			if _, statErr := os.Stat(sock); statErr == nil {
-				candidateDSNs = append(candidateDSNs, fmt.Sprintf("%s:%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s", dbUser, cfg.DBPassword, sock, dbName))
+				candidateDSNs = append(candidateDSNs, fmt.Sprintf("%s:%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=60s&writeTimeout=60s", dbUser, cfg.DBPassword, sock, dbName))
 			}
 		}
 		if dbUser != "datalogger" {
-			candidateDSNs = append(candidateDSNs, fmt.Sprintf("datalogger:datalogger@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=3s", dbHost, dbPort, dbName))
+			candidateDSNs = append(candidateDSNs, fmt.Sprintf("datalogger:datalogger@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=5s&readTimeout=60s&writeTimeout=60s", dbHost, dbPort, dbName))
 		}
 	}
 

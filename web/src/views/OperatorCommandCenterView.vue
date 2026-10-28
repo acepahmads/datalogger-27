@@ -11377,7 +11377,7 @@ export default {
           ? (this.exportForm.maxRecords !== undefined ? Number(this.exportForm.maxRecords) : sysSettings.maxRecords)
           : sysSettings.maxRecords;
 
-        const batchSize = 1000;
+        const batchSize = 500;
         let page = 1;
         let allItems = [];
         let serverTotal = null;
@@ -11400,7 +11400,20 @@ export default {
 
           this.exportStatusMessage = `Mengunduh data: ${allItems.length.toLocaleString('id-ID')} / ${typeof targetDisplayTotal === 'number' ? targetDisplayTotal.toLocaleString('id-ID') : targetDisplayTotal} baris (Halaman ${page})...`;
 
-          const res = await axios.get(endpoint, { params });
+          let res = null;
+          let retries = 2;
+          while (retries >= 0) {
+            try {
+              res = await axios.get(endpoint, { params, timeout: 45000 });
+              break;
+            } catch (pageErr) {
+              retries--;
+              if (retries < 0) throw pageErr;
+              this.exportStatusMessage = `Koneksi database padat, mencoba ulang halaman ${page}...`;
+              await new Promise(r => setTimeout(r, 1200));
+            }
+          }
+
           let pageItems = res.data?.data?.items || res.data?.data || [];
 
           if (serverTotal === null && res.data?.data?.total !== undefined) {
@@ -11633,7 +11646,9 @@ export default {
           this.showExportModal = false;
         }, 1500);
       } catch (err) {
-        this.exportStatusMessage = 'Export failed: ' + (err.message || 'API error');
+        console.error('[Export Error]:', err);
+        const errMsg = err?.response?.data?.error || err?.response?.data?.message || err.message || 'API error';
+        this.exportStatusMessage = 'Export failed: ' + errMsg;
       } finally {
         this.isExporting = false;
       }

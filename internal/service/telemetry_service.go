@@ -6,6 +6,7 @@ import (
 	"math"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1008,7 +1009,13 @@ func (s *TelemetryService) GetQualitySummary(ctx context.Context, deviceID *uint
 
 // GetHistorical returns paginated historical telemetry records
 func (s *TelemetryService) GetHistorical(ctx context.Context, filter repository.TelemetryFilterParams) ([]model.RawData, int64, error) {
-	return s.repo.GetHistorical(ctx, filter)
+	records, total, err := s.repo.GetHistorical(ctx, filter)
+	if err != nil && (strings.Contains(err.Error(), "invalid connection") || strings.Contains(err.Error(), "bad connection")) {
+		// Transient dropped idle connection in pool: retry once with fresh connection
+		time.Sleep(100 * time.Millisecond)
+		return s.repo.GetHistorical(ctx, filter)
+	}
+	return records, total, err
 }
 
 // GetMetrics returns real-time diagnostic counters, buffer utilization, and WAL queue health

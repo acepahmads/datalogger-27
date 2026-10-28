@@ -130,32 +130,35 @@ func (r *TelemetryRepository) GetHistorical(ctx context.Context, filter Telemetr
 	var records []model.RawData
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&model.RawData{}).Preload("Device").Preload("Parameter")
+	baseQuery := r.db.WithContext(ctx).Model(&model.RawData{})
 
 	if len(filter.DeviceIDs) > 0 {
-		query = query.Where("device_id IN (?)", filter.DeviceIDs)
+		baseQuery = baseQuery.Where("device_id IN (?)", filter.DeviceIDs)
 	} else if filter.DeviceID > 0 {
-		query = query.Where("device_id = ?", filter.DeviceID)
+		baseQuery = baseQuery.Where("device_id = ?", filter.DeviceID)
 	}
 
 	if len(filter.ParameterIDs) > 0 {
-		query = query.Where("parameter_id IN (?)", filter.ParameterIDs)
+		baseQuery = baseQuery.Where("parameter_id IN (?)", filter.ParameterIDs)
 	} else if filter.ParameterID > 0 {
-		query = query.Where("parameter_id = ?", filter.ParameterID)
+		baseQuery = baseQuery.Where("parameter_id = ?", filter.ParameterID)
 	}
 
 	if filter.Quality != "" {
-		query = query.Where("quality = ?", filter.Quality)
+		baseQuery = baseQuery.Where("quality = ?", filter.Quality)
 	}
 	if filter.StartTime != nil && !filter.StartTime.IsZero() {
-		query = query.Where("received_at >= ?", filter.StartTime)
+		baseQuery = baseQuery.Where("received_at >= ?", filter.StartTime)
 	}
 	if filter.EndTime != nil && !filter.EndTime.IsZero() {
-		query = query.Where("received_at <= ?", filter.EndTime)
+		baseQuery = baseQuery.Where("received_at <= ?", filter.EndTime)
 	}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+	// Only compute total count on the first page to eliminate heavy table scans during pagination loops
+	if filter.Page <= 1 {
+		if err := baseQuery.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	page := filter.Page
@@ -171,7 +174,8 @@ func (r *TelemetryRepository) GetHistorical(ctx context.Context, filter Telemetr
 	}
 	offset := (page - 1) * pageSize
 
-	err := query.Order("received_at DESC, id DESC").
+	err := baseQuery.Preload("Device").Preload("Parameter").
+		Order("received_at DESC, id DESC").
 		Offset(offset).
 		Limit(pageSize).
 		Find(&records).Error
