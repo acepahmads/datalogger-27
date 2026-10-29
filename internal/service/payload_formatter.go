@@ -104,6 +104,126 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	return nil
 }
 
+type parameterMappingMatcher struct {
+	hasExplicitMappings       bool
+	hasDeviceSpecificMappings bool
+	devParamIDEnabled         map[string]bool
+	devParamIDAlias           map[string]string
+	devEnabledMap             map[string]bool
+	devAliasMap               map[string]string
+	wildcardEnabledMap        map[string]bool
+	wildcardAliasMap          map[string]string
+}
+
+func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *parameterMappingMatcher {
+	matcher := &parameterMappingMatcher{
+		devParamIDEnabled:  make(map[string]bool),
+		devParamIDAlias:    make(map[string]string),
+		devEnabledMap:      make(map[string]bool),
+		devAliasMap:        make(map[string]string),
+		wildcardEnabledMap: make(map[string]bool),
+		wildcardAliasMap:   make(map[string]string),
+	}
+	if cfg == nil || strings.TrimSpace(cfg.ParameterMappingsJSON) == "" {
+		return matcher
+	}
+	var mappings []model.ParameterMappingItem
+	if err := json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings); err != nil || len(mappings) == 0 {
+		return matcher
+	}
+	matcher.hasExplicitMappings = true
+	for _, m := range mappings {
+		code := strings.ToUpper(strings.TrimSpace(m.ParameterCode))
+		if code == "" {
+			continue
+		}
+		extName := strings.TrimSpace(m.ExternalName)
+		if extName == "" {
+			extName = strings.TrimSpace(m.ParameterCode)
+		}
+		devCodeUpper := strings.ToUpper(strings.TrimSpace(m.DeviceCode))
+		isDeviceScoped := m.DeviceID > 0 || devCodeUpper != ""
+
+		if isDeviceScoped {
+			matcher.hasDeviceSpecificMappings = true
+			if m.DeviceID > 0 && m.ParameterID > 0 {
+				pidKey := fmt.Sprintf("DEV:%d:PID:%d", m.DeviceID, m.ParameterID)
+				matcher.devParamIDEnabled[pidKey] = m.Enabled
+				matcher.devParamIDAlias[pidKey] = extName
+			}
+			if m.DeviceID > 0 {
+				devKey := fmt.Sprintf("DEV:%d:%s", m.DeviceID, code)
+				matcher.devEnabledMap[devKey] = m.Enabled
+				matcher.devAliasMap[devKey] = extName
+			}
+			if devCodeUpper != "" {
+				devCodeKey := fmt.Sprintf("%s:%s", devCodeUpper, code)
+				matcher.devEnabledMap[devCodeKey] = m.Enabled
+				matcher.devAliasMap[devCodeKey] = extName
+			}
+		} else {
+			matcher.wildcardEnabledMap[code] = m.Enabled
+			matcher.wildcardAliasMap[code] = extName
+		}
+	}
+	return matcher
+}
+
+func (m *parameterMappingMatcher) Resolve(deviceID uint, deviceCode string, paramID uint, paramCode string) (bool, string) {
+	trimmedCode := strings.TrimSpace(paramCode)
+	if trimmedCode == "" {
+		return false, ""
+	}
+	if m == nil || !m.hasExplicitMappings {
+		return true, trimmedCode
+	}
+	codeUpper := strings.ToUpper(trimmedCode)
+	devCodeUpper := strings.ToUpper(strings.TrimSpace(deviceCode))
+
+	if deviceID > 0 && paramID > 0 {
+		pidKey := fmt.Sprintf("DEV:%d:PID:%d", deviceID, paramID)
+		if en, ok := m.devParamIDEnabled[pidKey]; ok {
+			alias := m.devParamIDAlias[pidKey]
+			if alias == "" {
+				alias = trimmedCode
+			}
+			return en, alias
+		}
+	}
+	if deviceID > 0 {
+		devKey := fmt.Sprintf("DEV:%d:%s", deviceID, codeUpper)
+		if en, ok := m.devEnabledMap[devKey]; ok {
+			alias := m.devAliasMap[devKey]
+			if alias == "" {
+				alias = trimmedCode
+			}
+			return en, alias
+		}
+	}
+	if devCodeUpper != "" {
+		devCodeKey := fmt.Sprintf("%s:%s", devCodeUpper, codeUpper)
+		if en, ok := m.devEnabledMap[devCodeKey]; ok {
+			alias := m.devAliasMap[devCodeKey]
+			if alias == "" {
+				alias = trimmedCode
+			}
+			return en, alias
+		}
+	}
+	if en, ok := m.wildcardEnabledMap[codeUpper]; ok {
+		alias := m.wildcardAliasMap[codeUpper]
+		if alias == "" {
+			alias = trimmedCode
+		}
+		return en, alias
+	}
+
+	if m.hasDeviceSpecificMappings && (deviceID > 0 || devCodeUpper != "") {
+		return false, trimmedCode
+	}
+	return true, trimmedCode
+}
+
 // Format transforms aggregation items into destination-specific JSON payload bytes
 func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *model.DestinationPayloadConfig) ([]byte, error) {
 	if batch == nil {
@@ -121,40 +241,8 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		}
 	}
 
-	// 1. Build parameter mapping index and filter (supporting device-specific and generic rules)
-	paramAliasMap := make(map[string]string)     // key -> external_name
-	paramEnabledMap := make(map[string]bool)     // key -> enabled
-	hasExplicitMappings := false
-
-	if strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
-		var mappings []model.ParameterMappingItem
-		if err := json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings); err == nil && len(mappings) > 0 {
-			hasExplicitMappings = true
-			for _, m := range mappings {
-				code := strings.ToUpper(strings.TrimSpace(m.ParameterCode))
-				extName := strings.TrimSpace(m.ExternalName)
-				if extName == "" {
-					extName = m.ParameterCode
-				}
-
-				// Device-specific key e.g. "DEV:5:PM25" or "AQMS-01:PM25"
-				if m.DeviceID > 0 {
-					devKey := fmt.Sprintf("DEV:%d:%s", m.DeviceID, code)
-					paramEnabledMap[devKey] = m.Enabled
-					paramAliasMap[devKey] = extName
-				}
-				if m.DeviceCode != "" {
-					devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(m.DeviceCode)), code)
-					paramEnabledMap[devCodeKey] = m.Enabled
-					paramAliasMap[devCodeKey] = extName
-				}
-
-				// Generic fallback key
-				paramEnabledMap[code] = m.Enabled
-				paramAliasMap[code] = extName
-			}
-		}
-	}
+	// 1. Build parameter mapping index and filter (strictly isolating device-scoped checklists from wildcards)
+	matcher := buildParameterMappingMatcher(cfg)
 
 	// 2. Format timestamp
 	tsStr, err := formatTimestamp(batch.PeriodEnd, cfg.TimestampFormat)
@@ -302,31 +390,9 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		updatedAtTs := tsStr
 
 		for _, item := range batch.Values {
-			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
-			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
-			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
-
-			if hasExplicitMappings {
-				enabled := true
-				if en, exists := paramEnabledMap[devKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[code]; exists {
-					enabled = en
-				}
-				if !enabled {
-					continue
-				}
-			}
-
-			sensorName := item.ParameterCode
-			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
-				sensorName = alias
-			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
-				sensorName = alias
-			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
-				sensorName = alias
+			enabled, sensorName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			if !enabled {
+				continue
 			}
 
 			modID := resolvedModuleID
@@ -368,32 +434,9 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		deviceGroups := make(map[string]map[string]interface{})
 
 		for _, item := range batch.Values {
-			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
-			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
-			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
-
-			// Check filtering
-			if hasExplicitMappings {
-				enabled := true
-				if en, exists := paramEnabledMap[devKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[code]; exists {
-					enabled = en
-				}
-				if !enabled {
-					continue
-				}
-			}
-
-			targetFieldName := item.ParameterCode
-			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
-				targetFieldName = alias
-			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
-				targetFieldName = alias
-			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
-				targetFieldName = alias
+			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			if !enabled {
+				continue
 			}
 
 			devName := item.DeviceCode
@@ -419,31 +462,9 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		var deviceOrder []string
 
 		for _, item := range batch.Values {
-			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
-			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
-			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
-
-			if hasExplicitMappings {
-				enabled := true
-				if en, exists := paramEnabledMap[devKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[code]; exists {
-					enabled = en
-				}
-				if !enabled {
-					continue
-				}
-			}
-
-			targetFieldName := item.ParameterCode
-			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
-				targetFieldName = alias
-			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
-				targetFieldName = alias
-			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
-				targetFieldName = alias
+			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			if !enabled {
+				continue
 			}
 
 			devName := item.DeviceCode
@@ -479,31 +500,9 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		keyValuesList := make(map[string][]float64)     // targetKey -> []float64 (for AVERAGE)
 
 		for _, item := range batch.Values {
-			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
-			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
-			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
-
-			if hasExplicitMappings {
-				enabled := true
-				if en, exists := paramEnabledMap[devKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
-					enabled = en
-				} else if en, exists := paramEnabledMap[code]; exists {
-					enabled = en
-				}
-				if !enabled {
-					continue
-				}
-			}
-
-			targetFieldName := item.ParameterCode
-			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
-				targetFieldName = alias
-			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
-				targetFieldName = alias
-			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
-				targetFieldName = alias
+			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			if !enabled {
+				continue
 			}
 
 			// Apply PREFIX mode if configured or includeDeviceIdentity or conflictResolution == PREFIX

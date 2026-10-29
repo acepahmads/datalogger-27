@@ -197,6 +197,27 @@ func (s *AggregationService) StopWorker() {
 	logger.Info("Aggregation worker stopped cleanly")
 }
 
+// isDefinitionActiveTarget verifies that both the parent Device and Parameter exist (not soft-deleted) and are enabled.
+func isDefinitionActiveTarget(def *model.AggregationDefinition) bool {
+	if def == nil {
+		return false
+	}
+	if def.Device == nil || !def.Device.Enabled {
+		return false
+	}
+	st := strings.ToUpper(strings.TrimSpace(string(def.Device.Status)))
+	if st == string(model.DeviceStatusInactive) || st == string(model.DeviceStatusDisabled) {
+		return false
+	}
+	if def.Parameter == nil || !def.Parameter.Enabled {
+		return false
+	}
+	if strings.TrimSpace(def.Parameter.ParameterCode) == "" {
+		return false
+	}
+	return true
+}
+
 // performRestartRecovery verifies and processes any missing historical buckets across active definitions
 func (s *AggregationService) performRestartRecovery(ctx context.Context) {
 	defs, err := s.repo.ListDefinitions(ctx, 0, true)
@@ -207,6 +228,9 @@ func (s *AggregationService) performRestartRecovery(ctx context.Context) {
 
 	totalRecovered := 0
 	for _, def := range defs {
+		if !isDefinitionActiveTarget(&def) {
+			continue
+		}
 		// Lookback window: up to 24 hours
 		processed, err := s.ProcessPendingBucketsForDefinition(ctx, &def, 24*time.Hour)
 		if err != nil {
@@ -593,6 +617,9 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 
 	totalBuckets := 0
 	for _, def := range defs {
+		if !isDefinitionActiveTarget(&def) {
+			continue
+		}
 		// Lookback 2 hours by default during continuous polling
 		count, err := s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
 		if err != nil {
@@ -609,6 +636,9 @@ func (s *AggregationService) GetResults(ctx context.Context, filter repository.A
 	defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
 	if err == nil {
 		for _, def := range defs {
+			if !isDefinitionActiveTarget(&def) {
+				continue
+			}
 			_, _ = s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
 		}
 	}

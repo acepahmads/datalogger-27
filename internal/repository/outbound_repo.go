@@ -151,41 +151,48 @@ func (r *outboundRepository) UpsertPayloadConfig(ctx context.Context, cfg *model
 	return r.db.WithContext(ctx).Create(cfg).Error
 }
 
+// applyActiveDeviceParamScope restricts aggregation_results queries strictly to active, non-deleted devices and active, non-deleted parameters.
+func applyActiveDeviceParamScope(q *gorm.DB) *gorm.DB {
+	return q.
+		Joins("INNER JOIN devices ON devices.id = aggregation_results.device_id AND devices.deleted_at IS NULL AND devices.enabled = ? AND UPPER(COALESCE(devices.status, 'ACTIVE')) NOT IN ('INACTIVE', 'DISABLED')", true).
+		Joins("INNER JOIN parameters ON parameters.id = aggregation_results.parameter_id AND parameters.deleted_at IS NULL AND parameters.enabled = ?", true)
+}
+
 // GetCustomerAggregationResults queries strictly persisted CUSTOMER_PROCESSED aggregation records for a single device
 func (r *outboundRepository) GetCustomerAggregationResults(ctx context.Context, deviceID uint, bucketEnd time.Time, intervalSeconds int) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
-	query := r.db.WithContext(ctx).
+	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
 		Preload("Parameter").
 		Preload("Device").
-		Where("device_id = ?", deviceID).
-		Where("source_type = ?", model.SourceCustomerProcessed).
-		Where("period_end = ?", bucketEnd)
+		Where("aggregation_results.device_id = ?", deviceID).
+		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
+		Where("aggregation_results.period_end = ?", bucketEnd)
 
 	if intervalSeconds > 0 {
-		query = query.Where("interval_seconds = ?", intervalSeconds)
+		query = query.Where("aggregation_results.interval_seconds = ?", intervalSeconds)
 	}
 
-	err := query.Order("parameter_id ASC").Find(&results).Error
+	err := query.Order("aggregation_results.parameter_id ASC").Find(&results).Error
 	return results, err
 }
 
 // GetCustomerAggregationResultsForWindow queries strictly persisted CUSTOMER_PROCESSED aggregation records across all relevant devices for a window
 func (r *outboundRepository) GetCustomerAggregationResultsForWindow(ctx context.Context, bucketEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
-	query := r.db.WithContext(ctx).
+	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
 		Preload("Parameter").
 		Preload("Device").
-		Where("source_type = ?", model.SourceCustomerProcessed).
-		Where("period_end = ?", bucketEnd)
+		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
+		Where("aggregation_results.period_end = ?", bucketEnd)
 
 	if intervalSeconds > 0 {
-		query = query.Where("interval_seconds = ?", intervalSeconds)
+		query = query.Where("aggregation_results.interval_seconds = ?", intervalSeconds)
 	}
 	if len(deviceIDs) > 0 {
-		query = query.Where("device_id IN (?)", deviceIDs)
+		query = query.Where("aggregation_results.device_id IN (?)", deviceIDs)
 	}
 
-	err := query.Order("device_id ASC, parameter_id ASC").Find(&results).Error
+	err := query.Order("aggregation_results.device_id ASC, aggregation_results.parameter_id ASC").Find(&results).Error
 	return results, err
 }
 
@@ -194,19 +201,19 @@ func (r *outboundRepository) GetLatestAggregationResults(ctx context.Context, de
 	var results []model.AggregationResult
 	// Find latest period_end for this device
 	var latest model.AggregationResult
-	err := r.db.WithContext(ctx).
-		Where("device_id = ? AND source_type = ?", deviceID, model.SourceCustomerProcessed).
-		Order("period_end DESC").
+	err := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+		Where("aggregation_results.device_id = ? AND aggregation_results.source_type = ?", deviceID, model.SourceCustomerProcessed).
+		Order("aggregation_results.period_end DESC").
 		First(&latest).Error
 	if err != nil {
 		return nil, err
 	}
 
-	err = r.db.WithContext(ctx).
+	err = applyActiveDeviceParamScope(r.db.WithContext(ctx)).
 		Preload("Parameter").
 		Preload("Device").
-		Where("device_id = ? AND source_type = ? AND period_end = ?", deviceID, model.SourceCustomerProcessed, latest.PeriodEnd).
-		Order("parameter_id ASC").
+		Where("aggregation_results.device_id = ? AND aggregation_results.source_type = ? AND aggregation_results.period_end = ?", deviceID, model.SourceCustomerProcessed, latest.PeriodEnd).
+		Order("aggregation_results.parameter_id ASC").
 		Find(&results).Error
 	return results, err
 }
@@ -214,28 +221,29 @@ func (r *outboundRepository) GetLatestAggregationResults(ctx context.Context, de
 // GetLatestAggregationResultsMultiDevice fetches latest customer aggregation values across all relevant devices for live payload preview
 func (r *outboundRepository) GetLatestAggregationResultsMultiDevice(ctx context.Context, deviceIDs []uint) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
-	// Find latest period_end overall
+	// Find latest period_end overall across active devices/parameters
 	var latest model.AggregationResult
-	q := r.db.WithContext(ctx).Where("source_type = ?", model.SourceCustomerProcessed)
+	q := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed)
 	if len(deviceIDs) > 0 {
-		q = q.Where("device_id IN (?)", deviceIDs)
+		q = q.Where("aggregation_results.device_id IN (?)", deviceIDs)
 	}
-	err := q.Order("period_end DESC").First(&latest).Error
+	err := q.Order("aggregation_results.period_end DESC").First(&latest).Error
 	if err != nil {
 		return nil, err
 	}
 
-	query := r.db.WithContext(ctx).
+	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
 		Preload("Parameter").
 		Preload("Device").
-		Where("source_type = ?", model.SourceCustomerProcessed).
-		Where("period_end = ?", latest.PeriodEnd)
+		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
+		Where("aggregation_results.period_end = ?", latest.PeriodEnd)
 
 	if len(deviceIDs) > 0 {
-		query = query.Where("device_id IN (?)", deviceIDs)
+		query = query.Where("aggregation_results.device_id IN (?)", deviceIDs)
 	}
 
-	err = query.Order("device_id ASC, parameter_id ASC").Find(&results).Error
+	err = query.Order("aggregation_results.device_id ASC, aggregation_results.parameter_id ASC").Find(&results).Error
 	return results, err
 }
 

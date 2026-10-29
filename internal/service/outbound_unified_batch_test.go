@@ -299,3 +299,120 @@ func TestUnifiedMultiDeviceOutbound(t *testing.T) {
 		t.Fatalf("[Criterion 11 CRITICAL VIOLATION] Raw internal telemetry (value 9999) leaked into Dest 2 payload!")
 	}
 }
+
+func TestOutboundExcludesInactiveDeletedAndUncheckedDevicesAndParams(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+	ctx := context.Background()
+
+	// 1. Active devices com3 and com4
+	devCom3 := &model.Device{ID: 3, DeviceCode: "com3", DeviceName: "Weather Sensor", Enabled: true}
+	devCom4 := &model.Device{ID: 4, DeviceCode: "com4", DeviceName: "Gas Analyzer", Enabled: true}
+	// 2. Inactive device qa-cek
+	devQACek := &model.Device{ID: 10, DeviceCode: "qa-cek", DeviceName: "QA Check", Enabled: true}
+	// 3. Soft-deleted device DEV-40 with colliding pm10 and o3 parameter codes
+	dev40 := &model.Device{ID: 40, DeviceCode: "old-aqms", DeviceName: "Deleted Station", Enabled: true}
+	// 4. Active device com5 that is NOT in the checklist
+	devCom5 := &model.Device{ID: 5, DeviceCode: "com5", DeviceName: "Extra Sensor", Enabled: true}
+
+	for _, d := range []*model.Device{devCom3, devCom4, devQACek, dev40, devCom5} {
+		db.Create(d)
+	}
+	// Disable qa-cek and soft-delete DEV-40
+	_ = deviceRepo.SetEnabled(devQACek.ID, false)
+	_ = deviceRepo.Delete(dev40.ID)
+
+	pTemp := &model.Parameter{ID: 31, DeviceID: 3, ParameterCode: "Temperature", ParameterName: "TEMPERATURE", Unit: "C", Enabled: true}
+	pPM10 := &model.Parameter{ID: 41, DeviceID: 4, ParameterCode: "pm10", ParameterName: "PM 10", Unit: "ug/m3", Enabled: true}
+	pO3 := &model.Parameter{ID: 42, DeviceID: 4, ParameterCode: "o3", ParameterName: "O3", Unit: "ug/m3", Enabled: true}
+	pHC := &model.Parameter{ID: 43, DeviceID: 4, ParameterCode: "hc", ParameterName: "HC", Unit: "ug/m3", Enabled: true} // unchecked in checklist
+	pQADeleted := &model.Parameter{ID: 101, DeviceID: 10, ParameterCode: "dummy", ParameterName: "Dummy", Unit: "-", Enabled: true}
+	pDev40PM10 := &model.Parameter{ID: 401, DeviceID: 40, ParameterCode: "pm10", ParameterName: "PM10", Unit: "ug/m3", Enabled: true}
+	pDev40O3 := &model.Parameter{ID: 402, DeviceID: 40, ParameterCode: "o3", ParameterName: "O3", Unit: "ug/m3", Enabled: true}
+	pCom5Extra := &model.Parameter{ID: 51, DeviceID: 5, ParameterCode: "pm10", ParameterName: "PM10 Extra", Unit: "ug/m3", Enabled: true}
+
+	for _, p := range []*model.Parameter{pTemp, pPM10, pO3, pHC, pQADeleted, pDev40PM10, pDev40O3, pCom5Extra} {
+		db.Create(p)
+	}
+	_ = deviceRepo.DeleteParameter(10, pQADeleted.ID)
+
+	dest := &model.OutputDestination{
+		Name:            "CBI",
+		Type:            model.DestREST,
+		Endpoint:        "http://cbi.example.com/inbound",
+		Enabled:         true,
+		IntervalSeconds: 120,
+		RetryLimit:      5,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination error: %v", err)
+	}
+
+	cfg, _ := svc.GetPayloadConfig(ctx, dest.ID)
+	cfg.Structure = "MULTI_TICK_ARRAY"
+	cfg.StationIDValue = "3453"
+	cfg.ModuleIDValue = "1"
+	cfg.ParameterMappingsJSON = `[
+		{"device_id":3,"device_code":"com3","parameter_id":31,"parameter_code":"Temperature","external_name":"temp","enabled":true},
+		{"device_id":4,"device_code":"com4","parameter_id":41,"parameter_code":"pm10","external_name":"pm10","enabled":true},
+		{"device_id":4,"device_code":"com4","parameter_id":42,"parameter_code":"o3","external_name":"o3","enabled":true},
+		{"device_id":4,"device_code":"com4","parameter_id":43,"parameter_code":"hc","external_name":"hc","enabled":false}
+	]`
+	if err := svc.UpdatePayloadConfig(ctx, cfg); err != nil {
+		t.Fatalf("UpdatePayloadConfig error: %v", err)
+	}
+
+	now := time.Now().Truncate(time.Minute)
+	vTemp, vPM10, vO3, vHC, vExtra := 23.78, 89.25, 36.91, 2.46, 99.9
+	db.Create(&model.AggregationResult{ID: 1001, AggregationDefinitionID: 1, DeviceID: 3, ParameterID: 31, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: &vTemp, Quality: "GOOD"})
+	db.Create(&model.AggregationResult{ID: 1002, AggregationDefinitionID: 2, DeviceID: 4, ParameterID: 41, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: &vPM10, Quality: "GOOD"})
+	db.Create(&model.AggregationResult{ID: 1003, AggregationDefinitionID: 3, DeviceID: 4, ParameterID: 42, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: &vO3, Quality: "GOOD"})
+	db.Create(&model.AggregationResult{ID: 1004, AggregationDefinitionID: 4, DeviceID: 4, ParameterID: 43, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: &vHC, Quality: "GOOD"})
+	// Stale/orphaned rows from qa-cek, DEV-40, and unchecked com5
+	db.Create(&model.AggregationResult{ID: 1005, AggregationDefinitionID: 5, DeviceID: 10, ParameterID: 101, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: nil, Quality: "BAD"})
+	db.Create(&model.AggregationResult{ID: 1006, AggregationDefinitionID: 6, DeviceID: 40, ParameterID: 401, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: nil, Quality: "BAD"})
+	db.Create(&model.AggregationResult{ID: 1007, AggregationDefinitionID: 7, DeviceID: 40, ParameterID: 402, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: nil, Quality: "BAD"})
+	db.Create(&model.AggregationResult{ID: 1008, AggregationDefinitionID: 8, DeviceID: 5, ParameterID: 51, SourceType: model.SourceCustomerProcessed, PeriodStart: now.Add(-2 * time.Minute), PeriodEnd: now, IntervalSeconds: 120, Value: &vExtra, Quality: "GOOD"})
+
+	if err := svc.HandleBucketCompleted(ctx, 4, now); err != nil {
+		t.Fatalf("HandleBucketCompleted error: %v", err)
+	}
+
+	items, total, err := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if err != nil || total != 1 {
+		t.Fatalf("expected 1 queue item, got %d (err: %v)", total, err)
+	}
+
+	q := items[0]
+	if q.DeviceCount != 2 || q.DevicesSummary != "com3, com4" {
+		t.Errorf("expected DevicesSummary 'com3, com4' (2 devices), got %q (%d devices)", q.DevicesSummary, q.DeviceCount)
+	}
+	if q.ParameterCount != 3 {
+		t.Errorf("expected ParameterCount 3 (only checked params), got %d", q.ParameterCount)
+	}
+
+	detail, err := svc.GetQueueItemDetail(ctx, q.ID)
+	if err != nil {
+		t.Fatalf("GetQueueItemDetail error: %v", err)
+	}
+	if len(detail.SourceValues) != 3 {
+		t.Errorf("expected 3 SourceValues in Queue Inspection, got %d", len(detail.SourceValues))
+	}
+	for _, sv := range detail.SourceValues {
+		if sv.DeviceCode == "qa-cek" || sv.DeviceCode == "DEV-40" || sv.DeviceCode == "com5" || sv.ParameterCode == "hc" || sv.ParameterCode == "" {
+			t.Errorf("unexpected leaked device/param in SourceValues: device=%s param=%s", sv.DeviceCode, sv.ParameterCode)
+		}
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(q.PayloadSnapshot), &parsed); err != nil {
+		t.Fatalf("invalid payload JSON: %v", err)
+	}
+	multi, ok := parsed["multi"].([]interface{})
+	if !ok || len(multi) != 3 {
+		t.Fatalf("expected 3 ticks in multi array, got %v", parsed)
+	}
+}

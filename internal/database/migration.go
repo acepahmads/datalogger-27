@@ -297,11 +297,32 @@ func RunMigrations(db *gorm.DB) error {
 	// 8e. Update Development Tracking Dashboard for Phase 10 (Optimization & Production)
 	updatePhase10Tracking(db)
 
+	// 8f. Cleanup orphaned aggregation definitions pointing to deleted devices or parameters
+	cleanupOrphanedAggregationDefinitions(db)
+
 	// 9. Reconcile all Phase statuses and progress across the database
 	ReconcileAllPhases(db)
 
 	logger.Info("Database schema synchronization and migration completed successfully")
 	return nil
+}
+
+func cleanupOrphanedAggregationDefinitions(db *gorm.DB) {
+	var defs []model.AggregationDefinition
+	if err := db.Preload("Device").Preload("Parameter").Find(&defs).Error; err != nil {
+		return
+	}
+	var orphanIDs []uint
+	for _, d := range defs {
+		if d.Device == nil || d.Parameter == nil {
+			orphanIDs = append(orphanIDs, d.ID)
+		}
+	}
+	if len(orphanIDs) > 0 {
+		_ = db.Model(&model.AggregationDefinition{}).Where("id IN (?)", orphanIDs).Update("enabled", false).Error
+		_ = db.Where("id IN (?)", orphanIDs).Delete(&model.AggregationDefinition{}).Error
+		logger.Info("[Migration] Cleaned up %d orphaned aggregation definitions referencing deleted devices or parameters", len(orphanIDs))
+	}
 }
 
 func updatePhase2Tracking(db *gorm.DB) {

@@ -196,9 +196,18 @@ func (r *DeviceRepository) Update(device *model.Device) error {
 	})
 }
 
-// Delete performs soft delete of device
+// Delete performs soft delete of device and its associated parameters and aggregation definitions
 func (r *DeviceRepository) Delete(id uint) error {
-	return r.db.Where("id = ?", id).Delete(&model.Device{}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if tx.Migrator().HasTable(&model.AggregationDefinition{}) {
+			_ = tx.Model(&model.AggregationDefinition{}).Where("device_id = ?", id).Update("enabled", false).Error
+			_ = tx.Where("device_id = ?", id).Delete(&model.AggregationDefinition{}).Error
+		}
+		if tx.Migrator().HasTable(&model.Parameter{}) {
+			_ = tx.Where("device_id = ?", id).Delete(&model.Parameter{}).Error
+		}
+		return tx.Where("id = ?", id).Delete(&model.Device{}).Error
+	})
 }
 
 // SetEnabled toggles enabled status
@@ -274,7 +283,13 @@ func (r *DeviceRepository) UpdateParameter(param *model.Parameter) error {
 }
 
 func (r *DeviceRepository) DeleteParameter(deviceID, paramID uint) error {
-	return r.db.Where("id = ? AND device_id = ?", paramID, deviceID).Delete(&model.Parameter{}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if tx.Migrator().HasTable(&model.AggregationDefinition{}) {
+			_ = tx.Model(&model.AggregationDefinition{}).Where("device_id = ? AND parameter_id = ?", deviceID, paramID).Update("enabled", false).Error
+			_ = tx.Where("device_id = ? AND parameter_id = ?", deviceID, paramID).Delete(&model.AggregationDefinition{}).Error
+		}
+		return tx.Where("id = ? AND device_id = ?", paramID, deviceID).Delete(&model.Parameter{}).Error
+	})
 }
 
 func (r *DeviceRepository) SetParameterEnabled(deviceID, paramID uint, enabled bool) error {

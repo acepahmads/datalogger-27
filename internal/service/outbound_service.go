@@ -410,6 +410,24 @@ func calculateBackoff(attempts int) time.Duration {
 	return time.Duration(secs+jitter) * time.Second
 }
 
+// isActiveOutboundAggregationResult verifies that the aggregation result belongs to an active, non-deleted device and parameter.
+func isActiveOutboundAggregationResult(item model.AggregationResult) bool {
+	if item.Device == nil || !item.Device.Enabled {
+		return false
+	}
+	st := strings.ToUpper(strings.TrimSpace(string(item.Device.Status)))
+	if st == string(model.DeviceStatusInactive) || st == string(model.DeviceStatusDisabled) {
+		return false
+	}
+	if item.Parameter == nil || !item.Parameter.Enabled {
+		return false
+	}
+	if strings.TrimSpace(item.Parameter.ParameterCode) == "" {
+		return false
+	}
+	return true
+}
+
 // HandleBucketCompleted is triggered when an aggregation bucket finishes.
 // It generates unified batches per destination and aggregation window across all relevant devices.
 func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID uint, bucketEnd time.Time) error {
@@ -440,13 +458,42 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			continue
 		}
 
+		// Resolve destination payload configuration & checklist matcher upfront
+		cfg := dest.PayloadConfig
+		if cfg == nil {
+			cfg = &model.DestinationPayloadConfig{
+				StationIDField:  "station_id",
+				TimestampField:  "timestamp",
+				TimestampFormat: "ISO8601",
+				IntervalField:   "interval_minutes",
+				Structure:       "FLAT",
+				Version:         1,
+			}
+		}
+		matcher := buildParameterMappingMatcher(cfg)
+
 		// Group results by IntervalSeconds
 		resultsByInterval := make(map[int][]model.AggregationResult)
 		for _, res := range results {
 			resultsByInterval[res.IntervalSeconds] = append(resultsByInterval[res.IntervalSeconds], res)
 		}
 
-		for intervalSec, group := range resultsByInterval {
+		for intervalSec, rawGroup := range resultsByInterval {
+			var group []model.AggregationResult
+			for _, item := range rawGroup {
+				if !isActiveOutboundAggregationResult(item) {
+					continue
+				}
+				devCode := item.Device.DeviceCode
+				if devCode == "" {
+					devCode = fmt.Sprintf("DEV-%d", item.DeviceID)
+				}
+				enabled, _ := matcher.Resolve(item.DeviceID, devCode, item.ParameterID, item.Parameter.ParameterCode)
+				if !enabled {
+					continue
+				}
+				group = append(group, item)
+			}
 			if len(group) == 0 {
 				continue
 			}
@@ -463,7 +510,7 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, periodEnd.Format("20060102150405"))
 			idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, intervalSec, periodEnd.Unix())
 
-			// Collect unique devices in stable order
+			// Collect unique devices in stable order strictly from checked & active parameters
 			deviceMap := make(map[uint]BatchDeviceSummary)
 			var deviceOrder []uint
 			for _, item := range group {
@@ -497,20 +544,15 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			devicesSummary := strings.Join(devCodes, ", ")
 			deviceCount := len(devicesList)
 
-			// Collect all parameters across devices
+			// Collect checked & active parameters across devices
 			var sourceIDs []uint64
 			var sourceItems []model.SourceAggregationValueItem
 
 			for _, item := range group {
 				sourceIDs = append(sourceIDs, item.ID)
-				paramCode := ""
-				paramName := ""
-				unit := ""
-				if item.Parameter != nil {
-					paramCode = item.Parameter.ParameterCode
-					paramName = item.Parameter.ParameterName
-					unit = item.Parameter.Unit
-				}
+				paramCode := item.Parameter.ParameterCode
+				paramName := item.Parameter.ParameterName
+				unit := item.Parameter.Unit
 				devInfo := deviceMap[item.DeviceID]
 
 				val := item.Value
@@ -556,19 +598,6 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 				batchData.DeviceID = devicesList[0].DeviceID
 				batchData.DeviceCode = devicesList[0].DeviceCode
 				batchData.DeviceName = devicesList[0].DeviceName
-			}
-
-			// Format payload according to destination config
-			cfg := dest.PayloadConfig
-			if cfg == nil {
-				cfg = &model.DestinationPayloadConfig{
-					StationIDField:  "station_id",
-					TimestampField:  "timestamp",
-					TimestampFormat: "ISO8601",
-					IntervalField:   "interval_minutes",
-					Structure:       "FLAT",
-					Version:         1,
-				}
 			}
 
 			payloadBytes, err := s.formatter.Format(batchData, cfg)
@@ -763,11 +792,29 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		targetDeviceIDs = []uint{*deviceID}
 	}
 
+	matcher := buildParameterMappingMatcher(cfg)
 	realResults, err := s.repo.GetLatestAggregationResultsMultiDevice(ctx, targetDeviceIDs)
+	var filteredReal []model.AggregationResult
 	if err == nil && len(realResults) > 0 {
+		for _, r := range realResults {
+			if !isActiveOutboundAggregationResult(r) {
+				continue
+			}
+			devCode := r.Device.DeviceCode
+			if devCode == "" {
+				devCode = fmt.Sprintf("DEV-%d", r.DeviceID)
+			}
+			if enabled, _ := matcher.Resolve(r.DeviceID, devCode, r.ParameterID, r.Parameter.ParameterCode); !enabled {
+				continue
+			}
+			filteredReal = append(filteredReal, r)
+		}
+	}
+
+	if len(filteredReal) > 0 {
 		deviceMap := make(map[uint]BatchDeviceSummary)
 		var deviceOrder []uint
-		for _, r := range realResults {
+		for _, r := range filteredReal {
 			if _, exists := deviceMap[r.DeviceID]; !exists {
 				devCode := fmt.Sprintf("DEV-%d", r.DeviceID)
 				devName := fmt.Sprintf("Device %d", r.DeviceID)
@@ -797,15 +844,10 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		}
 
 		var items []model.SourceAggregationValueItem
-		for _, r := range realResults {
-			pCode := ""
-			pName := ""
-			unit := ""
-			if r.Parameter != nil {
-				pCode = r.Parameter.ParameterCode
-				pName = r.Parameter.ParameterName
-				unit = r.Parameter.Unit
-			}
+		for _, r := range filteredReal {
+			pCode := r.Parameter.ParameterCode
+			pName := r.Parameter.ParameterName
+			unit := r.Parameter.Unit
 			devInfo := deviceMap[r.DeviceID]
 			items = append(items, model.SourceAggregationValueItem{
 				DeviceID:            r.DeviceID,
@@ -827,9 +869,74 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			DeviceCount:     len(devicesList),
 			DevicesSummary:  strings.Join(devCodes, ", "),
 			Devices:         devicesList,
-			IntervalSeconds: realResults[0].IntervalSeconds,
-			PeriodStart:     realResults[0].PeriodStart,
-			PeriodEnd:       realResults[0].PeriodEnd,
+			IntervalSeconds: filteredReal[0].IntervalSeconds,
+			PeriodStart:     filteredReal[0].PeriodStart,
+			PeriodEnd:       filteredReal[0].PeriodEnd,
+			Values:          items,
+		}
+		if len(devicesList) == 1 {
+			batch.DeviceID = devicesList[0].DeviceID
+			batch.DeviceCode = devicesList[0].DeviceCode
+			batch.DeviceName = devicesList[0].DeviceName
+		}
+	} else if cfg != nil && strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
+		// Construct sample batch matching the user's configured ParameterMappings checklist
+		now := time.Now()
+		var mappings []model.ParameterMappingItem
+		_ = json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings)
+
+		deviceMap := make(map[string]BatchDeviceSummary)
+		var deviceOrder []string
+		var items []model.SourceAggregationValueItem
+		sampleVal := 25.4
+
+		for idx, m := range mappings {
+			if !m.Enabled || strings.TrimSpace(m.ParameterCode) == "" {
+				continue
+			}
+			dID := m.DeviceID
+			if dID == 0 {
+				dID = 1
+			}
+			dCode := strings.TrimSpace(m.DeviceCode)
+			if dCode == "" {
+				dCode = fmt.Sprintf("DEV-%d", dID)
+			}
+			if _, ok := deviceMap[dCode]; !ok {
+				deviceMap[dCode] = BatchDeviceSummary{
+					DeviceID:   dID,
+					DeviceCode: dCode,
+					DeviceName: dCode,
+				}
+				deviceOrder = append(deviceOrder, dCode)
+			}
+			v := sampleVal + float64(idx)*1.5
+			items = append(items, model.SourceAggregationValueItem{
+				DeviceID:            dID,
+				DeviceCode:          dCode,
+				DeviceName:          dCode,
+				ParameterID:         m.ParameterID,
+				ParameterCode:       m.ParameterCode,
+				ParameterName:       m.ParameterName,
+				Value:               &v,
+				Quality:             "GOOD",
+				AggregationResultID: uint64(100 + idx),
+				PeriodStart:         now.Add(-2 * time.Minute),
+				PeriodEnd:           now,
+			})
+		}
+
+		var devicesList []BatchDeviceSummary
+		for _, dc := range deviceOrder {
+			devicesList = append(devicesList, deviceMap[dc])
+		}
+		batch = &OutboundBatchData{
+			DeviceCount:     len(devicesList),
+			DevicesSummary:  strings.Join(deviceOrder, ", "),
+			Devices:         devicesList,
+			IntervalSeconds: 120,
+			PeriodStart:     now.Add(-2 * time.Minute),
+			PeriodEnd:       now,
 			Values:          items,
 		}
 		if len(devicesList) == 1 {
