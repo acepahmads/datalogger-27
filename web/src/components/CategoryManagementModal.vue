@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+  <div v-if="isOpen" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
     <div class="bg-[#0B1422] border border-[#20354B] rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
       <!-- Modal Header -->
       <div class="px-6 py-4 border-b border-[#20354B] flex items-center justify-between bg-[#080E18]">
@@ -288,7 +288,7 @@
         <!-- ==================================================== -->
         <!-- FORM MODAL: CREATE / EDIT CATEGORY                    -->
         <!-- ==================================================== -->
-        <div v-if="isFormOpen" class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
+        <div v-if="isFormOpen" class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
           <div class="bg-[#0B1422] border border-[#20354B] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             <!-- Form Header -->
             <div class="px-6 py-3.5 border-b border-[#20354B] flex items-center justify-between bg-[#080E18]">
@@ -491,7 +491,7 @@
         <!-- ==================================================== -->
         <!-- SAFE DELETE CONFIRMATION MODAL                        -->
         <!-- ==================================================== -->
-        <div v-if="deleteTarget" class="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
+        <div v-if="deleteTarget" class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
           <div class="bg-[#0B1422] border border-rose-500/40 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 font-mono">
             <div class="flex items-center space-x-2 text-rose-400">
               <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

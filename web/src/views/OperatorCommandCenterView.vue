@@ -5836,8 +5836,10 @@
       :device-id="editParamTarget.deviceId"
       :param-to-edit="editParamTarget.parameter"
       :source-device="editParamTarget.device"
+      :categories="categoriesList"
       @close="isEditParamModalOpen = false"
       @saved="handleParamSaved"
+      @open-category-management="isCategoryModalOpen = true"
     />
 
     <!-- 4. 100 Data Terakhir Modal -->

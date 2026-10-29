@@ -419,6 +419,8 @@ func main() {
 			categoriesGroup.DELETE("/:id", middleware.RequirePermission("category.manage"), categoryHandler.DeleteCategory)
 			categoriesGroup.POST("/:id/parameters", middleware.RequirePermission("category.assign"), categoryHandler.AssignParameters)
 		}
+		// Alias for /parameter-categories compatibility
+		api.GET("/parameter-categories", middleware.JWTAuth(authService), middleware.RequirePermission("category.view"), categoryHandler.ListCategories)
 
 		// Phase 3.3 — Aggregations & Rollups (Internal & Management)
 		aggregationsGroup := api.Group("/aggregations")

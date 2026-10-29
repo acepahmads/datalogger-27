@@ -3061,14 +3061,27 @@
 
     <ParameterModal
       v-if="device"
+      ref="paramModal"
       :is-open="isParamModalOpen"
       :device-id="device.id"
       :param-to-edit="paramToEdit"
       :is-copying="isCopyParamModal"
       :source-param="paramToCopy"
       :source-device="device"
+      :categories="categoriesList"
       @close="closeParamModal"
       @saved="handleParamSaved"
+      @open-category-management="isCategoryModalOpen = true"
+    />
+
+    <!-- Category Management Modal -->
+    <CategoryManagementModal
+      :is-open="isCategoryModalOpen"
+      :devices-list="device ? [device] : []"
+      :initial-categories="categoriesList"
+      @close="isCategoryModalOpen = false"
+      @saved="handleCategorySaved"
+      @categories-updated="handleCategoriesUpdated"
     />
 
     <!-- Modbus Parameter Test Read Diagnostic Modal -->
@@ -3450,6 +3463,7 @@ import DeviceModal from '../components/DeviceModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
 import ActuatorTab from '../components/actuators/ActuatorTab.vue';
+import CategoryManagementModal from '../components/CategoryManagementModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 
 export default {
@@ -3459,6 +3473,7 @@ export default {
     ParameterModal,
     ParameterIcon,
     ActuatorTab,
+    CategoryManagementModal,
   },
   data() {
     return {
@@ -3467,6 +3482,7 @@ export default {
       toastTimer: null,
       device: null,
       categoriesList: [],
+      isCategoryModalOpen: false,
       activities: [],
       activityLoading: false,
       showRawAudit: {},
@@ -4177,6 +4193,17 @@ export default {
       this.loadDevice();
       this.fetchCategories();
       this.$store.dispatch('fetchDevices');
+    },
+    async handleCategorySaved() {
+      await this.fetchCategories();
+      if (this.$refs.paramModal && this.$refs.paramModal.fetchCategories) {
+        this.$refs.paramModal.fetchCategories();
+      }
+    },
+    handleCategoriesUpdated(updatedCats) {
+      if (Array.isArray(updatedCats)) {
+        this.categoriesList = updatedCats;
+      }
     },
     openEditModal() {
       this.isCopyDeviceModal = false;

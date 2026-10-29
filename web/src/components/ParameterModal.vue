@@ -203,9 +203,20 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             <!-- Category Selector -->
             <div>
-              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                {{ $t('categoryManagement.fields.name') || 'Domain Category' }}
-              </label>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {{ $t('categoryManagement.fields.name') || 'Domain Category' }}
+                </label>
+                <button
+                  type="button"
+                  @click="$emit('open-category-management')"
+                  class="text-3xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline flex items-center space-x-1 font-medium transition"
+                  :title="$t('operator.manageCategories') || 'Configure Categories'"
+                >
+                  <span>⚙️</span>
+                  <span>{{ $t('operator.manageCategories') || 'Kelola Kategori' }}</span>
+                </button>
+              </div>
               <select
                 v-model="form.category_id"
                 class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
@@ -1061,6 +1072,10 @@ export default {
       type: Object,
       default: null,
     },
+    categories: {
+      type: Array,
+      default: () => [],
+    },
   },
   data() {
     return {
@@ -1424,6 +1439,9 @@ export default {
       immediate: true,
       handler(val) {
         if (val) {
+          if (Array.isArray(this.categories) && this.categories.length > 0) {
+            this.availableCategories = [...this.categories];
+          }
           this.fetchCategories();
           if (this.isCopying && this.sourceParam) {
             this.populateFromSource(this.sourceParam);
@@ -1434,6 +1452,14 @@ export default {
           }
         } else {
           this.error = null;
+        }
+      },
+    },
+    categories: {
+      immediate: true,
+      handler(newCats) {
+        if (Array.isArray(newCats) && newCats.length > 0) {
+          this.availableCategories = [...newCats];
         }
       },
     },
@@ -1454,10 +1480,22 @@ export default {
     },
     async fetchCategories() {
       try {
-        const res = await apiClient.get('/parameter-categories');
-        this.availableCategories = (res && res.data && res.data.data) ? res.data.data : [];
+        const res = await apiClient.get('/categories');
+        const cats = (res && res.data && res.data.data) ? res.data.data : (res && res.data ? res.data : []);
+        if (Array.isArray(cats) && cats.length > 0) {
+          this.availableCategories = cats;
+        }
       } catch (err) {
-        console.error('Failed to load categories in ParameterModal:', err);
+        // Fallback attempt to /parameter-categories if alias route is used
+        try {
+          const fallbackRes = await apiClient.get('/parameter-categories');
+          const cats = (fallbackRes && fallbackRes.data && fallbackRes.data.data) ? fallbackRes.data.data : (fallbackRes && fallbackRes.data ? fallbackRes.data : []);
+          if (Array.isArray(cats) && cats.length > 0) {
+            this.availableCategories = cats;
+          }
+        } catch (fbErr) {
+          console.error('Failed to load categories in ParameterModal:', err);
+        }
       }
     },
     cleanNum(val) {
