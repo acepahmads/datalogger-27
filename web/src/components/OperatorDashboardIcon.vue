@@ -124,6 +124,23 @@
         <circle cx="15" cy="17" r="2.8" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.25" />
       </g>
 
+      <!-- Performance / Tachometer Speedometer Gauge -->
+      <g v-else-if="name === 'performance' || name === 'speedometer' || name === 'gauge-speed' || name === 'perf'">
+        <!-- Outer Speedometer Arc -->
+        <path d="M4.6 17.2 A 9 9 0 1 1 19.4 17.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" />
+        <!-- Top and Corner Dial Ticks -->
+        <line x1="12" y1="3" x2="12" y2="5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        <line x1="5.6" y1="5.6" x2="7.4" y2="7.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <line x1="18.4" y1="5.6" x2="16.6" y2="7.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <!-- High-Performance Zone Arc Accent -->
+        <path d="M12 4.6 A 7.4 7.4 0 0 1 17.2 6.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-opacity="0.7" stroke-dasharray="1.2 1.5" />
+        <!-- Performance Needle (aiming up-right) -->
+        <line x1="12" y1="13" x2="16.5" y2="8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        <!-- Dial Center Pivot -->
+        <circle cx="12" cy="13" r="2.2" fill="currentColor" />
+        <circle cx="12" cy="13" r="0.8" fill="white" fill-opacity="0.8" />
+      </g>
+
       <!-- ============================================== -->
       <!-- 2. PARAMETER SENSOR ICONS (DUOTONE SCADA)     -->
       <!-- ============================================== -->

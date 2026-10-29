@@ -513,7 +513,8 @@
               aria-label="Performance Settings"
               :aria-expanded="activeToolbarPopover === 'performanceSettings'"
             >
-              <OperatorDashboardIcon name="settings" :size="16" />
+              <!-- Dedicated Tachometer / Speedometer Performance Icon (Distinct from Table Setup Sliders) -->
+              <OperatorDashboardIcon name="performance" :size="16" />
               <!-- Status dot indicator if optimized profile is active -->
               <span
                 v-if="isPerformanceOptimizedActive"
@@ -525,28 +526,35 @@
             <!-- Performance Settings Popover Panel -->
             <div
               v-if="activeToolbarPopover === 'performanceSettings'"
-              class="absolute left-0 top-full mt-1.5 z-50 w-[380px] sm:w-[420px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono max-h-[85vh] overflow-y-auto custom-scroller"
+              class="absolute left-0 top-full mt-1.5 z-50 w-[420px] sm:w-[460px] max-w-[calc(100vw-24px)] rounded-xl shadow-2xl p-3.5 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#0E1726] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono max-h-[88vh] overflow-y-auto custom-scroller"
               @click.stop
             >
               <!-- Panel Header -->
-              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
-                <div class="flex items-center space-x-2">
-                  <div class="w-6 h-6 rounded flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-500 flex-shrink-0">
-                    <OperatorDashboardIcon name="settings" :size="14" />
+              <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100 dark:border-[#1E3048]">
+                <div class="flex items-center space-x-2.5">
+                  <div class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/15 border border-cyan-500/40 text-cyan-600 dark:text-cyan-400 flex-shrink-0 shadow-xs">
+                    <OperatorDashboardIcon name="performance" :size="16" />
                   </div>
                   <div>
-                    <div class="flex items-center space-x-1.5">
+                    <div class="flex items-center space-x-2">
                       <span class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
                         {{ $t('operator.perfSettingsTitle') || 'Performance Settings' }}
                       </span>
                       <span
                         v-if="isPerformanceOptimizedActive"
-                        class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 leading-none"
+                        class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/35 leading-none flex items-center space-x-1"
                       >
-                        OPTIMIZED
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span>OPTIMIZED</span>
+                      </span>
+                      <span
+                        v-else
+                        class="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-slate-100 dark:bg-[#162538] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-[#1E3048] leading-none"
+                      >
+                        STANDARD
                       </span>
                     </div>
-                    <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-1 leading-none font-normal">
                       {{ $t('operator.perfSettingsSubtitle') || 'Raspberry Pi & Low-Power Chromium Optimization' }}
                     </div>
                   </div>
@@ -554,197 +562,211 @@
                 <button
                   type="button"
                   @click="closeToolbarPopover"
-                  class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#18283E] rounded transition"
+                  class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#18283E] rounded-lg transition"
                   title="Close"
                 >
                   <OperatorDashboardIcon name="close" :size="14" />
                 </button>
               </div>
 
-              <!-- Storage Badge Notice -->
-              <div class="mb-2 px-2 py-1 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400">
-                <span class="flex items-center space-x-1">
-                  <span>💾</span>
-                  <span>{{ $t('operator.perfStorageNotice') || 'Saved in this browser only (localStorage)' }}</span>
+              <!-- 1-Tap Quick Optimization Profiles -->
+              <div class="mb-2.5 p-1.5 rounded-lg bg-slate-50 dark:bg-[#070D17] border border-slate-200 dark:border-[#1E3048]">
+                <div class="flex items-center justify-between mb-1 px-1 text-[9px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+                  <span>{{ $t('operator.perfPresetQuick') || 'Quick Presets' }}</span>
+                  <span class="text-cyan-600 dark:text-cyan-400 font-semibold lowercase">tap to apply</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    @click="setPerfPreset('standard')"
+                    class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer flex items-center justify-center space-x-1"
+                    :class="currentPerfPreset === 'standard'
+                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs font-black'
+                      : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                    title="All features active for standard desktop workstations"
+                  >
+                    <span>⚡</span>
+                    <span>{{ $t('operator.perfPresetStandard') || 'Standard' }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="setPerfPreset('balanced')"
+                    class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer flex items-center justify-center space-x-1"
+                    :class="currentPerfPreset === 'balanced'
+                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs font-black'
+                      : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                    title="Balanced profile for Raspberry Pi 4 (sparklines off, full trend active)"
+                  >
+                    <span>⚖️</span>
+                    <span>{{ $t('operator.perfPresetBalanced') || 'Balanced' }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="setPerfPreset('max_eco')"
+                    class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer flex items-center justify-center space-x-1"
+                    :class="currentPerfPreset === 'max_eco'
+                      ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs font-black'
+                      : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                    title="Maximum CPU savings for Raspberry Pi 3 or slow networks"
+                  >
+                    <span>🚀</span>
+                    <span>{{ $t('operator.perfPresetMaxEco') || 'Max Eco' }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Storage Badge Notice & Reset -->
+              <div class="mb-2.5 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-[#070D17] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400">
+                <span class="flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5 text-cyan-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16m-8 4v4m-2-2h4" />
+                  </svg>
+                  <span class="font-mono">{{ $t('operator.perfStorageNotice') || 'Saved in this browser only (localStorage)' }}</span>
                 </span>
                 <button
                   type="button"
                   @click="resetPerformanceSettings"
-                  class="text-cyan-600 dark:text-cyan-400 hover:underline font-bold text-[8.5px] cursor-pointer"
+                  class="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 font-bold text-[9px] uppercase tracking-wider flex items-center space-x-1 py-0.5 px-1.5 rounded hover:bg-cyan-500/10 transition cursor-pointer"
                 >
-                  {{ $t('operator.perfResetDefaults') || 'Reset Defaults' }}
+                  <OperatorDashboardIcon name="reset" :size="10" />
+                  <span>{{ $t('operator.perfResetDefaults') || 'Reset Defaults' }}</span>
                 </button>
               </div>
 
+              <!-- Content Cards -->
               <div class="space-y-2">
-                <!-- A. Parameter Card Sparklines -->
-                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B]">
-                  <div class="flex items-center justify-between">
-                    <div class="pr-2">
-                      <div class="text-[11px] font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
-                        <span>📈</span>
-                        <span>{{ $t('operator.perfSparklines') || 'Parameter Card Sparklines' }}</span>
+                <!-- 1. Heavy Graphics & Charting -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070D17] border border-slate-200 dark:border-[#1E3048] space-y-2.5">
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center space-x-1.5">
+                    <OperatorDashboardIcon name="chart" :size="12" class="text-cyan-500" />
+                    <span>Heavy Graphics & Computations</span>
+                  </div>
+
+                  <!-- A. Sparklines -->
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-[#18283E]">
+                    <div class="pr-2 min-w-0 flex-1">
+                      <div class="flex items-center space-x-1.5">
+                        <span class="text-[11px] font-bold text-slate-900 dark:text-white truncate">
+                          {{ $t('operator.perfSparklines') || 'Parameter Card Sparklines' }}
+                        </span>
+                        <span
+                          v-if="!perfSettings.parameterSparklinesEnabled"
+                          class="px-1 py-0.2 rounded text-[7.5px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 leading-none shrink-0"
+                        >
+                          CPU SAVED
+                        </span>
                       </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                         {{ $t('operator.perfSparklinesDesc') || 'Render mini SVG sparklines on parameter cards' }}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      @click="togglePerfSetting('parameterSparklinesEnabled')"
-                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="perfSettings.parameterSparklinesEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="perfSettings.parameterSparklinesEnabled"
-                    >
-                      <span
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                        :class="perfSettings.parameterSparklinesEnabled ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <span class="text-[9px] font-mono font-bold" :class="perfSettings.parameterSparklinesEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'">
+                        {{ perfSettings.parameterSparklinesEnabled ? 'ON' : 'OFF' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click="togglePerfSetting('parameterSparklinesEnabled')"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                        :class="perfSettings.parameterSparklinesEnabled ? 'bg-cyan-500 shadow-glow-cyan-xs' : 'bg-slate-300 dark:bg-slate-700'"
+                        role="switch"
+                        :aria-checked="perfSettings.parameterSparklinesEnabled"
+                      >
+                        <span
+                          class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                          :class="perfSettings.parameterSparklinesEnabled ? 'translate-x-4' : 'translate-x-0'"
+                        ></span>
+                      </button>
+                    </div>
                   </div>
-                  <div class="mt-1 text-[8.5px] leading-tight" :class="perfSettings.parameterSparklinesEnabled ? 'text-slate-500 dark:text-slate-400' : 'text-amber-600 dark:text-amber-400 font-semibold'">
-                    {{ perfSettings.parameterSparklinesEnabled ? ($t('operator.perfSparklinesOn') || 'Active: SVG curve history & calculations active.') : ($t('operator.perfSparklinesOff') || 'OFF: Halts SVG bezier calculations & history fetching. Significant CPU savings.') }}
-                  </div>
-                </div>
 
-                <!-- B. Trend Analysis Chart -->
-                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B]">
-                  <div class="flex items-center justify-between">
-                    <div class="pr-2">
-                      <div class="text-[11px] font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
-                        <span>📊</span>
-                        <span>{{ $t('operator.perfTrend') || 'Trend Analysis Chart' }}</span>
+                  <!-- B. Trend Analysis Chart -->
+                  <div class="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-[#18283E]">
+                    <div class="pr-2 min-w-0 flex-1">
+                      <div class="flex items-center space-x-1.5">
+                        <span class="text-[11px] font-bold text-slate-900 dark:text-white truncate">
+                          {{ $t('operator.perfTrend') || 'Trend Analysis Chart' }}
+                        </span>
+                        <span
+                          v-if="!perfSettings.trendAnalysisEnabled"
+                          class="px-1 py-0.2 rounded text-[7.5px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 leading-none shrink-0"
+                        >
+                          UNMOUNTED
+                        </span>
                       </div>
-                      <div class="text-[9px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                      <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                         {{ $t('operator.perfTrendDesc') || 'Multi-parameter trend analysis panel and 1M/5S intervals' }}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      @click="togglePerfSetting('trendAnalysisEnabled')"
-                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="perfSettings.trendAnalysisEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="perfSettings.trendAnalysisEnabled"
-                    >
-                      <span
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                        :class="perfSettings.trendAnalysisEnabled ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
-                  </div>
-                  <div class="mt-1 text-[8.5px] leading-tight" :class="perfSettings.trendAnalysisEnabled ? 'text-slate-500 dark:text-slate-400' : 'text-amber-600 dark:text-amber-400 font-semibold'">
-                    {{ perfSettings.trendAnalysisEnabled ? ($t('operator.perfTrendOn') || 'Active: Live trend graphs & series paths updating.') : ($t('operator.perfTrendOff') || 'OFF: Unmounts heavy SVG chart, stops 1M/5S timers & path math.') }}
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <span class="text-[9px] font-mono font-bold" :class="perfSettings.trendAnalysisEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'">
+                        {{ perfSettings.trendAnalysisEnabled ? 'ON' : 'OFF' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click="togglePerfSetting('trendAnalysisEnabled')"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                        :class="perfSettings.trendAnalysisEnabled ? 'bg-cyan-500 shadow-glow-cyan-xs' : 'bg-slate-300 dark:bg-slate-700'"
+                        role="switch"
+                        :aria-checked="perfSettings.trendAnalysisEnabled"
+                      >
+                        <span
+                          class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                          :class="perfSettings.trendAnalysisEnabled ? 'translate-x-4' : 'translate-x-0'"
+                        ></span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <!-- C. Alarm Display & Sound -->
-                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] space-y-2">
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
-                    <span>🚨</span>
-                    <span>{{ $t('operator.perfAlarms') || 'Alarm Display & Sound' }}</span>
-                  </div>
-
-                  <!-- Alarm Visual -->
-                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
-                    <div class="pr-2">
-                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
-                        {{ $t('operator.perfAlarmVisual') || 'Alarm Visual (Flashing & Pulse)' }}
-                      </div>
-                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
-                        {{ $t('operator.perfAlarmVisualDesc') || 'Flashing borders and pulse animations on cards during alarms' }}
-                      </div>
+                <!-- 2. Live Telemetry Cadence -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070D17] border border-slate-200 dark:border-[#1E3048] space-y-2">
+                  <div class="flex items-center justify-between">
+                    <div class="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center space-x-1.5">
+                      <OperatorDashboardIcon name="activity" :size="12" class="text-amber-500" />
+                      <span>{{ $t('operator.perfLiveUpdates') || 'Live Dashboard Updates' }}</span>
                     </div>
-                    <button
-                      type="button"
-                      @click="togglePerfSetting('alarmVisualEnabled')"
-                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="perfSettings.alarmVisualEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="perfSettings.alarmVisualEnabled"
-                    >
-                      <span
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                        :class="perfSettings.alarmVisualEnabled ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
+                    <span class="text-[8.5px] font-mono uppercase font-bold text-cyan-600 dark:text-cyan-400">
+                      {{ perfSettings.liveUpdateMode }}
+                    </span>
                   </div>
 
-                  <!-- Alarm Sound -->
-                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
-                    <div class="pr-2">
-                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
-                        {{ $t('operator.perfAlarmSound') || 'Alarm Sound (Audio Buzzer)' }}
-                      </div>
-                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
-                        {{ $t('operator.perfAlarmSoundDesc') || 'Audible chime when critical alarm incidents occur' }}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      @click="togglePerfSetting('alarmSoundEnabled')"
-                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="perfSettings.alarmSoundEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="perfSettings.alarmSoundEnabled"
-                    >
-                      <span
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                        :class="perfSettings.alarmSoundEnabled ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
-                  </div>
-
-                  <!-- Alarm Important Notice -->
-                  <div class="p-1.5 rounded bg-amber-500/10 border border-amber-500/25 text-[8px] text-amber-700 dark:text-amber-300 leading-tight">
-                    ⚠️ {{ $t('operator.perfAlarmNotice') || 'Critical alarms remain logged on backend. Disabling visual or sound may delay operator awareness.' }}
-                  </div>
-                </div>
-
-                <!-- D. Live Dashboard Updates Mode -->
-                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] space-y-1.5">
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
-                    <span>⚡</span>
-                    <span>{{ $t('operator.perfLiveUpdates') || 'Live Dashboard Updates' }}</span>
-                  </div>
-
-                  <!-- Selector Buttons -->
-                  <div class="grid grid-cols-3 gap-1">
+                  <!-- Segmented Buttons -->
+                  <div class="p-1 rounded-lg bg-slate-200/70 dark:bg-[#101B2B] border border-slate-200 dark:border-[#1E3048] grid grid-cols-3 gap-1">
                     <button
                       type="button"
                       @click="setPerfSetting('liveUpdateMode', 'full')"
-                      class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer"
+                      class="py-1 px-1.5 rounded-md text-[9.5px] font-bold transition text-center cursor-pointer"
                       :class="perfSettings.liveUpdateMode === 'full'
-                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                        : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                        ? 'bg-cyan-500 text-slate-950 shadow-xs font-black'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                     >
                       Full Live
                     </button>
                     <button
                       type="button"
                       @click="setPerfSetting('liveUpdateMode', 'essential')"
-                      class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer"
+                      class="py-1 px-1.5 rounded-md text-[9.5px] font-bold transition text-center cursor-pointer"
                       :class="perfSettings.liveUpdateMode === 'essential'
-                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                        : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                        ? 'bg-cyan-500 text-slate-950 shadow-xs font-black'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                     >
                       Essential
                     </button>
                     <button
                       type="button"
                       @click="setPerfSetting('liveUpdateMode', 'reduced')"
-                      class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer"
+                      class="py-1 px-1.5 rounded-md text-[9.5px] font-bold transition text-center cursor-pointer"
                       :class="perfSettings.liveUpdateMode === 'reduced'
-                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
-                        : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                        ? 'bg-cyan-500 text-slate-950 shadow-xs font-black'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                     >
                       Reduced (1s)
                     </button>
                   </div>
 
                   <!-- Description for selected mode -->
-                  <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                  <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight px-0.5">
                     <span v-if="perfSettings.liveUpdateMode === 'full'">
                       {{ $t('operator.perfLiveFullDesc') || 'All live telemetry, sparklines, trends, and status updated continuously.' }}
                     </span>
@@ -757,61 +779,147 @@
                   </div>
                 </div>
 
-                <!-- E. Optional Visual Effects -->
-                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] space-y-2">
-                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
-                    <span>✨</span>
+                <!-- 3. Alarm Display & Sound -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070D17] border border-slate-200 dark:border-[#1E3048] space-y-2">
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center space-x-1.5">
+                    <OperatorDashboardIcon name="bell" :size="12" class="text-rose-400" />
+                    <span>{{ $t('operator.perfAlarms') || 'Alarm Display & Sound' }}</span>
+                  </div>
+
+                  <!-- Alarm Visual -->
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-[#18283E]">
+                    <div class="pr-2 min-w-0 flex-1">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {{ $t('operator.perfAlarmVisual') || 'Alarm Visual (Flashing & Pulse)' }}
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        {{ $t('operator.perfAlarmVisualDesc') || 'Flashing borders and pulse animations on cards during alarms' }}
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <span class="text-[9px] font-mono font-bold" :class="perfSettings.alarmVisualEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'">
+                        {{ perfSettings.alarmVisualEnabled ? 'ON' : 'OFF' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click="togglePerfSetting('alarmVisualEnabled')"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                        :class="perfSettings.alarmVisualEnabled ? 'bg-cyan-500 shadow-glow-cyan-xs' : 'bg-slate-300 dark:bg-slate-700'"
+                        role="switch"
+                        :aria-checked="perfSettings.alarmVisualEnabled"
+                      >
+                        <span
+                          class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                          :class="perfSettings.alarmVisualEnabled ? 'translate-x-4' : 'translate-x-0'"
+                        ></span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Alarm Sound -->
+                  <div class="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-[#18283E]">
+                    <div class="pr-2 min-w-0 flex-1">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {{ $t('operator.perfAlarmSound') || 'Alarm Sound (Audio Buzzer)' }}
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        {{ $t('operator.perfAlarmSoundDesc') || 'Audible chime when critical alarm incidents occur' }}
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <span class="text-[9px] font-mono font-bold" :class="perfSettings.alarmSoundEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'">
+                        {{ perfSettings.alarmSoundEnabled ? 'ON' : 'OFF' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click="togglePerfSetting('alarmSoundEnabled')"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                        :class="perfSettings.alarmSoundEnabled ? 'bg-cyan-500 shadow-glow-cyan-xs' : 'bg-slate-300 dark:bg-slate-700'"
+                        role="switch"
+                        :aria-checked="perfSettings.alarmSoundEnabled"
+                      >
+                        <span
+                          class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                          :class="perfSettings.alarmSoundEnabled ? 'translate-x-4' : 'translate-x-0'"
+                        ></span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Alarm Safety Notice -->
+                  <div class="mt-1 px-2.5 py-1.5 rounded bg-amber-500/10 border border-amber-500/25 flex items-start space-x-2 text-[8.5px] text-amber-700 dark:text-amber-300 leading-tight">
+                    <span class="text-amber-500 shrink-0 font-bold">⚠</span>
+                    <span>{{ $t('operator.perfAlarmNotice') || 'Critical alarms remain logged on backend. Disabling visual or sound may delay operator awareness.' }}</span>
+                  </div>
+                </div>
+
+                <!-- 4. Visual Polish & Animations -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#070D17] border border-slate-200 dark:border-[#1E3048] space-y-2">
+                  <div class="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center space-x-1.5">
+                    <svg class="w-3 h-3 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
                     <span>{{ $t('operator.perfVisualEffects') || 'Visual Effects' }}</span>
                   </div>
 
                   <!-- Tile Ingestion Blinks -->
-                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
-                    <div class="pr-2">
-                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-[#18283E]">
+                    <div class="pr-2 min-w-0 flex-1">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200 truncate">
                         {{ $t('operator.perfCardBlinks') || 'Tile Ingestion Blinks' }}
                       </div>
-                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
                         {{ $t('operator.perfCardBlinksDesc') || 'Cyan flash highlight on tiles when new telemetry packets arrive' }}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      @click="togglePerfSetting('cardBlinksEnabled')"
-                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="perfSettings.cardBlinksEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="perfSettings.cardBlinksEnabled"
-                    >
-                      <span
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                        :class="perfSettings.cardBlinksEnabled ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <span class="text-[9px] font-mono font-bold" :class="perfSettings.cardBlinksEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'">
+                        {{ perfSettings.cardBlinksEnabled ? 'ON' : 'OFF' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click="togglePerfSetting('cardBlinksEnabled')"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                        :class="perfSettings.cardBlinksEnabled ? 'bg-cyan-500 shadow-glow-cyan-xs' : 'bg-slate-300 dark:bg-slate-700'"
+                        role="switch"
+                        :aria-checked="perfSettings.cardBlinksEnabled"
+                      >
+                        <span
+                          class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                          :class="perfSettings.cardBlinksEnabled ? 'translate-x-4' : 'translate-x-0'"
+                        ></span>
+                      </button>
+                    </div>
                   </div>
 
                   <!-- Chart Animations -->
-                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
-                    <div class="pr-2">
-                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
+                  <div class="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-[#18283E]">
+                    <div class="pr-2 min-w-0 flex-1">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200 truncate">
                         {{ $t('operator.perfChartAnimations') || 'Chart Path Animations' }}
                       </div>
-                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
                         {{ $t('operator.perfChartAnimationsDesc') || 'Smooth transition effects on chart lines and curves' }}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      @click="togglePerfSetting('chartAnimationsEnabled')"
-                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                      :class="perfSettings.chartAnimationsEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
-                      role="switch"
-                      :aria-checked="perfSettings.chartAnimationsEnabled"
-                    >
-                      <span
-                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
-                        :class="perfSettings.chartAnimationsEnabled ? 'translate-x-4' : 'translate-x-0'"
-                      ></span>
-                    </button>
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <span class="text-[9px] font-mono font-bold" :class="perfSettings.chartAnimationsEnabled ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'">
+                        {{ perfSettings.chartAnimationsEnabled ? 'ON' : 'OFF' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click="togglePerfSetting('chartAnimationsEnabled')"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                        :class="perfSettings.chartAnimationsEnabled ? 'bg-cyan-500 shadow-glow-cyan-xs' : 'bg-slate-300 dark:bg-slate-700'"
+                        role="switch"
+                        :aria-checked="perfSettings.chartAnimationsEnabled"
+                      >
+                        <span
+                          class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                          :class="perfSettings.chartAnimationsEnabled ? 'translate-x-4' : 'translate-x-0'"
+                        ></span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -6280,6 +6388,43 @@ export default {
              !this.perfSettings.cardBlinksEnabled ||
              !this.perfSettings.chartAnimationsEnabled;
     },
+    currentPerfPreset() {
+      if (!this.perfSettings) return 'standard';
+      const s = this.perfSettings;
+      if (
+        s.parameterSparklinesEnabled &&
+        s.trendAnalysisEnabled &&
+        s.alarmVisualEnabled &&
+        s.alarmSoundEnabled &&
+        s.liveUpdateMode === 'full' &&
+        s.chartAnimationsEnabled &&
+        s.cardBlinksEnabled
+      ) {
+        return 'standard';
+      }
+      if (
+        !s.parameterSparklinesEnabled &&
+        s.trendAnalysisEnabled &&
+        s.alarmVisualEnabled &&
+        s.alarmSoundEnabled &&
+        s.liveUpdateMode === 'full' &&
+        !s.cardBlinksEnabled &&
+        !s.chartAnimationsEnabled
+      ) {
+        return 'balanced';
+      }
+      if (
+        !s.parameterSparklinesEnabled &&
+        !s.trendAnalysisEnabled &&
+        !s.alarmVisualEnabled &&
+        s.liveUpdateMode === 'reduced' &&
+        !s.cardBlinksEnabled &&
+        !s.chartAnimationsEnabled
+      ) {
+        return 'max_eco';
+      }
+      return 'custom';
+    },
     networkStatusDotClass() {
       const local = this.networkStatus?.local_network?.status;
       const internet = this.networkStatus?.internet?.status;
@@ -7991,6 +8136,45 @@ export default {
       }
       if (this.perfSettings.parameterSparklinesEnabled) {
         this.fetchInitialSparklines();
+      }
+    },
+    setPerfPreset(presetName) {
+      if (!this.perfSettings) return;
+      if (presetName === 'standard') {
+        this.resetPerformanceSettings();
+      } else if (presetName === 'balanced') {
+        this.perfSettings = {
+          ...DEFAULT_PERF_SETTINGS,
+          parameterSparklinesEnabled: false,
+          cardBlinksEnabled: false,
+          chartAnimationsEnabled: false,
+          liveUpdateMode: 'full',
+          trendAnalysisEnabled: true,
+          alarmVisualEnabled: true,
+          alarmSoundEnabled: true,
+          alarmCounterEnabled: true,
+        };
+        savePerformanceSettings(this.perfSettings);
+        this.applyPerformanceSettings();
+        if (this.perfSettings.trendAnalysisEnabled) {
+          this.fetchTrendData(true);
+          this.startTrendTimers();
+        }
+      } else if (presetName === 'max_eco') {
+        this.perfSettings = {
+          ...DEFAULT_PERF_SETTINGS,
+          parameterSparklinesEnabled: false,
+          trendAnalysisEnabled: false,
+          cardBlinksEnabled: false,
+          chartAnimationsEnabled: false,
+          alarmVisualEnabled: false,
+          liveUpdateMode: 'reduced',
+          alarmSoundEnabled: true,
+          alarmCounterEnabled: true,
+        };
+        savePerformanceSettings(this.perfSettings);
+        this.applyPerformanceSettings();
+        this.stopTrendTimers();
       }
     },
     applyPerformanceSettings(changedKey = null, changedVal = null) {
