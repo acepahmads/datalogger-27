@@ -382,8 +382,8 @@ type PurgeQueueRequest struct {
 	PurgeLogs     bool       `json:"purge_logs"`
 }
 
-// PurgeQueue handles POST /api/integration/queue/purge
-func (h *OutboundHandler) PurgeQueue(c *gin.Context) {
+// StartPurge handles POST /api/integration/queue/purge
+func (h *OutboundHandler) StartPurge(c *gin.Context) {
 	var req PurgeQueueRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		// allow empty body as well (purge all)
@@ -397,15 +397,23 @@ func (h *OutboundHandler) PurgeQueue(c *gin.Context) {
 		PurgeLogs:     req.PurgeLogs,
 	}
 
-	deletedQueue, deletedLogs, err := h.service.PurgeQueue(c.Request.Context(), filter)
+	prog, err := h.service.StartPurge(c.Request.Context(), filter)
 	if err != nil {
-		response.InternalError(c, "Failed to purge queue: "+err.Error())
+		response.InternalError(c, "Failed to start queue purge: "+err.Error())
 		return
 	}
 
-	response.OK(c, gin.H{
-		"message":       "Queue purge completed successfully",
-		"deleted_queue": deletedQueue,
-		"deleted_logs":  deletedLogs,
-	})
+	response.OK(c, prog)
+}
+
+// GetPurgeStatus handles GET /api/integration/queue/purge/status
+func (h *OutboundHandler) GetPurgeStatus(c *gin.Context) {
+	prog := h.service.GetPurgeStatus()
+	response.OK(c, prog)
+}
+
+// CancelPurge handles POST /api/integration/queue/purge/cancel
+func (h *OutboundHandler) CancelPurge(c *gin.Context) {
+	h.service.CancelPurge()
+	response.OK(c, gin.H{"message": "Purge cancellation requested"})
 }

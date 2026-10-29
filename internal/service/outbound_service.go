@@ -50,6 +50,23 @@ type OutboundService interface {
 	CancelQueueItem(ctx context.Context, id uint64) error
 	DeleteQueueItem(ctx context.Context, id uint64) error
 	PurgeQueue(ctx context.Context, filter repository.QueuePurgeFilter) (int64, int64, error)
+	StartPurge(ctx context.Context, filter repository.QueuePurgeFilter) (*PurgeProgress, error)
+	GetPurgeStatus() PurgeProgress
+	CancelPurge()
+}
+
+// PurgeProgress tracks asynchronous progress for large queue & log deletion jobs
+type PurgeProgress struct {
+	IsRunning    bool       `json:"is_running"`
+	Status       string     `json:"status"` // IDLE, RUNNING, COMPLETED, FAILED, CANCELLED
+	TotalQueue   int64      `json:"total_queue"`
+	PurgedQueue  int64      `json:"purged_queue"`
+	TotalLogs    int64      `json:"total_logs"`
+	PurgedLogs   int64      `json:"purged_logs"`
+	Percent      float64    `json:"percent"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	ErrorMessage string     `json:"error_message,omitempty"`
 }
 
 type TestPayloadResult struct {
@@ -75,6 +92,10 @@ type outboundService struct {
 	workerMu sync.Mutex
 	running  bool
 	stopCh   chan struct{}
+
+	purgeMu        sync.RWMutex
+	purgeProgress  PurgeProgress
+	purgeCancelled bool
 }
 
 // NewOutboundService constructs a new OutboundService instance
@@ -94,6 +115,9 @@ func NewOutboundService(
 			Timeout: 15 * time.Second,
 		},
 		stopCh: make(chan struct{}),
+		purgeProgress: PurgeProgress{
+			Status: "IDLE",
+		},
 	}
 }
 
@@ -997,4 +1021,129 @@ func (s *outboundService) DeleteQueueItem(ctx context.Context, id uint64) error 
 // PurgeQueue bulk deletes queue items and optional delivery logs
 func (s *outboundService) PurgeQueue(ctx context.Context, filter repository.QueuePurgeFilter) (int64, int64, error) {
 	return s.repo.PurgeQueueItems(ctx, filter)
+}
+
+// StartPurge initiates a non-blocking background queue purge job with progress tracking
+func (s *outboundService) StartPurge(ctx context.Context, filter repository.QueuePurgeFilter) (*PurgeProgress, error) {
+	s.purgeMu.Lock()
+	if s.purgeProgress.IsRunning {
+		prog := s.purgeProgress
+		s.purgeMu.Unlock()
+		return &prog, nil
+	}
+
+	queueCount, logsCount, err := s.repo.CountQueuePurgeItems(ctx, filter)
+	if err != nil {
+		s.purgeMu.Unlock()
+		return nil, fmt.Errorf("failed to count items to purge: %w", err)
+	}
+
+	now := time.Now()
+	s.purgeCancelled = false
+	s.purgeProgress = PurgeProgress{
+		IsRunning:    true,
+		Status:       "RUNNING",
+		TotalQueue:   queueCount,
+		PurgedQueue:  0,
+		TotalLogs:    logsCount,
+		PurgedLogs:   0,
+		Percent:      0.0,
+		StartedAt:    &now,
+		ErrorMessage: "",
+	}
+
+	if queueCount == 0 && logsCount == 0 {
+		s.purgeProgress.IsRunning = false
+		s.purgeProgress.Status = "COMPLETED"
+		s.purgeProgress.Percent = 100.0
+		s.purgeProgress.CompletedAt = &now
+		prog := s.purgeProgress
+		s.purgeMu.Unlock()
+		return &prog, nil
+	}
+
+	prog := s.purgeProgress
+	s.purgeMu.Unlock()
+
+	go s.runBackgroundPurge(filter)
+
+	return &prog, nil
+}
+
+// GetPurgeStatus returns the current snapshot of the background purge job
+func (s *outboundService) GetPurgeStatus() PurgeProgress {
+	s.purgeMu.RLock()
+	defer s.purgeMu.RUnlock()
+	return s.purgeProgress
+}
+
+// CancelPurge requests cancellation of the active purge job
+func (s *outboundService) CancelPurge() {
+	s.purgeMu.Lock()
+	defer s.purgeMu.Unlock()
+	if s.purgeProgress.IsRunning {
+		s.purgeCancelled = true
+	}
+}
+
+func (s *outboundService) runBackgroundPurge(filter repository.QueuePurgeFilter) {
+	ctx := context.Background()
+	batchSize := 1000
+
+	for {
+		s.purgeMu.RLock()
+		cancelled := s.purgeCancelled
+		s.purgeMu.RUnlock()
+
+		if cancelled {
+			s.purgeMu.Lock()
+			s.purgeProgress.IsRunning = false
+			s.purgeProgress.Status = "CANCELLED"
+			now := time.Now()
+			s.purgeProgress.CompletedAt = &now
+			s.purgeMu.Unlock()
+			logger.Info("[Outbound] Manual queue purge job cancelled by user")
+			return
+		}
+
+		delQ, delL, done, err := s.repo.PurgeQueueBatch(ctx, filter, batchSize)
+		if err != nil {
+			s.purgeMu.Lock()
+			s.purgeProgress.IsRunning = false
+			s.purgeProgress.Status = "FAILED"
+			s.purgeProgress.ErrorMessage = err.Error()
+			now := time.Now()
+			s.purgeProgress.CompletedAt = &now
+			s.purgeMu.Unlock()
+			logger.Error("[Outbound] Manual queue purge job failed: %v", err)
+			return
+		}
+
+		s.purgeMu.Lock()
+		s.purgeProgress.PurgedQueue += delQ
+		s.purgeProgress.PurgedLogs += delL
+		total := s.purgeProgress.TotalQueue + s.purgeProgress.TotalLogs
+		purged := s.purgeProgress.PurgedQueue + s.purgeProgress.PurgedLogs
+		if total > 0 {
+			pct := float64(purged) / float64(total) * 100.0
+			if pct > 100.0 {
+				pct = 100.0
+			}
+			s.purgeProgress.Percent = pct
+		}
+
+		if done {
+			s.purgeProgress.IsRunning = false
+			s.purgeProgress.Status = "COMPLETED"
+			s.purgeProgress.Percent = 100.0
+			now := time.Now()
+			s.purgeProgress.CompletedAt = &now
+			s.purgeMu.Unlock()
+			logger.Info("[Outbound] Manual queue purge completed: %d queue items and %d logs deleted", s.purgeProgress.PurgedQueue, s.purgeProgress.PurgedLogs)
+			return
+		}
+		s.purgeMu.Unlock()
+
+		time.Sleep(15 * time.Millisecond)
+	}
 }

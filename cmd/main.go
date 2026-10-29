@@ -649,7 +649,9 @@ func main() {
 			queueGroup.POST("/:id/replay", middleware.RequirePermission("integration.queue.manage"), outboundHandler.ReplayQueueItem)
 			queueGroup.POST("/:id/cancel", middleware.RequirePermission("integration.queue.manage"), outboundHandler.CancelQueueItem)
 			queueGroup.DELETE("/:id", middleware.RequirePermission("integration.queue.manage"), outboundHandler.DeleteQueueItem)
-			queueGroup.POST("/purge", middleware.RequirePermission("integration.queue.manage"), outboundHandler.PurgeQueue)
+			queueGroup.POST("/purge", middleware.RequirePermission("integration.queue.manage"), outboundHandler.StartPurge)
+			queueGroup.GET("/purge/status", middleware.RequirePermission("integration.queue.manage"), outboundHandler.GetPurgeStatus)
+			queueGroup.POST("/purge/cancel", middleware.RequirePermission("integration.queue.manage"), outboundHandler.CancelPurge)
 		}
 
 		// Public deployment domain inspection

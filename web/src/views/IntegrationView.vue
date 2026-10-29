@@ -1193,10 +1193,11 @@
               <p class="text-3xs text-slate-500">Hapus manual antrean dan riwayat pengiriman (Admin / Superadmin)</p>
             </div>
           </div>
-          <button @click="showPurgeModal = false" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
+          <button @click="closePurgeModal" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
         </div>
 
-        <div class="space-y-3.5 text-xs">
+        <!-- FORM OPTIONS (When not running and not completed) -->
+        <div v-if="!purgingQueue && purgeProgress.status !== 'COMPLETED'" class="space-y-3.5 text-xs">
           <!-- Filter Status -->
           <div>
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Kriteria Status Antrean</label>
@@ -1247,22 +1248,111 @@
           </div>
         </div>
 
+        <!-- PROGRESS BAR DISPLAY (When running or completed) -->
+        <div v-else class="space-y-4 py-2">
+          <!-- Header Status -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span
+                v-if="purgingQueue"
+                class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"
+              ></span>
+              <span
+                v-else-if="purgeProgress.status === 'COMPLETED'"
+                class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center font-bold text-xs"
+              >✓</span>
+              <span
+                v-else
+                class="w-5 h-5 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center font-bold text-xs"
+              >✕</span>
+              <span
+                class="text-xs font-bold font-mono"
+                :class="{
+                  'text-cyan-500': purgingQueue,
+                  'text-emerald-500': purgeProgress.status === 'COMPLETED',
+                  'text-rose-500': purgeProgress.status === 'FAILED' || purgeProgress.status === 'CANCELLED'
+                }"
+              >
+                {{
+                  purgingQueue
+                    ? 'Sedang membersihkan antrean di database...'
+                    : (purgeProgress.status === 'COMPLETED' ? 'Pembersihan Selesai!' : 'Proses Terhenti: ' + purgeProgress.status)
+                }}
+              </span>
+            </div>
+            <div class="text-sm font-bold font-mono text-slate-900 dark:text-white">
+              {{ (purgeProgress.percent || 0).toFixed(1) }}%
+            </div>
+          </div>
+
+          <!-- Progress Bar Track -->
+          <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 shadow-inner">
+            <div
+              class="h-full rounded-full transition-all duration-300 relative overflow-hidden"
+              :class="purgeProgress.status === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-rose-500'"
+              :style="{ width: Math.max(purgeProgress.percent || 0, 3) + '%' }"
+            >
+              <div v-if="purgingQueue" class="absolute inset-0 bg-white/25 animate-pulse"></div>
+            </div>
+          </div>
+
+          <!-- Progress Counts & Summary Grid -->
+          <div class="grid grid-cols-2 gap-2 text-2xs font-mono">
+            <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+              <span class="text-4xs text-slate-400 block uppercase">Antrean Terhapus</span>
+              <div class="font-bold text-xs text-rose-500 mt-0.5">
+                {{ purgeProgress.purged_queue.toLocaleString() }}
+                <span class="text-4xs text-slate-400 font-normal">/ {{ purgeProgress.total_queue.toLocaleString() }}</span>
+              </div>
+            </div>
+            <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+              <span class="text-4xs text-slate-400 block uppercase">Log Terhapus</span>
+              <div class="font-bold text-xs text-amber-500 mt-0.5">
+                {{ purgeProgress.purged_logs.toLocaleString() }}
+                <span class="text-4xs text-slate-400 font-normal">/ {{ purgeProgress.total_logs.toLocaleString() }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="purgeProgress.status === 'COMPLETED'" class="text-3xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 font-mono">
+            ✓ Database telah dibersihkan secara aman tanpa mengganggu sistem monitoring.
+          </div>
+          <div v-else-if="purgeProgress.error_message" class="text-3xs text-rose-500 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20 font-mono">
+            Error: {{ purgeProgress.error_message }}
+          </div>
+        </div>
+
         <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <button
-            @click="showPurgeModal = false"
-            :disabled="purgingQueue"
-            class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition"
-          >
-            Batal
-          </button>
-          <button
-            @click="executePurgeQueue"
-            :disabled="purgingQueue"
-            class="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition flex items-center space-x-1.5 shadow-md"
-          >
-            <span v-if="purgingQueue" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
-            <span>{{ purgingQueue ? 'Membersihkan...' : 'Eksekusi Purge' }}</span>
-          </button>
+          <template v-if="!purgingQueue && purgeProgress.status !== 'COMPLETED'">
+            <button
+              @click="closePurgeModal"
+              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              @click="executePurgeQueue"
+              class="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition flex items-center space-x-1.5 shadow-md cursor-pointer"
+            >
+              <span>Eksekusi Purge</span>
+            </button>
+          </template>
+          <template v-else-if="purgingQueue">
+            <button
+              @click="cancelPurgeExecution"
+              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+            >
+              Batalkan Pembersihan
+            </button>
+          </template>
+          <template v-else>
+            <button
+              @click="closePurgeModal"
+              class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition shadow-md cursor-pointer"
+            >
+              Selesai & Tutup
+            </button>
+          </template>
         </div>
       </div>
     </div>
@@ -1448,13 +1538,24 @@ export default {
       showInspectModal: false,
       inspectDetail: null,
 
-      // Purge Modal
+      // Purge Modal & Progress
       showPurgeModal: false,
       purgingQueue: false,
+      purgePollingTimer: null,
       purgeConfig: {
         status: 'ALL',
         destination_id: null,
         purge_logs: true,
+      },
+      purgeProgress: {
+        is_running: false,
+        status: 'IDLE',
+        total_queue: 0,
+        purged_queue: 0,
+        total_logs: 0,
+        purged_logs: 0,
+        percent: 0,
+        error_message: '',
       },
 
       // Destinations state
@@ -1606,6 +1707,9 @@ export default {
     if (this.timer) {
       clearInterval(this.timer);
     }
+    if (this.purgePollingTimer) {
+      clearInterval(this.purgePollingTimer);
+    }
   },
   methods: {
     selectTab(tab) {
@@ -1732,24 +1836,91 @@ export default {
         destination_id: null,
         purge_logs: true,
       };
+      this.checkPurgeStatus();
       this.showPurgeModal = true;
+    },
+    async checkPurgeStatus() {
+      try {
+        const res = await axios.get('/api/integration/queue/purge/status');
+        if (res.data && res.data.success) {
+          this.purgeProgress = res.data.data;
+          if (this.purgeProgress.is_running) {
+            this.purgingQueue = true;
+            this.startPurgePolling();
+          }
+        }
+      } catch (e) {}
     },
     async executePurgeQueue() {
       const statusLabel = this.purgeConfig.status === 'ALL' ? 'SEMUA status' : `status ${this.purgeConfig.status}`;
       if (!confirm(`Konfirmasi: Bersihkan antrean pengiriman dengan ${statusLabel}? Tindakan ini permanen.`)) return;
+
       this.purgingQueue = true;
+      this.purgeProgress = {
+        is_running: true,
+        status: 'RUNNING',
+        total_queue: 0,
+        purged_queue: 0,
+        total_logs: 0,
+        purged_logs: 0,
+        percent: 0,
+        error_message: '',
+      };
+
       try {
         const res = await axios.post('/api/integration/queue/purge', this.purgeConfig);
-        const data = res.data?.data || res.data || {};
-        alert(`Pembersihan antrean selesai.\nAntrean terhapus: ${data.deleted_queue || 0}\nLog riwayat terhapus: ${data.deleted_logs || 0}`);
-        this.showPurgeModal = false;
-        this.fetchSummary();
-        this.fetchQueue();
+        if (res.data && res.data.success) {
+          this.purgeProgress = res.data.data;
+          if (this.purgeProgress.status === 'COMPLETED') {
+            this.onPurgeFinished();
+            return;
+          }
+          this.startPurgePolling();
+        }
       } catch (err) {
-        alert('Purge antrean gagal: ' + (err.response?.data?.error || err.message));
-      } finally {
         this.purgingQueue = false;
+        alert('Purge antrean gagal: ' + (err.response?.data?.error || err.message));
       }
+    },
+    startPurgePolling() {
+      if (this.purgePollingTimer) clearInterval(this.purgePollingTimer);
+      this.purgePollingTimer = setInterval(async () => {
+        try {
+          const res = await axios.get('/api/integration/queue/purge/status');
+          if (res.data && res.data.success) {
+            this.purgeProgress = res.data.data;
+            if (!this.purgeProgress.is_running) {
+              clearInterval(this.purgePollingTimer);
+              this.purgePollingTimer = null;
+              this.onPurgeFinished();
+            }
+          }
+        } catch (err) {
+          // ignore transient poll error
+        }
+      }, 600);
+    },
+    onPurgeFinished() {
+      this.purgingQueue = false;
+      this.fetchSummary();
+      this.fetchQueue();
+      if (this.purgeProgress.status === 'FAILED') {
+        alert('Proses purge gagal: ' + (this.purgeProgress.error_message || 'Unknown error'));
+      }
+    },
+    async cancelPurgeExecution() {
+      try {
+        await axios.post('/api/integration/queue/purge/cancel');
+      } catch (e) {}
+    },
+    closePurgeModal() {
+      if (this.purgePollingTimer) {
+        clearInterval(this.purgePollingTimer);
+        this.purgePollingTimer = null;
+      }
+      this.showPurgeModal = false;
+      this.fetchSummary();
+      this.fetchQueue();
     },
     selectDestinationForConfig(destId) {
       this.selectedDestinationId = destId;

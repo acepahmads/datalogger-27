@@ -41,6 +41,8 @@ type OutboundRepository interface {
 	ResetQueueItemForRetry(ctx context.Context, id uint64) error
 	DeleteQueueItem(ctx context.Context, id uint64) error
 	PurgeQueueItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error)
+	CountQueuePurgeItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error)
+	PurgeQueueBatch(ctx context.Context, filter QueuePurgeFilter, batchSize int) (int64, int64, bool, error)
 
 	// Delivery Logs
 	CreateDeliveryLog(ctx context.Context, log *model.DeliveryLog) error
@@ -524,4 +526,126 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 	})
 
 	return deletedQueue, deletedLogs, err
+}
+
+// CountQueuePurgeItems counts the number of queue entries and logs that match the purge criteria
+func (r *outboundRepository) CountQueuePurgeItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error) {
+	var queueCount int64
+	var logsCount int64
+
+	q := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{})
+	if filter.DestinationID != nil && *filter.DestinationID > 0 {
+		q = q.Where("destination_id = ?", *filter.DestinationID)
+	}
+	if filter.Status != "" && filter.Status != "ALL" {
+		if filter.Status == string(model.DeliveryDelivered) {
+			q = q.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged)})
+		} else {
+			q = q.Where("status = ?", filter.Status)
+		}
+	}
+	if filter.OlderThan != nil {
+		q = q.Where("created_at <= ?", *filter.OlderThan)
+	}
+	if err := q.Count(&queueCount).Error; err != nil {
+		return 0, 0, err
+	}
+
+	if filter.PurgeLogs {
+		lq := r.db.WithContext(ctx).Model(&model.DeliveryLog{})
+		if filter.DestinationID != nil && *filter.DestinationID > 0 {
+			lq = lq.Where("destination_id = ?", *filter.DestinationID)
+		}
+		if filter.OlderThan != nil {
+			lq = lq.Where("delivered_at <= ?", *filter.OlderThan)
+		}
+		if filter.Status != "" && filter.Status != "ALL" {
+			if filter.Status == string(model.DeliveryDelivered) {
+				lq = lq.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged), "SUCCESS"})
+			} else {
+				lq = lq.Where("status = ?", filter.Status)
+			}
+		}
+		if err := lq.Count(&logsCount).Error; err != nil {
+			return 0, 0, err
+		}
+	}
+
+	return queueCount, logsCount, nil
+}
+
+// PurgeQueueBatch deletes a single batch of matching items by ID, returning deleted counts and done indicator
+func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePurgeFilter, batchSize int) (int64, int64, bool, error) {
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+	var deletedLogs int64
+	var deletedQueue int64
+	var moreLogs bool
+	var moreQueue bool
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Delete delivery logs batch first to respect foreign key ordering
+		if filter.PurgeLogs {
+			var logIDs []uint
+			lq := tx.Model(&model.DeliveryLog{}).Select("id")
+			if filter.DestinationID != nil && *filter.DestinationID > 0 {
+				lq = lq.Where("destination_id = ?", *filter.DestinationID)
+			}
+			if filter.OlderThan != nil {
+				lq = lq.Where("delivered_at <= ?", *filter.OlderThan)
+			}
+			if filter.Status != "" && filter.Status != "ALL" {
+				if filter.Status == string(model.DeliveryDelivered) {
+					lq = lq.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged), "SUCCESS"})
+				} else {
+					lq = lq.Where("status = ?", filter.Status)
+				}
+			}
+			if err := lq.Limit(batchSize).Pluck("id", &logIDs).Error; err != nil {
+				return err
+			}
+			if len(logIDs) > 0 {
+				res := tx.Where("id IN ?", logIDs).Delete(&model.DeliveryLog{})
+				if res.Error != nil {
+					return res.Error
+				}
+				deletedLogs = res.RowsAffected
+				moreLogs = len(logIDs) == batchSize
+			}
+		}
+
+		// 2. Delete queue items batch by primary key IDs
+		var queueIDs []uint64
+		q := tx.Model(&model.OutboundDeliveryQueue{}).Select("id")
+		if filter.DestinationID != nil && *filter.DestinationID > 0 {
+			q = q.Where("destination_id = ?", *filter.DestinationID)
+		}
+		if filter.Status != "" && filter.Status != "ALL" {
+			if filter.Status == string(model.DeliveryDelivered) {
+				q = q.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged)})
+			} else {
+				q = q.Where("status = ?", filter.Status)
+			}
+		}
+		if filter.OlderThan != nil {
+			q = q.Where("created_at <= ?", *filter.OlderThan)
+		}
+		if err := q.Limit(batchSize).Pluck("id", &queueIDs).Error; err != nil {
+			return err
+		}
+		if len(queueIDs) > 0 {
+			res := tx.Where("id IN ?", queueIDs).Delete(&model.OutboundDeliveryQueue{})
+			if res.Error != nil {
+				return res.Error
+			}
+			deletedQueue = res.RowsAffected
+			moreQueue = len(queueIDs) == batchSize
+		}
+
+		return nil
+	})
+
+	done := !moreLogs && !moreQueue
+	return deletedQueue, deletedLogs, done, err
 }
