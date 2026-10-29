@@ -101,6 +101,31 @@ type ModbusReadResponse struct {
 	ExceptionMessage string
 }
 
+// ModbusWriteRequest specifies a Modbus write operation (FC 05, 06, 15, 16)
+type ModbusWriteRequest struct {
+	SlaveID      byte
+	FunctionCode byte   // FunctionWriteSingleCoil (0x05), FunctionWriteSingleRegister (0x06), etc.
+	Address      uint16 // Target address
+	Value        uint16 // Used for FC05 (0xFF00 = ON, 0x0000 = OFF) and FC06 (16-bit register)
+	Values       []uint16 // Optional for FC15 / FC16
+}
+
+// ModbusWriteResponse contains the outcome of a Modbus write operation
+type ModbusWriteResponse struct {
+	SlaveID          byte          `json:"slave_id"`
+	FunctionCode     byte          `json:"function_code"`
+	Address          uint16        `json:"address"`
+	Value            uint16        `json:"value"`
+	ResponseTime     time.Duration `json:"response_time"`
+	RequestADU       []byte        `json:"request_adu"`
+	ResponseADU      []byte        `json:"response_adu"`
+	CRCExpected      uint16        `json:"crc_expected"`
+	CRCReceived      uint16        `json:"crc_received"`
+	CRCPassed        bool          `json:"crc_passed"`
+	ExceptionCode    byte          `json:"exception_code,omitempty"`
+	ExceptionMessage string        `json:"exception_message,omitempty"`
+}
+
 // ModbusTransactionError carries structured frame information when a Modbus transaction fails
 type ModbusTransactionError struct {
 	Category         FailureCategory
@@ -156,6 +181,9 @@ type ProtocolAdapter interface {
 
 	// ReadRegisters executes a Modbus read function (FC 01, 02, 03, 04)
 	ReadRegisters(ctx context.Context, req ModbusReadRequest) (*ModbusReadResponse, error)
+
+	// WriteRegisters executes a Modbus write function (FC 05, 06, 15, 16)
+	WriteRegisters(ctx context.Context, req ModbusWriteRequest) (*ModbusWriteResponse, error)
 
 	// HealthCheck tests if the transport is healthy and responsive
 	HealthCheck(ctx context.Context) error

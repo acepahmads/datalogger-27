@@ -60,6 +60,9 @@ func RunMigrations(db *gorm.DB) error {
 		&model.ISPUParameterResult{},
 		&model.SystemBranding{},
 		&model.StationLocation{},
+		&model.DeviceActuator{},
+		&model.ActuationSchedule{},
+		&model.ActuationLog{},
 	)
 	if err != nil {
 		return err

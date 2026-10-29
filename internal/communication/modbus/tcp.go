@@ -245,6 +245,185 @@ func (a *ModbusTCPAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	}, nil
 }
 
+// WriteRegisters executes Modbus FC 05, 06, 15, or 16 over Modbus TCP
+func (a *ModbusTCPAdapter) WriteRegisters(ctx context.Context, req ModbusWriteRequest) (*ModbusWriteResponse, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	start := time.Now()
+
+	// Ensure connected
+	if a.conn == nil || a.status.State != StateConnected {
+		target := fmt.Sprintf("%s:%d", a.config.Host, a.config.Port)
+		timeout := time.Duration(a.config.Timeout) * time.Millisecond
+		var d net.Dialer
+		d.Timeout = timeout
+		conn, err := d.DialContext(ctx, "tcp", target)
+		if err != nil {
+			a.status.State = StateError
+			a.status.LastError = err.Error()
+			a.status.FailedCount++
+			return nil, fmt.Errorf("connection offline: %w", err)
+		}
+		a.conn = conn
+		now := time.Now()
+		a.status.State = StateConnected
+		a.status.ConnectedSince = &now
+	}
+
+	timeout := time.Duration(a.config.Timeout) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 1000 * time.Millisecond
+	}
+	deadline := time.Now().Add(timeout)
+	_ = a.conn.SetDeadline(deadline)
+
+	a.txID++
+	txID := a.txID
+
+	slaveID := req.SlaveID
+	if slaveID == 0 {
+		slaveID = byte(a.config.SlaveID)
+	}
+	if slaveID == 0 {
+		slaveID = 1
+	}
+
+	var pdu []byte
+	switch req.FunctionCode {
+	case FunctionWriteSingleCoil, FunctionWriteSingleRegister:
+		pdu = make([]byte, 5)
+		pdu[0] = req.FunctionCode
+		binary.BigEndian.PutUint16(pdu[1:3], req.Address)
+		binary.BigEndian.PutUint16(pdu[3:5], req.Value)
+
+	case FunctionWriteMultipleCoils:
+		qty := uint16(len(req.Values))
+		if qty == 0 {
+			qty = 1
+			if req.Value != 0 {
+				req.Values = []uint16{1}
+			} else {
+				req.Values = []uint16{0}
+			}
+		}
+		byteCount := byte((qty + 7) / 8)
+		pdu = make([]byte, 6+int(byteCount))
+		pdu[0] = FunctionWriteMultipleCoils
+		binary.BigEndian.PutUint16(pdu[1:3], req.Address)
+		binary.BigEndian.PutUint16(pdu[3:5], qty)
+		pdu[5] = byteCount
+		for i, val := range req.Values {
+			if val != 0 {
+				pdu[6+(i/8)] |= (1 << (i % 8))
+			}
+		}
+
+	case FunctionWriteMultipleRegisters:
+		qty := uint16(len(req.Values))
+		if qty == 0 {
+			qty = 1
+			req.Values = []uint16{req.Value}
+		}
+		byteCount := byte(qty * 2)
+		pdu = make([]byte, 6+int(byteCount))
+		pdu[0] = FunctionWriteMultipleRegisters
+		binary.BigEndian.PutUint16(pdu[1:3], req.Address)
+		binary.BigEndian.PutUint16(pdu[3:5], qty)
+		pdu[5] = byteCount
+		for i, v := range req.Values {
+			binary.BigEndian.PutUint16(pdu[6+i*2:8+i*2], v)
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported Modbus write function code: 0x%02X", req.FunctionCode)
+	}
+
+	// Build MBAP + PDU
+	// MBAP: TxID (2) + ProtoID (2) + Length (2, = 1 byte unitId + len(pdu)) + UnitID (1)
+	mbapLen := uint16(1 + len(pdu))
+	reqBuf := make([]byte, 7+len(pdu))
+	binary.BigEndian.PutUint16(reqBuf[0:2], txID)
+	binary.BigEndian.PutUint16(reqBuf[2:4], 0x0000)
+	binary.BigEndian.PutUint16(reqBuf[4:6], mbapLen)
+	reqBuf[6] = slaveID
+	copy(reqBuf[7:], pdu)
+
+	// Send Request
+	if _, err := a.conn.Write(reqBuf); err != nil {
+		a.handleConnError(err)
+		return nil, fmt.Errorf("Modbus TCP write failed: %w", err)
+	}
+
+	// Read MBAP Header (7 bytes)
+	mbapHdr := make([]byte, 7)
+	if _, err := io.ReadFull(a.conn, mbapHdr); err != nil {
+		a.handleConnError(err)
+		return nil, fmt.Errorf("Modbus TCP read write-response MBAP header failed: %w", err)
+	}
+
+	respTxID := binary.BigEndian.Uint16(mbapHdr[0:2])
+	protoID := binary.BigEndian.Uint16(mbapHdr[2:4])
+	remainingLen := binary.BigEndian.Uint16(mbapHdr[4:6])
+
+	if respTxID != txID {
+		return nil, fmt.Errorf("transaction ID mismatch: expected %d, got %d", txID, respTxID)
+	}
+	if protoID != 0 {
+		return nil, fmt.Errorf("invalid protocol identifier: expected 0, got %d", protoID)
+	}
+	if remainingLen < 2 || remainingLen > 260 {
+		return nil, fmt.Errorf("invalid Modbus TCP frame length: %d", remainingLen)
+	}
+
+	respPdu := make([]byte, int(remainingLen-1))
+	if _, err := io.ReadFull(a.conn, respPdu); err != nil {
+		a.handleConnError(err)
+		return nil, fmt.Errorf("Modbus TCP read write PDU payload failed: %w", err)
+	}
+
+	fc := respPdu[0]
+	if fc == (req.FunctionCode | 0x80) {
+		exCode := byte(0)
+		if len(respPdu) > 1 {
+			exCode = respPdu[1]
+		}
+		a.status.FailedCount++
+		a.status.LastError = fmt.Sprintf("Modbus Exception: %s", ModbusExceptionName(exCode))
+		return nil, fmt.Errorf("Modbus exception response: %s", ModbusExceptionName(exCode))
+	}
+
+	if fc != req.FunctionCode {
+		return nil, fmt.Errorf("unexpected function code in write response: expected %02X, got %02X", req.FunctionCode, fc)
+	}
+
+	fullResponse := append(mbapHdr, respPdu...)
+	respAddr := binary.BigEndian.Uint16(respPdu[1:3])
+	respVal := uint16(0)
+	if len(respPdu) >= 5 {
+		respVal = binary.BigEndian.Uint16(respPdu[3:5])
+	}
+
+	elapsed := time.Since(start)
+	now := time.Now()
+	a.status.State = StateConnected
+	a.status.LastCommunication = &now
+	a.status.LatencyMs = int(elapsed.Milliseconds())
+	a.status.SuccessCount++
+	a.status.LastError = ""
+
+	return &ModbusWriteResponse{
+		SlaveID:      slaveID,
+		FunctionCode: fc,
+		Address:      respAddr,
+		Value:        respVal,
+		ResponseTime: elapsed,
+		RequestADU:   reqBuf,
+		ResponseADU:  fullResponse,
+		CRCPassed:    true,
+	}, nil
+}
+
 func (a *ModbusTCPAdapter) handleConnError(err error) {
 	a.status.State = StateError
 	a.status.LastError = err.Error()

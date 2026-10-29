@@ -81,6 +81,7 @@ func main() {
 
 	// 5. Initialize Repositories
 	deviceRepo := repository.NewDeviceRepository(db)
+	actuatorRepo := repository.NewActuatorRepository(db)
 	phaseRepo := repository.NewPhaseRepository(db)
 	systemRepo := repository.NewSystemRepository(db)
 	telemetryRepo := repository.NewTelemetryRepository(db)
@@ -207,6 +208,19 @@ func main() {
 	pollingEngine.Start()
 	defer pollingEngine.Stop()
 
+	// 8d. Initialize Actuator & Control Subsystem
+	actuationService := service.NewActuationService(
+		actuatorRepo,
+		deviceRepo,
+		func(dev *model.Device) (service.ModbusWriter, error) {
+			return connManager.GetOrCreateAdapter(dev)
+		},
+		hub,
+	)
+	actuatorScheduler := scheduler.NewActuatorScheduler(actuatorRepo, actuationService)
+	actuatorScheduler.Start()
+	defer actuatorScheduler.Stop()
+
 	// 9. Setup Gin HTTP Engine
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -247,6 +261,7 @@ func main() {
 	ispuService.SetHub(hub)
 	ispuService.StartWorker(context.Background())
 	ispuHandler := handler.NewISPUHandler(ispuService)
+	actuatorHandler := handler.NewActuatorHandler(actuationService)
 
 	// Startup reconciliation for active AQMS stations (catch up any pending aggregation periods cleanly)
 	go func() {
@@ -348,6 +363,10 @@ func main() {
 			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
 			devicesGroup.PUT("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameterQuality)
 
+			// Actuators & Controls (inside device)
+			devicesGroup.GET("/:id/actuators", middleware.RequirePermission("device.view"), actuatorHandler.ListByDevice)
+			devicesGroup.POST("/:id/actuators", middleware.RequirePermission("device.manage"), actuatorHandler.Create)
+
 			// Phase 2.2 — Communication Controls & Diagnostics
 			devicesGroup.POST("/:id/communication/connect", middleware.RequirePermission("device.communication.manage"), commHandler.Connect)
 			devicesGroup.POST("/:id/communication/disconnect", middleware.RequirePermission("device.communication.manage"), commHandler.Disconnect)
@@ -366,6 +385,26 @@ func main() {
 			// Phase 3.3 — Historical Downsampling
 			devicesGroup.GET("/:id/telemetry/downsampled", middleware.RequirePermission("device.view"), aggHandler.GetDownsampledHistory)
 		}
+
+		// Actuator Control, Schedulers & Audit Trail
+		actuatorsGroup := api.Group("/actuators")
+		actuatorsGroup.Use(middleware.JWTAuth(authService))
+		{
+			actuatorsGroup.GET("", actuatorHandler.ListAllActive)
+			actuatorsGroup.GET("/logs", actuatorHandler.ListLogs)
+			actuatorsGroup.POST("/test-write", middleware.RequirePermission("device.manage"), actuatorHandler.TestWriteRaw)
+			actuatorsGroup.PUT("/schedules/:id", middleware.RequirePermission("device.manage"), actuatorHandler.UpdateSchedule)
+			actuatorsGroup.DELETE("/schedules/:id", middleware.RequirePermission("device.manage"), actuatorHandler.DeleteSchedule)
+			actuatorsGroup.GET("/:id", actuatorHandler.GetByID)
+			actuatorsGroup.PUT("/:id", middleware.RequirePermission("device.manage"), actuatorHandler.Update)
+			actuatorsGroup.DELETE("/:id", middleware.RequirePermission("device.manage"), actuatorHandler.Delete)
+			actuatorsGroup.POST("/:id/test-write", middleware.RequirePermission("device.manage"), actuatorHandler.TestWriteExisting)
+			actuatorsGroup.POST("/:id/actuate", actuatorHandler.Actuate)
+			actuatorsGroup.GET("/:id/schedules", actuatorHandler.ListSchedules)
+			actuatorsGroup.POST("/:id/schedules", middleware.RequirePermission("device.manage"), actuatorHandler.CreateSchedule)
+		}
+		api.PUT("/schedules/:id", middleware.JWTAuth(authService), middleware.RequirePermission("device.manage"), actuatorHandler.UpdateSchedule)
+		api.DELETE("/schedules/:id", middleware.JWTAuth(authService), middleware.RequirePermission("device.manage"), actuatorHandler.DeleteSchedule)
 
 		// Dynamic Parameter Categories & Layout (Authenticated & Authorized)
 		categoriesGroup := api.Group("/categories")

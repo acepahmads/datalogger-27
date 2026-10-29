@@ -799,6 +799,336 @@ func (a *ModbusRTUAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequ
 	}, nil
 }
 
+// WriteRegisters executes Modbus FC 05 (Single Coil), 06 (Single Register), 15 (Multiple Coils), or 16 (Multiple Registers)
+func (a *ModbusRTUAdapter) WriteRegisters(ctx context.Context, req ModbusWriteRequest) (*ModbusWriteResponse, error) {
+	targetPort := ResolvePortAddress(a.config.SerialPort)
+	if targetPort == "" {
+		targetPort = a.config.SerialPort
+	}
+
+	a.mu.Lock()
+	bus := a.bus
+	if bus != nil && targetPort != "" && bus.portPath != targetPort {
+		logger.Warn("Modbus RTU device %d serial port migrated from %s to %s",
+			a.config.DeviceID, bus.portPath, targetPort)
+		bus.mu.Lock()
+		bus.refCount--
+		if bus.refCount <= 0 {
+			if bus.transport != nil {
+				_ = bus.transport.Close()
+				bus.transport = nil
+			}
+			sharedBusesMu.Lock()
+			delete(sharedBuses, bus.portPath)
+			sharedBusesMu.Unlock()
+		}
+		bus.mu.Unlock()
+		a.bus = nil
+		a.transport = nil
+		bus = nil
+	}
+
+	if a.bus == nil && targetPort != "" {
+		newBus := GetOrCreateSharedBus(targetPort)
+		newBus.mu.Lock()
+		newBus.refCount++
+		a.bus = newBus
+		a.transport = newBus.transport
+		bus = newBus
+		newBus.mu.Unlock()
+	}
+	a.mu.Unlock()
+
+	// Acquire context-aware serial bus lock to guarantee strict serialization on RS-485
+	if bus != nil {
+		if err := bus.Lock(ctx); err != nil {
+			return nil, &ModbusTransactionError{
+				Category: FailCategoryTimeout,
+				Message:  fmt.Sprintf("serial bus %s lock timed out or cancelled: %v", bus.portPath, err),
+				Err:      err,
+			}
+		}
+		defer bus.Unlock()
+	} else {
+		return nil, &ModbusTransactionError{
+			Category: FailCategoryPortNotFound,
+			Message:  "no serial bus attached",
+			Err:      fmt.Errorf("serial bus is not initialized"),
+		}
+	}
+
+	// Ensure Modbus RTU 3.5-character silent interval between serial frames
+	if bus != nil && !bus.lastActivity.IsZero() {
+		since := time.Since(bus.lastActivity)
+		if since < 4*time.Millisecond {
+			time.Sleep(4*time.Millisecond - since)
+		}
+	}
+	defer func() {
+		if bus != nil {
+			bus.lastActivity = time.Now()
+		}
+	}()
+
+	start := time.Now()
+
+	slaveID := req.SlaveID
+	if slaveID == 0 {
+		slaveID = byte(a.config.SlaveID)
+	}
+	if slaveID == 0 {
+		slaveID = 1
+	}
+
+	// 1. Build Request PDU
+	var reqPDU []byte
+	switch req.FunctionCode {
+	case FunctionWriteSingleCoil, FunctionWriteSingleRegister:
+		// FC 05 & FC 06: [SlaveID, FC, AddrHi, AddrLo, ValHi, ValLo] (6 bytes before CRC)
+		reqPDU = make([]byte, 6)
+		reqPDU[0] = slaveID
+		reqPDU[1] = req.FunctionCode
+		binary.BigEndian.PutUint16(reqPDU[2:4], req.Address)
+		binary.BigEndian.PutUint16(reqPDU[4:6], req.Value)
+
+	case FunctionWriteMultipleCoils: // FC 15 (0x0F)
+		qty := uint16(len(req.Values))
+		if qty == 0 {
+			qty = 1
+			if req.Value != 0 {
+				req.Values = []uint16{1}
+			} else {
+				req.Values = []uint16{0}
+			}
+		}
+		byteCount := byte((qty + 7) / 8)
+		reqPDU = make([]byte, 7+int(byteCount))
+		reqPDU[0] = slaveID
+		reqPDU[1] = FunctionWriteMultipleCoils
+		binary.BigEndian.PutUint16(reqPDU[2:4], req.Address)
+		binary.BigEndian.PutUint16(reqPDU[4:6], qty)
+		reqPDU[6] = byteCount
+		for i, val := range req.Values {
+			if val != 0 {
+				reqPDU[7+(i/8)] |= (1 << (i % 8))
+			}
+		}
+
+	case FunctionWriteMultipleRegisters: // FC 16 (0x10)
+		qty := uint16(len(req.Values))
+		if qty == 0 {
+			qty = 1
+			req.Values = []uint16{req.Value}
+		}
+		byteCount := byte(qty * 2)
+		reqPDU = make([]byte, 7+int(byteCount))
+		reqPDU[0] = slaveID
+		reqPDU[1] = FunctionWriteMultipleRegisters
+		binary.BigEndian.PutUint16(reqPDU[2:4], req.Address)
+		binary.BigEndian.PutUint16(reqPDU[4:6], qty)
+		reqPDU[6] = byteCount
+		for i, v := range req.Values {
+			binary.BigEndian.PutUint16(reqPDU[7+i*2:9+i*2], v)
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported Modbus write function code: 0x%02X", req.FunctionCode)
+	}
+
+	reqADU := AppendCRC16(reqPDU)
+
+	// 2. Ensure transport is open
+	a.mu.Lock()
+	if bus != nil && bus.transport != nil {
+		a.transport = bus.transport
+		a.status.State = StateConnected
+		a.status.LastError = ""
+	} else if (bus != nil && bus.transport == nil) || a.transport == nil || a.status.State != StateConnected {
+		tr, err := a.opener(a.config)
+		if err != nil {
+			a.status.State = StateError
+			a.status.LastError = err.Error()
+			a.status.FailedCount++
+			a.mu.Unlock()
+			return nil, &ModbusTransactionError{
+				Category: FailCategoryPortNotFound,
+				Message:  fmt.Sprintf("failed to reopen serial port %s: %v", a.config.SerialPort, err),
+				Err:      err,
+			}
+		}
+		a.transport = tr
+		if bus != nil {
+			bus.mu.Lock()
+			bus.transport = tr
+			bus.mu.Unlock()
+		}
+		a.status.State = StateConnected
+		a.status.LastError = ""
+	}
+	a.mu.Unlock()
+
+	// Drain any residual bytes
+	drainBuf := make([]byte, 256)
+	_, _ = a.transport.Read(drainBuf)
+
+	// Write Request ADU
+	if _, err := a.transport.Write(reqADU); err != nil {
+		a.handleSerialError(err)
+		return nil, &ModbusTransactionError{
+			Category:    FailCategoryTransmitFailed,
+			Message:     fmt.Sprintf("Modbus RTU serial write failed: %v", err),
+			RequestADU:  reqADU,
+			RequestSent: false,
+			Err:         err,
+		}
+	}
+
+	// Read Response Header (2 bytes: SlaveID and FunctionCode)
+	hdr := make([]byte, 2)
+	if _, err := io.ReadFull(a.transport, hdr); err != nil {
+		a.handleSerialError(err)
+		cat := FailCategoryTimeout
+		if !isTimeoutError(err) && isFatalSerialError(err) {
+			cat = FailCategoryTransmitFailed
+		}
+		return nil, &ModbusTransactionError{
+			Category:         cat,
+			Message:          fmt.Sprintf("Modbus RTU read write-response header failed: %v", err),
+			RequestADU:       reqADU,
+			RequestSent:      true,
+			ResponseReceived: false,
+			Err:              err,
+		}
+	}
+
+	respSlaveID := hdr[0]
+	respFC := hdr[1]
+
+	if respSlaveID != slaveID {
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("unexpected slave ID in write response: expected %d, got %d", slaveID, respSlaveID),
+			RequestADU:       reqADU,
+			ResponseADU:      hdr,
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              fmt.Errorf("unexpected slave ID in write response: expected %d, got %d", slaveID, respSlaveID),
+		}
+	}
+
+	// Check for Exception Response (FC | 0x80)
+	if respFC == (req.FunctionCode | 0x80) {
+		exBuf := make([]byte, 3) // exCode + 2 CRC bytes
+		if _, err := io.ReadFull(a.transport, exBuf); err != nil {
+			a.handleSerialError(err)
+			return nil, &ModbusTransactionError{
+				Category:         FailCategoryFrameCorrupted,
+				Message:          fmt.Sprintf("failed reading exception payload: %v", err),
+				RequestADU:       reqADU,
+				ResponseADU:      hdr,
+				RequestSent:      true,
+				ResponseReceived: true,
+				Err:              err,
+			}
+		}
+
+		fullExFrame := append(hdr, exBuf...)
+		if !ValidateCRC16(fullExFrame) {
+			return nil, &ModbusTransactionError{
+				Category:         FailCategoryInvalidCRC,
+				Message:          "invalid CRC16 on Modbus exception response",
+				RequestADU:       reqADU,
+				ResponseADU:      fullExFrame,
+				RequestSent:      true,
+				ResponseReceived: true,
+				CRCPassed:        false,
+				Err:              fmt.Errorf("invalid CRC16 on Modbus exception response"),
+			}
+		}
+
+		exCode := exBuf[0]
+		a.status.FailedCount++
+		a.status.LastError = fmt.Sprintf("Modbus Exception: %s", ModbusExceptionName(exCode))
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryModbusException,
+			Message:          fmt.Sprintf("Modbus exception response: %s", ModbusExceptionName(exCode)),
+			RequestADU:       reqADU,
+			ResponseADU:      fullExFrame,
+			RequestSent:      true,
+			ResponseReceived: true,
+			CRCPassed:        true,
+			ExceptionCode:    exCode,
+			ExceptionMessage: ModbusExceptionName(exCode),
+			Err:              fmt.Errorf("Modbus exception response: %s", ModbusExceptionName(exCode)),
+		}
+	}
+
+	if respFC != req.FunctionCode {
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("unexpected function code in write response: expected 0x%02X, got 0x%02X", req.FunctionCode, respFC),
+			RequestADU:       reqADU,
+			ResponseADU:      hdr,
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              fmt.Errorf("unexpected function code in write response: expected 0x%02X, got 0x%02X", req.FunctionCode, respFC),
+		}
+	}
+
+	// For FC05, FC06, FC15, FC16 standard response is 6 more bytes:
+	// FC05/FC06: Address (2) + Value (2) + CRC (2)
+	// FC15/FC16: Address (2) + Quantity (2) + CRC (2)
+	remBuf := make([]byte, 6)
+	if _, err := io.ReadFull(a.transport, remBuf); err != nil {
+		a.handleSerialError(err)
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryFrameCorrupted,
+			Message:          fmt.Sprintf("failed reading write response body: %v", err),
+			RequestADU:       reqADU,
+			ResponseADU:      hdr,
+			RequestSent:      true,
+			ResponseReceived: true,
+			Err:              err,
+		}
+	}
+
+	fullFrame := append(hdr, remBuf...)
+	if !ValidateCRC16(fullFrame) {
+		return nil, &ModbusTransactionError{
+			Category:         FailCategoryInvalidCRC,
+			Message:          "invalid CRC16 on Modbus write response",
+			RequestADU:       reqADU,
+			ResponseADU:      fullFrame,
+			RequestSent:      true,
+			ResponseReceived: true,
+			CRCPassed:        false,
+			Err:              fmt.Errorf("invalid CRC16 on Modbus write response"),
+		}
+	}
+
+	respAddress := binary.BigEndian.Uint16(remBuf[0:2])
+	respValue := binary.BigEndian.Uint16(remBuf[2:4])
+
+	elapsed := time.Since(start)
+	now := time.Now()
+	a.status.State = StateConnected
+	a.status.LastCommunication = &now
+	a.status.LatencyMs = int(elapsed.Milliseconds())
+	a.status.SuccessCount++
+	a.status.LastError = ""
+
+	return &ModbusWriteResponse{
+		SlaveID:      respSlaveID,
+		FunctionCode: respFC,
+		Address:      respAddress,
+		Value:        respValue,
+		ResponseTime: elapsed,
+		RequestADU:   reqADU,
+		ResponseADU:  fullFrame,
+		CRCPassed:    true,
+	}, nil
+}
+
 func isFatalSerialError(err error) bool {
 	if err == nil {
 		return false

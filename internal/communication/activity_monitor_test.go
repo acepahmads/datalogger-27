@@ -290,6 +290,9 @@ func (m *mockTestAdapter) IsConnected() bool {
 func (m *mockTestAdapter) ReadRegisters(ctx context.Context, req ModbusReadRequest) (*ModbusReadResponse, error) {
 	return &ModbusReadResponse{Data: []byte{0x00, 0x01}, ResponseTime: 10 * time.Millisecond}, nil
 }
+func (m *mockTestAdapter) WriteRegisters(ctx context.Context, req ModbusWriteRequest) (*ModbusWriteResponse, error) {
+	return &ModbusWriteResponse{SlaveID: req.SlaveID, FunctionCode: req.FunctionCode, Address: req.Address, Value: req.Value, ResponseTime: 10 * time.Millisecond, CRCPassed: true}, nil
+}
 func (m *mockTestAdapter) HealthCheck(ctx context.Context) error {
 	return nil
 }

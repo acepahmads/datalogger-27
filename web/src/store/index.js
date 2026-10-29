@@ -902,6 +902,8 @@ export default new Vuex.Store({
               window.dispatchEvent(new CustomEvent('comm-live-frame', { detail: msg.data }));
             } else if (msg.type === 'comm.trace.status' && msg.data) {
               window.dispatchEvent(new CustomEvent('comm-trace-status', { detail: msg.data }));
+            } else if (msg.type === 'ACTUATOR_STATE_CHANGED' && msg.data) {
+              window.dispatchEvent(new CustomEvent('actuator-state-event', { detail: msg.data }));
             } else if (msg.type === 'alarm.cleared' && msg.data) {
               commit('REMOVE_ACTIVE_ALARM', msg.data.id || msg.data.ID);
             }

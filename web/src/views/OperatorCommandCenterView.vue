@@ -1100,6 +1100,170 @@
 
         <!-- Right: Status Icons (Device & Comm, Alarms, Telemetry, System, Network, Location) -->
         <div class="flex items-center space-x-1 flex-shrink-0">
+          <!-- Actuator & Equipment Controls Popover (Opsi B) -->
+          <div class="relative toolbar-popover-anchor">
+            <button
+              type="button"
+              id="btn-toolbar-actuators"
+              @click.stop="toggleToolbarPopover('actuators')"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative cursor-pointer"
+              :class="[
+                activeToolbarPopover === 'actuators'
+                  ? 'bg-amber-500/20 text-amber-500 border-amber-500 shadow-xs ring-1 ring-amber-500/30'
+                  : activeActuatorsCount > 0
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/50 ring-1 ring-emerald-500/30'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#162538] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-[#20354B]'
+              ]"
+              title="Controls & Actuators (Pumps, Purge Valves, Relays)"
+              aria-label="Controls & Actuators"
+              :aria-expanded="activeToolbarPopover === 'actuators'"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <!-- Active Badge: Glowing counter of currently running equipment -->
+              <span
+                v-if="activeActuatorsCount > 0"
+                class="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full text-[8.5px] font-bold font-mono flex items-center justify-center bg-emerald-500 text-white ring-1 ring-white dark:ring-[#0B1422] shadow-xs animate-pulse"
+                title="Active running actuators"
+              >
+                {{ activeActuatorsCount }}
+              </span>
+            </button>
+
+            <!-- Actuators Popover Panel (Opsi B) -->
+            <transition
+              enter-active-class="transition duration-150 ease-out"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition duration-100 ease-in"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <div
+                v-if="activeToolbarPopover === 'actuators'"
+                class="absolute right-0 top-full mt-2 w-96 max-w-[92vw] bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-2xl z-50 p-4 space-y-3.5 select-none"
+                @click.stop
+              >
+                <!-- Popover Header -->
+                <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center text-xs font-bold font-mono">⚡</span>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 font-mono">
+                      Controls & Actuators
+                    </h3>
+                  </div>
+                  <span class="text-3xs font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    {{ activeActuatorsCount }} Active / {{ operatorActuators.length }} Total
+                  </span>
+                </div>
+
+                <!-- Actuator Cards (Reference Design Opsi B from user screenshot) -->
+                <div v-if="loadingActuators" class="py-8 text-center text-xs text-slate-400">
+                  Loading equipment status...
+                </div>
+
+                <div v-else-if="operatorActuators.length === 0" class="py-8 text-center text-slate-400 text-xs">
+                  <p class="text-2xl mb-1">⚡</p>
+                  <p class="font-bold text-slate-700 dark:text-slate-300">No Actuators Configured</p>
+                  <p class="text-3xs mt-1 text-slate-500">Add equipment under Device Detail &gt; Controls & Actuators.</p>
+                </div>
+
+                <div v-else class="space-y-2.5 max-h-80 overflow-y-auto pr-0.5">
+                  <div
+                    v-for="act in operatorActuators"
+                    :key="act.id"
+                    class="p-3 rounded-lg border transition-all"
+                    :class="act.current_state === 'ON'
+                      ? 'bg-emerald-950/20 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                      : 'bg-slate-50 dark:bg-[#121E30] border-slate-200 dark:border-slate-800'"
+                  >
+                    <div class="flex items-start justify-between">
+                      <div class="flex items-center space-x-2.5">
+                        <div
+                          class="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
+                          :class="act.current_state === 'ON'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-400'"
+                        >
+                          {{ getActuatorIcon(act.icon) }}
+                        </div>
+                        <div>
+                          <div class="font-bold text-xs text-slate-800 dark:text-slate-100">{{ act.actuator_name }}</div>
+                          <div class="text-3xs font-mono text-slate-400">
+                            <span v-if="!isOperator">DEV: {{ act.device ? (act.device.device_code || act.device.code) : act.device_id }} &bull; </span>{{ act.control_type === 'COIL_FC05' ? 'Coil' : 'Reg' }} #{{ act.register_address }}
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- State Pill -->
+                      <span
+                        :class="act.current_state === 'ON'
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-extrabold'
+                          : 'bg-slate-200/60 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 font-semibold'"
+                        class="px-2 py-0.5 rounded-full text-3xs font-mono border flex items-center space-x-1"
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full" :class="act.current_state === 'ON' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'"></span>
+                        <span>{{ act.current_state === 'ON' ? 'RUNNING (ON)' : 'STANDBY (OFF)' }}</span>
+                      </span>
+                    </div>
+
+                    <!-- Bottom row: Countdown / Schedule + Manual Action Button -->
+                    <div class="mt-3 flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                      <div class="text-3xs font-mono text-slate-400">
+                        <span v-if="act.current_state === 'ON' && getActuatorCountdown(act)" class="text-emerald-400 font-bold">
+                          ⏱️ Auto-Off: {{ getActuatorCountdown(act) }} sisa
+                        </span>
+                        <span v-else-if="act.schedules && act.schedules.length > 0">
+                          Jadwal: Setiap {{ formatActuatorDuration(act.schedules[0].interval_seconds) }}
+                        </span>
+                        <span v-else class="text-slate-500">
+                          Manual Only
+                        </span>
+                      </div>
+
+                      <!-- Action Button -->
+                      <button
+                        v-if="act.current_state === 'ON'"
+                        type="button"
+                        @click="toggleOperatorActuator(act, 'OFF')"
+                        :disabled="togglingActuatorId === act.id"
+                        class="py-1 px-3 rounded-md bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-bold text-3xs shadow-sm transition-colors flex items-center space-x-1 disabled:opacity-50 cursor-pointer"
+                      >
+                        <span v-if="togglingActuatorId === act.id" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        <span>Manual STOP</span>
+                      </button>
+
+                      <button
+                        v-else
+                        type="button"
+                        @click="toggleOperatorActuator(act, 'ON')"
+                        :disabled="togglingActuatorId === act.id"
+                        class="py-1 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-3xs shadow-sm transition-colors flex items-center space-x-1 disabled:opacity-50 cursor-pointer"
+                      >
+                        <span v-if="togglingActuatorId === act.id" class="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        <span>Manual START</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Footer Link to Device Setup -->
+                <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-3xs">
+                  <span class="text-slate-400">Automated cycle by scheduler</span>
+                  <button
+                    v-if="!isOperator"
+                    type="button"
+                    @click="navigateToRoute('/monitoring/devices')"
+                    class="text-cyan-500 hover:text-cyan-400 font-bold hover:underline cursor-pointer"
+                  >
+                    Manage Equipment &rarr;
+                  </button>
+                </div>
+              </div>
+            </transition>
+          </div>
+
           <!-- Consolidated Station Health & Alarm Center (Single Bell Icon) -->
             <div class="relative toolbar-popover-anchor">
               <button
@@ -6072,6 +6236,11 @@ export default {
       })(),
       healthActiveTab: 'alarms', // 'alarms' | 'devices' | 'telemetry'
       activeToolbarPopover: null,
+      operatorActuators: [],
+      loadingActuators: false,
+      togglingActuatorId: null,
+      actuatorNow: Date.now(),
+      actuatorTimer: null,
       networkStatus: {
         local_network: {
           status: 'DOWN',
@@ -6378,6 +6547,9 @@ export default {
     };
   },
   computed: {
+    activeActuatorsCount() {
+      return (this.operatorActuators || []).filter(a => a.current_state === 'ON').length;
+    },
     isPerformanceOptimizedActive() {
       if (!this.perfSettings) return false;
       return !this.perfSettings.parameterSparklinesEnabled ||
@@ -8078,6 +8250,13 @@ export default {
     window.addEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.addEventListener('device-comm-event', this.onDeviceCommEvent);
     window.addEventListener('system-activity-event', this.onSystemActivityEvent);
+    window.addEventListener('actuator-state-event', this.onActuatorStateEvent);
+
+    // Initial Actuator Load & Timer
+    this.fetchOperatorActuators();
+    this.actuatorTimer = setInterval(() => {
+      this.actuatorNow = Date.now();
+    }, 1000);
 
     // Listen to synchronized SCADA alarm annunciator pulses (audio + visual synchronized clock)
     window.addEventListener('scada-alarm-pulse', this.handleAlarmPulse);
@@ -8094,6 +8273,7 @@ export default {
     if (this.trendAutoRefreshInterval) clearInterval(this.trendAutoRefreshInterval);
     if (this.alarmPulseTimer) clearTimeout(this.alarmPulseTimer);
     if (this.blinkClearTimer) clearTimeout(this.blinkClearTimer);
+    if (this.actuatorTimer) clearInterval(this.actuatorTimer);
     if (this.storageSaveTimer) {
       clearTimeout(this.storageSaveTimer);
       this.flushStorageSave();
@@ -8109,6 +8289,7 @@ export default {
     window.removeEventListener('device-telemetry-event', this.onTelemetryEvent);
     window.removeEventListener('device-comm-event', this.onDeviceCommEvent);
     window.removeEventListener('system-activity-event', this.onSystemActivityEvent);
+    window.removeEventListener('actuator-state-event', this.onActuatorStateEvent);
     window.removeEventListener('scada-alarm-pulse', this.handleAlarmPulse);
     window.removeEventListener('organization-branding-updated', this.onOrganizationBrandingUpdated);
     document.removeEventListener('click', this.onDocumentClick);
@@ -8137,6 +8318,67 @@ export default {
       if (this.perfSettings.parameterSparklinesEnabled) {
         this.fetchInitialSparklines();
       }
+    },
+    async fetchOperatorActuators(silent) {
+      if (!silent) this.loadingActuators = true;
+      try {
+        const res = await axios.get('/api/actuators');
+        this.operatorActuators = res.data.data || [];
+      } catch (err) {
+        // silent
+      } finally {
+        this.loadingActuators = false;
+      }
+    },
+    async toggleOperatorActuator(act, action) {
+      this.togglingActuatorId = act.id;
+      try {
+        await axios.post(`/api/actuators/${act.id}/actuate`, { action });
+        await this.fetchOperatorActuators(true);
+      } catch (err) {
+        const errData = err.response && err.response.data;
+        alert(`Failed to actuate ${act.actuator_name}: ` + ((errData && (errData.error || errData.message)) || err.message));
+      } finally {
+        this.togglingActuatorId = null;
+      }
+    },
+    onActuatorStateEvent(e) {
+      const data = e.detail;
+      if (!data) return;
+      const idx = this.operatorActuators.findIndex(a => a.id === data.actuator_id);
+      if (idx !== -1) {
+        this.$set(this.operatorActuators[idx], 'current_state', data.state);
+        this.$set(this.operatorActuators[idx], 'auto_off_due_at', data.auto_off_due_at || null);
+      } else {
+        this.fetchOperatorActuators(true);
+      }
+    },
+    getActuatorCountdown(act) {
+      if (!act.auto_off_due_at) return null;
+      const due = new Date(act.auto_off_due_at).getTime();
+      const diff = Math.max(0, Math.floor((due - this.actuatorNow) / 1000));
+      if (diff <= 0) return '00:00';
+      const m = Math.floor(diff / 60).toString().padStart(2, '0');
+      const s = (diff % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    },
+    formatActuatorDuration(sec) {
+      if (!sec) return '0 Detik';
+      if (sec >= 3600) return `${Math.round(sec / 3600)} Jam`;
+      if (sec >= 60) return `${Math.round(sec / 60)} Menit`;
+      return `${sec} Detik`;
+    },
+    getActuatorIcon(icon) {
+      const map = {
+        pump: '💧',
+        valve: '💨',
+        fan: '🌀',
+        heater: '🔥',
+        relay: '⚡',
+        light: '💡',
+        motor: '⚙️'
+      };
+      return map[icon] || '⚡';
     },
     setPerfPreset(presetName) {
       if (!this.perfSettings) return;
@@ -8761,6 +9003,8 @@ export default {
           }
         } else if (popoverName === 'networkMonitor') {
           this.fetchNetworkStatus();
+        } else if (popoverName === 'actuators') {
+          this.fetchOperatorActuators(true);
         } else if (popoverName === 'stationLocation') {
           this.fetchStationLocation();
           this.$nextTick(() => {

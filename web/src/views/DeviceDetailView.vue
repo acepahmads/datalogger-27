@@ -156,6 +156,16 @@
         </span>
       </button>
       <button
+        @click="activeTab = 'actuators'"
+        :class="activeTab === 'actuators' ? 'border-b-2 border-amber-600 text-amber-600 dark:border-amber-500 dark:text-amber-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
+        class="transition-colors flex items-center space-x-1.5"
+      >
+        <span>Controls & Actuators</span>
+        <span class="px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 text-3xs font-mono font-bold">
+          ⚡
+        </span>
+      </button>
+      <button
         @click="switchTab('telemetry')"
         :class="activeTab === 'telemetry' ? 'border-b-2 border-emerald-600 text-emerald-600 dark:border-emerald-500 dark:text-emerald-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -991,6 +1001,16 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- TAB: CONTROLS & ACTUATORS -->
+    <div v-if="device && activeTab === 'actuators'">
+      <ActuatorTab
+        :deviceId="device.id"
+        :deviceCode="device.device_code || device.code"
+        :deviceSlaveId="device.connection ? device.connection.slave_id : 1"
+        :parameters="device.parameters || []"
+      />
     </div>
 
     <!-- TAB 4: ACTIVITY & AUDIT -->
@@ -3429,6 +3449,7 @@ import apiClient from '../services/api.js';
 import DeviceModal from '../components/DeviceModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ParameterIcon from '../components/ParameterIcon.vue';
+import ActuatorTab from '../components/actuators/ActuatorTab.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
 
 export default {
@@ -3437,6 +3458,7 @@ export default {
     DeviceModal,
     ParameterModal,
     ParameterIcon,
+    ActuatorTab,
   },
   data() {
     return {
