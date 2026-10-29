@@ -257,8 +257,9 @@
             <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
               <tr>
                 <th class="py-2.5 px-3">Batch ID / Key</th>
-                <th class="py-2.5 px-3">Devices</th>
+                <th v-if="!isOperator" class="py-2.5 px-3">Devices</th>
                 <th class="py-2.5 px-3">Destination</th>
+                <th class="py-2.5 px-3">Waktu Pertama Kirim</th>
                 <th class="py-2.5 px-3">Window (UTC)</th>
                 <th class="py-2.5 px-3 text-center">Interval</th>
                 <th class="py-2.5 px-3 text-center">Params</th>
@@ -270,7 +271,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-if="queueItems.length === 0">
-                <td colspan="10" class="py-12 text-center text-slate-400 font-mono">
+                <td :colspan="isOperator ? 10 : 11" class="py-12 text-center text-slate-400 font-mono">
                   <div class="text-sm">No outbound delivery queue items found</div>
                   <div class="text-3xs text-slate-500 mt-1">
                     Aggregation batches are automatically enqueued when an aggregation window completes.
@@ -295,8 +296,8 @@
                   </div>
                 </td>
 
-                <!-- Devices (Unified Multi-Device Support) -->
-                <td class="py-2.5 px-3">
+                <!-- Devices (Unified Multi-Device Support - Hidden for Operator) -->
+                <td v-if="!isOperator" class="py-2.5 px-3">
                   <div v-if="item.device_count > 1 || (item.devices_summary && item.devices_summary.includes(','))">
                     <span class="px-2 py-0.5 rounded-md font-bold bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-3xs" :title="item.devices_summary">
                       {{ item.device_count || 2 }} Devices
@@ -318,6 +319,15 @@
                   <span class="px-1.5 py-0.2 rounded text-4xs font-bold" :class="protocolBadgeClass(item.destination ? item.destination.type : 'REST')">
                     {{ item.destination ? item.destination.type : 'REST_API' }}
                   </span>
+                </td>
+
+                <!-- Waktu Pertama Kirim (Enqueued / Dispatched) -->
+                <td class="py-2.5 px-3 text-3xs whitespace-nowrap">
+                  <div class="font-semibold text-slate-800 dark:text-slate-200">{{ formatTime(item.created_at) }}</div>
+                  <div class="text-4xs text-slate-400">{{ formatDate(item.created_at) }}</div>
+                  <div v-if="item.attempts > 1 && item.last_attempt_at" class="text-4xs text-amber-500 font-medium mt-0.5" :title="'Terakhir dicoba: ' + formatTime(item.last_attempt_at)">
+                    Last: {{ formatTime(item.last_attempt_at) }}
+                  </div>
                 </td>
 
                 <!-- Window -->
@@ -518,17 +528,28 @@
                   {{ dest.name }}
                 </h3>
               </div>
-              <!-- Enable / Disable Switch -->
+              <!-- Enable / Disable Switch (Admin/Superadmin clickable, Operator read-only badge) -->
               <button
                 v-if="canManageDestinations"
                 @click="toggleDestinationEnabled(dest)"
-                class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border transition cursor-pointer"
+                class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border transition cursor-pointer shadow-xs hover:scale-105"
                 :class="dest.enabled
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                  : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'"
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700'"
+                :title="dest.enabled ? 'Klik untuk nonaktifkan (disable) pengiriman ke destinasi ini' : 'Klik untuk aktifkan (enable) pengiriman ke destinasi ini'"
               >
                 {{ dest.enabled ? '● ACTIVE' : '○ DISABLED' }}
               </button>
+              <span
+                v-else
+                class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border cursor-default"
+                :class="dest.enabled
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'"
+                :title="dest.enabled ? 'Status: Pengiriman Aktif' : 'Status: Pengiriman Dinonaktifkan'"
+              >
+                {{ dest.enabled ? '● ACTIVE' : '○ DISABLED' }}
+              </span>
             </div>
 
             <!-- Details List -->
@@ -2313,10 +2334,21 @@ export default {
       }
       this.triggerLivePreview();
     },
+    formatDate(t) {
+      if (!t) return '';
+      try {
+        const d = new Date(t);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+      } catch (e) {
+        return '';
+      }
+    },
     formatTime(t) {
       if (!t) return '-';
       try {
         const d = new Date(t);
+        if (isNaN(d.getTime())) return '-';
         return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       } catch (e) {
         return t;
