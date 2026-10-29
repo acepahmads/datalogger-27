@@ -1113,8 +1113,8 @@
                     </td>
                     <td class="p-2 font-bold text-slate-900 dark:text-white">{{ val.parameter_code }}</td>
                     <td class="p-2 text-slate-600 dark:text-slate-300">{{ val.parameter_name }}</td>
-                    <td class="p-2 text-right font-bold" :class="val.value !== null ? 'text-cyan-500' : 'text-slate-400'">
-                      {{ val.value !== null ? val.value : 'null' }}
+                    <td class="p-2 text-right font-bold" :class="val.value !== null && val.value !== undefined ? 'text-cyan-500' : 'text-slate-400'">
+                      {{ formatAggValue(val.value) }}
                     </td>
                     <td class="p-2 text-slate-400">{{ val.unit || '-' }}</td>
                     <td class="p-2">
@@ -2384,14 +2384,89 @@ export default {
         return t;
       }
     },
+    formatAggValue(val) {
+      if (val === null || val === undefined || val === '') return 'null';
+      const num = Number(val);
+      if (isNaN(num)) return String(val);
+      return num.toFixed(2);
+    },
     formatPrettyJSON(str) {
       if (!str) return '';
       try {
-        const parsed = JSON.parse(str);
-        return JSON.stringify(parsed, null, 2);
+        JSON.parse(str);
       } catch (e) {
         return str;
       }
+
+      let out = '';
+      let depth = 0;
+      const len = str.length;
+      let i = 0;
+      const skipWs = (idx) => {
+        while (idx < len && /\s/.test(str[idx])) idx++;
+        return idx;
+      };
+
+      while (i < len) {
+        const ch = str[i];
+        if (/\s/.test(ch)) {
+          i++;
+          continue;
+        }
+        if (ch === '"') {
+          let s = '"';
+          i++;
+          while (i < len) {
+            const c = str[i];
+            s += c;
+            i++;
+            if (c === '\\' && i < len) {
+              s += str[i];
+              i++;
+            } else if (c === '"') {
+              break;
+            }
+          }
+          out += s;
+        } else if (ch === '{' || ch === '[') {
+          const closeCh = ch === '{' ? '}' : ']';
+          const nextIdx = skipWs(i + 1);
+          if (nextIdx < len && str[nextIdx] === closeCh) {
+            out += ch + closeCh;
+            i = nextIdx + 1;
+          } else {
+            depth++;
+            out += ch + '\n' + '  '.repeat(depth);
+            i++;
+          }
+        } else if (ch === '}' || ch === ']') {
+          depth = Math.max(0, depth - 1);
+          out += '\n' + '  '.repeat(depth) + ch;
+          i++;
+        } else if (ch === ',') {
+          out += ',\n' + '  '.repeat(depth);
+          i++;
+        } else if (ch === ':') {
+          out += ': ';
+          i++;
+        } else if (ch === '-' || (ch >= '0' && ch <= '9')) {
+          let numStr = '';
+          while (i < len && /[-+0-9.eE]/.test(str[i])) {
+            numStr += str[i];
+            i++;
+          }
+          if (numStr.includes('.') || numStr.includes('e') || numStr.includes('E')) {
+            const parsedNum = Number(numStr);
+            out += isNaN(parsedNum) ? numStr : parsedNum.toFixed(2);
+          } else {
+            out += numStr;
+          }
+        } else {
+          out += ch;
+          i++;
+        }
+      }
+      return out;
     },
     copyToClipboard(text) {
       if (!text) return;

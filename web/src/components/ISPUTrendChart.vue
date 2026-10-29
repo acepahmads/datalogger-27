@@ -356,7 +356,7 @@
           <span v-if="!isOverallMode" :class="resolvedIsDark ? 'text-slate-400' : 'text-[#526779]'">Concentration:</span>
           <span v-if="!isOverallMode" class="font-bold" :class="resolvedIsDark ? 'text-white' : 'text-slate-900'">
             <template v-if="hoveredPoint.isAvailable && hoveredPoint.concentration != null">
-              {{ hoveredPoint.concentration.toFixed(1) }} {{ hoveredPoint.unit }}
+              {{ Number(hoveredPoint.concentration).toFixed(2) }} {{ hoveredPoint.unit }}
             </template>
             <template v-else>
               <span :class="resolvedIsDark ? 'text-slate-400' : 'text-slate-500'">-</span>

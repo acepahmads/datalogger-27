@@ -170,7 +170,7 @@
                     <span class="text-slate-400 italic">Tidak Tersedia (0 Data Valid)</span>
                   </template>
                   <template v-else>
-                    Conc: <strong class="text-slate-900 dark:text-white">{{ activeConcentration.toFixed(1) }}</strong> µg/m³
+                    Conc: <strong class="text-slate-900 dark:text-white">{{ Number(activeConcentration || 0).toFixed(2) }}</strong> µg/m³
                     <span v-if="selectedPollutantResult?.xb !== undefined" class="text-4xs text-slate-400 ml-1">
                       [Bp: {{ selectedPollutantResult.xb }} - {{ selectedPollutantResult.xa }}]
                     </span>
@@ -1352,7 +1352,7 @@ export default {
       const res = this.getParameterResult(pollutantCode);
       if (!res) return '-';
       if (res.valid_samples === 0 || res.category === 'TIDAK_TERSEDIA') return '-';
-      return (res.normalized_concentration || 0).toFixed(1);
+      return Number(res.normalized_concentration || 0).toFixed(2);
     },
     getParameterDisplayCategory(pollutantCode) {
       const res = this.getParameterResult(pollutantCode);
@@ -1523,7 +1523,7 @@ export default {
         const pr = (r.parameter_results || []).find(p => p.pollutant_code === this.selectedPollutant);
         if (!pr) return `Parameter ${this.selectedPollutant} belum dipetakan ke sensor stasiun ini.`;
         if (pr.category !== 'TIDAK_TERSEDIA' && pr.valid_samples > 0) {
-          return `Nilai ISPU ${this.selectedPollutant}: ${Math.round(pr.calculated_ispu)} (${(pr.category || '').replace('_', ' ')}). Konsentrasi: ${(pr.normalized_concentration || 0).toFixed(1)} µg/m³.`;
+          return `Nilai ISPU ${this.selectedPollutant}: ${Math.round(pr.calculated_ispu)} (${(pr.category || '').replace('_', ' ')}). Konsentrasi: ${Number(pr.normalized_concentration || 0).toFixed(2)} µg/m³.`;
         }
         if (pr.valid_samples === 0) {
           return `Tidak ada data agregasi ${this.selectedPollutant} pada interval ini. Periksa apakah sensor aktif mengirim data dan definisi agregasi telah terkonfigurasi.`;
@@ -1614,7 +1614,7 @@ export default {
       if (num >= 1000000) {
         return num.toLocaleString('id-ID', { maximumFractionDigits: 1 });
       }
-      return num.toFixed(1);
+      return num.toFixed(2);
     },
     async openMappingsModal() {
       this.showMappingsModal = true;

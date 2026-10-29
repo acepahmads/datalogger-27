@@ -564,6 +564,9 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 						*val, paramCode, devInfo.DeviceCode, batchID)
 					val = nil
 					qual = string(model.QualityBad)
+				} else if val != nil {
+					roundedVal := roundOutboundValue(*val)
+					val = &roundedVal
 				}
 
 				sourceItems = append(sourceItems, model.SourceAggregationValueItem{
@@ -849,6 +852,11 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			pName := r.Parameter.ParameterName
 			unit := r.Parameter.Unit
 			devInfo := deviceMap[r.DeviceID]
+			val := r.Value
+			if val != nil {
+				roundedVal := roundOutboundValue(*val)
+				val = &roundedVal
+			}
 			items = append(items, model.SourceAggregationValueItem{
 				DeviceID:            r.DeviceID,
 				DeviceCode:          devInfo.DeviceCode,
@@ -856,7 +864,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 				ParameterID:         r.ParameterID,
 				ParameterCode:       pCode,
 				ParameterName:       pName,
-				Value:               r.Value,
+				Value:               val,
 				Unit:                unit,
 				Quality:             string(r.Quality),
 				AggregationResultID: r.ID,

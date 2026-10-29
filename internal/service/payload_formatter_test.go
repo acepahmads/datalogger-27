@@ -242,3 +242,55 @@ func TestPayloadFormatter_MultiTickArray(t *testing.T) {
 		t.Errorf("expected updated_at '2026-10-29 14:00:00', got %v", tick["updated_at"])
 	}
 }
+
+func TestPayloadFormatter_TwoDecimalRounding(t *testing.T) {
+	formatter := NewConfigurablePayloadFormatter()
+
+	valTemp := 23.326666666666664
+	valPM10 := 88.5
+	now := time.Date(2026, 10, 29, 16, 24, 0, 0, time.UTC)
+
+	batch := &OutboundBatchData{
+		DeviceID:        3,
+		DeviceCode:      "com3",
+		IntervalSeconds: 120,
+		PeriodStart:     now.Add(-2 * time.Minute),
+		PeriodEnd:       now,
+		Values: []model.SourceAggregationValueItem{
+			{DeviceID: 3, DeviceCode: "com3", ParameterID: 1, ParameterCode: "Temperature", Value: &valTemp},
+			{DeviceID: 4, DeviceCode: "com4", ParameterID: 2, ParameterCode: "pm10", Value: &valPM10},
+		},
+	}
+
+	cfg := &model.DestinationPayloadConfig{
+		StationIDValue:  "3453",
+		ModuleIDValue:   "3453",
+		TimestampFormat: "CUSTOM",
+		Structure:       "MULTI_TICK_ARRAY",
+		ParameterMappingsJSON: `[
+			{"device_id":3,"device_code":"com3","parameter_id":1,"parameter_code":"Temperature","external_name":"temp","enabled":true},
+			{"device_id":4,"device_code":"com4","parameter_id":2,"parameter_code":"pm10","external_name":"pm10","enabled":true}
+		]`,
+	}
+
+	raw, err := formatter.Format(batch, cfg)
+	if err != nil {
+		t.Fatalf("unexpected Format error: %v", err)
+	}
+	rawStr := string(raw)
+	if !strings.Contains(rawStr, `"value":23.33`) {
+		t.Errorf("expected 23.33 in raw JSON, got %s", rawStr)
+	}
+	if !strings.Contains(rawStr, `"value":88.50`) {
+		t.Errorf("expected 88.50 in raw JSON, got %s", rawStr)
+	}
+
+	preview, err := formatter.GeneratePreview(batch, cfg)
+	if err != nil {
+		t.Fatalf("unexpected GeneratePreview error: %v", err)
+	}
+	if !strings.Contains(preview, `"value": 23.33`) || !strings.Contains(preview, `"value": 88.50`) {
+		t.Errorf("expected 2-decimal formatted values in preview JSON, got:\n%s", preview)
+	}
+}
+

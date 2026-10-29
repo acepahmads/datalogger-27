@@ -276,7 +276,7 @@
           <!-- Concentration & Formula hint -->
           <div class="text-4xs font-mono font-bold text-slate-700 dark:text-slate-300 truncate mt-1">
             <span v-if="getParameterResult(pollutant.code)">
-              {{ getParameterResult(pollutant.code).concentration.toFixed(1) }} {{ getParameterResult(pollutant.code).source_unit || 'µg/m³' }}
+              {{ Number(getParameterResult(pollutant.code).concentration || 0).toFixed(2) }} {{ getParameterResult(pollutant.code).source_unit || 'µg/m³' }}
             </span>
             <span v-else class="italic text-slate-400 dark:text-slate-500">
               No mapped sensor
@@ -832,7 +832,9 @@ export default {
     selectedParamLabel() {
       const pr = this.selectedParamResult;
       if (!pr) return `${this.selectedDisplayParam} (Unmapped)`;
-      const conc = pr.concentration !== undefined ? pr.concentration.toFixed(1) : (pr.normalized_concentration !== undefined ? pr.normalized_concentration.toFixed(1) : '-');
+      const conc = pr.concentration !== undefined && pr.concentration !== null
+        ? Number(pr.concentration).toFixed(2)
+        : (pr.normalized_concentration !== undefined && pr.normalized_concentration !== null ? Number(pr.normalized_concentration).toFixed(2) : '-');
       return `${this.selectedDisplayParam}: ${conc} ${pr.source_unit || 'µg/m³'}`;
     },
     selectedPollutantName() {

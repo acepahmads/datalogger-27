@@ -1,14 +1,35 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"datalogger/internal/model"
 )
+
+// fixed2Float serializes numeric measurement values with 2 digits after the decimal point (e.g. 23.33, 88.50).
+type fixed2Float float64
+
+func (f fixed2Float) MarshalJSON() ([]byte, error) {
+	rounded := roundOutboundValue(float64(f))
+	return []byte(strconv.FormatFloat(rounded, 'f', 2, 64)), nil
+}
+
+func roundOutboundValue(v float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0
+	}
+	rounded := math.Round(v*100) / 100
+	if rounded == 0 {
+		return 0
+	}
+	return rounded
+}
 
 // PayloadFormatter defines the interface for serializing aggregation batches into destination-specific JSON payloads
 type PayloadFormatter interface {
@@ -327,7 +348,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		if cfg.IncludeUnits || cfg.IncludeQuality {
 			detail := make(map[string]interface{})
 			if item.Value != nil {
-				detail["value"] = *item.Value
+				detail["value"] = fixed2Float(*item.Value)
 			} else {
 				detail["value"] = nil
 			}
@@ -343,7 +364,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 			return detail
 		}
 		if item.Value != nil {
-			return *item.Value
+			return fixed2Float(*item.Value)
 		}
 		return nil
 	}
@@ -402,9 +423,9 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 
 			var val interface{}
 			if item.Value != nil {
-				val = *item.Value
+				val = fixed2Float(*item.Value)
 			} else {
-				val = 0.0
+				val = fixed2Float(0)
 			}
 
 			tickMap := map[string]interface{}{
@@ -542,7 +563,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 							sum += v
 						}
 						avg := sum / float64(len(keyValuesList[targetFieldName]))
-						measurements[targetFieldName] = avg
+						measurements[targetFieldName] = fixed2Float(avg)
 					}
 				case "CUSTOM_MAPPING":
 					// If custom mapping was chosen but still collides:
@@ -615,17 +636,12 @@ func (f *ConfigurablePayloadFormatter) GeneratePreview(batch *OutboundBatchData,
 		return "", err
 	}
 
-	var parsed map[string]interface{}
-	if err := json.Unmarshal(rawBytes, &parsed); err != nil {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, rawBytes, "", "  "); err != nil {
 		return string(rawBytes), nil
 	}
 
-	prettyBytes, err := json.MarshalIndent(parsed, "", "  ")
-	if err != nil {
-		return string(rawBytes), nil
-	}
-
-	return string(prettyBytes), nil
+	return buf.String(), nil
 }
 
 func formatTimestamp(t time.Time, format string) (interface{}, error) {
