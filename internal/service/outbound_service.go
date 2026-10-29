@@ -48,6 +48,8 @@ type OutboundService interface {
 	RetryQueueItem(ctx context.Context, id uint64) error
 	ReplayQueueItem(ctx context.Context, id uint64) (*model.OutboundDeliveryQueue, error)
 	CancelQueueItem(ctx context.Context, id uint64) error
+	DeleteQueueItem(ctx context.Context, id uint64) error
+	PurgeQueue(ctx context.Context, filter repository.QueuePurgeFilter) (int64, int64, error)
 }
 
 type TestPayloadResult struct {
@@ -985,4 +987,14 @@ func (s *outboundService) ReplayQueueItem(ctx context.Context, id uint64) (*mode
 // CancelQueueItem marks an item as CANCELLED
 func (s *outboundService) CancelQueueItem(ctx context.Context, id uint64) error {
 	return s.repo.CancelQueueItem(ctx, id)
+}
+
+// DeleteQueueItem permanently removes a single queue item
+func (s *outboundService) DeleteQueueItem(ctx context.Context, id uint64) error {
+	return s.repo.DeleteQueueItem(ctx, id)
+}
+
+// PurgeQueue bulk deletes queue items and optional delivery logs
+func (s *outboundService) PurgeQueue(ctx context.Context, filter repository.QueuePurgeFilter) (int64, int64, error) {
+	return s.repo.PurgeQueueItems(ctx, filter)
 }

@@ -211,6 +211,19 @@
         </div>
 
         <div class="flex items-center space-x-2">
+          <!-- Purge Queue Button (Admin / Superadmin only) -->
+          <button
+            v-if="canManageQueue"
+            @click="openPurgeModal"
+            class="px-2.5 py-1.5 rounded-lg border text-3xs font-semibold flex items-center space-x-1.5 transition bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+            title="Bersihkan / Purge antrean pengiriman secara manual"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Purge Antrean</span>
+          </button>
+
           <!-- Auto Refresh Toggle -->
           <button
             @click="autoRefresh = !autoRefresh"
@@ -394,6 +407,16 @@
                     title="Cancel pending delivery"
                   >
                     Cancel
+                  </button>
+
+                  <!-- Delete (Manual item cleanup by Admin/Superadmin) -->
+                  <button
+                    v-if="canManageQueue"
+                    @click="deleteQueueItem(item.id)"
+                    class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 transition text-3xs font-semibold"
+                    title="Hapus permanen antrean ini dari database"
+                  >
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -1155,6 +1178,96 @@
     </div>
 
     <!-- ============================================================== -->
+    <!-- MODAL: PURGE / BERSIHKAN ANTREAN & LOG (ADMIN/SUPERADMIN)       -->
+    <!-- ============================================================== -->
+    <div
+      v-if="showPurgeModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 font-mono"
+    >
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div class="flex items-center space-x-2.5">
+            <span class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold text-base">🗑️</span>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">Pembersihan Antrean & Log</h3>
+              <p class="text-3xs text-slate-500">Hapus manual antrean dan riwayat pengiriman (Admin / Superadmin)</p>
+            </div>
+          </div>
+          <button @click="showPurgeModal = false" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
+        </div>
+
+        <div class="space-y-3.5 text-xs">
+          <!-- Filter Status -->
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Kriteria Status Antrean</label>
+            <select
+              v-model="purgeConfig.status"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold"
+            >
+              <option value="ALL">SEMUA STATUS (Total Purge Seluruh Antrean)</option>
+              <option value="FAILED">Hanya Antrean GAGAL (FAILED)</option>
+              <option value="DELIVERED">Hanya Antrean TERKIRIM (DELIVERED)</option>
+              <option value="ACKNOWLEDGED">Hanya Antrean TERKONFIRMASI (ACKNOWLEDGED)</option>
+              <option value="CANCELLED">Hanya Antrean DIBATALKAN (CANCELLED)</option>
+              <option value="RETRYING">Hanya Antrean RETRYING</option>
+              <option value="PENDING">Hanya Antrean PENDING</option>
+            </select>
+          </div>
+
+          <!-- Filter Destinasi -->
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Target Destinasi</label>
+            <select
+              v-model="purgeConfig.destination_id"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs"
+            >
+              <option :value="null">Semua Destinasi (Termasuk yang setupnya sudah dihapus)</option>
+              <option v-for="d in destinations" :key="d.id" :value="d.id">
+                #{{ d.id }} - {{ d.name }} ({{ d.type }})
+              </option>
+            </select>
+          </div>
+
+          <!-- Opsi Purge Logs -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-start space-x-3">
+            <input
+              id="purge-logs-cb"
+              v-model="purgeConfig.purge_logs"
+              type="checkbox"
+              class="mt-1 w-4 h-4 rounded text-rose-500 border-slate-400 focus:ring-rose-500 cursor-pointer"
+            />
+            <label for="purge-logs-cb" class="cursor-pointer text-2xs text-slate-700 dark:text-slate-300 leading-snug">
+              <span class="font-bold block text-slate-900 dark:text-white">Ikut bersihkan Delivery Logs</span>
+              Hapus riwayat log transaksi pengiriman upstream yang sesuai kriteria di atas.
+            </label>
+          </div>
+
+          <div class="text-3xs text-rose-500 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+            ⚠️ Perhatian: Tindakan ini permanen dan data antrean/log yang terhapus tidak dapat dikembalikan.
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <button
+            @click="showPurgeModal = false"
+            :disabled="purgingQueue"
+            class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition"
+          >
+            Batal
+          </button>
+          <button
+            @click="executePurgeQueue"
+            :disabled="purgingQueue"
+            class="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition flex items-center space-x-1.5 shadow-md"
+          >
+            <span v-if="purgingQueue" class="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+            <span>{{ purgingQueue ? 'Membersihkan...' : 'Eksekusi Purge' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
     <!-- MODAL: ADD / EDIT DESTINATION                                  -->
     <!-- ============================================================== -->
     <div
@@ -1334,6 +1447,15 @@ export default {
       // Inspection Modal
       showInspectModal: false,
       inspectDetail: null,
+
+      // Purge Modal
+      showPurgeModal: false,
+      purgingQueue: false,
+      purgeConfig: {
+        status: 'ALL',
+        destination_id: null,
+        purge_logs: true,
+      },
 
       // Destinations state
       destinations: [],
@@ -1583,6 +1705,41 @@ export default {
         alert('Cancel failed: ' + err.message);
       }
     },
+    async deleteQueueItem(id) {
+      if (!confirm('Hapus item antrean ini secara permanen dari database?')) return;
+      try {
+        await axios.delete(`/api/integration/queue/${id}`);
+        this.fetchSummary();
+        this.fetchQueue();
+      } catch (err) {
+        alert('Hapus item antrean gagal: ' + (err.response?.data?.error || err.message));
+      }
+    },
+    openPurgeModal() {
+      this.purgeConfig = {
+        status: 'ALL',
+        destination_id: null,
+        purge_logs: true,
+      };
+      this.showPurgeModal = true;
+    },
+    async executePurgeQueue() {
+      const statusLabel = this.purgeConfig.status === 'ALL' ? 'SEMUA status' : `status ${this.purgeConfig.status}`;
+      if (!confirm(`Konfirmasi: Bersihkan antrean pengiriman dengan ${statusLabel}? Tindakan ini permanen.`)) return;
+      this.purgingQueue = true;
+      try {
+        const res = await axios.post('/api/integration/queue/purge', this.purgeConfig);
+        const data = res.data?.data || res.data || {};
+        alert(`Pembersihan antrean selesai.\nAntrean terhapus: ${data.deleted_queue || 0}\nLog riwayat terhapus: ${data.deleted_logs || 0}`);
+        this.showPurgeModal = false;
+        this.fetchSummary();
+        this.fetchQueue();
+      } catch (err) {
+        alert('Purge antrean gagal: ' + (err.response?.data?.error || err.message));
+      } finally {
+        this.purgingQueue = false;
+      }
+    },
     selectDestinationForConfig(destId) {
       this.selectedDestinationId = destId;
       this.activeTab = 'config';
@@ -1790,7 +1947,7 @@ export default {
       }
     },
     async deleteDestination(id) {
-      if (!confirm('Hapus destinasi integrasi ini? Seluruh antrean pengiriman dan log riwayat yang terkait akan ikut dibersihkan.')) return;
+      if (!confirm('Hapus konfigurasi destinasi integrasi ini? Antrean pengiriman dan riwayat log tetap tersimpan di database untuk dikelola atau dihapus manual oleh Admin.')) return;
       try {
         await axios.delete(`/api/destinations/${id}`);
         await this.fetchDestinations();

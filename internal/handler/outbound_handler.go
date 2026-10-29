@@ -357,3 +357,55 @@ func (h *OutboundHandler) CancelQueueItem(c *gin.Context) {
 	}
 	response.OK(c, gin.H{"status": "CANCELLED", "message": "Queue item cancelled successfully"})
 }
+
+// DeleteQueueItem handles DELETE /api/integration/queue/:id
+func (h *OutboundHandler) DeleteQueueItem(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid queue item ID")
+		return
+	}
+
+	if err := h.service.DeleteQueueItem(c.Request.Context(), id); err != nil {
+		response.InternalError(c, "Failed to delete queue item: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{"message": "Queue item deleted successfully"})
+}
+
+// PurgeQueueRequest defines payload for POST /api/integration/queue/purge
+type PurgeQueueRequest struct {
+	DestinationID *uint      `json:"destination_id"`
+	Status        string     `json:"status"` // ALL, FAILED, DELIVERED, CANCELLED, etc.
+	OlderThan     *time.Time `json:"older_than"`
+	PurgeLogs     bool       `json:"purge_logs"`
+}
+
+// PurgeQueue handles POST /api/integration/queue/purge
+func (h *OutboundHandler) PurgeQueue(c *gin.Context) {
+	var req PurgeQueueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// allow empty body as well (purge all)
+		req.Status = "ALL"
+	}
+
+	filter := repository.QueuePurgeFilter{
+		DestinationID: req.DestinationID,
+		Status:        req.Status,
+		OlderThan:     req.OlderThan,
+		PurgeLogs:     req.PurgeLogs,
+	}
+
+	deletedQueue, deletedLogs, err := h.service.PurgeQueue(c.Request.Context(), filter)
+	if err != nil {
+		response.InternalError(c, "Failed to purge queue: "+err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"message":       "Queue purge completed successfully",
+		"deleted_queue": deletedQueue,
+		"deleted_logs":  deletedLogs,
+	})
+}

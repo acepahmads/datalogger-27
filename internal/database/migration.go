@@ -190,6 +190,14 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "module_id_value") {
 			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "module_id_value")
 		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "deleted_at") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "deleted_at")
+		}
+	}
+	if db.Migrator().HasTable(&model.OutputDestination{}) {
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "deleted_at") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "deleted_at")
+		}
 	}
 
 	// 2. Data backfill / synchronization for existing devices from Phase 1

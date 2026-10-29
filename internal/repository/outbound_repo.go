@@ -39,9 +39,19 @@ type OutboundRepository interface {
 	UpdateDeliveryResult(ctx context.Context, item *model.OutboundDeliveryQueue) error
 	CancelQueueItem(ctx context.Context, id uint64) error
 	ResetQueueItemForRetry(ctx context.Context, id uint64) error
+	DeleteQueueItem(ctx context.Context, id uint64) error
+	PurgeQueueItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error)
 
 	// Delivery Logs
 	CreateDeliveryLog(ctx context.Context, log *model.DeliveryLog) error
+}
+
+// QueuePurgeFilter defines criteria for manual bulk removal of queue items and delivery logs
+type QueuePurgeFilter struct {
+	DestinationID *uint      `json:"destination_id,omitempty"`
+	Status        string     `json:"status,omitempty"`
+	OlderThan     *time.Time `json:"older_than,omitempty"`
+	PurgeLogs     bool       `json:"purge_logs"`
 }
 
 // QueueFilter provides filtering and pagination options for queue listing
@@ -101,22 +111,15 @@ func (r *outboundRepository) UpdateDestination(ctx context.Context, dest *model.
 	return r.db.WithContext(ctx).Save(dest).Error
 }
 
-// DeleteDestination removes a destination and its associated payload config, delivery logs, and delivery queue items
+// DeleteDestination removes a destination setup and its associated payload config,
+// leaving outbound delivery queues and delivery logs intact for manual admin inspection/cleanup.
 func (r *outboundRepository) DeleteDestination(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 1. Delete associated payload config
 		if err := tx.Where("destination_id = ?", id).Delete(&model.DestinationPayloadConfig{}).Error; err != nil {
 			return err
 		}
-		// 2. Delete associated delivery logs
-		if err := tx.Where("destination_id = ?", id).Delete(&model.DeliveryLog{}).Error; err != nil {
-			return err
-		}
-		// 3. Delete associated delivery queue items
-		if err := tx.Where("destination_id = ?", id).Delete(&model.OutboundDeliveryQueue{}).Error; err != nil {
-			return err
-		}
-		// 4. Finally delete the destination itself
+		// 2. Soft-delete the destination setup (antrean & log riwayat tetap tersimpan utuh di database)
 		return tx.Where("id = ?", id).Delete(&model.OutputDestination{}).Error
 	})
 }
@@ -265,7 +268,7 @@ func (r *outboundRepository) EnqueueDelivery(ctx context.Context, item *model.Ou
 func (r *outboundRepository) GetQueueItemByID(ctx context.Context, id uint64) (*model.OutboundDeliveryQueue, error) {
 	var item model.OutboundDeliveryQueue
 	err := r.db.WithContext(ctx).
-		Preload("Destination").
+		Preload("Destination", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
 		Preload("Device").
 		Where("id = ?", id).
 		First(&item).Error
@@ -323,7 +326,7 @@ func (r *outboundRepository) GetQueueItems(ctx context.Context, filter QueueFilt
 	offset := (page - 1) * pageSize
 
 	err := query.
-		Preload("Destination").
+		Preload("Destination", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).
 		Preload("Device").
 		Order("id DESC").
 		Limit(pageSize).
@@ -445,4 +448,55 @@ func (r *outboundRepository) ResetQueueItemForRetry(ctx context.Context, id uint
 // CreateDeliveryLog persists a transmission log entry
 func (r *outboundRepository) CreateDeliveryLog(ctx context.Context, log *model.DeliveryLog) error {
 	return r.db.WithContext(ctx).Create(log).Error
+}
+
+// DeleteQueueItem permanently removes a single queue item from the database
+func (r *outboundRepository) DeleteQueueItem(ctx context.Context, id uint64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		_ = tx.Where("queue_item_id = ?", id).Delete(&model.DeliveryLog{}).Error
+		return tx.Where("id = ?", id).Delete(&model.OutboundDeliveryQueue{}).Error
+	})
+}
+
+// PurgeQueueItems manually purges queue items and optional delivery logs matching criteria
+func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error) {
+	var deletedQueue int64
+	var deletedLogs int64
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		q := tx.Model(&model.OutboundDeliveryQueue{})
+		if filter.DestinationID != nil && *filter.DestinationID > 0 {
+			q = q.Where("destination_id = ?", *filter.DestinationID)
+		}
+		if filter.Status != "" && filter.Status != "ALL" {
+			q = q.Where("status = ?", filter.Status)
+		}
+		if filter.OlderThan != nil {
+			q = q.Where("created_at <= ?", *filter.OlderThan)
+		}
+
+		res := q.Delete(&model.OutboundDeliveryQueue{})
+		if res.Error != nil {
+			return res.Error
+		}
+		deletedQueue = res.RowsAffected
+
+		if filter.PurgeLogs {
+			lq := tx.Model(&model.DeliveryLog{})
+			if filter.DestinationID != nil && *filter.DestinationID > 0 {
+				lq = lq.Where("destination_id = ?", *filter.DestinationID)
+			}
+			if filter.OlderThan != nil {
+				lq = lq.Where("delivered_at <= ?", *filter.OlderThan)
+			}
+			lres := lq.Delete(&model.DeliveryLog{})
+			if lres.Error != nil {
+				return lres.Error
+			}
+			deletedLogs = lres.RowsAffected
+		}
+		return nil
+	})
+
+	return deletedQueue, deletedLogs, err
 }

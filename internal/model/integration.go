@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type DestinationType string
@@ -64,6 +66,7 @@ type OutputDestination struct {
 
 	CreatedAt         time.Time                `json:"created_at"`
 	UpdatedAt         time.Time                `json:"updated_at"`
+	DeletedAt         gorm.DeletedAt           `gorm:"index" json:"-"`
 }
 
 // DestinationPayloadConfig defines destination-specific serialization formatting and field aliasing
@@ -89,8 +92,9 @@ type DestinationPayloadConfig struct {
 	ParameterMappingsJSON string    `gorm:"type:text" json:"parameter_mappings_json,omitempty"` // JSON array of ParameterMappingItem
 	RequiredFieldsJSON    string    `gorm:"type:text" json:"required_fields_json,omitempty"`    // JSON array of string
 	Version               int       `gorm:"default:1" json:"version"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	DeletedAt             gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 // ParameterMappingItem configures external aliasing and inclusion per parameter

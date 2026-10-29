@@ -648,6 +648,8 @@ func main() {
 			queueGroup.POST("/:id/retry", middleware.RequirePermission("integration.queue.manage"), outboundHandler.RetryQueueItem)
 			queueGroup.POST("/:id/replay", middleware.RequirePermission("integration.queue.manage"), outboundHandler.ReplayQueueItem)
 			queueGroup.POST("/:id/cancel", middleware.RequirePermission("integration.queue.manage"), outboundHandler.CancelQueueItem)
+			queueGroup.DELETE("/:id", middleware.RequirePermission("integration.queue.manage"), outboundHandler.DeleteQueueItem)
+			queueGroup.POST("/purge", middleware.RequirePermission("integration.queue.manage"), outboundHandler.PurgeQueue)
 		}
 
 		// Public deployment domain inspection
