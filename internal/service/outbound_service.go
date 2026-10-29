@@ -816,6 +816,8 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		now := time.Now()
 		vPm25_1, vPm10_1, vTemp, vHum := 45.2, 62.4, 27.5, 68.2
 		vPm25_2, vPm10_2, vSO2, vCO := 48.1, 65.0, 2.03, 615.0
+		vNO2, vO3, vPress, vWSpeed := 15.4, 32.1, 1013.25, 2.8
+		vIntensity, vRain, vHC, vWindAngle := 450.0, 0.0, 0.12, 185.0
 
 		batch = &OutboundBatchData{
 			DeviceCount:    2,
@@ -836,6 +838,14 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 6, ParameterCode: "pm10", ParameterName: "PM10", Value: &vPm10_2, Unit: "µg/m3", Quality: "GOOD", AggregationResultID: 202},
 				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 7, ParameterCode: "so2", ParameterName: "Sulfur Dioxide", Value: &vSO2, Unit: "ppm", Quality: "GOOD", AggregationResultID: 203},
 				{DeviceID: 2, DeviceCode: "AQMS-02", DeviceName: "Ambient Air Station 02", ParameterID: 8, ParameterCode: "co", ParameterName: "Carbon Monoxide", Value: &vCO, Unit: "ppm", Quality: "GOOD", AggregationResultID: 204},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 9, ParameterCode: "no2", ParameterName: "Nitrogen Dioxide", Value: &vNO2, Unit: "ppm", Quality: "GOOD", AggregationResultID: 105},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 10, ParameterCode: "o3", ParameterName: "Ozone", Value: &vO3, Unit: "ppm", Quality: "GOOD", AggregationResultID: 106},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 11, ParameterCode: "air-pressure", ParameterName: "Air Pressure", Value: &vPress, Unit: "hPa", Quality: "GOOD", AggregationResultID: 107},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 12, ParameterCode: "w-speed", ParameterName: "Wind Speed", Value: &vWSpeed, Unit: "m/s", Quality: "GOOD", AggregationResultID: 108},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 13, ParameterCode: "wind-angle", ParameterName: "Wind Direction", Value: &vWindAngle, Unit: "deg", Quality: "GOOD", AggregationResultID: 109},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 14, ParameterCode: "solar-radiation", ParameterName: "Solar Radiation", Value: &vIntensity, Unit: "W/m2", Quality: "GOOD", AggregationResultID: 110},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 15, ParameterCode: "rain-fall", ParameterName: "Rain Fall", Value: &vRain, Unit: "mm", Quality: "GOOD", AggregationResultID: 111},
+				{DeviceID: 1, DeviceCode: "AQMS-01", DeviceName: "Ambient Air Station 01", ParameterID: 16, ParameterCode: "hc", ParameterName: "Hydrocarbon", Value: &vHC, Unit: "ppm", Quality: "GOOD", AggregationResultID: 112},
 			},
 		}
 	}

@@ -73,6 +73,7 @@ type DestinationPayloadConfig struct {
 	TemplateType          string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_SPARING, NESTED_SCADA, MULTI_DEVICE, CUSTOM
 	StationIDField        string    `gorm:"size:64;default:'station_id'" json:"station_id_field"`
 	StationIDValue        string    `gorm:"size:64" json:"station_id_value,omitempty"` // optional override
+	ModuleIDValue         string    `gorm:"size:64" json:"module_id_value,omitempty"`  // optional override for tick schemas
 	TimestampField        string    `gorm:"size:64;default:'timestamp'" json:"timestamp_field"`
 	TimestampFormat       string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"` // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
 	IntervalField         string    `gorm:"size:64;default:'interval_minutes'" json:"interval_field"`

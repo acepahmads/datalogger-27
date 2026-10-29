@@ -658,9 +658,10 @@
               <select
                 v-model="payloadConfig.template_type"
                 @change="applyTemplatePreset"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="STANDARD">Standard Datalogger</option>
+                <option value="MULTI_TICK_SENSOR">Multi-Sensor Tick Array (multi[tick])</option>
                 <option value="MULTI_DEVICE_FLAT">Multi-Device Unified Flat</option>
                 <option value="MULTI_DEVICE_NESTED">Multi-Device Nested by Device</option>
                 <option value="MULTI_DEVICE_ARRAY">Multi-Device Array of Devices</option>
@@ -679,6 +680,7 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-cyan-600 dark:text-cyan-400"
               >
                 <option value="FLAT">FLAT (Root Key-Value)</option>
+                <option value="MULTI_TICK_ARRAY">MULTI_TICK_ARRAY (Array multi[tick])</option>
                 <option value="NESTED">NESTED (Sub-Object under key)</option>
                 <option value="NESTED_BY_DEVICE">NESTED_BY_DEVICE (Grouped by Device)</option>
                 <option value="ARRAY_BY_DEVICE">ARRAY_BY_DEVICE (Array of Devices)</option>
@@ -751,14 +753,14 @@
           </div>
 
           <!-- Station ID & Override -->
-          <div class="grid grid-cols-2 gap-3 text-2xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-2xs" :class="{'sm:grid-cols-3': payloadConfig.structure === 'MULTI_TICK_ARRAY'}">
             <div>
               <label class="block text-slate-500 mb-1">Station ID Field Name</label>
               <input
                 v-model="payloadConfig.station_id_field"
                 @input="triggerLivePreview"
                 type="text"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
                 placeholder="station_id"
               />
             </div>
@@ -768,8 +770,18 @@
                 v-model="payloadConfig.station_id_value"
                 @input="triggerLivePreview"
                 type="text"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
-                placeholder="Auto (from Station Code)"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
+                placeholder="e.g. 3453"
+              />
+            </div>
+            <div v-if="payloadConfig.structure === 'MULTI_TICK_ARRAY'">
+              <label class="block text-slate-500 mb-1">Module ID Value (tick.module_id)</label>
+              <input
+                v-model="payloadConfig.module_id_value"
+                @input="triggerLivePreview"
+                type="text"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
+                placeholder="e.g. 3453 or 1"
               />
             </div>
           </div>
@@ -848,40 +860,119 @@
 
           <!-- Parameter Aliases Table -->
           <div class="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <div class="flex items-center justify-between text-2xs">
-              <span class="font-bold text-slate-400">Parameter External Aliases & Filters</span>
-              <span class="text-3xs text-slate-500">Maps internal code to downstream field name</span>
+            <div class="flex flex-wrap items-center justify-between gap-2 text-2xs">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-slate-700 dark:text-slate-300">Parameter External Aliases & Filters</span>
+                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-mono text-3xs font-semibold">
+                  {{ activeParameterCount }} / {{ parameterMappings.length }} Aktif
+                </span>
+              </div>
+              <div class="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  @click="selectAllParameters(true)"
+                  class="px-2 py-0.5 rounded text-3xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-medium transition cursor-pointer"
+                  title="Pilih / Ceklis Semua Parameter"
+                >
+                  ✓ Pilih Semua
+                </button>
+                <button
+                  type="button"
+                  @click="selectAllParameters(false)"
+                  class="px-2 py-0.5 rounded text-3xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-medium transition cursor-pointer"
+                  title="Hapus Semua Ceklis Parameter"
+                >
+                  ✗ Hapus Semua
+                </button>
+                <button
+                  type="button"
+                  @click="syncDeviceParameters(true)"
+                  :disabled="loadingParameters"
+                  class="px-2 py-0.5 rounded text-3xs bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-medium transition flex items-center space-x-1 cursor-pointer"
+                  title="Ambil dan sinkronkan semua parameter dari seluruh perangkat fisik yang terpasang"
+                >
+                  <span :class="{'animate-spin': loadingParameters}">🔄</span>
+                  <span>Sinkronkan Alat</span>
+                </button>
+                <button
+                  type="button"
+                  @click="addCustomParamRow"
+                  class="px-2 py-0.5 rounded text-3xs bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-medium transition cursor-pointer"
+                  title="Tambah baris mapping parameter baru"
+                >
+                  + Tambah
+                </button>
+              </div>
             </div>
-            <div class="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
+
+            <!-- Search box if many parameters -->
+            <div v-if="parameterMappings.length > 4" class="relative">
+              <input
+                v-model="paramSearch"
+                type="text"
+                placeholder="🔍 Cari kode atau nama parameter..."
+                class="w-full bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-3xs font-mono"
+              />
+            </div>
+
+            <div class="max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
               <table class="w-full text-left text-3xs">
-                <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500">
+                <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 sticky top-0 z-10 shadow-xs">
                   <tr>
-                    <th class="p-2">Enabled</th>
-                    <th class="p-2">Internal Code</th>
-                    <th class="p-2">External Field Name</th>
+                    <th class="p-2 w-12 text-center">Aktif</th>
+                    <th class="p-2">Internal Code & Asal Alat</th>
+                    <th class="p-2">External Field Name (Sensor Name)</th>
+                    <th class="p-2 w-8 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                  <tr v-for="param in parameterMappings" :key="param.parameter_code">
-                    <td class="p-2">
+                  <tr
+                    v-for="(param, idx) in filteredParameterMappings"
+                    :key="(param.device_id || 'g') + '_' + param.parameter_code + '_' + idx"
+                    class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition"
+                  >
+                    <td class="p-2 text-center">
                       <input
                         v-model="param.enabled"
                         @change="triggerLivePreview"
                         type="checkbox"
-                        class="rounded border-slate-700 text-cyan-500 focus:ring-0"
+                        class="rounded border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer"
                       />
                     </td>
-                    <td class="p-2 font-bold text-slate-700 dark:text-slate-300">
-                      {{ param.parameter_code }} ({{ param.parameter_name }})
+                    <td class="p-2">
+                      <div class="font-bold text-slate-700 dark:text-slate-300 font-mono">
+                        {{ param.parameter_code }}
+                        <span v-if="param.parameter_name && param.parameter_name !== param.parameter_code" class="text-slate-400 font-normal">
+                          ({{ param.parameter_name }})
+                        </span>
+                      </div>
+                      <div v-if="param.device_code" class="text-4xs text-slate-400 font-mono">
+                        DEV: {{ param.device_code }}
+                      </div>
                     </td>
                     <td class="p-2">
                       <input
                         v-model="param.external_name"
                         @input="triggerLivePreview"
                         type="text"
-                        class="w-full bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 text-3xs"
+                        class="w-full bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 text-3xs font-mono font-semibold text-cyan-600 dark:text-cyan-400 focus:border-cyan-500"
                         :placeholder="param.parameter_code"
                       />
+                    </td>
+                    <td class="p-2 text-center">
+                      <button
+                        type="button"
+                        @click="removeParamRow(param)"
+                        class="text-slate-400 hover:text-rose-500 transition text-2xs cursor-pointer"
+                        title="Hapus parameter dari mapping"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-if="filteredParameterMappings.length === 0">
+                    <td colspan="4" class="p-4 text-center text-slate-400 italic">
+                      Tidak ada parameter yang cocok dengan pencarian.
                     </td>
                   </tr>
                 </tbody>
@@ -1270,6 +1361,7 @@ export default {
         template_type: 'STANDARD',
         station_id_field: 'station_id',
         station_id_value: '',
+        module_id_value: '',
         timestamp_field: 'timestamp',
         timestamp_format: 'ISO8601',
         interval_field: 'interval_minutes',
@@ -1286,6 +1378,8 @@ export default {
         required_fields_json: '[]',
         version: 1,
       },
+      paramSearch: '',
+      loadingParameters: false,
       parameterMappings: [
         { parameter_id: 1, parameter_code: 'pm25', parameter_name: 'PM2.5', external_name: 'PM25', enabled: true },
         { parameter_id: 2, parameter_code: 'pm10', parameter_name: 'PM10', external_name: 'PM10', enabled: true },
@@ -1301,6 +1395,22 @@ export default {
     };
   },
   computed: {
+    activeParameterCount() {
+      return (this.parameterMappings || []).filter(p => p.enabled).length;
+    },
+    filteredParameterMappings() {
+      if (!this.paramSearch || !this.paramSearch.trim()) {
+        return this.parameterMappings || [];
+      }
+      const q = this.paramSearch.trim().toLowerCase();
+      return (this.parameterMappings || []).filter(p => {
+        const code = (p.parameter_code || '').toLowerCase();
+        const name = (p.parameter_name || '').toLowerCase();
+        const ext = (p.external_name || '').toLowerCase();
+        const dev = (p.device_code || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || ext.includes(q) || dev.includes(q);
+      });
+    },
     totalPages() {
       return Math.ceil(this.queueTotal / this.pageSize) || 1;
     },
@@ -1495,9 +1605,98 @@ export default {
             }
           }
         }
+        await this.syncDeviceParameters(false);
         this.triggerLivePreview();
       } catch (err) {
         console.error('Failed to load payload config:', err);
+      }
+    },
+    async syncDeviceParameters(forceOverwrite = false) {
+      try {
+        this.loadingParameters = true;
+        const res = await axios.get('/api/devices');
+        const devices = res.data?.data || res.data || [];
+        const existingMap = {};
+        for (const m of this.parameterMappings || []) {
+          const key = (m.parameter_code || '').trim().toLowerCase();
+          if (key) {
+            existingMap[key] = m;
+          }
+        }
+
+        const newMappings = [];
+        const seen = new Set();
+
+        for (const dev of devices) {
+          for (const param of dev.parameters || []) {
+            const code = (param.parameter_code || param.code || '').trim();
+            if (!code) continue;
+            const lowerCode = code.toLowerCase();
+            const compositeKey = `${dev.id}_${lowerCode}`;
+            if (seen.has(compositeKey)) continue;
+            seen.add(compositeKey);
+
+            if (existingMap[lowerCode] && !forceOverwrite) {
+              const existing = existingMap[lowerCode];
+              newMappings.push({
+                device_id: dev.id,
+                device_code: dev.device_code,
+                parameter_id: param.id,
+                parameter_code: code,
+                parameter_name: param.parameter_name || param.name || existing.parameter_name || code,
+                external_name: existing.external_name || code,
+                enabled: existing.enabled !== undefined ? Boolean(existing.enabled) : true,
+              });
+              delete existingMap[lowerCode];
+            } else {
+              newMappings.push({
+                device_id: dev.id,
+                device_code: dev.device_code,
+                parameter_id: param.id,
+                parameter_code: code,
+                parameter_name: param.parameter_name || param.name || code,
+                external_name: code,
+                enabled: true,
+              });
+            }
+          }
+        }
+
+        for (const key in existingMap) {
+          newMappings.push(existingMap[key]);
+        }
+
+        if (newMappings.length > 0) {
+          this.parameterMappings = newMappings;
+        }
+        this.triggerLivePreview();
+      } catch (err) {
+        console.warn('Failed to sync device parameters for outbound config:', err);
+      } finally {
+        this.loadingParameters = false;
+      }
+    },
+    selectAllParameters(state) {
+      for (const p of this.parameterMappings || []) {
+        p.enabled = state;
+      }
+      this.triggerLivePreview();
+    },
+    addCustomParamRow() {
+      const defaultCode = `sensor_${(this.parameterMappings || []).length + 1}`;
+      this.parameterMappings.push({
+        parameter_code: defaultCode,
+        parameter_name: defaultCode,
+        external_name: defaultCode,
+        enabled: true,
+      });
+      this.triggerLivePreview();
+    },
+    removeParamRow(target) {
+      const idx = this.parameterMappings.indexOf(target);
+      if (idx !== -1) {
+        this.parameterMappings.splice(idx, 1);
+        this.triggerLivePreview();
       }
     },
     async triggerLivePreview() {
@@ -1601,7 +1800,53 @@ export default {
     },
     applyTemplatePreset() {
       const p = this.payloadConfig.template_type;
-      if (p === 'MULTI_DEVICE_FLAT') {
+      if (p === 'MULTI_TICK_SENSOR') {
+        this.payloadConfig.station_id_field = 'station_id';
+        this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || '3453';
+        this.payloadConfig.module_id_value = this.payloadConfig.module_id_value || this.payloadConfig.station_id_value || '3453';
+        this.payloadConfig.timestamp_field = 'created_at';
+        this.payloadConfig.timestamp_format = 'CUSTOM'; // YYYY-MM-DD HH:mm:ss
+        this.payloadConfig.structure = 'MULTI_TICK_ARRAY';
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_metadata = false;
+
+        const aliasMap = {
+          'no2': 'no2',
+          'so2': 'so2',
+          'o3': 'o3',
+          'co': 'co',
+          'pm25': 'pm25',
+          'pm2.5': 'pm25',
+          'pm10': 'pm10',
+          'temp': 'temp',
+          'temperature': 'temp',
+          'humidity': 'humidity',
+          'hum': 'humidity',
+          'pressure': 'pressure',
+          'air-pressure': 'pressure',
+          'wspeed': 'wspeed',
+          'w-speed': 'wspeed',
+          'intensity': 'intensity',
+          'solar-radiation': 'intensity',
+          'tprecipitation': 'tprecipitation',
+          'rain-fall': 'tprecipitation',
+          'hc': 'hc',
+          'wind_angle': 'wind_angle',
+          'wind-angle': 'wind_angle',
+          'rain_intensity': 'rain_intensity',
+        };
+
+        for (const m of this.parameterMappings || []) {
+          const lower = (m.parameter_code || '').toLowerCase().trim();
+          if (aliasMap[lower]) {
+            m.external_name = aliasMap[lower];
+            m.enabled = true;
+          }
+        }
+      } else if (p === 'MULTI_DEVICE_FLAT') {
         this.payloadConfig.station_id_field = 'station_id';
         this.payloadConfig.timestamp_field = 'timestamp';
         this.payloadConfig.timestamp_format = 'ISO8601';

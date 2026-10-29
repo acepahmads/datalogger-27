@@ -187,6 +187,9 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "conflict_resolution") {
 			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "conflict_resolution")
 		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "module_id_value") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "module_id_value")
+		}
 	}
 
 	// 2. Data backfill / synchronization for existing devices from Phase 1

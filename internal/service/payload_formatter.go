@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -260,6 +261,108 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	}
 
 	switch {
+	case structure == "MULTI_TICK_ARRAY" || structure == "TICK_ARRAY":
+		var tickList []map[string]interface{}
+
+		// Resolve module_id
+		var resolvedModuleID interface{} = 1
+		if strings.TrimSpace(cfg.ModuleIDValue) != "" {
+			if num, err := strconv.ParseInt(strings.TrimSpace(cfg.ModuleIDValue), 10, 64); err == nil {
+				resolvedModuleID = num
+			} else {
+				resolvedModuleID = strings.TrimSpace(cfg.ModuleIDValue)
+			}
+		}
+
+		// Resolve station_id
+		var resolvedStationID interface{} = stationID
+		if num, err := strconv.ParseInt(stationID, 10, 64); err == nil {
+			resolvedStationID = num
+		}
+
+		// Check static metadata overrides
+		if strings.TrimSpace(cfg.StaticMetadataJSON) != "" {
+			var staticMap map[string]interface{}
+			if err := json.Unmarshal([]byte(cfg.StaticMetadataJSON), &staticMap); err == nil {
+				if v, ok := staticMap["module_id"]; ok && v != nil {
+					resolvedModuleID = v
+				}
+				if v, ok := staticMap["station_id"]; ok && v != nil {
+					resolvedStationID = v
+				}
+			}
+		}
+
+		createdAtTs := tsStr
+		if !batch.PeriodStart.IsZero() {
+			if cs, err := formatTimestamp(batch.PeriodStart, cfg.TimestampFormat); err == nil {
+				createdAtTs = cs
+			}
+		}
+		updatedAtTs := tsStr
+
+		for _, item := range batch.Values {
+			code := strings.ToUpper(strings.TrimSpace(item.ParameterCode))
+			devKey := fmt.Sprintf("DEV:%d:%s", item.DeviceID, code)
+			devCodeKey := fmt.Sprintf("%s:%s", strings.ToUpper(strings.TrimSpace(item.DeviceCode)), code)
+
+			if hasExplicitMappings {
+				enabled := true
+				if en, exists := paramEnabledMap[devKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[devCodeKey]; exists {
+					enabled = en
+				} else if en, exists := paramEnabledMap[code]; exists {
+					enabled = en
+				}
+				if !enabled {
+					continue
+				}
+			}
+
+			sensorName := item.ParameterCode
+			if alias, exists := paramAliasMap[devKey]; exists && alias != "" {
+				sensorName = alias
+			} else if alias, exists := paramAliasMap[devCodeKey]; exists && alias != "" {
+				sensorName = alias
+			} else if alias, exists := paramAliasMap[code]; exists && alias != "" {
+				sensorName = alias
+			}
+
+			modID := resolvedModuleID
+			if cfg.ModuleIDValue == "" && item.DeviceID > 0 {
+				modID = item.DeviceID
+			}
+
+			var val interface{}
+			if item.Value != nil {
+				val = *item.Value
+			} else {
+				val = 0.0
+			}
+
+			tickMap := map[string]interface{}{
+				"module_id":   modID,
+				"station_id":  resolvedStationID,
+				"sensor_name": sensorName,
+				"value":       val,
+				"created_at":  createdAtTs,
+				"updated_at":  updatedAtTs,
+			}
+
+			tickList = append(tickList, map[string]interface{}{
+				"tick": tickMap,
+			})
+		}
+
+		if tickList == nil {
+			tickList = []map[string]interface{}{}
+		}
+
+		rootMap = map[string]interface{}{
+			"multi": tickList,
+		}
+
 	case structure == "NESTED_BY_DEVICE" || deviceMode == "NESTED":
 		// Nested by Device: data[DeviceCode][FieldName] = Value
 		deviceGroups := make(map[string]map[string]interface{})

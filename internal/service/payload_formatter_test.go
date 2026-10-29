@@ -151,3 +151,94 @@ func TestPayloadFormatter_FlatAndNested(t *testing.T) {
 		t.Errorf("expected required field validation error, got: %v", reqErr)
 	}
 }
+
+func TestPayloadFormatter_MultiTickArray(t *testing.T) {
+	formatter := NewConfigurablePayloadFormatter()
+
+	valNO2 := 15.4
+	valSO2 := 2.05
+	now := time.Date(2026, 10, 29, 14, 0, 0, 0, time.UTC)
+
+	batch := &OutboundBatchData{
+		DeviceID:        1,
+		DeviceCode:      "AQMS-001",
+		IntervalSeconds: 120,
+		PeriodStart:     now.Add(-2 * time.Minute),
+		PeriodEnd:       now,
+		Values: []model.SourceAggregationValueItem{
+			{
+				DeviceID:      1,
+				DeviceCode:    "AQMS-001",
+				ParameterID:   1,
+				ParameterCode: "no2",
+				ParameterName: "NO2",
+				Value:         &valNO2,
+			},
+			{
+				DeviceID:      1,
+				DeviceCode:    "AQMS-001",
+				ParameterID:   2,
+				ParameterCode: "so2",
+				ParameterName: "SO2",
+				Value:         &valSO2,
+			},
+		},
+	}
+
+	cfg := &model.DestinationPayloadConfig{
+		StationIDValue:  "3453",
+		ModuleIDValue:   "3453",
+		TimestampFormat: "CUSTOM",
+		Structure:       "MULTI_TICK_ARRAY",
+		ParameterMappingsJSON: `[
+			{"parameter_code":"no2","external_name":"no2","enabled":true},
+			{"parameter_code":"so2","external_name":"so2","enabled":true}
+		]`,
+	}
+
+	bytes, err := formatter.Format(batch, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var root map[string]interface{}
+	if err := json.Unmarshal(bytes, &root); err != nil {
+		t.Fatalf("failed to parse JSON: %v", err)
+	}
+
+	multi, ok := root["multi"].([]interface{})
+	if !ok {
+		t.Fatalf("expected 'multi' array at root, got %v", root)
+	}
+	if len(multi) != 2 {
+		t.Fatalf("expected 2 tick items, got %d", len(multi))
+	}
+
+	firstTickWrapper, ok := multi[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected object wrapper for tick, got %v", multi[0])
+	}
+	tick, ok := firstTickWrapper["tick"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected 'tick' inner object, got %v", firstTickWrapper)
+	}
+
+	if tick["sensor_name"] != "no2" {
+		t.Errorf("expected sensor_name 'no2', got %v", tick["sensor_name"])
+	}
+	if tick["value"] != 15.4 {
+		t.Errorf("expected value 15.4, got %v", tick["value"])
+	}
+	if tick["station_id"] != float64(3453) {
+		t.Errorf("expected station_id 3453, got %v", tick["station_id"])
+	}
+	if tick["module_id"] != float64(3453) {
+		t.Errorf("expected module_id 3453, got %v", tick["module_id"])
+	}
+	if tick["created_at"] != "2026-10-29 13:58:00" {
+		t.Errorf("expected created_at '2026-10-29 13:58:00', got %v", tick["created_at"])
+	}
+	if tick["updated_at"] != "2026-10-29 14:00:00" {
+		t.Errorf("expected updated_at '2026-10-29 14:00:00', got %v", tick["updated_at"])
+	}
+}
