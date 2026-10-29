@@ -45,7 +45,10 @@ type OutputDestination struct {
 	Status            string                   `gorm:"size:32;default:'IDLE'" json:"status"` // IDLE, ACTIVE, ERROR, DISABLED
 	
 	// Authentication & Security (redacted on API response)
-	AuthType          string                   `gorm:"size:32;default:'NONE'" json:"auth_type"` // NONE, BEARER_TOKEN, API_KEY, BASIC_AUTH
+	AuthType          string                   `gorm:"size:32;default:'NONE'" json:"auth_type"` // NONE, BEARER_TOKEN, API_KEY, BASIC_AUTH, LOGIN_BEARER
+	AuthURL           string                   `gorm:"size:255" json:"auth_url,omitempty"`      // Step-1 login endpoint for LOGIN_BEARER (2-step auth)
+	AuthTokenPath     string                   `gorm:"size:128" json:"auth_token_path,omitempty"` // Optional JSON dot-path (e.g. "token", "data.token")
+	AuthCacheSeconds  int                      `gorm:"default:0" json:"auth_cache_seconds"`       // 0 = always auth before each data send (strict 2x); >0 = cache TTL seconds
 	AuthToken         string                   `gorm:"size:255" json:"auth_token,omitempty"`
 	APIKeyHeader      string                   `gorm:"size:64;default:'X-API-Key'" json:"api_key_header,omitempty"`
 	APIKeyValue       string                   `gorm:"size:255" json:"api_key_value,omitempty"`
@@ -77,17 +80,21 @@ type DestinationPayloadConfig struct {
 	StationIDField        string    `gorm:"size:64;default:'station_id'" json:"station_id_field"`
 	StationIDValue        string    `gorm:"size:64" json:"station_id_value,omitempty"` // optional override
 	ModuleIDValue         string    `gorm:"size:64" json:"module_id_value,omitempty"`  // optional override for tick schemas
-	TimestampField        string    `gorm:"size:64;default:'timestamp'" json:"timestamp_field"`
-	TimestampFormat       string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"` // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
-	IntervalField         string    `gorm:"size:64;default:'interval_minutes'" json:"interval_field"`
-	Structure             string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE
-	NestedDataKey         string    `gorm:"size:64;default:'data'" json:"nested_data_key"`
-	IncludeDeviceIdentity bool      `gorm:"default:false" json:"include_device_identity"` // true: include device code/name in payload
-	DeviceIdentityMode    string    `gorm:"size:32;default:'NONE'" json:"device_identity_mode"` // NONE, PREFIX, NESTED, TAG
-	ConflictResolution    string    `gorm:"size:32;default:'FAIL_ON_CONFLICT'" json:"conflict_resolution"` // FAIL_ON_CONFLICT, CUSTOM_MAPPING, ARRAY, PRIORITY_PRIMARY, AVERAGE
-	IncludeUnits          bool      `gorm:"default:false" json:"include_units"`
-	IncludeQuality        bool      `gorm:"default:false" json:"include_quality"`
-	IncludeMetadata       bool      `gorm:"default:true" json:"include_metadata"`
+	TimestampField         string    `gorm:"size:64;default:'timestamp'" json:"timestamp_field"`
+	TimestampFormat        string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"` // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
+	TimestampTimezone      string    `gorm:"size:64;default:''" json:"timestamp_timezone,omitempty"` // e.g. Asia/Jakarta, Asia/Makassar, Asia/Jayapura, UTC
+	IntervalField          string    `gorm:"size:64;default:'interval_minutes'" json:"interval_field"`
+	OmitIntervalField      bool      `gorm:"default:false" json:"omit_interval_field"`
+	Structure              string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE, MULTI_TICK_ARRAY
+	NestedDataKey          string    `gorm:"size:64;default:'data'" json:"nested_data_key"`
+	IncludeDeviceIdentity  bool      `gorm:"default:false" json:"include_device_identity"` // true: include device code/name in payload
+	DeviceIdentityMode     string    `gorm:"size:32;default:'NONE'" json:"device_identity_mode"` // NONE, PREFIX, NESTED, TAG
+	ConflictResolution     string    `gorm:"size:32;default:'FAIL_ON_CONFLICT'" json:"conflict_resolution"` // FAIL_ON_CONFLICT, CUSTOM_MAPPING, ARRAY, PRIORITY_PRIMARY, AVERAGE
+	IncludeUnits           bool      `gorm:"default:false" json:"include_units"`
+	IncludeQuality         bool      `gorm:"default:false" json:"include_quality"`
+	IncludeMetadata        bool      `gorm:"default:true" json:"include_metadata"`
+	IncludeSensorStatFlags bool      `gorm:"default:false" json:"include_sensor_stat_flags"`          // Inject stat_pm10..stat_hc flags (KLHK ISPU AQMS)
+	SensorStatMode         string    `gorm:"size:32;default:'STATIC_1'" json:"sensor_stat_mode"`     // STATIC_1 or AUTO_QUALITY
 	StaticMetadataJSON    string    `gorm:"type:text" json:"static_metadata_json,omitempty"`     // JSON string map[string]interface{}
 	ParameterMappingsJSON string    `gorm:"type:text" json:"parameter_mappings_json,omitempty"` // JSON array of ParameterMappingItem
 	RequiredFieldsJSON    string    `gorm:"type:text" json:"required_fields_json,omitempty"`    // JSON array of string

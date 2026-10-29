@@ -83,6 +83,11 @@ type QueueItemDetailResponse struct {
 	SourceValues []model.SourceAggregationValueItem `json:"source_values"`
 }
 
+type cachedAuthToken struct {
+	token     string
+	expiresAt time.Time
+}
+
 type outboundService struct {
 	repo       repository.OutboundRepository
 	deviceRepo *repository.DeviceRepository
@@ -92,6 +97,9 @@ type outboundService struct {
 	workerMu sync.Mutex
 	running  bool
 	stopCh   chan struct{}
+
+	authMu    sync.RWMutex
+	authCache map[uint]cachedAuthToken
 
 	purgeMu        sync.RWMutex
 	purgeProgress  PurgeProgress
@@ -114,7 +122,8 @@ func NewOutboundService(
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
-		stopCh: make(chan struct{}),
+		stopCh:    make(chan struct{}),
+		authCache: make(map[uint]cachedAuthToken),
 		purgeProgress: PurgeProgress{
 			Status: "IDLE",
 		},
@@ -300,71 +309,321 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 	})
 }
 
-// deliverREST executes an outbound HTTP request to a third-party webhook/endpoint
+// deliverREST executes an outbound HTTP request to a third-party webhook/endpoint,
+// including 2-step authentication (Step 1: POST auth_url -> Step 2: POST data_url with Bearer token) when AuthType == "LOGIN_BEARER".
 func (s *outboundService) deliverREST(ctx context.Context, dest *model.OutputDestination, payload string) (int, string, bool, bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.Endpoint, bytes.NewBufferString(payload))
-	if err != nil {
-		return 0, "", false, true, fmt.Errorf("invalid endpoint URL: %w", err)
+	sendDataPost := func(dynamicBearer string) (int, string, bool, bool, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.Endpoint, bytes.NewBufferString(payload))
+		if err != nil {
+			return 0, "", false, true, fmt.Errorf("invalid endpoint URL: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("User-Agent", "Datalogger-Outbound/1.0")
+
+		// Apply Authentication
+		switch dest.AuthType {
+		case "LOGIN_BEARER":
+			if dynamicBearer != "" {
+				req.Header.Set("Authorization", "Bearer "+dynamicBearer)
+			}
+		case "BEARER_TOKEN":
+			if dest.AuthToken != "" {
+				req.Header.Set("Authorization", "Bearer "+dest.AuthToken)
+			}
+		case "API_KEY":
+			headerName := dest.APIKeyHeader
+			if headerName == "" {
+				headerName = "X-API-Key"
+			}
+			if dest.APIKeyValue != "" {
+				req.Header.Set(headerName, dest.APIKeyValue)
+			}
+		case "BASIC_AUTH":
+			if dest.Username != "" {
+				req.SetBasicAuth(dest.Username, dest.Password)
+			}
+		}
+
+		// Apply Custom Headers
+		if strings.TrimSpace(dest.CustomHeaders) != "" {
+			var headers map[string]string
+			if err := json.Unmarshal([]byte(dest.CustomHeaders), &headers); err == nil {
+				for k, v := range headers {
+					req.Header.Set(k, v)
+				}
+			}
+		}
+
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			// Network connection error / timeout -> retryable
+			return 0, "", false, false, fmt.Errorf("network error: %w", err)
+		}
+		defer resp.Body.Close()
+
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		bodyStr := string(bodyBytes)
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			isAck := strings.Contains(strings.ToLower(bodyStr), "ack") ||
+				strings.Contains(strings.ToLower(bodyStr), "success") ||
+				strings.Contains(strings.ToLower(bodyStr), "received")
+			return resp.StatusCode, bodyStr, isAck, false, nil
+		}
+
+		isPermanent := false
+		if resp.StatusCode == 400 || resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 422 {
+			isPermanent = true
+		}
+
+		return resp.StatusCode, bodyStr, false, isPermanent, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, bodyStr)
 	}
 
+	if dest.AuthType == "LOGIN_BEARER" {
+		var token string
+		usedCachedToken := false
+		if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
+			if cached := s.getCachedAuthToken(dest.ID); cached != "" {
+				token = cached
+				usedCachedToken = true
+			}
+		}
+
+		if token == "" {
+			freshToken, authCode, authBody, authPerm, authErr := s.performLoginAuth(ctx, dest)
+			if authErr != nil {
+				return authCode, authBody, false, authPerm, authErr
+			}
+			token = freshToken
+			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
+				s.setCachedAuthToken(dest.ID, token, time.Duration(dest.AuthCacheSeconds)*time.Second)
+			}
+		}
+
+		code, body, isAck, isPerm, err := sendDataPost(token)
+		if err != nil && usedCachedToken && code == http.StatusUnauthorized {
+			// Cached token expired or revoked early: clear cache, re-authenticate once, and retry Step 2 immediately
+			s.clearCachedAuthToken(dest.ID)
+			freshToken, authCode, authBody, authPerm, authErr := s.performLoginAuth(ctx, dest)
+			if authErr != nil {
+				return authCode, authBody, false, authPerm, authErr
+			}
+			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
+				s.setCachedAuthToken(dest.ID, freshToken, time.Duration(dest.AuthCacheSeconds)*time.Second)
+			}
+			return sendDataPost(freshToken)
+		}
+		return code, body, isAck, isPerm, err
+	}
+
+	return sendDataPost("")
+}
+
+func (s *outboundService) getCachedAuthToken(destID uint) string {
+	s.authMu.RLock()
+	defer s.authMu.RUnlock()
+	if s.authCache == nil {
+		return ""
+	}
+	entry, ok := s.authCache[destID]
+	if !ok || entry.token == "" || time.Now().After(entry.expiresAt) {
+		return ""
+	}
+	return entry.token
+}
+
+func (s *outboundService) setCachedAuthToken(destID uint, token string, ttl time.Duration) {
+	if destID == 0 || token == "" || ttl <= 0 {
+		return
+	}
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	if s.authCache == nil {
+		s.authCache = make(map[uint]cachedAuthToken)
+	}
+	s.authCache[destID] = cachedAuthToken{
+		token:     token,
+		expiresAt: time.Now().Add(ttl),
+	}
+}
+
+func (s *outboundService) clearCachedAuthToken(destID uint) {
+	if destID == 0 {
+		return
+	}
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	delete(s.authCache, destID)
+}
+
+// performLoginAuth executes Step 1 of 2-step delivery: POST {"username": "...", "password": "..."} to AuthURL and extracts Bearer token.
+func (s *outboundService) performLoginAuth(ctx context.Context, dest *model.OutputDestination) (string, int, string, bool, error) {
+	authURL := strings.TrimSpace(dest.AuthURL)
+	if authURL == "" {
+		return "", 0, "", true, fmt.Errorf("Step 1 Auth configuration error: auth_url is empty")
+	}
+
+	authBodyMap := map[string]string{
+		"username": dest.Username,
+		"password": dest.Password,
+	}
+	authBytes, err := json.Marshal(authBodyMap)
+	if err != nil {
+		return "", 0, "", true, fmt.Errorf("Step 1 Auth payload marshal error: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewBuffer(authBytes))
+	if err != nil {
+		return "", 0, "", true, fmt.Errorf("Step 1 Auth invalid auth_url %q: %w", authURL, err)
+	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Datalogger-Outbound/1.0")
 
-	// Apply Authentication
-	switch dest.AuthType {
-	case "BEARER_TOKEN":
-		if dest.AuthToken != "" {
-			req.Header.Set("Authorization", "Bearer "+dest.AuthToken)
-		}
-	case "API_KEY":
-		headerName := dest.APIKeyHeader
-		if headerName == "" {
-			headerName = "X-API-Key"
-		}
-		if dest.APIKeyValue != "" {
-			req.Header.Set(headerName, dest.APIKeyValue)
-		}
-	case "BASIC_AUTH":
-		if dest.Username != "" {
-			req.SetBasicAuth(dest.Username, dest.Password)
-		}
-	}
-
-	// Apply Custom Headers
 	if strings.TrimSpace(dest.CustomHeaders) != "" {
 		var headers map[string]string
 		if err := json.Unmarshal([]byte(dest.CustomHeaders), &headers); err == nil {
 			for k, v := range headers {
-				req.Header.Set(k, v)
+				if !strings.EqualFold(k, "Authorization") {
+					req.Header.Set(k, v)
+				}
 			}
 		}
 	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		// Network connection error / timeout -> retryable
-		return 0, "", false, false, fmt.Errorf("network error: %w", err)
+		return "", 0, "", false, fmt.Errorf("Step 1 Auth network error (%s): %w", authURL, err)
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
 	bodyStr := string(bodyBytes)
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		// Check for application-level acknowledgement in response body
-		isAck := strings.Contains(strings.ToLower(bodyStr), "ack") ||
-			strings.Contains(strings.ToLower(bodyStr), "success") ||
-			strings.Contains(strings.ToLower(bodyStr), "received")
-		return resp.StatusCode, bodyStr, isAck, false, nil
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		isPerm := resp.StatusCode == 400 || resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 422
+		return "", resp.StatusCode, bodyStr, isPerm, fmt.Errorf("Step 1 Auth HTTP %d (%s): %s", resp.StatusCode, authURL, bodyStr)
 	}
 
-	// Classify permanent vs retryable HTTP error codes
-	isPermanent := false
-	if resp.StatusCode == 400 || resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 422 {
-		isPermanent = true
+	token := extractTokenFromAuthResponse(bodyBytes, resp.Header, dest.AuthTokenPath)
+	if token == "" {
+		return "", resp.StatusCode, bodyStr, true, fmt.Errorf("Step 1 Auth succeeded (HTTP %d) but no token found in response from %s", resp.StatusCode, authURL)
 	}
 
-	return resp.StatusCode, bodyStr, false, isPermanent, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, bodyStr)
+	return token, resp.StatusCode, bodyStr, false, nil
+}
+
+func cleanExtractedBearerToken(raw string) string {
+	t := strings.TrimSpace(raw)
+	t = strings.Trim(t, `"'`)
+	if len(t) > 7 && strings.EqualFold(t[:7], "Bearer ") {
+		t = strings.TrimSpace(t[7:])
+	}
+	return t
+}
+
+func lookupCaseInsensitiveKey(m map[string]interface{}, target string) (interface{}, bool) {
+	if v, ok := m[target]; ok {
+		return v, true
+	}
+	for k, v := range m {
+		if strings.EqualFold(k, target) {
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+func extractTokenFromAuthResponse(body []byte, headers http.Header, customPath string) string {
+	var parsed interface{}
+	if err := json.Unmarshal(body, &parsed); err == nil {
+		// Case 1: JSON body is a direct string (e.g. "eyJhbGci...")
+		if s, ok := parsed.(string); ok {
+			if tok := cleanExtractedBearerToken(s); tok != "" {
+				return tok
+			}
+		}
+
+		if rootObj, ok := parsed.(map[string]interface{}); ok {
+			// Case 2: Explicit dot-separated path configured by user (e.g. "data.token")
+			if trimmedPath := strings.TrimSpace(customPath); trimmedPath != "" {
+				parts := strings.Split(trimmedPath, ".")
+				var cur interface{} = rootObj
+				for _, p := range parts {
+					obj, isMap := cur.(map[string]interface{})
+					if !isMap {
+						cur = nil
+						break
+					}
+					next, found := lookupCaseInsensitiveKey(obj, strings.TrimSpace(p))
+					if !found {
+						cur = nil
+						break
+					}
+					cur = next
+				}
+				if s, isStr := cur.(string); isStr {
+					if tok := cleanExtractedBearerToken(s); tok != "" {
+						return tok
+					}
+				}
+			}
+
+			// Case 3: Auto-detect common top-level token keys
+			candidateKeys := []string{"token", "access_token", "jwt", "auth_token", "bearer", "id_token", "api_token"}
+			for _, key := range candidateKeys {
+				if val, found := lookupCaseInsensitiveKey(rootObj, key); found {
+					if s, isStr := val.(string); isStr {
+						if tok := cleanExtractedBearerToken(s); tok != "" {
+							return tok
+						}
+					}
+				}
+			}
+
+			// Case 4: Auto-detect common wrapper objects (data, result, payload, response, auth)
+			wrapperKeys := []string{"data", "result", "payload", "response", "auth"}
+			for _, wKey := range wrapperKeys {
+				if wrapped, found := lookupCaseInsensitiveKey(rootObj, wKey); found {
+					switch w := wrapped.(type) {
+					case string:
+						if tok := cleanExtractedBearerToken(w); tok != "" {
+							return tok
+						}
+					case map[string]interface{}:
+						for _, key := range candidateKeys {
+							if val, ok := lookupCaseInsensitiveKey(w, key); ok {
+								if s, isStr := val.(string); isStr {
+									if tok := cleanExtractedBearerToken(s); tok != "" {
+										return tok
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Case 5: Check Authorization / X-Auth-Token response headers
+	if headers != nil {
+		for _, h := range []string{"Authorization", "X-Auth-Token", "X-Access-Token"} {
+			if hv := cleanExtractedBearerToken(headers.Get(h)); hv != "" {
+				return hv
+			}
+		}
+	}
+
+	// Case 6: Plain-text non-HTML single-line token response
+	plain := strings.TrimSpace(string(body))
+	if plain != "" && !strings.HasPrefix(plain, "{") && !strings.HasPrefix(plain, "[") && !strings.HasPrefix(plain, "<") && !strings.ContainsAny(plain, " \t\r\n") {
+		return cleanExtractedBearerToken(plain)
+	}
+
+	return ""
 }
 
 // deliverTCP writes the payload over a raw TCP connection
@@ -692,6 +951,11 @@ func redactDestinationSecrets(dest *model.OutputDestination) {
 
 // CreateDestination persists a new outbound destination with default payload config
 func (s *outboundService) CreateDestination(ctx context.Context, dest *model.OutputDestination) error {
+	dest.Endpoint = strings.TrimSpace(dest.Endpoint)
+	dest.AuthURL = strings.TrimSpace(dest.AuthURL)
+	if dest.AuthType == "LOGIN_BEARER" && dest.AuthURL == "" {
+		return fmt.Errorf("auth_url wajib diisi untuk mode autentikasi 2-Step Login (LOGIN_BEARER)")
+	}
 	if dest.RetryLimit <= 0 {
 		dest.RetryLimit = 5
 	}
@@ -718,6 +982,19 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 		IncludeMetadata:    true,
 		Version:            1,
 	}
+	// If created with LOGIN_BEARER, initialize with KLHK ISPU AQMS friendly defaults right away
+	if dest.AuthType == "LOGIN_BEARER" {
+		cfg.TemplateType = "KLHK_ISPU_AQMS"
+		cfg.StationIDField = "id_stasiun"
+		cfg.TimestampField = "waktu"
+		cfg.TimestampFormat = "CUSTOM"
+		cfg.TimestampTimezone = "Asia/Jakarta"
+		cfg.OmitIntervalField = true
+		cfg.IncludeMetadata = false
+		cfg.IncludeSensorStatFlags = true
+		cfg.SensorStatMode = "STATIC_1"
+		cfg.ConflictResolution = "PRIORITY_PRIMARY"
+	}
 	_ = s.repo.UpsertPayloadConfig(ctx, cfg)
 	return nil
 }
@@ -727,6 +1004,12 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 	existing, err := s.repo.GetDestinationByID(ctx, dest.ID)
 	if err != nil {
 		return err
+	}
+
+	dest.Endpoint = strings.TrimSpace(dest.Endpoint)
+	dest.AuthURL = strings.TrimSpace(dest.AuthURL)
+	if dest.AuthType == "LOGIN_BEARER" && dest.AuthURL == "" {
+		return fmt.Errorf("auth_url wajib diisi untuk mode autentikasi 2-Step Login (LOGIN_BEARER)")
 	}
 
 	// If secret fields were sent as redacted placeholder, preserve existing secrets
@@ -739,12 +1022,17 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 	if dest.Password == "***REDACTED***" {
 		dest.Password = existing.Password
 	}
+	if dest.CreatedAt.IsZero() {
+		dest.CreatedAt = existing.CreatedAt
+	}
 
+	s.clearCachedAuthToken(dest.ID)
 	return s.repo.UpdateDestination(ctx, dest)
 }
 
 // DeleteDestination removes a destination
 func (s *outboundService) DeleteDestination(ctx context.Context, id uint) error {
+	s.clearCachedAuthToken(id)
 	return s.repo.DeleteDestination(ctx, id)
 }
 

@@ -554,8 +554,12 @@
 
             <!-- Details List -->
             <div class="mt-3 space-y-1.5 font-mono text-2xs text-slate-600 dark:text-slate-300">
+              <div v-if="dest.auth_type === 'LOGIN_BEARER' && dest.auth_url" class="flex items-center justify-between">
+                <span class="text-slate-400">Auth URL:</span>
+                <span class="font-mono text-3xs truncate max-w-[200px] text-amber-500 dark:text-amber-400" :title="dest.auth_url">{{ dest.auth_url }}</span>
+              </div>
               <div class="flex items-center justify-between">
-                <span class="text-slate-400">Endpoint:</span>
+                <span class="text-slate-400">{{ dest.auth_type === 'LOGIN_BEARER' ? 'Data URL:' : 'Endpoint:' }}</span>
                 <span class="font-mono text-3xs truncate max-w-[200px]" :title="dest.endpoint">{{ dest.endpoint }}</span>
               </div>
               <div class="flex items-center justify-between">
@@ -566,7 +570,9 @@
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Auth Mode:</span>
-                <span>{{ dest.auth_type || 'NONE' }}</span>
+                <span :class="dest.auth_type === 'LOGIN_BEARER' ? 'text-cyan-500 font-bold' : ''">
+                  {{ dest.auth_type === 'LOGIN_BEARER' ? '2-STEP LOGIN → BEARER' : (dest.auth_type || 'NONE') }}
+                </span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Deliveries:</span>
@@ -705,6 +711,7 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="STANDARD">Standard Datalogger</option>
+                <option value="KLHK_ISPU_AQMS">KLHK ISPU AQMS (id_stasiun + waktu + stat_*)</option>
                 <option value="MULTI_TICK_SENSOR">Multi-Sensor Tick Array (multi[tick])</option>
                 <option value="MULTI_DEVICE_FLAT">Multi-Device Unified Flat</option>
                 <option value="MULTI_DEVICE_NESTED">Multi-Device Nested by Device</option>
@@ -830,15 +837,15 @@
             </div>
           </div>
 
-          <!-- Timestamp Field & Format -->
-          <div class="grid grid-cols-2 gap-3 text-2xs">
+          <!-- Timestamp Field, Format & Timezone -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-2xs">
             <div>
               <label class="block text-slate-500 mb-1">Timestamp Field Name</label>
               <input
                 v-model="payloadConfig.timestamp_field"
                 @input="triggerLivePreview"
                 type="text"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
                 placeholder="timestamp"
               />
             </div>
@@ -855,21 +862,47 @@
                 <option value="CUSTOM">Custom (YYYY-MM-DD HH:mm:ss)</option>
               </select>
             </div>
+            <div>
+              <label class="block text-slate-500 mb-1">Timestamp Timezone</label>
+              <select
+                v-model="payloadConfig.timestamp_timezone"
+                @change="triggerLivePreview"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+              >
+                <option value="">Default (UTC / Server)</option>
+                <option value="Asia/Jakarta">WIB (Asia/Jakarta UTC+7)</option>
+                <option value="Asia/Makassar">WITA (Asia/Makassar UTC+8)</option>
+                <option value="Asia/Jayapura">WIT (Asia/Jayapura UTC+9)</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Interval Field Name -->
+          <!-- Interval Field Name & Omit Toggle -->
           <div class="text-2xs">
-            <label class="block text-slate-500 mb-1">Aggregation Interval Field Name</label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-slate-500">Aggregation Interval Field Name</label>
+              <label class="flex items-center space-x-1.5 cursor-pointer text-3xs font-semibold text-amber-600 dark:text-amber-400">
+                <input
+                  v-model="payloadConfig.omit_interval_field"
+                  @change="triggerLivePreview"
+                  type="checkbox"
+                  class="rounded border-slate-700 text-amber-500 focus:ring-0"
+                />
+                <span>Sembunyikan Field Interval (Omit)</span>
+              </label>
+            </div>
             <input
               v-model="payloadConfig.interval_field"
               @input="triggerLivePreview"
+              :disabled="payloadConfig.omit_interval_field"
               type="text"
-              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono disabled:opacity-40"
               placeholder="interval_minutes"
             />
           </div>
 
-          <!-- Metadata & Quality Toggles -->
+          <!-- Metadata, Quality & KLHK ISPU Sensor Status Flags -->
           <div class="flex flex-wrap items-center gap-4 text-2xs pt-2">
             <label class="flex items-center space-x-2 cursor-pointer">
               <input
@@ -900,6 +933,33 @@
               />
               <span>Include Metadata Headers</span>
             </label>
+          </div>
+
+          <!-- KLHK ISPU Sensor Status Flags (stat_pm10 .. stat_hc) -->
+          <div class="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20 space-y-2 text-2xs">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label class="flex items-center space-x-2 cursor-pointer font-semibold text-cyan-600 dark:text-cyan-400">
+                <input
+                  v-model="payloadConfig.include_sensor_stat_flags"
+                  @change="triggerLivePreview"
+                  type="checkbox"
+                  class="rounded border-slate-700 text-cyan-500 focus:ring-0"
+                />
+                <span>Sertakan Status Sensor ISPU (stat_pm10 .. stat_hc)</span>
+              </label>
+              <select
+                v-if="payloadConfig.include_sensor_stat_flags"
+                v-model="payloadConfig.sensor_stat_mode"
+                @change="triggerLivePreview"
+                class="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono"
+              >
+                <option value="STATIC_1">Static 1 (Selalu bernilai 1)</option>
+                <option value="AUTO_QUALITY">Auto Quality (1 = GOOD, 0 = BAD/Null)</option>
+              </select>
+            </div>
+            <p v-if="payloadConfig.include_sensor_stat_flags" class="text-4xs text-slate-400 font-mono">
+              Menambahkan key otomatis: stat_pm10, stat_pm25, stat_so2, stat_co, stat_o3, stat_no2, stat_hc
+            </p>
           </div>
 
           <!-- Parameter Aliases Table -->
@@ -1437,26 +1497,17 @@
             </div>
           </div>
 
-          <div>
-            <label class="block text-slate-500 mb-1">Endpoint (URL or host:port)</label>
-            <input
-              v-model="editingDest.endpoint"
-              type="text"
-              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
-              placeholder="https://sparing.menlhk.go.id/api/telemetry or 192.168.1.50:5000"
-            />
-          </div>
-
           <!-- Auth Settings -->
-          <div class="grid grid-cols-2 gap-3">
-            <div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div :class="editingDest.auth_type === 'LOGIN_BEARER' ? 'sm:col-span-2' : ''">
               <label class="block text-slate-500 mb-1">Authentication Type</label>
               <select
                 v-model="editingDest.auth_type"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="NONE">None / Open</option>
-                <option value="BEARER_TOKEN">Bearer Token</option>
+                <option value="LOGIN_BEARER">2-Step Auth Login → Bearer Token (KLHK / ISPU AQMS)</option>
+                <option value="BEARER_TOKEN">Static Bearer Token</option>
                 <option value="API_KEY">API Key Header</option>
                 <option value="BASIC_AUTH">HTTP Basic Auth</option>
               </select>
@@ -1479,6 +1530,82 @@
                 placeholder="***REDACTED***"
               />
             </div>
+          </div>
+
+          <!-- 2-Step Auth Login (Step 1: POST auth_url -> Token) -->
+          <div
+            v-if="editingDest.auth_type === 'LOGIN_BEARER'"
+            class="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/30 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider text-3xs">
+                Step 1 — Auth Login Endpoint (POST JSON { username, password })
+              </span>
+            </div>
+            <div>
+              <label class="block text-slate-500 mb-1">Auth Login URL (auth_url)</label>
+              <input
+                v-model="editingDest.auth_url"
+                type="text"
+                class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                placeholder="https://ispu.kemenlh.go.id/api/v1/auth"
+              />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-500 mb-1">Username</label>
+                <input
+                  v-model="editingDest.username"
+                  type="text"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="pt_cakrawala_bima_instrument"
+                />
+              </div>
+              <div>
+                <label class="block text-slate-500 mb-1">Password</label>
+                <input
+                  v-model="editingDest.password"
+                  type="password"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="***REDACTED***"
+                />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-500 mb-1">Mode Siklus Pengiriman Auth</label>
+                <select
+                  v-model.number="editingDest.auth_cache_seconds"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs"
+                >
+                  <option :value="0">2x Kirim Setiap Batch (Auth dulu → Data)</option>
+                  <option :value="900">Cache Token 15 Menit (Auto Re-Auth jika 401)</option>
+                  <option :value="1800">Cache Token 30 Menit (Auto Re-Auth jika 401)</option>
+                  <option :value="3300">Cache Token 55 Menit (Auto Re-Auth jika 401)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-slate-500 mb-1">JSON Field Token (Opsional)</label>
+                <input
+                  v-model="editingDest.auth_token_path"
+                  type="text"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="Auto (token / access_token / data.token)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-slate-500 mb-1">
+              {{ editingDest.auth_type === 'LOGIN_BEARER' ? 'Step 2 — Data Endpoint URL (data_url, Bearer Token otomatis)' : 'Endpoint (URL or host:port)' }}
+            </label>
+            <input
+              v-model="editingDest.endpoint"
+              type="text"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+              :placeholder="editingDest.auth_type === 'LOGIN_BEARER' ? 'https://ispu.kemenlh.go.id/api/v1/aqmdata' : 'https://sparing.menlhk.go.id/api/telemetry or 192.168.1.50:5000'"
+            />
           </div>
 
           <!-- Basic Auth Username & Password -->
@@ -1595,6 +1722,9 @@ export default {
         endpoint: '',
         interval_seconds: 0,
         auth_type: 'NONE',
+        auth_url: '',
+        auth_token_path: '',
+        auth_cache_seconds: 0,
         auth_token: '',
         api_key_header: 'X-API-Key',
         api_key_value: '',
@@ -1614,7 +1744,9 @@ export default {
         module_id_value: '',
         timestamp_field: 'timestamp',
         timestamp_format: 'ISO8601',
+        timestamp_timezone: '',
         interval_field: 'interval_minutes',
+        omit_interval_field: false,
         structure: 'FLAT',
         nested_data_key: 'data',
         include_device_identity: false,
@@ -1623,6 +1755,8 @@ export default {
         include_units: false,
         include_quality: false,
         include_metadata: true,
+        include_sensor_stat_flags: false,
+        sensor_stat_mode: 'STATIC_1',
         static_metadata_json: '',
         parameter_mappings_json: '[]',
         required_fields_json: '[]',
@@ -1981,9 +2115,16 @@ export default {
     async loadDestinationPayloadConfig() {
       if (!this.selectedDestinationId) return;
       try {
+        this.parameterMappings = [];
         const res = await axios.get(`/api/destinations/${this.selectedDestinationId}/payload-config`);
         if (res.data && res.data.success) {
-          this.payloadConfig = res.data.data;
+          this.payloadConfig = {
+            timestamp_timezone: '',
+            omit_interval_field: false,
+            include_sensor_stat_flags: false,
+            sensor_stat_mode: 'STATIC_1',
+            ...res.data.data,
+          };
           if (this.payloadConfig.parameter_mappings_json) {
             try {
               const parsed = JSON.parse(this.payloadConfig.parameter_mappings_json);
@@ -2001,6 +2142,76 @@ export default {
         console.error('Failed to load payload config:', err);
       }
     },
+    getPresetAliasMap(templateType) {
+      if (templateType === 'KLHK_ISPU_AQMS') {
+        return {
+          'pm10': 'pm10',
+          'pm2.5': 'pm25',
+          'pm25': 'pm25',
+          'pm2_5': 'pm25',
+          'so2': 'so2',
+          'co': 'co',
+          'o3': 'o3',
+          'no2': 'no2',
+          'hc': 'hc',
+          'nmhc': 'hc',
+          'w-speed': 'ws',
+          'wspeed': 'ws',
+          'ws': 'ws',
+          'wind_speed': 'ws',
+          'wind-speed': 'ws',
+          'wind-angle': 'wd',
+          'wind_angle': 'wd',
+          'wd': 'wd',
+          'wind_dir': 'wd',
+          'wind-dir': 'wd',
+          'humidity': 'humidity',
+          'hum': 'humidity',
+          'rh': 'humidity',
+          'temperature': 'temperature',
+          'temp': 'temperature',
+          'air-pressure': 'pressure',
+          'air_pressure': 'pressure',
+          'pressure': 'pressure',
+          'press': 'pressure',
+          'solar-radiation': 'sr',
+          'solar_radiation': 'sr',
+          'intensity': 'sr',
+          'sr': 'sr',
+          'rain-fall': 'rain_intensity',
+          'rain_fall': 'rain_intensity',
+          'rainfall': 'rain_intensity',
+          'tprecipitation': 'rain_intensity',
+          'rain_intensity': 'rain_intensity',
+          'rain-intensity': 'rain_intensity',
+        };
+      }
+      return {
+        'no2': 'no2',
+        'so2': 'so2',
+        'o3': 'o3',
+        'co': 'co',
+        'pm25': 'pm25',
+        'pm2.5': 'pm25',
+        'pm10': 'pm10',
+        'temp': 'temp',
+        'temperature': 'temp',
+        'humidity': 'humidity',
+        'hum': 'humidity',
+        'pressure': 'pressure',
+        'air-pressure': 'pressure',
+        'wspeed': 'wspeed',
+        'w-speed': 'wspeed',
+        'intensity': 'intensity',
+        'solar-radiation': 'intensity',
+        'tprecipitation': 'tprecipitation',
+        'rain-fall': 'tprecipitation',
+        'hc': 'hc',
+        'wind_angle': 'wind_angle',
+        'wind-angle': 'wind_angle',
+        'rain_intensity': 'rain_intensity',
+      };
+    },
     async syncDeviceParameters(forceOverwrite = false) {
       try {
         this.loadingParameters = true;
@@ -2015,31 +2226,7 @@ export default {
           devices = res.data;
         }
 
-        const aliasMap = {
-          'no2': 'no2',
-          'so2': 'so2',
-          'o3': 'o3',
-          'co': 'co',
-          'pm25': 'pm25',
-          'pm2.5': 'pm25',
-          'pm10': 'pm10',
-          'temp': 'temp',
-          'temperature': 'temp',
-          'humidity': 'humidity',
-          'hum': 'humidity',
-          'pressure': 'pressure',
-          'air-pressure': 'pressure',
-          'wspeed': 'wspeed',
-          'w-speed': 'wspeed',
-          'intensity': 'intensity',
-          'solar-radiation': 'intensity',
-          'tprecipitation': 'tprecipitation',
-          'rain-fall': 'tprecipitation',
-          'hc': 'hc',
-          'wind_angle': 'wind_angle',
-          'wind-angle': 'wind_angle',
-          'rain_intensity': 'rain_intensity',
-        };
+        const aliasMap = this.getPresetAliasMap(this.payloadConfig?.template_type);
 
         const existingByKey = {};
         const existingByCode = {};
@@ -2199,6 +2386,9 @@ export default {
         endpoint: '',
         interval_seconds: 0,
         auth_type: 'NONE',
+        auth_url: '',
+        auth_token_path: '',
+        auth_cache_seconds: 0,
         auth_token: '',
         api_key_header: 'X-API-Key',
         api_key_value: '',
@@ -2210,7 +2400,12 @@ export default {
       this.showDestModal = true;
     },
     openEditDestinationModal(dest) {
-      this.editingDest = JSON.parse(JSON.stringify(dest));
+      this.editingDest = {
+        auth_url: '',
+        auth_token_path: '',
+        auth_cache_seconds: 0,
+        ...JSON.parse(JSON.stringify(dest)),
+      };
       this.showDestModal = true;
     },
     async saveDestination() {
@@ -2254,45 +2449,47 @@ export default {
     },
     applyTemplatePreset() {
       const p = this.payloadConfig.template_type;
-      if (p === 'MULTI_TICK_SENSOR') {
+      if (p === 'KLHK_ISPU_AQMS') {
+        this.payloadConfig.station_id_field = 'id_stasiun';
+        this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || 'KABUPATEN_JOMBANG';
+        this.payloadConfig.timestamp_field = 'waktu';
+        this.payloadConfig.timestamp_format = 'CUSTOM'; // YYYY-MM-DD HH:mm:ss
+        this.payloadConfig.timestamp_timezone = 'Asia/Jakarta';
+        this.payloadConfig.omit_interval_field = true;
+        this.payloadConfig.structure = 'FLAT';
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_metadata = false;
+        this.payloadConfig.include_sensor_stat_flags = true;
+        this.payloadConfig.sensor_stat_mode = 'STATIC_1';
+
+        const aliasMap = this.getPresetAliasMap('KLHK_ISPU_AQMS');
+        for (const m of this.parameterMappings || []) {
+          const lower = (m.parameter_code || '').toLowerCase().trim();
+          if (aliasMap[lower]) {
+            m.external_name = aliasMap[lower];
+            m.enabled = true;
+          }
+        }
+      } else if (p === 'MULTI_TICK_SENSOR') {
         this.payloadConfig.station_id_field = 'station_id';
         this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || '3453';
         this.payloadConfig.module_id_value = this.payloadConfig.module_id_value || this.payloadConfig.station_id_value || '3453';
         this.payloadConfig.timestamp_field = 'created_at';
         this.payloadConfig.timestamp_format = 'CUSTOM'; // YYYY-MM-DD HH:mm:ss
+        this.payloadConfig.omit_interval_field = false;
         this.payloadConfig.structure = 'MULTI_TICK_ARRAY';
         this.payloadConfig.include_device_identity = false;
         this.payloadConfig.device_identity_mode = 'NONE';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
         this.payloadConfig.include_metadata = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
 
-        const aliasMap = {
-          'no2': 'no2',
-          'so2': 'so2',
-          'o3': 'o3',
-          'co': 'co',
-          'pm25': 'pm25',
-          'pm2.5': 'pm25',
-          'pm10': 'pm10',
-          'temp': 'temp',
-          'temperature': 'temp',
-          'humidity': 'humidity',
-          'hum': 'humidity',
-          'pressure': 'pressure',
-          'air-pressure': 'pressure',
-          'wspeed': 'wspeed',
-          'w-speed': 'wspeed',
-          'intensity': 'intensity',
-          'solar-radiation': 'intensity',
-          'tprecipitation': 'tprecipitation',
-          'rain-fall': 'tprecipitation',
-          'hc': 'hc',
-          'wind_angle': 'wind_angle',
-          'wind-angle': 'wind_angle',
-          'rain_intensity': 'rain_intensity',
-        };
-
+        const aliasMap = this.getPresetAliasMap('MULTI_TICK_SENSOR');
         for (const m of this.parameterMappings || []) {
           const lower = (m.parameter_code || '').toLowerCase().trim();
           if (aliasMap[lower]) {
@@ -2305,6 +2502,7 @@ export default {
         this.payloadConfig.timestamp_field = 'timestamp';
         this.payloadConfig.timestamp_format = 'ISO8601';
         this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.omit_interval_field = false;
         this.payloadConfig.structure = 'FLAT';
         this.payloadConfig.nested_data_key = 'data';
         this.payloadConfig.include_device_identity = false;
@@ -2312,11 +2510,13 @@ export default {
         this.payloadConfig.conflict_resolution = 'PREFIX';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
       } else if (p === 'MULTI_DEVICE_NESTED') {
         this.payloadConfig.station_id_field = 'station_id';
         this.payloadConfig.timestamp_field = 'timestamp';
         this.payloadConfig.timestamp_format = 'ISO8601';
         this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.omit_interval_field = false;
         this.payloadConfig.structure = 'NESTED_BY_DEVICE';
         this.payloadConfig.nested_data_key = 'data';
         this.payloadConfig.include_device_identity = true;
@@ -2324,11 +2524,13 @@ export default {
         this.payloadConfig.conflict_resolution = 'FAIL_ON_CONFLICT';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
       } else if (p === 'MULTI_DEVICE_ARRAY') {
         this.payloadConfig.station_id_field = 'station_id';
         this.payloadConfig.timestamp_field = 'timestamp';
         this.payloadConfig.timestamp_format = 'ISO8601';
         this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.omit_interval_field = false;
         this.payloadConfig.structure = 'ARRAY_BY_DEVICE';
         this.payloadConfig.nested_data_key = 'devices';
         this.payloadConfig.include_device_identity = true;
@@ -2336,22 +2538,26 @@ export default {
         this.payloadConfig.conflict_resolution = 'FAIL_ON_CONFLICT';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
       } else if (p === 'KLHK_SPARING') {
         this.payloadConfig.station_id_field = 'station_id';
         this.payloadConfig.timestamp_field = 'timestamp';
         this.payloadConfig.timestamp_format = 'ISO8601';
         this.payloadConfig.interval_field = 'interval_minutes';
+        this.payloadConfig.omit_interval_field = false;
         this.payloadConfig.structure = 'FLAT';
         this.payloadConfig.include_device_identity = false;
         this.payloadConfig.device_identity_mode = 'NONE';
         this.payloadConfig.conflict_resolution = 'PREFIX';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
       } else if (p === 'NESTED_SCADA') {
         this.payloadConfig.station_id_field = 'stationCode';
         this.payloadConfig.timestamp_field = 'datetime';
         this.payloadConfig.timestamp_format = 'UNIX_MS';
         this.payloadConfig.interval_field = 'periodMin';
+        this.payloadConfig.omit_interval_field = false;
         this.payloadConfig.structure = 'NESTED';
         this.payloadConfig.nested_data_key = 'measurements';
         this.payloadConfig.include_device_identity = true;
@@ -2359,8 +2565,11 @@ export default {
         this.payloadConfig.conflict_resolution = 'PREFIX';
         this.payloadConfig.include_units = true;
         this.payloadConfig.include_quality = true;
+        this.payloadConfig.include_sensor_stat_flags = false;
       } else {
         this.payloadConfig.structure = 'FLAT';
+        this.payloadConfig.omit_interval_field = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
       }
       this.triggerLivePreview();
     },

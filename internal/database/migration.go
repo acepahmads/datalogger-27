@@ -110,6 +110,33 @@ func RunMigrations(db *gorm.DB) error {
 		_ = db.Model(&model.DeviceConnection{}).Where("max_register_gap IS NULL OR max_register_gap < 0").Update("max_register_gap", 0).Error
 	}
 
+	// 1b3. Ensure 2-step outbound auth and KLHK ISPU payload columns exist on existing installations
+	if db.Migrator().HasTable(&model.OutputDestination{}) {
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auth_url") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auth_url")
+		}
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auth_token_path") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auth_token_path")
+		}
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auth_cache_seconds") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auth_cache_seconds")
+		}
+	}
+	if db.Migrator().HasTable(&model.DestinationPayloadConfig{}) {
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "timestamp_timezone") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "timestamp_timezone")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "omit_interval_field") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "omit_interval_field")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "include_sensor_stat_flags") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "include_sensor_stat_flags")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "sensor_stat_mode") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "sensor_stat_mode")
+		}
+	}
+
 	// 1c. Ensure calculation_mode column is initialized and backfilled on ispu_calculation_results
 	if db.Migrator().HasTable(&model.ActuationSchedule{}) && !db.Migrator().HasColumn(&model.ActuationSchedule{}, "minute_of_hour") {
 		_ = db.Migrator().AddColumn(&model.ActuationSchedule{}, "minute_of_hour")

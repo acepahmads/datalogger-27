@@ -82,7 +82,7 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	if cfg.TimestampField == "" {
 		cfg.TimestampField = "timestamp"
 	}
-	if cfg.IntervalField == "" {
+	if !cfg.OmitIntervalField && cfg.IntervalField == "" {
 		cfg.IntervalField = "interval_minutes"
 	}
 	if cfg.Structure == "" {
@@ -126,6 +126,7 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 }
 
 type parameterMappingMatcher struct {
+	templateType              string
 	hasExplicitMappings       bool
 	hasDeviceSpecificMappings bool
 	devParamIDEnabled         map[string]bool
@@ -134,6 +135,42 @@ type parameterMappingMatcher struct {
 	devAliasMap               map[string]string
 	wildcardEnabledMap        map[string]bool
 	wildcardAliasMap          map[string]string
+}
+
+func defaultKLHKISPUAlias(code string) string {
+	trimmed := strings.TrimSpace(code)
+	switch strings.ToLower(trimmed) {
+	case "pm10":
+		return "pm10"
+	case "pm2.5", "pm25", "pm2_5":
+		return "pm25"
+	case "so2":
+		return "so2"
+	case "co":
+		return "co"
+	case "o3":
+		return "o3"
+	case "no2":
+		return "no2"
+	case "hc", "nmhc":
+		return "hc"
+	case "w-speed", "wspeed", "ws", "wind_speed", "wind-speed":
+		return "ws"
+	case "wind-angle", "wind_angle", "wd", "wind_dir", "wind-dir":
+		return "wd"
+	case "humidity", "hum", "rh":
+		return "humidity"
+	case "temperature", "temp":
+		return "temperature"
+	case "air-pressure", "air_pressure", "pressure", "press":
+		return "pressure"
+	case "solar-radiation", "solar_radiation", "intensity", "sr":
+		return "sr"
+	case "rain-fall", "rain_fall", "rainfall", "tprecipitation", "rain_intensity", "rain-intensity":
+		return "rain_intensity"
+	default:
+		return trimmed
+	}
 }
 
 func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *parameterMappingMatcher {
@@ -145,7 +182,11 @@ func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *paramete
 		wildcardEnabledMap: make(map[string]bool),
 		wildcardAliasMap:   make(map[string]string),
 	}
-	if cfg == nil || strings.TrimSpace(cfg.ParameterMappingsJSON) == "" {
+	if cfg == nil {
+		return matcher
+	}
+	matcher.templateType = strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
+	if strings.TrimSpace(cfg.ParameterMappingsJSON) == "" {
 		return matcher
 	}
 	var mappings []model.ParameterMappingItem
@@ -196,6 +237,9 @@ func (m *parameterMappingMatcher) Resolve(deviceID uint, deviceCode string, para
 		return false, ""
 	}
 	if m == nil || !m.hasExplicitMappings {
+		if m != nil && m.templateType == "KLHK_ISPU_AQMS" {
+			return true, defaultKLHKISPUAlias(trimmedCode)
+		}
 		return true, trimmedCode
 	}
 	codeUpper := strings.ToUpper(trimmedCode)
@@ -266,7 +310,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	matcher := buildParameterMappingMatcher(cfg)
 
 	// 2. Format timestamp
-	tsStr, err := formatTimestamp(batch.PeriodEnd, cfg.TimestampFormat)
+	tsStr, err := formatTimestamp(batch.PeriodEnd, cfg.TimestampFormat, cfg.TimestampTimezone)
 	if err != nil {
 		return nil, fmt.Errorf("failed to format timestamp: %w", err)
 	}
@@ -303,16 +347,18 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	}
 	rootMap[timestampKey] = tsStr
 
-	// Interval in minutes (2, 5, 30, 60)
-	intervalKey := cfg.IntervalField
-	if intervalKey == "" {
-		intervalKey = "interval_minutes"
+	// Interval in minutes (2, 5, 30, 60) — omitted when OmitIntervalField is true (e.g. strict KLHK ISPU AQMS schema)
+	if !cfg.OmitIntervalField {
+		intervalKey := strings.TrimSpace(cfg.IntervalField)
+		if intervalKey == "" {
+			intervalKey = "interval_minutes"
+		}
+		intervalMinutes := batch.IntervalSeconds / 60
+		if intervalMinutes <= 0 {
+			intervalMinutes = 1
+		}
+		rootMap[intervalKey] = intervalMinutes
 	}
-	intervalMinutes := batch.IntervalSeconds / 60
-	if intervalMinutes <= 0 {
-		intervalMinutes = 1
-	}
-	rootMap[intervalKey] = intervalMinutes
 
 	// Optional metadata headers
 	if cfg.IncludeMetadata {
@@ -404,7 +450,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 
 		createdAtTs := tsStr
 		if !batch.PeriodStart.IsZero() {
-			if cs, err := formatTimestamp(batch.PeriodStart, cfg.TimestampFormat); err == nil {
+			if cs, err := formatTimestamp(batch.PeriodStart, cfg.TimestampFormat, cfg.TimestampTimezone); err == nil {
 				createdAtTs = cs
 			}
 		}
@@ -517,13 +563,19 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 	default:
 		// FLAT or NESTED flat measurements map
 		measurements := make(map[string]interface{})
-		keySourceDevice := make(map[string]string)     // targetKey -> DeviceCode
-		keyValuesList := make(map[string][]float64)     // targetKey -> []float64 (for AVERAGE)
+		keySourceDevice := make(map[string]string) // targetKey -> DeviceCode
+		keyValuesList := make(map[string][]float64) // targetKey -> []float64 (for AVERAGE)
+		validPollutantStat := make(map[string]bool)
 
 		for _, item := range batch.Values {
 			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
 			if !enabled {
 				continue
+			}
+
+			if item.Value != nil && strings.ToUpper(strings.TrimSpace(item.Quality)) != "BAD" {
+				validPollutantStat[normalizeStatPollutantKey(targetFieldName)] = true
+				validPollutantStat[normalizeStatPollutantKey(item.ParameterCode)] = true
 			}
 
 			// Apply PREFIX mode if configured or includeDeviceIdentity or conflictResolution == PREFIX
@@ -576,6 +628,29 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 				keySourceDevice[targetFieldName] = item.DeviceCode
 				if item.Value != nil {
 					keyValuesList[targetFieldName] = []float64{*item.Value}
+				}
+			}
+		}
+
+		// Inject KLHK ISPU AQMS sensor status flags (stat_pm10 .. stat_hc) when enabled
+		if cfg.IncludeSensorStatFlags {
+			isAutoQuality := strings.EqualFold(strings.TrimSpace(cfg.SensorStatMode), "AUTO_QUALITY")
+			for _, code := range []string{"pm10", "pm25", "so2", "co", "o3", "no2", "hc"} {
+				statKey := "stat_" + code
+				if _, alreadyInStatic := rootMap[statKey]; alreadyInStatic && structure != "NESTED" {
+					continue
+				}
+				if _, alreadyInMeas := measurements[statKey]; alreadyInMeas {
+					continue
+				}
+				if isAutoQuality {
+					if validPollutantStat[code] {
+						measurements[statKey] = 1
+					} else {
+						measurements[statKey] = 0
+					}
+				} else {
+					measurements[statKey] = 1
 				}
 			}
 		}
@@ -644,7 +719,50 @@ func (f *ConfigurablePayloadFormatter) GeneratePreview(batch *OutboundBatchData,
 	return buf.String(), nil
 }
 
-func formatTimestamp(t time.Time, format string) (interface{}, error) {
+func normalizeStatPollutantKey(s string) string {
+	k := strings.ToLower(strings.TrimSpace(s))
+	k = strings.ReplaceAll(k, ".", "")
+	k = strings.ReplaceAll(k, "_", "")
+	k = strings.ReplaceAll(k, "-", "")
+	return k
+}
+
+func resolveTimezoneLocation(tz string) *time.Location {
+	trimmed := strings.TrimSpace(tz)
+	if trimmed == "" {
+		return nil
+	}
+	upper := strings.ToUpper(trimmed)
+	switch upper {
+	case "UTC":
+		return time.UTC
+	case "ASIA/JAKARTA", "WIB", "UTC+7", "+07:00":
+		if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
+			return loc
+		}
+		return time.FixedZone("WIB", 7*3600)
+	case "ASIA/MAKASSAR", "WITA", "UTC+8", "+08:00":
+		if loc, err := time.LoadLocation("Asia/Makassar"); err == nil {
+			return loc
+		}
+		return time.FixedZone("WITA", 8*3600)
+	case "ASIA/JAYAPURA", "WIT", "UTC+9", "+09:00":
+		if loc, err := time.LoadLocation("Asia/Jayapura"); err == nil {
+			return loc
+		}
+		return time.FixedZone("WIT", 9*3600)
+	default:
+		if loc, err := time.LoadLocation(trimmed); err == nil {
+			return loc
+		}
+		return nil
+	}
+}
+
+func formatTimestamp(t time.Time, format string, tz string) (interface{}, error) {
+	if loc := resolveTimezoneLocation(tz); loc != nil {
+		t = t.In(loc)
+	}
 	switch strings.ToUpper(strings.TrimSpace(format)) {
 	case "UNIX_MS":
 		return t.UnixNano() / int64(time.Millisecond), nil

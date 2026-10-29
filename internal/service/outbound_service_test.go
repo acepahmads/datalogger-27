@@ -2,10 +2,12 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -330,5 +332,128 @@ func TestOutboundService_PurgeQueue_AllConditions(t *testing.T) {
 	db.Model(&model.DeliveryLog{}).Count(&remainingLogs)
 	if remainingLogs != 0 {
 		t.Errorf("expected 0 remaining logs, got %d", remainingLogs)
+	}
+}
+
+func TestOutboundService_TwoStepLoginBearer(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+
+	ctx := context.Background()
+
+	var authHits int32
+	var dataHits int32
+	var currentToken atomic.Value
+	currentToken.Store("jwt-token-v1")
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/auth":
+			atomic.AddInt32(&authHits, 1)
+			var creds map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if creds["username"] != "pt_cakrawala_bima_instrument" || creds["password"] != "secret123" {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"message":"invalid credentials"}`))
+				return
+			}
+			tok := currentToken.Load().(string)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fmt.Sprintf(`{"status":"ok","data":{"token":%q}}`, tok)))
+
+		case "/api/v1/aqmdata":
+			atomic.AddInt32(&dataHits, 1)
+			expectedAuth := "Bearer " + currentToken.Load().(string)
+			if r.Header.Get("Authorization") != expectedAuth {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"message":"expired or invalid token"}`))
+				return
+			}
+			var body map[string]interface{}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if body["id_stasiun"] == "" || body["waktu"] == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"message":"missing id_stasiun or waktu"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"success","ack":true}`))
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	// 1. Mode strict 2x send on every batch (AuthCacheSeconds = 0)
+	dest := &model.OutputDestination{
+		Name:             "KLHK ISPU AQMS",
+		Type:             model.DestREST,
+		Endpoint:         ts.URL + "/api/v1/aqmdata",
+		AuthType:         "LOGIN_BEARER",
+		AuthURL:          ts.URL + "/api/v1/auth",
+		Username:         "pt_cakrawala_bima_instrument",
+		Password:         "secret123",
+		AuthCacheSeconds: 0,
+		Enabled:          true,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	// First send -> 1 auth + 1 data
+	res1, err := svc.TestPayload(ctx, dest.ID)
+	if err != nil || !res1.Success {
+		t.Fatalf("first 2-step TestPayload failed: err=%v, res=%+v", err, res1)
+	}
+	// Second send -> because AuthCacheSeconds == 0, performs 2nd auth + 2nd data
+	res2, err := svc.TestPayload(ctx, dest.ID)
+	if err != nil || !res2.Success {
+		t.Fatalf("second 2-step TestPayload failed: err=%v, res=%+v", err, res2)
+	}
+	if atomic.LoadInt32(&authHits) != 2 || atomic.LoadInt32(&dataHits) != 2 {
+		t.Errorf("expected 2 auth hits and 2 data hits in uncached 2-step mode, got auth=%d data=%d", authHits, dataHits)
+	}
+
+	// 2. Mode cached token (AuthCacheSeconds = 900) + automatic 401 re-auth retry
+	dest.AuthCacheSeconds = 900
+	dest.Password = "***REDACTED***" // verify redacted password preservation on UpdateDestination too!
+	if err := svc.UpdateDestination(ctx, dest); err != nil {
+		t.Fatalf("UpdateDestination failed: %v", err)
+	}
+
+	atomic.StoreInt32(&authHits, 0)
+	atomic.StoreInt32(&dataHits, 0)
+
+	// Send #1 -> caches jwt-token-v1 (auth=1, data=1)
+	if r, err := svc.TestPayload(ctx, dest.ID); err != nil || !r.Success {
+		t.Fatalf("cached send #1 failed: err=%v, res=%+v", err, r)
+	}
+	// Send #2 -> reuses cached jwt-token-v1 without hitting /auth (auth=1, data=2)
+	if r, err := svc.TestPayload(ctx, dest.ID); err != nil || !r.Success {
+		t.Fatalf("cached send #2 failed: err=%v, res=%+v", err, r)
+	}
+	if atomic.LoadInt32(&authHits) != 1 || atomic.LoadInt32(&dataHits) != 2 {
+		t.Errorf("expected 1 auth hit and 2 data hits with caching, got auth=%d data=%d", authHits, dataHits)
+	}
+
+	// Simulate upstream token rotation / expiration -> /aqmdata returns 401 on stale token -> worker auto re-logins and retries!
+	currentToken.Store("jwt-token-v2")
+	if r, err := svc.TestPayload(ctx, dest.ID); err != nil || !r.Success {
+		t.Fatalf("expected automatic re-auth retry on 401 to succeed, got err=%v, res=%+v", err, r)
+	}
+	if atomic.LoadInt32(&authHits) != 2 || atomic.LoadInt32(&dataHits) != 4 {
+		t.Errorf("expected auth=2 and data=4 after 401 re-login retry, got auth=%d data=%d", authHits, dataHits)
 	}
 }
