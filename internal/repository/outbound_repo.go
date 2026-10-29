@@ -101,12 +101,22 @@ func (r *outboundRepository) UpdateDestination(ctx context.Context, dest *model.
 	return r.db.WithContext(ctx).Save(dest).Error
 }
 
-// DeleteDestination removes a destination and its associated payload config
+// DeleteDestination removes a destination and its associated payload config, delivery logs, and delivery queue items
 func (r *outboundRepository) DeleteDestination(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Delete associated payload config
 		if err := tx.Where("destination_id = ?", id).Delete(&model.DestinationPayloadConfig{}).Error; err != nil {
 			return err
 		}
+		// 2. Delete associated delivery logs
+		if err := tx.Where("destination_id = ?", id).Delete(&model.DeliveryLog{}).Error; err != nil {
+			return err
+		}
+		// 3. Delete associated delivery queue items
+		if err := tx.Where("destination_id = ?", id).Delete(&model.OutboundDeliveryQueue{}).Error; err != nil {
+			return err
+		}
+		// 4. Finally delete the destination itself
 		return tx.Where("id = ?", id).Delete(&model.OutputDestination{}).Error
 	})
 }

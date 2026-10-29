@@ -1790,12 +1790,20 @@ export default {
       }
     },
     async deleteDestination(id) {
-      if (!confirm('Delete this destination? Queued deliveries will be detached.')) return;
+      if (!confirm('Hapus destinasi integrasi ini? Seluruh antrean pengiriman dan log riwayat yang terkait akan ikut dibersihkan.')) return;
       try {
         await axios.delete(`/api/destinations/${id}`);
-        this.fetchDestinations();
+        await this.fetchDestinations();
+        this.fetchSummary();
+        this.fetchQueue();
+        if (this.selectedDestinationId === id) {
+          this.selectedDestinationId = this.destinations.length > 0 ? this.destinations[0].id : null;
+          if (this.selectedDestinationId) {
+            this.loadDestinationPayloadConfig();
+          }
+        }
       } catch (err) {
-        alert('Delete failed: ' + err.message);
+        alert('Delete failed: ' + (err.response?.data?.error || err.message));
       }
     },
     applyTemplatePreset() {
