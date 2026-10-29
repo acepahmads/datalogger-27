@@ -268,3 +268,67 @@ func TestOutboundService_CredentialRedaction(t *testing.T) {
 		t.Errorf("expected raw AuthToken for internal engine/superadmin, got: %s", rawDests[0].AuthToken)
 	}
 }
+
+func TestOutboundService_PurgeQueue_AllConditions(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, nil)
+
+	ctx := context.Background()
+
+	// Seed queue items and logs
+	for i := 1; i <= 5; i++ {
+		q := &model.OutboundDeliveryQueue{
+			ID:              uint64(i),
+			BatchID:         fmt.Sprintf("BATCH-%d", i),
+			DestinationID:   1,
+			PeriodStart:     time.Now(),
+			PeriodEnd:       time.Now(),
+			IntervalSeconds: 300,
+			PayloadSnapshot: "{}",
+			IdempotencyKey:  fmt.Sprintf("KEY-%d", i),
+			Status:          model.DeliveryFailed,
+		}
+		if err := db.Create(q).Error; err != nil {
+			t.Fatalf("failed to seed queue: %v", err)
+		}
+		log := &model.DeliveryLog{
+			ID:            uint(i),
+			DestinationID: 1,
+			Status:        "FAILED",
+			DeliveredAt:   time.Now(),
+		}
+		if err := db.Create(log).Error; err != nil {
+			t.Fatalf("failed to seed log: %v", err)
+		}
+	}
+
+	// Purge ALL without any destination or status filter (this must NOT trigger 'WHERE conditions required')
+	deletedQueue, deletedLogs, err := svc.PurgeQueue(ctx, repository.QueuePurgeFilter{
+		Status:    "ALL",
+		PurgeLogs: true,
+	})
+	if err != nil {
+		t.Fatalf("PurgeQueue failed: %v", err)
+	}
+	if deletedQueue != 5 {
+		t.Errorf("expected 5 queue items deleted, got %d", deletedQueue)
+	}
+	if deletedLogs != 5 {
+		t.Errorf("expected 5 logs deleted, got %d", deletedLogs)
+	}
+
+	// Verify database is empty
+	var remainingQueue int64
+	db.Model(&model.OutboundDeliveryQueue{}).Count(&remainingQueue)
+	if remainingQueue != 0 {
+		t.Errorf("expected 0 remaining queue items, got %d", remainingQueue)
+	}
+
+	var remainingLogs int64
+	db.Model(&model.DeliveryLog{}).Count(&remainingLogs)
+	if remainingLogs != 0 {
+		t.Errorf("expected 0 remaining logs, got %d", remainingLogs)
+	}
+}

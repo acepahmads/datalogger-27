@@ -464,12 +464,40 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 	var deletedLogs int64
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		q := tx.Model(&model.OutboundDeliveryQueue{})
+		// 1. Purge delivery logs if requested (delete before queues to avoid foreign key / dangling references)
+		if filter.PurgeLogs {
+			lq := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Model(&model.DeliveryLog{}).Where("1 = 1")
+			if filter.DestinationID != nil && *filter.DestinationID > 0 {
+				lq = lq.Where("destination_id = ?", *filter.DestinationID)
+			}
+			if filter.OlderThan != nil {
+				lq = lq.Where("delivered_at <= ?", *filter.OlderThan)
+			}
+			if filter.Status != "" && filter.Status != "ALL" {
+				if filter.Status == string(model.DeliveryDelivered) {
+					lq = lq.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged), "SUCCESS"})
+				} else {
+					lq = lq.Where("status = ?", filter.Status)
+				}
+			}
+			lres := lq.Delete(&model.DeliveryLog{})
+			if lres.Error != nil {
+				return lres.Error
+			}
+			deletedLogs = lres.RowsAffected
+		}
+
+		// 2. Purge outbound delivery queue items
+		q := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Model(&model.OutboundDeliveryQueue{}).Where("1 = 1")
 		if filter.DestinationID != nil && *filter.DestinationID > 0 {
 			q = q.Where("destination_id = ?", *filter.DestinationID)
 		}
 		if filter.Status != "" && filter.Status != "ALL" {
-			q = q.Where("status = ?", filter.Status)
+			if filter.Status == string(model.DeliveryDelivered) {
+				q = q.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged)})
+			} else {
+				q = q.Where("status = ?", filter.Status)
+			}
 		}
 		if filter.OlderThan != nil {
 			q = q.Where("created_at <= ?", *filter.OlderThan)
@@ -481,20 +509,6 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 		}
 		deletedQueue = res.RowsAffected
 
-		if filter.PurgeLogs {
-			lq := tx.Model(&model.DeliveryLog{})
-			if filter.DestinationID != nil && *filter.DestinationID > 0 {
-				lq = lq.Where("destination_id = ?", *filter.DestinationID)
-			}
-			if filter.OlderThan != nil {
-				lq = lq.Where("delivered_at <= ?", *filter.OlderThan)
-			}
-			lres := lq.Delete(&model.DeliveryLog{})
-			if lres.Error != nil {
-				return lres.Error
-			}
-			deletedLogs = lres.RowsAffected
-		}
 		return nil
 	})
 

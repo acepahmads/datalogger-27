@@ -1502,14 +1502,7 @@ export default {
       },
       paramSearch: '',
       loadingParameters: false,
-      parameterMappings: [
-        { parameter_id: 1, parameter_code: 'pm25', parameter_name: 'PM2.5', external_name: 'PM25', enabled: true },
-        { parameter_id: 2, parameter_code: 'pm10', parameter_name: 'PM10', external_name: 'PM10', enabled: true },
-        { parameter_id: 3, parameter_code: 'so2', parameter_name: 'SO2', external_name: 'SO2', enabled: true },
-        { parameter_id: 4, parameter_code: 'co', parameter_name: 'CO', external_name: 'CO', enabled: true },
-        { parameter_id: 5, parameter_code: 'o3', parameter_name: 'O3', external_name: 'O3', enabled: true },
-        { parameter_id: 6, parameter_code: 'no2', parameter_name: 'NO2', external_name: 'NO2', enabled: true },
-      ],
+      parameterMappings: [],
       previewJSON: '',
       savingConfig: false,
       testingPayload: false,
@@ -1576,6 +1569,14 @@ export default {
     '$route.query.tab'(newTab) {
       if (newTab && ['destinations', 'config', 'queue'].includes(newTab)) {
         this.activeTab = newTab;
+        if (newTab === 'config') {
+          this.loadDestinationPayloadConfig();
+        }
+      }
+    },
+    selectedDestinationId(newId) {
+      if (newId && this.activeTab === 'config') {
+        this.loadDestinationPayloadConfig();
       }
     },
   },
@@ -1589,6 +1590,10 @@ export default {
     this.fetchSummary();
     this.fetchDestinations();
     this.fetchQueue();
+
+    if (this.activeTab === 'config') {
+      this.loadDestinationPayloadConfig();
+    }
 
     this.timer = setInterval(() => {
       if (this.autoRefresh && this.activeTab === 'queue') {
@@ -1608,6 +1613,9 @@ export default {
       if (this.$route.query.tab !== tab) {
         this.$router.replace({ query: { ...this.$route.query, tab } }).catch(() => {});
       }
+      if (tab === 'config') {
+        this.loadDestinationPayloadConfig();
+      }
     },
     async fetchSummary() {
       try {
@@ -1626,6 +1634,9 @@ export default {
           this.destinations = res.data.data;
           if (this.destinations.length > 0 && !this.selectedDestinationId) {
             this.selectedDestinationId = this.destinations[0].id;
+          }
+          if (this.activeTab === 'config' && this.selectedDestinationId) {
+            this.loadDestinationPayloadConfig();
           }
         }
       } catch (err) {
@@ -1771,13 +1782,52 @@ export default {
     async syncDeviceParameters(forceOverwrite = false) {
       try {
         this.loadingParameters = true;
-        const res = await axios.get('/api/devices');
-        const devices = res.data?.data || res.data || [];
-        const existingMap = {};
+        const res = await axios.get('/api/devices?all=true&page_size=200');
+        const raw = res.data?.data;
+        let devices = [];
+        if (Array.isArray(raw)) {
+          devices = raw;
+        } else if (raw && Array.isArray(raw.items)) {
+          devices = raw.items;
+        } else if (Array.isArray(res.data)) {
+          devices = res.data;
+        }
+
+        const aliasMap = {
+          'no2': 'no2',
+          'so2': 'so2',
+          'o3': 'o3',
+          'co': 'co',
+          'pm25': 'pm25',
+          'pm2.5': 'pm25',
+          'pm10': 'pm10',
+          'temp': 'temp',
+          'temperature': 'temp',
+          'humidity': 'humidity',
+          'hum': 'humidity',
+          'pressure': 'pressure',
+          'air-pressure': 'pressure',
+          'wspeed': 'wspeed',
+          'w-speed': 'wspeed',
+          'intensity': 'intensity',
+          'solar-radiation': 'intensity',
+          'tprecipitation': 'tprecipitation',
+          'rain-fall': 'tprecipitation',
+          'hc': 'hc',
+          'wind_angle': 'wind_angle',
+          'wind-angle': 'wind_angle',
+          'rain_intensity': 'rain_intensity',
+        };
+
+        const existingByKey = {};
+        const existingByCode = {};
         for (const m of this.parameterMappings || []) {
-          const key = (m.parameter_code || '').trim().toLowerCase();
-          if (key) {
-            existingMap[key] = m;
+          const lowerCode = (m.parameter_code || '').trim().toLowerCase();
+          if (lowerCode) {
+            existingByKey[`${m.device_id || 0}_${lowerCode}`] = m;
+            if (!existingByCode[lowerCode]) {
+              existingByCode[lowerCode] = m;
+            }
           }
         }
 
@@ -1785,7 +1835,28 @@ export default {
         const seen = new Set();
 
         for (const dev of devices) {
-          for (const param of dev.parameters || []) {
+          // Hanya proses device yang aktif (kecuali yang inactive)
+          if (dev.enabled === false) continue;
+          if (dev.status && String(dev.status).toUpperCase() === 'INACTIVE') continue;
+          if (dev.deleted_at) continue;
+
+          let params = dev.parameters || [];
+          if (!params || params.length === 0) {
+            try {
+              const pRes = await axios.get(`/api/devices/${dev.id}/parameters`);
+              const pData = pRes.data?.data;
+              params = Array.isArray(pData) ? pData : (pData?.items || []);
+            } catch (e) {
+              params = [];
+            }
+          }
+
+          for (const param of params) {
+            // Hanya tampilkan parameter yang aktif (kecuali yang inactive)
+            if (param.enabled === false) continue;
+            if (param.status && String(param.status).toUpperCase() === 'INACTIVE') continue;
+            if (param.deleted_at) continue;
+
             const code = (param.parameter_code || param.code || '').trim();
             if (!code) continue;
             const lowerCode = code.toLowerCase();
@@ -1793,34 +1864,30 @@ export default {
             if (seen.has(compositeKey)) continue;
             seen.add(compositeKey);
 
-            if (existingMap[lowerCode] && !forceOverwrite) {
-              const existing = existingMap[lowerCode];
+            const existing = existingByKey[compositeKey] || existingByCode[lowerCode];
+
+            if (existing && !forceOverwrite) {
               newMappings.push({
                 device_id: dev.id,
-                device_code: dev.device_code,
+                device_code: dev.device_code || dev.code || `DEV-${dev.id}`,
                 parameter_id: param.id,
                 parameter_code: code,
                 parameter_name: param.parameter_name || param.name || existing.parameter_name || code,
-                external_name: existing.external_name || code,
+                external_name: existing.external_name || aliasMap[lowerCode] || code,
                 enabled: existing.enabled !== undefined ? Boolean(existing.enabled) : true,
               });
-              delete existingMap[lowerCode];
             } else {
               newMappings.push({
                 device_id: dev.id,
-                device_code: dev.device_code,
+                device_code: dev.device_code || dev.code || `DEV-${dev.id}`,
                 parameter_id: param.id,
                 parameter_code: code,
                 parameter_name: param.parameter_name || param.name || code,
-                external_name: code,
+                external_name: aliasMap[lowerCode] || code,
                 enabled: true,
               });
             }
           }
-        }
-
-        for (const key in existingMap) {
-          newMappings.push(existingMap[key]);
         }
 
         if (newMappings.length > 0) {
