@@ -466,21 +466,27 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 1. Purge delivery logs if requested (delete before queues to avoid foreign key / dangling references)
 		if filter.PurgeLogs {
-			lq := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Model(&model.DeliveryLog{}).Where("1 = 1")
+			logQuery := "DELETE FROM delivery_logs WHERE 1 = 1"
+			var logArgs []interface{}
+
 			if filter.DestinationID != nil && *filter.DestinationID > 0 {
-				lq = lq.Where("destination_id = ?", *filter.DestinationID)
+				logQuery += " AND destination_id = ?"
+				logArgs = append(logArgs, *filter.DestinationID)
 			}
 			if filter.OlderThan != nil {
-				lq = lq.Where("delivered_at <= ?", *filter.OlderThan)
+				logQuery += " AND delivered_at <= ?"
+				logArgs = append(logArgs, *filter.OlderThan)
 			}
 			if filter.Status != "" && filter.Status != "ALL" {
 				if filter.Status == string(model.DeliveryDelivered) {
-					lq = lq.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged), "SUCCESS"})
+					logQuery += " AND status IN ('DELIVERED', 'ACKNOWLEDGED', 'SUCCESS')"
 				} else {
-					lq = lq.Where("status = ?", filter.Status)
+					logQuery += " AND status = ?"
+					logArgs = append(logArgs, filter.Status)
 				}
 			}
-			lres := lq.Delete(&model.DeliveryLog{})
+
+			lres := tx.Exec(logQuery, logArgs...)
 			if lres.Error != nil {
 				return lres.Error
 			}
@@ -488,22 +494,27 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 		}
 
 		// 2. Purge outbound delivery queue items
-		q := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Model(&model.OutboundDeliveryQueue{}).Where("1 = 1")
+		queueQuery := "DELETE FROM outbound_delivery_queues WHERE 1 = 1"
+		var queueArgs []interface{}
+
 		if filter.DestinationID != nil && *filter.DestinationID > 0 {
-			q = q.Where("destination_id = ?", *filter.DestinationID)
+			queueQuery += " AND destination_id = ?"
+			queueArgs = append(queueArgs, *filter.DestinationID)
 		}
 		if filter.Status != "" && filter.Status != "ALL" {
 			if filter.Status == string(model.DeliveryDelivered) {
-				q = q.Where("status IN ?", []string{string(model.DeliveryDelivered), string(model.DeliveryAcknowledged)})
+				queueQuery += " AND status IN ('DELIVERED', 'ACKNOWLEDGED')"
 			} else {
-				q = q.Where("status = ?", filter.Status)
+				queueQuery += " AND status = ?"
+				queueArgs = append(queueArgs, filter.Status)
 			}
 		}
 		if filter.OlderThan != nil {
-			q = q.Where("created_at <= ?", *filter.OlderThan)
+			queueQuery += " AND created_at <= ?"
+			queueArgs = append(queueArgs, *filter.OlderThan)
 		}
 
-		res := q.Delete(&model.OutboundDeliveryQueue{})
+		res := tx.Exec(queueQuery, queueArgs...)
 		if res.Error != nil {
 			return res.Error
 		}
