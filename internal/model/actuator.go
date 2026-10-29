@@ -53,16 +53,16 @@ const (
 
 // DeviceActuator represents a controllable output equipment (pump, valve, relay, fan, etc.)
 type DeviceActuator struct {
-	ID                   uint          `gorm:"primaryKey;autoIncrement" json:"id"`
-	DeviceID             uint          `gorm:"not null;index" json:"device_id"`
+	ID                   uint          `gorm:"primaryKey" json:"id"`
+	DeviceID             uint          `gorm:"uniqueIndex:idx_dev_act_code;index;not null" json:"device_id"`
 	Device               *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
-	ActuatorCode         string        `gorm:"type:varchar(64);not null;uniqueIndex:idx_dev_act_code" json:"actuator_code"`
-	ActuatorName         string        `gorm:"type:varchar(128);not null" json:"actuator_name"`
-	Description          string        `gorm:"type:varchar(255)" json:"description"`
-	Icon                 string        `gorm:"type:varchar(32);default:'pump'" json:"icon"`
+	ActuatorCode         string        `gorm:"size:64;uniqueIndex:idx_dev_act_code;not null" json:"actuator_code"`
+	ActuatorName         string        `gorm:"size:128;not null" json:"actuator_name"`
+	Description          string        `gorm:"size:255" json:"description"`
+	Icon                 string        `gorm:"size:32;default:'pump'" json:"icon"`
 
 	// Modbus Write Configuration
-	ControlType          ControlType   `gorm:"type:varchar(32);not null;default:'COIL_FC05'" json:"control_type"`
+	ControlType          ControlType   `gorm:"size:32;not null;default:'COIL_FC05'" json:"control_type"`
 	SlaveID              byte          `gorm:"not null;default:1" json:"slave_id"`
 	RegisterAddress      uint16        `gorm:"not null;default:0" json:"register_address"`
 	OnPayload            uint16        `gorm:"default:65280" json:"on_payload"` // 0xFF00 for FC05, or 1 for FC06

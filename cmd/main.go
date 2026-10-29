@@ -667,6 +667,8 @@ func main() {
 			apiV1.GET("/devices/:id/polling-plan", middleware.RequirePermission("device.view"), deviceHandler.GetDevicePollingPlan)
 			apiV1.GET("/devices/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
 			apiV1.GET("/devices/:id/parameters", middleware.RequirePermission("device.view"), deviceHandler.ListParameters)
+			apiV1.GET("/devices/:id/actuators", middleware.RequirePermission("device.view"), actuatorHandler.ListByDevice)
+			apiV1.POST("/devices/:id/actuators", middleware.RequirePermission("device.manage"), actuatorHandler.Create)
 			apiV1.GET("/alarms/live-comm/status", middleware.RequirePermission("alarm.view"), commTraceHandler.GetStatus)
 			apiV1.GET("/alarms/live-comm/frames", middleware.RequirePermission("alarm.view"), commTraceHandler.GetFrames)
 			apiV1.POST("/alarms/live-comm/toggle", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), commTraceHandler.ToggleTrace)
@@ -752,6 +754,7 @@ func main() {
 
 	// 3. Stop background scheduler, backup scheduler, and housekeeping scheduler
 	sched.Stop()
+	actuatorScheduler.Stop()
 	backupScheduler.Stop()
 	retentionScheduler.Stop()
 

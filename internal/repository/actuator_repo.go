@@ -21,17 +21,38 @@ func NewActuatorRepository(db *gorm.DB) *ActuatorRepository {
 // -------------------------------------------------------------
 
 func (r *ActuatorRepository) CreateActuator(actuator *model.DeviceActuator) error {
-	return r.db.Create(actuator).Error
+	wantWatchdog := actuator.SafetyWatchdogActive
+	wantEnabled := actuator.Enabled
+
+	if err := r.db.Omit("Device", "FeedbackParameter", "Schedules").Create(actuator).Error; err != nil {
+		return err
+	}
+
+	// Persist explicit false booleans that GORM default:true tags would otherwise override on INSERT
+	if !wantWatchdog || !wantEnabled {
+		updates := map[string]interface{}{
+			"safety_watchdog_active": wantWatchdog,
+			"enabled":                wantEnabled,
+		}
+		if err := r.db.Model(&model.DeviceActuator{}).Where("id = ?", actuator.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		actuator.SafetyWatchdogActive = wantWatchdog
+		actuator.Enabled = wantEnabled
+	}
+	return nil
 }
 
 func (r *ActuatorRepository) UpdateActuator(actuator *model.DeviceActuator) error {
-	return r.db.Save(actuator).Error
+	return r.db.Omit("Device", "FeedbackParameter", "Schedules").Save(actuator).Error
 }
 
 func (r *ActuatorRepository) DeleteActuator(id uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete related schedules and logs or cascade
 		if err := tx.Where("actuator_id = ?", id).Delete(&model.ActuationSchedule{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("actuator_id = ?", id).Delete(&model.ActuationLog{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&model.DeviceActuator{}, id).Error
@@ -40,7 +61,7 @@ func (r *ActuatorRepository) DeleteActuator(id uint) error {
 
 func (r *ActuatorRepository) GetActuatorByID(id uint) (*model.DeviceActuator, error) {
 	var act model.DeviceActuator
-	err := r.db.Preload("Device").Preload("Device.Connection").Preload("Schedules").First(&act, id).Error
+	err := r.db.Preload("Device").Preload("Device.Connection").Preload("FeedbackParameter").Preload("Schedules").First(&act, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +70,7 @@ func (r *ActuatorRepository) GetActuatorByID(id uint) (*model.DeviceActuator, er
 
 func (r *ActuatorRepository) GetActuatorByCode(code string) (*model.DeviceActuator, error) {
 	var act model.DeviceActuator
-	err := r.db.Preload("Device").Preload("Device.Connection").Preload("Schedules").Where("actuator_code = ?", code).First(&act).Error
+	err := r.db.Preload("Device").Preload("Device.Connection").Preload("FeedbackParameter").Preload("Schedules").Where("actuator_code = ?", code).First(&act).Error
 	if err != nil {
 		return nil, err
 	}
@@ -58,13 +79,13 @@ func (r *ActuatorRepository) GetActuatorByCode(code string) (*model.DeviceActuat
 
 func (r *ActuatorRepository) ListActuatorsByDevice(deviceID uint) ([]model.DeviceActuator, error) {
 	var list []model.DeviceActuator
-	err := r.db.Preload("Schedules").Where("device_id = ?", deviceID).Order("id ASC").Find(&list).Error
+	err := r.db.Preload("FeedbackParameter").Preload("Schedules").Where("device_id = ?", deviceID).Order("id ASC").Find(&list).Error
 	return list, err
 }
 
 func (r *ActuatorRepository) ListAllActiveActuators() ([]model.DeviceActuator, error) {
 	var list []model.DeviceActuator
-	err := r.db.Preload("Device").Preload("Device.Connection").Preload("Schedules").Where("enabled = ?", true).Order("device_id ASC, id ASC").Find(&list).Error
+	err := r.db.Preload("Device").Preload("Device.Connection").Preload("FeedbackParameter").Preload("Schedules").Where("enabled = ?", true).Order("device_id ASC, id ASC").Find(&list).Error
 	return list, err
 }
 
@@ -94,11 +115,21 @@ func (r *ActuatorRepository) ListActuatorsDueForAutoOff(now time.Time) ([]model.
 // -------------------------------------------------------------
 
 func (r *ActuatorRepository) CreateSchedule(schedule *model.ActuationSchedule) error {
-	return r.db.Create(schedule).Error
+	wantEnabled := schedule.Enabled
+	if err := r.db.Omit("Actuator").Create(schedule).Error; err != nil {
+		return err
+	}
+	if !wantEnabled {
+		if err := r.db.Model(&model.ActuationSchedule{}).Where("id = ?", schedule.ID).Update("enabled", false).Error; err != nil {
+			return err
+		}
+		schedule.Enabled = false
+	}
+	return nil
 }
 
 func (r *ActuatorRepository) UpdateSchedule(schedule *model.ActuationSchedule) error {
-	return r.db.Save(schedule).Error
+	return r.db.Omit("Actuator").Save(schedule).Error
 }
 
 func (r *ActuatorRepository) DeleteSchedule(id uint) error {

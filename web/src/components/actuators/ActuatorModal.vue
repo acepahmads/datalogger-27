@@ -33,7 +33,7 @@
       </div>
 
       <!-- Form Body -->
-      <form @submit.prevent="handleSubmit" class="p-6 overflow-y-auto space-y-5">
+      <form ref="formBody" @submit.prevent="handleSubmit" class="p-6 overflow-y-auto space-y-5">
         <!-- Error Alert -->
         <div v-if="errorMessage" class="p-3.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center space-x-2">
           <span>⚠️</span>
@@ -134,7 +134,7 @@
               >
                 <option :value="null">-- None (Logical State Only) --</option>
                 <option v-for="p in parameters" :key="p.id" :value="p.id">
-                  {{ p.name }} ({{ p.code }})
+                  {{ p.parameter_name || p.name }} ({{ p.parameter_code || p.code }})
                 </option>
               </select>
             </div>
@@ -263,6 +263,12 @@
               Automatically turns OFF the equipment if left running beyond this limit to prevent motor overheating, overfill, or pipe burst.
             </div>
           </div>
+        </div>
+
+        <!-- Inline Footer Error Alert (visible even when scrolled down) -->
+        <div v-if="errorMessage" class="p-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center space-x-2">
+          <span>⚠️</span>
+          <span>{{ errorMessage }}</span>
         </div>
 
         <!-- Footer Actions -->
@@ -417,18 +423,38 @@ export default {
       this.saving = true;
       this.errorMessage = '';
 
+      const payload = {
+        actuator_code: String(this.form.actuator_code || '').trim(),
+        actuator_name: String(this.form.actuator_name || '').trim(),
+        description: String(this.form.description || '').trim(),
+        icon: this.form.icon || 'pump',
+        control_type: this.form.control_type || 'COIL_FC05',
+        slave_id: Number(this.form.slave_id) || 1,
+        register_address: Number(this.form.register_address) || 0,
+        on_payload: this.form.on_payload === '' || this.form.on_payload === null || this.form.on_payload === undefined ? 0 : Number(this.form.on_payload),
+        off_payload: this.form.off_payload === '' || this.form.off_payload === null || this.form.off_payload === undefined ? 0 : Number(this.form.off_payload),
+        safety_timeout_seconds: Number(this.form.safety_timeout_seconds) || 900,
+        safety_watchdog_active: Boolean(this.form.safety_watchdog_active),
+        feedback_parameter_id: this.form.feedback_parameter_id ? Number(this.form.feedback_parameter_id) : null,
+        enabled: Boolean(this.form.enabled)
+      };
+
       try {
         let res;
         if (this.isEditing) {
-          res = await axios.put(`/api/actuators/${this.form.id}`, this.form);
+          res = await axios.put(`/api/actuators/${this.form.id}`, payload);
         } else {
-          res = await axios.post(`/api/devices/${this.deviceId}/actuators`, this.form);
+          res = await axios.post(`/api/devices/${this.deviceId}/actuators`, payload);
         }
         this.$emit('saved', res.data.data || res.data);
         this.close();
       } catch (err) {
         const errData = err.response && err.response.data;
-        this.errorMessage = (errData && (errData.error || errData.message)) || err.message;
+        if (err.response && err.response.status === 404) {
+          this.errorMessage = 'Endpoint /api/devices/' + this.deviceId + '/actuators tidak ditemukan (404). Pastikan binary backend di server sudah di-update dan service sudah di-restart.';
+        } else {
+          this.errorMessage = (errData && (errData.error || errData.message)) || err.message;
+        }
       } finally {
         this.saving = false;
       }
