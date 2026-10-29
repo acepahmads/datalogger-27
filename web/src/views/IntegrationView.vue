@@ -1217,8 +1217,8 @@
           <button @click="closePurgeModal" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
         </div>
 
-        <!-- FORM OPTIONS (When not running and not completed) -->
-        <div v-if="!purgingQueue && purgeProgress.status !== 'COMPLETED'" class="space-y-3.5 text-xs">
+        <!-- FORM OPTIONS (When idle / ready to configure a new purge) -->
+        <div v-if="!purgingQueue && purgeProgress.status === 'IDLE'" class="space-y-3.5 text-xs">
           <!-- Filter Status -->
           <div>
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Kriteria Status Antrean</label>
@@ -1344,7 +1344,7 @@
         </div>
 
         <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <template v-if="!purgingQueue && purgeProgress.status !== 'COMPLETED'">
+          <template v-if="!purgingQueue && purgeProgress.status === 'IDLE'">
             <button
               @click="closePurgeModal"
               class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
@@ -1367,6 +1367,12 @@
             </button>
           </template>
           <template v-else>
+            <button
+              @click="resetPurgeProgressState"
+              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+            >
+              Bersihkan Lagi
+            </button>
             <button
               @click="closePurgeModal"
               class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition shadow-md cursor-pointer"
@@ -1744,7 +1750,9 @@ export default {
     },
     async fetchSummary() {
       try {
-        const res = await axios.get('/api/integration/queue/summary');
+        const res = await axios.get('/api/integration/queue/summary', {
+          params: { _t: Date.now() },
+        });
         if (res.data && res.data.success) {
           this.summary = res.data.data;
         }
@@ -1774,6 +1782,7 @@ export default {
         const params = {
           page: this.page,
           page_size: this.pageSize,
+          _t: Date.now(),
         };
         if (this.filterStatus && this.filterStatus !== 'ALL') {
           params.status = this.filterStatus;
@@ -1851,24 +1860,40 @@ export default {
         alert('Hapus item antrean gagal: ' + (err.response?.data?.error || err.message));
       }
     },
+    resetPurgeProgressState() {
+      this.purgingQueue = false;
+      this.purgeProgress = {
+        is_running: false,
+        status: 'IDLE',
+        total_queue: 0,
+        purged_queue: 0,
+        total_logs: 0,
+        purged_logs: 0,
+        percent: 0,
+        error_message: '',
+      };
+    },
     openPurgeModal() {
       this.purgeConfig = {
         status: 'ALL',
         destination_id: null,
         purge_logs: true,
       };
+      this.resetPurgeProgressState();
       this.checkPurgeStatus();
       this.showPurgeModal = true;
     },
     async checkPurgeStatus() {
       try {
-        const res = await axios.get('/api/integration/queue/purge/status');
-        if (res.data && res.data.success) {
+        const res = await axios.get('/api/integration/queue/purge/status', {
+          params: { _t: Date.now() },
+        });
+        // Only resume progress display if a purge job is actively running right now;
+        // ignore stale COMPLETED/FAILED/CANCELLED states from previous runs so user can trigger a new purge.
+        if (res.data && res.data.success && res.data.data && res.data.data.is_running) {
           this.purgeProgress = res.data.data;
-          if (this.purgeProgress.is_running) {
-            this.purgingQueue = true;
-            this.startPurgePolling();
-          }
+          this.purgingQueue = true;
+          this.startPurgePolling();
         }
       } catch (e) {}
     },
@@ -1900,6 +1925,7 @@ export default {
         }
       } catch (err) {
         this.purgingQueue = false;
+        this.purgeProgress.status = 'IDLE';
         alert('Purge antrean gagal: ' + (err.response?.data?.error || err.message));
       }
     },
@@ -1907,7 +1933,9 @@ export default {
       if (this.purgePollingTimer) clearInterval(this.purgePollingTimer);
       this.purgePollingTimer = setInterval(async () => {
         try {
-          const res = await axios.get('/api/integration/queue/purge/status');
+          const res = await axios.get('/api/integration/queue/purge/status', {
+            params: { _t: Date.now() },
+          });
           if (res.data && res.data.success) {
             this.purgeProgress = res.data.data;
             if (!this.purgeProgress.is_running) {
@@ -1923,6 +1951,7 @@ export default {
     },
     onPurgeFinished() {
       this.purgingQueue = false;
+      this.page = 1;
       this.fetchSummary();
       this.fetchQueue();
       if (this.purgeProgress.status === 'FAILED') {
@@ -1940,6 +1969,7 @@ export default {
         this.purgePollingTimer = null;
       }
       this.showPurgeModal = false;
+      this.resetPurgeProgressState();
       this.fetchSummary();
       this.fetchQueue();
     },

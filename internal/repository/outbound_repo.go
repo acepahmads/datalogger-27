@@ -463,8 +463,8 @@ func (r *outboundRepository) CreateDeliveryLog(ctx context.Context, log *model.D
 // DeleteQueueItem permanently removes a single queue item from the database
 func (r *outboundRepository) DeleteQueueItem(ctx context.Context, id uint64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		_ = tx.Where("queue_item_id = ?", id).Delete(&model.DeliveryLog{}).Error
-		return tx.Where("id = ?", id).Delete(&model.OutboundDeliveryQueue{}).Error
+		_ = tx.Unscoped().Where("queue_item_id = ?", id).Delete(&model.DeliveryLog{}).Error
+		return tx.Unscoped().Where("id = ?", id).Delete(&model.OutboundDeliveryQueue{}).Error
 	})
 }
 
@@ -593,7 +593,7 @@ func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePu
 	var moreQueue bool
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. Delete delivery logs batch first to respect foreign key ordering
+		// 1. Drain matching delivery logs in batches first to respect foreign key ordering
 		if filter.PurgeLogs {
 			var logIDs []uint
 			lq := tx.Model(&model.DeliveryLog{}).Select("id")
@@ -614,12 +614,15 @@ func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePu
 				return err
 			}
 			if len(logIDs) > 0 {
-				res := tx.Where("id IN ?", logIDs).Delete(&model.DeliveryLog{})
+				res := tx.Unscoped().Where("id IN ?", logIDs).Delete(&model.DeliveryLog{})
 				if res.Error != nil {
 					return res.Error
 				}
-				deletedLogs = res.RowsAffected
+				deletedLogs += res.RowsAffected
 				moreLogs = len(logIDs) == batchSize
+				if moreLogs {
+					return nil
+				}
 			}
 		}
 
@@ -643,7 +646,21 @@ func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePu
 			return err
 		}
 		if len(queueIDs) > 0 {
-			res := tx.Where("id IN ?", queueIDs).Delete(&model.OutboundDeliveryQueue{})
+			if filter.PurgeLogs {
+				// Clean up any remaining delivery logs referencing these queue items (e.g. earlier RETRYING logs on a FAILED item)
+				lres := tx.Unscoped().Where("queue_item_id IN ?", queueIDs).Delete(&model.DeliveryLog{})
+				if lres.Error != nil {
+					return lres.Error
+				}
+				deletedLogs += lres.RowsAffected
+			} else {
+				// Unlink queue_item_id so FK constraints cannot block queue deletion while keeping log history
+				if err := tx.Model(&model.DeliveryLog{}).Where("queue_item_id IN ?", queueIDs).Update("queue_item_id", nil).Error; err != nil {
+					return err
+				}
+			}
+
+			res := tx.Unscoped().Where("id IN ?", queueIDs).Delete(&model.OutboundDeliveryQueue{})
 			if res.Error != nil {
 				return res.Error
 			}

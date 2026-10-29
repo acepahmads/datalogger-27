@@ -416,3 +416,94 @@ func TestOutboundExcludesInactiveDeletedAndUncheckedDevicesAndParams(t *testing.
 		t.Fatalf("expected 3 ticks in multi array, got %v", parsed)
 	}
 }
+
+func TestConsecutiveBackgroundPurgeDeletesQueueAndLogs(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+	ctx := context.Background()
+
+	now := time.Now()
+	seedQueueWave := func(prefix string, count int, purgeLogs bool) {
+		for i := 1; i <= count; i++ {
+			q := &model.OutboundDeliveryQueue{
+				BatchID:         fmt.Sprintf("%s-BATCH-%d", prefix, i),
+				DestinationID:   3,
+				PeriodStart:     now.Add(-2 * time.Minute),
+				PeriodEnd:       now,
+				IntervalSeconds: 120,
+				ParameterCount:  10,
+				PayloadSnapshot: `{"multi":[]}`,
+				IdempotencyKey:  fmt.Sprintf("%s-KEY-%d", prefix, i),
+				Status:          model.DeliveryFailed,
+				Attempts:        5,
+				MaxRetries:      5,
+				CreatedAt:       now,
+			}
+			if err := outboundRepo.EnqueueDelivery(ctx, q); err != nil {
+				t.Fatalf("EnqueueDelivery error: %v", err)
+			}
+			// Create mixed RETRYING + FAILED logs referencing this queue item
+			qID := q.ID
+			_ = outboundRepo.CreateDeliveryLog(ctx, &model.DeliveryLog{
+				DestinationID: 3,
+				QueueItemID:   &qID,
+				Status:        string(model.DeliveryRetrying),
+				HTTPCode:      500,
+				DeliveredAt:   now,
+			})
+			_ = outboundRepo.CreateDeliveryLog(ctx, &model.DeliveryLog{
+				DestinationID: 3,
+				QueueItemID:   &qID,
+				Status:        string(model.DeliveryFailed),
+				HTTPCode:      400,
+				DeliveredAt:   now,
+			})
+		}
+
+		_, err := svc.StartPurge(ctx, repository.QueuePurgeFilter{
+			Status:    "ALL",
+			PurgeLogs: purgeLogs,
+		})
+		if err != nil {
+			t.Fatalf("StartPurge (%s) error: %v", prefix, err)
+		}
+
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			st := svc.GetPurgeStatus()
+			if !st.IsRunning && st.Status == "COMPLETED" {
+				break
+			}
+			if st.Status == "FAILED" {
+				t.Fatalf("purge (%s) failed: %s", prefix, st.ErrorMessage)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+
+		st := svc.GetPurgeStatus()
+		if st.Status != "COMPLETED" || st.PurgedQueue != int64(count) {
+			t.Fatalf("expected COMPLETED with %d purged queue items for %s, got status=%s purged=%d", count, prefix, st.Status, st.PurgedQueue)
+		}
+
+		summary, err := svc.GetQueueSummary(ctx)
+		if err != nil {
+			t.Fatalf("GetQueueSummary error: %v", err)
+		}
+		if summary.Total != 0 || summary.Failed != 0 {
+			t.Fatalf("expected 0 remaining queue items after %s, got total=%d failed=%d", prefix, summary.Total, summary.Failed)
+		}
+	}
+
+	// Wave 1: 8 batches with PurgeLogs = true
+	seedQueueWave("WAVE1", 8, true)
+
+	// Wave 2: 6 new batches arriving after first purge completed, with PurgeLogs = true
+	seedQueueWave("WAVE2", 6, true)
+
+	// Wave 3: 4 new batches with PurgeLogs = false (must unlink queue_item_id and still delete queue rows)
+	seedQueueWave("WAVE3", 4, false)
+}
+
