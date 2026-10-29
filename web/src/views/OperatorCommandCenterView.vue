@@ -1,5 +1,5 @@
 <template>
-  <div class="operator-command-center operator-dashboard font-sans text-slate-800 dark:text-slate-100 select-none pb-[33px] transition-colors duration-150 -mx-1 sm:-mx-1.5 -mt-0.5 sm:-mt-1 px-1 sm:px-1.5 pt-0.5 sm:pt-1 min-h-[calc(100vh-32px)]" :class="isDark ? 'dark-mode' : 'light-mode'">
+  <div class="operator-command-center operator-dashboard font-sans text-slate-800 dark:text-slate-100 select-none pb-[33px] transition-colors duration-150 -mx-1 sm:-mx-1.5 -mt-0.5 sm:-mt-1 px-1 sm:px-1.5 pt-0.5 sm:pt-1 min-h-[calc(100vh-32px)]" :class="[isDark ? 'dark-mode' : 'light-mode', { 'no-perf-animations': perfSettings && !perfSettings.chartAnimationsEnabled }]">
     <!-- ======================================================== -->
     <!-- UNIFIED OPERATOR DASHBOARD HEADER (SINGLE OUTER CARD)    -->
     <!-- Wraps:                                                   -->
@@ -488,6 +488,329 @@
                     >
                       <span>🏷️</span>
                       <span>{{ $t('operator.manageCategories') || 'Configure Categories & Layout' }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Performance Settings Popover (Raspberry Pi CPU Optimization) -->
+          <div class="relative toolbar-popover-anchor">
+            <button
+              type="button"
+              id="btn-operator-performance-settings"
+              @click.stop="toggleToolbarPopover('performanceSettings')"
+              class="w-8 h-8 flex items-center justify-center rounded transition border relative"
+              :class="[
+                activeToolbarPopover === 'performanceSettings'
+                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                  : isPerformanceOptimizedActive
+                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/50'
+                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:bg-slate-200 dark:hover:bg-[#162538] hover:text-slate-900 dark:hover:text-white'
+              ]"
+              :title="$t('operator.perfSettingsTooltip') || 'Performance Settings (Raspberry Pi CPU Optimization)'"
+              aria-label="Performance Settings"
+              :aria-expanded="activeToolbarPopover === 'performanceSettings'"
+            >
+              <OperatorDashboardIcon name="settings" :size="16" />
+              <!-- Status dot indicator if optimized profile is active -->
+              <span
+                v-if="isPerformanceOptimizedActive"
+                class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400 ring-1 ring-white dark:ring-[#0B1422]"
+                title="Performance Optimization Active"
+              ></span>
+            </button>
+
+            <!-- Performance Settings Popover Panel -->
+            <div
+              v-if="activeToolbarPopover === 'performanceSettings'"
+              class="absolute left-0 top-full mt-1.5 z-50 w-[380px] sm:w-[420px] max-w-[calc(100vw-24px)] rounded-lg shadow-2xl p-3 text-left border border-slate-200 dark:border-[#20354B] bg-white dark:bg-[#101B2B] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-mono max-h-[85vh] overflow-y-auto custom-scroller"
+              @click.stop
+            >
+              <!-- Panel Header -->
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-[#1E3048]">
+                <div class="flex items-center space-x-2">
+                  <div class="w-6 h-6 rounded flex items-center justify-center bg-cyan-500/10 border border-cyan-500/30 text-cyan-500 flex-shrink-0">
+                    <OperatorDashboardIcon name="settings" :size="14" />
+                  </div>
+                  <div>
+                    <div class="flex items-center space-x-1.5">
+                      <span class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
+                        {{ $t('operator.perfSettingsTitle') || 'Performance Settings' }}
+                      </span>
+                      <span
+                        v-if="isPerformanceOptimizedActive"
+                        class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 leading-none"
+                      >
+                        OPTIMIZED
+                      </span>
+                    </div>
+                    <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {{ $t('operator.perfSettingsSubtitle') || 'Raspberry Pi & Low-Power Chromium Optimization' }}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  @click="closeToolbarPopover"
+                  class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#18283E] rounded transition"
+                  title="Close"
+                >
+                  <OperatorDashboardIcon name="close" :size="14" />
+                </button>
+              </div>
+
+              <!-- Storage Badge Notice -->
+              <div class="mb-2 px-2 py-1 rounded bg-slate-50 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400">
+                <span class="flex items-center space-x-1">
+                  <span>💾</span>
+                  <span>{{ $t('operator.perfStorageNotice') || 'Saved in this browser only (localStorage)' }}</span>
+                </span>
+                <button
+                  type="button"
+                  @click="resetPerformanceSettings"
+                  class="text-cyan-600 dark:text-cyan-400 hover:underline font-bold text-[8.5px] cursor-pointer"
+                >
+                  {{ $t('operator.perfResetDefaults') || 'Reset Defaults' }}
+                </button>
+              </div>
+
+              <div class="space-y-2">
+                <!-- A. Parameter Card Sparklines -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B]">
+                  <div class="flex items-center justify-between">
+                    <div class="pr-2">
+                      <div class="text-[11px] font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
+                        <span>📈</span>
+                        <span>{{ $t('operator.perfSparklines') || 'Parameter Card Sparklines' }}</span>
+                      </div>
+                      <div class="text-[9px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        {{ $t('operator.perfSparklinesDesc') || 'Render mini SVG sparklines on parameter cards' }}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="togglePerfSetting('parameterSparklinesEnabled')"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="perfSettings.parameterSparklinesEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="perfSettings.parameterSparklinesEnabled"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                        :class="perfSettings.parameterSparklinesEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+                  <div class="mt-1 text-[8.5px] leading-tight" :class="perfSettings.parameterSparklinesEnabled ? 'text-slate-500 dark:text-slate-400' : 'text-amber-600 dark:text-amber-400 font-semibold'">
+                    {{ perfSettings.parameterSparklinesEnabled ? ($t('operator.perfSparklinesOn') || 'Active: SVG curve history & calculations active.') : ($t('operator.perfSparklinesOff') || 'OFF: Halts SVG bezier calculations & history fetching. Significant CPU savings.') }}
+                  </div>
+                </div>
+
+                <!-- B. Trend Analysis Chart -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B]">
+                  <div class="flex items-center justify-between">
+                    <div class="pr-2">
+                      <div class="text-[11px] font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
+                        <span>📊</span>
+                        <span>{{ $t('operator.perfTrend') || 'Trend Analysis Chart' }}</span>
+                      </div>
+                      <div class="text-[9px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        {{ $t('operator.perfTrendDesc') || 'Multi-parameter trend analysis panel and 1M/5S intervals' }}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="togglePerfSetting('trendAnalysisEnabled')"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="perfSettings.trendAnalysisEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="perfSettings.trendAnalysisEnabled"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                        :class="perfSettings.trendAnalysisEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+                  <div class="mt-1 text-[8.5px] leading-tight" :class="perfSettings.trendAnalysisEnabled ? 'text-slate-500 dark:text-slate-400' : 'text-amber-600 dark:text-amber-400 font-semibold'">
+                    {{ perfSettings.trendAnalysisEnabled ? ($t('operator.perfTrendOn') || 'Active: Live trend graphs & series paths updating.') : ($t('operator.perfTrendOff') || 'OFF: Unmounts heavy SVG chart, stops 1M/5S timers & path math.') }}
+                  </div>
+                </div>
+
+                <!-- C. Alarm Display & Sound -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] space-y-2">
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
+                    <span>🚨</span>
+                    <span>{{ $t('operator.perfAlarms') || 'Alarm Display & Sound' }}</span>
+                  </div>
+
+                  <!-- Alarm Visual -->
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
+                    <div class="pr-2">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
+                        {{ $t('operator.perfAlarmVisual') || 'Alarm Visual (Flashing & Pulse)' }}
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                        {{ $t('operator.perfAlarmVisualDesc') || 'Flashing borders and pulse animations on cards during alarms' }}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="togglePerfSetting('alarmVisualEnabled')"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="perfSettings.alarmVisualEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="perfSettings.alarmVisualEnabled"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                        :class="perfSettings.alarmVisualEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+
+                  <!-- Alarm Sound -->
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
+                    <div class="pr-2">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
+                        {{ $t('operator.perfAlarmSound') || 'Alarm Sound (Audio Buzzer)' }}
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                        {{ $t('operator.perfAlarmSoundDesc') || 'Audible chime when critical alarm incidents occur' }}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="togglePerfSetting('alarmSoundEnabled')"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="perfSettings.alarmSoundEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="perfSettings.alarmSoundEnabled"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                        :class="perfSettings.alarmSoundEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+
+                  <!-- Alarm Important Notice -->
+                  <div class="p-1.5 rounded bg-amber-500/10 border border-amber-500/25 text-[8px] text-amber-700 dark:text-amber-300 leading-tight">
+                    ⚠️ {{ $t('operator.perfAlarmNotice') || 'Critical alarms remain logged on backend. Disabling visual or sound may delay operator awareness.' }}
+                  </div>
+                </div>
+
+                <!-- D. Live Dashboard Updates Mode -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] space-y-1.5">
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
+                    <span>⚡</span>
+                    <span>{{ $t('operator.perfLiveUpdates') || 'Live Dashboard Updates' }}</span>
+                  </div>
+
+                  <!-- Selector Buttons -->
+                  <div class="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      @click="setPerfSetting('liveUpdateMode', 'full')"
+                      class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer"
+                      :class="perfSettings.liveUpdateMode === 'full'
+                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                        : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                    >
+                      Full Live
+                    </button>
+                    <button
+                      type="button"
+                      @click="setPerfSetting('liveUpdateMode', 'essential')"
+                      class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer"
+                      :class="perfSettings.liveUpdateMode === 'essential'
+                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                        : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                    >
+                      Essential
+                    </button>
+                    <button
+                      type="button"
+                      @click="setPerfSetting('liveUpdateMode', 'reduced')"
+                      class="py-1 px-1.5 rounded text-[9.5px] font-bold border transition text-center cursor-pointer"
+                      :class="perfSettings.liveUpdateMode === 'reduced'
+                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500 shadow-xs'
+                        : 'bg-white dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:border-slate-400'"
+                    >
+                      Reduced (1s)
+                    </button>
+                  </div>
+
+                  <!-- Description for selected mode -->
+                  <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                    <span v-if="perfSettings.liveUpdateMode === 'full'">
+                      {{ $t('operator.perfLiveFullDesc') || 'All live telemetry, sparklines, trends, and status updated continuously.' }}
+                    </span>
+                    <span v-else-if="perfSettings.liveUpdateMode === 'essential'">
+                      {{ $t('operator.perfLiveEssentialDesc') || 'Only numeric sensor values and vital status update. Graphics skip processing.' }}
+                    </span>
+                    <span v-else-if="perfSettings.liveUpdateMode === 'reduced'">
+                      {{ $t('operator.perfLiveReducedDesc') || 'Throttles UI visual renders to 1s batch intervals without altering sensor polling.' }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- E. Optional Visual Effects -->
+                <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] space-y-2">
+                  <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center space-x-1.5">
+                    <span>✨</span>
+                    <span>{{ $t('operator.perfVisualEffects') || 'Visual Effects' }}</span>
+                  </div>
+
+                  <!-- Tile Ingestion Blinks -->
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
+                    <div class="pr-2">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
+                        {{ $t('operator.perfCardBlinks') || 'Tile Ingestion Blinks' }}
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                        {{ $t('operator.perfCardBlinksDesc') || 'Cyan flash highlight on tiles when new telemetry packets arrive' }}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="togglePerfSetting('cardBlinksEnabled')"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="perfSettings.cardBlinksEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="perfSettings.cardBlinksEnabled"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                        :class="perfSettings.cardBlinksEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
+                    </button>
+                  </div>
+
+                  <!-- Chart Animations -->
+                  <div class="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-[#1E3048]">
+                    <div class="pr-2">
+                      <div class="text-[10.5px] font-semibold text-slate-800 dark:text-slate-200">
+                        {{ $t('operator.perfChartAnimations') || 'Chart Path Animations' }}
+                      </div>
+                      <div class="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                        {{ $t('operator.perfChartAnimationsDesc') || 'Smooth transition effects on chart lines and curves' }}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="togglePerfSetting('chartAnimationsEnabled')"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                      :class="perfSettings.chartAnimationsEnabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-700'"
+                      role="switch"
+                      :aria-checked="perfSettings.chartAnimationsEnabled"
+                    >
+                      <span
+                        class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out"
+                        :class="perfSettings.chartAnimationsEnabled ? 'translate-x-4' : 'translate-x-0'"
+                      ></span>
                     </button>
                   </div>
                 </div>
@@ -1885,7 +2208,7 @@
                 class="scada-param-tile px-2 py-1 rounded-md border transition-all duration-150 relative cursor-pointer group flex flex-col justify-between h-[58px] min-w-0 box-border overflow-hidden"
                 :class="[
                   isParamAlarmOrStaleBad(param)
-                    ? (isAlarmPulseActive
+                    ? ((perfSettings.alarmVisualEnabled && isAlarmPulseActive)
                         ? (alarmPulseSeverity === 'CRITICAL' || param.alarm_status === 'CRITICAL' || param.quality === 'BAD'
                             ? 'border-rose-500 bg-rose-500/15 dark:bg-rose-950/45 shadow-sm shadow-rose-500/30 transition-colors duration-75'
                             : 'border-amber-500 bg-amber-500/15 dark:bg-amber-950/45 shadow-sm shadow-amber-500/30 transition-colors duration-75')
@@ -1895,7 +2218,7 @@
                     : (isParamSelectedForTrend(param)
                         ? 'bg-white dark:bg-[#0B1422] border-cyan-500/40 dark:border-cyan-400/35 hover:border-cyan-500/60 dark:hover:border-cyan-400/50'
                         : 'bg-white dark:bg-[#0B1422] border-slate-200 dark:border-[#20354B] hover:border-slate-300 dark:hover:border-[#334b66] shadow-xs dark:shadow-none'),
-                  liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
+                  perfSettings.cardBlinksEnabled && liveBlinks[param.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : ''
                 ]"
                 :title="getParamTimingTitle(param)"
               >
@@ -1907,7 +2230,7 @@
                       class="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all duration-150"
                       :class="[
                         (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') ? 'bg-emerald-500' : 'bg-rose-500',
-                        isParamAlarmOrStaleBad(param) && isAlarmPulseActive ? 'scale-125 ring-2 ring-rose-400' : 'scale-100'
+                        isParamAlarmOrStaleBad(param) && perfSettings.alarmVisualEnabled && isAlarmPulseActive ? 'scale-125 ring-2 ring-rose-400' : 'scale-100'
                       ]"
                       :title="(param.device_name ? (param.device_name + ' (' + param.device_code + ')') : param.device_code) + ' · ' + (param.device_status || 'UNKNOWN')"
                     ></span>
@@ -2008,7 +2331,7 @@
                   <!-- Right: Mini Sparkline (Vertically centered, consistent 20px height) -->
                   <div class="w-[52px] sm:w-[56px] h-[20px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative my-auto flex items-center justify-center">
                     <svg
-                      v-if="getSparkline(param).hasHistory"
+                      v-if="perfSettings.parameterSparklinesEnabled && getSparkline(param).hasHistory"
                       class="w-full h-full block"
                       viewBox="0 0 100 20"
                       preserveAspectRatio="none"
@@ -2125,11 +2448,11 @@
                       class="transition-colors"
                       :class="[
                         isParamAlarmOrStaleBad(p)
-                          ? (isAlarmPulseActive
+                          ? ((perfSettings.alarmVisualEnabled && isAlarmPulseActive)
                               ? 'bg-rose-500/25 dark:bg-rose-950/70 border-l-4 border-l-rose-500 transition-colors duration-150'
                               : 'bg-slate-200/70 dark:bg-slate-800/80 border-l-4 border-l-rose-500/70 transition-colors duration-300')
                           : 'hover:bg-slate-50 dark:hover:bg-[#101B2B]',
-                        liveBlinks[p.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : '',
+                        perfSettings.cardBlinksEnabled && liveBlinks[p.param_id] ? 'bg-cyan-50 dark:bg-cyan-950/40' : '',
                         isPinned(p.param_id) ? 'bg-amber-50/40 dark:bg-[#0f1d30]/40' : ''
                       ]"
                     >
@@ -2261,7 +2584,7 @@
     <!-- ======================================================== -->
     <div class="w-full flex flex-col space-y-1 pt-0.5">
       <!-- 1. TREND ANALYSIS CHART PANEL -->
-        <div class="scada-panel px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] shadow-xs flex flex-col space-y-1">
+        <div v-if="perfSettings.trendAnalysisEnabled" class="scada-panel px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] shadow-xs flex flex-col space-y-1">
           <!-- Chart Header & Timeframe Buttons -->
           <div class="flex items-center justify-between gap-1.5 pb-1 border-b border-slate-200 dark:border-[#1E3048]">
             <div class="flex items-center space-x-1.5">
@@ -3201,6 +3524,39 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 1b. TREND ANALYSIS DISABLED PLACEHOLDER (PERFORMANCE OPTIMIZATION) -->
+        <div
+          v-else
+          class="scada-panel px-3 py-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] shadow-xs flex items-center justify-between"
+        >
+          <div class="flex items-center space-x-2.5">
+            <div class="w-7 h-7 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#1E3048] flex items-center justify-center text-slate-400 flex-shrink-0">
+              <OperatorDashboardIcon name="chart" :size="15" />
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <h3 class="text-2xs sm:text-xs font-bold tracking-wider uppercase text-slate-700 dark:text-slate-300 font-mono leading-none">
+                  {{ $t('operator.trendAnalysis') || 'TREND ANALYSIS' }}
+                </h3>
+                <span class="text-[8px] font-mono text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/25 leading-none font-bold">
+                  PAUSED
+                </span>
+              </div>
+              <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                {{ $t('operator.perfTrendOff') || 'OFF: Unmounts heavy SVG chart, stops 1M/5S timers & path math.' }}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="setPerfSetting('trendAnalysisEnabled', true)"
+            class="px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-400 border border-cyan-500/40 transition cursor-pointer flex items-center space-x-1"
+          >
+            <span>▶</span>
+            <span>{{ $t('operator.perfTrend') || 'Aktifkan Trend Analysis' }}</span>
+          </button>
         </div>
 
         <!-- 2. OPERATIONAL ENVIRONMENTAL VISUALIZATIONS (WIND ROSE & POLLUTANT DISPERSION MAP) -->
@@ -5408,6 +5764,48 @@ function isAlarmLikeColor(color) {
   return ALARM_LIKE_COLORS.has(color.toUpperCase());
 }
 
+const PERF_STORAGE_KEY = 'datalogger_operator_performance_v1';
+const DEFAULT_PERF_SETTINGS = {
+  parameterSparklinesEnabled: true,
+  trendAnalysisEnabled: true,
+  alarmVisualEnabled: true,
+  alarmSoundEnabled: true,
+  alarmCounterEnabled: true,
+  liveUpdateMode: 'full', // 'full' | 'essential' | 'reduced'
+  chartAnimationsEnabled: true,
+  cardBlinksEnabled: true,
+};
+
+function loadPerformanceSettings() {
+  try {
+    const raw = localStorage.getItem(PERF_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_PERF_SETTINGS };
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_PERF_SETTINGS };
+    return {
+      parameterSparklinesEnabled: parsed.parameterSparklinesEnabled !== undefined ? !!parsed.parameterSparklinesEnabled : DEFAULT_PERF_SETTINGS.parameterSparklinesEnabled,
+      trendAnalysisEnabled: parsed.trendAnalysisEnabled !== undefined ? !!parsed.trendAnalysisEnabled : DEFAULT_PERF_SETTINGS.trendAnalysisEnabled,
+      alarmVisualEnabled: parsed.alarmVisualEnabled !== undefined ? !!parsed.alarmVisualEnabled : DEFAULT_PERF_SETTINGS.alarmVisualEnabled,
+      alarmSoundEnabled: parsed.alarmSoundEnabled !== undefined ? !!parsed.alarmSoundEnabled : DEFAULT_PERF_SETTINGS.alarmSoundEnabled,
+      alarmCounterEnabled: parsed.alarmCounterEnabled !== undefined ? !!parsed.alarmCounterEnabled : DEFAULT_PERF_SETTINGS.alarmCounterEnabled,
+      liveUpdateMode: ['full', 'essential', 'reduced'].includes(parsed.liveUpdateMode) ? parsed.liveUpdateMode : DEFAULT_PERF_SETTINGS.liveUpdateMode,
+      chartAnimationsEnabled: parsed.chartAnimationsEnabled !== undefined ? !!parsed.chartAnimationsEnabled : DEFAULT_PERF_SETTINGS.chartAnimationsEnabled,
+      cardBlinksEnabled: parsed.cardBlinksEnabled !== undefined ? !!parsed.cardBlinksEnabled : DEFAULT_PERF_SETTINGS.cardBlinksEnabled,
+    };
+  } catch (e) {
+    console.warn('Failed to load operator performance settings from localStorage:', e);
+    return { ...DEFAULT_PERF_SETTINGS };
+  }
+}
+
+function savePerformanceSettings(settings) {
+  try {
+    localStorage.setItem(PERF_STORAGE_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.warn('Failed to save operator performance settings to localStorage:', e);
+  }
+}
+
 export default {
   name: 'OperatorCommandCenterView',
   components: {
@@ -5441,6 +5839,8 @@ export default {
   },
   data() {
     return {
+      perfSettings: loadPerformanceSettings(),
+      _lastReducedProcessTime: 0,
       gridColumns: (() => {
         try {
           const raw = localStorage.getItem('dl_operator_preferences');
@@ -5870,6 +6270,16 @@ export default {
     };
   },
   computed: {
+    isPerformanceOptimizedActive() {
+      if (!this.perfSettings) return false;
+      return !this.perfSettings.parameterSparklinesEnabled ||
+             !this.perfSettings.trendAnalysisEnabled ||
+             !this.perfSettings.alarmVisualEnabled ||
+             !this.perfSettings.alarmSoundEnabled ||
+             this.perfSettings.liveUpdateMode !== 'full' ||
+             !this.perfSettings.cardBlinksEnabled ||
+             !this.perfSettings.chartAnimationsEnabled;
+    },
     networkStatusDotClass() {
       const local = this.networkStatus?.local_network?.status;
       const internet = this.networkStatus?.internet?.status;
@@ -7476,8 +7886,10 @@ export default {
     },
   },
   mounted() {
+    this.perfSettings = loadPerformanceSettings();
     this.initCompanyBranding();
     this.initAudioPreferences();
+    this.applyPerformanceSettings();
     window.addEventListener('organization-branding-updated', this.onOrganizationBrandingUpdated);
     this.initDashboard();
     this.initTrendResizeObserver();
@@ -7559,6 +7971,67 @@ export default {
     document.removeEventListener('keydown', this.onDocumentKeyDown);
   },
   methods: {
+    togglePerfSetting(key) {
+      if (!this.perfSettings) return;
+      this.setPerfSetting(key, !this.perfSettings[key]);
+    },
+    setPerfSetting(key, val) {
+      if (!this.perfSettings) return;
+      this.$set(this.perfSettings, key, val);
+      savePerformanceSettings(this.perfSettings);
+      this.applyPerformanceSettings(key, val);
+    },
+    resetPerformanceSettings() {
+      this.perfSettings = { ...DEFAULT_PERF_SETTINGS };
+      savePerformanceSettings(this.perfSettings);
+      this.applyPerformanceSettings();
+      if (this.perfSettings.trendAnalysisEnabled) {
+        this.fetchTrendData(true);
+        this.startTrendTimers();
+      }
+      if (this.perfSettings.parameterSparklinesEnabled) {
+        this.fetchInitialSparklines();
+      }
+    },
+    applyPerformanceSettings(changedKey = null, changedVal = null) {
+      if (!this.perfSettings) return;
+      // 1. Alarm Sound
+      if (changedKey === 'alarmSoundEnabled' || changedKey === null) {
+        const soundOn = this.perfSettings.alarmSoundEnabled !== false;
+        audioAlert.setSoundEnabled(soundOn);
+        audioAlert.setMute(!soundOn);
+      }
+      // 2. Trend Analysis
+      if (changedKey === 'trendAnalysisEnabled') {
+        if (changedVal === true) {
+          this.fetchTrendData(true);
+          this.startTrendTimers();
+        } else {
+          this.stopTrendTimers();
+        }
+      }
+      // 3. Sparklines
+      if (changedKey === 'parameterSparklinesEnabled' && changedVal === true) {
+        this.fetchInitialSparklines();
+      }
+      // 4. Alarm Visual
+      if (changedKey === 'alarmVisualEnabled' && changedVal === false) {
+        this.isAlarmPulseActive = false;
+        if (this.alarmPulseTimer) {
+          clearTimeout(this.alarmPulseTimer);
+          this.alarmPulseTimer = null;
+        }
+      }
+    },
+    startTrendTimers() {
+      this.setupTrendAutoRefresh();
+    },
+    stopTrendTimers() {
+      if (this.trendAutoRefreshInterval) {
+        clearInterval(this.trendAutoRefreshInterval);
+        this.trendAutoRefreshInterval = null;
+      }
+    },
     loadOperatorPreferences() {
       try {
         const raw = localStorage.getItem('dl_operator_preferences');
@@ -8503,6 +8976,10 @@ export default {
       }
     },
     handleAlarmPulse(e) {
+      if (this.perfSettings && !this.perfSettings.alarmVisualEnabled) {
+        this.isAlarmPulseActive = false;
+        return;
+      }
       this.isAlarmPulseActive = true;
       this.alarmPulseSeverity = e && e.detail ? e.detail.severity : 'WARNING';
       if (this.alarmPulseTimer) {
@@ -8892,6 +9369,9 @@ export default {
       };
     },
     recordSparkline(paramOrData, val, time, quality = 'GOOD', deviceId = null) {
+      if (this.perfSettings && (!this.perfSettings.parameterSparklinesEnabled || this.perfSettings.liveUpdateMode === 'essential')) {
+        return;
+      }
       let sample = null;
       if (typeof paramOrData === 'object' && paramOrData !== null) {
         sample = this.normalizeTelemetryData(paramOrData);
@@ -9001,6 +9481,9 @@ export default {
       this.recomputeSparklineMeta(pid);
     },
     async fetchInitialSparklines() {
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
+        return;
+      }
       for (const dev of this.devicesList || []) {
         if (!dev.id) continue;
         try {
@@ -9068,6 +9551,9 @@ export default {
       }
     },
     recomputeSparklineMeta(paramId) {
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
+        return;
+      }
       const pid = Number(paramId);
       const rawList = this.sparklinesMap[pid] || [];
       const validItems = rawList.filter(item => item && item.val !== null && item.val !== undefined && isFinite(item.val));
@@ -9245,6 +9731,9 @@ export default {
       });
     },
     getSparkline(paramId) {
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
+        return { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
+      }
       let param = null;
       let pid = null;
       if (typeof paramId === 'object' && paramId !== null) {
@@ -9419,6 +9908,9 @@ export default {
       if (this.trendAutoRefreshInterval) {
         clearInterval(this.trendAutoRefreshInterval);
         this.trendAutoRefreshInterval = null;
+      }
+      if (this.perfSettings && !this.perfSettings.trendAnalysisEnabled) {
+        return;
       }
       // Auto-refresh Trend Analysis every 1 minute (60,000 ms)
       this.trendAutoRefreshInterval = setInterval(() => {
@@ -9650,18 +10142,44 @@ export default {
 
       if (data.parameter_id && data.value !== undefined) {
         this.$set(this.liveMap, data.parameter_id, data);
-        this.recordSparkline(data);
-        const sparklineEndTime = Date.now();
 
-        this.recordTrendPoint(data);
-        const trendEndTime = Date.now();
+        const mode = this.perfSettings ? this.perfSettings.liveUpdateMode : 'full';
+        const now = Date.now();
+        let shouldProcessVisuals = true;
+        if (mode === 'essential') {
+          shouldProcessVisuals = false;
+        } else if (mode === 'reduced') {
+          if (now - this._lastReducedProcessTime < 1000) {
+            shouldProcessVisuals = false;
+          } else {
+            this._lastReducedProcessTime = now;
+            shouldProcessVisuals = true;
+          }
+        }
 
-        // Flash row/tile briefly with consolidated clear timer
-        this.$set(this.liveBlinks, data.parameter_id, true);
-        if (this.blinkClearTimer) clearTimeout(this.blinkClearTimer);
-        this.blinkClearTimer = setTimeout(() => {
-          this.liveBlinks = {};
-        }, 600);
+        let sparklineEndTime = Date.now();
+        let trendEndTime = Date.now();
+
+        if (shouldProcessVisuals) {
+          if (!this.perfSettings || this.perfSettings.parameterSparklinesEnabled) {
+            this.recordSparkline(data);
+          }
+          sparklineEndTime = Date.now();
+
+          if (!this.perfSettings || this.perfSettings.trendAnalysisEnabled) {
+            this.recordTrendPoint(data);
+          }
+          trendEndTime = Date.now();
+
+          // Flash row/tile briefly with consolidated clear timer
+          if (!this.perfSettings || this.perfSettings.cardBlinksEnabled) {
+            this.$set(this.liveBlinks, data.parameter_id, true);
+            if (this.blinkClearTimer) clearTimeout(this.blinkClearTimer);
+            this.blinkClearTimer = setTimeout(() => {
+              this.liveBlinks = {};
+            }, 600);
+          }
+        }
 
         this.recordPipelineDiagnostics(data, {
           modbusTime,
@@ -10740,6 +11258,7 @@ export default {
       }
     },
     async fetchTrendData(silent = false) {
+      if (this.perfSettings && !this.perfSettings.trendAnalysisEnabled) return;
       if (this.activeTrendSeries.length === 0) return;
       if (!silent) {
         this.isChartLoading = true;
@@ -10942,6 +11461,7 @@ export default {
       }
     },
     advanceLiveTrendWindow() {
+      if (this.perfSettings && !this.perfSettings.trendAnalysisEnabled) return;
       if (this.fullscreenIsCustom) return;
       if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) return;
       // Do not slide under the user's cursor while actively hovering or scrubbing
@@ -10972,6 +11492,9 @@ export default {
       }
     },
     recordTrendPoint(data) {
+      if (this.perfSettings && (!this.perfSettings.trendAnalysisEnabled || this.perfSettings.liveUpdateMode === 'essential')) {
+        return;
+      }
       if (!data || !data.parameter_id || data.value === undefined) return;
       if (!this.activeTrendSeries || this.activeTrendSeries.length === 0) return;
 
@@ -13408,6 +13931,16 @@ export default {
 </script>
 
 <style scoped>
+/* Performance Optimization: Disable all transitions and animations when disabled */
+.no-perf-animations,
+.no-perf-animations *,
+.no-perf-animations ::before,
+.no-perf-animations ::after {
+  transition-property: none !important;
+  transition-duration: 0s !important;
+  animation: none !important;
+}
+
 /* ======================================================== */
 /* SCADA INDUSTRIAL THEME TOKENS                            */
 /* Dark Mode: Industrial Navy                               */
