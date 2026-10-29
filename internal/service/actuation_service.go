@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"datalogger/internal/communication/modbus"
@@ -389,9 +392,9 @@ func (s *ActuationService) CreateSchedule(schedule *model.ActuationSchedule) err
 		schedule.DurationSeconds = 300 // 5m default
 	}
 
-	// Compute initial NextRunAt
-	now := time.Now().UTC()
-	next := now.Add(time.Duration(schedule.IntervalSeconds) * time.Second)
+	// Compute initial NextRunAt using dynamic schedule type calculation
+	now := time.Now()
+	next := CalculateNextScheduleRun(schedule, now)
 	schedule.NextRunAt = &next
 
 	return s.actuatorRepo.CreateSchedule(schedule)
@@ -407,10 +410,17 @@ func (s *ActuationService) UpdateSchedule(schedule *model.ActuationSchedule) err
 	existing.ScheduleType = schedule.ScheduleType
 	existing.IntervalSeconds = schedule.IntervalSeconds
 	existing.DurationSeconds = schedule.DurationSeconds
+	existing.MinuteOfHour = schedule.MinuteOfHour
 	existing.StartTimeStr = schedule.StartTimeStr
 	existing.EndTimeStr = schedule.EndTimeStr
+	existing.CronExpression = schedule.CronExpression
 	existing.DaysOfWeek = schedule.DaysOfWeek
 	existing.Enabled = schedule.Enabled
+
+	// Recompute NextRunAt based on updated timing configuration
+	now := time.Now()
+	next := CalculateNextScheduleRun(existing, now)
+	existing.NextRunAt = &next
 
 	return s.actuatorRepo.UpdateSchedule(existing)
 }
@@ -429,4 +439,220 @@ func (s *ActuationService) GetSchedule(id uint) (*model.ActuationSchedule, error
 
 func (s *ActuationService) ListLogs(actuatorID, deviceID *uint, limit int) ([]model.ActuationLog, error) {
 	return s.actuatorRepo.ListLogs(actuatorID, deviceID, limit)
+}
+
+// -------------------------------------------------------------
+// Advanced Custom Time Determination & Next-Run Engine
+// -------------------------------------------------------------
+
+// CalculateNextScheduleRun computes the next trigger timestamp based on schedule type and recurrence rules
+func CalculateNextScheduleRun(sched *model.ActuationSchedule, from time.Time) time.Time {
+	if sched == nil {
+		return from.Add(2 * time.Hour)
+	}
+
+	switch sched.ScheduleType {
+	case model.ScheduleTypeHourlyMinute:
+		return calculateNextHourlyMinute(sched, from)
+	case model.ScheduleTypeTimeOfDay:
+		return calculateNextTimeOfDay(sched, from)
+	case model.ScheduleTypeCron:
+		return calculateNextCron(sched, from)
+	case model.ScheduleTypeInterval:
+		fallthrough
+	default:
+		intervalSec := sched.IntervalSeconds
+		if intervalSec <= 0 {
+			intervalSec = 7200
+		}
+		return from.Add(time.Duration(intervalSec) * time.Second)
+	}
+}
+
+func parseMinuteList(str string) []int {
+	var mins []int
+	seen := make(map[int]bool)
+	for _, part := range strings.Split(str, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if val, err := strconv.Atoi(part); err == nil && val >= 0 && val <= 59 {
+			if !seen[val] {
+				seen[val] = true
+				mins = append(mins, val)
+			}
+		}
+	}
+	if len(mins) == 0 {
+		mins = []int{0}
+	}
+	sort.Ints(mins)
+	return mins
+}
+
+func calculateNextHourlyMinute(sched *model.ActuationSchedule, from time.Time) time.Time {
+	mins := parseMinuteList(sched.MinuteOfHour)
+	loc := from.Location()
+
+	// Base truncated to current minute
+	base := time.Date(from.Year(), from.Month(), from.Day(), from.Hour(), from.Minute(), 0, 0, loc)
+
+	for hOffset := 0; hOffset < 24*7; hOffset++ {
+		hourBase := base.Add(time.Duration(hOffset) * time.Hour)
+		for _, m := range mins {
+			candidate := time.Date(hourBase.Year(), hourBase.Month(), hourBase.Day(), hourBase.Hour(), m, 0, 0, loc)
+			if candidate.After(from) && IsDayStringEnabled(sched.DaysOfWeek, candidate) {
+				return candidate
+			}
+		}
+	}
+	return from.Add(1 * time.Hour)
+}
+
+func parseTimesOfDay(str string) [][2]int {
+	var times [][2]int
+	for _, part := range strings.Split(str, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		sub := strings.Split(part, ":")
+		if len(sub) >= 2 {
+			h, e1 := strconv.Atoi(strings.TrimSpace(sub[0]))
+			m, e2 := strconv.Atoi(strings.TrimSpace(sub[1]))
+			if e1 == nil && e2 == nil && h >= 0 && h <= 23 && m >= 0 && m <= 59 {
+				times = append(times, [2]int{h, m})
+			}
+		}
+	}
+	if len(times) == 0 {
+		times = append(times, [2]int{8, 0})
+	}
+	return times
+}
+
+func calculateNextTimeOfDay(sched *model.ActuationSchedule, from time.Time) time.Time {
+	times := parseTimesOfDay(sched.StartTimeStr)
+	loc := from.Location()
+
+	for dOffset := 0; dOffset < 8; dOffset++ {
+		dayBase := from.AddDate(0, 0, dOffset)
+		if !IsDayStringEnabled(sched.DaysOfWeek, dayBase) {
+			continue
+		}
+		var earliestThisDay *time.Time
+		for _, t := range times {
+			candidate := time.Date(dayBase.Year(), dayBase.Month(), dayBase.Day(), t[0], t[1], 0, 0, loc)
+			if candidate.After(from) {
+				if earliestThisDay == nil || candidate.Before(*earliestThisDay) {
+					c := candidate
+					earliestThisDay = &c
+				}
+			}
+		}
+		if earliestThisDay != nil {
+			return *earliestThisDay
+		}
+	}
+	return from.Add(24 * time.Hour)
+}
+
+func calculateNextCron(sched *model.ActuationSchedule, from time.Time) time.Time {
+	expr := strings.TrimSpace(sched.CronExpression)
+	if expr == "" {
+		expr = "0 * * * *"
+	}
+	loc := from.Location()
+	start := from.Truncate(time.Minute).Add(time.Minute)
+
+	for i := 0; i < 7*24*60; i++ {
+		curr := start.Add(time.Duration(i) * time.Minute)
+		curr = time.Date(curr.Year(), curr.Month(), curr.Day(), curr.Hour(), curr.Minute(), 0, 0, loc)
+		if IsDayStringEnabled(sched.DaysOfWeek, curr) && matchCronExpression(expr, curr) {
+			return curr
+		}
+	}
+	return from.Add(1 * time.Hour)
+}
+
+func matchCronExpression(expr string, t time.Time) bool {
+	fields := strings.Fields(expr)
+	if len(fields) != 5 {
+		return false
+	}
+	if !matchCronField(fields[0], t.Minute(), 0, 59) {
+		return false
+	}
+	if !matchCronField(fields[1], t.Hour(), 0, 23) {
+		return false
+	}
+	if !matchCronField(fields[2], t.Day(), 1, 31) {
+		return false
+	}
+	if !matchCronField(fields[3], int(t.Month()), 1, 12) {
+		return false
+	}
+	dow := int(t.Weekday()) // 0=Sunday
+	if !matchCronField(fields[4], dow, 0, 7) && !(dow == 0 && matchCronField(fields[4], 7, 0, 7)) {
+		return false
+	}
+	return true
+}
+
+func matchCronField(field string, val int, minVal, maxVal int) bool {
+	field = strings.TrimSpace(field)
+	if field == "*" {
+		return true
+	}
+	if strings.Contains(field, ",") {
+		for _, part := range strings.Split(field, ",") {
+			if matchCronField(part, val, minVal, maxVal) {
+				return true
+			}
+		}
+		return false
+	}
+	if strings.HasPrefix(field, "*/") {
+		step, err := strconv.Atoi(field[2:])
+		if err == nil && step > 0 {
+			return (val-minVal)%step == 0
+		}
+		return false
+	}
+	if strings.Contains(field, "-") {
+		parts := strings.Split(field, "-")
+		if len(parts) == 2 {
+			start, e1 := strconv.Atoi(parts[0])
+			end, e2 := strconv.Atoi(parts[1])
+			if e1 == nil && e2 == nil {
+				return val >= start && val <= end
+			}
+		}
+		return false
+	}
+	num, err := strconv.Atoi(field)
+	if err == nil {
+		return val == num
+	}
+	return false
+}
+
+// IsDayStringEnabled checks whether a given timestamp matches the ISO 1-7 (Mon-Sun) days_of_week filter
+func IsDayStringEnabled(daysOfWeek string, t time.Time) bool {
+	if strings.TrimSpace(daysOfWeek) == "" || daysOfWeek == "*" {
+		return true
+	}
+	isoWeekday := int(t.Weekday())
+	if isoWeekday == 0 {
+		isoWeekday = 7
+	}
+	dayStr := strconv.Itoa(isoWeekday)
+	tokens := strings.Split(daysOfWeek, ",")
+	for _, tok := range tokens {
+		if strings.TrimSpace(tok) == dayStr {
+			return true
+		}
+	}
+	return false
 }

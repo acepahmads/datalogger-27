@@ -113,3 +113,78 @@ func TestActuatorScheduler_WatchdogAndRecurringCycle(t *testing.T) {
 		t.Errorf("Expected watchdog write payload 0x0000 (OFF), got 0x%04X", lastCmd.Value)
 	}
 }
+
+func TestCalculateNextScheduleRun_CustomTimingModes(t *testing.T) {
+	refTime := time.Date(2026, 10, 29, 13, 20, 0, 0, time.UTC) // Thursday 13:20
+
+	// 1. Hourly at minute 45 -> should be today 13:45
+	schedHourly := &model.ActuationSchedule{
+		ScheduleType: model.ScheduleTypeHourlyMinute,
+		MinuteOfHour: "45",
+		DaysOfWeek:   "1,2,3,4,5,6,7",
+	}
+	next1 := service.CalculateNextScheduleRun(schedHourly, refTime)
+	expected1 := time.Date(2026, 10, 29, 13, 45, 0, 0, time.UTC)
+	if !next1.Equal(expected1) {
+		t.Errorf("HourlyMinute expected %v, got %v", expected1, next1)
+	}
+
+	// 1b. If reference time is 13:45, next minute 45 should wrap to 14:45
+	refAt45 := time.Date(2026, 10, 29, 13, 45, 0, 0, time.UTC)
+	next1b := service.CalculateNextScheduleRun(schedHourly, refAt45)
+	expected1b := time.Date(2026, 10, 29, 14, 45, 0, 0, time.UTC)
+	if !next1b.Equal(expected1b) {
+		t.Errorf("HourlyMinute wrap expected %v, got %v", expected1b, next1b)
+	}
+
+	// 1c. Multi-minute: "15, 45" from 13:20 -> should choose 13:45, then 14:15
+	schedMulti := &model.ActuationSchedule{
+		ScheduleType: model.ScheduleTypeHourlyMinute,
+		MinuteOfHour: "15, 45",
+		DaysOfWeek:   "1,2,3,4,5,6,7",
+	}
+	nextMulti1 := service.CalculateNextScheduleRun(schedMulti, refTime)
+	if !nextMulti1.Equal(expected1) {
+		t.Errorf("MultiMinute expected %v, got %v", expected1, nextMulti1)
+	}
+	nextMulti2 := service.CalculateNextScheduleRun(schedMulti, expected1)
+	expectedMulti2 := time.Date(2026, 10, 29, 14, 15, 0, 0, time.UTC)
+	if !nextMulti2.Equal(expectedMulti2) {
+		t.Errorf("MultiMinute next expected %v, got %v", expectedMulti2, nextMulti2)
+	}
+
+	// 2. Time of Day: "16:30" from 13:20 -> should be today 16:30
+	schedTimeOfDay := &model.ActuationSchedule{
+		ScheduleType: model.ScheduleTypeTimeOfDay,
+		StartTimeStr: "16:30",
+		DaysOfWeek:   "1,2,3,4,5,6,7",
+	}
+	next2 := service.CalculateNextScheduleRun(schedTimeOfDay, refTime)
+	expected2 := time.Date(2026, 10, 29, 16, 30, 0, 0, time.UTC)
+	if !next2.Equal(expected2) {
+		t.Errorf("TimeOfDay expected %v, got %v", expected2, next2)
+	}
+
+	// 2b. Time of Day: "08:00" from 13:20 -> already passed today, should be tomorrow (Friday 10/30) 08:00
+	schedPassed := &model.ActuationSchedule{
+		ScheduleType: model.ScheduleTypeTimeOfDay,
+		StartTimeStr: "08:00",
+		DaysOfWeek:   "1,2,3,4,5,6,7",
+	}
+	next2b := service.CalculateNextScheduleRun(schedPassed, refTime)
+	expected2b := time.Date(2026, 10, 30, 8, 0, 0, 0, time.UTC)
+	if !next2b.Equal(expected2b) {
+		t.Errorf("TimeOfDay tomorrow expected %v, got %v", expected2b, next2b)
+	}
+
+	// 3. Cron Expression: "45 * * * *" -> top of 45th minute every hour
+	schedCron := &model.ActuationSchedule{
+		ScheduleType:   model.ScheduleTypeCron,
+		CronExpression: "45 * * * *",
+		DaysOfWeek:     "1,2,3,4,5,6,7",
+	}
+	next3 := service.CalculateNextScheduleRun(schedCron, refTime)
+	if !next3.Equal(expected1) {
+		t.Errorf("Cron expected %v, got %v", expected1, next3)
+	}
+}

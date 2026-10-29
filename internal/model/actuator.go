@@ -27,9 +27,10 @@ const (
 type ScheduleType string
 
 const (
-	ScheduleTypeInterval  ScheduleType = "INTERVAL"
-	ScheduleTypeTimeOfDay ScheduleType = "TIME_OF_DAY"
-	ScheduleTypeCron      ScheduleType = "CRON"
+	ScheduleTypeInterval     ScheduleType = "INTERVAL"
+	ScheduleTypeHourlyMinute ScheduleType = "HOURLY_MINUTE"
+	ScheduleTypeTimeOfDay    ScheduleType = "TIME_OF_DAY"
+	ScheduleTypeCron         ScheduleType = "CRON"
 )
 
 // ActuationAction indicates the direction of command
@@ -92,32 +93,35 @@ type DeviceActuator struct {
 
 // ActuationSchedule defines an automated timed actuation routine
 type ActuationSchedule struct {
-	ID              uint         `gorm:"primaryKey;autoIncrement" json:"id"`
-	ActuatorID      uint         `gorm:"not null;index" json:"actuator_id"`
+	ID              uint            `gorm:"primaryKey" json:"id"`
+	ActuatorID      uint            `gorm:"not null;index" json:"actuator_id"`
 	Actuator        *DeviceActuator `gorm:"foreignKey:ActuatorID" json:"actuator,omitempty"`
-	ScheduleName    string       `gorm:"type:varchar(128);not null" json:"schedule_name"`
-	ScheduleType    ScheduleType `gorm:"type:varchar(32);not null;default:'INTERVAL'" json:"schedule_type"`
+	ScheduleName    string          `gorm:"size:128;not null" json:"schedule_name"`
+	ScheduleType    ScheduleType    `gorm:"size:32;not null;default:'INTERVAL'" json:"schedule_type"`
 
 	// Interval Mode (e.g. repeat every 2 hours, run for 5 minutes)
-	IntervalSeconds int          `gorm:"default:7200" json:"interval_seconds"` // repeat interval (e.g. 2h = 7200s)
-	DurationSeconds int          `gorm:"default:300" json:"duration_seconds"`   // ON duration (e.g. 5m = 300s)
+	IntervalSeconds int             `gorm:"default:7200" json:"interval_seconds"` // repeat interval (e.g. 2h = 7200s)
+	DurationSeconds int             `gorm:"default:300" json:"duration_seconds"`   // ON duration (e.g. 5m = 300s)
 
-	// Time of Day Mode (e.g. HH:MM)
-	StartTimeStr    string       `gorm:"type:varchar(8)" json:"start_time_str"` // e.g. "06:00"
-	EndTimeStr      string       `gorm:"type:varchar(8)" json:"end_time_str"`   // e.g. "06:15"
+	// Hourly at Specific Minute Mode (e.g. "45" or "0,15,30,45")
+	MinuteOfHour    string          `gorm:"size:64;default:''" json:"minute_of_hour"`
+
+	// Time of Day Mode (e.g. HH:MM like "08:00" or "08:00,16:00")
+	StartTimeStr    string          `gorm:"size:64" json:"start_time_str"` // e.g. "06:00"
+	EndTimeStr      string          `gorm:"size:64" json:"end_time_str"`   // e.g. "06:15"
 
 	// Cron Expression (optional for custom schedules)
-	CronExpression  string       `gorm:"type:varchar(64)" json:"cron_expression"`
+	CronExpression  string          `gorm:"size:64" json:"cron_expression"`
 
-	DaysOfWeek      string       `gorm:"type:varchar(32);default:'1,2,3,4,5,6,7'" json:"days_of_week"`
+	DaysOfWeek      string          `gorm:"size:32;default:'1,2,3,4,5,6,7'" json:"days_of_week"`
 
-	LastRunAt       *time.Time   `json:"last_run_at,omitempty"`
-	NextRunAt       *time.Time   `json:"next_run_at,omitempty"`
-	LastStatus      string       `gorm:"type:varchar(32)" json:"last_status,omitempty"`
+	LastRunAt       *time.Time      `json:"last_run_at,omitempty"`
+	NextRunAt       *time.Time      `json:"next_run_at,omitempty"`
+	LastStatus      string          `gorm:"size:32" json:"last_status,omitempty"`
 
-	Enabled         bool         `gorm:"default:true" json:"enabled"`
-	CreatedAt       time.Time    `json:"created_at"`
-	UpdatedAt       time.Time    `json:"updated_at"`
+	Enabled         bool            `gorm:"default:true" json:"enabled"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 // ActuationLog provides an immutable audit trail of every actuation command

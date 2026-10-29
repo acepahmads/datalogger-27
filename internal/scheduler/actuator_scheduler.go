@@ -127,15 +127,15 @@ func (s *ActuatorScheduler) processDueSchedules(now time.Time) {
 
 	for _, sched := range schedules {
 		if !s.isDayEnabled(sched.DaysOfWeek, now) {
-			// Not scheduled for today, advance next run to tomorrow
-			nextRun := now.Add(24 * time.Hour)
+			// Not scheduled for today, advance next run
+			nextRun := service.CalculateNextScheduleRun(&sched, now)
 			_ = s.actuatorRepo.UpdateScheduleRun(sched.ID, now, nextRun, "SKIPPED_DAY")
 			continue
 		}
 
 		if sched.Actuator == nil || !sched.Actuator.Enabled {
 			// Actuator disabled, advance schedule without firing
-			nextRun := now.Add(time.Duration(sched.IntervalSeconds) * time.Second)
+			nextRun := service.CalculateNextScheduleRun(&sched, now)
 			_ = s.actuatorRepo.UpdateScheduleRun(sched.ID, now, nextRun, "ACTUATOR_DISABLED")
 			continue
 		}
@@ -153,12 +153,8 @@ func (s *ActuatorScheduler) processDueSchedules(now time.Time) {
 			logger.Error("Scheduled actuation '%s' failed: %v", sched.ScheduleName, actErr)
 		}
 
-		// Calculate Next Run time
-		intervalSec := sched.IntervalSeconds
-		if intervalSec <= 0 {
-			intervalSec = 7200 // default 2 hours
-		}
-		nextRun := now.Add(time.Duration(intervalSec) * time.Second)
+		// Calculate Next Run time based on recurrence rules
+		nextRun := service.CalculateNextScheduleRun(&sched, now)
 		_ = s.actuatorRepo.UpdateScheduleRun(sched.ID, now, nextRun, status)
 
 		// Set auto-off duration timer if specified

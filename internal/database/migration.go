@@ -111,6 +111,9 @@ func RunMigrations(db *gorm.DB) error {
 	}
 
 	// 1c. Ensure calculation_mode column is initialized and backfilled on ispu_calculation_results
+	if db.Migrator().HasTable(&model.ActuationSchedule{}) && !db.Migrator().HasColumn(&model.ActuationSchedule{}, "minute_of_hour") {
+		_ = db.Migrator().AddColumn(&model.ActuationSchedule{}, "minute_of_hour")
+	}
 	if db.Migrator().HasTable(&model.ISPUCalculationResult{}) {
 		if !db.Migrator().HasColumn(&model.ISPUCalculationResult{}, "calculation_mode") {
 			_ = db.Migrator().AddColumn(&model.ISPUCalculationResult{}, "calculation_mode")
