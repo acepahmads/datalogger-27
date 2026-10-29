@@ -103,8 +103,8 @@
                 <th class="py-2.5 px-3 text-center w-12">#</th>
                 <th class="py-2.5 px-3">Timestamp</th>
                 <th class="py-2.5 px-3 text-right">Engineering Value</th>
-                <th class="py-2.5 px-3 text-right">Raw PDU</th>
-                <th class="py-2.5 px-3">Raw Hex</th>
+                <th v-if="!isOperator" class="py-2.5 px-3 text-right">Raw PDU</th>
+                <th v-if="!isOperator" class="py-2.5 px-3">Raw Hex</th>
                 <th class="py-2.5 px-3 text-center">Quality</th>
                 <th class="py-2.5 px-3">Quality Reason</th>
                 <th class="py-2.5 px-3 text-center">Source</th>
@@ -130,22 +130,29 @@
 
                 <!-- Engineering Value -->
                 <td class="py-2 px-3 text-right whitespace-nowrap">
-                  <span class="text-xs font-bold font-mono" :class="getValueColorClass(rec.quality)">
-                    {{ formatRecordValue(rec.value) }}
-                  </span>
-                  <span class="text-3xs text-slate-400 ml-1 font-mono">{{ targetParam.unit || '' }}</span>
-                  <span v-if="rec.is_held_value" class="ml-1 px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 text-4xs font-bold" title="Held Value Active">
-                    HELD
-                  </span>
+                  <template v-if="(rec.quality || '').toUpperCase() === 'BAD'">
+                    <span class="text-xs font-bold font-mono text-rose-400" :title="'Pembacaan tidak valid: ' + (rec.quality_reason || 'BAD')">
+                      --
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span class="text-xs font-bold font-mono" :class="getValueColorClass(rec.quality)">
+                      {{ formatRecordValue(rec.value) }}
+                    </span>
+                    <span class="text-3xs text-slate-400 ml-1 font-mono">{{ targetParam.unit || '' }}</span>
+                    <span v-if="rec.is_held_value" class="ml-1 px-1 py-0.2 rounded bg-amber-500/15 text-amber-400 text-4xs font-bold" title="Held Value Active">
+                      HELD
+                    </span>
+                  </template>
                 </td>
 
-                <!-- Raw Value -->
-                <td class="py-2 px-3 text-right whitespace-nowrap text-slate-300 font-mono">
+                <!-- Raw Value (Hidden for Operator) -->
+                <td v-if="!isOperator" class="py-2 px-3 text-right whitespace-nowrap text-slate-300 font-mono">
                   {{ rec.raw_value !== undefined && rec.raw_value !== null ? rec.raw_value : '--' }}
                 </td>
 
-                <!-- Raw Hex -->
-                <td class="py-2 px-3 whitespace-nowrap text-3xs text-cyan-300 font-mono">
+                <!-- Raw Hex (Hidden for Operator) -->
+                <td v-if="!isOperator" class="py-2 px-3 whitespace-nowrap text-3xs text-cyan-300 font-mono">
                   {{ rec.raw_hex || '--' }}
                 </td>
 
@@ -242,6 +249,13 @@ export default {
     };
   },
   computed: {
+    userRole() {
+      const u = this.$store.state.user || {};
+      return (u.role || '').toUpperCase();
+    },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
+    },
     targetDevice() {
       return this.device || {};
     },
@@ -257,6 +271,10 @@ export default {
     latestValueDisplay() {
       if (!this.records || this.records.length === 0) return '--';
       const first = this.records[0];
+      const q = (first.quality || 'GOOD').toUpperCase();
+      if (q === 'BAD') {
+        return '--';
+      }
       return `${this.formatRecordValue(first.value)} ${this.targetParam.unit || ''}`;
     },
     summaryStats() {
@@ -279,7 +297,8 @@ export default {
         else if (q === 'UNCERTAIN') uncertainCount++;
         else if (q === 'STALE') staleCount++;
 
-        if (r.value !== null && r.value !== undefined && !isNaN(r.value)) {
+        // Only compute min/max/avg on valid (non-BAD) telemetry readings
+        if (q !== 'BAD' && r.value !== null && r.value !== undefined && !isNaN(r.value)) {
           const val = Number(r.value);
           if (val < min) min = val;
           if (val > max) max = val;
@@ -396,20 +415,32 @@ export default {
     },
     exportCsv() {
       if (!this.records || this.records.length === 0) return;
-      const headers = ['Record ID', 'Timestamp', 'Parameter Code', 'Parameter Name', 'Value', 'Unit', 'Raw Value', 'Raw Hex', 'Quality', 'Quality Reason', 'Source'];
-      const rows = this.records.map((r, idx) => [
-        r.id || (idx + 1),
-        `"${this.formatTimestamp(r.received_at || r.timestamp)}"`,
-        `"${this.targetParam.parameter_code || this.targetParam.param_code || ''}"`,
-        `"${this.targetParam.parameter_name || this.targetParam.param_name || ''}"`,
-        this.formatRecordValue(r.value),
-        `"${this.targetParam.unit || ''}"`,
-        r.raw_value !== undefined ? r.raw_value : '',
-        `"${r.raw_hex || ''}"`,
-        `"${r.quality || 'GOOD'}"`,
-        `"${r.quality_reason || 'NONE'}"`,
-        `"${r.source || 'MODBUS_RTU'}"`,
-      ]);
+      const headers = this.isOperator
+        ? ['Record ID', 'Timestamp', 'Parameter Code', 'Parameter Name', 'Value', 'Unit', 'Quality', 'Quality Reason', 'Source']
+        : ['Record ID', 'Timestamp', 'Parameter Code', 'Parameter Name', 'Value', 'Unit', 'Raw PDU', 'Raw Hex', 'Quality', 'Quality Reason', 'Source'];
+
+      const rows = this.records.map((r, idx) => {
+        const isBad = (r.quality || '').toUpperCase() === 'BAD';
+        const displayVal = isBad ? '' : this.formatRecordValue(r.value);
+        const row = [
+          r.id || (idx + 1),
+          `"${this.formatTimestamp(r.received_at || r.timestamp)}"`,
+          `"${this.targetParam.parameter_code || this.targetParam.param_code || ''}"`,
+          `"${this.targetParam.parameter_name || this.targetParam.param_name || ''}"`,
+          displayVal,
+          `"${this.targetParam.unit || ''}"`,
+        ];
+
+        if (!this.isOperator) {
+          row.push(r.raw_value !== undefined && r.raw_value !== null ? r.raw_value : '');
+          row.push(`"${r.raw_hex || ''}"`);
+        }
+
+        row.push(`"${r.quality || 'GOOD'}"`);
+        row.push(`"${r.quality_reason || 'NONE'}"`);
+        row.push(`"${r.source || 'MODBUS_RTU'}"`);
+        return row;
+      });
 
       const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

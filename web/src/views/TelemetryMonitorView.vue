@@ -152,8 +152,9 @@
           </svg>
         </div>
 
-        <!-- Filter Device -->
+        <!-- Filter Device (Hidden for Operator role) -->
         <select
+          v-if="!isOperator"
           v-model="selectedDeviceId"
           class="h-7 px-2.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-2xs text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 max-w-[180px] truncate"
         >
@@ -249,7 +250,7 @@
             <!-- Card Header: Device + Parameter Code -->
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                <div class="flex items-center space-x-1.5">
+                <div v-if="!isOperator" class="flex items-center space-x-1.5">
                   <span class="w-1.5 h-1.5 rounded-full" :class="item.device_status === 'CONNECTED' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
                   <router-link :to="'/monitoring/devices/' + item.device_id" class="text-3xs font-mono font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 uppercase tracking-wide truncate">
                     {{ item.device_code }}
@@ -367,7 +368,7 @@
         <table class="w-full text-left border-collapse text-xs">
           <thead class="sticky top-0 z-10 bg-slate-50 dark:bg-[#0B0F19] border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-3xs font-semibold uppercase tracking-wider">
             <tr>
-              <th class="py-2 px-3">{{ $t('telemetry.device') }}</th>
+              <th v-if="!isOperator" class="py-2 px-3">{{ $t('telemetry.device') }}</th>
               <th class="py-2 px-3">{{ $t('telemetry.parameterName') }}</th>
               <th class="py-2 px-2.5">{{ $t('common.code') }}</th>
               <th class="py-2 px-3 text-right">{{ $t('telemetry.currentValue') }}</th>
@@ -386,7 +387,7 @@
               class="transition-colors leading-tight"
             >
               <!-- Device -->
-              <td class="py-1.5 px-3 font-mono text-xs whitespace-nowrap">
+              <td v-if="!isOperator" class="py-1.5 px-3 font-mono text-xs whitespace-nowrap">
                 <div class="flex items-center space-x-1.5">
                   <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="item.device_status === 'CONNECTED' ? 'bg-emerald-500' : 'bg-slate-400'"></span>
                   <router-link :to="'/monitoring/devices/' + item.device_id" class="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
@@ -598,6 +599,9 @@ export default {
     userRole() {
       const u = this.$store.state.user || {};
       return (u.role || '').toUpperCase();
+    },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
     },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';

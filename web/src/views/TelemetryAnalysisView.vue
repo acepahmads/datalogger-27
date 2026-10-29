@@ -153,8 +153,8 @@
     <!-- Unified Filters Bar -->
     <div class="saas-card p-4 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <!-- 1. Device Filter -->
-        <div class="space-y-1">
+        <!-- 1. Device Filter (Hidden for Operator role) -->
+        <div v-if="!isOperator" class="space-y-1">
           <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('telemetry.device') }}</label>
           <select
             v-model="filters.deviceId"
@@ -402,7 +402,7 @@
             {{ allSeriesOverview.latestMeasurement.unit || '--' }}
           </span>
           <span class="text-3xs text-slate-600 dark:text-slate-400 truncate font-mono ml-1">
-            [{{ allSeriesOverview.latestMeasurement.deviceCode }} : {{ allSeriesOverview.latestMeasurement.paramCode }}]
+            [{{ (!isOperator && allSeriesOverview.latestMeasurement.deviceCode ? allSeriesOverview.latestMeasurement.deviceCode + ' : ' : '') + allSeriesOverview.latestMeasurement.paramCode }}]
           </span>
         </div>
         <div v-else class="text-xs text-slate-500 font-mono">--</div>
@@ -507,7 +507,7 @@
               :style="{ backgroundColor: s.color }"
               :class="{ 'ring-2 ring-slate-400/50 dark:ring-white/50 scale-110': hoveredSeriesId === s.id }"
             ></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200">{{ s.deviceCode }}: {{ s.paramCode }}</span>
+            <span class="font-bold text-slate-800 dark:text-slate-200"><span v-if="!isOperator">{{ s.deviceCode }}: </span>{{ s.paramCode }}</span>
             <span v-if="s.unit" class="text-slate-500 dark:text-slate-400">({{ s.unit }})</span>
             <span v-if="s.stats.latest !== null" class="text-slate-900 dark:text-white font-bold ml-1">{{ s.stats.latest }}</span>
           </div>
@@ -742,7 +742,7 @@
           <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('telemetry.receivedAt') }}</th>
-              <th class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
+              <th v-if="!isOperator" class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
               <th class="py-2.5 px-4">{{ $t('telemetry.parameterName') }}</th>
               <th class="py-2.5 px-4 text-right">{{ $t('analysis.processedVal') }}</th>
               <th v-if="canAccessRawMode" class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
@@ -755,7 +755,7 @@
           <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
             <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition font-mono">
               <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
-              <td class="py-2.5 px-4">
+              <td v-if="!isOperator" class="py-2.5 px-4">
                 <router-link :to="'/monitoring/devices/' + r.device_id" class="text-blue-600 dark:text-blue-400 hover:underline font-bold">
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
@@ -785,7 +785,7 @@
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td colspan="9" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="canAccessRawMode ? (isOperator ? 8 : 9) : (isOperator ? 7 : 8)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -797,7 +797,7 @@
           <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
-              <th class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
+              <th v-if="!isOperator" class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
               <th class="py-2.5 px-4">{{ $t('analysis.rawHex') }}</th>
               <th class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
@@ -810,7 +810,7 @@
           <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
             <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
               <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
-              <td class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-bold">
+              <td v-if="!isOperator" class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-bold">
                 <router-link :to="'/monitoring/devices/' + r.device_id" class="hover:underline">
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
@@ -828,7 +828,7 @@
               <td class="py-2.5 px-4 text-right text-3xs text-slate-400 dark:text-slate-500 truncate max-w-[100px]">{{ r.record_uuid || r.id }}</td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td colspan="9" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="isOperator ? 8 : 9" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -841,7 +841,7 @@
             <tr>
               <th class="py-2.5 px-4">{{ $t('analysis.period') }}</th>
               <th class="py-2.5 px-4">{{ $t('analysis.identifier') }}</th>
-              <th class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
+              <th v-if="!isOperator" class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
               <th class="py-2.5 px-4">{{ $t('telemetry.parameterName') }}</th>
               <th class="py-2.5 px-4 text-right">{{ $t('common.value') }}</th>
               <th class="py-2.5 px-4">{{ $t('analysis.function') }}</th>
@@ -857,7 +857,7 @@
                 {{ formatTimestamp(r.period_start) }} → {{ formatTimeOnly(r.period_end) }}
               </td>
               <td class="py-2.5 px-4 text-indigo-600 dark:text-indigo-400 font-bold">{{ r.identifier }}</td>
-              <td class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-semibold">
+              <td v-if="!isOperator" class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-semibold">
                 <router-link :to="'/monitoring/devices/' + r.device_id" class="hover:underline">
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
@@ -882,7 +882,7 @@
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td colspan="10" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="isOperator ? 9 : 10" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -1072,6 +1072,9 @@ export default {
       const u = this.$store.state.user || {};
       return (u.role || '').toUpperCase();
     },
+    isOperator() {
+      return (this.userRole || '').toUpperCase() === 'OPERATOR';
+    },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
@@ -1090,7 +1093,7 @@ export default {
             d.parameters.forEach((p) => {
               all.push({
                 ...p,
-                parameter_name: `${d.device_code}: ${p.parameter_name}`,
+                parameter_name: this.isOperator ? p.parameter_name : `${d.device_code}: ${p.parameter_name}`,
               });
             });
           }
@@ -1872,25 +1875,37 @@ export default {
       let csv = '';
       if (this.activeMode === 'HISTORICAL') {
         if (this.canAccessRawMode) {
-          csv = 'Timestamp,Device,Parameter,ProcessedValue,RawValue,Quality,QualityReason\n';
+          csv = this.isOperator
+            ? 'Timestamp,Parameter,ProcessedValue,RawValue,Quality,QualityReason\n'
+            : 'Timestamp,Device,Parameter,ProcessedValue,RawValue,Quality,QualityReason\n';
           this.records.forEach((r) => {
-            csv += `"${r.received_at || r.timestamp}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}",${r.processed_value !== undefined ? r.processed_value : r.value},${r.raw_value},"${r.quality}","${r.quality_reason || ''}"\n`;
+            const devPart = this.isOperator ? '' : `"${this.getDeviceCode(r.device_id)}",`;
+            csv += `"${r.received_at || r.timestamp}",${devPart}"${this.getParamCode(r.parameter_id)}",${r.processed_value !== undefined ? r.processed_value : r.value},${r.raw_value},"${r.quality}","${r.quality_reason || ''}"\n`;
           });
         } else {
-          csv = 'Timestamp,Device,Parameter,ProcessedValue,Quality,QualityReason\n';
+          csv = this.isOperator
+            ? 'Timestamp,Parameter,ProcessedValue,Quality,QualityReason\n'
+            : 'Timestamp,Device,Parameter,ProcessedValue,Quality,QualityReason\n';
           this.records.forEach((r) => {
-            csv += `"${r.received_at || r.timestamp}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}",${r.processed_value !== undefined ? r.processed_value : r.value},"${r.quality}","${r.quality_reason || ''}"\n`;
+            const devPart = this.isOperator ? '' : `"${this.getDeviceCode(r.device_id)}",`;
+            csv += `"${r.received_at || r.timestamp}",${devPart}"${this.getParamCode(r.parameter_id)}",${r.processed_value !== undefined ? r.processed_value : r.value},"${r.quality}","${r.quality_reason || ''}"\n`;
           });
         }
       } else if (this.activeMode === 'RAW' && this.canAccessRawMode) {
-        csv = 'ReceivedAt,Device,Parameter,RawHex,RawValue,ScaledValue,Quality,Source,RecordUUID\n';
+        csv = this.isOperator
+          ? 'ReceivedAt,Parameter,RawHex,RawValue,ScaledValue,Quality,Source,RecordUUID\n'
+          : 'ReceivedAt,Device,Parameter,RawHex,RawValue,ScaledValue,Quality,Source,RecordUUID\n';
         this.records.forEach((r) => {
-          csv += `"${r.received_at || r.timestamp}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}","${r.raw_hex || ''}",${r.raw_value},${r.value},"${r.quality}","${r.source || ''}","${r.record_uuid || ''}"\n`;
+          const devPart = this.isOperator ? '' : `"${this.getDeviceCode(r.device_id)}",`;
+          csv += `"${r.received_at || r.timestamp}",${devPart}"${this.getParamCode(r.parameter_id)}","${r.raw_hex || ''}",${r.raw_value},${r.value},"${r.quality}","${r.source || ''}","${r.record_uuid || ''}"\n`;
         });
       } else {
-        csv = 'PeriodStart,PeriodEnd,Identifier,Device,Parameter,Value,Function,IntervalSeconds,SampleCount,Quality\n';
+        csv = this.isOperator
+          ? 'PeriodStart,PeriodEnd,Identifier,Parameter,Value,Function,IntervalSeconds,SampleCount,Quality\n'
+          : 'PeriodStart,PeriodEnd,Identifier,Device,Parameter,Value,Function,IntervalSeconds,SampleCount,Quality\n';
         this.records.forEach((r) => {
-          csv += `"${r.period_start}","${r.period_end}","${r.identifier}","${this.getDeviceCode(r.device_id)}","${this.getParamCode(r.parameter_id)}",${r.value},"${r.function}",${r.interval_seconds},${r.sample_count},"${r.quality}"\n`;
+          const devPart = this.isOperator ? '' : `"${this.getDeviceCode(r.device_id)}",`;
+          csv += `"${r.period_start}","${r.period_end}","${r.identifier}",${devPart}"${this.getParamCode(r.parameter_id)}",${r.value},"${r.function}",${r.interval_seconds},${r.sample_count},"${r.quality}"\n`;
         });
       }
 
