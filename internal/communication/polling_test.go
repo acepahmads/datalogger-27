@@ -116,3 +116,38 @@ func init() {
 	var b [2]byte
 	binary.BigEndian.PutUint16(b[:], 0)
 }
+
+func TestResolveParamPollingInterval(t *testing.T) {
+	devInterval := 10000
+
+	// 1. Nil polling interval (default) -> inherits from device
+	pDefault := &model.Parameter{ID: 1, PollingIntervalMs: nil}
+	if got := ResolveParamPollingIntervalMs(pDefault, devInterval); got != 10000 {
+		t.Errorf("expected 10000ms from device, got %d", got)
+	}
+
+	// 2. Custom override polling interval
+	custom := 5000
+	pCustom := &model.Parameter{ID: 2, PollingIntervalMs: &custom}
+	if got := ResolveParamPollingIntervalMs(pCustom, devInterval); got != 5000 {
+		t.Errorf("expected 5000ms custom, got %d", got)
+	}
+
+	// 3. Second-shorthand override (e.g. 30s -> 30000ms)
+	secondsShorthand := 30
+	pSeconds := &model.Parameter{ID: 3, PollingIntervalMs: &secondsShorthand}
+	if got := ResolveParamPollingIntervalMs(pSeconds, devInterval); got != 30000 {
+		t.Errorf("expected 30000ms, got %d", got)
+	}
+
+	// 4. Tick rate calculation with mixed parameters
+	params := []model.Parameter{
+		{ID: 1, Enabled: true, PollingIntervalMs: nil},
+		{ID: 2, Enabled: true, PollingIntervalMs: &custom},
+		{ID: 3, Enabled: true, PollingIntervalMs: &secondsShorthand},
+	}
+	tick := calculateDeviceTickIntervalMs(devInterval, params)
+	if tick != 5000 {
+		t.Errorf("expected tick rate 5000ms, got %d", tick)
+	}
+}

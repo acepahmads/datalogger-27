@@ -271,10 +271,12 @@ func TestParameterCRUDAndUniqueness(t *testing.T) {
 	newName := "Ambient Temperature Chamber"
 	newScale := 0.5
 	newIcon := "droplet"
+	customPoll := 5000
 	_, updateErr := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
-		ParameterName: &newName,
-		Scale:         &newScale,
-		Icon:          &newIcon,
+		ParameterName:     &newName,
+		Scale:             &newScale,
+		Icon:              &newIcon,
+		PollingIntervalMs: &customPoll,
 	}, "admin", "127.0.0.1", "TestAgent")
 	if updateErr != nil {
 		t.Fatalf("Failed to update parameter: %v", updateErr)
@@ -283,6 +285,21 @@ func TestParameterCRUDAndUniqueness(t *testing.T) {
 	updatedParam, _ := devService.GetParameter(dev.ID, param.ID)
 	if updatedParam.ParameterName != "Ambient Temperature Chamber" || updatedParam.Scale != 0.5 || updatedParam.Icon != "droplet" {
 		t.Errorf("Parameter update failed: %+v", updatedParam)
+	}
+	if updatedParam.PollingIntervalMs == nil || *updatedParam.PollingIntervalMs != 5000 {
+		t.Errorf("Expected PollingIntervalMs 5000, got %v", updatedParam.PollingIntervalMs)
+	}
+
+	// 4b. Clear polling interval back to default (nil)
+	_, clearPollErr := devService.UpdateParameter(dev.ID, param.ID, &service.UpdateParameterRequest{
+		ClearPollingIntervalMs: true,
+	}, "admin", "127.0.0.1", "TestAgent")
+	if clearPollErr != nil {
+		t.Fatalf("Failed to clear polling interval: %v", clearPollErr)
+	}
+	clearedParam, _ := devService.GetParameter(dev.ID, param.ID)
+	if clearedParam.PollingIntervalMs != nil {
+		t.Errorf("Expected nil PollingIntervalMs after clear, got %v", *clearedParam.PollingIntervalMs)
 	}
 
 	// 5. Delete parameter

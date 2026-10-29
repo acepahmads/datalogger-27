@@ -109,6 +109,7 @@ type CreateParameterRequest struct {
 	HoldLastValueSeconds     int                     `json:"hold_last_value_seconds"`
 	ZeroValueAlarmPolicy     *model.ZeroValueAlarmPolicy `json:"zero_value_alarm_policy"`
 	SourceParameterID        *uint                   `json:"source_parameter_id,omitempty"`
+	PollingIntervalMs        *int                    `json:"polling_interval_ms,omitempty"`
 }
 
 func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
@@ -163,6 +164,9 @@ func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 			r.SpikeThreshold = f
 		}
 	}
+	if val, ok := rawMap["polling_interval_ms"]; ok {
+		r.PollingIntervalMs = parseNullableInt(val, nil)
+	}
 	return nil
 }
 
@@ -202,6 +206,8 @@ type UpdateParameterRequest struct {
 	HoldLastValueEnabled     *bool                    `json:"hold_last_value_enabled"`
 	HoldLastValueSeconds     *int                     `json:"hold_last_value_seconds"`
 	ZeroValueAlarmPolicy     *model.ZeroValueAlarmPolicy `json:"zero_value_alarm_policy"`
+	PollingIntervalMs        *int                        `json:"polling_interval_ms"`
+	ClearPollingIntervalMs   bool                        `json:"clear_polling_interval_ms"`
 }
 
 func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
@@ -255,6 +261,9 @@ func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
 		if f := parseNullableFloat(val, nil); f != nil {
 			r.SpikeThreshold = f
 		}
+	}
+	if val, ok := rawMap["polling_interval_ms"]; ok {
+		r.PollingIntervalMs = parseNullableInt(val, &r.ClearPollingIntervalMs)
 	}
 	return nil
 }
@@ -472,6 +481,111 @@ func parseNullableUint(val interface{}, clear *bool) *uint {
 				*clear = false
 			}
 			return &u
+		}
+	}
+	return nil
+}
+
+func parseNullableInt(val interface{}, clear *bool) *int {
+	if val == nil {
+		if clear != nil {
+			*clear = true
+		}
+		return nil
+	}
+	switch v := val.(type) {
+	case float64:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		i := int(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &i
+	case float32:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		i := int(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &i
+	case int:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		if clear != nil {
+			*clear = false
+		}
+		return &v
+	case int64:
+		if v <= 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		i := int(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &i
+	case uint:
+		if v == 0 {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		i := int(v)
+		if clear != nil {
+			*clear = false
+		}
+		return &i
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			if i <= 0 {
+				if clear != nil {
+					*clear = true
+				}
+				return nil
+			}
+			res := int(i)
+			if clear != nil {
+				*clear = false
+			}
+			return &res
+		}
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" || trimmed == "0" || strings.EqualFold(trimmed, "null") || strings.EqualFold(trimmed, "undefined") {
+			if clear != nil {
+				*clear = true
+			}
+			return nil
+		}
+		if parsed, err := strconv.Atoi(trimmed); err == nil {
+			if parsed <= 0 {
+				if clear != nil {
+					*clear = true
+				}
+				return nil
+			}
+			if clear != nil {
+				*clear = false
+			}
+			return &parsed
 		}
 	}
 	return nil
@@ -1133,6 +1247,7 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		HoldLastValueEnabled:     holdLastVal,
 		HoldLastValueSeconds:     holdSeconds,
 		ZeroValueAlarmPolicy:     zeroValPolicy,
+		PollingIntervalMs:        req.PollingIntervalMs,
 	}
 
 	if err := s.repo.CreateParameter(param); err != nil {
@@ -1305,6 +1420,15 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.ZeroValueAlarmPolicy != nil && *req.ZeroValueAlarmPolicy != "" {
 		param.ZeroValueAlarmPolicy = *req.ZeroValueAlarmPolicy
+	}
+	if req.ClearPollingIntervalMs {
+		param.PollingIntervalMs = nil
+	} else if req.PollingIntervalMs != nil {
+		if *req.PollingIntervalMs <= 0 {
+			param.PollingIntervalMs = nil
+		} else {
+			param.PollingIntervalMs = req.PollingIntervalMs
+		}
 	}
 	if req.ClearWarningLow {
 		param.WarningLow = nil

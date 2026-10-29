@@ -245,6 +245,10 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 		cachedDev.Parameters = cachedParams
 	}
 
+	currentIntervalMs = calculateDeviceTickIntervalMs(baseIntervalMs, cachedParams)
+	ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+	paramLastPolled := make(map[uint]time.Time)
+
 	cyclesSinceRefresh := 0
 	consecutiveFailures := 0
 
@@ -289,6 +293,11 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 						}
 						cachedDev.Parameters = cachedParams
 					}
+					targetTick := calculateDeviceTickIntervalMs(baseIntervalMs, cachedParams)
+					if targetTick != currentIntervalMs {
+						currentIntervalMs = targetTick
+						ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
+					}
 				}
 			}
 
@@ -320,7 +329,25 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				})
 			}
 
-			cycleSuccess := p.pollDevice(ctx, cachedDev, cachedParams)
+			var dueParams []model.Parameter
+			for _, param := range cachedParams {
+				pIntMs := ResolveParamPollingIntervalMs(&param, baseIntervalMs)
+				lastPoll, hasPolled := paramLastPolled[param.ID]
+				if !hasPolled || pollStart.Sub(lastPoll) >= time.Duration(pIntMs-currentIntervalMs/2)*time.Millisecond {
+					dueParams = append(dueParams, param)
+				}
+			}
+
+			if len(dueParams) == 0 && len(cachedParams) > 0 {
+				continue
+			}
+
+			cycleSuccess := p.pollDevice(ctx, cachedDev, dueParams)
+			if cycleSuccess {
+				for _, param := range dueParams {
+					paramLastPolled[param.ID] = pollStart
+				}
+			}
 			pollDurationMs := int(time.Since(pollStart).Milliseconds())
 
 			if mon := p.getActivityMonitor(); mon != nil {
@@ -1260,4 +1287,43 @@ func (p *PollingEngine) ReadParameterOnDemand(
 	}
 
 	return p.ReadParameter(ctx, dev, param)
+}
+
+// ResolveParamPollingIntervalMs determines the effective polling interval for a parameter.
+// If the parameter specifies a custom PollingIntervalMs > 0, that interval is used;
+// otherwise, it inherits from the device connection's base polling interval.
+func ResolveParamPollingIntervalMs(param *model.Parameter, devIntervalMs int) int {
+	if param != nil && param.PollingIntervalMs != nil && *param.PollingIntervalMs > 0 {
+		ms := *param.PollingIntervalMs
+		if ms > 0 && ms <= 60 {
+			ms = ms * 1000
+		}
+		if ms < 200 {
+			ms = 200
+		}
+		return ms
+	}
+	if devIntervalMs < 200 {
+		return 1000
+	}
+	return devIntervalMs
+}
+
+func calculateDeviceTickIntervalMs(devIntervalMs int, params []model.Parameter) int {
+	minInterval := devIntervalMs
+	for _, p := range params {
+		if p.Enabled && p.PollingIntervalMs != nil && *p.PollingIntervalMs > 0 {
+			pMs := *p.PollingIntervalMs
+			if pMs > 0 && pMs <= 60 {
+				pMs = pMs * 1000
+			}
+			if pMs >= 200 && pMs < minInterval {
+				minInterval = pMs
+			}
+		}
+	}
+	if minInterval < 200 {
+		minInterval = 200
+	}
+	return minInterval
 }

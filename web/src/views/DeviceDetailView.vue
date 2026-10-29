@@ -819,6 +819,7 @@
                   </span>
                 </div>
               </th>
+              <th class="py-2.5 px-3 whitespace-nowrap">{{ $t('deviceDetail.colPolling') || 'Polling' }}</th>
               <th v-if="canAccessRawMode" class="py-2.5 px-3">{{ $t('deviceDetail.colScaleOffset') }}</th>
               <th class="py-2.5 px-3">{{ $t('deviceDetail.colLimits') }}</th>
               <th
@@ -882,6 +883,23 @@
                   :class="param.batch_mode === 'SINGLE' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20'"
                 >
                   {{ param.batch_mode === 'SINGLE' ? 'SINGLE' : 'AUTO BATCH' }}
+                </span>
+              </td>
+              <td class="py-2.5 px-3 font-mono text-3xs text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                <span
+                  v-if="param.polling_interval_ms && param.polling_interval_ms > 0"
+                  class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded font-bold font-mono text-3xs bg-cyan-100 text-cyan-800 border border-cyan-300 dark:bg-cyan-950/80 dark:text-cyan-300 dark:border-cyan-800"
+                  :title="'Custom parameter polling interval: ' + param.polling_interval_ms + ' ms'"
+                >
+                  <span>⚡ {{ param.polling_interval_ms >= 1000 ? (param.polling_interval_ms / 1000) + 's' : param.polling_interval_ms + 'ms' }}</span>
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded font-mono text-3xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60"
+                  :title="'Inherited from device: ' + getDevicePollingInterval() + ' ms'"
+                >
+                  <span>{{ getDevicePollingInterval() >= 1000 ? (getDevicePollingInterval() / 1000) + 's' : getDevicePollingInterval() + 'ms' }}</span>
+                  <span class="text-4xs opacity-70 uppercase tracking-tighter">dev</span>
                 </span>
               </td>
               <td v-if="canAccessRawMode" class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
@@ -966,7 +984,7 @@
               </td>
             </tr>
             <tr v-if="!device.parameters || device.parameters.length === 0">
-              <td :colspan="canAccessRawMode ? 10 : 9" class="py-8 text-center text-xs text-slate-400">
+              <td :colspan="canAccessRawMode ? 11 : 10" class="py-8 text-center text-xs text-slate-400">
                 {{ $t('deviceDetail.noParamsConfigured') }}
               </td>
             </tr>
@@ -4151,6 +4169,13 @@ export default {
       this.paramToCopy = null;
       this.isCopyParamModal = false;
       this.isParamModalOpen = true;
+    },
+    getDevicePollingInterval() {
+      if (!this.device) return 1000;
+      if (this.device.connection && (this.device.connection.polling_interval || this.device.connection.poll_interval_ms)) {
+        return this.device.connection.polling_interval || this.device.connection.poll_interval_ms;
+      }
+      return this.device.polling_interval || this.device.poll_interval_ms || 1000;
     },
     openEditParamModal(param) {
       this.paramToEdit = param;

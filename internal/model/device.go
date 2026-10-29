@@ -325,6 +325,7 @@ type Parameter struct {
 	ByteOrder     string            `gorm:"size:64;default:'ABCD'" json:"byte_order"`
 	BatchMode     string            `gorm:"size:16;default:'AUTO'" json:"batch_mode"`
 	Enabled       bool              `gorm:"index;default:true" json:"enabled"`
+	PollingIntervalMs *int          `gorm:"column:polling_interval_ms" json:"polling_interval_ms,omitempty"`
 
 	// Custom Formula & Anomaly Hold-Last-Value Protection
 	Formula              string   `gorm:"size:255" json:"formula"`
