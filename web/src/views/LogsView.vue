@@ -303,8 +303,9 @@
           <table class="w-full text-left text-xs border-collapse font-sans">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
-                <th class="py-3 px-4 w-40">{{ $t('common.timestamp') || 'Timestamp' }}</th>
-                <th class="py-3 px-4 w-32">{{ $t('common.user') || 'Actor' }}</th>
+                <th class="py-3 px-4 w-36">{{ $t('common.timestamp') || 'Timestamp' }}</th>
+                <th class="py-3 px-4 w-28">{{ $t('common.user') || 'User' }}</th>
+                <th class="py-3 px-4 w-40">{{ $t('logs.userFullName') || 'Nama User' }}</th>
                 <th class="py-3 px-4 w-36">{{ $t('common.action') || 'Action' }}</th>
                 <th class="py-3 px-4 w-28">{{ $t('logs.resource') || 'Resource' }}</th>
                 <th class="py-3 px-4">{{ $t('logs.details') || 'Details' }}</th>
@@ -315,7 +316,7 @@
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300 font-mono text-2xs">
               <!-- Loading -->
               <tr v-if="loadingAudit">
-                <td colspan="7" class="py-12 text-center text-slate-500 font-sans">
+                <td colspan="8" class="py-12 text-center text-slate-500 font-sans">
                   <div class="flex items-center justify-center space-x-2">
                     <span class="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></span>
                     <span>Loading audit records...</span>
@@ -324,7 +325,7 @@
               </tr>
               <!-- Error -->
               <tr v-else-if="auditError">
-                <td colspan="7" class="py-12 text-center text-rose-500 font-sans">
+                <td colspan="8" class="py-12 text-center text-rose-500 font-sans">
                   <div class="flex flex-col items-center justify-center space-y-2">
                     <svg class="w-8 h-8 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                     <span>{{ auditError }}</span>
@@ -334,7 +335,7 @@
               </tr>
               <!-- Empty -->
               <tr v-else-if="auditTrails.length === 0">
-                <td colspan="7" class="py-12 text-center text-slate-500 font-sans">
+                <td colspan="8" class="py-12 text-center text-slate-500 font-sans">
                   <div class="flex flex-col items-center justify-center space-y-2">
                     <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     <span>{{ $t('logs.noAuditFound') || 'No audit trails match the current criteria.' }}</span>
@@ -343,27 +344,30 @@
               </tr>
               <!-- Rows -->
               <tr v-for="trail in auditTrails" :key="trail.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/25 transition-colors">
-                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 text-3xs">{{ trail.created_at | formatDate }}</td>
-                <td class="py-3 px-4">
+                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 text-3xs whitespace-nowrap">{{ trail.created_at | formatDate }}</td>
+                <td class="py-3 px-4 whitespace-nowrap">
                   <div class="flex items-center space-x-1.5">
-                    <div class="w-5 h-5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-4xs">
+                    <div class="w-5 h-5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center text-4xs shrink-0">
                       {{ (trail.username || 'U').charAt(0).toUpperCase() }}
                     </div>
                     <span class="font-bold text-slate-900 dark:text-slate-100 font-mono">{{ trail.username }}</span>
                   </div>
                 </td>
-                <td class="py-3 px-4">
+                <td class="py-3 px-4 font-sans text-xs font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                  {{ getAuditUserFullName(trail) }}
+                </td>
+                <td class="py-3 px-4 whitespace-nowrap">
                   <span class="px-2 py-0.5 rounded text-3xs font-semibold tracking-wider font-mono" :class="getActionBadgeClass(trail.action)">
                     {{ trail.action }}
                   </span>
                 </td>
-                <td class="py-3 px-4 text-indigo-600 dark:text-indigo-400 font-bold font-mono">{{ trail.resource }}</td>
+                <td class="py-3 px-4 text-indigo-600 dark:text-indigo-400 font-bold font-mono whitespace-nowrap">{{ trail.resource }}</td>
                 <td class="py-3 px-4 font-sans text-xs text-slate-800 dark:text-slate-200">
-                  <div class="line-clamp-2 truncate max-w-md">{{ trail.details }}</div>
+                  <div class="line-clamp-2 break-words max-w-xl leading-relaxed">{{ formatAuditDetails(trail) }}</div>
                 </td>
-                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 text-3xs">{{ trail.ip_address || '-' }}</td>
+                <td class="py-3 px-4 text-slate-500 dark:text-slate-400 text-3xs whitespace-nowrap">{{ trail.ip_address || '-' }}</td>
                 <td class="py-3 px-4 text-center">
-                  <button @click="openInspectorModal('audit', trail)" class="p-1 text-slate-400 hover:text-blue-500 transition-colors" title="Inspect audit entry">
+                  <button @click="openInspectorModal('audit', trail)" class="p-1 text-slate-400 hover:text-blue-500 transition-colors" title="Lihat rincian jejak audit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                   </button>
                 </td>
@@ -626,8 +630,12 @@
             <!-- Specific metadata for audit -->
             <template v-if="modalType === 'audit'">
               <div>
-                <span class="text-slate-400 block text-3xs">Actor:</span>
+                <span class="text-slate-400 block text-3xs">{{ $t('common.user') || 'User' }}:</span>
                 <span class="font-mono font-bold text-blue-500">{{ selectedItem.username }}</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-3xs">{{ $t('logs.userFullName') || 'Nama User' }}:</span>
+                <span class="font-sans font-semibold text-slate-800 dark:text-slate-200">{{ getAuditUserFullName(selectedItem) }}</span>
               </div>
               <div>
                 <span class="text-slate-400 block text-3xs">Action:</span>
@@ -637,7 +645,7 @@
                 <span class="text-slate-400 block text-3xs">Resource:</span>
                 <span class="font-mono">{{ selectedItem.resource }}</span>
               </div>
-              <div>
+              <div class="col-span-2">
                 <span class="text-slate-400 block text-3xs">Client IP:</span>
                 <span class="font-mono">{{ selectedItem.ip_address || '-' }}</span>
               </div>
@@ -676,8 +684,11 @@
           </div>
 
           <div v-if="selectedItem.details" class="space-y-1">
-            <span class="text-3xs uppercase font-bold text-slate-500 tracking-wider">Full Details</span>
-            <pre class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-mono text-2xs overflow-x-auto whitespace-pre-wrap border border-slate-200 dark:border-slate-800">{{ selectedItem.details }}</pre>
+            <span class="text-3xs uppercase font-bold text-slate-500 tracking-wider">{{ modalType === 'audit' ? 'Rincian Aktivitas' : 'Full Details' }}</span>
+            <div v-if="modalType === 'audit'" class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans text-xs leading-relaxed whitespace-pre-wrap border border-slate-200 dark:border-slate-800">
+              {{ formatAuditDetails(selectedItem) }}
+            </div>
+            <pre v-else class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-mono text-2xs overflow-x-auto whitespace-pre-wrap border border-slate-200 dark:border-slate-800">{{ selectedItem.details }}</pre>
           </div>
 
           <div v-if="selectedItem.error_message" class="space-y-1">
@@ -1047,6 +1058,84 @@ export default {
       return 'text-rose-500 font-bold';
     },
 
+    // Audit Human-Readable Helpers
+    getAuditUserFullName(trail) {
+      if (!trail) return '-';
+      if (trail.full_name && String(trail.full_name).trim()) {
+        return String(trail.full_name).trim();
+      }
+      const uname = String(trail.username || '').trim();
+      if (uname.toLowerCase() === 'system') {
+        return 'Sistem Otomatis';
+      }
+      return uname || '-';
+    },
+    formatAuditDetails(trail) {
+      if (!trail) return '-';
+      const raw = typeof trail === 'string' ? trail : String(trail.details || '').trim();
+      if (!raw) return '-';
+      if (!raw.startsWith('{') && !raw.startsWith('[')) {
+        return raw;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const parseNested = (v) => {
+            if (!v) return {};
+            if (typeof v === 'object') return v;
+            if (typeof v === 'string' && v.trim().startsWith('{')) {
+              try {
+                return JSON.parse(v);
+              } catch (e) {
+                return {};
+              }
+            }
+            return {};
+          };
+          if ('before' in parsed || 'after' in parsed) {
+            const b = parseNested(parsed.before);
+            const a = parseNested(parsed.after);
+            const name = a.parameter_name || b.parameter_name || a.device_name || b.device_name || a.name || b.name || '';
+            const code = a.parameter_code || b.parameter_code || a.device_code || b.device_code || '';
+            const subject = name && code && name !== code ? `${name} (${code})` : (name || code || 'pengaturan');
+            const labelMap = {
+              enabled: 'Status Aktif',
+              scale: 'Skala Kalibrasi',
+              offset: 'Offset Kalibrasi',
+              warning_low: 'Batas Peringatan Minimum',
+              warning_high: 'Batas Peringatan Maksimum',
+              min_value: 'Batas Kritis Minimum',
+              max_value: 'Batas Kritis Maksimum',
+              stale_timeout_seconds: 'Batas Waktu Data Stale',
+              status: 'Status',
+              location: 'Lokasi',
+            };
+            const valStr = (v) => (v === null || v === undefined || v === '' ? 'kosong' : typeof v === 'boolean' ? (v ? 'Aktif' : 'Nonaktif') : String(v));
+            const keys = Array.from(new Set([...Object.keys(b), ...Object.keys(a)])).filter(
+              (k) => !['id', 'created_at', 'updated_at', 'deleted_at'].includes(k)
+            );
+            const diffs = [];
+            keys.forEach((k) => {
+              if (JSON.stringify(b[k]) !== JSON.stringify(a[k])) {
+                const lbl = labelMap[k] || k.replace(/_/g, ' ');
+                diffs.push(`${lbl} diubah dari ${valStr(b[k])} menjadi ${valStr(a[k])}`);
+              }
+            });
+            return diffs.length > 0
+              ? `Memperbarui ${subject}: ${diffs.join('; ')}.`
+              : `Memperbarui pengaturan ${subject}.`;
+          }
+          const parts = Object.entries(parsed)
+            .filter(([k, v]) => v !== null && v !== undefined && v !== '' && !['created_at', 'updated_at'].includes(k))
+            .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'boolean' ? (v ? 'Aktif' : 'Nonaktif') : v}`);
+          return parts.join(', ') || '-';
+        }
+      } catch (e) {
+        return raw;
+      }
+      return raw;
+    },
+
     // CSV Exporter
     exportCSV(type) {
       let csvContent = '';
@@ -1061,9 +1150,11 @@ export default {
         });
       } else if (type === 'audit') {
         filename = `audit_trails_${now}.csv`;
-        csvContent = 'ID,Timestamp,Username,Action,Resource,Details,IPAddress\n';
+        csvContent = 'ID,Timestamp,Username,NamaUser,Action,Resource,Details,IPAddress\n';
         this.auditTrails.forEach((a) => {
-          csvContent += `"${a.id}","${a.created_at}","${a.username}","${a.action}","${a.resource}","${(a.details || '').replace(/"/g, '""')}","${a.ip_address || ''}"\n`;
+          const fullName = (this.getAuditUserFullName(a) || '').replace(/"/g, '""');
+          const cleanDetails = (this.formatAuditDetails(a) || '').replace(/"/g, '""');
+          csvContent += `"${a.id}","${a.created_at}","${a.username}","${fullName}","${a.action}","${a.resource}","${cleanDetails}","${a.ip_address || ''}"\n`;
         });
       } else if (type === 'comm') {
         filename = `communication_logs_${now}.csv`;

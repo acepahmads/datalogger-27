@@ -8,6 +8,7 @@ type AuditTrail struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	UserID    *uint     `gorm:"index" json:"user_id"`
 	Username  string    `gorm:"size:64;not null" json:"username"`
+	FullName  string    `gorm:"-" json:"full_name"`
 	Action    string    `gorm:"size:128;not null" json:"action"`
 	Resource  string    `gorm:"size:128;not null" json:"resource"`
 	Details   string    `gorm:"type:text" json:"details"`

@@ -159,13 +159,23 @@ func (r *SystemRepository) AddSystemLog(log *model.SystemLog) error {
 func (r *SystemRepository) GetAuditTrails(limit int) ([]model.AuditTrail, error) {
 	var trails []model.AuditTrail
 	err := r.db.Order("created_at DESC, id DESC").Limit(limit).Find(&trails).Error
+	if err == nil {
+		r.enrichAuditTrailUsers(trails)
+	}
 	return trails, err
 }
 
 func (r *SystemRepository) GetAuditTrailsFiltered(params AuditTrailFilterParams) ([]model.AuditTrail, int64, error) {
+	hasUserTable := r.db != nil && r.db.Migrator().HasTable(&model.User{})
 	query := r.db.Model(&model.AuditTrail{})
 	if params.Username != "" {
-		query = query.Where("username = ?", params.Username)
+		trimmedActor := strings.TrimSpace(params.Username)
+		if hasUserTable {
+			likeActor := "%" + trimmedActor + "%"
+			query = query.Where("username = ? OR username IN (SELECT username FROM users WHERE full_name LIKE ?)", trimmedActor, likeActor)
+		} else {
+			query = query.Where("username = ?", trimmedActor)
+		}
 	}
 	if params.Action != "" {
 		query = query.Where("action = ?", params.Action)
@@ -181,7 +191,11 @@ func (r *SystemRepository) GetAuditTrailsFiltered(params AuditTrailFilterParams)
 	}
 	if params.Search != "" {
 		like := "%" + params.Search + "%"
-		query = query.Where("details LIKE ? OR action LIKE ? OR resource LIKE ? OR username LIKE ?", like, like, like, like)
+		if hasUserTable {
+			query = query.Where("details LIKE ? OR action LIKE ? OR resource LIKE ? OR username LIKE ? OR username IN (SELECT username FROM users WHERE full_name LIKE ?)", like, like, like, like, like)
+		} else {
+			query = query.Where("details LIKE ? OR action LIKE ? OR resource LIKE ? OR username LIKE ?", like, like, like, like)
+		}
 	}
 
 	var total int64
@@ -201,7 +215,84 @@ func (r *SystemRepository) GetAuditTrailsFiltered(params AuditTrailFilterParams)
 
 	var trails []model.AuditTrail
 	err := query.Order("created_at DESC, id DESC").Offset(offset).Limit(pageSize).Find(&trails).Error
+	if err == nil {
+		r.enrichAuditTrailUsers(trails)
+	}
 	return trails, total, err
+}
+
+func (r *SystemRepository) enrichAuditTrailUsers(trails []model.AuditTrail) {
+	if len(trails) == 0 {
+		return
+	}
+
+	byID := make(map[uint]model.User)
+	byUsername := make(map[string]model.User)
+
+	if r.db != nil && r.db.Migrator().HasTable(&model.User{}) {
+		idSet := make(map[uint]struct{})
+		nameSet := make(map[string]struct{})
+		for _, t := range trails {
+			if t.UserID != nil && *t.UserID > 0 {
+				idSet[*t.UserID] = struct{}{}
+			}
+			uname := strings.ToLower(strings.TrimSpace(t.Username))
+			if uname != "" && uname != "system" {
+				nameSet[uname] = struct{}{}
+			}
+		}
+
+		if len(idSet) > 0 || len(nameSet) > 0 {
+			ids := make([]uint, 0, len(idSet))
+			for id := range idSet {
+				ids = append(ids, id)
+			}
+			names := make([]string, 0, len(nameSet))
+			for n := range nameSet {
+				names = append(names, n)
+			}
+
+			var users []model.User
+			uQuery := r.db.Model(&model.User{}).Select("id, username, full_name")
+			switch {
+			case len(ids) > 0 && len(names) > 0:
+				uQuery = uQuery.Where("id IN ? OR LOWER(username) IN ?", ids, names)
+			case len(ids) > 0:
+				uQuery = uQuery.Where("id IN ?", ids)
+			case len(names) > 0:
+				uQuery = uQuery.Where("LOWER(username) IN ?", names)
+			}
+			if err := uQuery.Find(&users).Error; err == nil {
+				for _, u := range users {
+					byID[u.ID] = u
+					byUsername[strings.ToLower(strings.TrimSpace(u.Username))] = u
+				}
+			}
+		}
+	}
+
+	for i := range trails {
+		uname := strings.TrimSpace(trails[i].Username)
+		if strings.EqualFold(uname, "system") {
+			trails[i].FullName = "Sistem Otomatis"
+			continue
+		}
+		if trails[i].UserID != nil {
+			if u, ok := byID[*trails[i].UserID]; ok {
+				if full := strings.TrimSpace(u.FullName); full != "" {
+					trails[i].FullName = full
+					continue
+				}
+			}
+		}
+		if u, ok := byUsername[strings.ToLower(uname)]; ok {
+			if full := strings.TrimSpace(u.FullName); full != "" {
+				trails[i].FullName = full
+				continue
+			}
+		}
+		trails[i].FullName = uname
+	}
 }
 
 func (r *SystemRepository) AddAuditTrail(trail *model.AuditTrail) error {

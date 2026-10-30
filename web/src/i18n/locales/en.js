@@ -1744,6 +1744,7 @@ export default {
     "searchAudit": "Search audit trails by actor, action or resource...",
     "searchComm": "Search communication by hex or error...",
     "actor": "Actor / User",
+    "userFullName": "Nama User",
     "allActors": "All Actors",
     "action": "Action",
     "allActions": "All Actions",

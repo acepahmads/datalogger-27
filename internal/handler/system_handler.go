@@ -1014,7 +1014,7 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 		}
 
 		for i := range trails {
-			trails[i].Details = redactSensitiveString(trails[i].Details)
+			trails[i].Details = redactSensitiveString(FormatAuditTrailDetailsHuman(trails[i].Action, trails[i].Resource, trails[i].Details))
 		}
 
 		totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
@@ -1047,7 +1047,7 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 		return
 	}
 	for i := range trails {
-		trails[i].Details = redactSensitiveString(trails[i].Details)
+		trails[i].Details = redactSensitiveString(FormatAuditTrailDetailsHuman(trails[i].Action, trails[i].Resource, trails[i].Details))
 	}
 	response.OK(c, trails)
 }
