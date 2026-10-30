@@ -517,11 +517,12 @@
     <div v-if="activeTab === 'channels'" class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div v-for="ch in channels" :key="ch.id"
-             class="p-5 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+             class="p-5 rounded-2xl bg-white dark:bg-[#111827] border shadow-sm space-y-4 transition-all"
+             :class="ch.enabled ? 'border-slate-200 dark:border-slate-800' : 'border-slate-200/70 dark:border-slate-800/60 opacity-80'">
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-3">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white"
-                   :class="getChannelIconBg(ch.type)">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-colors"
+                   :class="ch.enabled ? getChannelIconBg(ch.type) : 'bg-slate-400 dark:bg-slate-700'">
                 <span class="font-bold font-mono text-xs">{{ ch.type.substring(0, 2) }}</span>
               </div>
               <div>
@@ -530,12 +531,24 @@
               </div>
             </div>
 
-            <!-- Enabled Switch / Status Pill -->
-            <div class="flex items-center space-x-2">
+            <!-- Interactive Active / Inactive Switch + Status Pill -->
+            <div class="flex items-center space-x-2.5">
               <span class="px-2 py-0.5 rounded-full text-3xs font-semibold font-mono"
-                    :class="ch.enabled ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-500 dark:border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-500 border border-slate-200 dark:border-slate-700'">
-                {{ ch.enabled ? $t('alarms.enabled') : $t('alarms.disabled') }}
+                    :class="ch.enabled ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-500 dark:border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'">
+                {{ ch.enabled ? ($t('alarms.enabled') || 'Active') : ($t('alarms.disabled') || 'Inactive') }}
               </span>
+              <button v-if="canManageChannels"
+                      type="button"
+                      role="switch"
+                      :aria-checked="ch.enabled ? 'true' : 'false'"
+                      :disabled="togglingChannelId === ch.id"
+                      @click="toggleChannelEnabled(ch)"
+                      :title="ch.enabled ? 'Klik untuk menonaktifkan pengiriman channel ini' : 'Klik untuk mengaktifkan pengiriman channel ini'"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50"
+                      :class="ch.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'">
+                <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="ch.enabled ? 'translate-x-4' : 'translate-x-0'"></span>
+              </button>
             </div>
           </div>
 
@@ -566,7 +579,7 @@
             <span class="text-3xs font-mono font-bold" :class="ch.is_configured ? 'text-emerald-700 dark:text-emerald-500' : 'text-amber-700 dark:text-amber-400'">
               {{ ch.is_configured ? `✓ ${$t('alarms.configured')}` : `⚠ ${$t('alarms.notConfigured')}` }}
             </span>
-            <div class="flex items-center space-x-2">
+            <div v-if="canManageChannels" class="flex items-center space-x-2">
               <button @click="openTestSendModal(ch)"
                       class="px-2.5 py-1 text-2xs rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-semibold transition-colors">
                 {{ $t('alarms.testSend') }}
@@ -869,6 +882,28 @@
         </div>
 
         <form @submit.prevent="saveChannelConfig" class="space-y-3 text-xs font-sans">
+          <!-- Active / Inactive Delivery Toggle -->
+          <div class="flex items-center justify-between p-3 rounded-xl border transition-colors"
+               :class="editForm.enabled ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800'">
+            <div>
+              <div class="font-bold text-slate-900 dark:text-white">
+                Status Pengiriman: {{ editForm.enabled ? 'Active (Enabled)' : 'Inactive (Disabled)' }}
+              </div>
+              <div class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {{ editForm.enabled ? 'Alarm yang memenuhi kriteria akan otomatis dikirim ke channel ini.' : 'Pengiriman alarm ke channel ini dinonaktifkan sementara.' }}
+              </div>
+            </div>
+            <button type="button"
+                    role="switch"
+                    :aria-checked="editForm.enabled ? 'true' : 'false'"
+                    @click="editForm.enabled = !editForm.enabled"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                    :class="editForm.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'">
+              <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="editForm.enabled ? 'translate-x-5' : 'translate-x-0'"></span>
+            </button>
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-slate-500 dark:text-slate-400 mb-1">Name</label>
@@ -932,6 +967,18 @@
                   <label class="block text-3xs text-slate-500 mb-0.5">Password / Secret</label>
                   <input type="password" v-model="editForm.config.password" placeholder="********"
                          class="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-3xs text-slate-500 mb-0.5">From Email</label>
+                  <input v-model="editForm.config.from_email" placeholder="alerts@domain.com"
+                         class="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
+                </div>
+                <div>
+                  <label class="block text-3xs text-slate-500 mb-0.5">Recipient Emails (comma-separated)</label>
+                  <input v-model="editForm.recipientsText" placeholder="ops@domain.com, eng@domain.com"
+                         class="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
                 </div>
               </div>
             </div>
@@ -1080,6 +1127,7 @@ export default {
 
       // Channels state (Wave 3)
       channels: [],
+      togglingChannelId: null,
 
       // Notification Details Modal
       showDetailsModal: false,
@@ -1098,6 +1146,7 @@ export default {
         quiet_hours_start: '',
         quiet_hours_end: '',
         timezone: 'UTC',
+        recipientsText: '',
         config: {},
       },
 
@@ -1138,6 +1187,10 @@ export default {
       if (user && user.full_name) return user.full_name;
       if (user && user.username) return user.username;
       return 'Lead Operator';
+    },
+    canManageChannels() {
+      const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ENGINEER';
     },
   },
   watch: {
@@ -1377,11 +1430,50 @@ export default {
       this.selectedNotif = notif;
       this.showDetailsModal = true;
     },
+    async toggleChannelEnabled(ch) {
+      if (!this.canManageChannels || !ch) return;
+      const nextEnabled = !ch.enabled;
+
+      // If trying to activate an unconfigured channel, open Configure modal pre-set to Active
+      if (nextEnabled && !ch.is_configured) {
+        this.openEditChannelModal(ch);
+        this.editForm.enabled = true;
+        this.showToast('Lengkapi kredensial provider terlebih dahulu, lalu klik Save Configuration untuk mengaktifkan channel ini.', 'error');
+        return;
+      }
+
+      this.togglingChannelId = ch.id;
+      try {
+        const res = await axios.put(
+          `/api/notifications/channels/${ch.id}`,
+          { enabled: nextEnabled },
+          { headers: this.getAuthHeaders() }
+        );
+        if (res.data && res.data.success) {
+          ch.enabled = nextEnabled;
+          this.showToast(
+            nextEnabled
+              ? `Channel "${ch.name}" diaktifkan (Active)`
+              : `Channel "${ch.name}" dinonaktifkan (Inactive)`
+          );
+          this.fetchChannels();
+          this.fetchNotifications();
+          this.fetchMetrics();
+        }
+      } catch (err) {
+        const msg = (err.response && err.response.data && err.response.data.error) || err.message;
+        this.showToast('Gagal mengubah status channel: ' + msg, 'error');
+      } finally {
+        this.togglingChannelId = null;
+      }
+    },
     openEditChannelModal(ch) {
       this.editingChannel = ch;
+      const cfgCopy = ch.config ? JSON.parse(JSON.stringify(ch.config)) : {};
+      const recipientsArr = Array.isArray(cfgCopy.recipients) ? cfgCopy.recipients : [];
       this.editForm = {
         name: ch.name,
-        enabled: ch.enabled,
+        enabled: Boolean(ch.enabled),
         min_severity: ch.min_severity,
         rate_limit_per_min: ch.rate_limit_per_min,
         max_retries: ch.max_retries,
@@ -1389,15 +1481,24 @@ export default {
         quiet_hours_start: ch.quiet_hours_start || '',
         quiet_hours_end: ch.quiet_hours_end || '',
         timezone: ch.timezone || 'UTC',
-        config: ch.config ? JSON.parse(JSON.stringify(ch.config)) : {},
+        recipientsText: recipientsArr.join(', '),
+        config: cfgCopy,
       };
       this.showEditModal = true;
     },
     async saveChannelConfig() {
       try {
+        const cfgPayload = { ...(this.editForm.config || {}) };
+        if (this.editingChannel && this.editingChannel.type === 'EMAIL') {
+          cfgPayload.recipients = (this.editForm.recipientsText || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+
         const payload = {
           name: this.editForm.name,
-          enabled: this.editForm.enabled,
+          enabled: Boolean(this.editForm.enabled),
           min_severity: this.editForm.min_severity,
           rate_limit_per_min: this.editForm.rate_limit_per_min,
           max_retries: this.editForm.max_retries,
@@ -1405,7 +1506,7 @@ export default {
           quiet_hours_start: this.editForm.quiet_hours_start,
           quiet_hours_end: this.editForm.quiet_hours_end,
           timezone: this.editForm.timezone,
-          config: this.editForm.config,
+          config: cfgPayload,
         };
 
         const res = await axios.put(`/api/notifications/channels/${this.editingChannel.id}`, payload, { headers: this.getAuthHeaders() });
@@ -1413,6 +1514,8 @@ export default {
           this.showToast('Channel updated successfully');
           this.showEditModal = false;
           this.fetchChannels();
+          this.fetchNotifications();
+          this.fetchMetrics();
         }
       } catch (err) {
         const msg = (err.response && err.response.data && err.response.data.error) || err.message;

@@ -324,6 +324,26 @@ func (r *NotificationRepository) Retry(ctx context.Context, id uint) (*model.Not
 	return r.GetByID(ctx, id)
 }
 
+// CancelPendingByChannelID cancels any pending or retrying notifications belonging to a disabled channel
+func (r *NotificationRepository) CancelPendingByChannelID(ctx context.Context, channelID uint) (int64, error) {
+	if channelID == 0 {
+		return 0, nil
+	}
+	now := time.Now().UTC()
+	res := r.db.WithContext(ctx).Model(&model.Notification{}).
+		Where("channel_id = ? AND status IN ?", channelID, []model.NotificationStatus{
+			model.NotificationPending,
+			model.NotificationRetrying,
+		}).
+		Updates(map[string]interface{}{
+			"status":        model.NotificationCancelled,
+			"next_retry_at": nil,
+			"error_msg":     "Channel disabled by administrator",
+			"updated_at":    now,
+		})
+	return res.RowsAffected, res.Error
+}
+
 // CountRecentByChannel returns the number of notifications sent on a channel since a given timestamp (for rate limiting)
 func (r *NotificationRepository) CountRecentByChannel(ctx context.Context, channel string, since time.Time) (int64, error) {
 	var count int64

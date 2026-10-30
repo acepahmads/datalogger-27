@@ -482,8 +482,12 @@ func Seed(db *gorm.DB) error {
 
 	// 5. Notification Channels
 	db.Create(&model.NotificationChannel{Name: "Web Notification Alert", Type: model.ChannelWeb, Enabled: true})
-	db.Create(&model.NotificationChannel{Name: "Plant Ops Email", Type: model.ChannelEmail, Enabled: false, ConfigJSON: `{"smtp_server":"smtp.local","port":587}`})
-	db.Create(&model.NotificationChannel{Name: "Engineering Telegram Bot", Type: model.ChannelTelegram, Enabled: false, ConfigJSON: `{"bot_token":"","chat_id":""}`})
+	emailCh := model.NotificationChannel{Name: "Plant Ops Email", Type: model.ChannelEmail, Enabled: false, ConfigJSON: `{"smtp_host":"","smtp_port":587}`}
+	db.Create(&emailCh)
+	db.Model(&emailCh).Update("enabled", false)
+	tgCh := model.NotificationChannel{Name: "Engineering Telegram Bot", Type: model.ChannelTelegram, Enabled: false, ConfigJSON: `{"bot_token":"","chat_id":""}`}
+	db.Create(&tgCh)
+	db.Model(&tgCh).Update("enabled", false)
 
 	// 6. Initial Audit Trail & Logs
 	db.Create(&model.AuditTrail{

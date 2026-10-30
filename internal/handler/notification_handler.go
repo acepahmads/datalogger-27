@@ -199,23 +199,28 @@ func (h *NotificationHandler) UpdateChannel(c *gin.Context) {
 	// Merge secrets if config is provided
 	if req.Config != nil {
 		newConfigBytes, _ := json.Marshal(req.Config)
-		mergedJSON := notification.MergeSecrets(string(newConfigBytes), existing.ConfigJSON)
+		existing.ConfigJSON = notification.MergeSecrets(string(newConfigBytes), existing.ConfigJSON)
+	}
 
-		// Validate with provider if available
+	// Validate provider configuration only when the channel is enabled (active),
+	// allowing administrators to freely disable/inactivate unconfigured channels.
+	if existing.Enabled {
 		provider := h.engine.GetProvider(existing.Type)
 		if provider != nil {
-			if vErr := provider.ValidateConfig(mergedJSON); vErr != nil {
+			if vErr := provider.ValidateConfig(existing.ConfigJSON); vErr != nil {
 				response.BadRequest(c, "Invalid channel configuration: "+vErr.Error())
 				return
 			}
 		}
-
-		existing.ConfigJSON = mergedJSON
 	}
 
 	if err := h.repo.UpdateChannel(c.Request.Context(), existing); err != nil {
 		response.InternalError(c, "Failed to update channel: "+err.Error())
 		return
+	}
+
+	if !existing.Enabled {
+		_, _ = h.repo.CancelPendingByChannelID(c.Request.Context(), existing.ID)
 	}
 
 	response.OK(c, toChannelDTO(existing))

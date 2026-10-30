@@ -272,3 +272,88 @@ func TestNotificationHandler_ChannelsAndRedaction(t *testing.T) {
 		t.Errorf("expected 422 or 200 for test-send diagnostic, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestNotificationHandler_ToggleActiveInactiveUnconfiguredChannel(t *testing.T) {
+	r, db, adminToken, _, _, _, notifEngine := setupTestNotificationRouter(t)
+	defer notifEngine.Stop()
+
+	// Seed an unconfigured Telegram channel that is initially Enabled=true (like legacy DB rows)
+	tgChannel := &model.NotificationChannel{
+		Name:            "Engineering Telegram Bot",
+		Type:            model.ChannelTelegram,
+		Enabled:         true,
+		ConfigJSON:      `{"bot_token":"","chat_id":""}`,
+		MinSeverity:     model.SeverityWarning,
+		RateLimitPerMin: 10,
+		MaxRetries:      3,
+	}
+	if err := db.Create(tgChannel).Error; err != nil {
+		t.Fatalf("failed seeding tgChannel: %v", err)
+	}
+
+	// Seed aRETRYING notification queued for this channel
+	chID := tgChannel.ID
+	queuedNotif := &model.Notification{
+		AlarmID:   1,
+		ChannelID: &chID,
+		Channel:   string(model.ChannelTelegram),
+		Recipient: "Engineering Telegram Bot",
+		Message:   "Test alarm",
+		Status:    model.NotificationRetrying,
+	}
+	_ = db.Create(queuedNotif).Error
+
+	// 1. Disabling (enabled=false) an unconfigured channel MUST succeed (200 OK) and cancel pending/retrying items
+	req, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("/api/notifications/channels/%d", tgChannel.ID), bytes.NewBufferString(`{"enabled":false}`))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK when disabling unconfigured channel, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var dbChan model.NotificationChannel
+	db.First(&dbChan, tgChannel.ID)
+	if dbChan.Enabled {
+		t.Fatalf("expected channel Enabled=false in DB after disabling, got Enabled=true")
+	}
+
+	var dbNotif model.Notification
+	db.First(&dbNotif, queuedNotif.ID)
+	if dbNotif.Status != model.NotificationCancelled {
+		t.Errorf("expected queued retrying notification to be CANCELLED upon disabling channel, got %s", dbNotif.Status)
+	}
+
+	// 2. Trying to re-enable (enabled=true) while still unconfigured MUST fail with 400 Bad Request
+	req, _ = http.NewRequest(http.MethodPut, fmt.Sprintf("/api/notifications/channels/%d", tgChannel.ID), bytes.NewBufferString(`{"enabled":true}`))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request when enabling unconfigured channel without bot_token, got %d", w.Code)
+	}
+
+	// 3. Configuring bot_token & chat_id + enabled=true MUST succeed (200 OK)
+	req, _ = http.NewRequest(
+		http.MethodPut,
+		fmt.Sprintf("/api/notifications/channels/%d", tgChannel.ID),
+		bytes.NewBufferString(`{"enabled":true,"config":{"bot_token":"123456:VALID_TOKEN","chat_id":"-100999"}}`),
+	)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK when configuring and enabling channel, got %d: %s", w.Code, w.Body.String())
+	}
+
+	db.First(&dbChan, tgChannel.ID)
+	if !dbChan.Enabled {
+		t.Errorf("expected channel Enabled=true in DB after saving valid config")
+	}
+}

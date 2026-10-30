@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -204,9 +206,29 @@ func (e *NotificationEngine) DispatchAlarm(ctx context.Context, alarm *model.Ala
 		}
 
 		recipient := ""
-		// Extract default recipient from channel config if applicable
-		if ch.Type == model.ChannelEmail || ch.Type == model.ChannelTelegram || ch.Type == model.ChannelWebhook {
-			recipient = ch.Name
+		// Extract default recipient from channel config if applicable, falling back to channel name
+		switch ch.Type {
+		case model.ChannelTelegram:
+			var tgCfg notification.TelegramConfig
+			if err := json.Unmarshal([]byte(ch.ConfigJSON), &tgCfg); err == nil && strings.TrimSpace(tgCfg.ChatID) != "" {
+				recipient = strings.TrimSpace(tgCfg.ChatID)
+			} else {
+				recipient = ch.Name
+			}
+		case model.ChannelEmail:
+			var emCfg notification.EmailConfig
+			if err := json.Unmarshal([]byte(ch.ConfigJSON), &emCfg); err == nil && len(emCfg.Recipients) > 0 {
+				recipient = strings.Join(emCfg.Recipients, ", ")
+			} else {
+				recipient = ch.Name
+			}
+		case model.ChannelWebhook:
+			var whCfg notification.WebhookConfig
+			if err := json.Unmarshal([]byte(ch.ConfigJSON), &whCfg); err == nil && strings.TrimSpace(whCfg.WebhookURL) != "" {
+				recipient = strings.TrimSpace(whCfg.WebhookURL)
+			} else {
+				recipient = ch.Name
+			}
 		}
 
 		notif := &model.Notification{
