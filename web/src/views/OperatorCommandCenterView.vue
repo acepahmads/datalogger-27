@@ -2577,8 +2577,73 @@
                   </div>
                 </div>
 
-                <!-- Area 2: Main Content (Value + Unit side-by-side, Mini Sparkline on right) -->
-                <div class="flex items-center justify-between min-w-0 gap-1.5 my-auto leading-none">
+                <!-- Area 2: Main Content (Discrete SCADA Status Pill + State Timeline Strip OR Analog Value + Mini Sparkline) -->
+                <div v-if="isDiscreteStatusParam(param)" class="flex items-center justify-between min-w-0 gap-1.5 my-auto leading-none">
+                  <!-- Left: SCADA LED Indicator + Status Pill Badge + Duration -->
+                  <div
+                    class="flex items-center min-w-0 leading-none truncate flex-1"
+                    :title="getDiscreteStatusInfo(param).tooltip"
+                  >
+                    <span
+                      class="scada-status-pill inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-mono leading-none flex-shrink-0 transition-colors duration-150"
+                      :class="getDiscreteStatusInfo(param).pillClass"
+                    >
+                      <span
+                        class="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
+                        :class="getDiscreteStatusInfo(param).dotClass"
+                      ></span>
+                      <span class="text-[11px] sm:text-[11.5px] font-extrabold uppercase tracking-wider leading-none select-all">
+                        {{ getDiscreteStatusInfo(param).label }}
+                      </span>
+                    </span>
+                    <span
+                      v-if="getDiscreteStatusInfo(param).durationText"
+                      class="text-[8.5px] font-mono font-medium text-slate-500 dark:text-slate-400 ml-1.5 truncate leading-none"
+                    >
+                      {{ getDiscreteStatusInfo(param).durationText }}
+                    </span>
+                    <span
+                      v-if="param.is_held_value"
+                      class="ml-1 px-1 py-0.2 rounded text-[7px] font-mono font-bold flex-shrink-0 leading-none bg-amber-500/15 text-amber-500"
+                    >
+                      HELD
+                    </span>
+                  </div>
+
+                  <!-- Right: SCADA Horizontal State Timeline Strip (ON=Tall Emerald, OFF=Low Slate) -->
+                  <div
+                    class="scada-status-timeline w-[52px] sm:w-[58px] h-[20px] rounded bg-slate-50/80 dark:bg-[#070D17]/80 border border-slate-200/60 dark:border-slate-800/60 overflow-hidden flex-shrink-0 relative my-auto flex items-center justify-center"
+                    :title="getDiscreteStatusInfo(param).tooltip"
+                  >
+                    <svg
+                      v-if="perfSettings.parameterSparklinesEnabled && getStatusTimelineBlocks(param).length > 0"
+                      class="w-full h-full block"
+                      viewBox="0 0 100 20"
+                      preserveAspectRatio="none"
+                    >
+                      <rect
+                        v-for="(blk, bIdx) in getStatusTimelineBlocks(param)"
+                        :key="'st-blk-' + param.param_id + '-' + bIdx"
+                        :x="blk.x"
+                        :y="blk.y"
+                        :width="blk.w"
+                        :height="blk.h"
+                        :rx="blk.rx"
+                        :fill="blk.fill"
+                        :fill-opacity="blk.opacity"
+                      />
+                    </svg>
+                    <div
+                      v-else
+                      class="w-full h-full flex items-center justify-center font-mono text-[7.5px] text-slate-400 dark:text-slate-600 tracking-wider select-none px-0.5 text-center"
+                    >
+                      <span class="w-2.5 h-0.5 rounded-full bg-slate-300 dark:bg-slate-700 opacity-70"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Area 2 (Analog): Value + Unit side-by-side, Mini Sparkline on right -->
+                <div v-else class="flex items-center justify-between min-w-0 gap-1.5 my-auto leading-none">
                   <!-- Left: Value and Unit -->
                   <div class="flex items-baseline min-w-0 leading-none truncate flex-1">
                     <span
@@ -2792,7 +2857,16 @@
 
                       <!-- Value -->
                       <td class="py-1.5 px-1.5 text-right font-bold text-xs whitespace-nowrap" :class="paramValueColorClass(p)">
-                        <span>{{ formatParamValue(p) }}</span>
+                        <span
+                          v-if="isDiscreteStatusParam(p)"
+                          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-extrabold font-mono uppercase tracking-wider leading-none"
+                          :class="getDiscreteStatusInfo(p).pillClass"
+                          :title="getDiscreteStatusInfo(p).tooltip"
+                        >
+                          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getDiscreteStatusInfo(p).dotClass"></span>
+                          <span>{{ getDiscreteStatusInfo(p).label }}</span>
+                        </span>
+                        <span v-else>{{ formatParamValue(p) }}</span>
                         <span v-if="p.is_held_value" class="text-4xs text-amber-500 dark:text-amber-400 ml-0.5">H</span>
                       </td>
 
@@ -7851,6 +7925,9 @@ export default {
             category_id: p.category_id || (p.category ? p.category.id : null),
             category: p.category || null,
             icon: p.icon || '',
+            status_on_label: p.status_on_label || '',
+            status_off_label: p.status_off_label || '',
+            register_type: p.register_type || '',
             unit: p.unit,
             data_type: p.data_type,
             precision: p.precision !== undefined ? p.precision : 2,
@@ -9710,6 +9787,208 @@ export default {
       if (param.alarm_status === 'WARNING') return 'text-[#A96C0A] dark:text-[#F1BD61] font-bold';
       // test token match: text-[#20364B] dark:text-[#E2EBF4]
       return 'text-[#15324F] dark:text-[#E6F3FC] font-bold';
+    },
+    isDiscreteStatusParam(param) {
+      if (!param) return false;
+      const cat = this.getParamCategory(param);
+      if (cat && (String(cat.code || '').toLowerCase() === 'status' || /^status$/i.test(cat.name || ''))) {
+        return true;
+      }
+      const dt = String(param.data_type || '').toUpperCase();
+      if (dt === 'BOOL' || dt === 'BOOLEAN') return true;
+      const rt = String(param.register_type || '').toUpperCase();
+      if (rt === 'COIL' || rt === 'DISCRETE_INPUT') return true;
+      return Boolean((param.status_on_label && String(param.status_on_label).trim()) || (param.status_off_label && String(param.status_off_label).trim()));
+    },
+    resolveDiscreteStatusLabels(param) {
+      const isEn = this.$i18n && this.$i18n.locale === 'en';
+      const customOn = param && param.status_on_label ? String(param.status_on_label).trim() : '';
+      const customOff = param && param.status_off_label ? String(param.status_off_label).trim() : '';
+      const combined = `${(param && param.param_code) || ''} ${(param && param.param_name) || ''}`.toUpperCase();
+
+      let autoOn = isEn ? 'ON' : 'NYALA';
+      let autoOff = isEn ? 'OFF' : 'MATI';
+      if (/VALVE|KATUP/.test(combined)) {
+        autoOn = isEn ? 'OPEN' : 'TERBUKA';
+        autoOff = isEn ? 'CLOSED' : 'TERTUTUP';
+      } else if (/DOOR|PINTU/.test(combined)) {
+        autoOn = isEn ? 'OPEN' : 'TERBUKA';
+        autoOff = isEn ? 'CLOSED' : 'TERTUTUP';
+      } else if (/\bPLN\b|\bUPS\b/.test(combined)) {
+        autoOn = isEn ? 'MAINS ON' : 'PLN NORMAL';
+        autoOff = 'UPS BACKUP';
+      }
+
+      return {
+        on: customOn || autoOn,
+        off: customOff || autoOff,
+      };
+    },
+    parseDiscreteBoolState(val) {
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'string') {
+        const s = val.trim().toLowerCase();
+        if (['true', 'on', 'nyala', 'open', 'terbuka', 'running', 'aktif'].includes(s)) return true;
+        if (['false', 'off', 'mati', 'closed', 'tertutup', 'stopped', 'nonaktif'].includes(s)) return false;
+      }
+      const n = Number(val);
+      if (!isNaN(n)) return n >= 0.5;
+      return false;
+    },
+    formatStatusDurationCompact(ms) {
+      if (!ms || ms < 0 || !isFinite(ms)) return '';
+      const isEn = this.$i18n && this.$i18n.locale === 'en';
+      const sec = Math.floor(ms / 1000);
+      if (sec < 60) return `${Math.max(1, sec)}s`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m`;
+      const hrs = Math.floor(min / 60);
+      const remMin = min % 60;
+      const hUnit = isEn ? 'h' : 'j';
+      if (hrs < 24) {
+        return remMin > 0 ? `${hrs}${hUnit} ${remMin}m` : `${hrs}${hUnit}`;
+      }
+      const days = Math.floor(hrs / 24);
+      const remHrs = hrs % 24;
+      const dUnit = isEn ? 'd' : 'hr';
+      return remHrs > 0 ? `${days}${dUnit} ${remHrs}${hUnit}` : `${days}${dUnit}`;
+    },
+    getDiscreteStatusInfo(param) {
+      if (!param || this.formatParamValue(param) === '--') {
+        return {
+          valid: false,
+          isOn: false,
+          label: '--',
+          pillClass: 'bg-slate-100 dark:bg-slate-800/70 border-slate-300/70 dark:border-slate-700 text-slate-400 dark:text-slate-500',
+          dotClass: 'bg-transparent border-[1.5px] border-slate-400/60 dark:border-slate-600',
+          durationText: '',
+          tooltip: (this.$i18n && this.$i18n.locale === 'en') ? 'Status unavailable (No valid telemetry)' : 'Status tidak tersedia (Data belum valid / offline)',
+        };
+      }
+
+      const isOn = this.parseDiscreteBoolState(param.value);
+      const labels = this.resolveDiscreteStatusLabels(param);
+      const label = isOn ? labels.on : labels.off;
+
+      // ISA-101 High-Performance HMI Coloring:
+      // Red/Amber ONLY when active alarm; Emerald for Active/ON; Neutral Slate for normal Standby/OFF
+      let pillClass = '';
+      let dotClass = '';
+      if (param.alarm_status === 'CRITICAL') {
+        pillClass = 'bg-rose-500/15 dark:bg-rose-500/25 border-rose-500/50 text-rose-700 dark:text-rose-300 shadow-2xs';
+        dotClass = 'bg-rose-500 dark:bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.85)] animate-pulse';
+      } else if (param.alarm_status === 'WARNING') {
+        pillClass = 'bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/50 text-amber-700 dark:text-amber-300 shadow-2xs';
+        dotClass = 'bg-amber-500 dark:bg-amber-400 shadow-[0_0_5px_rgba(245,158,11,0.75)]';
+      } else if (isOn) {
+        pillClass = 'bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/45 dark:border-emerald-400/40 text-emerald-700 dark:text-emerald-300 shadow-2xs';
+        dotClass = 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.85)]';
+      } else {
+        pillClass = 'bg-slate-200/75 dark:bg-slate-800/90 border-slate-300/90 dark:border-slate-600/60 text-slate-600 dark:text-slate-300';
+        dotClass = 'bg-transparent border-[1.5px] border-slate-400 dark:border-slate-500';
+      }
+
+      // Compute contiguous state duration from sparklinesMap history
+      const pid = Number(param.param_id || param.id);
+      const rawHistory = (pid && this.sparklinesMap && Array.isArray(this.sparklinesMap[pid])) ? this.sparklinesMap[pid] : [];
+      let sinceMs = null;
+      for (let i = rawHistory.length - 1; i >= 0; i--) {
+        const pt = rawHistory[i];
+        if (!pt || pt.val === null || pt.val === undefined || !isFinite(pt.val)) break;
+        const ptOn = Number(pt.val) >= 0.5;
+        if (ptOn === isOn) {
+          if (pt.time) sinceMs = Number(pt.time);
+        } else {
+          break;
+        }
+      }
+      if (!sinceMs && param.received_at) {
+        const parsed = new Date(param.received_at).getTime();
+        if (!isNaN(parsed)) sinceMs = parsed;
+      }
+
+      const nowMs = Date.now();
+      const durationText = sinceMs && nowMs >= sinceMs ? this.formatStatusDurationCompact(nowMs - sinceMs) : '';
+      const isEn = this.$i18n && this.$i18n.locale === 'en';
+      const sinceClock = sinceMs ? new Date(sinceMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+      const rawNumStr = param.value !== null && param.value !== undefined ? String(param.value) : '--';
+      const tooltip = sinceClock
+        ? (isEn
+            ? `Status: ${label} (Raw: ${rawNumStr}) · Since ${sinceClock}${durationText ? ' (' + durationText + ')' : ''}`
+            : `Status: ${label} (Nilai raw: ${rawNumStr}) · Sejak ${sinceClock}${durationText ? ' (' + durationText + ')' : ''}`)
+        : `Status: ${label} (Raw: ${rawNumStr})`;
+
+      return {
+        valid: true,
+        isOn,
+        label,
+        pillClass,
+        dotClass,
+        durationText,
+        tooltip,
+      };
+    },
+    getStatusTimelineBlocks(param) {
+      if (!param) return [];
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) return [];
+
+      // Preserve consistent flat fault line on alarm / device offline / bad telemetry
+      if (this.isParamInAlarmOrFault(param)) {
+        return [{
+          x: 0,
+          y: 8.5,
+          w: 100,
+          h: 3,
+          rx: 1,
+          fill: this.getSparklineColor(param),
+          opacity: 0.9,
+        }];
+      }
+
+      const pid = Number(param.param_id || param.id);
+      const rawHistory = (pid && this.sparklinesMap && Array.isArray(this.sparklinesMap[pid])) ? this.sparklinesMap[pid] : [];
+      const validPts = rawHistory.filter(pt => pt && pt.val !== null && pt.val !== undefined && isFinite(pt.val));
+
+      // Take up to most recent 24 samples; fallback to single live state if history hasn't accumulated yet
+      let states = validPts.slice(-24).map(pt => Number(pt.val) >= 0.5);
+      if (states.length === 0) {
+        if (this.formatParamValue(param) === '--') return [];
+        states = [this.parseDiscreteBoolState(param.value)];
+      }
+
+      // Group contiguous identical states into clean proportional horizontal timeline blocks
+      const runs = [];
+      for (const st of states) {
+        if (runs.length > 0 && runs[runs.length - 1].isOn === st) {
+          runs[runs.length - 1].count++;
+        } else {
+          runs.push({ isOn: st, count: 1 });
+        }
+      }
+
+      const totalCount = states.length;
+      const gap = runs.length > 1 ? 1.2 : 0;
+      const usableW = Math.max(10, 98 - gap * (runs.length - 1));
+      const onColor = this.isDark ? '#10B981' : '#059669';
+      const offColor = this.isDark ? '#334155' : '#CBD5E1';
+
+      const blocks = [];
+      let cursorX = 1.0;
+      for (let i = 0; i < runs.length; i++) {
+        const r = runs[i];
+        const w = Math.max(2.5, Number(((r.count / totalCount) * usableW).toFixed(2)));
+        blocks.push({
+          x: Number(cursorX.toFixed(2)),
+          y: r.isOn ? 2.5 : 9.5,
+          w,
+          h: r.isOn ? 15.0 : 8.0,
+          rx: 1.2,
+          fill: r.isOn ? onColor : offColor,
+          opacity: r.isOn ? 0.95 : 0.75,
+        });
+        cursorX += w + gap;
+      }
+      return blocks;
     },
     qualityBadgeClass(q) {
       switch (q) {

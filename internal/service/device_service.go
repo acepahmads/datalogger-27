@@ -83,6 +83,8 @@ type CreateParameterRequest struct {
 	DataType                 model.ParameterDataType `json:"data_type"`
 	Unit                     string                  `json:"unit"`
 	Icon                     string                  `json:"icon"`
+	StatusOnLabel            string                  `json:"status_on_label"`
+	StatusOffLabel           string                  `json:"status_off_label"`
 	CategoryID               *uint                   `json:"category_id"`
 	Description              string                  `json:"description"`
 	MinValue                 *float64                `json:"min_value"`
@@ -176,6 +178,8 @@ type UpdateParameterRequest struct {
 	DataType                 *model.ParameterDataType `json:"data_type"`
 	Unit                     *string                  `json:"unit"`
 	Icon                     *string                  `json:"icon"`
+	StatusOnLabel            *string                  `json:"status_on_label"`
+	StatusOffLabel           *string                  `json:"status_off_label"`
 	CategoryID               *uint                    `json:"category_id"`
 	ClearCategoryID          bool                     `json:"clear_category_id"`
 	Description              *string                  `json:"description"`
@@ -1222,6 +1226,8 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		DataType:                 dataType,
 		Unit:                     strings.TrimSpace(req.Unit),
 		Icon:                     strings.TrimSpace(req.Icon),
+		StatusOnLabel:            strings.TrimSpace(req.StatusOnLabel),
+		StatusOffLabel:           strings.TrimSpace(req.StatusOffLabel),
 		CategoryID:               req.CategoryID,
 		Description:              strings.TrimSpace(req.Description),
 		MinValue:                 req.MinValue,
@@ -1317,6 +1323,12 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	}
 	if req.Icon != nil {
 		param.Icon = strings.TrimSpace(*req.Icon)
+	}
+	if req.StatusOnLabel != nil {
+		param.StatusOnLabel = strings.TrimSpace(*req.StatusOnLabel)
+	}
+	if req.StatusOffLabel != nil {
+		param.StatusOffLabel = strings.TrimSpace(*req.StatusOffLabel)
 	}
 	if req.ClearCategoryID {
 		param.CategoryID = nil

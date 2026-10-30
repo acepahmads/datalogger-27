@@ -197,6 +197,13 @@
               >
                 {{ selectedCategoryObject.name }}
               </span>
+              <span
+                v-if="isStatusCategoryOrBool"
+                class="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-4xs font-extrabold border ml-0.5 bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
+                <span>{{ resolvedModalStatusLabels.on }}</span>
+              </span>
             </div>
           </div>
 
@@ -250,6 +257,82 @@
             <span class="font-bold text-cyan-600 dark:text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
             <span v-if="!form.icon" class="text-slate-400 dark:text-slate-500 font-sans italic">(automatic heuristic)</span>
             <span v-else class="text-emerald-600 dark:text-emerald-400 font-sans italic">(manually configured)</span>
+          </div>
+
+          <!-- Discrete SCADA Status Labels Configurator (Shown automatically for Status category or Boolean/Coil registers) -->
+          <div
+            v-if="isStatusCategoryOrBool"
+            class="mt-2 pt-3 border-t border-slate-200/80 dark:border-slate-800/70 space-y-2.5 animate-fade-in"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/60"></span>
+                <span class="text-2xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider font-mono">
+                  Label Status SCADA (Tampilan Dashboard Operator)
+                </span>
+              </div>
+              <div class="flex items-center space-x-1.5 text-4xs font-mono">
+                <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded border bg-emerald-500/15 dark:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
+                  <span>1 = {{ resolvedModalStatusLabels.on }}</span>
+                </span>
+                <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded border bg-slate-200/80 dark:bg-slate-800/90 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-bold">
+                  <span class="w-1.5 h-1.5 rounded-full border border-slate-400 dark:border-slate-500"></span>
+                  <span>0 = {{ resolvedModalStatusLabels.off }}</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <!-- Preset Selector -->
+              <div>
+                <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Preset Jenis Alat
+                </label>
+                <select
+                  :value="currentStatusPresetKey"
+                  @change="applyStatusLabelPreset($event.target.value)"
+                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono"
+                >
+                  <option value="auto">✨ Otomatis Sesuai Nama Alat</option>
+                  <option value="pump">Pompa / Blower / Motor (NYALA / MATI)</option>
+                  <option value="valve">Valve / Katup (TERBUKA / TERTUTUP)</option>
+                  <option value="door">Pintu Panel / Shelter (TERTUTUP / TERBUKA)</option>
+                  <option value="power">Listrik / Power (PLN NORMAL / UPS BACKUP)</option>
+                  <option value="on_off">Standar Internasional (ON / OFF)</option>
+                  <option value="run_stop">Operasi Mesin (RUNNING / STOPPED)</option>
+                  <option value="custom">Kustom Manual...</option>
+                </select>
+              </div>
+
+              <!-- Label Aktif (1) -->
+              <div>
+                <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Label Aktif (Nilai &ge; 1)
+                </label>
+                <input
+                  v-model="form.status_on_label"
+                  type="text"
+                  maxlength="32"
+                  :placeholder="autoModalStatusLabels.on + ' (Otomatis)'"
+                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono uppercase"
+                />
+              </div>
+
+              <!-- Label Nonaktif (0) -->
+              <div>
+                <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Label Nonaktif (Nilai 0)
+                </label>
+                <input
+                  v-model="form.status_off_label"
+                  type="text"
+                  maxlength="32"
+                  :placeholder="autoModalStatusLabels.off + ' (Otomatis)'"
+                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-slate-500 font-mono uppercase"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1094,6 +1177,8 @@ export default {
         data_type: 'FLOAT32',
         unit: '',
         icon: '',
+        status_on_label: '',
+        status_off_label: '',
         description: '',
         slave_id: 1,
         register_address: 0,
@@ -1188,6 +1273,50 @@ export default {
     selectedCategoryObject() {
       if (!this.form.category_id) return null;
       return this.availableCategories.find(c => Number(c.id) === Number(this.form.category_id)) || null;
+    },
+    isStatusCategoryOrBool() {
+      const cat = this.selectedCategoryObject;
+      if (cat && (String(cat.code || '').toLowerCase() === 'status' || /^status$/i.test(cat.name || ''))) {
+        return true;
+      }
+      const dt = String(this.form.data_type || '').toUpperCase();
+      if (dt === 'BOOL' || dt === 'BOOLEAN') return true;
+      const rt = String(this.form.register_type || '').toUpperCase();
+      if (rt === 'COIL' || rt === 'DISCRETE_INPUT') return true;
+      return Boolean((this.form.status_on_label && this.form.status_on_label.trim()) || (this.form.status_off_label && this.form.status_off_label.trim()));
+    },
+    autoModalStatusLabels() {
+      const isEn = this.$i18n && this.$i18n.locale === 'en';
+      const combined = `${this.form.parameter_code || ''} ${this.form.parameter_name || ''}`.toUpperCase();
+      if (/VALVE|KATUP/.test(combined)) {
+        return { on: isEn ? 'OPEN' : 'TERBUKA', off: isEn ? 'CLOSED' : 'TERTUTUP' };
+      }
+      if (/DOOR|PINTU/.test(combined)) {
+        return { on: isEn ? 'OPEN' : 'TERBUKA', off: isEn ? 'CLOSED' : 'TERTUTUP' };
+      }
+      if (/\bPLN\b|\bUPS\b/.test(combined)) {
+        return { on: isEn ? 'MAINS ON' : 'PLN NORMAL', off: 'UPS BACKUP' };
+      }
+      return { on: isEn ? 'ON' : 'NYALA', off: isEn ? 'OFF' : 'MATI' };
+    },
+    resolvedModalStatusLabels() {
+      const auto = this.autoModalStatusLabels;
+      return {
+        on: (this.form.status_on_label && this.form.status_on_label.trim()) ? this.form.status_on_label.trim() : auto.on,
+        off: (this.form.status_off_label && this.form.status_off_label.trim()) ? this.form.status_off_label.trim() : auto.off,
+      };
+    },
+    currentStatusPresetKey() {
+      const on = (this.form.status_on_label || '').trim().toUpperCase();
+      const off = (this.form.status_off_label || '').trim().toUpperCase();
+      if (!on && !off) return 'auto';
+      if (on === 'NYALA' && off === 'MATI') return 'pump';
+      if (on === 'TERBUKA' && off === 'TERTUTUP') return 'valve';
+      if (on === 'TERTUTUP' && off === 'TERBUKA') return 'door';
+      if (on === 'PLN NORMAL' && off === 'UPS BACKUP') return 'power';
+      if (on === 'ON' && off === 'OFF') return 'on_off';
+      if (on === 'RUNNING' && off === 'STOPPED') return 'run_stop';
+      return 'custom';
     },
     currentResolvedIconKey() {
       return resolveParameterIconKey(this.form.icon, this.form.parameter_code, this.form.parameter_name, this.form.unit);
@@ -1549,6 +1678,8 @@ export default {
         data_type: 'FLOAT32',
         unit: '',
         icon: '',
+        status_on_label: '',
+        status_off_label: '',
         description: '',
         slave_id: (dev && dev.connection && dev.connection.slave_id) || 1,
         register_address: 0,
@@ -1610,6 +1741,8 @@ export default {
         data_type: dt,
         unit: param.unit || '',
         icon: param.icon || '',
+        status_on_label: param.status_on_label || '',
+        status_off_label: param.status_off_label || '',
         description: param.description || '',
         slave_id: (param.slave_id !== undefined && param.slave_id !== null && param.slave_id > 0) ? param.slave_id : ((dev && dev.connection && dev.connection.slave_id) || 1),
         register_address: param.register_address !== undefined ? param.register_address : 0,
@@ -1651,6 +1784,8 @@ export default {
         data_type: dt,
         unit: source.unit || '',
         icon: source.icon || '',
+        status_on_label: source.status_on_label || '',
+        status_off_label: source.status_off_label || '',
         description: source.description || '',
         slave_id: (source.slave_id !== undefined && source.slave_id !== null && source.slave_id > 0) ? source.slave_id : 1,
         register_address: source.register_address !== undefined ? source.register_address : 0,
@@ -1809,6 +1944,21 @@ export default {
       this.customByteSlots = baseSlots;
       this.form.byte_order = raw;
     },
+    applyStatusLabelPreset(preset) {
+      const map = {
+        auto: { on: '', off: '' },
+        pump: { on: 'NYALA', off: 'MATI' },
+        valve: { on: 'TERBUKA', off: 'TERTUTUP' },
+        door: { on: 'TERTUTUP', off: 'TERBUKA' },
+        power: { on: 'PLN NORMAL', off: 'UPS BACKUP' },
+        on_off: { on: 'ON', off: 'OFF' },
+        run_stop: { on: 'RUNNING', off: 'STOPPED' },
+      };
+      if (map[preset]) {
+        this.form.status_on_label = map[preset].on;
+        this.form.status_off_label = map[preset].off;
+      }
+    },
     async submitForm() {
       if (this.clientValidationError) {
         this.error = this.clientValidationError;
@@ -1839,6 +1989,8 @@ export default {
         data_type: this.form.data_type,
         unit: this.form.unit ? this.form.unit.trim() : '',
         icon: this.form.icon ? this.form.icon.trim() : '',
+        status_on_label: this.form.status_on_label ? this.form.status_on_label.trim() : '',
+        status_off_label: this.form.status_off_label ? this.form.status_off_label.trim() : '',
         description: this.form.description ? this.form.description.trim() : '',
         slave_id: this.cleanNum(this.form.slave_id) || 1,
         register_address: this.cleanNum(this.form.register_address) || 0,

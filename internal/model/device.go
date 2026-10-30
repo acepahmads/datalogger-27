@@ -312,6 +312,8 @@ type Parameter struct {
 	DataType             ParameterDataType    `gorm:"size:32;default:'FLOAT32'" json:"data_type"`
 	Unit                 string               `gorm:"size:32" json:"unit"`
 	Icon                 string               `gorm:"size:64;default:''" json:"icon,omitempty"`
+	StatusOnLabel        string               `gorm:"size:64;default:''" json:"status_on_label,omitempty"`
+	StatusOffLabel       string               `gorm:"size:64;default:''" json:"status_off_label,omitempty"`
 	ZeroValueAlarmPolicy ZeroValueAlarmPolicy `gorm:"column:zero_value_alarm_policy;size:32;default:'NORMAL'" json:"zero_value_alarm_policy"`
 	CategoryID    *uint              `gorm:"index" json:"category_id,omitempty"`
 	Category      *ParameterCategory `gorm:"foreignKey:CategoryID" json:"category,omitempty"`

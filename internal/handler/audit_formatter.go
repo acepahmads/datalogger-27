@@ -755,6 +755,10 @@ func humanFieldLabel(key string) string {
 		return "Alamat Host"
 	case "port":
 		return "Port"
+	case "status_on_label":
+		return "Label Status Aktif"
+	case "status_off_label":
+		return "Label Status Nonaktif"
 	default:
 		clean := strings.ReplaceAll(key, "_", " ")
 		if len(clean) > 0 {

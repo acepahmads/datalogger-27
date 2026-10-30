@@ -90,6 +90,13 @@ func RunMigrations(db *gorm.DB) error {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "batch_mode")
 		}
 		_ = db.Model(&model.Parameter{}).Where("batch_mode IS NULL OR batch_mode = ''").Update("batch_mode", "AUTO").Error
+
+		if !db.Migrator().HasColumn(&model.Parameter{}, "status_on_label") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_on_label")
+		}
+		if !db.Migrator().HasColumn(&model.Parameter{}, "status_off_label") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_off_label")
+		}
 	}
 
 	// 1b2. Ensure batch read configuration columns exist on device_connections
