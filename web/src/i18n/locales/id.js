@@ -31,6 +31,7 @@ export default {
     "usersRoles": "Pengguna & RBAC",
     "edgeDatabase": "Database MariaDB Edge",
     "operatorConsole": "Konsol Operator",
+    "dashboardOperator": "Dashboard Operator",
     "ispuAnalysis": "Analisis ISPU",
     "edgeSystem": "Sistem Edge Aktif",
     "sidebarHoverTitle": "Arahkan kursor untuk membuka menu navigasi (Auto-Hide aktif)"

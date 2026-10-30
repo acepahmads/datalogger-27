@@ -62,7 +62,7 @@
       <!-- Viewport / Route Views -->
       <main
         class="flex-1 transition-colors duration-150"
-        :class="isOperatorRoute ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-4 overflow-y-auto bg-transparent dark:bg-slate-950')"
+        :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-4 overflow-y-auto bg-transparent dark:bg-slate-950')"
       >
         <router-view
           :is-sidebar-collapsed="isSidebarCollapsed || sidebarAutoHide"
@@ -109,6 +109,9 @@ export default {
     isOperatorRoute() {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');
     },
+    isDashboardOperatorRoute() {
+      return this.$route && this.$route.path === '/monitoring/dashboard-operator';
+    },
     isTelemetryRoute() {
       return this.$route && (this.$route.path === '/monitoring/telemetry' || this.$route.name === 'LiveTelemetry');
     },
@@ -120,7 +123,7 @@ export default {
     $route: {
       immediate: true,
       handler(to) {
-        if (to && (to.path === '/monitoring/operator' || to.path === '/operator')) {
+        if (to && (to.path === '/monitoring/operator' || to.path === '/operator' || to.path === '/monitoring/dashboard-operator')) {
           this.isSidebarCollapsed = true;
           this.isTopPanelHidden = true;
         } else {
@@ -134,7 +137,7 @@ export default {
   methods: {
     toggleSidebar() {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
-      if (this.isOperatorRoute) {
+      if (this.isOperatorRoute || this.isDashboardOperatorRoute) {
         this.isTopPanelHidden = this.isSidebarCollapsed;
       } else {
         this.isTopPanelHidden = false;

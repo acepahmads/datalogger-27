@@ -31,6 +31,7 @@ export default {
     "usersRoles": "Users & RBAC",
     "edgeDatabase": "MariaDB Edge",
     "operatorConsole": "Operator Console",
+    "dashboardOperator": "Dashboard Operator",
     "ispuAnalysis": "ISPU Analysis",
     "edgeSystem": "Edge System Active",
     "sidebarHoverTitle": "Hover to reveal navigation sidebar (Auto-Hide active)"

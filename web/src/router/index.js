@@ -20,6 +20,7 @@ import RetentionStorageView from '../views/RetentionStorageView.vue';
 import ReportsView from '../views/ReportsView.vue';
 import AccessControlView from '../views/AccessControlView.vue';
 import OperatorCommandCenterView from '../views/OperatorCommandCenterView.vue';
+import DashboardOperatorView from '../views/DashboardOperatorView.vue';
 import ISPUAnalysisView from '../views/ISPUAnalysisView.vue';
 import IntegrationView from '../views/IntegrationView.vue';
 import AccessDeniedView from '../views/AccessDeniedView.vue';
@@ -32,6 +33,7 @@ const routes = [
   { path: '/', redirect: '/monitoring/operator' },
   { path: '/operator', redirect: '/monitoring/operator' },
   { path: '/monitoring/operator', name: 'OperatorCommandCenter', component: OperatorCommandCenterView },
+  { path: '/monitoring/dashboard-operator', name: 'DashboardOperator', component: DashboardOperatorView },
   {
     path: '/dashboard',
     name: 'Dashboard',

@@ -105,6 +105,18 @@
             </span>
           </router-link>
 
+          <!-- Dashboard Operator (New Clean Asymmetric Bento Design) -->
+          <router-link to="/monitoring/dashboard-operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/dashboard-operator' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-sky-500 dark:text-sky-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <rect x="3" y="3" width="7" height="9" rx="1.5" />
+              <rect x="14" y="3" width="7" height="5" rx="1.5" />
+              <rect x="14" y="12" width="7" height="9" rx="1.5" />
+              <rect x="3" y="16" width="7" height="5" rx="1.5" />
+            </svg>
+            <span class="font-bold text-sky-600 dark:text-sky-400">{{ $t('navigation.dashboardOperator') || 'Dashboard Operator' }}</span>
+          </router-link>
+
           <router-link to="/monitoring/system" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/system' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
