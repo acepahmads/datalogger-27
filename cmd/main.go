@@ -542,8 +542,11 @@ func main() {
 		notifGroup.Use(middleware.JWTAuth(authService))
 		{
 			notifGroup.GET("", middleware.RequirePermission("notification.view"), notificationHandler.ListNotifications)
+			notifGroup.DELETE("", middleware.RequirePermission("notification.manage"), notificationHandler.PurgeNotifications)
+			notifGroup.POST("/purge", middleware.RequirePermission("notification.manage"), notificationHandler.PurgeNotifications)
 			notifGroup.GET("/metrics", middleware.RequirePermission("notification.view"), notificationHandler.GetMetrics)
 			notifGroup.GET("/:id", middleware.RequirePermission("notification.view"), notificationHandler.GetNotification)
+			notifGroup.DELETE("/:id", middleware.RequirePermission("notification.manage"), notificationHandler.DeleteNotification)
 			notifGroup.POST("/:id/retry", middleware.RequirePermission("notification.manage"), notificationHandler.RetryNotification)
 			notifGroup.POST("/:id/cancel", middleware.RequirePermission("notification.manage"), notificationHandler.CancelNotification)
 			notifGroup.GET("/channels", middleware.RequirePermission("notification.view"), notificationHandler.ListChannels)

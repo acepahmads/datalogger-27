@@ -58,8 +58,11 @@ func setupTestNotificationRouter(t *testing.T) (*gin.Engine, *gorm.DB, string, s
 		notifGroup.Use(middleware.JWTAuth(authService))
 		{
 			notifGroup.GET("", middleware.RequirePermission("notification.view"), notifHandler.ListNotifications)
+			notifGroup.DELETE("", middleware.RequirePermission("notification.manage"), notifHandler.PurgeNotifications)
+			notifGroup.POST("/purge", middleware.RequirePermission("notification.manage"), notifHandler.PurgeNotifications)
 			notifGroup.GET("/metrics", middleware.RequirePermission("notification.view"), notifHandler.GetMetrics)
 			notifGroup.GET("/:id", middleware.RequirePermission("notification.view"), notifHandler.GetNotification)
+			notifGroup.DELETE("/:id", middleware.RequirePermission("notification.manage"), notifHandler.DeleteNotification)
 			notifGroup.POST("/:id/retry", middleware.RequirePermission("notification.manage"), notifHandler.RetryNotification)
 			notifGroup.POST("/:id/cancel", middleware.RequirePermission("notification.manage"), notifHandler.CancelNotification)
 			notifGroup.GET("/channels", middleware.RequirePermission("notification.view"), notifHandler.ListChannels)
@@ -355,5 +358,165 @@ func TestNotificationHandler_ToggleActiveInactiveUnconfiguredChannel(t *testing.
 	db.First(&dbChan, tgChannel.ID)
 	if !dbChan.Enabled {
 		t.Errorf("expected channel Enabled=true in DB after saving valid config")
+	}
+}
+
+func TestNotificationHandler_DeleteAndDeleteAllRBAC(t *testing.T) {
+	r, db, superadminToken, engineerToken, operatorToken, _, notifEngine := setupTestNotificationRouter(t)
+	defer notifEngine.Stop()
+
+	// Create an explicit ADMIN role user as well (admin seed user is Superadmin)
+	var adminRole model.Role
+	if err := db.Where("UPPER(name) = ?", "ADMIN").First(&adminRole).Error; err != nil || adminRole.ID == 0 {
+		adminRole = model.Role{Name: "Admin", Description: "Admin role"}
+		db.Create(&adminRole)
+	}
+	adminHash, _ := bcrypt.GenerateFromPassword([]byte("adminrole123"), bcrypt.DefaultCost)
+	db.Create(&model.User{
+		Username: "admin_only_test",
+		Email:    "admin_only@test.local",
+		Password: string(adminHash),
+		FullName: "Admin Role User",
+		RoleID:   adminRole.ID,
+		IsActive: true,
+	})
+	authSvc := service.NewAuthService(repository.NewSystemRepository(db), config.DefaultConfig())
+	adminRoleToken, _, errLogin := authSvc.Login("admin_only_test", "adminrole123", "127.0.0.1", "TestClient")
+	if errLogin != nil {
+		t.Fatalf("failed login as admin_only_test: %v", errLogin)
+	}
+
+	// Seed 3 notifications across statuses
+	alarm := model.Alarm{
+		AlarmCode:   "ALM-DEL-001",
+		Severity:    "CRITICAL",
+		Message:     "Queue delete test alarm",
+		Status:      "ACTIVE",
+		TriggeredAt: time.Now().UTC(),
+	}
+	db.Create(&alarm)
+
+	now := time.Now().UTC()
+	n1 := model.Notification{
+		AlarmID:     alarm.ID,
+		Channel:     "EMAIL",
+		Recipient:   "ops@plant.local",
+		Subject:     "CRITICAL Alarm",
+		Message:     "Queue item 1",
+		Status:      model.NotificationFailed,
+		Attempts:    1,
+		MaxAttempts: 3,
+		ErrorMsg:    "smtp error",
+	}
+	n2 := model.Notification{
+		AlarmID:     alarm.ID,
+		Channel:     "TELEGRAM",
+		Recipient:   "-100123",
+		Subject:     "CRITICAL Alarm",
+		Message:     "Queue item 2",
+		Status:      model.NotificationFailed,
+		Attempts:    1,
+		MaxAttempts: 3,
+		ErrorMsg:    "missing bot token",
+	}
+	n3 := model.Notification{
+		AlarmID:     alarm.ID,
+		Channel:     "WEB",
+		Recipient:   "Web Broadcast",
+		Subject:     "CRITICAL Alarm",
+		Message:     "Queue item 3",
+		Status:      model.NotificationSent,
+		Attempts:    1,
+		MaxAttempts: 3,
+		SentAt:      &now,
+	}
+	db.Create(&n1)
+	db.Create(&n2)
+	db.Create(&n3)
+
+	// 1. OPERATOR must get 403 Forbidden on both single Delete and Delete All
+	for _, tc := range []struct {
+		name  string
+		token string
+	}{
+		{name: "OPERATOR", token: operatorToken},
+		{name: "ENGINEER", token: engineerToken},
+	} {
+		req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/notifications/%d", n1.ID), nil)
+		req.Header.Set("Authorization", "Bearer "+tc.token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 Forbidden for %s single delete, got %d: %s", tc.name, w.Code, w.Body.String())
+		}
+
+		reqPurge, _ := http.NewRequest(http.MethodPost, "/api/notifications/purge", bytes.NewBufferString(`{}`))
+		reqPurge.Header.Set("Authorization", "Bearer "+tc.token)
+		reqPurge.Header.Set("Content-Type", "application/json")
+		wPurge := httptest.NewRecorder()
+		r.ServeHTTP(wPurge, reqPurge)
+		if wPurge.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 Forbidden for %s delete-all purge, got %d: %s", tc.name, wPurge.Code, wPurge.Body.String())
+		}
+	}
+
+	// 2. ADMIN role can delete a single notification (200 OK)
+	reqDel, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/notifications/%d", n1.ID), nil)
+	reqDel.Header.Set("Authorization", "Bearer "+adminRoleToken)
+	wDel := httptest.NewRecorder()
+	r.ServeHTTP(wDel, reqDel)
+	if wDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for ADMIN single delete, got %d: %s", wDel.Code, wDel.Body.String())
+	}
+
+	// Deleting same ID again returns 404 Not Found
+	reqDelAgain, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/notifications/%d", n1.ID), nil)
+	reqDelAgain.Header.Set("Authorization", "Bearer "+adminRoleToken)
+	wDelAgain := httptest.NewRecorder()
+	r.ServeHTTP(wDelAgain, reqDelAgain)
+	if wDelAgain.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found deleting already-deleted notification, got %d", wDelAgain.Code)
+	}
+
+	// Check live metrics reflect 2 remaining rows (1 SENT, 1 FAILED)
+	reqMet, _ := http.NewRequest(http.MethodGet, "/api/notifications/metrics", nil)
+	reqMet.Header.Set("Authorization", "Bearer "+superadminToken)
+	wMet := httptest.NewRecorder()
+	r.ServeHTTP(wMet, reqMet)
+	if wMet.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on metrics, got %d", wMet.Code)
+	}
+	var metResp struct {
+		Data map[string]int64 `json:"data"`
+	}
+	_ = json.Unmarshal(wMet.Body.Bytes(), &metResp)
+	if metResp.Data["dispatched_count"] != 2 || metResp.Data["delivered_count"] != 1 || metResp.Data["failed_count"] != 1 {
+		t.Errorf("unexpected live metrics after single delete: %+v", metResp.Data)
+	}
+
+	// 3. SUPERADMIN can Delete All via POST /api/notifications/purge
+	reqAll, _ := http.NewRequest(http.MethodPost, "/api/notifications/purge", bytes.NewBufferString(`{}`))
+	reqAll.Header.Set("Authorization", "Bearer "+superadminToken)
+	reqAll.Header.Set("Content-Type", "application/json")
+	wAll := httptest.NewRecorder()
+	r.ServeHTTP(wAll, reqAll)
+	if wAll.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for SUPERADMIN delete-all purge, got %d: %s", wAll.Code, wAll.Body.String())
+	}
+	var purgeResp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			DeletedCount int64 `json:"deleted_count"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wAll.Body.Bytes(), &purgeResp)
+	if !purgeResp.Success || purgeResp.Data.DeletedCount != 2 {
+		t.Errorf("expected deleted_count=2 on Delete All, got %+v", purgeResp)
+	}
+
+	var remaining int64
+	db.Model(&model.Notification{}).Count(&remaining)
+	if remaining != 0 {
+		t.Errorf("expected 0 notifications remaining after Delete All, got %d", remaining)
 	}
 }

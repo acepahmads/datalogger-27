@@ -405,9 +405,29 @@
           </div>
         </div>
 
-        <button @click="fetchNotifications" class="text-2xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-          {{ $t('common.refresh') }}
-        </button>
+        <div class="flex items-center space-x-2">
+          <button v-if="canDeleteNotifications"
+                  id="btn-purge-notif-queue"
+                  type="button"
+                  @click="openPurgeNotifModal"
+                  :disabled="(metrics.dispatched_count || 0) === 0 && queueTotal === 0"
+                  class="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 text-2xs font-semibold transition-colors disabled:opacity-40 flex items-center gap-1.5"
+                  title="Hapus semua antrean pengiriman alarm (Admin / Superadmin)">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Delete All</span>
+          </button>
+
+          <button type="button"
+                  @click="refreshQueueAndMetrics"
+                  class="px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 text-2xs font-semibold transition-colors flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>{{ $t('common.refresh') }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- Queue Table -->
@@ -423,7 +443,7 @@
                 <th class="py-3 px-4 w-36">{{ $t('alarms.sentAt') }}</th>
                 <th class="py-3 px-4 w-36">{{ $t('alarms.nextRetry') }}</th>
                 <th class="py-3 px-4 w-20 text-center">{{ $t('alarms.attempts') }}</th>
-                <th class="py-3 px-4 w-32 text-center">{{ $t('alarms.action') }}</th>
+                <th class="py-3 px-4 w-44 text-center">{{ $t('alarms.action') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
@@ -440,13 +460,15 @@
                   </span>
                 </td>
                 <td class="py-3 px-4 font-mono text-2xs truncate max-w-xs text-slate-900 dark:text-slate-200">
-                  {{ notif.recipient }}
+                  {{ notif.recipient || (notif.channel === 'WEB' ? 'Web Broadcast' : '-') }}
                 </td>
                 <td class="py-3 px-4">
-                  <span class="px-2 py-0.5 rounded-md text-3xs font-bold font-mono tracking-wider"
-                        :class="getSeverityBadgeClass(notif.severity)">
-                    {{ notif.severity }}
+                  <span v-if="getNotifSeverity(notif)"
+                        class="px-2 py-0.5 rounded-md text-3xs font-bold font-mono tracking-wider"
+                        :class="getSeverityBadgeClass(getNotifSeverity(notif))">
+                    {{ getNotifSeverity(notif) }}
                   </span>
+                  <span v-else class="text-slate-400 font-mono text-3xs">-</span>
                 </td>
                 <td class="py-3 px-4">
                   <span class="px-2 py-0.5 rounded-md text-3xs font-semibold font-mono"
@@ -455,15 +477,15 @@
                   </span>
                 </td>
                 <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">
-                  {{ notif.sent_at ? (notif.sent_at | formatDate) : '-' }}
+                  {{ notif.sent_at ? formatDateTime(notif.sent_at) : '-' }}
                 </td>
                 <td class="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-3xs">
-                  {{ notif.next_retry_at ? (notif.next_retry_at | formatDate) : '-' }}
+                  {{ notif.next_retry_at ? formatDateTime(notif.next_retry_at) : '-' }}
                 </td>
                 <td class="py-3 px-4 text-center font-mono text-2xs">
-                  <span class="font-bold" :class="notif.attempts >= notif.max_retries ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'">
+                  <span class="font-bold" :class="notif.attempts >= getNotifMaxAttempts(notif) ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'">
                     {{ notif.attempts }}
-                  </span> / {{ notif.max_retries }}
+                  </span> / {{ getNotifMaxAttempts(notif) }}
                 </td>
                 <td class="py-3 px-4 text-center">
                   <div class="flex items-center justify-center space-x-1.5">
@@ -474,13 +496,21 @@
                     </button>
                     <button v-if="notif.status === 'PENDING' || notif.status === 'RETRYING'"
                             @click="cancelNotification(notif.id)"
-                            class="px-2 py-0.5 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded text-3xs font-semibold hover:bg-rose-100 transition-colors">
+                            class="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-3xs font-semibold hover:bg-amber-100 transition-colors">
                       {{ $t('alarms.cancelDelivery') }}
                     </button>
                     <button @click="openDetailsModal(notif)"
                             class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                             :title="$t('alarms.details')">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                    <button v-if="canDeleteNotifications"
+                            type="button"
+                            @click="deleteNotification(notif)"
+                            :disabled="deletingNotifId === notif.id"
+                            class="px-2 py-0.5 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded text-3xs font-semibold transition-colors disabled:opacity-50"
+                            title="Hapus item antrean ini (Admin / Superadmin)">
+                      {{ deletingNotifId === notif.id ? '...' : 'Delete' }}
                     </button>
                   </div>
                 </td>
@@ -845,7 +875,7 @@
             </div>
             <div>
               <span class="text-slate-400 block text-3xs">{{ $t('alarms.attempts') }}</span>
-              <span class="font-mono">{{ selectedNotif.attempts }} / {{ selectedNotif.max_retries }}</span>
+              <span class="font-mono">{{ selectedNotif.attempts }} / {{ getNotifMaxAttempts(selectedNotif) }}</span>
             </div>
           </div>
 
@@ -854,13 +884,22 @@
             <pre class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-3xs text-slate-700 dark:text-slate-300 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.provider_response }}</pre>
           </div>
 
-          <div v-if="selectedNotif.failure_reason">
+          <div v-if="selectedNotif.error_msg || selectedNotif.failure_reason">
             <span class="text-rose-600 dark:text-rose-400 block text-3xs mb-1 font-semibold">{{ $t('alarms.failureReason') }}</span>
-            <pre class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 font-mono text-3xs text-rose-700 dark:text-rose-400 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.failure_reason }}</pre>
+            <pre class="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 font-mono text-3xs text-rose-700 dark:text-rose-400 overflow-x-auto whitespace-pre-wrap">{{ selectedNotif.error_msg || selectedNotif.failure_reason }}</pre>
           </div>
         </div>
 
-        <div class="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
+          <div>
+            <button v-if="canDeleteNotifications"
+                    type="button"
+                    @click="deleteNotification(selectedNotif)"
+                    :disabled="deletingNotifId === selectedNotif.id"
+                    class="px-3.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 text-xs font-semibold transition-colors disabled:opacity-50">
+              {{ deletingNotifId === selectedNotif.id ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
           <button @click="showDetailsModal = false" class="px-4 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
             {{ $t('alarms.close') }}
           </button>
@@ -1075,6 +1114,74 @@
         </div>
       </div>
     </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 6: DELETE ALL / PURGE QUEUE (ADMIN+) -->
+    <!-- ========================================== -->
+    <div v-if="showPurgeNotifModal && canDeleteNotifications"
+         class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+              Delete All Delivery Queue
+            </h3>
+          </div>
+          <button @click="showPurgeNotifModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+          <p>
+            Pilih cakupan penghapusan antrean pengiriman alarm (khusus <strong>ADMIN</strong> dan <strong>SUPERADMIN</strong>):
+          </p>
+
+          <div class="space-y-2">
+            <label class="flex items-start space-x-2.5 p-3 rounded-xl border cursor-pointer transition-colors"
+                   :class="purgeScope === 'ALL' ? 'bg-rose-50/70 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/40' : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'">
+              <input type="radio" v-model="purgeScope" value="ALL" class="mt-0.5 text-rose-600 focus:ring-rose-500" />
+              <div>
+                <span class="font-bold text-slate-900 dark:text-white block">Delete All (Semua Antrean)</span>
+                <span class="text-2xs text-slate-500 dark:text-slate-400">
+                  Hapus seluruh riwayat &amp; antrean pengiriman alarm ({{ metrics.dispatched_count || queueTotal }} item).
+                </span>
+              </div>
+            </label>
+
+            <label v-if="hasActiveQueueFilter"
+                   class="flex items-start space-x-2.5 p-3 rounded-xl border cursor-pointer transition-colors"
+                   :class="purgeScope === 'FILTERED' ? 'bg-amber-50/70 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/40' : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'">
+              <input type="radio" v-model="purgeScope" value="FILTERED" class="mt-0.5 text-amber-600 focus:ring-amber-500" />
+              <div>
+                <span class="font-bold text-slate-900 dark:text-white block">Hapus Sesuai Filter Aktif</span>
+                <span class="text-2xs text-slate-500 dark:text-slate-400">
+                  Hanya hapus item yang cocok dengan filter saat ini ({{ queueTotal }} item).
+                </span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <button type="button"
+                  @click="showPurgeNotifModal = false"
+                  :disabled="isPurgingNotifs"
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+            {{ $t('common.cancel') }}
+          </button>
+          <button id="btn-confirm-purge-notif"
+                  type="button"
+                  @click="confirmPurgeNotifications"
+                  :disabled="isPurgingNotifs"
+                  class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5">
+            <span v-if="isPurgingNotifs" class="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+            <span>{{ isPurgingNotifs ? 'Deleting...' : (purgeScope === 'FILTERED' ? 'Delete Filtered' : 'Delete All') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1124,6 +1231,10 @@ export default {
       searchQuery: '',
       searchDebounceTimer: null,
       metrics: {},
+      deletingNotifId: null,
+      showPurgeNotifModal: false,
+      purgeScope: 'ALL',
+      isPurgingNotifs: false,
 
       // Channels state (Wave 3)
       channels: [],
@@ -1191,6 +1302,13 @@ export default {
     canManageChannels() {
       const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
       return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ENGINEER';
+    },
+    canDeleteNotifications() {
+      const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+    },
+    hasActiveQueueFilter() {
+      return Boolean(this.filterStatus || this.filterChannel || (this.searchQuery && this.searchQuery.trim()));
     },
   },
   watch: {
@@ -1429,6 +1547,100 @@ export default {
     openDetailsModal(notif) {
       this.selectedNotif = notif;
       this.showDetailsModal = true;
+    },
+    formatDateTime(val) {
+      if (!val) return '-';
+      const d = new Date(val);
+      if (Number.isNaN(d.getTime())) return String(val);
+      return d.toLocaleString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    },
+    getNotifSeverity(notif) {
+      if (!notif) return '';
+      if (notif.severity) return notif.severity;
+      if (notif.alarm && notif.alarm.severity) return notif.alarm.severity;
+      return '';
+    },
+    getNotifMaxAttempts(notif) {
+      if (!notif) return 3;
+      if (notif.max_attempts != null) return notif.max_attempts;
+      if (notif.max_retries != null) return notif.max_retries;
+      return 3;
+    },
+    refreshQueueAndMetrics() {
+      this.fetchNotifications();
+      this.fetchMetrics();
+    },
+    async deleteNotification(notif) {
+      if (!this.canDeleteNotifications || !notif || !notif.id) return;
+      if (!window.confirm('Hapus item antrean pengiriman alarm ini secara permanen?')) return;
+
+      this.deletingNotifId = notif.id;
+      try {
+        const res = await axios.delete(`/api/notifications/${notif.id}`, {
+          headers: this.getAuthHeaders(),
+        });
+        if (res.data && res.data.success) {
+          if (this.selectedNotif && this.selectedNotif.id === notif.id) {
+            this.showDetailsModal = false;
+            this.selectedNotif = null;
+          }
+          if (this.notifications.length <= 1 && this.queuePage > 1) {
+            this.queuePage -= 1;
+          }
+          this.showToast('Item antrean pengiriman alarm berhasil dihapus');
+          this.fetchNotifications();
+          this.fetchMetrics();
+        }
+      } catch (err) {
+        const msg = (err.response && err.response.data && (err.response.data.error || err.response.data.message)) || err.message;
+        this.showToast('Gagal menghapus item antrean: ' + msg, 'error');
+      } finally {
+        this.deletingNotifId = null;
+      }
+    },
+    openPurgeNotifModal() {
+      if (!this.canDeleteNotifications) return;
+      this.purgeScope = 'ALL';
+      this.showPurgeNotifModal = true;
+    },
+    async confirmPurgeNotifications() {
+      if (!this.canDeleteNotifications || this.isPurgingNotifs) return;
+
+      const payload =
+        this.purgeScope === 'FILTERED' && this.hasActiveQueueFilter
+          ? {
+              status: this.filterStatus || '',
+              channel: this.filterChannel || '',
+              search: (this.searchQuery && this.searchQuery.trim()) || '',
+            }
+          : {};
+
+      this.isPurgingNotifs = true;
+      try {
+        const res = await axios.post('/api/notifications/purge', payload, {
+          headers: this.getAuthHeaders(),
+        });
+        if (res.data && res.data.success) {
+          const deletedCount = (res.data.data && res.data.data.deleted_count) || 0;
+          this.showPurgeNotifModal = false;
+          this.queuePage = 1;
+          this.showToast(`Berhasil menghapus ${deletedCount} item antrean pengiriman alarm`);
+          this.fetchNotifications();
+          this.fetchMetrics();
+        }
+      } catch (err) {
+        const msg = (err.response && err.response.data && (err.response.data.error || err.response.data.message)) || err.message;
+        this.showToast('Gagal menghapus antrean pengiriman alarm: ' + msg, 'error');
+      } finally {
+        this.isPurgingNotifs = false;
+      }
     },
     async toggleChannelEnabled(ch) {
       if (!this.canManageChannels || !ch) return;

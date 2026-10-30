@@ -344,6 +344,80 @@ func (r *NotificationRepository) CancelPendingByChannelID(ctx context.Context, c
 	return res.RowsAffected, res.Error
 }
 
+// DeleteNotification permanently deletes a single notification queue item by ID
+func (r *NotificationRepository) DeleteNotification(ctx context.Context, id uint) error {
+	res := r.db.WithContext(ctx).Unscoped().Delete(&model.Notification{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotificationNotFound
+	}
+	return nil
+}
+
+// PurgeNotifications permanently deletes notification queue items matching optional criteria (or all items when empty/ALL)
+func (r *NotificationRepository) PurgeNotifications(ctx context.Context, status, channel, search string) (int64, error) {
+	query := r.db.WithContext(ctx).Unscoped().Model(&model.Notification{})
+	hasFilter := false
+
+	st := strings.ToUpper(strings.TrimSpace(status))
+	if st != "" && st != "ALL" {
+		query = query.Where("status = ?", st)
+		hasFilter = true
+	}
+
+	ch := strings.ToUpper(strings.TrimSpace(channel))
+	if ch != "" && ch != "ALL" {
+		query = query.Where("channel = ?", ch)
+		hasFilter = true
+	}
+
+	if q := strings.TrimSpace(search); q != "" {
+		like := "%" + q + "%"
+		query = query.Where("recipient LIKE ? OR subject LIKE ? OR message LIKE ? OR error_msg LIKE ?", like, like, like, like)
+		hasFilter = true
+	}
+
+	if !hasFilter {
+		query = query.Where("1 = 1")
+	}
+
+	res := query.Delete(&model.Notification{})
+	return res.RowsAffected, res.Error
+}
+
+// GetQueueSummary returns live database counts grouped by notification status
+func (r *NotificationRepository) GetQueueSummary(ctx context.Context) (dispatched, delivered, failed, retrying, cancelled int64, err error) {
+	type statusRow struct {
+		Status string
+		Count  int64
+	}
+	var rows []statusRow
+	if err = r.db.WithContext(ctx).
+		Model(&model.Notification{}).
+		Select("status, COUNT(*) as count").
+		Group("status").
+		Scan(&rows).Error; err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+
+	for _, row := range rows {
+		dispatched += row.Count
+		switch model.NotificationStatus(strings.ToUpper(strings.TrimSpace(row.Status))) {
+		case model.NotificationSent:
+			delivered += row.Count
+		case model.NotificationFailed:
+			failed += row.Count
+		case model.NotificationRetrying, model.NotificationPending, model.NotificationSending:
+			retrying += row.Count
+		case model.NotificationCancelled:
+			cancelled += row.Count
+		}
+	}
+	return dispatched, delivered, failed, retrying, cancelled, nil
+}
+
 // CountRecentByChannel returns the number of notifications sent on a channel since a given timestamp (for rate limiting)
 func (r *NotificationRepository) CountRecentByChannel(ctx context.Context, channel string, since time.Time) (int64, error) {
 	var count int64
