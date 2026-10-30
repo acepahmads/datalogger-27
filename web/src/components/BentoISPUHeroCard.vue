@@ -1,221 +1,462 @@
 <template>
   <div
     v-if="isAqmsDomain"
-    class="bento-hero-card"
-    :class="effectiveIsDark ? 'is-night' : 'is-day'"
+    class="bento-ispu-root"
+    :class="[
+      effectiveIsDark ? 'is-night' : 'is-day',
+      compact ? 'is-compact-bar' : 'bento-hero-card'
+    ]"
   >
-    <!-- Top Row: Kicker + Clickable 24h Validity Chip & Popover -->
-    <div class="hero-top">
-      <span class="hero-kicker">ISPU · PERMEN LHK 14/2020</span>
+    <!-- ================================================================= -->
+    <!-- MODE A: COMPACT DOMINANT-ONLY HORIZONTAL BAR (< 1280px VIEWPORT)  -->
+    <!-- ================================================================= -->
+    <template v-if="compact">
+      <div class="compact-main-row">
+        <!-- Left: Mini Ring Gauge + Dominant Pollutant Summary -->
+        <div class="compact-left">
+          <svg
+            width="38"
+            height="38"
+            viewBox="0 0 44 44"
+            class="flex-shrink-0 cursor-pointer"
+            @click="toggleWindowPopover"
+            :title="'Klik untuk detail jendela ISPU 24 jam · ' + formattedPeriod"
+          >
+            <circle cx="22" cy="22" r="18" fill="none" :stroke="effectiveIsDark ? '#1E293B' : '#E2E8F0'" stroke-width="4.5" />
+            <circle
+              cx="22"
+              cy="22"
+              r="18"
+              fill="none"
+              :stroke="heroGaugeColor"
+              stroke-width="4.5"
+              stroke-dasharray="113"
+              :stroke-dashoffset="compactGaugeDashOffset"
+              stroke-linecap="round"
+              transform="rotate(-90 22 22)"
+              style="transition: stroke-dashoffset 0.35s ease, stroke 0.25s ease;"
+            />
+            <text
+              x="22"
+              y="25.5"
+              text-anchor="middle"
+              :fill="effectiveIsDark ? '#F8FAFC' : '#0F172A'"
+              :font-size="String(displayISPU).length >= 3 ? '10.5' : '11.5'"
+              font-weight="800"
+              font-family="'Plus Jakarta Sans', 'Inter', sans-serif"
+            >{{ displayISPU }}</text>
+          </svg>
 
-      <div class="relative ispu-popover-anchor">
-        <button
-          type="button"
-          class="valid-chip"
-          :class="validityToneClass"
-          @click="toggleWindowPopover"
-          :title="'24h: ' + formattedPeriod + ' · ' + validityTooltip"
-        >
-          <span>{{ activeParametersCount }}/7 · {{ calculationStatus }}</span>
-          <span v-if="completenessPercent > 0" class="ml-0.5">{{ Math.round(completenessPercent) }}%</span>
-        </button>
+          <div class="compact-dom-info min-w-0">
+            <div class="compact-dom-line1">
+              <span class="compact-kicker">
+                {{ selectedDisplayParam === 'OVERALL' ? 'ISPU DOMINAN' : 'ISPU FILTER' }}
+              </span>
 
-        <!-- 24-Hour ISPU Window & Regulatory Calculation Popover -->
-        <div
-          v-if="showWindowPopover"
-          class="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-32px)] rounded-xl shadow-2xl p-3.5 bg-white dark:bg-[#111A2C] border border-slate-200 dark:border-slate-700/70 text-slate-800 dark:text-slate-100 text-[11px] select-none text-left"
-          @click.stop
-        >
-          <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-slate-800">
-            <div class="flex items-center space-x-2">
-              <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
-              <div>
-                <h4 class="text-xs font-bold text-slate-900 dark:text-white leading-none">
-                  Jendela ISPU 24 Jam
-                </h4>
-                <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
-                  Standar Permen LHK No. 14 / 2020
+              <span class="hero-status-pill !py-0.5 !px-2 !text-[10.5px]" :class="heroStatusPillTone">
+                <template v-if="selectedDisplayParam === 'OVERALL'">
+                  {{ formatPollutantCodePretty(dominantPollutant) !== '-' ? (formatPollutantCodePretty(dominantPollutant) + ' · ' + displayISPU + ' (' + bentoReadableCategory + ')') : ('Belum Tersedia (' + displayISPU + ')') }}
+                </template>
+                <template v-else>
+                  {{ selectedParamLabel }} · {{ displayISPU }} ({{ bentoReadableCategory }})
+                </template>
+              </span>
+
+              <button
+                v-if="selectedDisplayParam !== 'OVERALL'"
+                type="button"
+                @click="selectDisplayParameter('OVERALL')"
+                class="text-[10px] font-bold text-sky-500 hover:underline cursor-pointer"
+                title="Kembali ke polutan dominan"
+              >
+                Reset
+              </button>
+
+              <!-- 24h Validity Chip + Popover Anchor -->
+              <div class="relative ispu-popover-anchor">
+                <button
+                  type="button"
+                  class="valid-chip !py-0.5 !px-2 !text-[9.5px] !rounded-full"
+                  :class="validityToneClass"
+                  @click="toggleWindowPopover"
+                  :title="'24h: ' + formattedPeriod + ' · ' + validityTooltip"
+                >
+                  <span>{{ activeParametersCount }}/7 {{ calculationStatus }}</span>
+                  <span v-if="completenessPercent > 0"> · {{ Math.round(completenessPercent) }}%</span>
+                </button>
+
+                <!-- 24h Window Popover -->
+                <div
+                  v-if="showWindowPopover"
+                  class="absolute left-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-32px)] rounded-xl shadow-2xl p-3.5 bg-white dark:bg-[#111A2C] border border-slate-200 dark:border-slate-700/70 text-slate-800 dark:text-slate-100 text-[11px] select-none text-left"
+                  @click.stop
+                >
+                  <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <div class="flex items-center space-x-2">
+                      <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
+                      <div>
+                        <h4 class="text-xs font-bold text-slate-900 dark:text-white leading-none">Jendela ISPU 24 Jam</h4>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">Standar Permen LHK No. 14 / 2020</div>
+                      </div>
+                    </div>
+                    <button type="button" @click="closeWindowPopover" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1 cursor-pointer">✕</button>
+                  </div>
+
+                  <div class="space-y-2">
+                    <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C1424] border border-slate-200/80 dark:border-slate-800 space-y-1.5 text-[10.5px]">
+                      <div class="flex items-start justify-between gap-2">
+                        <span class="text-slate-500 dark:text-slate-400">Rentang Waktu:</span>
+                        <span class="font-bold text-right text-slate-900 dark:text-white">{{ formattedPeriod }}</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-slate-500 dark:text-slate-400">Cakupan Data:</span>
+                        <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'">
+                          {{ completenessPercent.toFixed(1) }}% {{ completenessPercent >= 75 ? '(≥75% Valid)' : '(<75% Provisori)' }}
+                        </span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-slate-500 dark:text-slate-400">Polutan Dominan:</span>
+                        <span class="font-bold text-sky-600 dark:text-sky-400">{{ formatPollutantCodePretty(dominantPollutant) }} ({{ dominantISPU }})</span>
+                      </div>
+                    </div>
+
+                    <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0C1424] border border-slate-200/60 dark:border-slate-800">
+                      <div class="font-bold text-slate-800 dark:text-slate-200 mb-0.5">Evaluasi Kalkulasi:</div>
+                      <div>{{ validityTooltip }}</div>
+                    </div>
+
+                    <div v-if="canRecalculate && effectiveDeviceId" class="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        @click="triggerRecalculation"
+                        :disabled="recalculating"
+                        class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white transition cursor-pointer"
+                      >
+                        {{ recalculating ? 'Menghitung ulang...' : '↻ Hitung Ulang ISPU' }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <div class="compact-dom-line2">
+              <div class="compact-dom-bar">
+                <div
+                  class="compact-dom-bar-fill"
+                  :style="{ width: compactDominantPct + '%', background: heroGaugeColor }"
+                ></div>
+              </div>
+              <span class="truncate">
+                <template v-if="activeConcentrationText">
+                  Konsentrasi 24j: <strong>{{ activeConcentrationText }}</strong>
+                </template>
+                <template v-else>
+                  {{ heroHumanDescription }}
+                </template>
+                <template v-if="lastUpdatedStr"> · Update {{ lastUpdatedStr }}</template>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Click-to-Expand 7 Pollutants + Mappings / Trend / Full ISPU -->
+        <div class="compact-right">
+          <button
+            type="button"
+            class="expand-7-btn"
+            :class="{ 'is-open': showCompactPollutantsDrawer }"
+            @click="showCompactPollutantsDrawer = !showCompactPollutantsDrawer"
+            title="Tampilkan atau sembunyikan rincian 7 polutan ISPU"
+          >
+            <span>{{ showCompactPollutantsDrawer ? '▴ Sembunyikan 6 Lainnya' : '▾ Lihat 7 Polutan' }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="h-act-btn compact-act"
+            @click="openMappingsModal"
+            title="Konfigurasi Pemetaan Parameter ISPU"
+          >
+            <span>Mappings</span>
+          </button>
+
+          <button
+            type="button"
+            class="h-act-btn compact-act"
+            :class="{ 'is-active': showTrend }"
+            @click="toggleTrend"
+            title="Lihat Grafik Tren ISPU 24 Jam"
+          >
+            <span>Trend</span>
+          </button>
+
+          <button
+            type="button"
+            class="h-act-btn compact-act primary"
+            @click="navigateToAnalysis"
+            title="Buka Halaman Analisis ISPU Lengkap"
+          >
+            <span>Full ISPU</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Horizontal 7-Pollutant Drawer (Only visible when user clicks "Lihat 7 Polutan") -->
+      <div v-if="showCompactPollutantsDrawer" class="compact-7-drawer">
+        <div
+          v-for="item in orderedBentoPollutants"
+          :key="'cmp-ispu-' + item.code"
+          @click="selectDisplayParameter(item.code)"
+          class="compact-slot-pill"
+          :class="{
+            'is-dom': isDominant(item.code),
+            'is-sel': selectedDisplayParam === item.code
+          }"
+          :title="getPollutantRowTitle(item)"
+        >
+          <div class="csp-top">
+            <span class="csp-code">{{ item.pretty }}{{ isDominant(item.code) ? ' ★' : '' }}</span>
+            <strong class="csp-val" :style="{ color: getBarFillColor(item.code) }">{{ getISPUValue(item.code) }}</strong>
+          </div>
+          <div class="csp-track">
+            <div
+              class="csp-fill"
+              :style="{ width: getBarWidthPct(item.code) + '%', background: getBarFillColor(item.code) }"
+            ></div>
+          </div>
+          <div class="csp-sub truncate">{{ getFormattedPollutantConc(item.code) }}</div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ================================================================= -->
+    <!-- MODE B: WIDESCREEN FULL LEFT BENTO HERO CARD (>= 1280px VIEWPORT) -->
+    <!-- ================================================================= -->
+    <template v-else>
+      <!-- Top Row: Kicker + Clickable 24h Validity Chip & Popover -->
+      <div class="hero-top">
+        <span class="hero-kicker">ISPU · PERMEN LHK 14/2020</span>
+
+        <div class="relative ispu-popover-anchor">
+          <button
+            type="button"
+            class="valid-chip"
+            :class="validityToneClass"
+            @click="toggleWindowPopover"
+            :title="'24h: ' + formattedPeriod + ' · ' + validityTooltip"
+          >
+            <span>{{ activeParametersCount }}/7 · {{ calculationStatus }}</span>
+            <span v-if="completenessPercent > 0" class="ml-0.5">{{ Math.round(completenessPercent) }}%</span>
+          </button>
+
+          <!-- 24-Hour ISPU Window & Regulatory Calculation Popover -->
+          <div
+            v-if="showWindowPopover"
+            class="absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-32px)] rounded-xl shadow-2xl p-3.5 bg-white dark:bg-[#111A2C] border border-slate-200 dark:border-slate-700/70 text-slate-800 dark:text-slate-100 text-[11px] select-none text-left"
+            @click.stop
+          >
+            <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100 dark:border-slate-800">
+              <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="categoryDotClass"></span>
+                <div>
+                  <h4 class="text-xs font-bold text-slate-900 dark:text-white leading-none">
+                    Jendela ISPU 24 Jam
+                  </h4>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                    Standar Permen LHK No. 14 / 2020
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="closeWindowPopover"
+                class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div class="space-y-2">
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C1424] border border-slate-200/80 dark:border-slate-800 space-y-1.5 text-[10.5px]">
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-slate-500 dark:text-slate-400">Rentang Waktu:</span>
+                  <span class="font-bold text-right text-slate-900 dark:text-white">{{ formattedPeriod }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Zona Waktu:</span>
+                  <span class="font-bold text-slate-700 dark:text-slate-300">WIB (UTC+7)</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Cakupan Data:</span>
+                  <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'">
+                    {{ completenessPercent.toFixed(1) }}% {{ completenessPercent >= 75 ? '(≥75% Valid)' : '(<75% Provisori)' }}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 dark:text-slate-400">Polutan Dominan:</span>
+                  <span class="font-bold text-sky-600 dark:text-sky-400">{{ formatPollutantCodePretty(dominantPollutant) }} ({{ dominantISPU }})</span>
+                </div>
+              </div>
+
+              <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0C1424] border border-slate-200/60 dark:border-slate-800">
+                <div class="font-bold text-slate-800 dark:text-slate-200 mb-0.5">Evaluasi Kalkulasi:</div>
+                <div>{{ validityTooltip }}</div>
+              </div>
+
+              <div v-if="canRecalculate && effectiveDeviceId" class="pt-1 flex justify-end">
+                <button
+                  type="button"
+                  @click="triggerRecalculation"
+                  :disabled="recalculating"
+                  class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white transition cursor-pointer"
+                >
+                  {{ recalculating ? 'Menghitung ulang...' : '↻ Hitung Ulang ISPU' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Middle Gauge Row: Circular Ring Gauge + Dominant Pill & Status Description -->
+      <div class="hero-gauge-row">
+        <svg width="76" height="76" viewBox="0 0 96 96" class="flex-shrink-0 cursor-pointer" @click="toggleWindowPopover">
+          <circle cx="48" cy="48" r="39" fill="none" :stroke="effectiveIsDark ? '#1B2942' : '#E9EEF5'" stroke-width="8" />
+          <circle
+            cx="48"
+            cy="48"
+            r="39"
+            fill="none"
+            :stroke="heroGaugeColor"
+            stroke-width="8"
+            stroke-dasharray="245"
+            :stroke-dashoffset="heroGaugeDashOffset"
+            stroke-linecap="round"
+            transform="rotate(-90 48 48)"
+            style="transition: stroke-dashoffset 0.35s ease, stroke 0.25s ease;"
+          />
+          <text
+            x="48"
+            y="49"
+            text-anchor="middle"
+            :fill="effectiveIsDark ? '#F8FAFC' : '#0F172A'"
+            :font-size="String(displayISPU).length >= 3 ? '22' : '25'"
+            font-weight="800"
+            font-family="'Plus Jakarta Sans', 'Inter', sans-serif"
+          >{{ displayISPU }}</text>
+          <text
+            x="48"
+            y="63"
+            text-anchor="middle"
+            :fill="effectiveIsDark ? '#94A3B8' : '#64748B'"
+            font-size="8.5"
+            font-weight="700"
+            font-family="'Plus Jakarta Sans', 'Inter', sans-serif"
+          >{{ bentoShortCategory }}</text>
+        </svg>
+
+        <div class="min-w-0 flex-1">
+          <div v-if="selectedDisplayParam === 'OVERALL'" class="flex items-center flex-wrap gap-1 mb-1">
+            <span class="hero-status-pill" :class="heroStatusPillTone">
+              Dominan: {{ formatPollutantCodePretty(dominantPollutant) }}
+            </span>
+          </div>
+          <div v-else class="flex items-center flex-wrap gap-1.5 mb-1">
+            <span class="hero-status-pill tone-blue">
+              {{ selectedParamLabel }}
+            </span>
             <button
               type="button"
-              @click="closeWindowPopover"
-              class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1 cursor-pointer"
+              @click="selectDisplayParameter('OVERALL')"
+              class="text-[10px] font-bold text-slate-400 hover:text-sky-500 underline cursor-pointer"
+              title="Kembali ke nilai ISPU Dominan Stasiun"
             >
-              ✕
+              Reset
             </button>
           </div>
 
-          <div class="space-y-2">
-            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0C1424] border border-slate-200/80 dark:border-slate-800 space-y-1.5 text-[10.5px]">
-              <div class="flex items-start justify-between gap-2">
-                <span class="text-slate-500 dark:text-slate-400">Rentang Waktu:</span>
-                <span class="font-bold text-right text-slate-900 dark:text-white">{{ formattedPeriod }}</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-500 dark:text-slate-400">Zona Waktu:</span>
-                <span class="font-bold text-slate-700 dark:text-slate-300">WIB (UTC+7)</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-500 dark:text-slate-400">Cakupan Data:</span>
-                <span class="font-bold" :class="completenessPercent >= 75 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'">
-                  {{ completenessPercent.toFixed(1) }}% {{ completenessPercent >= 75 ? '(≥75% Valid)' : '(<75% Provisori)' }}
-                </span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-slate-500 dark:text-slate-400">Polutan Dominan:</span>
-                <span class="font-bold text-sky-600 dark:text-sky-400">{{ formatPollutantCodePretty(dominantPollutant) }} ({{ dominantISPU }})</span>
-              </div>
-            </div>
-
-            <div class="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0C1424] border border-slate-200/60 dark:border-slate-800">
-              <div class="font-bold text-slate-800 dark:text-slate-200 mb-0.5">Evaluasi Kalkulasi:</div>
-              <div>{{ validityTooltip }}</div>
-            </div>
-
-            <div v-if="canRecalculate && effectiveDeviceId" class="pt-1 flex justify-end">
-              <button
-                type="button"
-                @click="triggerRecalculation"
-                :disabled="recalculating"
-                class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white transition cursor-pointer"
-              >
-                {{ recalculating ? 'Menghitung ulang...' : '↻ Hitung Ulang ISPU' }}
-              </button>
-            </div>
-          </div>
+          <p class="hero-desc">
+            <template v-if="activeConcentrationText">
+              Konsentrasi 24 jam <strong>{{ activeConcentrationText }}</strong>.
+            </template>
+            <template v-else>
+              {{ heroHumanDescription }}
+            </template>
+            <span v-if="lastUpdatedStr">
+              Diperbarui <strong>{{ lastUpdatedStr }}</strong>.
+            </span>
+          </p>
         </div>
       </div>
-    </div>
 
-    <!-- Middle Gauge Row: Circular Ring Gauge + Dominant Pill & Status Description -->
-    <div class="hero-gauge-row">
-      <svg width="84" height="84" viewBox="0 0 96 96" class="flex-shrink-0 cursor-pointer" @click="toggleWindowPopover">
-        <circle cx="48" cy="48" r="39" fill="none" :stroke="effectiveIsDark ? '#1B2942' : '#E9EEF5'" stroke-width="8" />
-        <circle
-          cx="48"
-          cy="48"
-          r="39"
-          fill="none"
-          :stroke="heroGaugeColor"
-          stroke-width="8"
-          stroke-dasharray="245"
-          :stroke-dashoffset="heroGaugeDashOffset"
-          stroke-linecap="round"
-          transform="rotate(-90 48 48)"
-          style="transition: stroke-dashoffset 0.35s ease, stroke 0.25s ease;"
-        />
-        <text
-          x="48"
-          y="49"
-          text-anchor="middle"
-          :fill="effectiveIsDark ? '#F8FAFC' : '#0F172A'"
-          :font-size="String(displayISPU).length >= 3 ? '22' : '26'"
-          font-weight="800"
-          font-family="'Plus Jakarta Sans', 'Inter', sans-serif"
-        >{{ displayISPU }}</text>
-        <text
-          x="48"
-          y="63"
-          text-anchor="middle"
-          :fill="effectiveIsDark ? '#94A3B8' : '#64748B'"
-          font-size="9"
-          font-weight="700"
-          font-family="'Plus Jakarta Sans', 'Inter', sans-serif"
-        >{{ bentoShortCategory }}</text>
-      </svg>
-
-      <div class="min-w-0 flex-1">
-        <div v-if="selectedDisplayParam === 'OVERALL'" class="flex items-center flex-wrap gap-1 mb-1">
-          <span class="hero-status-pill" :class="heroStatusPillTone">
-            Dominan: {{ formatPollutantCodePretty(dominantPollutant) }}{{ dominantConcentrationSuffix }}
-          </span>
-        </div>
-        <div v-else class="flex items-center flex-wrap gap-1.5 mb-1">
-          <span class="hero-status-pill tone-blue">
-            {{ selectedParamLabel }}
-          </span>
-          <button
-            type="button"
-            @click="selectDisplayParameter('OVERALL')"
-            class="text-[10px] font-bold text-slate-400 hover:text-sky-500 underline cursor-pointer"
-            title="Kembali ke nilai ISPU Dominan Stasiun"
-          >
-            Reset
-          </button>
-        </div>
-
-        <p class="hero-desc">
-          {{ heroHumanDescription }}
-          <span v-if="lastUpdatedStr">
-            Diperbarui <strong>{{ lastUpdatedStr }}</strong>.
-          </span>
-        </p>
-      </div>
-    </div>
-
-    <!-- All 7 Official ISPU Parameters Breakdown List -->
-    <div class="mini-ispu-list">
-      <div
-        v-for="item in orderedBentoPollutants"
-        :key="item.code"
-        @click="selectDisplayParameter(item.code)"
-        class="mini-ispu-row"
-        :class="{ 'row-selected': selectedDisplayParam === item.code }"
-        :title="getPollutantRowTitle(item)"
-      >
-        <span
-          class="mini-ispu-lbl truncate"
-          :class="{ 'is-dom': isDominant(item.code) || selectedDisplayParam === item.code }"
+      <!-- All 7 Official ISPU Parameters Breakdown List -->
+      <div class="mini-ispu-list">
+        <div
+          v-for="item in orderedBentoPollutants"
+          :key="item.code"
+          @click="selectDisplayParameter(item.code)"
+          class="mini-ispu-row"
+          :class="{ 'row-selected': selectedDisplayParam === item.code }"
+          :title="getPollutantRowTitle(item)"
         >
-          {{ item.pretty }}{{ isDominant(item.code) ? ' · Dom' : '' }}
-        </span>
-        <div class="mini-ispu-track">
-          <div
-            class="mini-ispu-fill"
-            :style="{ width: getBarWidthPct(item.code) + '%', background: getBarFillColor(item.code) }"
-          ></div>
+          <span
+            class="mini-ispu-lbl truncate"
+            :class="{ 'is-dom': isDominant(item.code) || selectedDisplayParam === item.code }"
+          >
+            {{ item.pretty }}{{ isDominant(item.code) ? ' · Dom' : '' }}
+          </span>
+          <div class="mini-ispu-track">
+            <div
+              class="mini-ispu-fill"
+              :style="{ width: getBarWidthPct(item.code) + '%', background: getBarFillColor(item.code) }"
+            ></div>
+          </div>
+          <span class="mini-ispu-num">{{ getISPUValue(item.code) }}</span>
         </div>
-        <span class="mini-ispu-num">{{ getISPUValue(item.code) }}</span>
       </div>
-    </div>
 
-    <!-- Bottom Action Buttons: Mappings, Trend ISPU, Full ISPU -->
-    <div class="hero-actions">
-      <button
-        type="button"
-        class="h-act-btn"
-        @click="openMappingsModal"
-        title="Konfigurasi Pemetaan Parameter ISPU"
-      >
-        <span>Mappings</span>
-      </button>
+      <!-- Bottom Action Buttons: Mappings, Trend ISPU, Full ISPU -->
+      <div class="hero-actions">
+        <button
+          type="button"
+          class="h-act-btn"
+          @click="openMappingsModal"
+          title="Konfigurasi Pemetaan Parameter ISPU"
+        >
+          <span>Mappings</span>
+        </button>
 
-      <button
-        type="button"
-        class="h-act-btn"
-        :class="{ 'is-active': showTrend }"
-        @click="toggleTrend"
-        title="Lihat Grafik Tren ISPU 24 Jam"
-      >
-        <span>Trend ISPU</span>
-      </button>
+        <button
+          type="button"
+          class="h-act-btn"
+          :class="{ 'is-active': showTrend }"
+          @click="toggleTrend"
+          title="Lihat Grafik Tren ISPU 24 Jam"
+        >
+          <span>Trend ISPU</span>
+        </button>
 
-      <button
-        type="button"
-        class="h-act-btn primary"
-        @click="navigateToAnalysis"
-        title="Buka Halaman Analisis ISPU Lengkap"
-      >
-        <span>Full ISPU</span>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
-    </div>
+        <button
+          type="button"
+          class="h-act-btn primary"
+          @click="navigateToAnalysis"
+          title="Buka Halaman Analisis ISPU Lengkap"
+        >
+          <span>Full ISPU</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+    </template>
 
-    <!-- Modal: 24-Hour Rolling ISPU Trend Chart (when Trend ISPU is clicked) -->
+    <!-- ================================================================= -->
+    <!-- SHARED MODALS: 24H TREND & PARAMETER MAPPINGS CRUD                -->
+    <!-- ================================================================= -->
     <div
       v-if="showTrend"
       class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-black/75 backdrop-blur-xs p-3 sm:p-5"
@@ -563,11 +804,22 @@ import ISPUIndicatorBar from './ISPUIndicatorBar.vue';
 export default {
   name: 'BentoISPUHeroCard',
   extends: ISPUIndicatorBar,
+  props: {
+    compact: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  data() {
+    return {
+      showCompactPollutantsDrawer: false,
+    };
+  },
   computed: {
     orderedBentoPollutants() {
       return [
-        { code: 'PM10', pretty: 'PM10' },
         { code: 'PM25', pretty: 'PM2.5' },
+        { code: 'PM10', pretty: 'PM10' },
         { code: 'O3', pretty: 'O₃' },
         { code: 'SO2', pretty: 'SO₂' },
         { code: 'CO', pretty: 'CO' },
@@ -576,14 +828,23 @@ export default {
       ];
     },
     bentoShortCategory() {
-      const cat = this.ispuCategory;
-      switch (cat) {
+      switch (this.ispuCategory) {
         case 'BAIK': return 'BAIK';
         case 'SEDANG': return 'SEDANG';
         case 'TIDAK_SEHAT': return 'TDK SEHAT';
         case 'SANGAT_TIDAK_SEHAT': return 'SGT TDK SEHAT';
         case 'BERBAHAYA': return 'BERBAHAYA';
         default: return 'BELUM ADA';
+      }
+    },
+    bentoReadableCategory() {
+      switch (this.ispuCategory) {
+        case 'BAIK': return 'Baik';
+        case 'SEDANG': return 'Sedang';
+        case 'TIDAK_SEHAT': return 'Tidak Sehat';
+        case 'SANGAT_TIDAK_SEHAT': return 'Sgt Tidak Sehat';
+        case 'BERBAHAYA': return 'Berbahaya';
+        default: return 'Belum Ada';
       }
     },
     heroGaugeColor() {
@@ -600,12 +861,30 @@ export default {
     heroGaugeDashOffset() {
       const circumference = 245;
       const num = Number(this.displayISPU);
-      if (!isFinite(num) || num <= 0) {
-        return circumference;
-      }
-      // Smoothly map 0..200 ISPU onto ring (clamped at 96% so rounded cap remains crisp)
-      const ratio = Math.min(Math.max(num / 150, 0.06), 0.96);
+      if (!isFinite(num) || num <= 0) return circumference;
+      const ratio = Math.min(Math.max(num / 200, 0.06), 0.96);
       return Math.round(circumference * (1 - ratio));
+    },
+    compactGaugeDashOffset() {
+      const circumference = 113;
+      const num = Number(this.displayISPU);
+      if (!isFinite(num) || num <= 0) return circumference;
+      const ratio = Math.min(Math.max(num / 200, 0.08), 0.95);
+      return Math.round(circumference * (1 - ratio));
+    },
+    compactDominantPct() {
+      const num = Number(this.displayISPU);
+      if (!isFinite(num) || num <= 0) return 0;
+      return Math.min(Math.max(Math.round((num / 200) * 100), 6), 100);
+    },
+    activeConcentrationText() {
+      const code = this.selectedDisplayParam === 'OVERALL' ? this.dominantPollutant : this.selectedDisplayParam;
+      if (!code || code === '-') return '';
+      const pr = this.getParameterResult(code);
+      if (!pr || pr.concentration === undefined || pr.concentration === null) return '';
+      const val = Number(pr.concentration);
+      if (!isFinite(val)) return '';
+      return `${val.toFixed(2)} ${pr.source_unit || 'µg/m³'}`;
     },
     validityToneClass() {
       if (this.calculationStatus === 'VALID') return 'tone-green';
@@ -623,14 +902,6 @@ export default {
         default:
           return 'tone-slate';
       }
-    },
-    dominantConcentrationSuffix() {
-      if (!this.dominantPollutant || this.dominantPollutant === '-') return '';
-      const pr = this.getParameterResult(this.dominantPollutant);
-      if (!pr || pr.concentration === undefined || pr.concentration === null) return '';
-      const val = Number(pr.concentration);
-      if (!isFinite(val)) return '';
-      return ` (${val.toFixed(1)} ${pr.source_unit || 'µg/m³'})`;
     },
     heroHumanDescription() {
       switch (this.ispuCategory) {
@@ -663,12 +934,21 @@ export default {
       };
       return map[code] || code;
     },
+    getFormattedPollutantConc(code) {
+      const pr = this.getParameterResult(code);
+      if (!pr || pr.concentration === undefined || pr.concentration === null) {
+        return 'Belum dipetakan';
+      }
+      const val = Number(pr.concentration);
+      if (!isFinite(val)) return '-';
+      return `${val.toFixed(1)} ${pr.source_unit || 'µg/m³'}`;
+    },
     getBarWidthPct(code) {
       const pr = this.getParameterResult(code);
       if (!pr || pr.calculated_ispu === undefined || pr.category === 'TIDAK_TERSEDIA') return 0;
       const val = Number(pr.calculated_ispu);
       if (!isFinite(val) || val <= 0) return 0;
-      return Math.min(Math.max(Math.round((val / 150) * 100), 5), 100);
+      return Math.min(Math.max(Math.round((val / 200) * 100), 5), 100);
     },
     getBarFillColor(code) {
       const dark = this.effectiveIsDark;
@@ -701,34 +981,240 @@ export default {
 </script>
 
 <style scoped>
-.bento-hero-card {
-  border-radius: 14px;
-  padding: 13px 15px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-  height: 100%;
-  min-height: 332px;
+.bento-ispu-root {
   font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-variant-numeric: tabular-nums;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.bento-hero-card.is-day {
-  background: linear-gradient(160deg, #FFFFFF 0%, #F4FAFF 100%);
-  border: 1px solid #E2E8F0;
+/* ===================================================== */
+/* WIDESCREEN HERO CARD (>= 1280px)                      */
+/* ===================================================== */
+.bento-hero-card {
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 9px;
+  height: 100%;
+  min-height: 310px;
+}
+
+.bento-ispu-root.is-day {
+  background: linear-gradient(160deg, #FFFFFF 0%, #F6FAFF 100%);
+  border: 1px solid #DDE5EF;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 6px 18px rgba(15, 23, 42, 0.03);
   color: #0F172A;
 }
 
-.bento-hero-card.is-night {
+.bento-ispu-root.is-night {
   background: linear-gradient(160deg, #132038 0%, #0E1829 100%);
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.15);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   color: #F8FAFC;
 }
 
+/* ===================================================== */
+/* COMPACT DOMINANT-ONLY HORIZONTAL BAR (< 1280px)       */
+/* ===================================================== */
+.is-compact-bar {
+  border-radius: 12px;
+  padding: 6px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compact-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.compact-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.compact-dom-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.compact-dom-line1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.compact-kicker {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.is-day .compact-kicker { color: #64748B; }
+.is-night .compact-kicker { color: #94A3B8; }
+
+.compact-dom-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+}
+.is-day .compact-dom-line2 { color: #64748B; }
+.is-night .compact-dom-line2 { color: #94A3B8; }
+.is-day .compact-dom-line2 strong { color: #0F172A; }
+.is-night .compact-dom-line2 strong { color: #F8FAFC; }
+
+.compact-dom-bar {
+  width: 110px;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.is-day .compact-dom-bar { background: #E6ECF5; }
+.is-night .compact-dom-bar { background: #1B2942; }
+
+.compact-dom-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.compact-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.expand-7-btn {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.is-day .expand-7-btn {
+  background: #F1F5F9;
+  border: 1px solid #DDE5EF;
+  color: #0F172A;
+}
+.is-night .expand-7-btn {
+  background: #172338;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #F8FAFC;
+}
+.is-day .expand-7-btn.is-open,
+.is-day .expand-7-btn:hover {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.45);
+  color: #0284C7;
+}
+.is-night .expand-7-btn.is-open,
+.is-night .expand-7-btn:hover {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38BDF8;
+}
+
+.compact-act {
+  flex: 0 0 auto !important;
+  height: 26px !important;
+  padding: 0 8.5px !important;
+  font-size: 10px !important;
+}
+
+.compact-7-drawer {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 6px;
+}
+.is-day .compact-7-drawer { border-top: 1px dashed #DDE5EF; }
+.is-night .compact-7-drawer { border-top: 1px dashed rgba(148, 163, 184, 0.18); }
+
+@media (max-width: 720px) {
+  .compact-7-drawer {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.compact-slot-pill {
+  padding: 4.5px 7px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.is-day .compact-slot-pill {
+  background: #F8FAFC;
+  border: 1px solid #EDF2F7;
+}
+.is-night .compact-slot-pill {
+  background: #162238;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+.is-day .compact-slot-pill.is-dom {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+.is-night .compact-slot-pill.is-dom {
+  background: rgba(245, 158, 11, 0.09);
+  border-color: rgba(245, 158, 11, 0.42);
+}
+.compact-slot-pill.is-sel {
+  border-color: #0EA5E9 !important;
+}
+
+.csp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  font-size: 10px;
+}
+.csp-code { font-weight: 700; }
+.is-day .csp-code { color: #334155; }
+.is-night .csp-code { color: #CBD5E1; }
+.csp-val { font-size: 11px; font-weight: 800; }
+
+.csp-track {
+  height: 3.5px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.is-day .csp-track { background: #E6ECF5; }
+.is-night .csp-track { background: #1B2942; }
+.csp-fill { height: 100%; border-radius: 999px; }
+
+.csp-sub { font-size: 8.5px; }
+.is-day .csp-sub { color: #64748B; }
+.is-night .csp-sub { color: #94A3B8; }
+
+/* ===================================================== */
+/* SHARED HERO ELEMENTS                                  */
+/* ===================================================== */
 .hero-top {
   display: flex;
   align-items: center;
@@ -737,19 +1223,19 @@ export default {
 }
 
 .hero-kicker {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.015em;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
-.is-day .hero-kicker { color: #334155; }
-.is-night .hero-kicker { color: #CBD5E1; }
+.is-day .hero-kicker { color: #475569; }
+.is-night .hero-kicker { color: #94A3B8; }
 
 .valid-chip {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
-  padding: 2.5px 7.5px;
-  border-radius: 6px;
+  padding: 2px 7.5px;
+  border-radius: 999px;
   white-space: nowrap;
   cursor: pointer;
   border: 1px solid transparent;
@@ -758,10 +1244,10 @@ export default {
 .valid-chip:hover { opacity: 0.9; }
 
 .is-day .valid-chip.tone-green { background: #DCFCE7; color: #15803D; border-color: #BBF7D0; }
-.is-night .valid-chip.tone-green { background: rgba(16, 185, 129, 0.15); color: #6EE7B7; border-color: rgba(16, 185, 129, 0.28); }
+.is-night .valid-chip.tone-green { background: rgba(16, 185, 129, 0.14); color: #34D399; border-color: rgba(16, 185, 129, 0.28); }
 
 .is-day .valid-chip.tone-amber { background: #FEF3C7; color: #B45309; border-color: #FDE68A; }
-.is-night .valid-chip.tone-amber { background: rgba(245, 158, 11, 0.16); color: #FCD34D; border-color: rgba(245, 158, 11, 0.28); }
+.is-night .valid-chip.tone-amber { background: rgba(245, 158, 11, 0.16); color: #FBBF24; border-color: rgba(245, 158, 11, 0.3); }
 
 .is-day .valid-chip.tone-slate { background: #F1F5F9; color: #475569; border-color: #E2E8F0; }
 .is-night .valid-chip.tone-slate { background: rgba(148, 163, 184, 0.14); color: #CBD5E1; border-color: rgba(148, 163, 184, 0.22); }
@@ -769,37 +1255,38 @@ export default {
 .hero-gauge-row {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 11px;
 }
 
 .hero-status-pill {
   display: inline-block;
-  padding: 3px 9px;
+  padding: 2.5px 8.5px;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10.5px;
+  font-weight: 800;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
-.is-day .hero-status-pill.tone-blue { background: #E0F2FE; color: #0369A1; }
-.is-night .hero-status-pill.tone-blue { background: rgba(56, 189, 248, 0.16); color: #7DD3FC; }
+.is-day .hero-status-pill.tone-blue { background: #E0F2FE; color: #0369A1; border-color: #BAE6FD; }
+.is-night .hero-status-pill.tone-blue { background: rgba(56, 189, 248, 0.16); color: #38BDF8; border-color: rgba(56, 189, 248, 0.32); }
 
-.is-day .hero-status-pill.tone-green { background: #DCFCE7; color: #15803D; }
-.is-night .hero-status-pill.tone-green { background: rgba(52, 211, 153, 0.16); color: #6EE7B7; }
+.is-day .hero-status-pill.tone-green { background: #DCFCE7; color: #15803D; border-color: #BBF7D0; }
+.is-night .hero-status-pill.tone-green { background: rgba(52, 211, 153, 0.15); color: #34D399; border-color: rgba(52, 211, 153, 0.3); }
 
-.is-day .hero-status-pill.tone-amber { background: #FEF3C7; color: #B45309; }
-.is-night .hero-status-pill.tone-amber { background: rgba(251, 191, 36, 0.16); color: #FCD34D; }
+.is-day .hero-status-pill.tone-amber { background: #FEF3C7; color: #B45309; border-color: #FDE68A; }
+.is-night .hero-status-pill.tone-amber { background: rgba(245, 158, 11, 0.16); color: #FBBF24; border-color: rgba(245, 158, 11, 0.35); }
 
-.is-day .hero-status-pill.tone-rose { background: #FFE4E6; color: #BE123C; }
-.is-night .hero-status-pill.tone-rose { background: rgba(244, 63, 94, 0.18); color: #FDA4AF; }
+.is-day .hero-status-pill.tone-rose { background: #FFE4E6; color: #BE123C; border-color: #FECDD3; }
+.is-night .hero-status-pill.tone-rose { background: rgba(244, 63, 94, 0.18); color: #FDA4AF; border-color: rgba(244, 63, 94, 0.35); }
 
-.is-day .hero-status-pill.tone-slate { background: #F1F5F9; color: #475569; }
-.is-night .hero-status-pill.tone-slate { background: rgba(148, 163, 184, 0.14); color: #CBD5E1; }
+.is-day .hero-status-pill.tone-slate { background: #F1F5F9; color: #475569; border-color: #E2E8F0; }
+.is-night .hero-status-pill.tone-slate { background: rgba(148, 163, 184, 0.14); color: #CBD5E1; border-color: rgba(148, 163, 184, 0.22); }
 
 .hero-desc {
-  font-size: 11.5px;
+  font-size: 10.5px;
   line-height: 1.38;
   margin: 0;
 }
@@ -848,8 +1335,8 @@ export default {
 }
 .is-day .mini-ispu-lbl { color: #64748B; }
 .is-night .mini-ispu-lbl { color: #94A3B8; }
-.is-day .mini-ispu-lbl.is-dom { color: #0284C7; font-weight: 700; }
-.is-night .mini-ispu-lbl.is-dom { color: #38BDF8; font-weight: 700; }
+.is-day .mini-ispu-lbl.is-dom { color: #B45309; font-weight: 800; }
+.is-night .mini-ispu-lbl.is-dom { color: #FBBF24; font-weight: 800; }
 
 .mini-ispu-track {
   height: 5px;
@@ -867,7 +1354,7 @@ export default {
 
 .mini-ispu-num {
   text-align: right;
-  font-weight: 700;
+  font-weight: 800;
 }
 .is-day .mini-ispu-num { color: #0F172A; }
 .is-night .mini-ispu-num { color: #F8FAFC; }
@@ -876,15 +1363,15 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 5px;
 }
 
 .h-act-btn {
   flex: 1;
   height: 27px;
   border-radius: 7px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -894,8 +1381,8 @@ export default {
   white-space: nowrap;
 }
 .is-day .h-act-btn {
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  border: 1px solid #DDE5EF;
   color: #334155;
 }
 .is-day .h-act-btn:hover,
@@ -904,7 +1391,7 @@ export default {
   color: #0284C7;
 }
 .is-night .h-act-btn {
-  background: #111A2C;
+  background: #162238;
   border: 1px solid rgba(148, 163, 184, 0.16);
   color: #CBD5E1;
 }
@@ -924,4 +1411,3 @@ export default {
   background: #0369A1 !important;
 }
 </style>
-

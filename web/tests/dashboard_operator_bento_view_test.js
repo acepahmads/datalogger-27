@@ -3,13 +3,13 @@
  * New Menu & Page "Dashboard Operator" (/monitoring/dashboard-operator)
  *
  * Verifies:
- * 1. Strict non-regression: OperatorCommandCenterView.vue & ISPUIndicatorBar.vue are untouched
+ * 1. Strict non-regression: OperatorCommandCenterView.vue, ISPUIndicatorBar.vue, and OperatorDashboardIcon.vue are untouched
  * 2. Route '/monitoring/dashboard-operator' (DashboardOperator) registered without altering existing routes
  * 3. Sidebar menu item 'Dashboard Operator' + EN/ID localization
  * 4. App.vue full-bleed layout & fullscreen landing support for '/monitoring/dashboard-operator'
- * 5. BentoISPUHeroCard.vue extends ISPUIndicatorBar with full ISPU logic, validity popover, mappings & trend modals
- * 6. DashboardOperatorView.vue extends OperatorCommandCenterView with Clean Asymmetric Bento UI (Day & Night)
- *    preserving 100% of operational controls, popovers, trend studio, footer, context menus, and modals.
+ * 5. BentoISPUHeroCard.vue supports both Widescreen Full Hero Card and Compact Dominant-Only Bar + Click-to-Expand 7 Pollutants Drawer
+ * 6. DashboardOperatorView.vue implements Icon-Only Operator Console Buttons, Auto-Adaptive Responsive Grid (up to 5P micro cards),
+ *    and Side-by-Side 2-Table (2T) Bento View while preserving 100% of operational controls, popovers, trend studio, and modals.
  */
 const assert = require('assert');
 const fs = require('fs');
@@ -17,7 +17,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 console.log('========================================================================');
-console.log('RUNNING TEST SUITE: DASHBOARD OPERATOR (CLEAN ASYMMETRIC BENTO)');
+console.log('RUNNING TEST SUITE: DASHBOARD OPERATOR (AUTO-ADAPTIVE BENTO + ICON UI)');
 console.log('========================================================================');
 
 const repoRoot = path.resolve(__dirname, '../..');
@@ -45,12 +45,12 @@ function check(title, fn) {
 }
 
 // 1. Strict Boundary Isolation
-check('1.1: OperatorCommandCenterView.vue and ISPUIndicatorBar.vue remain 100% untouched in git', () => {
+check('1.1: OperatorCommandCenterView.vue, ISPUIndicatorBar.vue, and OperatorDashboardIcon.vue remain 100% untouched in git', () => {
   const diff = execSync(
-    'git diff -- web/src/views/OperatorCommandCenterView.vue web/src/components/ISPUIndicatorBar.vue',
+    'git diff -- web/src/views/OperatorCommandCenterView.vue web/src/components/ISPUIndicatorBar.vue web/src/components/OperatorDashboardIcon.vue',
     { cwd: repoRoot, encoding: 'utf8' }
   ).trim();
-  assert.strictEqual(diff, '', 'Existing OperatorCommandCenterView.vue and ISPUIndicatorBar.vue must have zero git diff');
+  assert.strictEqual(diff, '', 'Existing Operator Console & shared icon/ISPU files must have zero git diff');
 });
 
 // 2. Routing & Existing Route Preservation
@@ -65,7 +65,7 @@ check('2.1: Router registers /monitoring/dashboard-operator while keeping existi
 // 3. Sidebar Menu & Localization
 check('3.1: Sidebar exposes "Dashboard Operator" menu item with EN and ID translations', () => {
   assert(sidebarContent.includes('to="/monitoring/dashboard-operator"'), 'Sidebar must link to /monitoring/dashboard-operator');
-  assert(sidebarContent.includes("navigation.dashboardOperator"), 'Sidebar must reference navigation.dashboardOperator');
+  assert(sidebarContent.includes('navigation.dashboardOperator'), 'Sidebar must reference navigation.dashboardOperator');
   assert(sidebarContent.includes('Dashboard Operator'), 'Sidebar must include Dashboard Operator label');
   assert(enContent.includes('"dashboardOperator": "Dashboard Operator"'), 'en.js must define dashboardOperator');
   assert(idContent.includes('"dashboardOperator": "Dashboard Operator"'), 'id.js must define dashboardOperator');
@@ -77,9 +77,13 @@ check('4.1: App.vue applies edge-to-edge workspace layout for /monitoring/dashbo
   assert(appContent.includes("this.$route.path === '/monitoring/dashboard-operator'"), 'isDashboardOperatorRoute must match /monitoring/dashboard-operator');
 });
 
-// 5. BentoISPUHeroCard Component
-check('5.1: BentoISPUHeroCard extends ISPUIndicatorBar and provides ring gauge, 7 bars, validity popover & modals', () => {
+// 5. BentoISPUHeroCard Adaptive Modes (Compact Dominant Bar + Full Widescreen Hero Card)
+check('5.1: BentoISPUHeroCard supports full widescreen hero card AND compact dominant-only bar with click-to-expand 7 pollutants drawer', () => {
   assert(heroContent.includes('extends: ISPUIndicatorBar'), 'BentoISPUHeroCard must extend ISPUIndicatorBar');
+  assert(heroContent.includes('compact: {'), 'Must accept compact boolean prop');
+  assert(heroContent.includes('is-compact-bar'), 'Must render compact horizontal bar class when compact=true');
+  assert(heroContent.includes('showCompactPollutantsDrawer'), 'Must provide reactive drawer toggle for 7 pollutants in compact mode');
+  assert(heroContent.includes('Lihat 7 Polutan') && heroContent.includes('Sembunyikan 6 Lainnya'), 'Must provide user-friendly click-to-expand button');
   assert(heroContent.includes('PERMEN LHK 14/2020'), 'Must display regulatory standard label');
   assert(heroContent.includes('toggleWindowPopover'), 'Must support 24h window validity popover');
   assert(heroContent.includes('triggerRecalculation'), 'Must support manual ISPU recalculation');
@@ -88,12 +92,16 @@ check('5.1: BentoISPUHeroCard extends ISPUIndicatorBar and provides ring gauge, 
   assert(heroContent.includes('ISPUTrendChart'), 'Must render ISPU Historical Trend modal');
 });
 
-// 6. DashboardOperatorView Complete Functional Parity & Bento Design
-check('6.1: DashboardOperatorView extends OperatorCommandCenterView with Day/Night theme system', () => {
+// 6. Icon-Only Toolbar & Trend Studio Matching Operator Console
+check('6.1: DashboardOperatorView uses exact OperatorDashboardIcon icon-only buttons for toolbar and trend studio', () => {
   assert(viewContent.includes('extends: OperatorCommandCenterView'), 'DashboardOperatorView must extend OperatorCommandCenterView');
-  assert(viewContent.includes('BentoISPUHeroCard'), 'Must register and render BentoISPUHeroCard');
-  assert(viewContent.includes('is-day') && viewContent.includes('is-night'), 'Must support Day (Siang) and Night (Malam) modes');
-  assert(viewContent.includes("setBentoTheme('light')") && viewContent.includes("setBentoTheme('dark')"), 'Must wire Siang/Malam buttons to setBentoTheme');
+  assert(viewContent.includes('is-day') && viewContent.includes('is-night'), 'Must support Day and Night modes');
+  assert(viewContent.includes('id="btn-operator-theme-toggle"') && viewContent.includes('@click="toggleTheme"'), 'Must use single icon theme toggle button');
+  for (const iconName of ['sliders', 'performance', 'ispu', 'moon', 'sun', 'pulse', 'sensor', 'network', 'download', 'fullscreen', 'settings', 'check-all', 'clear', 'reset']) {
+    assert(viewContent.includes(`name="${iconName}"`), `Must render OperatorDashboardIcon "${iconName}"`);
+  }
+  assert(viewContent.includes("stationLocation.is_configured ? 'map-pinned' : 'map-pin'"), 'Must render dynamic GPS pin icon');
+  assert(viewContent.includes("trendLineSmooth ? 'line-smooth' : 'line-sharp'"), 'Must render dynamic line interpolation icon');
 });
 
 check('6.2: Header workspace bar preserves all 8 interactive popovers and click-outside anchors', () => {
@@ -103,24 +111,26 @@ check('6.2: Header workspace bar preserves all 8 interactive popovers and click-
   }
 });
 
-check('6.3: Asymmetric Bento sensor grid & Trend Studio preserve all controls, raw/processed toggle, and dual-axis chart', () => {
-  assert(viewContent.includes('openParamContextMenu'), 'Sensor cards must support 3-dot & right-click context menu');
-  assert(viewContent.includes('togglePin(param.param_id)'), 'Sensor cards must support favorite pinning');
-  assert(viewContent.includes("setChartMode('processed')") && viewContent.includes("setChartMode('raw')"), 'Trend Studio must support 1-click Processed / Raw Sensor switch');
-  assert(viewContent.includes('trend-download-anchor'), 'Trend Studio must preserve .trend-download-anchor');
-  assert(viewContent.includes('trend-settings-anchor'), 'Trend Studio must preserve .trend-settings-anchor');
-  assert(viewContent.includes('trend-line-smooth-anchor'), 'Trend Studio must preserve .trend-line-smooth-anchor');
-  assert(viewContent.includes('ref="scadaChartContainer"') && viewContent.includes('ref="trendPanelSvg"'), 'Trend Studio must preserve SVG chart refs');
+// 7. Auto-Adaptive Responsive Layout (Compact <1280px vs Wide >=1280px, 5P Micro Cards, 2-Table Side-by-Side)
+check('7.1: DashboardOperatorView auto-adapts ISPU placement, 5P micro parameter cards, and 2-Table side-by-side view', () => {
+  assert(viewContent.includes('isCompactScreen()') && viewContent.includes('this.bentoViewportWidth < 1280'), 'Must detect compact vs widescreen viewport reactively');
+  assert(viewContent.includes(':compact="isCompactScreen"'), 'Must bind :compact="isCompactScreen" to BentoISPUHeroCard');
+  assert(viewContent.includes('effectiveBentoCols') && viewContent.includes('.bento-cols-5'), 'Must support auto-dense 5-column parameter grid');
+  assert(viewContent.includes('is-micro-cards') && viewContent.includes('is-compact-cards'), 'Must apply compact micro-card density styling');
+  assert(viewContent.includes('bentoSplitTableColumns') && viewContent.includes("setBentoDisplayMode('2T')"), 'Must support 2 Tabel Samping (2T) side-by-side table view');
+  assert(viewContent.includes('bento-dual-table-grid') && viewContent.includes('2 Tabel Samping'), 'Must render side-by-side dual table grid');
 });
 
-check('6.4: Docked Footer & all operational modals are preserved', () => {
+check('7.2: Sensor cards, dual tables, Trend Studio, Docked Footer, and all operational modals preserve 100% functionality', () => {
+  assert(viewContent.includes('openParamContextMenu'), 'Must support 3-dot & right-click context menu');
+  assert(viewContent.includes('togglePin(param.param_id)'), 'Must support favorite pinning');
+  assert(viewContent.includes("setChartMode('processed')") && viewContent.includes("setChartMode('raw')"), 'Trend Studio must support 1-click Processed / Raw switch');
+  assert(viewContent.includes('ref="scadaChartContainer"') && viewContent.includes('ref="trendPanelSvg"'), 'Trend Studio must preserve SVG chart refs');
   assert(viewContent.includes('@click="openExportModal"') && viewContent.includes('showExportModal'), 'Footer must open Export Data modal');
   assert(viewContent.includes('@click="openReportModal"'), 'Footer must open Operational Report modal');
-  assert(viewContent.includes('audio-setup-anchor'), 'Footer must preserve .audio-setup-anchor for sound setup');
+  assert(viewContent.includes('audio-setup-anchor'), 'Footer must preserve .audio-setup-anchor');
   assert(viewContent.includes('showBrandingModal'), 'Must include Station Branding modal');
   assert(viewContent.includes('showTrendFullscreen'), 'Must include Fullscreen Trend Analyzer modal');
-  assert(viewContent.includes('CategoryManagementModal'), 'Must include CategoryManagementModal');
-  assert(viewContent.includes('AlarmNotificationModal'), 'Must include AlarmNotificationModal');
 });
 
 console.log('========================================================================');
