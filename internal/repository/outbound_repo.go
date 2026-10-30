@@ -37,6 +37,8 @@ type OutboundRepository interface {
 	GetQueueItems(ctx context.Context, filter QueueFilter) ([]model.OutboundDeliveryQueue, int64, error)
 	GetQueueSummary(ctx context.Context) (*model.DeliveryQueueSummary, error)
 	FetchPendingQueueItems(ctx context.Context, limit int) ([]model.OutboundDeliveryQueue, error)
+	GetUndeliveredQueueItemsByDestination(ctx context.Context, destinationID uint) ([]model.OutboundDeliveryQueue, error)
+	UpdateQueueItemPayloadAndRequeue(ctx context.Context, item *model.OutboundDeliveryQueue, requeue bool) error
 	ClaimQueueItemForDelivery(ctx context.Context, id uint64) (bool, error)
 	UpdateDeliveryResult(ctx context.Context, item *model.OutboundDeliveryQueue) error
 	CancelQueueItem(ctx context.Context, id uint64) error
@@ -111,9 +113,9 @@ func (r *outboundRepository) CreateDestination(ctx context.Context, dest *model.
 	return r.db.WithContext(ctx).Create(dest).Error
 }
 
-// UpdateDestination updates mutable fields on an existing outbound destination
+// UpdateDestination updates mutable fields on an existing outbound destination without touching associations
 func (r *outboundRepository) UpdateDestination(ctx context.Context, dest *model.OutputDestination) error {
-	return r.db.WithContext(ctx).Save(dest).Error
+	return r.db.WithContext(ctx).Omit("PayloadConfig", "Device").Save(dest).Error
 }
 
 // DeleteDestination removes a destination setup and its associated payload config,
@@ -533,6 +535,51 @@ func (r *outboundRepository) CancelQueueItem(ctx context.Context, id uint64) err
 		Update("status", model.DeliveryCancelled).Error
 }
 
+// GetUndeliveredQueueItemsByDestination retrieves all PENDING, RETRYING, and FAILED queue items for a destination
+func (r *outboundRepository) GetUndeliveredQueueItemsByDestination(ctx context.Context, destinationID uint) ([]model.OutboundDeliveryQueue, error) {
+	var items []model.OutboundDeliveryQueue
+	err := r.db.WithContext(ctx).
+		Where("destination_id = ? AND status IN ?", destinationID, []string{
+			string(model.DeliveryPending),
+			string(model.DeliveryRetrying),
+			string(model.DeliveryFailed),
+		}).
+		Order("id ASC").
+		Find(&items).Error
+	return items, err
+}
+
+// UpdateQueueItemPayloadAndRequeue persists refreshed payload snapshot metadata and optionally resets the item to PENDING (attempts=0)
+func (r *outboundRepository) UpdateQueueItemPayloadAndRequeue(ctx context.Context, item *model.OutboundDeliveryQueue, requeue bool) error {
+	if item == nil || item.ID == 0 {
+		return nil
+	}
+
+	updates := map[string]interface{}{
+		"payload_snapshot": item.PayloadSnapshot,
+		"payload_version":  item.PayloadVersion,
+		"parameter_count":  item.ParameterCount,
+		"device_count":     item.DeviceCount,
+		"devices_summary":  item.DevicesSummary,
+	}
+
+	query := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).Where("id = ?", item.ID)
+	if requeue {
+		now := time.Now()
+		updates["status"] = model.DeliveryPending
+		updates["attempts"] = 0
+		updates["next_retry_at"] = &now
+		updates["last_error"] = ""
+		query = query.Where("status IN ?", []string{
+			string(model.DeliveryPending),
+			string(model.DeliveryRetrying),
+			string(model.DeliveryFailed),
+		})
+	}
+
+	return query.Updates(updates).Error
+}
+
 // ResetQueueItemForRetry resets an item to PENDING for immediate retry and syncs destination stats
 func (r *outboundRepository) ResetQueueItemForRetry(ctx context.Context, id uint64) error {
 	var item model.OutboundDeliveryQueue
@@ -543,7 +590,9 @@ func (r *outboundRepository) ResetQueueItemForRetry(ctx context.Context, id uint
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":        model.DeliveryPending,
+			"attempts":      0,
 			"next_retry_at": &now,
+			"last_error":    "",
 		}).Error; err != nil {
 		return err
 	}

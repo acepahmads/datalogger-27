@@ -1589,14 +1589,25 @@
                 placeholder="***REDACTED***"
               />
             </div>
-            <div v-if="editingDest.auth_type === 'API_KEY'">
-              <label class="block text-slate-500 mb-1">API Key Value</label>
-              <input
-                v-model="editingDest.api_key_value"
-                type="password"
-                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
-                placeholder="***REDACTED***"
-              />
+            <div v-if="editingDest.auth_type === 'API_KEY'" class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-500 mb-1">API Key Header Name</label>
+                <input
+                  v-model="editingDest.api_key_header"
+                  type="text"
+                  class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="X-API-Key"
+                />
+              </div>
+              <div>
+                <label class="block text-slate-500 mb-1">API Key Value</label>
+                <input
+                  v-model="editingDest.api_key_value"
+                  type="password"
+                  class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+                  placeholder="***REDACTED***"
+                />
+              </div>
             </div>
           </div>
 
@@ -1695,6 +1706,17 @@
                 placeholder="***REDACTED***"
               />
             </div>
+          </div>
+
+          <!-- Optional Custom HTTP Headers -->
+          <div v-if="editingDest.type === 'REST_API' || editingDest.type === 'CLOUD'">
+            <label class="block text-slate-500 mb-1">Custom HTTP Headers (Opsional JSON)</label>
+            <input
+              v-model="editingDest.custom_headers"
+              type="text"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+              placeholder='{"X-Client-ID": "cbi-aqms"}'
+            />
           </div>
         </div>
 
@@ -2419,8 +2441,19 @@ export default {
         const res = await axios.put(`/api/destinations/${this.selectedDestinationId}/payload-config`, this.payloadConfig);
         if (res.data && res.data.success) {
           this.payloadConfig = res.data.data;
-          alert('Configuration version #' + this.payloadConfig.version + ' saved successfully!');
+          const requeued = Number(this.payloadConfig.requeued_batches || 0);
+          if (requeued > 0) {
+            alert(
+              `Configuration version #${this.payloadConfig.version} saved successfully!\n` +
+              `${requeued} antrean batch yang tertunda/gagal otomatis diperbarui payload-nya & dijadwalkan kirim ulang.`
+            );
+          } else {
+            alert('Configuration version #' + this.payloadConfig.version + ' saved successfully!');
+          }
           this.triggerLivePreview();
+          this.fetchDestinations();
+          this.fetchSummary();
+          this.fetchQueue();
         }
       } catch (err) {
         alert('Validation error: ' + (err.response?.data?.error || err.message));
@@ -2463,6 +2496,7 @@ export default {
         api_key_value: '',
         username: '',
         password: '',
+        custom_headers: '',
         retry_limit: 5,
         enabled: true,
       };
@@ -2473,19 +2507,28 @@ export default {
         auth_url: '',
         auth_token_path: '',
         auth_cache_seconds: 0,
+        api_key_header: 'X-API-Key',
+        custom_headers: '',
         ...JSON.parse(JSON.stringify(dest)),
       };
       this.showDestModal = true;
     },
     async saveDestination() {
       try {
+        let requeued = 0;
         if (this.editingDest.id) {
-          await axios.put(`/api/destinations/${this.editingDest.id}`, this.editingDest);
+          const res = await axios.put(`/api/destinations/${this.editingDest.id}`, this.editingDest);
+          requeued = Number(res.data?.data?.requeued_batches || 0);
         } else {
           await axios.post('/api/destinations', this.editingDest);
         }
         this.showDestModal = false;
         this.fetchDestinations();
+        this.fetchSummary();
+        this.fetchQueue();
+        if (requeued > 0) {
+          alert(`Destinasi berhasil disimpan! ${requeued} antrean batch otomatis dijadwalkan kirim ulang dengan kredensial/header terbaru.`);
+        }
       } catch (err) {
         alert('Failed to save destination: ' + (err.response?.data?.error || err.message));
       }
@@ -2495,6 +2538,8 @@ export default {
         const updated = { ...dest, enabled: !dest.enabled };
         await axios.put(`/api/destinations/${dest.id}`, updated);
         dest.enabled = updated.enabled;
+        this.fetchSummary();
+        this.fetchQueue();
       } catch (err) {
         alert('Toggle failed: ' + err.message);
       }

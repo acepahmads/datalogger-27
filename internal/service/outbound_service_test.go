@@ -539,3 +539,178 @@ func TestOutboundService_TwoStepHTTP200ApplicationRejection(t *testing.T) {
 		t.Errorf("expected both Step 1 and Step 2 to succeed for authorized station, got %+v", resOK)
 	}
 }
+
+func TestOutboundService_AutoRebuildAndRequeueOnConfigAndCredentialFix(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, nil)
+
+	ctx := context.Background()
+
+	// Seed active device + parameter + 30m CUSTOMER_PROCESSED aggregation
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "com4",
+		DeviceName: "AQMS Sensor",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	db.Create(&model.Parameter{
+		ID:            1,
+		DeviceID:      1,
+		ParameterCode: "pm2.5",
+		ParameterName: "PM 2.5",
+		Unit:          "ug/m3",
+		Enabled:       true,
+	})
+
+	pmVal := 41.68
+	bucketEnd := time.Date(2026, 10, 30, 1, 30, 0, 0, time.UTC) // 08:30:00 WIB
+	db.Create(&model.AggregationResult{
+		ID:                      501,
+		AggregationDefinitionID: 1,
+		DeviceID:                1,
+		ParameterID:             1,
+		SourceType:              model.SourceCustomerProcessed,
+		PeriodStart:             bucketEnd.Add(-30 * time.Minute),
+		PeriodEnd:               bucketEnd,
+		IntervalSeconds:         1800,
+		Value:                   &pmVal,
+		Quality:                 "GOOD",
+		Identifier:              bucketEnd.Format("20060102150405"),
+	})
+
+	// Mock KemenLH 2-step server checking username/password, custom header, and id_stasiun
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Vendor-Key") != "valid-header" {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"status":0,"message":"Invalid X-Vendor-Key header"}`))
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/auth":
+			var creds map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&creds)
+			if creds["username"] != "pt_cakrawala_bima_instrument" || creds["password"] != "hxvB61b1td1AjUuc" {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"status":0,"message":"Invalid credentials"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":1,"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.validtoken"}`))
+		case "/api/v1/aqmdata":
+			var body map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if body["id_stasiun"] != "KABUPATEN_JOMBANG" {
+				w.Write([]byte(`{"status":0,"message":"Vendor tidak memiliki akses ke stasiun ini"}`))
+				return
+			}
+			w.Write([]byte(`{"status":1,"message":"Data berhasil disimpan"}`))
+		}
+	}))
+	defer ts.Close()
+
+	// 1. Create destination initially with WRONG password & WRONG custom header
+	dest := &model.OutputDestination{
+		Name:            "KLH",
+		Type:            model.DestREST,
+		Endpoint:        ts.URL + "/api/v1/aqmdata",
+		IntervalSeconds: 1800,
+		AuthType:        "LOGIN_BEARER",
+		AuthURL:         ts.URL + "/api/v1/auth",
+		Username:        "pt_cakrawala_bima_instrument",
+		Password:        "wrong_password",
+		CustomHeaders:   `{"X-Vendor-Key":"wrong-header"}`,
+		Enabled:         true,
+		RetryLimit:      5,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	// Set initial payload config with WRONG id_stasiun = KABUPATEN_SUKABUMI
+	cfg, err := svc.GetPayloadConfig(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("GetPayloadConfig failed: %v", err)
+	}
+	cfg.StationIDValue = "KABUPATEN_SUKABUMI"
+	if err := svc.UpdatePayloadConfig(ctx, cfg); err != nil {
+		t.Fatalf("UpdatePayloadConfig initial failed: %v", err)
+	}
+
+	// 2. Bucket completes -> 1 batch enqueued with KABUPATEN_SUKABUMI
+	if err := svc.HandleBucketCompleted(ctx, 1, bucketEnd); err != nil {
+		t.Fatalf("HandleBucketCompleted failed: %v", err)
+	}
+	svc.ProcessPendingQueueOnce()
+
+	items, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(items) != 1 || items[0].Status != model.DeliveryFailed {
+		t.Fatalf("expected 1 FAILED item after bad header/password, got %+v", items)
+	}
+	if !strings.Contains(items[0].PayloadSnapshot, `"KABUPATEN_SUKABUMI"`) {
+		t.Fatalf("expected initial snapshot to contain KABUPATEN_SUKABUMI, got %s", items[0].PayloadSnapshot)
+	}
+
+	// 3. Fix Destination header & password -> item MUST automatically re-queue to PENDING (attempts=0)!
+	dest.Password = "hxvB61b1td1AjUuc"
+	dest.CustomHeaders = `{"X-Vendor-Key":"valid-header"}`
+	if err := svc.UpdateDestination(ctx, dest); err != nil {
+		t.Fatalf("UpdateDestination failed: %v", err)
+	}
+	if dest.RequeuedBatches != 1 {
+		t.Errorf("expected UpdateDestination to requeue 1 batch, got %d", dest.RequeuedBatches)
+	}
+
+	itemsAfterDestFix, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if itemsAfterDestFix[0].Status != model.DeliveryPending || itemsAfterDestFix[0].Attempts != 0 {
+		t.Fatalf("expected item to be reset to PENDING with attempts=0 after destination fix, got status=%s attempts=%d",
+			itemsAfterDestFix[0].Status, itemsAfterDestFix[0].Attempts)
+	}
+
+	// 4. Worker dispatches -> Step 1 Auth now succeeds, Step 2 fails with "Vendor tidak memiliki akses ke stasiun ini"
+	svc.ProcessPendingQueueOnce()
+	itemsAfterAuthOK, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if itemsAfterAuthOK[0].Status != model.DeliveryFailed || !strings.Contains(itemsAfterAuthOK[0].LastError, "Vendor tidak memiliki akses ke stasiun ini") {
+		t.Fatalf("expected FAILED due to unauthorized id_stasiun, got status=%s err=%s",
+			itemsAfterAuthOK[0].Status, itemsAfterAuthOK[0].LastError)
+	}
+
+	// 5. Fix Payload Config id_stasiun = KABUPATEN_JOMBANG -> PayloadSnapshot MUST auto-rebuild AND re-queue to PENDING!
+	cfg.StationIDValue = "KABUPATEN_JOMBANG"
+	if err := svc.UpdatePayloadConfig(ctx, cfg); err != nil {
+		t.Fatalf("UpdatePayloadConfig fix failed: %v", err)
+	}
+	if cfg.RequeuedBatches != 1 {
+		t.Errorf("expected UpdatePayloadConfig to rebuild & requeue 1 batch, got %d", cfg.RequeuedBatches)
+	}
+
+	itemsAfterPayloadFix, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	rebuilt := itemsAfterPayloadFix[0]
+	if rebuilt.Status != model.DeliveryPending || rebuilt.Attempts != 0 {
+		t.Fatalf("expected rebuilt item to be PENDING with attempts=0, got status=%s attempts=%d", rebuilt.Status, rebuilt.Attempts)
+	}
+	if strings.Contains(rebuilt.PayloadSnapshot, "KABUPATEN_SUKABUMI") || !strings.Contains(rebuilt.PayloadSnapshot, `"KABUPATEN_JOMBANG"`) {
+		t.Fatalf("expected PayloadSnapshot to be updated to KABUPATEN_JOMBANG, got: %s", rebuilt.PayloadSnapshot)
+	}
+	if !strings.Contains(rebuilt.PayloadSnapshot, `"pm25":41.68`) {
+		t.Errorf("expected persisted sensor value pm25:41.68 preserved in rebuilt payload, got: %s", rebuilt.PayloadSnapshot)
+	}
+
+	// 6. Worker dispatches -> Batch succeeds!
+	svc.ProcessPendingQueueOnce()
+	finalItems, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if finalItems[0].Status != model.DeliveryDelivered && finalItems[0].Status != model.DeliveryAcknowledged {
+		t.Fatalf("expected batch to be DELIVERED/ACKNOWLEDGED after config fix, got status=%s err=%s",
+			finalItems[0].Status, finalItems[0].LastError)
+	}
+
+	updatedDest, _ := svc.GetDestinationByID(ctx, dest.ID, true)
+	if updatedDest.SuccessDeliveries != 1 || updatedDest.FailedDeliveries != 0 || updatedDest.Status != "ACTIVE" {
+		t.Errorf("expected destination stats synced to Success=1 Failed=0 ACTIVE, got %+v", updatedDest)
+	}
+}

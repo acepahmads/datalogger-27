@@ -23,6 +23,7 @@ import (
 type OutboundService interface {
 	StartWorker()
 	StopWorker()
+	ProcessPendingQueueOnce()
 
 	// Pipeline hook: called when aggregation bucket finishes
 	HandleBucketCompleted(ctx context.Context, deviceID uint, bucketEnd time.Time) error
@@ -121,9 +122,11 @@ type outboundService struct {
 	formatter  PayloadFormatter
 	httpClient *http.Client
 
-	workerMu sync.Mutex
-	running  bool
-	stopCh   chan struct{}
+	workerMu   sync.Mutex
+	dispatchMu sync.Mutex
+	running    bool
+	stopCh     chan struct{}
+	wakeCh     chan struct{}
 
 	authMu    sync.RWMutex
 	authCache map[uint]cachedAuthToken
@@ -150,6 +153,7 @@ func NewOutboundService(
 			Timeout: 15 * time.Second,
 		},
 		stopCh:    make(chan struct{}),
+		wakeCh:    make(chan struct{}, 1),
 		authCache: make(map[uint]cachedAuthToken),
 		purgeProgress: PurgeProgress{
 			Status: "IDLE",
@@ -195,14 +199,35 @@ func (s *outboundService) workerLoop() {
 		select {
 		case <-s.stopCh:
 			return
+		case <-s.wakeCh:
+			s.processPendingQueue()
 		case <-ticker.C:
 			s.processPendingQueue()
 		}
 	}
 }
 
+// notifyWorker signals the background worker loop immediately without blocking
+func (s *outboundService) notifyWorker() {
+	if s.wakeCh == nil {
+		return
+	}
+	select {
+	case s.wakeCh <- struct{}{}:
+	default:
+	}
+}
+
+// ProcessPendingQueueOnce synchronously executes one pass of pending queue dispatch
+func (s *outboundService) ProcessPendingQueueOnce() {
+	s.processPendingQueue()
+}
+
 // processPendingQueue retrieves and dispatches pending deliveries
 func (s *outboundService) processPendingQueue() {
+	s.dispatchMu.Lock()
+	defer s.dispatchMu.Unlock()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -212,11 +237,17 @@ func (s *outboundService) processPendingQueue() {
 	}
 
 	for _, item := range items {
+		// Skip claiming items belonging to disabled destinations so attempts are preserved until re-enabled
+		if item.Destination != nil && !item.Destination.Enabled {
+			continue
+		}
+
 		// Claim item atomically to prevent concurrent deliveries
 		claimed, err := s.repo.ClaimQueueItemForDelivery(ctx, item.ID)
 		if err != nil || !claimed {
 			continue
 		}
+		item.Attempts++
 
 		s.deliverItem(ctx, &item)
 	}
@@ -241,6 +272,14 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 		item.LastError = "Destination is currently disabled"
 		_ = s.repo.UpdateDeliveryResult(ctx, item)
 		return
+	}
+
+	// Defense-in-depth: if payload configuration was updated to a newer version after this batch was queued,
+	// rebuild PayloadSnapshot from persisted SourceValuesJSON right before transmission.
+	if dest.PayloadConfig != nil && item.PayloadVersion < dest.PayloadConfig.Version {
+		if s.rebuildQueueItemPayload(item, dest.PayloadConfig) {
+			_ = s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, false)
+		}
 	}
 
 	now := time.Now()
@@ -1049,7 +1088,9 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 				queueItem.MaxRetries = 5
 			}
 
-			_ = s.repo.EnqueueDelivery(ctx, queueItem)
+			if err := s.repo.EnqueueDelivery(ctx, queueItem); err == nil {
+				s.notifyWorker()
+			}
 		}
 	}
 
@@ -1097,12 +1138,28 @@ func redactDestinationSecrets(dest *model.OutputDestination) {
 	}
 }
 
+func validateCustomHeadersJSON(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	var hdrs map[string]string
+	if err := json.Unmarshal([]byte(trimmed), &hdrs); err != nil {
+		return fmt.Errorf("custom_headers harus berupa JSON object key-value string yang valid (contoh: {\"X-Client-ID\":\"123\"}): %w", err)
+	}
+	return nil
+}
+
 // CreateDestination persists a new outbound destination with default payload config
 func (s *outboundService) CreateDestination(ctx context.Context, dest *model.OutputDestination) error {
 	dest.Endpoint = strings.TrimSpace(dest.Endpoint)
 	dest.AuthURL = strings.TrimSpace(dest.AuthURL)
+	dest.CustomHeaders = strings.TrimSpace(dest.CustomHeaders)
 	if dest.AuthType == "LOGIN_BEARER" && dest.AuthURL == "" {
 		return fmt.Errorf("auth_url wajib diisi untuk mode autentikasi 2-Step Login (LOGIN_BEARER)")
+	}
+	if err := validateCustomHeadersJSON(dest.CustomHeaders); err != nil {
+		return err
 	}
 	if dest.RetryLimit <= 0 {
 		dest.RetryLimit = 5
@@ -1147,7 +1204,8 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 	return nil
 }
 
-// UpdateDestination updates destination settings, preserving secrets if masked
+// UpdateDestination updates destination settings, preserving secrets if masked,
+// and automatically refreshes & re-queues any undelivered/failed batches when enabled.
 func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.OutputDestination) error {
 	existing, err := s.repo.GetDestinationByID(ctx, dest.ID)
 	if err != nil {
@@ -1156,8 +1214,12 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 
 	dest.Endpoint = strings.TrimSpace(dest.Endpoint)
 	dest.AuthURL = strings.TrimSpace(dest.AuthURL)
+	dest.CustomHeaders = strings.TrimSpace(dest.CustomHeaders)
 	if dest.AuthType == "LOGIN_BEARER" && dest.AuthURL == "" {
 		return fmt.Errorf("auth_url wajib diisi untuk mode autentikasi 2-Step Login (LOGIN_BEARER)")
+	}
+	if err := validateCustomHeadersJSON(dest.CustomHeaders); err != nil {
+		return err
 	}
 
 	// If secret fields were sent as redacted placeholder, preserve existing secrets
@@ -1173,9 +1235,42 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 	if dest.CreatedAt.IsZero() {
 		dest.CreatedAt = existing.CreatedAt
 	}
+	if dest.LastDelivery == nil {
+		dest.LastDelivery = existing.LastDelivery
+	}
+	if dest.RetryLimit <= 0 {
+		dest.RetryLimit = existing.RetryLimit
+		if dest.RetryLimit <= 0 {
+			dest.RetryLimit = 5
+		}
+	}
+	if dest.QueueLimit <= 0 {
+		dest.QueueLimit = existing.QueueLimit
+		if dest.QueueLimit <= 0 {
+			dest.QueueLimit = 10000
+		}
+	}
+	if dest.BatchSize <= 0 {
+		dest.BatchSize = existing.BatchSize
+		if dest.BatchSize <= 0 {
+			dest.BatchSize = 100
+		}
+	}
+	if dest.Format == "" {
+		dest.Format = existing.Format
+	}
 
 	s.clearCachedAuthToken(dest.ID)
-	return s.repo.UpdateDestination(ctx, dest)
+	if err := s.repo.UpdateDestination(ctx, dest); err != nil {
+		return err
+	}
+
+	if dest.Enabled {
+		dest.RequeuedBatches = s.reprocessUndeliveredItemsForDestination(ctx, dest.ID, nil, true)
+	} else {
+		_ = s.repo.SyncDestinationStatsFromQueue(ctx, &dest.ID)
+	}
+	return nil
 }
 
 // DeleteDestination removes a destination
@@ -1189,12 +1284,163 @@ func (s *outboundService) GetPayloadConfig(ctx context.Context, destID uint) (*m
 	return s.repo.GetPayloadConfigByDestinationID(ctx, destID)
 }
 
-// UpdatePayloadConfig validates and updates payload config
+// UpdatePayloadConfig validates and updates payload config, then rebuilds PayloadSnapshot
+// on all undelivered (PENDING, RETRYING, FAILED) queue items for this destination and re-queues them.
 func (s *outboundService) UpdatePayloadConfig(ctx context.Context, cfg *model.DestinationPayloadConfig) error {
 	if err := s.formatter.ValidateConfig(cfg); err != nil {
 		return err
 	}
-	return s.repo.UpsertPayloadConfig(ctx, cfg)
+	if err := s.repo.UpsertPayloadConfig(ctx, cfg); err != nil {
+		return err
+	}
+
+	destEnabled := true
+	if dest, err := s.repo.GetDestinationByID(ctx, cfg.DestinationID); err == nil && dest != nil {
+		destEnabled = dest.Enabled
+	}
+	cfg.RequeuedBatches = s.reprocessUndeliveredItemsForDestination(ctx, cfg.DestinationID, cfg, destEnabled)
+	return nil
+}
+
+// rebuildQueueItemPayload reconstructs OutboundBatchData from persisted SourceValuesJSON and re-serializes
+// PayloadSnapshot using the latest DestinationPayloadConfig. Returns true if PayloadSnapshot was rebuilt.
+func (s *outboundService) rebuildQueueItemPayload(item *model.OutboundDeliveryQueue, cfg *model.DestinationPayloadConfig) bool {
+	if item == nil || cfg == nil || strings.TrimSpace(item.SourceValuesJSON) == "" {
+		return false
+	}
+
+	var allSourceItems []model.SourceAggregationValueItem
+	if err := json.Unmarshal([]byte(item.SourceValuesJSON), &allSourceItems); err != nil || len(allSourceItems) == 0 {
+		return false
+	}
+
+	matcher := buildParameterMappingMatcher(cfg)
+	var activeItems []model.SourceAggregationValueItem
+	for _, src := range allSourceItems {
+		devCode := src.DeviceCode
+		if devCode == "" && src.DeviceID > 0 {
+			devCode = fmt.Sprintf("DEV-%d", src.DeviceID)
+		}
+		enabled, _ := matcher.Resolve(src.DeviceID, devCode, src.ParameterID, src.ParameterCode)
+		if enabled {
+			activeItems = append(activeItems, src)
+		}
+	}
+	if len(activeItems) == 0 {
+		activeItems = allSourceItems
+	}
+
+	deviceMap := make(map[uint]BatchDeviceSummary)
+	var deviceOrder []uint
+	for _, src := range activeItems {
+		if _, exists := deviceMap[src.DeviceID]; !exists {
+			devCode := src.DeviceCode
+			if devCode == "" {
+				devCode = fmt.Sprintf("DEV-%d", src.DeviceID)
+			}
+			devName := src.DeviceName
+			if devName == "" {
+				devName = fmt.Sprintf("Device %d", src.DeviceID)
+			}
+			deviceMap[src.DeviceID] = BatchDeviceSummary{
+				DeviceID:   src.DeviceID,
+				DeviceCode: devCode,
+				DeviceName: devName,
+			}
+			deviceOrder = append(deviceOrder, src.DeviceID)
+		}
+	}
+
+	var devicesList []BatchDeviceSummary
+	var devCodes []string
+	for _, dID := range deviceOrder {
+		dev := deviceMap[dID]
+		devicesList = append(devicesList, dev)
+		devCodes = append(devCodes, dev.DeviceCode)
+	}
+	devicesSummary := strings.Join(devCodes, ", ")
+	deviceCount := len(devicesList)
+
+	intervalSec := item.IntervalSeconds
+	if intervalSec <= 0 && !item.PeriodEnd.IsZero() && !item.PeriodStart.IsZero() {
+		if diff := int(item.PeriodEnd.Sub(item.PeriodStart).Seconds()); diff > 0 {
+			intervalSec = diff
+		}
+	}
+
+	batchData := &OutboundBatchData{
+		DeviceCount:     deviceCount,
+		DevicesSummary:  devicesSummary,
+		Devices:         devicesList,
+		IntervalSeconds: intervalSec,
+		PeriodStart:     item.PeriodStart,
+		PeriodEnd:       item.PeriodEnd,
+		Values:          activeItems,
+	}
+	if deviceCount == 1 {
+		batchData.DeviceID = devicesList[0].DeviceID
+		batchData.DeviceCode = devicesList[0].DeviceCode
+		batchData.DeviceName = devicesList[0].DeviceName
+	} else if item.DeviceID != nil {
+		batchData.DeviceID = *item.DeviceID
+	}
+
+	payloadBytes, err := s.formatter.Format(batchData, cfg)
+	if err != nil {
+		logger.Warn("[Outbound] Failed to rebuild payload for queue item %d (%s): %v", item.ID, item.BatchID, err)
+		return false
+	}
+
+	item.PayloadSnapshot = string(payloadBytes)
+	if cfg.Version > 0 {
+		item.PayloadVersion = cfg.Version
+	}
+	item.ParameterCount = len(activeItems)
+	if deviceCount > 0 {
+		item.DeviceCount = deviceCount
+		item.DevicesSummary = devicesSummary
+	}
+	return true
+}
+
+// reprocessUndeliveredItemsForDestination refreshes PayloadSnapshot on all PENDING, RETRYING, and FAILED
+// queue items for destID and resets them to PENDING (attempts=0) so corrected config/credentials take effect automatically.
+func (s *outboundService) reprocessUndeliveredItemsForDestination(
+	ctx context.Context,
+	destID uint,
+	cfg *model.DestinationPayloadConfig,
+	wakeWorker bool,
+) int {
+	if destID == 0 {
+		return 0
+	}
+	items, err := s.repo.GetUndeliveredQueueItemsByDestination(ctx, destID)
+	if err != nil || len(items) == 0 {
+		_ = s.repo.SyncDestinationStatsFromQueue(ctx, &destID)
+		return 0
+	}
+
+	if cfg == nil {
+		cfg, _ = s.repo.GetPayloadConfigByDestinationID(ctx, destID)
+	}
+
+	updatedCount := 0
+	for i := range items {
+		item := &items[i]
+		_ = s.rebuildQueueItemPayload(item, cfg)
+		if err := s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, true); err == nil {
+			updatedCount++
+		}
+	}
+
+	_ = s.repo.SyncDestinationStatsFromQueue(ctx, &destID)
+	if updatedCount > 0 {
+		logger.Info("[Outbound] Auto-refreshed & re-queued %d undelivered batch(es) for destination #%d", updatedCount, destID)
+		if wakeWorker {
+			s.notifyWorker()
+		}
+	}
+	return updatedCount
 }
 
 // GeneratePreview builds a real or sample preview payload matching stored config
@@ -1533,12 +1779,33 @@ func (s *outboundService) GetQueueSummary(ctx context.Context) (*model.DeliveryQ
 	return s.repo.GetQueueSummary(ctx)
 }
 
-// RetryQueueItem resets a failed or retrying queue item to PENDING for immediate processing
+// RetryQueueItem rebuilds PayloadSnapshot with the latest destination config (if available),
+// resets the queue item to PENDING (attempts=0), and wakes the delivery worker immediately.
 func (s *outboundService) RetryQueueItem(ctx context.Context, id uint64) error {
-	return s.repo.ResetQueueItemForRetry(ctx, id)
+	item, err := s.repo.GetQueueItemByID(ctx, id)
+	if err == nil && item != nil {
+		s.clearCachedAuthToken(item.DestinationID)
+		if cfg, cfgErr := s.repo.GetPayloadConfigByDestinationID(ctx, item.DestinationID); cfgErr == nil && cfg != nil {
+			_ = s.rebuildQueueItemPayload(item, cfg)
+		}
+		if updErr := s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, true); updErr != nil {
+			return updErr
+		}
+		if item.DestinationID > 0 {
+			_ = s.repo.SyncDestinationStatsFromQueue(ctx, &item.DestinationID)
+		}
+		s.notifyWorker()
+		return nil
+	}
+	if err := s.repo.ResetQueueItemForRetry(ctx, id); err != nil {
+		return err
+	}
+	s.notifyWorker()
+	return nil
 }
 
-// ReplayQueueItem creates a new delivery queue entry preserving original payload and source values
+// ReplayQueueItem creates a new delivery queue entry from original source values,
+// re-serializing PayloadSnapshot against the latest DestinationPayloadConfig when available.
 func (s *outboundService) ReplayQueueItem(ctx context.Context, id uint64) (*model.OutboundDeliveryQueue, error) {
 	original, err := s.repo.GetQueueItemByID(ctx, id)
 	if err != nil {
@@ -1553,6 +1820,8 @@ func (s *outboundService) ReplayQueueItem(ctx context.Context, id uint64) (*mode
 		BatchID:              original.BatchID,
 		DestinationID:        original.DestinationID,
 		DeviceID:             original.DeviceID,
+		DeviceCount:          original.DeviceCount,
+		DevicesSummary:       original.DevicesSummary,
 		PeriodStart:          original.PeriodStart,
 		PeriodEnd:            original.PeriodEnd,
 		IntervalSeconds:      original.IntervalSeconds,
@@ -1570,9 +1839,14 @@ func (s *outboundService) ReplayQueueItem(ctx context.Context, id uint64) (*mode
 		CreatedAt:            now,
 	}
 
+	if cfg, cfgErr := s.repo.GetPayloadConfigByDestinationID(ctx, original.DestinationID); cfgErr == nil && cfg != nil {
+		_ = s.rebuildQueueItemPayload(newItem, cfg)
+	}
+
 	if err := s.repo.EnqueueDelivery(ctx, newItem); err != nil {
 		return nil, err
 	}
+	s.notifyWorker()
 	return newItem, nil
 }
 

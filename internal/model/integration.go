@@ -66,6 +66,7 @@ type OutputDestination struct {
 	
 	PayloadConfig     *DestinationPayloadConfig `gorm:"foreignKey:DestinationID" json:"payload_config,omitempty"`
 	Device            *Device                  `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	RequeuedBatches   int                      `gorm:"-" json:"requeued_batches,omitempty"`
 
 	CreatedAt         time.Time                `json:"created_at"`
 	UpdatedAt         time.Time                `json:"updated_at"`
@@ -99,6 +100,7 @@ type DestinationPayloadConfig struct {
 	ParameterMappingsJSON string    `gorm:"type:text" json:"parameter_mappings_json,omitempty"` // JSON array of ParameterMappingItem
 	RequiredFieldsJSON    string    `gorm:"type:text" json:"required_fields_json,omitempty"`    // JSON array of string
 	Version               int       `gorm:"default:1" json:"version"`
+	RequeuedBatches       int       `gorm:"-" json:"requeued_batches,omitempty"`
 	CreatedAt             time.Time      `json:"created_at"`
 	UpdatedAt             time.Time      `json:"updated_at"`
 	DeletedAt             gorm.DeletedAt `gorm:"index" json:"-"`
