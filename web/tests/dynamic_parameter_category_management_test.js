@@ -102,6 +102,8 @@ runTest('Test 3: MariaDB Migration seeds AQMS, WQMS, and Environmental categorie
   assert(goMigrationContent.includes('meteorology') || goMigrationContent.includes('Weather / Meteorology'), 'Must seed Weather / Meteorology');
   assert(goMigrationContent.includes('water_quality'), 'Must seed Water Quality');
   assert(goMigrationContent.includes('flow_level'), 'Must seed Flow & Level');
+  assert(goMigrationContent.includes('Code:              "status"'), 'Must seed built-in Status category');
+  assert(goModelContent.includes('"power":'), 'Backend ValidCategoryIcons must include power icon');
 });
 
 // Test 4: Category Deletion Data Safety (No Cascade Delete of Telemetry or Parameters)

@@ -80,6 +80,13 @@ export const PARAMETER_ICON_CATALOG = [
     svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>`,
   },
   {
+    key: 'power',
+    label: 'Equipment / Status (Pump, Valve, Power, ON/OFF)',
+    colorClass: 'text-emerald-600 dark:text-emerald-400',
+    bgClass: 'bg-emerald-500/10 dark:bg-emerald-500/20',
+    svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12" stroke-width="2.2"/><circle cx="12" cy="13" r="6" fill="currentColor" fill-opacity="0.14" stroke="none"/></svg>`,
+  },
+  {
     key: 'activity',
     label: 'Generic Sensor / Activity (Signal, Volt, Amps, Default)',
     colorClass: 'text-slate-500 dark:text-slate-400',
@@ -146,6 +153,10 @@ export function resolveParameterIconKey(configuredIcon, code = '', name = '', un
   // Solar radiation / UV
   if (/(?:SOLAR|SUN|RADIAS|RAD|UV|LUX|ILLUM|W\/M2|WM2)/i.test(text)) {
     return 'sun';
+  }
+  // Equipment / Operational Status (Pump, Valve, Relay, Power, Door, Blower)
+  if (/(?:\bPUMP\b|POMPA|\bVALVE\b|KATUP|BLOWER|\bRELAY\b|GENSET|\bDOOR\b|PINTU|\bMOTOR\b|CONTACTOR|\bON\/OFF\b)/i.test(text)) {
+    return 'power';
   }
   // Gas / Molecules
   if (/(?:O3|OZONE|CO2|CO|NO2|NOX|SO2|H2S|NH3|VOC|CH4|GAS|CHEMICAL)/i.test(text)) {

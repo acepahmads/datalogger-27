@@ -57,6 +57,7 @@ var ValidCategoryIcons = map[string]bool{
 	"cloud-rain":  true,
 	"sun":         true,
 	"waves":       true,
+	"power":       true,
 	"activity":    true,
 }
 

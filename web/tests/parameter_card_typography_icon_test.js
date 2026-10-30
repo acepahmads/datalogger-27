@@ -114,6 +114,8 @@ runTest('Test 3: Heuristic automatic icon mapping for all major environmental an
   assert.strictEqual(resolveParameterIconKey('', 'SO2_GAS', 'Sulfur Dioxide', 'ppb'), 'atom');
   assert.strictEqual(resolveParameterIconKey('', 'FLOW_RATE', 'Water Discharge Rate', 'L/min'), 'waves');
   assert.strictEqual(resolveParameterIconKey('', 'DEBIT_AIR', 'Level Flume', 'm3/h'), 'waves');
+  assert.strictEqual(resolveParameterIconKey('', 'pump on', 'PUMP ON', ''), 'power');
+  assert.strictEqual(resolveParameterIconKey('', 'POMPA_1', 'Status Pompa Air', ''), 'power');
 });
 
 // Test 4: Configured icon overrides automatic mapping

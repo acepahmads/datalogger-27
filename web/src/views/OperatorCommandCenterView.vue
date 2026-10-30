@@ -8586,6 +8586,7 @@ export default {
       if (/particulate/i.test(name)) return 'PM';
       if (/weather|meteorolog/i.test(name)) return 'MET';
       if (/gas|pollutant/i.test(name)) return 'GAS';
+      if (/^status$/i.test(name)) return 'STATUS';
       if (/custom/i.test(name)) return 'ENV';
       return name.length > 8 ? name.slice(0, 7) + '…' : name;
     },

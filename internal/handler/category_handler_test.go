@@ -122,6 +122,17 @@ func TestCategoryHandler_ListCategories(t *testing.T) {
 	if !resp.Success || len(resp.Data) < 3 {
 		t.Errorf("Expected at least 3 seeded categories (AQMS/WQMS), found %d", len(resp.Data))
 	}
+
+	foundStatus := false
+	for _, cat := range resp.Data {
+		if cat.Code == "status" && cat.Name == "Status" && cat.Domain == model.DomainAll && cat.IconKey == "power" {
+			foundStatus = true
+			break
+		}
+	}
+	if !foundStatus {
+		t.Errorf("Expected built-in 'Status' category (code=status, domain=ALL, icon_key=power) to be seeded in ListCategories response")
+	}
 }
 
 func TestCategoryHandler_CRUDAndRBAC(t *testing.T) {

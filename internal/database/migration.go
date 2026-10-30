@@ -3184,6 +3184,17 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			Enabled:           true,
 			Domain:            model.DomainCustom,
 		},
+		{
+			Code:              "status",
+			Name:              "Status",
+			Description:       "Equipment & operational status indicators (Pump ON/OFF, Valve, Power, Blower, Door)",
+			IconKey:           "power",
+			ColorKey:          "emerald",
+			DisplayOrder:      9,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainAll,
+		},
 	}
 
 	catMap := make(map[string]uint)
@@ -3193,7 +3204,7 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			db.Create(&c)
 			catMap[c.Code] = c.ID
 		} else {
-			if existing.Domain == "" || existing.Domain == "ALL" {
+			if existing.Domain == "" || (existing.Domain == "ALL" && c.Domain != model.DomainAll) {
 				db.Model(&existing).Update("domain", c.Domain)
 			}
 			catMap[c.Code] = existing.ID
@@ -3227,6 +3238,12 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 func classifyParameterToCategory(code, name string) string {
 	combined := strings.ToUpper(code + " " + name)
 
+	// Equipment & Operational Status (must precede short substrings like "CO" or "DO")
+	for _, kw := range []string{"PUMP", "POMPA", "VALVE", "KATUP", "BLOWER", "RELAY", "GENSET", "DOOR", "PINTU", "MOTOR", "CONTACTOR", "STATUS"} {
+		if strings.Contains(combined, kw) {
+			return "status"
+		}
+	}
 	// Gas
 	for _, kw := range []string{"O3", "OZONE", "CO2", "NO2", "SO2", "CO", "CH4", "VOC", "NH3", "H2S", "GAS", "POLLUTANT"} {
 		if strings.Contains(combined, kw) {
