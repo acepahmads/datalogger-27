@@ -161,6 +161,15 @@ check('8.3: Trend Analysis height is user-adjustable via toolbar popover + drag 
   assert(viewContent.includes('class="trend-resize-handle"') && viewContent.includes('startBentoTrendResize'), 'Must render interactive bottom drag-to-resize handle');
 });
 
+// 9. Direct Parameter Limit Integration with Edit Config (ParameterModal)
+check('9.1: Parameter cards & tables read configured limits (warning_high, max_value, warning_low, min_value) directly from devicesList with 1-click Edit Config shortcut', () => {
+  assert(viewContent.includes('bentoRawParamMap()'), 'Must build reactive bentoRawParamMap from devicesList');
+  assert(viewContent.includes('resolveBentoParamLimits(param)'), 'Must resolve configured parameter limits before fallback');
+  assert(viewContent.includes('raw.warning_high') && viewContent.includes('raw.max_value') && viewContent.includes('raw.warning_low') && viewContent.includes('raw.min_value'), 'Must read all 4 limit fields saved by ParameterModal');
+  assert(viewContent.includes('openBentoQuickLimitEdit(param)'), 'Must support 1-click limit config modal from card/table limit label');
+  assert(viewContent.includes('OUT_OF_HARD_RANGE'), 'Must distinguish online OUT_OF_HARD_RANGE limit exceedance from communication offline');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

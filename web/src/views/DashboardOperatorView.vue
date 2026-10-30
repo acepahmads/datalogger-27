@@ -2674,7 +2674,7 @@
               class="s-card"
               :class="[
                 { 's-card-selected': isParamSelectedForTrend(param) },
-                isParamAlarmOrStaleBad(param) ? (param.alarm_status === 'CRITICAL' || param.quality === 'BAD' ? 's-card-fault' : 's-card-warn') : '',
+                getBentoCardAlertClass(param),
                 perfSettings.cardBlinksEnabled && liveBlinks[param.param_id] ? 's-card-blink' : ''
               ]"
               :title="getParamTimingTitle(param)"
@@ -2684,7 +2684,7 @@
                 <div class="s-title-wrap">
                   <span
                     class="s-dot"
-                    :style="{ background: (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') && param.quality !== 'BAD' ? '#10B981' : '#F43F5E' }"
+                    :style="{ background: !isBentoParamCommOffline(param) ? '#10B981' : '#F43F5E' }"
                   ></span>
                   <span class="s-name" :title="param.param_name || param.param_code">
                     {{ param.param_name || param.param_code }}
@@ -2816,7 +2816,15 @@
                   ></div>
                 </div>
                 <div class="s-meta">
-                  <span class="truncate">{{ isMicroCardDensity ? getBentoCardProgress(param).shortMetaLabel : getBentoCardProgress(param).metaLabel }}</span>
+                  <button
+                    type="button"
+                    class="s-meta-limit-btn truncate"
+                    :class="{ 'is-custom-limit': getBentoCardProgress(param).isConfiguredLimit }"
+                    @click.stop="openBentoQuickLimitEdit(param)"
+                    :title="getBentoCardProgress(param).limitTooltip"
+                  >
+                    {{ isMicroCardDensity ? getBentoCardProgress(param).shortMetaLabel : getBentoCardProgress(param).metaLabel }}
+                  </button>
                   <span class="s-meta-pct">{{ getBentoCardProgress(param).rightLabel }}</span>
                 </div>
               </div>
@@ -2872,7 +2880,7 @@
                       class="bento-tbl-row"
                       :class="[
                         { 'is-row-selected': isParamSelectedForTrend(param) },
-                        isParamAlarmOrStaleBad(param) ? (param.alarm_status === 'CRITICAL' || param.quality === 'BAD' ? 'is-row-fault' : 'is-row-warn') : ''
+                        getBentoRowAlertClass(param)
                       ]"
                       :title="getParamTimingTitle(param)"
                     >
@@ -2881,7 +2889,7 @@
                         <div class="bt-param-cell">
                           <span
                             class="s-dot"
-                            :style="{ background: (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') && param.quality !== 'BAD' ? '#10B981' : '#F43F5E' }"
+                            :style="{ background: !isBentoParamCommOffline(param) ? '#10B981' : '#F43F5E' }"
                           ></span>
                           <span class="bt-name truncate" :title="param.param_name || param.param_code">
                             {{ param.param_name || param.param_code }}
@@ -2959,9 +2967,9 @@
                         </div>
                       </td>
 
-                      <!-- 4. Status Pill + Mini Threshold Bar -->
+                      <!-- 4. Status Pill + Mini Threshold Bar + Configured Limit -->
                       <td>
-                        <div class="bt-status-cell">
+                        <div class="bt-status-cell" :title="getBentoCardProgress(param).limitTooltip">
                           <span class="s-badge" :class="getBentoStatusBadge(param).toneClass">
                             {{ getBentoStatusBadge(param).label }}
                           </span>
@@ -2971,7 +2979,17 @@
                               :style="{ width: getBentoCardProgress(param).pct + '%', background: getBentoCardColor(param) }"
                             ></div>
                           </div>
-                          <span v-if="!isCompactScreen" class="bt-pct">
+                          <button
+                            v-if="getBentoCardProgress(param).tableLimitLabel"
+                            type="button"
+                            class="bt-limit-btn"
+                            :class="{ 'is-custom-limit': getBentoCardProgress(param).isConfiguredLimit }"
+                            @click.stop="openBentoQuickLimitEdit(param)"
+                            :title="getBentoCardProgress(param).limitTooltip"
+                          >
+                            {{ getBentoCardProgress(param).tableLimitLabel }}
+                          </button>
+                          <span v-else-if="!isCompactScreen" class="bt-pct">
                             {{ getBentoCardProgress(param).rightLabel }}
                           </span>
                         </div>
@@ -6195,6 +6213,19 @@ export default {
         },
       ];
     },
+    bentoRawParamMap() {
+      const map = {};
+      for (const dev of (this.devicesList || [])) {
+        if (!dev || !Array.isArray(dev.parameters)) continue;
+        for (const rp of dev.parameters) {
+          const pid = rp.id || rp.param_id;
+          if (pid != null) {
+            map[pid] = rp;
+          }
+        }
+      }
+      return map;
+    },
     bentoFleetSummary() {
       const total = this.allParameters.length;
       if (total === 0) {
@@ -6206,7 +6237,7 @@ export default {
         };
       }
       const online = this.allParameters.filter(
-        p => (p.device_status === 'ONLINE' || p.device_status === 'CONNECTED') && p.quality !== 'BAD'
+        p => !this.isBentoParamCommOffline(p)
       ).length;
       if (online === total) {
         return {
@@ -6263,6 +6294,62 @@ export default {
       }
       if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onDocumentClick) {
         OperatorCommandCenterView.methods.onDocumentClick.call(this, e);
+      }
+    },
+    onDocumentContextMenu(e) {
+      if (!this.paramContextMenu || !this.paramContextMenu.visible) return;
+      if (
+        e &&
+        e.target &&
+        !e.target.closest('.s-card') &&
+        !e.target.closest('.bento-tbl-row') &&
+        !e.target.closest('.scada-param-tile') &&
+        !e.target.closest('.param-context-menu')
+      ) {
+        this.closeParamContextMenu();
+      }
+    },
+    enrichParamForViewModal(raw) {
+      if (!raw) return raw;
+      return {
+        ...raw,
+        low_warning: raw.low_warning ?? raw.warning_low ?? null,
+        high_warning: raw.high_warning ?? raw.warning_high ?? null,
+        low_critical: raw.low_critical ?? raw.critical_low ?? raw.min_value ?? raw.low_limit ?? null,
+        high_critical: raw.high_critical ?? raw.critical_high ?? raw.max_value ?? raw.high_limit ?? null,
+      };
+    },
+    handleContextViewConfig() {
+      const { device, fullParam, param } = this.paramContextMenu || {};
+      this.closeParamContextMenu();
+      if (!param) return;
+      const raw = this.bentoRawParamMap[param.param_id || param.id] || fullParam || param;
+      this.viewConfigTarget = {
+        device: device || { id: param.device_id, device_code: param.device_code },
+        parameter: this.enrichParamForViewModal(raw),
+      };
+      this.isViewConfigModalOpen = true;
+    },
+    openBentoQuickLimitEdit(param) {
+      if (!param) return;
+      const dev = (this.devicesList || []).find(d => Number(d.id) === Number(param.device_id)) || {
+        id: param.device_id,
+        device_code: param.device_code,
+      };
+      const raw = this.bentoRawParamMap[param.param_id || param.id] || param;
+      if (this.canEditConfig) {
+        this.editParamTarget = {
+          deviceId: dev.id || param.device_id,
+          device: dev,
+          parameter: raw,
+        };
+        this.isEditParamModalOpen = true;
+      } else {
+        this.viewConfigTarget = {
+          device: dev,
+          parameter: this.enrichParamForViewModal(raw),
+        };
+        this.isViewConfigModalOpen = true;
       }
     },
     onDocumentKeyDown(e) {
@@ -6443,83 +6530,250 @@ export default {
         this.selectedCategoryFilter = catId;
       }
     },
-    resolveRegulatoryLimit(param) {
-      if (!param) return null;
-      if (param.high_limit != null && isFinite(param.high_limit) && Number(param.high_limit) > 0) {
-        return Number(param.high_limit);
+    isBentoParamCommOffline(param) {
+      if (!param) return true;
+      const devOnline = param.device_status === 'ONLINE' || param.device_status === 'CONNECTED';
+      if (!devOnline) return true;
+      if (param.quality === 'BAD' && param.quality_reason !== 'OUT_OF_HARD_RANGE') {
+        return true;
       }
+      return false;
+    },
+    formatBentoLimitNum(num) {
+      if (num === null || num === undefined || !isFinite(Number(num))) return '';
+      return Number(num).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+    },
+    resolveBentoParamLimits(param) {
+      if (!param || this.isDiscreteStatusParam(param)) return null;
+      const pid = param.param_id || param.id;
+      const raw = (pid != null && this.bentoRawParamMap && this.bentoRawParamMap[pid]) || param;
+      const toFinite = (v) => (v !== null && v !== undefined && v !== '' && isFinite(Number(v)) ? Number(v) : null);
+
+      const warnHigh = toFinite(raw.warning_high ?? raw.critical_high ?? raw.high_warning ?? raw.high_critical);
+      const warnLow = toFinite(raw.warning_low ?? raw.critical_low ?? raw.low_warning ?? raw.low_critical);
+      const maxVal = toFinite(raw.max_value ?? raw.high_limit);
+      const minVal = toFinite(raw.min_value ?? raw.low_limit);
+      const zeroSuppress = (raw.zero_value_alarm_policy || param.zero_value_alarm_policy) === 'SUPPRESS_THRESHOLD';
+
+      // 1. Direct Database Configuration from ParameterModal (Edit Config)
+      if (warnHigh !== null || maxVal !== null || warnLow !== null || minVal !== null) {
+        if (warnHigh !== null) {
+          const lower = warnLow !== null ? warnLow : minVal;
+          const hasLow = lower !== null && lower !== 0;
+          const fmtUp = this.formatBentoLimitNum(warnHigh);
+          const fmtLow = hasLow ? this.formatBentoLimitNum(lower) : '0';
+          return {
+            source: 'configured',
+            upper: warnHigh,
+            lower: lower !== null ? lower : 0,
+            warnHigh,
+            warnLow,
+            hardMax: maxVal,
+            hardMin: minVal,
+            zeroSuppress,
+            shortLabel: hasLow ? `${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            longLabel: hasLow ? `Batas ${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            detailNote: `Warning High: ${fmtUp}${maxVal !== null ? ' · Max Limit: ' + this.formatBentoLimitNum(maxVal) : ''}`,
+          };
+        }
+        if (maxVal !== null) {
+          const lower = warnLow !== null ? warnLow : minVal;
+          const isRange = lower !== null;
+          const fmtUp = this.formatBentoLimitNum(maxVal);
+          const fmtLow = isRange ? this.formatBentoLimitNum(lower) : '0';
+          return {
+            source: 'configured',
+            upper: maxVal,
+            lower: isRange ? lower : 0,
+            warnHigh: null,
+            warnLow,
+            hardMax: maxVal,
+            hardMin: minVal,
+            zeroSuppress,
+            shortLabel: isRange ? `${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            longLabel: isRange ? `Rentang ${fmtLow}–${fmtUp}` : `Limit ${fmtUp}`,
+            detailNote: isRange ? `Min–Max Limit: ${fmtLow} s/d ${fmtUp}` : `Max Limit: ${fmtUp}`,
+          };
+        }
+        const onlyLow = warnLow !== null ? warnLow : minVal;
+        const fmtOnlyLow = this.formatBentoLimitNum(onlyLow);
+        return {
+          source: 'configured',
+          upper: null,
+          lower: onlyLow,
+          warnHigh: null,
+          warnLow,
+          hardMax: null,
+          hardMin: minVal,
+          zeroSuppress,
+          shortLabel: `Min ${fmtOnlyLow}`,
+          longLabel: `Batas Min ${fmtOnlyLow}`,
+          detailNote: `Batas Minimum: ${fmtOnlyLow}`,
+        };
+      }
+
+      // 2. Fallback Reference ONLY when parameter has no configured limits in Edit Config
       const keyStr = ((param.param_code || '') + ' ' + (param.param_name || '')).toUpperCase();
-      if (keyStr.includes('PM2.5') || keyStr.includes('PM25') || keyStr.includes('PM 2.5')) return REGULATORY_REF_LIMITS.PM25;
-      if (keyStr.includes('PM10') || keyStr.includes('PM 10')) return REGULATORY_REF_LIMITS.PM10;
-      if (keyStr.includes('SO2') || keyStr.includes('SULFUR')) return REGULATORY_REF_LIMITS.SO2;
-      if (keyStr.includes('NO2') || keyStr.includes('NITROGEN')) return REGULATORY_REF_LIMITS.NO2;
-      if (keyStr.includes('O3') || keyStr.includes('OZON')) return REGULATORY_REF_LIMITS.O3;
-      if (keyStr.includes('CO') || keyStr.includes('KARBON')) return REGULATORY_REF_LIMITS.CO;
-      if (keyStr.includes('HC') || keyStr.includes('HIDROKARBON')) return REGULATORY_REF_LIMITS.HC;
-      const unitStr = (param.unit || '').toLowerCase();
-      if (unitStr.includes('c') || keyStr.includes('TEMP') || keyStr.includes('SUHU')) return 50;
-      if (unitStr === '%' || keyStr.includes('HUMID') || keyStr.includes('LEMBAB')) return 100;
+      let refUpper = null;
+      if (keyStr.includes('PM2.5') || keyStr.includes('PM25') || keyStr.includes('PM 2.5')) refUpper = REGULATORY_REF_LIMITS.PM25;
+      else if (keyStr.includes('PM10') || keyStr.includes('PM 10')) refUpper = REGULATORY_REF_LIMITS.PM10;
+      else if (keyStr.includes('SO2') || keyStr.includes('SULFUR')) refUpper = REGULATORY_REF_LIMITS.SO2;
+      else if (keyStr.includes('NO2') || keyStr.includes('NITROGEN')) refUpper = REGULATORY_REF_LIMITS.NO2;
+      else if (keyStr.includes('O3') || keyStr.includes('OZON')) refUpper = REGULATORY_REF_LIMITS.O3;
+      else if (keyStr.includes('CO') || keyStr.includes('KARBON')) refUpper = REGULATORY_REF_LIMITS.CO;
+      else if (keyStr.includes('HC') || keyStr.includes('HIDROKARBON')) refUpper = REGULATORY_REF_LIMITS.HC;
+
+      if (refUpper !== null) {
+        const fmtRef = this.formatBentoLimitNum(refUpper);
+        return {
+          source: 'default',
+          upper: refUpper,
+          lower: 0,
+          warnHigh: null,
+          warnLow: null,
+          hardMax: null,
+          hardMin: null,
+          zeroSuppress,
+          shortLabel: `Limit ${fmtRef}`,
+          longLabel: `Baku mutu ${fmtRef}`,
+          detailNote: `Referensi default (${fmtRef})`,
+        };
+      }
+
+      const unitStr = (param.unit || '').trim().toLowerCase();
+      const isRainParam = keyStr.includes('RAIN') || keyStr.includes('HUJAN') || keyStr.includes('CURAH');
+      const isTempUnit = unitStr === 'c' || unitStr === '°c' || unitStr === 'celcius' || unitStr === 'celsius';
+      if (!isRainParam && (keyStr.includes('TEMP') || keyStr.includes('SUHU') || isTempUnit)) {
+        return {
+          source: 'default',
+          upper: 50,
+          lower: 0,
+          warnHigh: null,
+          warnLow: null,
+          hardMax: null,
+          hardMin: null,
+          zeroSuppress,
+          shortLabel: '0–50',
+          longLabel: 'Rentang 0–50',
+          detailNote: 'Rentang referensi suhu (0–50)',
+        };
+      }
+      if (unitStr === '%' || keyStr.includes('HUMID') || keyStr.includes('LEMBAB')) {
+        return {
+          source: 'default',
+          upper: 100,
+          lower: 0,
+          warnHigh: null,
+          warnLow: null,
+          hardMax: null,
+          hardMin: null,
+          zeroSuppress,
+          shortLabel: '0–100',
+          longLabel: 'Rentang 0–100',
+          detailNote: 'Rentang referensi kelembaban (0–100%)',
+        };
+      }
       return null;
+    },
+    resolveRegulatoryLimit(param) {
+      const lim = this.resolveBentoParamLimits(param);
+      return lim && lim.upper !== null ? lim.upper : null;
+    },
+    getBentoCardAlertClass(param) {
+      const tone = this.getBentoStatusBadge(param).toneClass;
+      if (tone === 'badge-rose') return 's-card-fault';
+      if (tone === 'badge-amber') return 's-card-warn';
+      return '';
+    },
+    getBentoRowAlertClass(param) {
+      const tone = this.getBentoStatusBadge(param).toneClass;
+      if (tone === 'badge-rose') return 'is-row-fault';
+      if (tone === 'badge-amber') return 'is-row-warn';
+      return '';
     },
     getBentoStatusBadge(param) {
       if (!param) return { label: 'Normal', toneClass: 'badge-green' };
-      const isOnline = param.device_status === 'ONLINE' || param.device_status === 'CONNECTED';
-      if (!isOnline || param.quality === 'BAD') {
+      if (this.isBentoParamCommOffline(param)) {
         return { label: 'Offline', toneClass: 'badge-rose' };
-      }
-      if (param.alarm_status === 'CRITICAL') {
-        return { label: 'Kritis', toneClass: 'badge-rose' };
-      }
-      if (param.alarm_status === 'WARNING') {
-        return { label: 'Waspada', toneClass: 'badge-amber' };
-      }
-      if (param.quality === 'STALE') {
-        return { label: 'Stale', toneClass: 'badge-amber' };
       }
       if (this.isDiscreteStatusParam(param)) {
         const info = this.getDiscreteStatusInfo(param);
         return { label: info.label || 'Aktif', toneClass: 'badge-teal' };
       }
-      const limit = this.resolveRegulatoryLimit(param);
+      const limits = this.resolveBentoParamLimits(param);
       const val = Number(param.value);
-      if (limit && isFinite(val) && limit > 0) {
-        const ratio = val / limit;
-        if (ratio >= 1.0) return { label: 'Tinggi', toneClass: 'badge-amber' };
-        if (ratio >= 0.5) return { label: 'Sedang', toneClass: 'badge-blue' };
+      const hasVal = param.value !== null && param.value !== undefined && param.value !== '' && isFinite(val);
+      const isZeroSuppressed = Boolean(limits && limits.zeroSuppress && hasVal && Math.abs(val) < 1e-9);
+
+      if (
+        param.alarm_status === 'CRITICAL' ||
+        (param.quality === 'BAD' && param.quality_reason === 'OUT_OF_HARD_RANGE') ||
+        (hasVal && limits && (
+          (limits.hardMax !== null && val > limits.hardMax) ||
+          (!isZeroSuppressed && limits.hardMin !== null && val < limits.hardMin)
+        ))
+      ) {
+        return { label: 'Kritis', toneClass: 'badge-rose' };
+      }
+      if (
+        param.alarm_status === 'WARNING' ||
+        param.quality_reason === 'OUT_OF_WARNING_RANGE' ||
+        (hasVal && limits && (
+          (limits.warnHigh !== null && val >= limits.warnHigh) ||
+          (!isZeroSuppressed && limits.warnLow !== null && val <= limits.warnLow)
+        ))
+      ) {
+        return { label: 'Waspada', toneClass: 'badge-amber' };
+      }
+      if (param.quality === 'STALE') {
+        return { label: 'Stale', toneClass: 'badge-amber' };
+      }
+      if (hasVal && limits && limits.upper !== null) {
+        const base = limits.lower !== null ? limits.lower : 0;
+        const span = limits.upper - base;
+        if (span > 0) {
+          const ratio = (val - base) / span;
+          if (ratio >= 1.0) return { label: limits.source === 'configured' ? 'Waspada' : 'Tinggi', toneClass: 'badge-amber' };
+          if (ratio >= 0.5) return { label: 'Sedang', toneClass: 'badge-blue' };
+        }
       }
       return { label: 'Baik', toneClass: 'badge-green' };
     },
     getBentoCardColor(param) {
       const dark = this.isDark;
       if (!param) return dark ? '#38BDF8' : '#0284C7';
-      const isOnline = param.device_status === 'ONLINE' || param.device_status === 'CONNECTED';
-      if (!isOnline || param.quality === 'BAD' || param.alarm_status === 'CRITICAL') {
+      const badge = this.getBentoStatusBadge(param);
+      if (badge.toneClass === 'badge-rose') {
         return '#F43F5E';
       }
-      if (param.alarm_status === 'WARNING' || param.quality === 'STALE') {
+      if (badge.toneClass === 'badge-amber') {
         return dark ? '#FBBF24' : '#D97706';
       }
       const plotted = (this.activeTrendSeries || []).find(s => Number(s.parameterId) === Number(param.param_id));
       if (plotted && plotted.color) {
         return plotted.color;
       }
-      const badge = this.getBentoStatusBadge(param);
       if (badge.toneClass === 'badge-blue') return dark ? '#38BDF8' : '#0284C7';
       if (badge.toneClass === 'badge-teal') return dark ? '#2DD4BF' : '#0D9488';
-      const unitStr = (param.unit || '').toLowerCase();
-      if (unitStr.includes('c')) return dark ? '#FBBF24' : '#D97706';
+      const unitStr = (param.unit || '').trim().toLowerCase();
+      if (unitStr === 'c' || unitStr === '°c') return dark ? '#FBBF24' : '#D97706';
       return dark ? '#34D399' : '#059669';
     },
     getBentoCardProgress(param) {
-      if (!param) return { pct: 0, metaLabel: '-', shortMetaLabel: '-', rightLabel: '' };
-      const isOnline = (param.device_status === 'ONLINE' || param.device_status === 'CONNECTED') && param.quality !== 'BAD';
+      if (!param) {
+        return { pct: 0, metaLabel: '-', shortMetaLabel: '-', rightLabel: '', tableLimitLabel: '', isConfiguredLimit: false, limitTooltip: '' };
+      }
+      const editHint = this.canEditConfig ? 'Klik untuk mengatur limit parameter' : 'Klik untuk melihat konfigurasi limit';
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
-      if (!isOnline) {
+      if (this.isBentoParamCommOffline(param)) {
         return {
           pct: 0,
           metaLabel: rel ? `Terakhir aktif · ${rel}` : 'Sensor tidak terhubung',
           shortMetaLabel: rel || 'Offline',
           rightLabel: 'Offline',
+          tableLimitLabel: '',
+          isConfiguredLimit: false,
+          limitTooltip: `Status Offline · ${editHint}`,
         };
       }
       if (this.isDiscreteStatusParam(param)) {
@@ -6529,28 +6783,50 @@ export default {
           metaLabel: rel ? `Status Kanal · ${rel}` : 'Status Kanal Aktif',
           shortMetaLabel: rel || 'Kanal Digital',
           rightLabel: info ? info.label : '',
+          tableLimitLabel: '',
+          isConfiguredLimit: false,
+          limitTooltip: editHint,
         };
       }
-      const limit = this.resolveRegulatoryLimit(param);
+      const limits = this.resolveBentoParamLimits(param);
       const val = Number(param.value);
-      if (limit && isFinite(val) && limit > 0) {
-        const pct = Math.min(Math.max(Math.round((val / limit) * 100), 3), 100);
-        const unitStr = (param.unit || '').toLowerCase();
-        const isMeteo = unitStr.includes('c') || unitStr === '%' || unitStr.includes('hpa') || unitStr.includes('m/s');
-        const prefix = isMeteo ? `Rentang 0–${limit}` : `Baku mutu ${limit.toLocaleString('id-ID')}`;
-        const shortPrefix = isMeteo ? `0–${limit}` : `Limit ${limit.toLocaleString('id-ID')}`;
+      const hasVal = param.value !== null && param.value !== undefined && param.value !== '' && isFinite(val);
+
+      if (limits && limits.upper !== null) {
+        const base = limits.lower !== null ? limits.lower : 0;
+        const span = limits.upper - base;
+        const rawPct = hasVal && span > 0 ? Math.round(((val - base) / span) * 100) : 0;
+        const barPct = hasVal ? Math.min(Math.max(rawPct, val > base ? 3 : 0), 100) : 0;
+        const displayPct = hasVal ? Math.max(0, Math.min(rawPct, 999)) : 0;
         return {
-          pct,
-          metaLabel: rel ? `${prefix} · ${rel}` : prefix,
-          shortMetaLabel: shortPrefix,
-          rightLabel: `${pct}%`,
+          pct: barPct,
+          metaLabel: rel ? `${limits.longLabel} · ${rel}` : limits.longLabel,
+          shortMetaLabel: limits.shortLabel,
+          rightLabel: hasVal ? `${displayPct}%` : '--',
+          tableLimitLabel: limits.shortLabel,
+          isConfiguredLimit: limits.source === 'configured',
+          limitTooltip: `${limits.detailNote} (${limits.source === 'configured' ? 'Edit Config' : 'Default'}) · ${editHint}`,
+        };
+      }
+      if (limits && limits.lower !== null) {
+        return {
+          pct: hasVal && val <= limits.lower ? 100 : 35,
+          metaLabel: rel ? `${limits.longLabel} · ${rel}` : limits.longLabel,
+          shortMetaLabel: limits.shortLabel,
+          rightLabel: param.quality || 'GOOD',
+          tableLimitLabel: limits.shortLabel,
+          isConfiguredLimit: true,
+          limitTooltip: `${limits.detailNote} · ${editHint}`,
         };
       }
       return {
-        pct: isFinite(val) ? 35 : 0,
+        pct: hasVal ? 35 : 0,
         metaLabel: rel ? `Update · ${rel}` : 'Online',
         shortMetaLabel: rel || 'Online',
         rightLabel: param.quality || 'GOOD',
+        tableLimitLabel: '',
+        isConfiguredLimit: false,
+        limitTooltip: `Belum ada limit khusus · ${editHint}`,
       };
     },
     getShortParamChipLabel(param) {
@@ -7622,6 +7898,26 @@ export default {
   font-size: 9px;
 }
 
+.s-meta-limit-btn {
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--b-text-muted);
+  text-align: left;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.s-meta-limit-btn:hover {
+  color: var(--b-accent-blue);
+  text-decoration: underline;
+}
+.s-meta-limit-btn.is-custom-limit {
+  font-weight: 600;
+  color: var(--b-text-sec);
+}
+
 .s-meta-pct {
   font-weight: 700;
   color: var(--b-text-sec);
@@ -7784,6 +8080,27 @@ export default {
   height: 100%;
   border-radius: 999px;
 }
+.bt-limit-btn {
+  font-size: 9.2px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--b-pill);
+  border: 1px solid transparent;
+  color: var(--b-text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.bt-limit-btn.is-custom-limit {
+  color: var(--b-accent-blue);
+  border-color: rgba(14, 165, 233, 0.25);
+}
+.bt-limit-btn:hover {
+  border-color: var(--b-accent-blue);
+  color: var(--b-accent-blue);
+}
+
 .bt-pct {
   font-size: 9.5px;
   font-weight: 700;
