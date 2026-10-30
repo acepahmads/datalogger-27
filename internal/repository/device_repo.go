@@ -275,11 +275,23 @@ func (r *DeviceRepository) GetParameterByCode(deviceID uint, code string) (*mode
 }
 
 func (r *DeviceRepository) CreateParameter(param *model.Parameter) error {
-	return r.db.Create(param).Error
+	if err := r.db.Create(param).Error; err != nil {
+		return err
+	}
+	if param.CategoryID != nil && *param.CategoryID > 0 {
+		_ = r.db.Preload("Category").First(param, param.ID).Error
+	}
+	return nil
 }
 
 func (r *DeviceRepository) UpdateParameter(param *model.Parameter) error {
-	return r.db.Save(param).Error
+	if err := r.db.Save(param).Error; err != nil {
+		return err
+	}
+	if param.CategoryID != nil && *param.CategoryID > 0 {
+		_ = r.db.Preload("Category").First(param, param.ID).Error
+	}
+	return nil
 }
 
 func (r *DeviceRepository) DeleteParameter(deviceID, paramID uint) error {

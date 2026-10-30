@@ -226,6 +226,7 @@
               </div>
               <select
                 v-model="form.category_id"
+                @change="onCategorySelectionChange"
                 class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
               >
                 <option :value="null">— {{ $t('operator.uncategorized') || 'Uncategorized' }} —</option>
@@ -332,6 +333,11 @@
                   class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-slate-500 font-mono uppercase"
                 />
               </div>
+            </div>
+
+            <div class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-3xs font-mono text-emerald-700 dark:text-emerald-300 flex items-center space-x-1.5">
+              <span>🛡️</span>
+              <span>Mode Status Diskrit: Nilai tetap (0 / 1) otomatis bebas dari alarm <strong>Stuck Value</strong>, <strong>Spike</strong>, dan error nilai <strong>0</strong>.</span>
             </div>
           </div>
         </div>
@@ -1944,6 +1950,15 @@ export default {
       this.customByteSlots = baseSlots;
       this.form.byte_order = raw;
     },
+    onCategorySelectionChange() {
+      const cat = this.selectedCategoryObject;
+      if (cat && (String(cat.code || '').toLowerCase() === 'status' || /^status$/i.test(cat.name || ''))) {
+        if (!this.form.zero_value_alarm_policy || this.form.zero_value_alarm_policy === 'NORMAL' || this.form.zero_value_alarm_policy === 'INVALID_READING') {
+          this.form.zero_value_alarm_policy = 'SUPPRESS_THRESHOLD';
+        }
+        this.form.spike_detection_enabled = false;
+      }
+    },
     applyStatusLabelPreset(preset) {
       const map = {
         auto: { on: '', off: '' },
@@ -2019,7 +2034,7 @@ export default {
         formula: this.form.formula ? this.form.formula.trim() : '',
         hold_last_value_enabled: !!this.form.hold_last_value_enabled,
         hold_last_value_seconds: this.cleanNum(this.form.hold_last_value_seconds) || 120,
-        zero_value_alarm_policy: this.form.zero_value_alarm_policy || 'NORMAL',
+        zero_value_alarm_policy: this.isStatusCategoryOrBool ? 'SUPPRESS_THRESHOLD' : (this.form.zero_value_alarm_policy || 'NORMAL'),
         batch_mode: this.form.batch_mode || 'AUTO',
       };
 

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -375,6 +376,34 @@ type Parameter struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
+}
+
+// IsDiscreteStatus returns true when the parameter represents a discrete/binary equipment status
+// (e.g. Category "status", DataType BOOL/BOOLEAN, RegisterType COIL/DISCRETE_INPUT, or custom ON/OFF labels),
+// where steady 0/1 states and instant 0<->1 transitions are normal operational behavior.
+func (p *Parameter) IsDiscreteStatus() bool {
+	if p == nil {
+		return false
+	}
+	if p.Category != nil {
+		code := strings.ToLower(strings.TrimSpace(p.Category.Code))
+		name := strings.ToLower(strings.TrimSpace(p.Category.Name))
+		if code == "status" || name == "status" {
+			return true
+		}
+	}
+	dt := strings.ToUpper(strings.TrimSpace(string(p.DataType)))
+	if dt == "BOOL" || dt == "BOOLEAN" {
+		return true
+	}
+	rt := strings.ToUpper(strings.TrimSpace(p.RegisterType))
+	if rt == "COIL" || rt == "DISCRETE_INPUT" {
+		return true
+	}
+	if strings.TrimSpace(p.StatusOnLabel) != "" || strings.TrimSpace(p.StatusOffLabel) != "" {
+		return true
+	}
+	return false
 }
 
 func (p *Parameter) BeforeSave(tx *gorm.DB) error {

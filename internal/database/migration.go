@@ -3240,6 +3240,48 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 			}
 		}
 	}
+
+	// 4. Ensure discrete Status parameters suppress false stuck/spike/zero alarms and clear any stale ones
+	statusCatID := catMap["status"]
+	var discreteParamIDs []uint
+	qDiscrete := db.Table("parameters").Select("id").Where("deleted_at IS NULL")
+	if statusCatID > 0 {
+		qDiscrete = qDiscrete.Where(
+			"category_id = ? OR UPPER(data_type) IN ('BOOL','BOOLEAN') OR UPPER(register_type) IN ('COIL','DISCRETE_INPUT') OR status_on_label <> '' OR status_off_label <> ''",
+			statusCatID,
+		)
+	} else {
+		qDiscrete = qDiscrete.Where(
+			"UPPER(data_type) IN ('BOOL','BOOLEAN') OR UPPER(register_type) IN ('COIL','DISCRETE_INPUT') OR status_on_label <> '' OR status_off_label <> ''",
+		)
+	}
+	if err := qDiscrete.Pluck("id", &discreteParamIDs).Error; err == nil && len(discreteParamIDs) > 0 {
+		_ = db.Table("parameters").
+			Where("id IN ? AND (zero_value_alarm_policy IS NULL OR zero_value_alarm_policy = '' OR zero_value_alarm_policy = 'NORMAL')", discreteParamIDs).
+			Update("zero_value_alarm_policy", string(model.ZeroValuePolicySuppressThreshold)).Error
+
+		if db.Migrator().HasTable(&model.Alarm{}) {
+			nowUTC := time.Now().UTC()
+			_ = db.Model(&model.Alarm{}).
+				Where("parameter_id IN ? AND status IN ? AND alarm_code IN ?",
+					discreteParamIDs,
+					[]string{string(model.AlarmActive), string(model.AlarmAcked)},
+					[]string{
+						"DATA_ABNORMALITY_STUCK_VALUE",
+						"DATA_ABNORMALITY_SPIKE",
+						"DATA_ABNORMALITY_ZERO_INVALID",
+						"THRESHOLD_CRITICAL_HIGH",
+						"THRESHOLD_WARNING_HIGH",
+						"THRESHOLD_WARNING_LOW",
+						"THRESHOLD_CRITICAL_LOW",
+					},
+				).
+				Updates(map[string]interface{}{
+					"status":     model.AlarmCleared,
+					"cleared_at": &nowUTC,
+				}).Error
+		}
+	}
 }
 
 func classifyParameterToCategory(code, name string) string {

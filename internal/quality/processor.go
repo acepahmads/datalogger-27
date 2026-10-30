@@ -175,10 +175,10 @@ func (qp *QualityProcessor) Validate(param *model.Parameter, in *ValidationInput
 		}
 	}
 
-	// 5. Range Validation (Hard & Warning limits)
+	// 5. Range Validation (Hard & Warning limits — skipped for discrete 0/1 Status indicator parameters)
 	validationEnabled := true
 	if param != nil {
-		validationEnabled = param.QualityValidationEnabled
+		validationEnabled = param.QualityValidationEnabled && !param.IsDiscreteStatus()
 	}
 
 	if validationEnabled && param != nil {
@@ -223,8 +223,8 @@ func (qp *QualityProcessor) Validate(param *model.Parameter, in *ValidationInput
 		}
 	}
 
-	// 6. Spike Detection (Deterministic rolling delta check)
-	if param != nil && param.SpikeDetectionEnabled && param.SpikeThreshold > 0 && res.Quality != model.QualityBad {
+	// 6. Spike Detection (Deterministic rolling delta check — skipped for discrete 0/1 status parameters)
+	if param != nil && !param.IsDiscreteStatus() && param.SpikeDetectionEnabled && param.SpikeThreshold > 0 && res.Quality != model.QualityBad {
 		windowSize := param.SpikeWindowSize
 		if windowSize <= 0 {
 			windowSize = 3

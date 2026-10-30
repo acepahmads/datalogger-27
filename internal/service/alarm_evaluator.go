@@ -284,14 +284,32 @@ func (e *AlarmEvaluator) ReloadActiveAlarms(ctx context.Context) error {
 			continue
 		}
 
-		// Skip loading active alarms for parameters that are currently disabled
+		// Skip loading active alarms for parameters that are currently disabled,
+		// and automatically clear stuck/spike/zero-invalid/zero-low alarms on discrete status parameters.
 		if e.paramLookup != nil {
 			param, err := e.paramLookup(ctx, *alm.ParameterID)
-			if err == nil && param != nil && !param.Enabled {
-				go func(paramID uint) {
-					_ = e.alarmService.ClearAllParameterAlarms(context.Background(), paramID)
-				}(*alm.ParameterID)
-				continue
+			if err == nil && param != nil {
+				if !param.Enabled {
+					go func(paramID uint) {
+						_ = e.alarmService.ClearAllParameterAlarms(context.Background(), paramID)
+					}(*alm.ParameterID)
+					continue
+				}
+				if param.IsDiscreteStatus() {
+					isAnalogOrStuckAlarm := alm.AlarmCode == AlarmCodeAbnormalityStuck ||
+						alm.AlarmCode == AlarmCodeAbnormalitySpike ||
+						alm.AlarmCode == AlarmCodeAbnormalityZeroInvalid ||
+						alm.AlarmCode == AlarmCodeCriticalHigh ||
+						alm.AlarmCode == AlarmCodeWarningHigh ||
+						alm.AlarmCode == AlarmCodeWarningLow ||
+						alm.AlarmCode == AlarmCodeCriticalLow
+					if isAnalogOrStuckAlarm {
+						go func(alarmID uint) {
+							_, _ = e.alarmService.ClearAlarm(context.Background(), alarmID)
+						}(alm.ID)
+						continue
+					}
+				}
 			}
 		}
 
@@ -332,28 +350,51 @@ func (e *AlarmEvaluator) EvaluateTelemetry(ctx context.Context, latest *LatestTe
 
 	atomic.AddUint64(&e.evaluationsCount, 1)
 
-	// Resolve Parameter Configuration if needed
-	if param == nil && e.paramLookup != nil {
+	// Resolve Parameter Configuration (or hydrate missing Category preload) if needed
+	if (param == nil || (param.CategoryID != nil && *param.CategoryID > 0 && param.Category == nil)) && e.paramLookup != nil {
 		p, err := e.paramLookup(ctx, latest.ParameterID)
 		if err != nil {
-			atomic.AddUint64(&e.evaluationErrorsCount, 1)
-			logger.Debug("Evaluator parameter lookup failed for ID %d: %v", latest.ParameterID, err)
-			return
+			if param == nil {
+				atomic.AddUint64(&e.evaluationErrorsCount, 1)
+				logger.Debug("Evaluator parameter lookup failed for ID %d: %v", latest.ParameterID, err)
+				return
+			}
+		} else if p != nil {
+			param = p
 		}
-		param = p
 	}
 
 	if param == nil || !param.Enabled {
 		return
 	}
 
+	isDiscrete := param.IsDiscreteStatus()
 	key := fmt.Sprintf("%d:%d", latest.DeviceID, latest.ParameterID)
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// Wave 2: Evaluate Data Abnormality (stuck, bad quality, stale, spike)
+	// Wave 2: Evaluate Data Abnormality (bad quality & stale remain active; stuck & spike skipped for discrete Status)
 	e.evaluateDataAbnormality(ctx, latest, param)
+
+	// Discrete Status parameters (e.g. Pump ON/OFF, Valve Open/Close) represent pure operational state indicators:
+	// steady 0 or 1 and 0<->1 transitions are normal and must not trigger stuck, zero-invalid, or analog threshold alarms.
+	if isDiscrete {
+		zeroKey := fmt.Sprintf("%s:%s", key, AlarmCodeAbnormalityZeroInvalid)
+		if existing, ok := e.activeAbnormality[zeroKey]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, zeroKey)
+		}
+		if existing, ok := e.activeLow[key]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeLow, key)
+		}
+		if existing, ok := e.activeHigh[key]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeHigh, key)
+		}
+		return
+	}
 
 	// Wave 1: Numeric validity checks for Threshold Alarms:
 	val := latest.ProcessedValue
@@ -504,8 +545,21 @@ func (e *AlarmEvaluator) evaluateDataAbnormality(ctx context.Context, latest *La
 		}
 	}
 
-	// 3. Spike / Outlier Check
+	// 3. Spike / Outlier Check (Skipped for discrete 0/1 status parameters where instant transitions are normal)
 	spikeKey := fmt.Sprintf("%s:%s", paramKey, AlarmCodeAbnormalitySpike)
+	if param.IsDiscreteStatus() {
+		if existing, ok := e.activeAbnormality[spikeKey]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, spikeKey)
+		}
+		stuckKey := fmt.Sprintf("%s:%s", paramKey, AlarmCodeAbnormalityStuck)
+		if existing, ok := e.activeAbnormality[stuckKey]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, stuckKey)
+		}
+		return
+	}
+
 	isSpike := strings.Contains(latest.QualityFlags, model.FlagSpike) || latest.QualityReason == model.ReasonSpikeDetected
 	if isSpike {
 		st.normalSinceSpike = 0
