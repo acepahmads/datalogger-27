@@ -361,3 +361,122 @@ func (r *AlarmRepository) ClearActiveByParameter(ctx context.Context, paramID ui
 
 	return activeAlarms, nil
 }
+
+func (r *AlarmRepository) applyAlarmFilters(query *gorm.DB, params AlarmFilterParams) *gorm.DB {
+	if params.Status != "" && !strings.EqualFold(strings.TrimSpace(params.Status), "ALL") {
+		st := strings.ToUpper(strings.TrimSpace(params.Status))
+		query = query.Where("status = ?", st)
+	}
+	if params.Severity != "" && !strings.EqualFold(strings.TrimSpace(params.Severity), "ALL") {
+		query = query.Where("severity = ?", strings.ToUpper(strings.TrimSpace(params.Severity)))
+	}
+	if params.DeviceID > 0 {
+		query = query.Where("device_id = ?", params.DeviceID)
+	}
+	if params.ParameterID > 0 {
+		query = query.Where("parameter_id = ?", params.ParameterID)
+	}
+	if params.AlarmCode != "" {
+		query = query.Where("alarm_code = ?", strings.TrimSpace(params.AlarmCode))
+	}
+	if params.AcknowledgedBy != "" {
+		ackUser := strings.TrimSpace(params.AcknowledgedBy)
+		query = query.Where("acknowledged_by = ? OR acknowledged_by_name LIKE ?", ackUser, "%"+ackUser+"%")
+	}
+	if params.Search != "" {
+		s := "%" + strings.TrimSpace(params.Search) + "%"
+		query = query.Where("alarm_code LIKE ? OR message LIKE ? OR notes LIKE ? OR acknowledged_by LIKE ? OR acknowledged_by_name LIKE ?", s, s, s, s, s)
+	}
+	if params.StartTime != nil && !params.StartTime.IsZero() {
+		query = query.Where("triggered_at >= ?", params.StartTime)
+	}
+	if params.EndTime != nil && !params.EndTime.IsZero() {
+		query = query.Where("triggered_at <= ?", params.EndTime)
+	}
+	return query
+}
+
+// DeleteAlarm permanently removes a single alarm record and its associated notification queue entries.
+func (r *AlarmRepository) DeleteAlarm(ctx context.Context, id uint) (*model.Alarm, error) {
+	var alarm model.Alarm
+	if err := r.db.WithContext(ctx).First(&alarm, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAlarmNotFound
+		}
+		return nil, err
+	}
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Where("alarm_id = ?", id).Delete(&model.Notification{}).Error; err != nil {
+			return err
+		}
+		res := tx.Unscoped().Delete(&model.Alarm{}, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrAlarmNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &alarm, nil
+}
+
+// PurgeAlarms permanently deletes alarm records matching params (or all alarms when params has no active filters),
+// removing dependent notification rows first within a single transaction.
+// It returns total deleted alarm rows and IDs of any deleted alarms that were ACTIVE or ACKNOWLEDGED.
+func (r *AlarmRepository) PurgeAlarms(ctx context.Context, params AlarmFilterParams) (int64, []uint, error) {
+	type idStatusRow struct {
+		ID     uint              `gorm:"column:id"`
+		Status model.AlarmStatus `gorm:"column:status"`
+	}
+
+	var matched []idStatusRow
+	q := r.applyAlarmFilters(r.db.WithContext(ctx).Model(&model.Alarm{}), params)
+	if err := q.Select("id, status").Find(&matched).Error; err != nil {
+		return 0, nil, err
+	}
+	if len(matched) == 0 {
+		return 0, nil, nil
+	}
+
+	allIDs := make([]uint, 0, len(matched))
+	var activeDeletedIDs []uint
+	for _, row := range matched {
+		allIDs = append(allIDs, row.ID)
+		if row.Status == model.AlarmActive || row.Status == model.AlarmAcked {
+			activeDeletedIDs = append(activeDeletedIDs, row.ID)
+		}
+	}
+
+	var totalDeleted int64
+	const batchSize = 500
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for start := 0; start < len(allIDs); start += batchSize {
+			end := start + batchSize
+			if end > len(allIDs) {
+				end = len(allIDs)
+			}
+			chunk := allIDs[start:end]
+
+			if err := tx.Unscoped().Where("alarm_id IN ?", chunk).Delete(&model.Notification{}).Error; err != nil {
+				return err
+			}
+			res := tx.Unscoped().Where("id IN ?", chunk).Delete(&model.Alarm{})
+			if res.Error != nil {
+				return res.Error
+			}
+			totalDeleted += res.RowsAffected
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return totalDeleted, activeDeletedIDs, nil
+}

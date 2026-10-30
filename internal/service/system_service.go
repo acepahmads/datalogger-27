@@ -299,6 +299,20 @@ func (s *SystemService) ClearAlarm(id uint) (*model.Alarm, error) {
 	return nil, errors.New("alarm service not configured")
 }
 
+func (s *SystemService) DeleteAlarm(ctx context.Context, id uint, userID *uint, username string) (*model.Alarm, error) {
+	if s.alarmService != nil {
+		return s.alarmService.DeleteAlarm(ctx, id, userID, username)
+	}
+	return nil, errors.New("alarm service not configured")
+}
+
+func (s *SystemService) PurgeAlarms(ctx context.Context, filter repository.AlarmFilterParams, userID *uint, username string) (int64, error) {
+	if s.alarmService != nil {
+		return s.alarmService.PurgeAlarms(ctx, filter, userID, username)
+	}
+	return 0, errors.New("alarm service not configured")
+}
+
 func (s *SystemService) GetLogs(limit int) ([]model.SystemLog, error) {
 	if limit <= 0 {
 		limit = 50

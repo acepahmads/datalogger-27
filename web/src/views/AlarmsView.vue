@@ -205,8 +205,20 @@
             </div>
           </div>
 
-          <!-- Reset Filter & Refresh -->
+          <!-- Delete All, Reset Filter & Refresh -->
           <div class="flex items-center space-x-2">
+            <button v-if="canDeleteAlarmHistory"
+                    id="btn-purge-alarm-history"
+                    type="button"
+                    @click="openPurgeHistoryModal"
+                    :disabled="historyTotal === 0 && !hasActiveHistoryFilter"
+                    class="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 text-2xs font-semibold transition-colors disabled:opacity-40 flex items-center gap-1.5"
+                    title="Hapus semua riwayat alarm (Admin / Superadmin)">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Delete All</span>
+            </button>
             <button @click="resetHistoryFilters"
                     class="px-2.5 py-1.5 text-2xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 rounded-lg">
               {{ $t('common.reset') || 'Reset' }}
@@ -247,7 +259,7 @@
                 <th class="py-3 px-4 w-36">{{ $t('alarms.triggeredAt') }}</th>
                 <th class="py-3 px-4 w-36">{{ $t('alarms.ackedBy') || 'Acknowledged' }}</th>
                 <th class="py-3 px-4 w-36">{{ $t('alarms.clearedAt') || 'Cleared At' }}</th>
-                <th class="py-3 px-4 w-20 text-center">{{ $t('alarms.details') }}</th>
+                <th class="py-3 px-4 w-32 text-center">{{ canDeleteAlarmHistory ? ($t('alarms.action') || 'Action') : $t('alarms.details') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
@@ -305,11 +317,21 @@
                   <span v-else class="text-amber-700 dark:text-amber-400 font-sans font-bold">{{ $t('alarms.ongoing') || 'Active' }}</span>
                 </td>
                 <td class="py-3 px-4 text-center">
-                  <button @click="openIncidentModal(item)"
-                          class="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                          :title="$t('alarms.details') || 'Inspect Details'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                  </button>
+                  <div class="flex items-center justify-center space-x-1.5">
+                    <button @click="openIncidentModal(item)"
+                            class="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                            :title="$t('alarms.details') || 'Inspect Details'">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    </button>
+                    <button v-if="canDeleteAlarmHistory"
+                            type="button"
+                            @click="deleteAlarmHistoryItem(item)"
+                            :disabled="deletingAlarmId === item.id"
+                            class="px-2 py-0.5 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 rounded text-3xs font-semibold transition-colors disabled:opacity-50"
+                            title="Hapus riwayat alarm ini (Admin / Superadmin)">
+                      {{ deletingAlarmId === item.id ? '...' : 'Delete' }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -831,15 +853,26 @@
           </div>
         </div>
 
-        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <button v-if="selectedIncident.status === 'ACTIVE'"
-                  @click="showIncidentModal = false; openAckModal(selectedIncident)"
-                  class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors">
-            {{ $t('alarms.acknowledge') }}
-          </button>
-          <button @click="showIncidentModal = false" class="px-4 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
-            {{ $t('alarms.close') }}
-          </button>
+        <div class="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800">
+          <div>
+            <button v-if="canDeleteAlarmHistory"
+                    type="button"
+                    @click="deleteAlarmHistoryItem(selectedIncident)"
+                    :disabled="deletingAlarmId === selectedIncident.id"
+                    class="px-3.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 text-xs font-semibold transition-colors disabled:opacity-50">
+              {{ deletingAlarmId === selectedIncident.id ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button v-if="selectedIncident.status === 'ACTIVE'"
+                    @click="showIncidentModal = false; openAckModal(selectedIncident)"
+                    class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors">
+              {{ $t('alarms.acknowledge') }}
+            </button>
+            <button @click="showIncidentModal = false" class="px-4 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+              {{ $t('alarms.close') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1182,6 +1215,85 @@
         </div>
       </div>
     </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL 7: DELETE ALL ALARM HISTORY (ADMIN+) -->
+    <!-- ========================================== -->
+    <div v-if="showPurgeHistoryModal && canDeleteAlarmHistory"
+         class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-6 font-sans">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">
+              Delete All Alarm History
+            </h3>
+          </div>
+          <button @click="showPurgeHistoryModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+          <p>
+            Pilih cakupan penghapusan riwayat alarm (khusus <strong>ADMIN</strong> dan <strong>SUPERADMIN</strong>):
+          </p>
+
+          <div class="space-y-2">
+            <label class="flex items-start space-x-2.5 p-3 rounded-xl border cursor-pointer transition-colors"
+                   :class="purgeHistoryScope === 'ALL' ? 'bg-rose-50/70 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/40' : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'">
+              <input type="radio" v-model="purgeHistoryScope" value="ALL" class="mt-0.5 text-rose-600 focus:ring-rose-500" />
+              <div>
+                <span class="font-bold text-slate-900 dark:text-white block">Delete All (Hapus Semua Riwayat Alarm)</span>
+                <span class="text-2xs text-slate-500 dark:text-slate-400">
+                  Hapus seluruh data riwayat alarm dari database secara permanen.
+                </span>
+              </div>
+            </label>
+
+            <label class="flex items-start space-x-2.5 p-3 rounded-xl border cursor-pointer transition-colors"
+                   :class="purgeHistoryScope === 'CLEARED_ONLY' ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/40' : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'">
+              <input type="radio" v-model="purgeHistoryScope" value="CLEARED_ONLY" class="mt-0.5 text-emerald-600 focus:ring-emerald-500" />
+              <div>
+                <span class="font-bold text-slate-900 dark:text-white block">Hapus Hanya Status CLEARED</span>
+                <span class="text-2xs text-slate-500 dark:text-slate-400">
+                  Hapus seluruh riwayat alarm yang sudah pulih (CLEARED) dan pertahankan insiden yang masih aktif.
+                </span>
+              </div>
+            </label>
+
+            <label v-if="hasActiveHistoryFilter"
+                   class="flex items-start space-x-2.5 p-3 rounded-xl border cursor-pointer transition-colors"
+                   :class="purgeHistoryScope === 'FILTERED' ? 'bg-amber-50/70 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/40' : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'">
+              <input type="radio" v-model="purgeHistoryScope" value="FILTERED" class="mt-0.5 text-amber-600 focus:ring-amber-500" />
+              <div>
+                <span class="font-bold text-slate-900 dark:text-white block">Hapus Sesuai Filter Aktif</span>
+                <span class="text-2xs text-slate-500 dark:text-slate-400">
+                  Hanya hapus riwayat alarm yang cocok dengan filter saat ini ({{ historyTotal }} record).
+                </span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <button type="button"
+                  @click="showPurgeHistoryModal = false"
+                  :disabled="isPurgingHistory"
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+            {{ $t('common.cancel') }}
+          </button>
+          <button id="btn-confirm-purge-history"
+                  type="button"
+                  @click="confirmPurgeAlarmHistory"
+                  :disabled="isPurgingHistory"
+                  class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5">
+            <span v-if="isPurgingHistory" class="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+            <span>{{ isPurgingHistory ? 'Deleting...' : (purgeHistoryScope === 'FILTERED' ? 'Delete Filtered' : (purgeHistoryScope === 'CLEARED_ONLY' ? 'Delete Cleared' : 'Delete All')) }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1210,6 +1322,10 @@ export default {
       historySearch: '',
       historyLoading: false,
       historyDebounceTimer: null,
+      deletingAlarmId: null,
+      showPurgeHistoryModal: false,
+      purgeHistoryScope: 'ALL',
+      isPurgingHistory: false,
 
       // Acknowledgement Modal (Task #65)
       showAckModal: false,
@@ -1306,6 +1422,20 @@ export default {
     canDeleteNotifications() {
       const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
       return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+    },
+    canDeleteAlarmHistory() {
+      const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ADMINISTRATOR';
+    },
+    hasActiveHistoryFilter() {
+      return Boolean(
+        this.historyStatus ||
+        this.historySeverity ||
+        this.historyDeviceID ||
+        this.historyStartDate ||
+        this.historyEndDate ||
+        (this.historySearch && this.historySearch.trim())
+      );
     },
     hasActiveQueueFilter() {
       return Boolean(this.filterStatus || this.filterChannel || (this.searchQuery && this.searchQuery.trim()));
@@ -1456,6 +1586,86 @@ export default {
       this.historySearch = '';
       this.historyPage = 1;
       this.fetchAlarmHistory();
+    },
+    async deleteAlarmHistoryItem(item) {
+      if (!this.canDeleteAlarmHistory || !item || !item.id) return;
+      if (!window.confirm(`Hapus riwayat alarm "${item.alarm_code}" secara permanen?`)) return;
+
+      this.deletingAlarmId = item.id;
+      try {
+        const res = await axios.delete(`/api/alarms/${item.id}`, {
+          headers: this.getAuthHeaders(),
+        });
+        if (res.data && res.data.success) {
+          if (this.selectedIncident && this.selectedIncident.id === item.id) {
+            this.showIncidentModal = false;
+            this.selectedIncident = null;
+          }
+          if (this.historyItems.length <= 1 && this.historyPage > 1) {
+            this.historyPage -= 1;
+          }
+          this.showToast('Riwayat alarm berhasil dihapus');
+          this.fetchAlarmHistory();
+          this.refreshAlarms();
+          if (this.$store && this.$store.dispatch) {
+            this.$store.dispatch('fetchActiveAlarms').catch(() => {});
+          }
+          this.fetchNotifications();
+          this.fetchMetrics();
+        }
+      } catch (err) {
+        const msg = (err.response && err.response.data && (err.response.data.error || err.response.data.message)) || err.message;
+        this.showToast('Gagal menghapus riwayat alarm: ' + msg, 'error');
+      } finally {
+        this.deletingAlarmId = null;
+      }
+    },
+    openPurgeHistoryModal() {
+      if (!this.canDeleteAlarmHistory) return;
+      this.purgeHistoryScope = 'ALL';
+      this.showPurgeHistoryModal = true;
+    },
+    async confirmPurgeAlarmHistory() {
+      if (!this.canDeleteAlarmHistory || this.isPurgingHistory) return;
+
+      let payload = {};
+      if (this.purgeHistoryScope === 'CLEARED_ONLY') {
+        payload = { status: 'CLEARED' };
+      } else if (this.purgeHistoryScope === 'FILTERED' && this.hasActiveHistoryFilter) {
+        payload = {
+          status: this.historyStatus || '',
+          severity: this.historySeverity || '',
+          device_id: this.historyDeviceID ? Number(this.historyDeviceID) : 0,
+          start_time: this.historyStartDate ? `${this.historyStartDate}T00:00:00Z` : '',
+          end_time: this.historyEndDate ? `${this.historyEndDate}T23:59:59Z` : '',
+          search: (this.historySearch && this.historySearch.trim()) || '',
+        };
+      }
+
+      this.isPurgingHistory = true;
+      try {
+        const res = await axios.post('/api/alarms/history/purge', payload, {
+          headers: this.getAuthHeaders(),
+        });
+        if (res.data && res.data.success) {
+          const deletedCount = (res.data.data && res.data.data.deleted_count) || 0;
+          this.showPurgeHistoryModal = false;
+          this.historyPage = 1;
+          this.showToast(`Berhasil menghapus ${deletedCount} data riwayat alarm`);
+          this.fetchAlarmHistory();
+          this.refreshAlarms();
+          if (this.$store && this.$store.dispatch) {
+            this.$store.dispatch('fetchActiveAlarms').catch(() => {});
+          }
+          this.fetchNotifications();
+          this.fetchMetrics();
+        }
+      } catch (err) {
+        const msg = (err.response && err.response.data && (err.response.data.error || err.response.data.message)) || err.message;
+        this.showToast('Gagal menghapus semua riwayat alarm: ' + msg, 'error');
+      } finally {
+        this.isPurgingHistory = false;
+      }
     },
 
     // ------------------------------------------

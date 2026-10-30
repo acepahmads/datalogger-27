@@ -110,7 +110,10 @@ func setupAuthenticatedAlarmRouter(t *testing.T) (*gin.Engine, *gorm.DB, string,
 			alarmsGroup.GET("", middleware.RequirePermission("alarm.view"), systemHandler.GetAlarms)
 			alarmsGroup.GET("/active", middleware.RequirePermission("alarm.view"), systemHandler.GetActiveAlarms)
 			alarmsGroup.GET("/history", middleware.RequirePermission("alarm.view"), systemHandler.GetAlarmHistory)
+			alarmsGroup.DELETE("/history", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN"), systemHandler.PurgeAlarmHistory)
+			alarmsGroup.POST("/history/purge", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN"), systemHandler.PurgeAlarmHistory)
 			alarmsGroup.GET("/:id", middleware.RequirePermission("alarm.view"), systemHandler.GetAlarmByID)
+			alarmsGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN"), systemHandler.DeleteAlarm)
 			alarmsGroup.POST("", middleware.RequirePermission("alarm.manage"), systemHandler.CreateAlarm)
 			alarmsGroup.PUT("/:id/acknowledge", middleware.RequirePermission("alarm.acknowledge"), systemHandler.AcknowledgeAlarm)
 			alarmsGroup.PUT("/:id/clear", middleware.RequirePermission("alarm.manage"), systemHandler.ClearAlarm)
@@ -757,5 +760,151 @@ func TestAlarmAPI_Wave4_AlarmHistory(t *testing.T) {
 	}
 
 	_ = db
+}
+
+func TestAlarmAPI_HistoryDeleteAndDeleteAllRBAC(t *testing.T) {
+	r, db, superadminToken, engineerToken, operatorToken, svc, systemRepo := setupAuthenticatedAlarmRouter(t)
+	ctx := context.Background()
+
+	// Create explicit ADMIN role user (seed 'admin' user is Superadmin)
+	var adminRole model.Role
+	if err := db.Where("UPPER(name) = ?", "ADMIN").First(&adminRole).Error; err != nil || adminRole.ID == 0 {
+		adminRole = model.Role{Name: "Admin", Description: "Admin role"}
+		db.Create(&adminRole)
+	}
+	adminHash, _ := bcrypt.GenerateFromPassword([]byte("adminonly123"), bcrypt.DefaultCost)
+	db.Create(&model.User{
+		Username: "admin_history_test",
+		Email:    "admin_history@test.local",
+		Password: string(adminHash),
+		FullName: "Admin History User",
+		RoleID:   adminRole.ID,
+		IsActive: true,
+	})
+	authSvc := service.NewAuthService(systemRepo, config.DefaultConfig())
+	adminRoleToken, _, errLogin := authSvc.Login("admin_history_test", "adminonly123", "127.0.0.1", "TestClient")
+	if errLogin != nil {
+		t.Fatalf("failed login as admin_history_test: %v", errLogin)
+	}
+
+	// Create 3 alarms (2 CLEARED, 1 ACTIVE) + dependent Notification rows
+	now := time.Now().UTC()
+	a1 := &model.Alarm{
+		AlarmCode:   "HIST_DEL_1",
+		Severity:    model.SeverityWarning,
+		Message:     "Cleared history 1",
+		Status:      model.AlarmCleared,
+		TriggeredAt: now.Add(-10 * time.Minute),
+		ClearedAt:   &now,
+	}
+	a2 := &model.Alarm{
+		AlarmCode:   "HIST_DEL_2",
+		Severity:    model.SeverityWarning,
+		Message:     "Cleared history 2",
+		Status:      model.AlarmCleared,
+		TriggeredAt: now.Add(-5 * time.Minute),
+		ClearedAt:   &now,
+	}
+	a3 := &model.Alarm{
+		AlarmCode:   "HIST_DEL_3",
+		Severity:    model.SeverityCritical,
+		Message:     "Active incident 3",
+		Status:      model.AlarmActive,
+		TriggeredAt: now.Add(-1 * time.Minute),
+	}
+	_ = svc.CreateAlarm(ctx, a1)
+	_ = svc.CreateAlarm(ctx, a2)
+	_ = svc.CreateAlarm(ctx, a3)
+
+	// Attach dependent notifications to verify FK-safe deletion
+	db.Create(&model.Notification{
+		AlarmID:   a1.ID,
+		Channel:   "EMAIL",
+		Recipient: "ops@plant.local",
+		Message:   "Notif for a1",
+		Status:    model.NotificationFailed,
+	})
+	db.Create(&model.Notification{
+		AlarmID:   a2.ID,
+		Channel:   "TELEGRAM",
+		Recipient: "-100111",
+		Message:   "Notif for a2",
+		Status:    model.NotificationSent,
+	})
+
+	// 1. OPERATOR and ENGINEER MUST get 403 Forbidden on both single Delete and Delete All
+	for _, tc := range []struct {
+		roleName string
+		token    string
+	}{
+		{roleName: "OPERATOR", token: operatorToken},
+		{roleName: "ENGINEER", token: engineerToken},
+	} {
+		reqDel, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/alarms/%d", a1.ID), nil)
+		reqDel.Header.Set("Authorization", "Bearer "+tc.token)
+		wDel := httptest.NewRecorder()
+		r.ServeHTTP(wDel, reqDel)
+		if wDel.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 Forbidden for %s single alarm delete, got %d: %s", tc.roleName, wDel.Code, wDel.Body.String())
+		}
+
+		reqPurge, _ := http.NewRequest(http.MethodPost, "/api/alarms/history/purge", bytes.NewBufferString(`{}`))
+		reqPurge.Header.Set("Authorization", "Bearer "+tc.token)
+		reqPurge.Header.Set("Content-Type", "application/json")
+		wPurge := httptest.NewRecorder()
+		r.ServeHTTP(wPurge, reqPurge)
+		if wPurge.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 Forbidden for %s alarm history purge, got %d: %s", tc.roleName, wPurge.Code, wPurge.Body.String())
+		}
+	}
+
+	// 2. ADMIN role can delete a single alarm (and its dependent notification)
+	reqAdminDel, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/alarms/%d", a1.ID), nil)
+	reqAdminDel.Header.Set("Authorization", "Bearer "+adminRoleToken)
+	wAdminDel := httptest.NewRecorder()
+	r.ServeHTTP(wAdminDel, reqAdminDel)
+	if wAdminDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for ADMIN single alarm delete, got %d: %s", wAdminDel.Code, wAdminDel.Body.String())
+	}
+
+	// Repeat delete -> 404 Not Found
+	reqAgain, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("/api/alarms/%d", a1.ID), nil)
+	reqAgain.Header.Set("Authorization", "Bearer "+adminRoleToken)
+	wAgain := httptest.NewRecorder()
+	r.ServeHTTP(wAgain, reqAgain)
+	if wAgain.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found deleting already-deleted alarm, got %d", wAgain.Code)
+	}
+
+	// 3. SUPERADMIN can Delete All alarm history via POST /api/alarms/history/purge
+	reqAll, _ := http.NewRequest(http.MethodPost, "/api/alarms/history/purge", bytes.NewBufferString(`{}`))
+	reqAll.Header.Set("Authorization", "Bearer "+superadminToken)
+	reqAll.Header.Set("Content-Type", "application/json")
+	wAll := httptest.NewRecorder()
+	r.ServeHTTP(wAll, reqAll)
+	if wAll.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for SUPERADMIN Delete All alarm history, got %d: %s", wAll.Code, wAll.Body.String())
+	}
+
+	var purgeResp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			DeletedCount int64 `json:"deleted_count"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wAll.Body.Bytes(), &purgeResp)
+	if !purgeResp.Success || purgeResp.Data.DeletedCount != 2 {
+		t.Errorf("expected deleted_count=2 on Delete All, got %+v", purgeResp)
+	}
+
+	var remainingAlarms, remainingNotifs int64
+	db.Model(&model.Alarm{}).Count(&remainingAlarms)
+	db.Model(&model.Notification{}).Count(&remainingNotifs)
+	if remainingAlarms != 0 {
+		t.Errorf("expected 0 alarms remaining after Delete All, got %d", remainingAlarms)
+	}
+	if remainingNotifs != 0 {
+		t.Errorf("expected 0 dependent notifications remaining after Delete All, got %d", remainingNotifs)
+	}
 }
 

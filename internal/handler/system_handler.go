@@ -729,6 +729,139 @@ func (h *SystemHandler) ClearAlarm(c *gin.Context) {
 	})
 }
 
+func isAlarmAdminOrSuperadmin(c *gin.Context) bool {
+	roleVal, exists := c.Get("role")
+	if !exists || roleVal == nil {
+		return false
+	}
+	role, _ := roleVal.(string)
+	upper := strings.ToUpper(strings.TrimSpace(role))
+	return upper == "SUPERADMIN" || upper == "ADMIN" || upper == "ADMINISTRATOR"
+}
+
+// DeleteAlarm handles DELETE /api/alarms/:id (Strictly ADMIN and SUPERADMIN only)
+func (h *SystemHandler) DeleteAlarm(c *gin.Context) {
+	if !isAlarmAdminOrSuperadmin(c) {
+		response.Forbidden(c, "Hanya Admin dan Superadmin yang diizinkan menghapus riwayat alarm")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil || id == 0 {
+		response.BadRequest(c, "Invalid alarm ID")
+		return
+	}
+
+	var userID *uint
+	if uidVal, exists := c.Get("userID"); exists {
+		if uid, ok := uidVal.(uint); ok && uid > 0 {
+			userID = &uid
+		}
+	}
+	username := "admin"
+	if u, exists := c.Get("username"); exists {
+		if uStr, ok := u.(string); ok && strings.TrimSpace(uStr) != "" {
+			username = uStr
+		}
+	}
+
+	deleted, err := h.systemService.DeleteAlarm(c.Request.Context(), uint(id), userID, username)
+	if err != nil {
+		if errors.Is(err, repository.ErrAlarmNotFound) {
+			response.NotFound(c, "Alarm not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"deleted":    true,
+		"id":         deleted.ID,
+		"alarm_code": deleted.AlarmCode,
+		"status":     deleted.Status,
+	})
+}
+
+// PurgeAlarmHistory handles DELETE /api/alarms/history and POST /api/alarms/history/purge (Strictly ADMIN and SUPERADMIN only)
+func (h *SystemHandler) PurgeAlarmHistory(c *gin.Context) {
+	if !isAlarmAdminOrSuperadmin(c) {
+		response.Forbidden(c, "Hanya Admin dan Superadmin yang diizinkan menghapus semua riwayat alarm")
+		return
+	}
+
+	var body struct {
+		Status    string `json:"status"`
+		Severity  string `json:"severity"`
+		DeviceID  uint   `json:"device_id"`
+		StartTime string `json:"start_time"`
+		EndTime   string `json:"end_time"`
+		Search    string `json:"search"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	status := strings.TrimSpace(body.Status)
+	if status == "" {
+		status = strings.TrimSpace(c.Query("status"))
+	}
+	severity := strings.TrimSpace(body.Severity)
+	if severity == "" {
+		severity = strings.TrimSpace(c.Query("severity"))
+	}
+	devID := body.DeviceID
+	if devID == 0 {
+		if dStr := c.Query("device_id"); dStr != "" {
+			if v, err := strconv.ParseUint(dStr, 10, 32); err == nil {
+				devID = uint(v)
+			}
+		}
+	}
+	startStr := strings.TrimSpace(body.StartTime)
+	if startStr == "" {
+		startStr = strings.TrimSpace(c.Query("start_time"))
+	}
+	endStr := strings.TrimSpace(body.EndTime)
+	if endStr == "" {
+		endStr = strings.TrimSpace(c.Query("end_time"))
+	}
+	search := strings.TrimSpace(body.Search)
+	if search == "" {
+		search = strings.TrimSpace(c.Query("search"))
+	}
+
+	filter := repository.AlarmFilterParams{
+		Status:    status,
+		Severity:  severity,
+		DeviceID:  devID,
+		Search:    search,
+		StartTime: parseFlexibleTime(startStr),
+		EndTime:   parseFlexibleTime(endStr),
+	}
+
+	var userID *uint
+	if uidVal, exists := c.Get("userID"); exists {
+		if uid, ok := uidVal.(uint); ok && uid > 0 {
+			userID = &uid
+		}
+	}
+	username := "admin"
+	if u, exists := c.Get("username"); exists {
+		if uStr, ok := u.(string); ok && strings.TrimSpace(uStr) != "" {
+			username = uStr
+		}
+	}
+
+	deletedCount, err := h.systemService.PurgeAlarms(c.Request.Context(), filter, userID, username)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{
+		"deleted_count": deletedCount,
+	})
+}
+
 // Redaction & Date Helpers
 var sensitiveLogPattern = regexp.MustCompile(`(?i)(password|secret|token|api_key|bot_token|auth_token|bearer)\s*[:=]\s*["']?([^\s"',;]+)["']?`)
 

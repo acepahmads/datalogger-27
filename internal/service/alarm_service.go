@@ -17,6 +17,7 @@ type AlarmService struct {
 	alarmRepo          *repository.AlarmRepository
 	systemRepo         *repository.SystemRepository
 	notificationEngine *NotificationEngine
+	alarmEvaluator     *AlarmEvaluator
 	hub                *websocket.Hub
 }
 
@@ -36,6 +37,11 @@ func (s *AlarmService) SetHub(hub *websocket.Hub) {
 // SetNotificationEngine injects the Phase 6 NotificationEngine
 func (s *AlarmService) SetNotificationEngine(ne *NotificationEngine) {
 	s.notificationEngine = ne
+}
+
+// SetAlarmEvaluator injects the in-memory AlarmEvaluator so active caches stay synced upon alarm deletion/purge
+func (s *AlarmService) SetAlarmEvaluator(ae *AlarmEvaluator) {
+	s.alarmEvaluator = ae
 }
 
 // CreateAlarm validates and persists a new alarm record
@@ -299,4 +305,90 @@ func (s *AlarmService) ClearAllParameterAlarms(ctx context.Context, paramID uint
 		}
 	}
 	return nil
+}
+
+// DeleteAlarm permanently removes a single alarm record (and dependent notification entries),
+// syncing in-memory active alarm caches and audit logs.
+func (s *AlarmService) DeleteAlarm(ctx context.Context, id uint, userID *uint, username string) (*model.Alarm, error) {
+	if strings.TrimSpace(username) == "" {
+		username = "admin"
+	}
+
+	deleted, err := s.alarmRepo.DeleteAlarm(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	logger.Info("Alarm %d (%s, status=%s) deleted permanently by '%s'", deleted.ID, deleted.AlarmCode, deleted.Status, username)
+
+	if s.systemRepo != nil {
+		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			UserID:    userID,
+			Username:  username,
+			Action:    "ALARM_DELETE",
+			Resource:  "ALARM",
+			Details:   fmt.Sprintf("Alarm %d (%s, status=%s) deleted permanently by %s", deleted.ID, deleted.AlarmCode, deleted.Status, username),
+			CreatedAt: now,
+		})
+	}
+
+	if deleted.Status == model.AlarmActive || deleted.Status == model.AlarmAcked {
+		if s.alarmEvaluator != nil {
+			_ = s.alarmEvaluator.ReloadActiveAlarms(ctx)
+		}
+		if s.hub != nil {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "alarm.cleared",
+				Timestamp: now,
+				Data:      map[string]interface{}{"id": deleted.ID},
+			})
+		}
+	}
+
+	return deleted, nil
+}
+
+// PurgeAlarms permanently deletes alarm records matching filter (or all alarms when unfiltered),
+// syncing in-memory active alarm caches and audit logs.
+func (s *AlarmService) PurgeAlarms(ctx context.Context, filter repository.AlarmFilterParams, userID *uint, username string) (int64, error) {
+	if strings.TrimSpace(username) == "" {
+		username = "admin"
+	}
+
+	deletedCount, activeDeletedIDs, err := s.alarmRepo.PurgeAlarms(ctx, filter)
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now().UTC()
+	logger.Info("Purged %d alarm record(s) (active_affected=%d) by '%s'", deletedCount, len(activeDeletedIDs), username)
+
+	if s.systemRepo != nil {
+		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			UserID:    userID,
+			Username:  username,
+			Action:    "ALARM_PURGE",
+			Resource:  "ALARM",
+			Details:   fmt.Sprintf("Purged %d alarm history record(s) by %s", deletedCount, username),
+			CreatedAt: now,
+		})
+	}
+
+	if len(activeDeletedIDs) > 0 {
+		if s.alarmEvaluator != nil {
+			_ = s.alarmEvaluator.ReloadActiveAlarms(ctx)
+		}
+		if s.hub != nil {
+			for _, activeID := range activeDeletedIDs {
+				s.hub.Broadcast(websocket.WSMessage{
+					Type:      "alarm.cleared",
+					Timestamp: now,
+					Data:      map[string]interface{}{"id": activeID},
+				})
+			}
+		}
+	}
+
+	return deletedCount, nil
 }
