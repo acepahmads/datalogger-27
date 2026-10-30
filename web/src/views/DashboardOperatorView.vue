@@ -2355,74 +2355,295 @@
         @device-change="handleIspuDeviceChange"
       />
 
-      <!-- Parameter Workspace: Category Pills + Quick View Switcher + Dense Cards / Dual Table -->
+      <!-- Parameter Workspace: Compact Icon Filter + Icon Card/Table Setup + Dense Cards / Dual Table -->
       <div class="right-params-wrap">
-        <div class="cat-bar">
-          <div class="cat-pills no-scrollbar">
-            <button
-              type="button"
-              class="cat-pill"
-              :class="{ active: selectedCategoryFilter === 'all' && !filterPinnedOnly }"
-              @click="selectBentoAllParams"
-            >
-              <span>Semua ({{ allParameters.length }})</span>
-            </button>
+        <div
+          class="param-ctrl-bar"
+          :class="{ 'has-open-popover': bentoActiveMiniPopover === 'paramFilter' || bentoActiveMiniPopover === 'cardSetup' }"
+        >
+          <!-- Left: Icon-Only Filter Popover + Icon Pin Toggle + Compact Active Filter Indicator -->
+          <div class="param-ctrl-left">
+            <!-- 1. Category & Parameter Filter Icon Popover -->
+            <div class="relative bento-mini-popover-anchor">
+              <button
+                id="btn-bento-param-filter"
+                type="button"
+                @click="toggleBentoMiniPopover('paramFilter')"
+                class="op-icon-btn xs"
+                :class="{
+                  'is-active': bentoActiveMiniPopover === 'paramFilter' || selectedCategoryFilter !== 'all'
+                }"
+                :title="'Filter Kategori Parameter (' + activeBentoCategoryName + ')'"
+                aria-label="Filter Parameter"
+              >
+                <OperatorDashboardIcon name="filter" :size="13" />
+                <span v-if="selectedCategoryFilter !== 'all'" class="op-corner-dot dot-sky"></span>
+              </button>
 
+              <div
+                v-if="bentoActiveMiniPopover === 'paramFilter'"
+                class="bento-mini-popover align-left w-64"
+              >
+                <div class="bmp-head">
+                  <span class="bmp-title">Filter Parameter</span>
+                  <div class="flex items-center gap-1">
+                    <button
+                      v-if="selectedCategoryFilter !== 'all' || filterPinnedOnly"
+                      type="button"
+                      class="bmp-link-btn"
+                      @click="selectBentoAllParams(); bentoActiveMiniPopover = null"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      v-if="canManageCategories || canViewCategories"
+                      type="button"
+                      class="mini-icon-btn"
+                      title="Kelola Kategori Parameter"
+                      @click="openCategoryManagementModal(); bentoActiveMiniPopover = null"
+                    >
+                      <OperatorDashboardIcon name="settings" :size="12" />
+                    </button>
+                  </div>
+                </div>
+
+                <div class="bmp-list custom-scroller">
+                  <button
+                    type="button"
+                    class="bmp-item"
+                    :class="{ active: selectedCategoryFilter === 'all' && !filterPinnedOnly }"
+                    @click="selectBentoAllParams(); bentoActiveMiniPopover = null"
+                  >
+                    <span class="bmp-item-left">
+                      <span class="bmp-dot" style="background: #0284C7;"></span>
+                      <span>Semua Parameter</span>
+                    </span>
+                    <span class="bmp-count">{{ allParameters.length }}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="bmp-item"
+                    :class="{ active: filterPinnedOnly }"
+                    @click="toggleFilterPinned(); bentoActiveMiniPopover = null"
+                  >
+                    <span class="bmp-item-left">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.8" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                      <span>Favorit Dipin</span>
+                    </span>
+                    <span class="bmp-count">{{ pinnedParametersList.length }}</span>
+                  </button>
+
+                  <div v-if="activeCategoriesList.length > 0" class="bmp-divider"></div>
+
+                  <button
+                    v-for="cat in activeCategoriesList"
+                    :key="'bento-cat-opt-' + cat.id"
+                    type="button"
+                    class="bmp-item"
+                    :class="{ active: !filterPinnedOnly && Number(selectedCategoryFilter) === Number(cat.id) }"
+                    @click="selectBentoCategory(cat.id); bentoActiveMiniPopover = null"
+                  >
+                    <span class="bmp-item-left min-w-0">
+                      <span class="bmp-dot" :style="{ background: cat.color || '#10B981' }"></span>
+                      <span class="truncate">{{ cat.name }}</span>
+                    </span>
+                    <span class="bmp-count">{{ getBentoCategoryCount(cat.id) }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. 1-Click Pinned / Favorites Icon Button -->
             <button
+              id="btn-bento-param-pin"
               type="button"
-              class="cat-pill"
-              :class="{ active: filterPinnedOnly }"
               @click="toggleFilterPinned"
+              class="op-icon-btn xs"
+              :class="{ 'is-amber': filterPinnedOnly }"
+              :title="filterPinnedOnly ? 'Tampilkan Semua (Matikan Filter Favorit)' : ('Filter Parameter Favorit (' + pinnedParametersList.length + ')')"
+              aria-label="Filter Favorit"
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.8" stroke-linejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
-              <span>Favorit ({{ pinnedParametersList.length }})</span>
+              <OperatorDashboardIcon name="pin" :size="13" />
+              <span v-if="pinnedParametersList.length > 0" class="op-corner-pill tone-amber">{{ pinnedParametersList.length }}</span>
+            </button>
+
+            <!-- Compact Channel Counter + Active Filter Dismissible Tag -->
+            <span class="param-count-tag">
+              <strong>{{ filteredParameters.length }}</strong><template v-if="filteredParameters.length !== allParameters.length">/{{ allParameters.length }}</template>
+              <span>Kanal</span>
+            </span>
+
+            <button
+              v-if="filterPinnedOnly"
+              type="button"
+              class="active-filter-chip amber"
+              @click="toggleFilterPinned"
+              title="Hapus filter favorit"
+            >
+              <span>★ Favorit</span>
+              <span class="afc-x">×</span>
             </button>
 
             <button
-              v-for="cat in activeCategoriesList"
-              :key="'bento-cat-' + cat.id"
+              v-else-if="selectedCategoryFilter !== 'all'"
               type="button"
-              class="cat-pill"
-              :class="{ active: !filterPinnedOnly && Number(selectedCategoryFilter) === Number(cat.id) }"
-              @click="selectBentoCategory(cat.id)"
+              class="active-filter-chip"
+              @click="selectBentoAllParams"
+              title="Hapus filter kategori"
             >
-              <span>{{ cat.name }}</span>
+              <span class="truncate max-w-[140px]">{{ activeBentoCategoryName }}</span>
+              <span class="afc-x">×</span>
             </button>
           </div>
 
-          <!-- Right Quick View Mode Switcher: Auto Cards vs 2-Table Side-by-Side vs 1-Table -->
-          <div class="view-quick-capsule flex-shrink-0">
-            <button
-              type="button"
-              class="vq-btn"
-              :class="{ active: viewMode === 'cards' }"
-              @click="setBentoDisplayMode('auto-cards')"
-              title="Tampilan Kartu Otomatis (Menyesuaikan lebar layar & jumlah sensor)"
-            >
-              <OperatorDashboardIcon name="layout" :size="11" />
-              <span>{{ bentoAutoGrid ? ('Kartu Otomatis (' + effectiveBentoCols + 'P)') : ('Kartu (' + effectiveBentoCols + 'P)') }}</span>
-            </button>
-            <button
-              type="button"
-              class="vq-btn"
-              :class="{ active: viewMode === 'table' && bentoTableSplitMode === '2T' }"
-              @click="setBentoDisplayMode('2T')"
-              title="Tampilan 2 Tabel ke Samping (Hemat Ruang Vertikal)"
-            >
-              <OperatorDashboardIcon name="menu" :size="11" />
-              <span>2 Tabel Samping</span>
-            </button>
-            <button
-              type="button"
-              class="vq-btn hidden sm:inline-flex"
-              :class="{ active: viewMode === 'table' && bentoTableSplitMode === '1T' }"
-              @click="setBentoDisplayMode('1T')"
-              title="Tampilan 1 Tabel Penuh"
-            >
-              <span>1 Tabel</span>
-            </button>
+          <!-- Right: Icon-Only Card & Table Display Switcher + Setup Popover -->
+          <div class="param-ctrl-right flex-shrink-0">
+            <div class="icon-seg-capsule" role="group" aria-label="Mode Tampilan Parameter">
+              <!-- Cards Mode Icon -->
+              <button
+                id="btn-bento-view-cards"
+                type="button"
+                class="isc-btn"
+                :class="{ active: viewMode === 'cards' }"
+                @click="setBentoDisplayMode('auto-cards')"
+                :title="'Tampilan Kartu (' + (bentoAutoGrid ? 'Otomatis ' : '') + effectiveBentoCols + 'P)'"
+                aria-label="Mode Kartu"
+              >
+                <OperatorDashboardIcon name="layout" :size="13" />
+              </button>
+
+              <!-- 2-Table Side-by-Side Icon -->
+              <button
+                id="btn-bento-view-2t"
+                type="button"
+                class="isc-btn"
+                :class="{ active: viewMode === 'table' && bentoTableSplitMode === '2T' }"
+                @click="setBentoDisplayMode('2T')"
+                title="Tampilan 2 Tabel ke Samping (2T)"
+                aria-label="Mode 2 Tabel Samping"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2.5" y="4" width="8" height="16" rx="1.8" />
+                  <rect x="13.5" y="4" width="8" height="16" rx="1.8" />
+                  <line x1="5" y1="8.5" x2="8" y2="8.5" />
+                  <line x1="5" y1="12" x2="8" y2="12" />
+                  <line x1="5" y1="15.5" x2="8" y2="15.5" />
+                  <line x1="16" y1="8.5" x2="19" y2="8.5" />
+                  <line x1="16" y1="12" x2="19" y2="12" />
+                  <line x1="16" y1="15.5" x2="19" y2="15.5" />
+                </svg>
+              </button>
+
+              <!-- 1-Table Full Width Icon -->
+              <button
+                id="btn-bento-view-1t"
+                type="button"
+                class="isc-btn"
+                :class="{ active: viewMode === 'table' && bentoTableSplitMode === '1T' }"
+                @click="setBentoDisplayMode('1T')"
+                title="Tampilan 1 Tabel Penuh (1T)"
+                aria-label="Mode 1 Tabel Penuh"
+              >
+                <OperatorDashboardIcon name="menu" :size="13" />
+              </button>
+            </div>
+
+            <!-- Setup Card & Table Density Icon Popover -->
+            <div class="relative bento-mini-popover-anchor">
+              <button
+                id="btn-bento-card-setup"
+                type="button"
+                @click="toggleBentoMiniPopover('cardSetup')"
+                class="op-icon-btn xs"
+                :class="{ 'is-active': bentoActiveMiniPopover === 'cardSetup' || !bentoAutoGrid }"
+                :title="'Setup Kartu & Tabel (' + (viewMode === 'table' ? bentoTableSplitMode : ((bentoAutoGrid ? 'Auto ' : '') + effectiveBentoCols + 'P')) + ')'"
+                aria-label="Setup Kartu dan Tabel"
+              >
+                <OperatorDashboardIcon name="sliders" :size="13" />
+                <span class="op-corner-pill tone-Density">
+                  {{ viewMode === 'table' ? bentoTableSplitMode : (effectiveBentoCols + 'P') }}
+                </span>
+              </button>
+
+              <div
+                v-if="bentoActiveMiniPopover === 'cardSetup'"
+                class="bento-mini-popover align-right w-64"
+              >
+                <div class="bmp-head">
+                  <span class="bmp-title">Setup Kartu &amp; Tabel</span>
+                  <span class="bmp-badge">{{ viewMode === 'table' ? ('Tabel ' + bentoTableSplitMode) : ((bentoAutoGrid ? 'Auto · ' : 'Manual · ') + effectiveBentoCols + 'P') }}</span>
+                </div>
+
+                <div class="bmp-section">
+                  <div class="bmp-label">Mode Tampilan</div>
+                  <div class="bmp-seg-grid cols-3">
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'cards' }"
+                      @click="setBentoDisplayMode('auto-cards')"
+                    >
+                      Kartu
+                    </button>
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'table' && bentoTableSplitMode === '2T' }"
+                      @click="setBentoDisplayMode('2T')"
+                    >
+                      2 Tabel
+                    </button>
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'table' && bentoTableSplitMode === '1T' }"
+                      @click="setBentoDisplayMode('1T')"
+                    >
+                      1 Tabel
+                    </button>
+                  </div>
+                </div>
+
+                <div class="bmp-section">
+                  <div class="bmp-label">Kolom Kartu Parameter</div>
+                  <div class="bmp-seg-grid cols-6">
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'cards' && bentoAutoGrid }"
+                      @click="setBentoDisplayMode('auto-cards')"
+                      title="Otomatis menyesuaikan ukuran layar"
+                    >
+                      Auto
+                    </button>
+                    <button
+                      v-for="col in [1, 2, 3, 4, 5]"
+                      :key="'bento-col-setup-' + col"
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'cards' && !bentoAutoGrid && Number(gridColumns) === col }"
+                      @click="setGridColumns(col)"
+                    >
+                      {{ col }}P
+                    </button>
+                  </div>
+                </div>
+
+                <div class="bmp-divider"></div>
+
+                <label class="bmp-toggle-row">
+                  <span>Indikator Kedip Data Baru</span>
+                  <input
+                    type="checkbox"
+                    :checked="perfSettings.cardBlinksEnabled"
+                    @change="setPerfSetting('cardBlinksEnabled', $event.target.checked)"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2808,224 +3029,150 @@
     </section>
 
     <!-- =================================================================== -->
-    <!-- 3. BOTTOM ZONE: COMPLETE TREND ANALYSIS STUDIO (ICON-ONLY TOOLS)    -->
+    <!-- 3. BOTTOM ZONE: COMPLETE TREND ANALYSIS STUDIO (COMPACT 1-ROW BAR)  -->
     <!-- =================================================================== -->
     <section v-if="perfSettings.trendAnalysisEnabled" class="trend-studio">
-      <!-- Row 1: Title, Live Diagnostics, Processed/Raw Switch, Timeframes, Icon Download & Fullscreen -->
-      <div class="ts-row1">
-        <div class="ts-left flex-wrap">
-          <span class="ts-title">Analisis Tren Telemetri</span>
+      <!-- Single Compact Control Bar: Zero Horizontal Scrollbar, Minimal Vertical Footprint -->
+      <div
+        class="ts-compact-bar"
+        :class="{ 'has-open-popover': bentoActiveMiniPopover === 'trendFilter' || bentoActiveMiniPopover === 'trendHeight' || showTrendSettingsMenu || showTrendDownloadMenu || showLineSmoothMenu }"
+      >
+        <!-- Left Cluster: Concise Title, Compact Live/Diag Dot, Filter Parameter Popover, Chart Tool Icons -->
+        <div class="ts-c-left">
+          <span class="ts-title">Analisis Tren</span>
 
+          <!-- Consolidated Live & Communication Badge (Hover for full diagnostic details + latency) -->
           <span
             class="live-badge"
-            :class="$store.state.wsConnected ? 'is-live' : 'is-offline'"
-            :title="$store.state.wsConnected ? 'Koneksi WebSocket aktif · Auto-update 1 menit' : 'Koneksi WebSocket terputus'"
+            :class="!$store.state.wsConnected ? 'is-offline' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'is-live' : 'is-warn')"
+            :title="($store.state.wsConnected ? 'WebSocket Aktif · ' : 'WebSocket Terputus · ') + (trendCommDiagnostics.badge || '') + (trendCommDiagnostics.message ? ' — ' + trendCommDiagnostics.message : '') + (pipelineDiagnostics && pipelineDiagnostics.sampleCount > 0 ? ' · Latency ' + pipelineDiagnostics.totalEndToEndMs + 'ms' : '')"
           >
-            <span class="status-dot" :class="$store.state.wsConnected ? 'dot-emerald' : 'dot-rose'"></span>
-            <span>{{ $store.state.wsConnected ? (isCompactScreen ? 'LIVE · 1M' : 'LIVE CONNECTED · AUTO 1M') : 'DISCONNECTED' }}</span>
-          </span>
-
-          <span class="diag-pill" :title="trendCommDiagnostics.message">
             <span
-              class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              :style="{ background: trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? '#10B981' : (trendCommDiagnostics.state === 'DEVICE_OFFLINE' || trendCommDiagnostics.state === 'PARTIAL_OFFLINE' || trendCommDiagnostics.state === 'API_ERROR' ? '#F43F5E' : '#F59E0B') }"
+              class="status-dot"
+              :class="!$store.state.wsConnected ? 'dot-rose' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'dot-emerald' : 'dot-amber')"
             ></span>
-            <span>{{ trendCommDiagnostics.badge }}</span>
-            <span v-if="!isCompactScreen && trendCommDiagnostics.lastTimeFormatted && trendCommDiagnostics.lastTimeFormatted !== '-'" class="opacity-80">
-              · {{ trendCommDiagnostics.lastTimeFormatted }}<template v-if="trendCommDiagnostics.secondsAgo != null"> ({{ trendCommDiagnostics.secondsAgo }}s lalu)</template>
-            </span>
-          </span>
-
-          <span
-            v-if="pipelineDiagnostics && pipelineDiagnostics.sampleCount > 0"
-            class="diag-pill diag-pill-accent hidden md:inline-flex"
-            :title="'End-to-end latency: ' + pipelineDiagnostics.totalEndToEndMs + 'ms'"
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-            <span>{{ (pipelineDiagnostics.lastIntervalMs ? (pipelineDiagnostics.lastIntervalMs / 1000).toFixed(1) : (configuredPollingIntervalMs / 1000).toFixed(0)) }}s · {{ pipelineDiagnostics.totalEndToEndMs }}ms</span>
+            <span>{{ !$store.state.wsConnected ? 'OFFLINE' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'LIVE' : trendCommDiagnostics.badge) }}</span>
           </span>
 
           <button
             v-if="trendCommDiagnostics.state === 'API_ERROR'"
             type="button"
             @click="fetchTrendData(false)"
-            class="op-icon-btn sm text-rose-500"
+            class="op-icon-btn xs text-rose-500"
             title="Muat ulang data grafik"
           >
-            <OperatorDashboardIcon name="reset" :size="13" />
+            <OperatorDashboardIcon name="reset" :size="12" />
           </button>
 
-          <button
-            v-if="hasOutlierSpike && trendScaleMode === 'auto'"
-            type="button"
-            @click="toggleTrendSpikeZoom"
-            class="diag-pill cursor-pointer"
-          >
-            <span>⚡ {{ activeSpikeSummary }} [{{ trendSpikeZoom === 'full' ? 'Focus Normal' : 'Full Span' }}]</span>
-          </button>
-
-          <!-- Direct 1-Click Processed / Raw Sensor Switch -->
-          <div v-if="canAccessRawTrendMode" class="capsule">
+          <!-- Compact Parameter Filter Popover Trigger (Replaces bulky horizontal chip row) -->
+          <div class="relative bento-mini-popover-anchor">
             <button
+              id="btn-bento-trend-filter"
               type="button"
-              class="cap-btn"
-              :class="{ active: chartMode === 'processed' }"
-              @click="setChartMode('processed')"
+              @click="toggleBentoMiniPopover('trendFilter')"
+              class="ts-filter-trigger"
+              :class="{ active: bentoActiveMiniPopover === 'trendFilter' }"
+              title="Filter & Pilih Parameter Grafik Tren"
+              aria-label="Filter Parameter Grafik"
             >
-              Processed
+              <OperatorDashboardIcon name="filter" :size="12" />
+              <span v-if="previewTrendDots.length > 0" class="ts-mini-dots">
+                <span
+                  v-for="(col, dIdx) in previewTrendDots"
+                  :key="'tdot-' + dIdx"
+                  class="ts-mini-dot"
+                  :style="{ background: col }"
+                ></span>
+              </span>
+              <span class="ts-filter-cnt">{{ activeTrendSeries.length }}/{{ allParameters.length }}</span>
             </button>
-            <button
-              type="button"
-              class="cap-btn"
-              :class="{ active: chartMode === 'raw' }"
-              @click="setChartMode('raw')"
+
+            <!-- Compact Multi-Select Parameter Popover -->
+            <div
+              v-if="bentoActiveMiniPopover === 'trendFilter'"
+              class="bento-mini-popover align-left w-80 sm:w-[356px]"
             >
-              Raw
-            </button>
-          </div>
-        </div>
-
-        <div class="ts-right flex-wrap">
-          <!-- Timeframe Presets + Periode -->
-          <div class="capsule">
-            <button
-              v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
-              :key="'bento-tf-' + tf"
-              type="button"
-              class="cap-btn"
-              :class="{ active: currentTimeframe === tf && !fullscreenIsCustom }"
-              @click="setTimeframe(tf)"
-            >
-              {{ tf }}
-            </button>
-            <button
-              type="button"
-              class="cap-btn"
-              :class="{ active: fullscreenIsCustom }"
-              @click="openCustomTrendModal"
-              title="Pilih & Unduh Grafik Periode Khusus"
-            >
-              <OperatorDashboardIcon name="calendar" :size="11" />
-              <span>Periode</span>
-            </button>
-          </div>
-
-          <!-- Icon-Only Download Graphic / Data Dropdown (Matching Operator Console) -->
-          <div class="relative trend-download-anchor">
-            <button
-              type="button"
-              @click.stop="toggleTrendDownloadMenu"
-              class="op-icon-btn sm"
-              :class="{ 'is-active': showTrendDownloadMenu }"
-              title="Unduh Grafik (PNG/SVG/PDF) atau Data (XLS/CSV/JSON)"
-              aria-label="Download Chart or Data"
-            >
-              <OperatorDashboardIcon name="download" :size="14" />
-            </button>
-                <div
-                  v-if="showTrendDownloadMenu"
-                  @click.stop
-                  class="absolute right-0 mt-1 w-56 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-2xl py-1.5 z-50 text-3xs font-mono select-none"
-                >
-                  <!-- Option 1: Custom Period Graphic Download -->
+              <div class="bmp-head">
+                <span class="bmp-title">Parameter Grafik ({{ activeTrendSeries.length }}/{{ allParameters.length }})</span>
+                <div class="flex items-center gap-1">
                   <button
                     type="button"
-                    @click="openCustomTrendModal(); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/10 dark:hover:bg-cyan-500/15 flex items-center space-x-2 text-cyan-600 dark:text-cyan-400 font-bold transition cursor-pointer border-b border-slate-100 dark:border-[#1E3048]"
+                    class="bmp-mini-act"
+                    @click="selectAllEligibleTrendSeries(true)"
+                    title="Plot Semua Parameter"
                   >
-                    <OperatorDashboardIcon name="calendar" :size="13" class="text-cyan-500" />
-                    <span>Download Grafik Periode...</span>
+                    <OperatorDashboardIcon name="check-all" :size="11" />
+                    <span>Semua</span>
                   </button>
-
-                  <!-- Option 2: Current PNG Graphic -->
                   <button
+                    v-if="activeTrendSeries.length > 0"
                     type="button"
-                    @click="downloadTrendChart('png'); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    class="bmp-mini-act"
+                    @click="clearAllTrendSeries"
+                    title="Kosongkan Grafik"
                   >
-                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>Unduh Grafik (PNG)</span>
+                    <OperatorDashboardIcon name="clear" :size="11" />
+                    <span>Clear</span>
                   </button>
-
-                  <!-- Option 3: Current SVG Graphic -->
                   <button
                     type="button"
-                    @click="downloadTrendChart('svg'); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    class="bmp-mini-act"
+                    @click="resetTrendSelectionToDefault"
+                    title="Reset ke Default"
                   >
-                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>Unduh Grafik (SVG)</span>
-                  </button>
-
-                  <!-- Option 4: Current PDF Report -->
-                  <button
-                    type="button"
-                    @click="downloadTrendPDF(); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                  >
-                    <OperatorDashboardIcon name="report" :size="13" class="text-rose-500 dark:text-rose-400" />
-                    <span>Unduh Laporan (PDF)</span>
-                  </button>
-
-                  <div class="my-1 border-t border-slate-100 dark:border-[#1E3048]"></div>
-
-                  <!-- Option 5: Excel XLS -->
-                  <button
-                    type="button"
-                    @click="downloadTrendXLS(); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                  >
-                    <OperatorDashboardIcon name="export" :size="13" class="text-emerald-500 dark:text-emerald-400" />
-                    <span>Unduh Data Excel (XLS)</span>
-                  </button>
-
-                  <!-- Option 6: CSV Data -->
-                  <button
-                    type="button"
-                    @click="downloadTrendCSV(); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                  >
-                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>Data Telemetri (CSV)</span>
-                  </button>
-
-                  <!-- Option 7: JSON Data -->
-                  <button
-                    type="button"
-                    @click="downloadTrendJSON(); showTrendDownloadMenu = false"
-                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
-                  >
-                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
-                    <span>Data Telemetri (JSON)</span>
+                    <OperatorDashboardIcon name="reset" :size="11" />
                   </button>
                 </div>
+              </div>
+
+              <!-- Quick Search inside Trend Filter Popover -->
+              <div class="bmp-search-wrap">
+                <OperatorDashboardIcon name="search" :size="12" class="opacity-60 flex-shrink-0" />
+                <input
+                  v-model.trim="bentoTrendSearch"
+                  type="text"
+                  class="bmp-search-input"
+                  placeholder="Cari parameter..."
+                />
+                <button
+                  v-if="bentoTrendSearch"
+                  type="button"
+                  class="bmp-search-clear"
+                  @click="bentoTrendSearch = ''"
+                >
+                  ×
+                </button>
+              </div>
+
+              <!-- 2-Column Space-Saving Parameter Toggle Grid -->
+              <div class="trend-param-grid custom-scroller">
+                <button
+                  v-for="p in filteredTrendPopoverParams"
+                  :key="'tp-opt-' + p.param_id"
+                  type="button"
+                  class="tp-opt-btn"
+                  :class="{ active: isParamSelectedForTrend(p) }"
+                  @click="selectParamForTrend(p)"
+                  :title="(p.param_name || p.param_code) + ' · ' + formatParamValue(p) + (p.unit ? ' ' + p.unit : '')"
+                >
+                  <span class="tp-opt-left min-w-0">
+                    <span class="tp-dot" :style="{ background: getTrendParamDotColor(p) }"></span>
+                    <span class="tp-name truncate">{{ p.param_name || p.param_code }}</span>
+                  </span>
+                  <span class="tp-val">{{ formatParamValue(p) }}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <!-- Icon-Only Expand Fullscreen Chart (Matching Operator Console) -->
-          <button
-            type="button"
-            class="op-icon-btn sm"
-            @click="openTrendFullscreen"
-            title="Perbesar Grafik Layar Penuh"
-            aria-label="Expand Fullscreen Chart"
-          >
-            <OperatorDashboardIcon name="fullscreen" :size="14" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Row 2: 5 Icon-Only Chart Tools + Plotted & Quick-Add Parameter Chips + Dual-Axis Legend -->
-      <div class="ts-row2">
-        <div class="ts-row2-left min-w-0 flex-1">
-          <div class="mini-tool-group flex-shrink-0">
-            <!-- 1. Chart Setup & Skala (Icon Only) -->
+          <!-- Compact Icon-Only Chart Tools Capsule -->
+          <div class="icon-seg-capsule">
+            <!-- Chart Settings & Scale -->
             <div class="relative trend-settings-anchor">
               <button
                 type="button"
-                @click="showTrendSettingsMenu = !showTrendSettingsMenu"
-                class="mini-icon-btn"
+                @click="bentoActiveMiniPopover = null; showTrendSettingsMenu = !showTrendSettingsMenu"
+                class="isc-btn"
                 :class="{ active: showTrendSettingsMenu }"
                 title="Pengaturan Grafik & Skala (Dual-Axis / Norm % / Wind & Map)"
                 aria-label="Chart Settings"
@@ -3173,48 +3320,14 @@
                 </div>
             </div>
 
-            <!-- 2. Select All (Icon Only) -->
-            <button
-              type="button"
-              @click="selectAllEligibleTrendSeries(true)"
-              class="mini-icon-btn"
-              title="Plot Semua Parameter"
-              aria-label="Select All Parameters"
-            >
-              <OperatorDashboardIcon name="check-all" :size="13" />
-            </button>
-
-            <!-- 3. Clear (Icon Only) -->
-            <button
-              v-if="activeTrendSeries.length > 0"
-              type="button"
-              @click="clearAllTrendSeries"
-              class="mini-icon-btn"
-              title="Kosongkan Pilihan Grafik"
-              aria-label="Clear Plotted Series"
-            >
-              <OperatorDashboardIcon name="clear" :size="13" />
-            </button>
-
-            <!-- 4. Reset (Icon Only) -->
-            <button
-              type="button"
-              @click="resetTrendSelectionToDefault"
-              class="mini-icon-btn"
-              title="Reset ke Pilihan Default"
-              aria-label="Reset Default Series"
-            >
-              <OperatorDashboardIcon name="reset" :size="13" />
-            </button>
-
-            <!-- 5. Smooth / Sharp Line Setup (Icon Only) -->
+            <!-- Line Smooth / Sharp -->
             <div class="relative trend-line-smooth-anchor">
               <button
                 type="button"
                 @click.stop="toggleLineInterpolationMenu"
-                class="mini-icon-btn"
+                class="isc-btn"
                 :class="{ active: showLineSmoothMenu || trendLineSmooth }"
-                :title="trendLineSmooth ? 'Mode Garis: Halus / Smooth (Klik untuk ubah)' : 'Mode Garis: Runcing / Linear (Klik untuk ubah)'"
+                :title="trendLineSmooth ? 'Mode Garis: Halus / Smooth' : 'Mode Garis: Runcing / Linear'"
                 aria-label="Line Interpolation Mode"
               >
                 <OperatorDashboardIcon :name="trendLineSmooth ? 'line-smooth' : 'line-sharp'" :size="13" />
@@ -3298,72 +3411,276 @@
                   </div>
                 </div>
             </div>
-          </div>
 
-          <!-- Active Plotted Series Chips + Unplotted Quick-Add Chips -->
-          <div class="series-list no-scrollbar">
-            <div
-              v-for="s in activeTrendSeries"
-              :key="'bento-chip-' + s.id"
-              @mouseenter="hoveredTrendSeriesId = s.id"
-              @mouseleave="hoveredTrendSeriesId = null"
-              class="s-chip"
-              :class="{ 's-chip-hover': hoveredTrendSeriesId === s.id }"
-              :title="(s.paramName || s.paramCode) + (s.latestVal != null && s.latestVal !== '--' ? ' (' + s.latestVal + ' ' + (s.unit || '') + ')' : '')"
-            >
-              <span class="c-dot" :style="{ background: s.color }"></span>
-              <span>{{ getCompactTrendParamName(s) || (s.paramName || s.paramCode) }}</span>
-              <strong v-if="s.latestVal != null && s.latestVal !== '--'">{{ s.latestVal }}</strong>
-              <button
-                type="button"
-                @click.stop="removeTrendSeries(s.id)"
-                class="chip-remove"
-                title="Hapus dari grafik"
-              >
-                ×
-              </button>
-            </div>
-
+            <!-- 1-Click Compact Processed / Raw Toggle -->
             <button
-              v-for="up in unplottedParameters"
-              :key="'bento-unplot-' + up.param_id"
+              v-if="canAccessRawTrendMode"
               type="button"
-              @click="selectParamForTrend(up)"
-              class="s-chip off"
-              :title="'Klik untuk menambahkan ' + (up.param_name || up.param_code) + ' ke grafik'"
+              class="isc-text-btn"
+              :class="{ active: chartMode === 'raw' }"
+              @click="setChartMode(chartMode === 'raw' ? 'processed' : 'raw')"
+              :title="chartMode === 'raw' ? 'Mode Data Mentah Sensor (Klik untuk Processed)' : 'Mode Data Terkalibrasi / Processed (Klik untuk Raw)'"
             >
-              <span class="c-dot" :style="{ background: getBentoCardColor(up) }"></span>
-              <span>+ {{ getShortParamChipLabel(up) }}</span>
+              {{ chartMode === 'raw' ? 'RAW' : 'PROC' }}
             </button>
           </div>
+
+          <!-- Compact Spike Zoom Pill (only when outlier spike present) -->
+          <button
+            v-if="hasOutlierSpike && trendScaleMode === 'auto'"
+            type="button"
+            @click="toggleTrendSpikeZoom"
+            class="diag-pill cursor-pointer"
+            :title="activeSpikeSummary"
+          >
+            <span>⚡ {{ trendSpikeZoom === 'full' ? 'Focus' : 'Full' }}</span>
+          </button>
         </div>
 
-        <!-- Dual-Axis Legend -->
-        <div v-if="activeTrendSeries.length > 0" class="axis-legend hidden lg:flex">
-          <span v-if="trendScales.left" :style="{ color: trendScales.left.color }">
-            Sumbu Kiri: {{ trendScales.left.label }}
-          </span>
-          <span v-if="trendScales.isDual && trendScales.right" :style="{ color: trendScales.right.color }">
-            Sumbu Kanan: {{ trendScales.right.label }}
-          </span>
+        <!-- Right Cluster: Subtle Dual-Axis Hint, Timeframes + Icon Period, Height Adjuster, Download, Fullscreen -->
+        <div class="ts-c-right">
+          <div v-if="activeTrendSeries.length > 0" class="axis-legend hidden xl:flex">
+            <span v-if="trendScales.left" :style="{ color: trendScales.left.color }">
+              L: {{ trendScales.left.label }}
+            </span>
+            <span v-if="trendScales.isDual && trendScales.right" :style="{ color: trendScales.right.color }">
+              R: {{ trendScales.right.label }}
+            </span>
+          </div>
+
+          <!-- Compact Timeframe Capsule + Icon-Only Custom Period -->
+          <div class="capsule">
+            <button
+              v-for="tf in ['1m', '5m', '15m', '1h', '6h']"
+              :key="'bento-tf-' + tf"
+              type="button"
+              class="cap-btn compact-tf"
+              :class="{ active: currentTimeframe === tf && !fullscreenIsCustom }"
+              @click="setTimeframe(tf)"
+            >
+              {{ tf }}
+            </button>
+            <button
+              type="button"
+              class="cap-btn compact-tf"
+              :class="{ active: fullscreenIsCustom }"
+              @click="openCustomTrendModal"
+              title="Pilih & Unduh Grafik Periode Khusus"
+              aria-label="Periode Khusus"
+            >
+              <OperatorDashboardIcon name="calendar" :size="12" />
+            </button>
+          </div>
+
+          <!-- User-Adjustable Trend Height Icon + Popover (Saved to localStorage) -->
+          <div class="relative bento-mini-popover-anchor">
+            <button
+              id="btn-bento-trend-height"
+              type="button"
+              @click="toggleBentoMiniPopover('trendHeight')"
+              class="op-icon-btn xs"
+              :class="{ 'is-active': bentoActiveMiniPopover === 'trendHeight' || isResizingBentoTrend }"
+              :title="'Atur Tinggi Analisis Tren (' + bentoTrendCanvasHeight + 'px)'"
+              aria-label="Atur Tinggi Grafik Tren"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="3" x2="12" y2="21" />
+                <polyline points="8 7 12 3 16 7" />
+                <polyline points="8 17 12 21 16 17" />
+                <line x1="4" y1="3" x2="20" y2="3" stroke-opacity="0.45" />
+                <line x1="4" y1="21" x2="20" y2="21" stroke-opacity="0.45" />
+              </svg>
+            </button>
+
+            <div
+              v-if="bentoActiveMiniPopover === 'trendHeight'"
+              class="bento-mini-popover align-right w-60"
+            >
+              <div class="bmp-head">
+                <span class="bmp-title">Tinggi Grafik Tren</span>
+                <span class="bmp-badge">{{ bentoTrendCanvasHeight }} px</span>
+              </div>
+
+              <div class="bmp-section">
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="bmp-step-btn"
+                    @click="stepBentoTrendHeight(-25)"
+                    title="Kurangi tinggi (-25px)"
+                  >
+                    −
+                  </button>
+                  <input
+                    id="input-bento-trend-height"
+                    type="range"
+                    min="120"
+                    max="560"
+                    step="5"
+                    :value="bentoTrendCanvasHeight"
+                    @input="setBentoTrendHeight($event.target.value)"
+                    class="trend-height-slider flex-1"
+                  />
+                  <button
+                    type="button"
+                    class="bmp-step-btn"
+                    @click="stepBentoTrendHeight(25)"
+                    title="Tambah tinggi (+25px)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div class="bmp-section">
+                <div class="bmp-label">Preset Ukuran</div>
+                <div class="bmp-seg-grid cols-4">
+                  <button
+                    v-for="preset in [
+                      { label: '140px', val: 140 },
+                      { label: '205px', val: 205 },
+                      { label: '300px', val: 300 },
+                      { label: '420px', val: 420 }
+                    ]"
+                    :key="'th-p-' + preset.val"
+                    type="button"
+                    class="bmp-seg-btn"
+                    :class="{ active: Math.abs(bentoTrendCanvasHeight - preset.val) <= 5 }"
+                    @click="setBentoTrendHeight(preset.val)"
+                  >
+                    {{ preset.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="bmp-hint">
+                Tersimpan otomatis di browser. Anda juga dapat menarik garis bawah grafik.
+              </div>
+            </div>
+          </div>
+
+          <!-- Icon-Only Download Graphic / Data Dropdown -->
+          <div class="relative trend-download-anchor">
+            <button
+              type="button"
+              @click.stop="toggleTrendDownloadMenu"
+              class="op-icon-btn xs"
+              :class="{ 'is-active': showTrendDownloadMenu }"
+              title="Unduh Grafik (PNG/SVG/PDF) atau Data (XLS/CSV/JSON)"
+              aria-label="Download Chart or Data"
+            >
+              <OperatorDashboardIcon name="download" :size="13" />
+            </button>
+                <div
+                  v-if="showTrendDownloadMenu"
+                  @click.stop
+                  class="absolute right-0 mt-1 w-56 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#1E3048] rounded-xl shadow-2xl py-1.5 z-50 text-3xs font-mono select-none"
+                >
+                  <!-- Option 1: Custom Period Graphic Download -->
+                  <button
+                    type="button"
+                    @click="openCustomTrendModal(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/10 dark:hover:bg-cyan-500/15 flex items-center space-x-2 text-cyan-600 dark:text-cyan-400 font-bold transition cursor-pointer border-b border-slate-100 dark:border-[#1E3048]"
+                  >
+                    <OperatorDashboardIcon name="calendar" :size="13" class="text-cyan-500" />
+                    <span>Download Grafik Periode...</span>
+                  </button>
+
+                  <!-- Option 2: Current PNG Graphic -->
+                  <button
+                    type="button"
+                    @click="downloadTrendChart('png'); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
+                    <span>Unduh Grafik (PNG)</span>
+                  </button>
+
+                  <!-- Option 3: Current SVG Graphic -->
+                  <button
+                    type="button"
+                    @click="downloadTrendChart('svg'); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
+                    <span>Unduh Grafik (SVG)</span>
+                  </button>
+
+                  <!-- Option 4: Current PDF Report -->
+                  <button
+                    type="button"
+                    @click="downloadTrendPDF(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="report" :size="13" class="text-rose-500 dark:text-rose-400" />
+                    <span>Unduh Laporan (PDF)</span>
+                  </button>
+
+                  <div class="my-1 border-t border-slate-100 dark:border-[#1E3048]"></div>
+
+                  <!-- Option 5: Excel XLS -->
+                  <button
+                    type="button"
+                    @click="downloadTrendXLS(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="export" :size="13" class="text-emerald-500 dark:text-emerald-400" />
+                    <span>Unduh Data Excel (XLS)</span>
+                  </button>
+
+                  <!-- Option 6: CSV Data -->
+                  <button
+                    type="button"
+                    @click="downloadTrendCSV(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
+                    <span>Data Telemetri (CSV)</span>
+                  </button>
+
+                  <!-- Option 7: JSON Data -->
+                  <button
+                    type="button"
+                    @click="downloadTrendJSON(); showTrendDownloadMenu = false"
+                    class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-[#16253B] flex items-center space-x-2 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    <OperatorDashboardIcon name="download" :size="13" class="text-cyan-500" />
+                    <span>Data Telemetri (JSON)</span>
+                  </button>
+                </div>
+          </div>
+
+          <!-- Icon-Only Expand Fullscreen Chart -->
+          <button
+            type="button"
+            class="op-icon-btn xs"
+            @click="openTrendFullscreen"
+            title="Perbesar Grafik Layar Penuh"
+            aria-label="Expand Fullscreen Chart"
+          >
+            <OperatorDashboardIcon name="fullscreen" :size="13" />
+          </button>
         </div>
       </div>
 
-      <!-- Calm Breathable Dual-Axis SVG Chart -->
+      <!-- Calm Breathable Dual-Axis SVG Chart (User-Adjustable Height persisted in localStorage) -->
       <div
         ref="scadaChartContainer"
         class="bento-chart-canvas"
-        :class="{ 'is-compact-canvas': isCompactScreen }"
+        :style="{ height: bentoTrendCanvasHeight + 'px' }"
         @mousemove="onChartScrub"
         @mouseleave="scrubPoint = null"
       >
+        <div v-if="isResizingBentoTrend" class="trend-resize-live-badge">
+          Tinggi Grafik: {{ bentoTrendCanvasHeight }} px
+        </div>
         <div v-if="isChartLoading" class="bento-chart-overlay">
           <span class="animate-spin w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full mr-2"></span>
           <span>Memuat data tren telemetri...</span>
         </div>
 
         <div v-else-if="activeTrendSeries.length === 0" class="bento-chart-empty">
-          Pilih kartu/baris parameter di atas atau klik chip <strong>+ Parameter</strong> untuk menampilkan grafik tren.
+          Klik tombol ikon <strong>Filter Parameter</strong> di kiri atas grafik atau klik kartu parameter untuk menampilkan tren.
         </div>
 
         <div v-else-if="trendCommDiagnostics.state === 'API_ERROR' && !hasAnyTrendData" class="bento-chart-empty text-rose-500">
@@ -3616,6 +3933,18 @@
           </div>
           <div class="text-[11px] opacity-85">{{ hoveredOutageMarker.reason }}</div>
         </div>
+      </div>
+
+      <!-- Interactive Drag Handle to Adjust Trend Analysis Height (Saved to localStorage) -->
+      <div
+        class="trend-resize-handle"
+        :class="{ active: isResizingBentoTrend }"
+        @mousedown.prevent="startBentoTrendResize"
+        @touchstart.passive="startBentoTrendResizeTouch"
+        @dblclick="setBentoTrendHeight(205)"
+        :title="'Tarik atas/bawah untuk mengatur tinggi grafik (' + bentoTrendCanvasHeight + 'px) · Klik 2x untuk reset'"
+      >
+        <span class="trend-resize-grip"></span>
       </div>
     </section>
 
@@ -5767,21 +6096,56 @@ export default {
   data() {
     let autoGrid = true;
     let splitMode = '2T';
+    let savedTrendHeight = 205;
     try {
       const savedAuto = localStorage.getItem('datalogger_bento_auto_grid');
       if (savedAuto === 'false') autoGrid = false;
       const savedSplit = localStorage.getItem('datalogger_bento_table_split');
       if (savedSplit === '1T' || savedSplit === '2T') splitMode = savedSplit;
+      const rawTrendH = parseInt(localStorage.getItem('datalogger_bento_trend_height'), 10);
+      if (isFinite(rawTrendH) && rawTrendH >= 120 && rawTrendH <= 560) {
+        savedTrendHeight = rawTrendH;
+      }
     } catch (e) {}
     return {
       bentoViewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1600,
       bentoAutoGrid: autoGrid,
       bentoTableSplitMode: splitMode,
+      bentoActiveMiniPopover: null,
+      bentoTrendSearch: '',
+      bentoTrendCanvasHeight: savedTrendHeight,
+      isResizingBentoTrend: false,
     };
   },
   computed: {
     isCompactScreen() {
       return this.bentoViewportWidth < 1280;
+    },
+    activeBentoCategoryName() {
+      if (this.filterPinnedOnly) return 'Favorit Dipin';
+      if (this.selectedCategoryFilter === 'all' || this.selectedCategoryFilter == null) {
+        return 'Semua Parameter';
+      }
+      const found = (this.activeCategoriesList || []).find(
+        c => Number(c.id) === Number(this.selectedCategoryFilter)
+      );
+      return found ? found.name : 'Kategori';
+    },
+    filteredTrendPopoverParams() {
+      const list = this.allParameters || [];
+      const q = (this.bentoTrendSearch || '').toLowerCase();
+      if (!q) return list;
+      return list.filter(p => {
+        const name = (p.param_name || '').toLowerCase();
+        const code = (p.param_code || '').toLowerCase();
+        const unit = (p.unit || '').toLowerCase();
+        return name.includes(q) || code.includes(q) || unit.includes(q);
+      });
+    },
+    previewTrendDots() {
+      return (this.activeTrendSeries || [])
+        .slice(0, 4)
+        .map(s => s.color || '#0284C7');
     },
     effectiveBentoCols() {
       const w = this.bentoViewportWidth || 1600;
@@ -5876,12 +6240,14 @@ export default {
   },
   mounted() {
     this.ensureBentoFontsLoaded();
+    this.trendChartHeight = this.bentoTrendCanvasHeight;
     if (typeof window !== 'undefined') {
       this.bentoViewportWidth = window.innerWidth;
       window.addEventListener('resize', this.onBentoViewportResize, { passive: true });
     }
   },
   beforeDestroy() {
+    this.stopBentoTrendResize();
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.onBentoViewportResize);
     }
@@ -5890,6 +6256,130 @@ export default {
     onBentoViewportResize() {
       if (typeof window === 'undefined') return;
       this.bentoViewportWidth = window.innerWidth;
+    },
+    onDocumentClick(e) {
+      if (this.bentoActiveMiniPopover && e && e.target && !e.target.closest('.bento-mini-popover-anchor')) {
+        this.bentoActiveMiniPopover = null;
+      }
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onDocumentClick) {
+        OperatorCommandCenterView.methods.onDocumentClick.call(this, e);
+      }
+    },
+    onDocumentKeyDown(e) {
+      if (e && e.key === 'Escape' && this.bentoActiveMiniPopover) {
+        this.bentoActiveMiniPopover = null;
+      }
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onDocumentKeyDown) {
+        OperatorCommandCenterView.methods.onDocumentKeyDown.call(this, e);
+      }
+    },
+    toggleToolbarPopover(popoverName) {
+      this.bentoActiveMiniPopover = null;
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.toggleToolbarPopover) {
+        OperatorCommandCenterView.methods.toggleToolbarPopover.call(this, popoverName);
+      }
+    },
+    toggleTrendDownloadMenu() {
+      this.bentoActiveMiniPopover = null;
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.toggleTrendDownloadMenu) {
+        OperatorCommandCenterView.methods.toggleTrendDownloadMenu.call(this);
+      }
+    },
+    toggleLineInterpolationMenu() {
+      this.bentoActiveMiniPopover = null;
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.toggleLineInterpolationMenu) {
+        OperatorCommandCenterView.methods.toggleLineInterpolationMenu.call(this);
+      }
+    },
+    toggleBentoMiniPopover(name) {
+      if (this.bentoActiveMiniPopover === name) {
+        this.bentoActiveMiniPopover = null;
+        return;
+      }
+      this.activeToolbarPopover = null;
+      this.showTrendSettingsMenu = false;
+      this.showTrendDownloadMenu = false;
+      this.showLineSmoothMenu = false;
+      this.showAudioSetupPopover = false;
+      this.bentoActiveMiniPopover = name;
+    },
+    getBentoCategoryCount(catId) {
+      return (this.allParameters || []).filter(p => Number(p.category_id) === Number(catId)).length;
+    },
+    getTrendParamDotColor(param) {
+      if (!param) return '#0284C7';
+      const plotted = (this.activeTrendSeries || []).find(
+        s => Number(s.parameterId) === Number(param.param_id)
+      );
+      if (plotted && plotted.color) return plotted.color;
+      return this.getBentoCardColor(param);
+    },
+    setBentoTrendHeight(val) {
+      const parsed = Math.round(Number(val));
+      if (!isFinite(parsed)) return;
+      const clamped = Math.min(560, Math.max(120, parsed));
+      this.bentoTrendCanvasHeight = clamped;
+      this.trendChartHeight = clamped;
+      try {
+        localStorage.setItem('datalogger_bento_trend_height', String(clamped));
+      } catch (e) {}
+    },
+    stepBentoTrendHeight(delta) {
+      this.setBentoTrendHeight((this.bentoTrendCanvasHeight || 205) + Number(delta || 0));
+    },
+    startBentoTrendResize(e) {
+      if (typeof window === 'undefined') return;
+      this.stopBentoTrendResize();
+      const startY = e.clientY;
+      const startH = this.bentoTrendCanvasHeight || 205;
+      this.isResizingBentoTrend = true;
+      this._onBentoTrendMouseMove = (ev) => {
+        const dy = ev.clientY - startY;
+        this.setBentoTrendHeight(startH + dy);
+      };
+      this._onBentoTrendMouseUp = () => {
+        this.stopBentoTrendResize();
+      };
+      window.addEventListener('mousemove', this._onBentoTrendMouseMove);
+      window.addEventListener('mouseup', this._onBentoTrendMouseUp);
+    },
+    startBentoTrendResizeTouch(e) {
+      if (typeof window === 'undefined' || !e.touches || !e.touches[0]) return;
+      this.stopBentoTrendResize();
+      const startY = e.touches[0].clientY;
+      const startH = this.bentoTrendCanvasHeight || 205;
+      this.isResizingBentoTrend = true;
+      this._onBentoTrendTouchMove = (ev) => {
+        if (!ev.touches || !ev.touches[0]) return;
+        const dy = ev.touches[0].clientY - startY;
+        this.setBentoTrendHeight(startH + dy);
+      };
+      this._onBentoTrendTouchEnd = () => {
+        this.stopBentoTrendResize();
+      };
+      window.addEventListener('touchmove', this._onBentoTrendTouchMove, { passive: true });
+      window.addEventListener('touchend', this._onBentoTrendTouchEnd);
+    },
+    stopBentoTrendResize() {
+      this.isResizingBentoTrend = false;
+      if (typeof window !== 'undefined') {
+        if (this._onBentoTrendMouseMove) {
+          window.removeEventListener('mousemove', this._onBentoTrendMouseMove);
+          this._onBentoTrendMouseMove = null;
+        }
+        if (this._onBentoTrendMouseUp) {
+          window.removeEventListener('mouseup', this._onBentoTrendMouseUp);
+          this._onBentoTrendMouseUp = null;
+        }
+        if (this._onBentoTrendTouchMove) {
+          window.removeEventListener('touchmove', this._onBentoTrendTouchMove);
+          this._onBentoTrendTouchMove = null;
+        }
+        if (this._onBentoTrendTouchEnd) {
+          window.removeEventListener('touchend', this._onBentoTrendTouchEnd);
+          this._onBentoTrendTouchEnd = null;
+        }
+      }
     },
     ensureBentoFontsLoaded() {
       if (typeof document === 'undefined') return;
@@ -6373,6 +6863,12 @@ export default {
   height: 27px;
   border-radius: 7px;
 }
+.op-icon-btn.xs,
+.is-compact-vp .op-icon-btn.xs {
+  width: 27px;
+  height: 26px;
+  border-radius: 7px;
+}
 .op-icon-btn:hover {
   border-color: var(--b-accent-blue);
   color: var(--b-text-main);
@@ -6515,78 +7011,342 @@ export default {
   min-width: 0;
 }
 
-.cat-bar {
+/* Scrollbar Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.custom-scroller::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scroller::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+.custom-scroller::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.55);
+}
+
+/* Compact Parameter Icon Control Strip (Zero Horizontal Scrollbar) */
+.param-ctrl-bar {
   min-height: 26px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  position: relative;
+  z-index: 25;
+}
+.param-ctrl-bar.has-open-popover {
+  z-index: 50;
 }
 
-.cat-pills {
+.param-ctrl-left {
   display: flex;
   align-items: center;
-  gap: 4.5px;
-  overflow-x: auto;
+  gap: 5px;
   min-width: 0;
 }
 
-.cat-pill {
-  padding: 3px 9.5px;
-  border-radius: 999px;
-  font-size: 10.8px;
+.param-ctrl-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.param-count-tag {
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--b-text-muted);
-  background: var(--b-card);
-  border: 1px solid var(--b-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 3px;
+  white-space: nowrap;
+}
+.param-count-tag strong {
+  font-weight: 800;
+  color: var(--b-text-sec);
+}
+
+.active-filter-chip {
+  height: 22px;
+  padding: 0 7.5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  color: var(--b-accent-blue);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+.active-filter-chip.amber {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.40);
+  color: #D97706;
+}
+.is-night .active-filter-chip.amber {
+  color: #FCD34D;
+}
+.afc-x {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+}
+.active-filter-chip:hover .afc-x {
+  opacity: 1;
+}
+
+/* Segmented Icon-Only Capsule */
+.icon-seg-capsule {
+  display: inline-flex;
+  align-items: center;
+  background: var(--b-card);
+  border: 1px solid var(--b-border);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.isc-btn {
+  width: 24px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--b-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.cat-pill:hover {
+.isc-btn:hover {
+  color: var(--b-text-main);
+  background: var(--b-subtle);
+}
+.isc-btn.active {
+  background: var(--b-primary);
+  color: #FFFFFF;
+}
+
+.isc-text-btn {
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--b-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.isc-text-btn:hover {
+  color: var(--b-text-main);
+  background: var(--b-subtle);
+}
+.isc-text-btn.active {
+  background: rgba(245, 158, 11, 0.16);
+  color: #F59E0B;
+}
+
+/* Shared Bento Mini Popovers (Filter, Card/Table Setup, Trend Filter, Trend Height) */
+.bento-mini-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 60;
+  background: var(--b-card);
+  border: 1px solid var(--b-border);
+  border-radius: 11px;
+  padding: 9px 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  color: var(--b-text-main);
+}
+.is-night .bento-mini-popover {
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.50);
+}
+.bento-mini-popover.align-left {
+  left: 0;
+}
+.bento-mini-popover.align-right {
+  right: 0;
+}
+
+.bmp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--b-border-soft);
+}
+.bmp-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--b-text-main);
+}
+.bmp-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1.5px 6px;
+  border-radius: 999px;
+  background: var(--b-pill);
+  color: var(--b-accent-blue);
+}
+.bmp-link-btn {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--b-accent-blue);
+  padding: 1px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.bmp-link-btn:hover {
+  background: var(--b-pill);
+}
+
+.bmp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 224px;
+  overflow-y: auto;
+}
+.bmp-item {
+  width: 100%;
+  padding: 5px 7.5px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--b-text-sec);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+}
+.bmp-item:hover {
+  background: var(--b-subtle);
+  color: var(--b-text-main);
+}
+.bmp-item.active {
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--b-accent-blue);
+  font-weight: 700;
+}
+.bmp-item-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bmp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.bmp-count {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5.5px;
+  border-radius: 999px;
+  background: var(--b-pill);
+  color: var(--b-text-muted);
+  flex-shrink: 0;
+}
+.bmp-item.active .bmp-count {
+  background: var(--b-primary);
+  color: #FFFFFF;
+}
+
+.bmp-divider {
+  height: 1px;
+  background: var(--b-border-soft);
+  margin: 5px 0;
+}
+
+.bmp-section {
+  margin-bottom: 7px;
+}
+.bmp-section:last-child {
+  margin-bottom: 0;
+}
+.bmp-label {
+  font-size: 9.8px;
+  font-weight: 700;
+  color: var(--b-text-muted);
+  margin-bottom: 4px;
+}
+.bmp-seg-grid {
+  display: grid;
+  gap: 3.5px;
+}
+.bmp-seg-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.bmp-seg-grid.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.bmp-seg-grid.cols-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.bmp-seg-btn {
+  height: 24px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--b-pill);
+  border: 1px solid var(--b-border);
+  color: var(--b-text-sec);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.bmp-seg-btn:hover {
   border-color: var(--b-accent-blue);
   color: var(--b-text-main);
 }
-.cat-pill.active {
+.bmp-seg-btn.active {
   background: var(--b-primary);
   border-color: var(--b-primary);
   color: #FFFFFF;
 }
 
-/* Quick View Mode Switcher Capsule */
-.view-quick-capsule {
-  display: inline-flex;
+.bmp-toggle-row {
+  display: flex;
   align-items: center;
-  background: var(--b-card);
-  border: 1px solid var(--b-border);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
-}
-
-.vq-btn {
-  height: 22px;
-  padding: 0 7.5px;
-  border-radius: 6px;
-  font-size: 10.2px;
-  font-weight: 700;
-  color: var(--b-text-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--b-text-sec);
   cursor: pointer;
-  transition: all 0.15s ease;
+  padding: 2px 0;
 }
-.vq-btn:hover {
-  color: var(--b-text-main);
+.bmp-toggle-row input[type='checkbox'] {
+  accent-color: #0284C7;
+  cursor: pointer;
 }
-.vq-btn.active {
-  background: var(--b-primary);
-  color: #FFFFFF;
+.bmp-hint {
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: var(--b-text-muted);
+  margin-top: 4px;
 }
 
 /* ========================================================================= */
@@ -7048,61 +7808,73 @@ export default {
 /* 3. BOTTOM TREND STUDIO                                                    */
 /* ========================================================================= */
 .trend-studio {
-  flex: 1;
+  flex: 0 0 auto;
   background: var(--b-card);
   border: 1px solid var(--b-border);
   border-radius: 13px;
   box-shadow: var(--b-shadow);
-  padding: 9px 14px 8px;
+  padding: 7px 12px 4px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 248px;
+  gap: 5px;
+  position: relative;
 }
 .is-compact-vp .trend-studio {
-  padding: 8px 11px 7px;
-  min-height: 222px;
+  padding: 6px 10px 4px;
 }
 
-.ts-row1 {
+.ts-compact-bar {
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 25;
+}
+.ts-compact-bar.has-open-popover {
+  z-index: 50;
+}
+
+.ts-c-left,
+.ts-c-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
-.ts-left,
-.ts-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .ts-title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
   color: var(--b-text-main);
+  white-space: nowrap;
 }
 
 .live-badge {
-  padding: 2.5px 8px;
+  height: 22px;
+  padding: 0 7px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4.5px;
+  white-space: nowrap;
 }
 .is-day .live-badge.is-live { background: #ECFDF5; color: #047857; }
 .is-night .live-badge.is-live { background: rgba(16, 185, 129, 0.14); color: #6EE7B7; }
+.is-day .live-badge.is-warn { background: #FEF3C7; color: #B45309; }
+.is-night .live-badge.is-warn { background: rgba(245, 158, 11, 0.16); color: #FCD34D; }
 .is-day .live-badge.is-offline { background: #FFF1F2; color: #BE123C; }
 .is-night .live-badge.is-offline { background: rgba(244, 63, 94, 0.16); color: #FDA4AF; }
 
 .diag-pill {
-  padding: 2.5px 7.5px;
+  height: 22px;
+  padding: 0 7px;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 9.8px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -7111,36 +7883,154 @@ export default {
   border: 1px solid var(--b-border-soft);
   color: var(--b-text-muted);
 }
-.diag-pill-accent {
+
+/* Compact Trend Parameter Filter Trigger & Popover Grid */
+.ts-filter-trigger {
+  height: 26px;
+  padding: 0 7.5px;
+  border-radius: 7px;
+  background: var(--b-subtle);
+  border: 1px solid var(--b-border);
+  color: var(--b-text-sec);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.ts-filter-trigger:hover {
+  border-color: var(--b-accent-blue);
+  color: var(--b-text-main);
+}
+.ts-filter-trigger.active {
+  background: rgba(14, 165, 233, 0.14);
+  border-color: var(--b-accent-blue);
   color: var(--b-accent-blue);
 }
 
-.ts-row2 {
+.ts-mini-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+}
+.ts-mini-dot {
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 50%;
+}
+.ts-filter-cnt {
+  font-weight: 800;
+  font-size: 9.8px;
+}
+
+.bmp-mini-act {
+  height: 21px;
+  padding: 0 5.5px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--b-pill);
+  border: 1px solid var(--b-border);
+  color: var(--b-text-sec);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.bmp-mini-act:hover {
+  border-color: var(--b-accent-blue);
+  color: var(--b-text-main);
+}
+
+.bmp-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  border-radius: 7px;
+  background: var(--b-subtle);
+  border: 1px solid var(--b-border);
+}
+.bmp-search-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 10.5px;
+  color: var(--b-text-main);
+}
+.bmp-search-clear {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--b-text-muted);
+  cursor: pointer;
+}
+
+.trend-param-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  max-height: 224px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.tp-opt-btn {
+  padding: 5px 7px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--b-subtle);
+  border: 1px solid var(--b-border-soft);
+  color: var(--b-text-muted);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+  min-width: 0;
 }
-
-.ts-row2-left {
+.tp-opt-btn:hover {
+  border-color: var(--b-accent-blue);
+  color: var(--b-text-main);
+}
+.tp-opt-btn.active {
+  background: rgba(14, 165, 233, 0.11);
+  border-color: rgba(14, 165, 233, 0.45);
+  color: var(--b-text-main);
+  font-weight: 700;
+}
+.tp-opt-left {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
 }
-
-.mini-tool-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 7px;
-  background: var(--b-pill);
-  border: 1px solid var(--b-border);
+.tp-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tp-opt-btn:not(.active) .tp-dot {
+  opacity: 0.45;
+}
+.tp-val {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--b-text-sec);
+  flex-shrink: 0;
 }
 
 .mini-icon-btn {
-  width: 24px;
-  height: 22px;
+  width: 22px;
+  height: 21px;
   border-radius: 5px;
   color: var(--b-text-sec);
   display: inline-flex;
@@ -7153,85 +8043,100 @@ export default {
   color: var(--b-text-main);
   background: var(--b-subtle);
 }
-.mini-icon-btn.active {
-  background: var(--b-active-btn);
-  color: var(--b-accent-blue);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
 
-.series-list {
-  display: flex;
-  align-items: center;
-  gap: 4.5px;
-  overflow-x: auto;
-  min-width: 0;
-}
-
-.s-chip {
-  padding: 2.5px 8px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 4.5px;
-  background: var(--b-subtle);
-  border: 1px solid var(--b-border);
-  color: var(--b-text-main);
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: border-color 0.15s ease;
-}
-.s-chip-hover {
-  border-color: var(--b-accent-blue);
-}
-.s-chip.off {
-  background: transparent;
-  color: var(--b-text-muted);
-  opacity: 0.84;
-  cursor: pointer;
-}
-.s-chip.off:hover {
-  opacity: 1;
-  border-color: var(--b-accent-blue);
-  color: var(--b-text-main);
-}
-
-.c-dot {
-  width: 6.5px;
-  height: 6.5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.chip-remove {
-  color: var(--b-text-faint);
-  font-size: 12px;
-  line-height: 1;
-  margin-left: 1px;
-  cursor: pointer;
-}
-.chip-remove:hover {
-  color: #F43F5E;
+.cap-btn.compact-tf {
+  height: 22px;
+  padding: 0 6.5px;
+  font-size: 10px;
 }
 
 .axis-legend {
-  font-size: 10px;
-  font-weight: 600;
-  gap: 11px;
+  font-size: 9.8px;
+  font-weight: 700;
+  gap: 8px;
   white-space: nowrap;
   flex-shrink: 0;
+  padding-right: 2px;
+}
+
+/* Trend Height Slider, Stepper & Drag Handle */
+.bmp-step-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--b-pill);
+  border: 1px solid var(--b-border);
+  color: var(--b-text-sec);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.bmp-step-btn:hover {
+  border-color: var(--b-accent-blue);
+  color: var(--b-text-main);
+}
+
+.trend-height-slider {
+  accent-color: #0284C7;
+  height: 5px;
+  cursor: pointer;
 }
 
 .bento-chart-canvas {
   width: 100%;
-  height: 205px;
+  min-height: 120px;
+  max-height: 560px;
   position: relative;
   overflow: hidden;
   border-radius: 10px;
 }
-.bento-chart-canvas.is-compact-canvas {
-  height: 175px;
+
+.trend-resize-live-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 25;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(2, 132, 199, 0.90);
+  color: #FFFFFF;
+  pointer-events: none;
+  box-shadow: 0 4px 10px rgba(2, 132, 199, 0.25);
+}
+
+.trend-resize-handle {
+  height: 9px;
+  margin-top: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+.trend-resize-handle:hover,
+.trend-resize-handle.active {
+  background: rgba(14, 165, 233, 0.10);
+}
+.trend-resize-grip {
+  width: 36px;
+  height: 3.5px;
+  border-radius: 999px;
+  background: var(--b-border);
+  transition: background 0.15s ease, width 0.15s ease;
+}
+.trend-resize-handle:hover .trend-resize-grip,
+.trend-resize-handle.active .trend-resize-grip {
+  width: 48px;
+  background: var(--b-accent-blue);
 }
 
 .bento-chart-overlay {

@@ -118,19 +118,47 @@ check('7.1: DashboardOperatorView auto-adapts ISPU placement, 5P micro parameter
   assert(viewContent.includes('effectiveBentoCols') && viewContent.includes('.bento-cols-5'), 'Must support auto-dense 5-column parameter grid');
   assert(viewContent.includes('is-micro-cards') && viewContent.includes('is-compact-cards'), 'Must apply compact micro-card density styling');
   assert(viewContent.includes('bentoSplitTableColumns') && viewContent.includes("setBentoDisplayMode('2T')"), 'Must support 2 Tabel Samping (2T) side-by-side table view');
-  assert(viewContent.includes('bento-dual-table-grid') && viewContent.includes('2 Tabel Samping'), 'Must render side-by-side dual table grid');
+  assert(viewContent.includes('bento-dual-table-grid'), 'Must render side-by-side dual table grid');
 });
 
 check('7.2: Sensor cards, dual tables, Trend Studio, Docked Footer, and all operational modals preserve 100% functionality', () => {
   assert(viewContent.includes('openParamContextMenu'), 'Must support 3-dot & right-click context menu');
   assert(viewContent.includes('togglePin(param.param_id)'), 'Must support favorite pinning');
-  assert(viewContent.includes("setChartMode('processed')") && viewContent.includes("setChartMode('raw')"), 'Trend Studio must support 1-click Processed / Raw switch');
+  assert(viewContent.includes('setChartMode('), 'Trend Studio must support Processed / Raw switch');
   assert(viewContent.includes('ref="scadaChartContainer"') && viewContent.includes('ref="trendPanelSvg"'), 'Trend Studio must preserve SVG chart refs');
   assert(viewContent.includes('@click="openExportModal"') && viewContent.includes('showExportModal'), 'Footer must open Export Data modal');
   assert(viewContent.includes('@click="openReportModal"'), 'Footer must open Operational Report modal');
   assert(viewContent.includes('audio-setup-anchor'), 'Footer must preserve .audio-setup-anchor');
   assert(viewContent.includes('showBrandingModal'), 'Must include Station Branding modal');
   assert(viewContent.includes('showTrendFullscreen'), 'Must include Fullscreen Trend Analyzer modal');
+});
+
+// 8. Space-Saving Icon Controls & Adjustable Trend Height (localStorage)
+check('8.1: Parameter filter and Card/Table setup use compact icon-only buttons & popovers without horizontal scrollbars', () => {
+  assert(viewContent.includes('class="param-ctrl-bar"'), 'Must render compact .param-ctrl-bar');
+  assert(!viewContent.includes('class="cat-pills'), 'Must not render wide horizontal .cat-pills row');
+  for (const btnId of ['btn-bento-param-filter', 'btn-bento-param-pin', 'btn-bento-view-cards', 'btn-bento-view-2t', 'btn-bento-view-1t', 'btn-bento-card-setup']) {
+    assert(viewContent.includes(`id="${btnId}"`), `Must render compact icon button #${btnId}`);
+  }
+  assert(viewContent.includes("toggleBentoMiniPopover('paramFilter')"), 'Must wire parameter filter popover');
+  assert(viewContent.includes("toggleBentoMiniPopover('cardSetup')"), 'Must wire card & table setup popover');
+});
+
+check('8.2: Trend Studio header uses a single compact bar and space-saving Parameter Filter Popover', () => {
+  assert(viewContent.includes('class="ts-compact-bar"'), 'Must render single-row .ts-compact-bar');
+  assert(!viewContent.includes('class="series-list'), 'Must not render bulky horizontal .series-list chip row');
+  assert(viewContent.includes('id="btn-bento-trend-filter"'), 'Must render #btn-bento-trend-filter trigger');
+  assert(viewContent.includes("toggleBentoMiniPopover('trendFilter')"), 'Must wire trend parameter filter popover');
+  assert(viewContent.includes('class="trend-param-grid custom-scroller"'), 'Must render 2-column compact parameter toggle grid inside popover');
+  assert(viewContent.includes('v-model.trim="bentoTrendSearch"'), 'Must support quick parameter search in trend filter popover');
+});
+
+check('8.3: Trend Analysis height is user-adjustable via toolbar popover + drag handle and persisted in localStorage', () => {
+  assert(viewContent.includes("localStorage.getItem('datalogger_bento_trend_height')"), 'Must read saved trend height from localStorage');
+  assert(viewContent.includes("localStorage.setItem('datalogger_bento_trend_height'"), 'Must save trend height to localStorage');
+  assert(viewContent.includes(':style="{ height: bentoTrendCanvasHeight + \'px\' }"'), 'Must bind scadaChartContainer height to bentoTrendCanvasHeight');
+  assert(viewContent.includes('id="btn-bento-trend-height"') && viewContent.includes('id="input-bento-trend-height"'), 'Must render height adjuster icon button & range slider');
+  assert(viewContent.includes('class="trend-resize-handle"') && viewContent.includes('startBentoTrendResize'), 'Must render interactive bottom drag-to-resize handle');
 });
 
 console.log('========================================================================');
