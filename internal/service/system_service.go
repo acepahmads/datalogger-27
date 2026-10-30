@@ -96,8 +96,13 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		failedRate = (float64(totalFailed) / float64(totalComm)) * 100
 	}
 
-	// Alarms summary
-	alarms, _ := s.systemRepo.GetAllAlarms("")
+	// Alarms summary (scoped to active, non-deleted devices & parameters)
+	var alarms []model.Alarm
+	if s.alarmService != nil {
+		alarms, _ = s.alarmService.GetActiveOrAckedAlarms(context.Background())
+	} else {
+		alarms, _ = s.systemRepo.GetAllAlarms("")
+	}
 	activeAlarms := 0
 	warningAlarms := 0
 	criticalAlarms := 0

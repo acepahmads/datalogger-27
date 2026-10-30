@@ -68,10 +68,22 @@ test('2.1: The 3 status icons (station, bell, activity) are consolidated into si
   assert(occContent.includes("@click.stop=\"toggleToolbarPopover('healthAndAlarms')\""), 'New consolidated healthAndAlarms button must exist');
 });
 
-test('2.2: Consolidated bell button displays bell icon and dynamic indicator badge/dot', () => {
-  assert(occContent.includes('aria-label="Alarms & Station Health Center"'), 'Aria label for consolidated bell must exist');
+test('2.2: Consolidated station health button displays distinct pulse/heartbeat icon (no duplicate bell vs top header) and dynamic indicator badge/dot', () => {
+  assert(occContent.includes('aria-label="Alarms & Station Health Center"'), 'Aria label for consolidated health center must exist');
   assert(occContent.includes(':title="healthAndAlarmsTooltip"'), 'Tooltip must use healthAndAlarmsTooltip');
-  assert(occContent.includes('<OperatorDashboardIcon name="bell" :size="16" />'), 'Bell icon must be rendered');
+  assert(occContent.includes('<OperatorDashboardIcon name="pulse" :size="16" />'), 'Distinct pulse/heartbeat icon must be rendered on operator toolbar');
+});
+
+test('2.4: Top header bell, global alarm banner, and operator health center use synchronized operational alarm filtering', () => {
+  const storeContent = fs.readFileSync(path.join(__dirname, '..', 'src', 'store', 'index.js'), 'utf8');
+  const headerContent = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'Header.vue'), 'utf8');
+  const bannerContent = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'GlobalAlarmBanner.vue'), 'utf8');
+
+  assert(storeContent.includes('operationalActiveAlarms'), 'Store must expose operationalActiveAlarms getter');
+  assert(storeContent.includes('unacknowledgedActiveAlarms'), 'Store must expose unacknowledgedActiveAlarms getter');
+  assert(headerContent.includes('unacknowledgedActiveAlarms'), 'Header bell must use synchronized unacknowledgedActiveAlarms getter');
+  assert(bannerContent.includes('operationalActiveAlarms'), 'GlobalAlarmBanner must use synchronized operationalActiveAlarms getter');
+  assert(occContent.includes("if (!a || (a.status && a.status !== 'ACTIVE')) return false;"), 'Operator activeAlarmsList must align on ACTIVE status');
 });
 
 test('2.3: Popover contains 3 interactive tabs for Alarms, Devices, and Telemetry', () => {

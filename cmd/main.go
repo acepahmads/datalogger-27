@@ -146,10 +146,11 @@ func main() {
 	alarmService := service.NewAlarmService(alarmRepo, systemRepo)
 	alarmService.SetHub(hub)
 	systemService.SetAlarmService(alarmService)
+	deviceService.SetAlarmService(alarmService)
 
-	// Startup hygiene: clear active alarms belonging to disabled or deleted devices
+	// Startup hygiene: clear active alarms belonging to disabled, inactive, or deleted devices/parameters
 	_ = db.Model(&model.Alarm{}).
-		Where("status IN ? AND (device_id IS NOT NULL AND (device_id NOT IN (SELECT id FROM devices) OR device_id IN (SELECT id FROM devices WHERE enabled = 0 OR status = 'DISABLED')))", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Where("status IN ? AND ((device_id IS NOT NULL AND device_id NOT IN (SELECT id FROM devices WHERE deleted_at IS NULL AND (enabled = 1 OR enabled = true) AND status NOT IN ('DISABLED', 'INACTIVE'))) OR (parameter_id IS NOT NULL AND parameter_id NOT IN (SELECT id FROM parameters WHERE deleted_at IS NULL AND (enabled = 1 OR enabled = true))))", []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
 		Updates(map[string]interface{}{
 			"status":     model.AlarmCleared,
 			"cleared_at": time.Now().UTC(),

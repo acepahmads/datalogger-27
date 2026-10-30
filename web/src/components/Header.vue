@@ -543,7 +543,10 @@ export default {
       return this.$t('header.system');
     },
     activeAlarmsCount() {
-      const active = this.$store.state.activeAlarms || [];
+      if (this.$store && this.$store.getters && Array.isArray(this.$store.getters.unacknowledgedActiveAlarms)) {
+        return this.$store.getters.unacknowledgedActiveAlarms.length;
+      }
+      const active = (this.$store && this.$store.state && this.$store.state.activeAlarms) || [];
       return active.filter(a => a && a.status === 'ACTIVE').length;
     },
     overallAppStatus() {

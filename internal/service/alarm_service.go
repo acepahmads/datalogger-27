@@ -63,6 +63,13 @@ func (s *AlarmService) CreateAlarm(ctx context.Context, alarm *model.Alarm) erro
 		})
 	}
 
+	// Hydrate Device & Parameter relationships before real-time broadcast so UI banners/popovers display device codes immediately
+	if (alarm.Device == nil && alarm.DeviceID != nil) || (alarm.Parameter == nil && alarm.ParameterID != nil) {
+		if full, err := s.alarmRepo.GetByID(ctx, alarm.ID); err == nil && full != nil {
+			*alarm = *full
+		}
+	}
+
 	// Broadcast alarm.created over WebSocket for real-time global banners and alerts
 	if s.hub != nil {
 		s.hub.Broadcast(websocket.WSMessage{
@@ -268,6 +275,9 @@ func (s *AlarmService) ClearAllDeviceAlarms(ctx context.Context, deviceID uint) 
 			})
 		}
 	}
+	if len(clearedList) > 0 && s.alarmEvaluator != nil {
+		_ = s.alarmEvaluator.ReloadActiveAlarms(ctx)
+	}
 	return nil
 }
 
@@ -303,6 +313,9 @@ func (s *AlarmService) ClearAllParameterAlarms(ctx context.Context, paramID uint
 				Data:      &alarmCopy,
 			})
 		}
+	}
+	if len(clearedList) > 0 && s.alarmEvaluator != nil {
+		_ = s.alarmEvaluator.ReloadActiveAlarms(ctx)
 	}
 	return nil
 }

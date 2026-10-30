@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -596,11 +597,12 @@ func parseNullableInt(val interface{}, clear *bool) *int {
 }
 
 type DeviceService struct {
-	repo        *repository.DeviceRepository
-	systemRepo  *repository.SystemRepository
-	commMu      sync.Mutex
-	lastCommErr map[uint]time.Time
-	prevStatus  map[uint]model.DeviceConnectionStatus
+	repo         *repository.DeviceRepository
+	systemRepo   *repository.SystemRepository
+	alarmService *AlarmService
+	commMu       sync.Mutex
+	lastCommErr  map[uint]time.Time
+	prevStatus   map[uint]model.DeviceConnectionStatus
 }
 
 func NewDeviceService(repo *repository.DeviceRepository, systemRepo *repository.SystemRepository) *DeviceService {
@@ -609,6 +611,30 @@ func NewDeviceService(repo *repository.DeviceRepository, systemRepo *repository.
 		systemRepo:  systemRepo,
 		lastCommErr: make(map[uint]time.Time),
 		prevStatus:  make(map[uint]model.DeviceConnectionStatus),
+	}
+}
+
+func (s *DeviceService) SetAlarmService(as *AlarmService) {
+	s.alarmService = as
+}
+
+func (s *DeviceService) clearDeviceAlarms(deviceID uint) {
+	if s.alarmService != nil {
+		_ = s.alarmService.ClearAllDeviceAlarms(context.Background(), deviceID)
+		return
+	}
+	if s.systemRepo != nil {
+		_ = s.systemRepo.ClearActiveAlarmsByDevice(deviceID)
+	}
+}
+
+func (s *DeviceService) clearParameterAlarms(paramID uint) {
+	if s.alarmService != nil {
+		_ = s.alarmService.ClearAllParameterAlarms(context.Background(), paramID)
+		return
+	}
+	if s.systemRepo != nil {
+		_ = s.systemRepo.ClearActiveAlarmsByParameter(paramID)
 	}
 }
 
@@ -845,6 +871,10 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 		return nil, fmt.Errorf("failed to update device: %w", err)
 	}
 
+	if !device.Enabled || device.Status == model.DeviceStatusDisabled || device.Status == model.DeviceStatusInactive {
+		s.clearDeviceAlarms(device.ID)
+	}
+
 	afterState, _ := json.Marshal(map[string]interface{}{
 		"device_code": device.DeviceCode,
 		"device_name": device.DeviceName,
@@ -874,6 +904,8 @@ func (s *DeviceService) DeleteDevice(id uint, username, ipAddress, userAgent str
 		return fmt.Errorf("failed to delete device: %w", err)
 	}
 
+	s.clearDeviceAlarms(id)
+
 	auditDetails, _ := json.Marshal(map[string]interface{}{
 		"device_id":   id,
 		"device_code": device.DeviceCode,
@@ -899,9 +931,7 @@ func (s *DeviceService) ToggleDeviceEnabled(id uint, enabled bool, username, ipA
 	action := "ENABLE_DEVICE"
 	if !enabled {
 		action = "DISABLE_DEVICE"
-		if s.systemRepo != nil {
-			_ = s.systemRepo.ClearActiveAlarmsByDevice(id)
-		}
+		s.clearDeviceAlarms(id)
 	}
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
@@ -931,8 +961,8 @@ func (s *DeviceService) UpdateDeviceStatus(id uint, status model.DeviceAdminStat
 		return err
 	}
 
-	if (status == model.DeviceStatusDisabled || status == model.DeviceStatusInactive) && s.systemRepo != nil {
-		_ = s.systemRepo.ClearActiveAlarmsByDevice(id)
+	if status == model.DeviceStatusDisabled || status == model.DeviceStatusInactive {
+		s.clearDeviceAlarms(id)
 	}
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
@@ -1507,6 +1537,12 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		param = reloaded
 	}
 
+	if !param.Enabled {
+		s.clearParameterAlarms(param.ID)
+	} else if param.IsDiscreteStatus() && s.alarmService != nil && s.alarmService.alarmEvaluator != nil {
+		_ = s.alarmService.alarmEvaluator.ReloadActiveAlarms(context.Background())
+	}
+
 	afterState, _ := json.Marshal(map[string]interface{}{
 		"parameter_code":             param.ParameterCode,
 		"parameter_name":             param.ParameterName,
@@ -1699,6 +1735,8 @@ func (s *DeviceService) DeleteParameter(deviceID, paramID uint, username, ipAddr
 		return fmt.Errorf("failed to delete parameter: %w", err)
 	}
 
+	s.clearParameterAlarms(paramID)
+
 	auditDetails, _ := json.Marshal(map[string]interface{}{
 		"device_id":      deviceID,
 		"parameter_id":   paramID,
@@ -1718,6 +1756,10 @@ func (s *DeviceService) ToggleParameterEnabled(deviceID, paramID uint, enabled b
 
 	if err := s.repo.SetParameterEnabled(deviceID, paramID, enabled); err != nil {
 		return err
+	}
+
+	if !enabled {
+		s.clearParameterAlarms(paramID)
 	}
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{

@@ -46,11 +46,21 @@ func (r *SystemRepository) GetAllAlarms(status string) ([]model.Alarm, error) {
 		st := strings.ToUpper(strings.TrimSpace(status))
 		query = query.Where("status = ?", st)
 		if st == "ACTIVE" || st == "ACKNOWLEDGED" {
-			query = query.Where("(device_id IS NULL OR device_id IN (SELECT id FROM devices WHERE (enabled = 1 OR enabled = true) AND status != 'DISABLED')) AND (parameter_id IS NULL OR parameter_id IN (SELECT id FROM parameters WHERE (enabled = 1 OR enabled = true)))")
+			query = query.Where(activeAlarmEntityScopeSQL)
 		}
 	}
 	err := query.Limit(100).Find(&alarms).Error
 	return alarms, err
+}
+
+func (r *SystemRepository) ClearActiveAlarmsByParameter(paramID uint) error {
+	now := time.Now().UTC()
+	return r.db.Model(&model.Alarm{}).
+		Where("parameter_id = ? AND status IN ?", paramID, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
+		Updates(map[string]interface{}{
+			"status":     model.AlarmCleared,
+			"cleared_at": &now,
+		}).Error
 }
 
 func (r *SystemRepository) ClearActiveAlarmsByDevice(deviceID uint) error {
@@ -636,5 +646,3 @@ func (r *SystemRepository) SaveStationLocation(loc *model.StationLocation) error
 	loc.UpdatedAt = time.Now()
 	return r.db.Save(loc).Error
 }
-
-

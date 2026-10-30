@@ -39,8 +39,8 @@
         <div class="flex items-center space-x-2 truncate">
           <!-- Device Identifier Link -->
           <router-link
-            v-if="highestAlarm.device_id || (highestAlarm.Device && highestAlarm.Device.id)"
-            :to="`/monitoring/devices/${highestAlarm.device_id || highestAlarm.Device.id}`"
+            v-if="alarmDeviceId(highestAlarm)"
+            :to="`/monitoring/devices/${alarmDeviceId(highestAlarm)}`"
             class="font-mono font-bold underline hover:opacity-80 transition-opacity flex-shrink-0"
             :title="$t('alarms.viewDevice') || 'View Device'"
           >
@@ -51,8 +51,8 @@
           </span>
 
           <!-- Parameter / Metric -->
-          <span v-if="highestAlarm.Parameter && (highestAlarm.Parameter.name || highestAlarm.Parameter.code)" class="font-semibold hidden md:inline">
-            {{ highestAlarm.Parameter.name || highestAlarm.Parameter.code }}:
+          <span v-if="alarmParamName(highestAlarm)" class="font-semibold hidden md:inline">
+            {{ alarmParamName(highestAlarm) }}:
           </span>
 
           <!-- Alarm Message -->
@@ -62,7 +62,7 @@
 
           <!-- Trigger Value & Unit if present -->
           <span v-if="highestAlarm.trigger_value != null" class="font-mono font-bold text-3xs px-1.5 py-0.5 rounded bg-black/25 flex-shrink-0">
-            Val: {{ Number(highestAlarm.trigger_value).toFixed(2) }} {{ (highestAlarm.Parameter && highestAlarm.Parameter.unit) || '' }}
+            Val: {{ Number(highestAlarm.trigger_value).toFixed(2) }} {{ alarmParamUnit(highestAlarm) }}
           </span>
 
           <!-- Threshold limit if present -->
@@ -327,9 +327,12 @@ export default {
     isMuted() {
       return this.prefs.isMuted;
     },
-    // Raw alarms from store or API
+    // Operational alarms from store (excluding disabled/deleted devices & parameters)
     activeAlarms() {
-      return this.$store.state.activeAlarms || [];
+      if (this.$store && this.$store.getters && Array.isArray(this.$store.getters.operationalActiveAlarms)) {
+        return this.$store.getters.operationalActiveAlarms;
+      }
+      return (this.$store && this.$store.state && this.$store.state.activeAlarms) || [];
     },
     // Filter out dismissed or cleared alarms for this session
     filteredAlarms() {
@@ -459,12 +462,39 @@ export default {
         default: return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30';
       }
     },
+    alarmDeviceId(alarm) {
+      if (!alarm) return null;
+      const dev = alarm.device || alarm.Device;
+      return alarm.device_id || (dev && dev.id) || null;
+    },
+    alarmParamName(alarm) {
+      if (!alarm) return '';
+      const p = alarm.parameter || alarm.Parameter;
+      if (p) {
+        return p.parameter_name || p.name || p.parameter_code || p.code || '';
+      }
+      return '';
+    },
+    alarmParamUnit(alarm) {
+      if (!alarm) return '';
+      const p = alarm.parameter || alarm.Parameter;
+      return (p && p.unit) || '';
+    },
     deviceLabel(alarm) {
       if (!alarm) return 'System';
-      if (alarm.Device && (alarm.Device.device_code || alarm.Device.name)) {
-        return alarm.Device.device_code || alarm.Device.name;
+      const dev = alarm.device || alarm.Device;
+      if (dev && (dev.device_code || dev.code || dev.device_name || dev.name)) {
+        return dev.device_code || dev.code || dev.device_name || dev.name;
       }
-      if (alarm.device_id) return `Device #${alarm.device_id}`;
+      const devId = alarm.device_id || (dev && dev.id);
+      if (devId) {
+        const devices = (this.$store && this.$store.state && this.$store.state.devices) || [];
+        const matched = devices.find(d => Number(d.id) === Number(devId));
+        if (matched && (matched.device_code || matched.code || matched.device_name || matched.name)) {
+          return matched.device_code || matched.code || matched.device_name || matched.name;
+        }
+        return `Device #${devId}`;
+      }
       return 'System';
     },
     formatFullDate(dt) {

@@ -8,6 +8,49 @@ Vue.use(Vuex);
 
 const API_BASE = '/api';
 
+export function isDeviceAdministrativelyDisabled(dev) {
+  if (!dev) return false;
+  if (dev.deleted_at) return true;
+  if (dev.enabled === false || dev.enabled === 0) return true;
+  const st = String(dev.status || dev.admin_status || dev.administrative_status || '').toUpperCase();
+  return st === 'DISABLED' || st === 'INACTIVE';
+}
+
+export function isAlarmEntityDisabledOrDeleted(alarm, devices = []) {
+  if (!alarm || alarm.status === 'CLEARED') return true;
+
+  const embeddedDev = alarm.device || alarm.Device || null;
+  if (embeddedDev && isDeviceAdministrativelyDisabled(embeddedDev)) return true;
+
+  const devId = alarm.device_id || (embeddedDev && embeddedDev.id);
+  const devList = Array.isArray(devices) ? devices : [];
+  let matchedDev = null;
+  if (devId && devList.length > 0) {
+    matchedDev = devList.find(x => Number(x.id) === Number(devId));
+    if (!matchedDev) return true;
+    if (isDeviceAdministrativelyDisabled(matchedDev)) return true;
+  }
+
+  const embeddedParam = alarm.parameter || alarm.Parameter || null;
+  if (embeddedParam && (embeddedParam.deleted_at || embeddedParam.enabled === false || embeddedParam.enabled === 0)) {
+    return true;
+  }
+
+  const paramId = alarm.parameter_id || (embeddedParam && embeddedParam.id);
+  if (paramId && matchedDev && Array.isArray(matchedDev.parameters)) {
+    const matchedParam = matchedDev.parameters.find(x => Number(x.id || x.param_id) === Number(paramId));
+    if (!matchedParam) return true;
+    if (matchedParam.enabled === false || matchedParam.enabled === 0) return true;
+  }
+
+  return false;
+}
+
+export function filterOperationalActiveAlarms(alarms, devices = []) {
+  const list = Array.isArray(alarms) ? alarms : [];
+  return list.filter(a => !isAlarmEntityDisabledOrDeleted(a, devices));
+}
+
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem('datalogger_token') || '',
@@ -97,6 +140,8 @@ export default new Vuex.Store({
     canAccessDev: (state, getters) => getters.isSuperAdmin,
     canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
     canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
+    operationalActiveAlarms: state => filterOperationalActiveAlarms(state.activeAlarms, state.devices),
+    unacknowledgedActiveAlarms: (_, getters) => getters.operationalActiveAlarms.filter(a => !a.status || a.status === 'ACTIVE'),
   },
   mutations: {
     SET_TOKEN(state, token) {
@@ -181,26 +226,17 @@ export default new Vuex.Store({
       state.tasks = tasks;
     },
     SET_DEVICES(state, devices) {
-      state.devices = devices;
+      state.devices = Array.isArray(devices) ? devices : [];
+      state.activeAlarms = filterOperationalActiveAlarms(state.activeAlarms, state.devices);
+      if (state.systemStatus) {
+        state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
+      }
     },
     SET_ALARMS(state, alarms) {
       state.alarms = alarms;
     },
     SET_ACTIVE_ALARMS(state, alarms) {
-      const list = Array.isArray(alarms) ? alarms : [];
-      const isDevDisabled = (devId) => {
-        if (!devId) return false;
-        if (!state.devices || !state.devices.length) return false;
-        const d = state.devices.find(x => Number(x.id) === Number(devId));
-        if (!d) return true;
-        return d.enabled === false || (d.status || d.admin_status || d.administrative_status || '').toUpperCase() === 'DISABLED';
-      };
-      state.activeAlarms = list.filter(a => {
-        if (!a || a.status === 'CLEARED') return false;
-        const devId = a.device_id || (a.device && a.device.id);
-        if (isDevDisabled(devId)) return false;
-        return true;
-      });
+      state.activeAlarms = filterOperationalActiveAlarms(alarms, state.devices);
       if (state.systemStatus) {
         state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
       }
@@ -208,15 +244,7 @@ export default new Vuex.Store({
     UPSERT_ACTIVE_ALARM(state, alarm) {
       if (!alarm || !alarm.id) return;
       const alarmIdNum = Number(alarm.id);
-      const isDevDisabled = (devId) => {
-        if (!devId) return false;
-        if (!state.devices || !state.devices.length) return false;
-        const d = state.devices.find(x => Number(x.id) === Number(devId));
-        if (!d) return true;
-        return d.enabled === false || (d.status || d.admin_status || d.administrative_status || '').toUpperCase() === 'DISABLED';
-      };
-      const devId = alarm.device_id || (alarm.device && alarm.device.id);
-      if (alarm.status === 'CLEARED' || isDevDisabled(devId)) {
+      if (isAlarmEntityDisabledOrDeleted(alarm, state.devices)) {
         state.activeAlarms = state.activeAlarms.filter(a => Number(a.id) !== alarmIdNum);
         if (state.systemStatus) {
           state.systemStatus.active_alarms = state.activeAlarms.filter(a => a.status === 'ACTIVE').length;
@@ -227,13 +255,17 @@ export default new Vuex.Store({
       if (idx !== -1) {
         Vue.set(state.activeAlarms, idx, { ...state.activeAlarms[idx], ...alarm });
       } else {
-        // Deduplicate: if an active incident for the same device and alarm code already exists, replace it
-        const devId = alarm.device_id || (alarm.device && alarm.device.id);
+        // Deduplicate: if an active incident for the same device, parameter, and alarm code already exists, replace it
+        const devId = alarm.device_id || ((alarm.device || alarm.Device) && (alarm.device || alarm.Device).id);
+        const paramId = alarm.parameter_id || ((alarm.parameter || alarm.Parameter) && (alarm.parameter || alarm.Parameter).id);
         if (devId && alarm.alarm_code) {
-          const sameDevIdx = state.activeAlarms.findIndex(
-            a => (a.device_id === devId || (a.device && a.device.id === devId)) &&
-                 a.alarm_code === alarm.alarm_code
-          );
+          const sameDevIdx = state.activeAlarms.findIndex(a => {
+            const aDevId = a.device_id || ((a.device || a.Device) && (a.device || a.Device).id);
+            const aParamId = a.parameter_id || ((a.parameter || a.Parameter) && (a.parameter || a.Parameter).id);
+            return Number(aDevId || 0) === Number(devId || 0) &&
+              Number(aParamId || 0) === Number(paramId || 0) &&
+              a.alarm_code === alarm.alarm_code;
+          });
           if (sameDevIdx !== -1) {
             Vue.set(state.activeAlarms, sameDevIdx, { ...state.activeAlarms[sameDevIdx], ...alarm });
             if (state.systemStatus) {
@@ -556,6 +588,7 @@ export default new Vuex.Store({
       try {
         const res = await axios.put(`${API_BASE}/devices/${id}`, updates);
         dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
         return res.data ? res.data.data : null;
       } catch (err) {
         console.error('Failed to update device:', err);
@@ -566,6 +599,7 @@ export default new Vuex.Store({
       try {
         await axios.delete(`${API_BASE}/devices/${id}`);
         dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
       } catch (err) {
         console.error('Failed to delete device:', err);
         throw err;
@@ -575,6 +609,7 @@ export default new Vuex.Store({
       try {
         const res = await axios.put(`${API_BASE}/devices/${id}/enable`, { enabled });
         dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
         return res.data ? res.data.data : null;
       } catch (err) {
         console.error('Failed to toggle device enabled:', err);
@@ -599,26 +634,32 @@ export default new Vuex.Store({
         throw err;
       }
     },
-    async updateParameter(_, { deviceId, paramId, updates }) {
+    async updateParameter({ dispatch }, { deviceId, paramId, updates }) {
       try {
         const res = await axios.put(`${API_BASE}/devices/${deviceId}/parameters/${paramId}`, updates);
+        dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
         return res.data ? res.data.data : null;
       } catch (err) {
         console.error('Failed to update parameter:', err);
         throw err;
       }
     },
-    async deleteParameter(_, { deviceId, paramId }) {
+    async deleteParameter({ dispatch }, { deviceId, paramId }) {
       try {
         await axios.delete(`${API_BASE}/devices/${deviceId}/parameters/${paramId}`);
+        dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
       } catch (err) {
         console.error('Failed to delete parameter:', err);
         throw err;
       }
     },
-    async toggleParameterEnabled(_, { deviceId, paramId, enabled }) {
+    async toggleParameterEnabled({ dispatch }, { deviceId, paramId, enabled }) {
       try {
         const res = await axios.put(`${API_BASE}/devices/${deviceId}/parameters/${paramId}/enable`, { enabled });
+        dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
         return res.data ? res.data.data : null;
       } catch (err) {
         console.error('Failed to toggle parameter enabled:', err);
@@ -898,6 +939,7 @@ export default new Vuex.Store({
               commit('UPSERT_ACTIVE_ALARM', msg.data);
             } else if (msg.type === 'alarm.acknowledged' && msg.data) {
               commit('UPDATE_ALARM_STATUS', msg.data);
+              dispatch('fetchActiveAlarms');
             } else if (msg.type === 'comm.live.frame' && msg.data) {
               window.dispatchEvent(new CustomEvent('comm-live-frame', { detail: msg.data }));
             } else if (msg.type === 'comm.trace.status' && msg.data) {

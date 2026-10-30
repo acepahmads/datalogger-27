@@ -1264,7 +1264,7 @@
             </transition>
           </div>
 
-          <!-- Consolidated Station Health & Alarm Center (Single Bell Icon) -->
+          <!-- Consolidated Station Health & Alarm Center (Distinct Pulse / Heartbeat Icon) -->
             <div class="relative toolbar-popover-anchor">
               <button
                 type="button"
@@ -1289,7 +1289,7 @@
                 aria-label="Alarms & Station Health Center"
                 :aria-expanded="activeToolbarPopover === 'healthAndAlarms'"
               >
-                <OperatorDashboardIcon name="bell" :size="16" />
+                <OperatorDashboardIcon name="pulse" :size="16" />
                 <!-- Badge: show alarm count if active alarms exist -->
                 <span
                   v-if="activeAlarmsList.length > 0"
@@ -1323,7 +1323,7 @@
                           ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
                           : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400'"
                     >
-                      <OperatorDashboardIcon name="bell" :size="15" />
+                      <OperatorDashboardIcon name="pulse" :size="15" />
                     </div>
                     <div>
                       <div class="flex items-center space-x-2">
@@ -7621,28 +7621,48 @@ export default {
       return (this.devicesList || []).filter(d => d && d.enabled !== false && (d.status || d.admin_status || '').toUpperCase() !== 'DISABLED');
     },
     activeAlarmsList() {
-      const isDevDisabled = (devId) => {
+      const resolveDevices = () => (this.devicesList && this.devicesList.length)
+        ? this.devicesList
+        : (this.$store.state.devices || []);
+      const isDevDisabled = (devId, embeddedDev) => {
+        if (embeddedDev && (embeddedDev.enabled === false || embeddedDev.enabled === 0 || ['DISABLED', 'INACTIVE'].includes(String(embeddedDev.status || embeddedDev.admin_status || embeddedDev.administrative_status || '').toUpperCase()))) {
+          return true;
+        }
         if (!devId) return false;
-        const list = (this.devicesList && this.devicesList.length) ? this.devicesList : (this.$store.state.devices || []);
+        const list = resolveDevices();
         if (!list.length) return false;
         const d = list.find(x => Number(x.id) === Number(devId));
         if (!d) return true; // Exclude deleted/unregistered devices
-        return d.enabled === false || (d.status || d.admin_status || d.administrative_status || '').toUpperCase() === 'DISABLED';
+        return d.enabled === false || d.enabled === 0 || ['DISABLED', 'INACTIVE'].includes(String(d.status || d.admin_status || d.administrative_status || '').toUpperCase());
       };
-      const isParamDisabled = (paramId) => {
+      const isParamDisabled = (paramId, devId, embeddedParam) => {
+        if (embeddedParam && (embeddedParam.enabled === false || embeddedParam.enabled === 0)) {
+          return true;
+        }
         if (!paramId) return false;
+        const devs = resolveDevices();
+        if (devId && devs.length) {
+          const d = devs.find(x => Number(x.id) === Number(devId));
+          if (d && Array.isArray(d.parameters)) {
+            const rawP = d.parameters.find(x => Number(x.id || x.param_id) === Number(paramId));
+            if (!rawP) return true;
+            return rawP.enabled === false || rawP.enabled === 0;
+          }
+        }
         const list = this.allParameters || [];
         if (!list.length) return false;
-        const p = list.find(x => Number(x.id) === Number(paramId));
+        const p = list.find(x => Number(x.param_id || x.id) === Number(paramId));
         if (!p) return true; // Exclude deleted/unregistered parameter
-        return p.enabled === false;
+        return p.enabled === false || p.enabled === 0;
       };
       return (this.$store.state.activeAlarms || []).filter(a => {
-        if (!a || a.status === 'CLEARED') return false;
-        const devId = a.device_id || (a.device && a.device.id);
-        if (isDevDisabled(devId)) return false;
-        const paramId = a.parameter_id || (a.parameter && a.parameter.id);
-        if (isParamDisabled(paramId)) return false;
+        if (!a || (a.status && a.status !== 'ACTIVE')) return false;
+        const embeddedDev = a.device || a.Device || null;
+        const devId = a.device_id || (embeddedDev && embeddedDev.id);
+        if (isDevDisabled(devId, embeddedDev)) return false;
+        const embeddedParam = a.parameter || a.Parameter || null;
+        const paramId = a.parameter_id || (embeddedParam && embeddedParam.id);
+        if (isParamDisabled(paramId, devId, embeddedParam)) return false;
         return true;
       });
     },
@@ -7915,6 +7935,7 @@ export default {
             : (live.received_at || receivedAt);
 
           list.push({
+            id: p.id || p.param_id,
             device_id: dev.id,
             device_code: dev.device_code || dev.code,
             device_name: dev.device_name || dev.name,
@@ -9032,10 +9053,12 @@ export default {
     async handleParamSaved() {
       this.isEditParamModalOpen = false;
       try {
-        const res = await apiClient.get('/devices');
+        const res = await apiClient.get('/devices?page_size=100');
         if (res.data && res.data.data) {
           this.devicesList = res.data.data.items || res.data.data || [];
+          this.$store.commit('SET_DEVICES', this.devicesList);
         }
+        await this.fetchActiveAlarms();
       } catch (err) {
         console.error('Failed to reload devices after param saved:', err);
       }
@@ -10522,7 +10545,7 @@ export default {
       }
       const paramId = alm.parameter_id;
       if (paramId && this.allParameters && this.allParameters.length) {
-        const p = this.allParameters.find(x => Number(x.id) === Number(paramId));
+        const p = this.allParameters.find(x => Number(x.param_id || x.id) === Number(paramId));
         if (p) return p.param_name || p.param_code || p.name || '';
       }
       if (alm.message) {
