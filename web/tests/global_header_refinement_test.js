@@ -65,21 +65,25 @@ runTest('2.1: Operator Console button converted to icon-only button without text
 });
 
 // 3. Language Switch Icon
-runTest('3.1: Language control is a switch icon button with EN / ID toggle', () => {
+runTest('3.1: Language control is a single slide switch with EN / ID toggle (no duplicate left globe icon)', () => {
   assert(headerContent.includes('toggleLanguage'), 'Header must implement toggleLanguage method');
   const templateMatch = headerContent.match(/<template>([\s\S]*?)<\/template>/);
   const templateContent = templateMatch[1];
   assert(templateContent.includes('@click="toggleLanguage"'), 'Language button must trigger toggleLanguage');
   assert(templateContent.includes('EN') && templateContent.includes('ID'), 'Language switch must contain EN and ID switch states');
+  const langBtnMatch = templateContent.match(/<button[^>]*@click="toggleLanguage"[\s\S]*?<\/button>/);
+  assert(langBtnMatch && !langBtnMatch[0].includes('<svg'), 'Language switch button must not render duplicate left SVG icon');
 });
 
 // 4. Dark / Light Mode Switch Icon
-runTest('4.1: Dark/Light theme control is a switch icon button', () => {
+runTest('4.1: Dark/Light theme control is a single slide switch (no duplicate left sun/moon icon)', () => {
   assert(headerContent.includes('toggleTheme'), 'Header must implement toggleTheme method');
   assert(headerContent.includes('isDarkMode'), 'Header must calculate isDarkMode');
   const templateMatch = headerContent.match(/<template>([\s\S]*?)<\/template>/);
   const templateContent = templateMatch[1];
   assert(templateContent.includes('@click="toggleTheme"'), 'Theme button must trigger toggleTheme');
+  const themeBtnMatch = templateContent.match(/<button[^>]*@click="toggleTheme"[\s\S]*?<\/button>/);
+  assert(themeBtnMatch && !themeBtnMatch[0].includes('v-if="!isDarkMode"'), 'Theme switch button must not render duplicate left sun/moon icon');
 });
 
 console.log('===============================================================');

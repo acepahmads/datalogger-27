@@ -77,50 +77,50 @@
         </span>
       </router-link>
 
-      <!-- 3. Language Switch Icon Button (EN / ID Slide Switch) -->
+      <!-- 3. Language Switch Button (EN / ID Slide Switch) -->
       <button
         type="button"
         @click="toggleLanguage"
-        class="h-7 px-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center space-x-1 transition-all shadow-xs"
+        class="h-7 px-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition-all shadow-xs cursor-pointer"
         :title="$t('header.language') + ': ' + (language === 'id' ? 'Bahasa Indonesia (Click to switch to English)' : 'English (Click to switch to Bahasa Indonesia)')"
         aria-label="Toggle Language"
       >
-        <svg class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-          <circle cx="12" cy="12" r="10" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-        </svg>
-        <div class="relative w-7 h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center p-0.5 transition-colors">
+        <div class="relative w-10 h-5 bg-slate-200/90 dark:bg-slate-700/90 rounded-full flex items-center p-0.5 transition-colors">
           <span
-            class="text-[7px] font-bold font-mono text-center flex-1 z-10 transition-colors"
-            :class="language === 'en' ? 'text-cyan-700 dark:text-cyan-300 font-extrabold' : 'text-slate-400 dark:text-slate-500'"
+            class="text-[8.5px] font-bold font-mono text-center flex-1 z-10 leading-none transition-colors"
+            :class="language === 'en' ? 'text-cyan-700 dark:text-slate-950 font-extrabold' : 'text-slate-500 dark:text-slate-400'"
           >EN</span>
           <span
-            class="text-[7px] font-bold font-mono text-center flex-1 z-10 transition-colors"
-            :class="language === 'id' ? 'text-cyan-700 dark:text-cyan-300 font-extrabold' : 'text-slate-400 dark:text-slate-500'"
+            class="text-[8.5px] font-bold font-mono text-center flex-1 z-10 leading-none transition-colors"
+            :class="language === 'id' ? 'text-cyan-700 dark:text-slate-950 font-extrabold' : 'text-slate-500 dark:text-slate-400'"
           >ID</span>
           <div
-            class="absolute top-0.5 bottom-0.5 w-[13px] bg-white dark:bg-cyan-500 rounded-full shadow-xs transition-transform duration-200"
-            :class="language === 'id' ? 'translate-x-[13px]' : 'translate-x-0'"
+            class="absolute top-0.5 bottom-0.5 left-0.5 w-[18px] bg-white dark:bg-cyan-400 rounded-full shadow-xs transition-transform duration-200"
+            :class="language === 'id' ? 'translate-x-[18px]' : 'translate-x-0'"
           ></div>
         </div>
       </button>
 
-      <!-- 4. Theme Switch Icon Button (Light / Dark Slide Switch) -->
+      <!-- 4. Theme Switch Button (Light / Dark Slide Switch) -->
       <button
         type="button"
         @click="toggleTheme"
-        class="h-7 px-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center space-x-1 transition-all shadow-xs"
+        class="h-7 px-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition-all shadow-xs cursor-pointer"
         :title="$t('header.appearance') + ': ' + (isDarkMode ? $t('header.dark') : $t('header.light')) + ' (Click to toggle)'"
         aria-label="Toggle Dark / Light Theme"
       >
-        <span v-if="!isDarkMode" class="text-amber-500 text-2xs leading-none flex-shrink-0">☀</span>
-        <span v-else class="text-blue-400 text-2xs leading-none flex-shrink-0">🌙</span>
-        <div class="relative w-7 h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center p-0.5 transition-colors">
-          <span class="text-[7px] text-center flex-1 z-10 leading-none">☀</span>
-          <span class="text-[7px] text-center flex-1 z-10 leading-none">🌙</span>
+        <div class="relative w-10 h-5 bg-slate-200/90 dark:bg-slate-700/90 rounded-full flex items-center p-0.5 transition-colors">
+          <span
+            class="text-[9px] text-center flex-1 z-10 leading-none transition-opacity"
+            :class="!isDarkMode ? 'text-amber-500 opacity-100' : 'text-slate-400 opacity-60'"
+          >☀</span>
+          <span
+            class="text-[9px] text-center flex-1 z-10 leading-none transition-opacity"
+            :class="isDarkMode ? 'opacity-100' : 'opacity-60'"
+          >🌙</span>
           <div
-            class="absolute top-0.5 bottom-0.5 w-[13px] bg-white dark:bg-blue-500 rounded-full shadow-xs transition-transform duration-200"
-            :class="isDarkMode ? 'translate-x-[13px]' : 'translate-x-0'"
+            class="absolute top-0.5 bottom-0.5 left-0.5 w-[18px] bg-white dark:bg-blue-600 rounded-full shadow-xs transition-transform duration-200"
+            :class="isDarkMode ? 'translate-x-[18px]' : 'translate-x-0'"
           ></div>
         </div>
       </button>
