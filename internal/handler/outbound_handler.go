@@ -216,7 +216,15 @@ func (h *OutboundHandler) TestPayload(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.TestPayload(c.Request.Context(), uint(id))
+	var customCfg *model.DestinationPayloadConfig
+	if c.Request.ContentLength > 0 {
+		var cfg model.DestinationPayloadConfig
+		if err := c.ShouldBindJSON(&cfg); err == nil {
+			customCfg = &cfg
+		}
+	}
+
+	result, err := h.service.TestPayloadWithConfig(c.Request.Context(), uint(id), customCfg)
 	if err != nil {
 		response.BadRequest(c, "Test execution failed: "+err.Error())
 		return

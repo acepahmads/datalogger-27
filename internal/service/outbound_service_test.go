@@ -457,3 +457,85 @@ func TestOutboundService_TwoStepLoginBearer(t *testing.T) {
 		t.Errorf("expected auth=2 and data=4 after 401 re-login retry, got auth=%d data=%d", authHits, dataHits)
 	}
 }
+
+func TestOutboundService_TwoStepHTTP200ApplicationRejection(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+
+	ctx := context.Background()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/auth":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":1,"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.validtoken"}`))
+		case "/api/v1/aqmdata":
+			var body map[string]interface{}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if body["id_stasiun"] != "KABUPATEN_JOMBANG" {
+				// KemenLH returns HTTP 200 with status:0 when vendor has no access to id_stasiun
+				w.Write([]byte(`{"status":0,"message":"Vendor tidak memiliki akses ke stasiun ini"}`))
+				return
+			}
+			w.Write([]byte(`{"status":1,"message":"Data berhasil disimpan"}`))
+		}
+	}))
+	defer ts.Close()
+
+	dest := &model.OutputDestination{
+		Name:     "KLH",
+		Type:     model.DestREST,
+		Endpoint: ts.URL + "/api/v1/aqmdata",
+		AuthType: "LOGIN_BEARER",
+		AuthURL:  ts.URL + "/api/v1/auth",
+		Username: "pt_cakrawala_bima_instrument",
+		Password: "secret",
+		Enabled:  true,
+	}
+	_ = svc.CreateDestination(ctx, dest)
+
+	// 1. Draft config with unauthorized station -> Step 1 OK, Step 2 MUST fail despite HTTP 200!
+	draftUnauthorized := &model.DestinationPayloadConfig{
+		DestinationID:          dest.ID,
+		TemplateType:           "KLHK_ISPU_AQMS",
+		StationIDField:         "id_stasiun",
+		StationIDValue:         "KABUPATEN_SUKABUMI",
+		TimestampField:         "waktu",
+		TimestampFormat:        "CUSTOM",
+		TimestampTimezone:      "Asia/Jakarta",
+		OmitIntervalField:      true,
+		Structure:              "FLAT",
+		ConflictResolution:     "PRIORITY_PRIMARY",
+		IncludeSensorStatFlags: true,
+	}
+	resFail, err := svc.TestPayloadWithConfig(ctx, dest.ID, draftUnauthorized)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resFail.IsTwoStep || !resFail.AuthSuccess {
+		t.Errorf("expected IsTwoStep=true and AuthSuccess=true, got %+v", resFail)
+	}
+	if resFail.Success {
+		t.Errorf("expected Success=false when KemenLH responds HTTP 200 status=0, got Success=true")
+	}
+	if !strings.Contains(resFail.ErrorMessage, "Vendor tidak memiliki akses ke stasiun ini") {
+		t.Errorf("expected rejection message in ErrorMessage, got %q", resFail.ErrorMessage)
+	}
+
+	// 2. Draft config with authorized station -> Step 1 OK, Step 2 OK!
+	draftAuthorized := *draftUnauthorized
+	draftAuthorized.StationIDValue = "KABUPATEN_JOMBANG"
+	resOK, err := svc.TestPayloadWithConfig(ctx, dest.ID, &draftAuthorized)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resOK.Success || !resOK.AuthSuccess {
+		t.Errorf("expected both Step 1 and Step 2 to succeed for authorized station, got %+v", resOK)
+	}
+}

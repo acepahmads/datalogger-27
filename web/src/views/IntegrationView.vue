@@ -677,20 +677,88 @@
       <!-- Test Result Alert Banner -->
       <div
         v-if="testResult"
-        class="p-3.5 rounded-xl border text-2xs flex items-start justify-between"
+        class="p-3.5 rounded-xl border text-2xs space-y-2.5"
         :class="testResult.success
           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
           : 'bg-rose-500/10 border-rose-500/30 text-rose-400'"
       >
-        <div>
-          <div class="font-bold flex items-center space-x-2">
-            <span>{{ testResult.success ? '✔ TEST DELIVERY SUCCEEDED' : '✖ TEST DELIVERY FAILED' }}</span>
-            <span v-if="testResult.http_code">HTTP {{ testResult.http_code }}</span>
-            <span>({{ testResult.latency_ms }}ms)</span>
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="font-bold flex flex-wrap items-center gap-2">
+              <span>
+                {{ testResult.is_two_step
+                  ? (testResult.success ? '✔ 2-STEP TEST DELIVERY SUCCEEDED' : '✖ 2-STEP TEST DELIVERY FAILED')
+                  : (testResult.success ? '✔ TEST DELIVERY SUCCEEDED' : '✖ TEST DELIVERY FAILED') }}
+              </span>
+              <span v-if="testResult.http_code">HTTP {{ testResult.http_code }}</span>
+              <span>({{ testResult.latency_ms }}ms)</span>
+            </div>
+            <div v-if="!testResult.is_two_step" class="mt-1 text-3xs opacity-90 font-mono break-all">
+              {{ testResult.error_message || testResult.response_text }}
+            </div>
           </div>
-          <div class="mt-1 text-3xs opacity-90">{{ testResult.response_text || testResult.error_message }}</div>
+          <button @click="testResult = null" class="text-slate-400 hover:text-white ml-2">✕</button>
         </div>
-        <button @click="testResult = null" class="text-slate-400 hover:text-white">✕</button>
+
+        <!-- 2-Step Auth + Data Breakdown -->
+        <div v-if="testResult.is_two_step" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 font-mono text-3xs">
+          <!-- Step 1 Card -->
+          <div
+            class="p-2.5 rounded-lg border space-y-1"
+            :class="testResult.auth_success
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
+          >
+            <div class="flex items-center justify-between font-bold">
+              <span>{{ testResult.auth_success ? '✔ STEP 1 — AUTH LOGIN OK' : '✖ STEP 1 — AUTH LOGIN FAILED' }}</span>
+              <span>
+                <template v-if="testResult.auth_used_cache">CACHE</template>
+                <template v-else>
+                  <span v-if="testResult.auth_http_code">HTTP {{ testResult.auth_http_code }} · </span>{{ testResult.auth_latency_ms || 0 }}ms
+                </template>
+              </span>
+            </div>
+            <div v-if="testResult.auth_url" class="text-slate-400 truncate" :title="testResult.auth_url">
+              POST {{ testResult.auth_url }}
+            </div>
+            <div class="opacity-95 break-all">
+              {{ testResult.auth_message }}
+              <span v-if="testResult.auth_token_preview" class="text-cyan-400 ml-1">
+                [Bearer {{ testResult.auth_token_preview }}]
+              </span>
+            </div>
+          </div>
+
+          <!-- Step 2 Card -->
+          <div
+            class="p-2.5 rounded-lg border space-y-1"
+            :class="!testResult.auth_success
+              ? 'bg-slate-800/40 border-slate-700/60 text-slate-400'
+              : testResult.success
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
+          >
+            <div class="flex items-center justify-between font-bold">
+              <span>
+                {{ !testResult.auth_success
+                  ? '○ STEP 2 — DATA SKIPPED'
+                  : (testResult.success ? '✔ STEP 2 — DATA ACCEPTED' : '✖ STEP 2 — DATA REJECTED / ERROR') }}
+              </span>
+              <span v-if="testResult.auth_success">
+                <span v-if="testResult.http_code">HTTP {{ testResult.http_code }} · </span>{{ testResult.data_latency_ms || 0 }}ms
+              </span>
+            </div>
+            <div v-if="testResult.data_url" class="text-slate-400 truncate" :title="testResult.data_url">
+              POST {{ testResult.data_url }}
+            </div>
+            <div v-if="testResult.auth_success" class="opacity-95 break-all">
+              {{ testResult.response_text || testResult.error_message }}
+            </div>
+            <div v-else class="opacity-75">
+              Menunggu Step 1 Login berhasil sebelum mengirim data sensor.
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Config & Live Preview Columns -->
@@ -2364,7 +2432,8 @@ export default {
       this.testingPayload = true;
       this.testResult = null;
       try {
-        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/test`);
+        this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
+        const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/test`, this.payloadConfig);
         if (res.data && res.data.success) {
           this.testResult = res.data.data;
         }

@@ -40,6 +40,7 @@ type OutboundService interface {
 	GeneratePreview(ctx context.Context, destID uint, deviceID *uint) (string, error)
 	GeneratePreviewWithConfig(ctx context.Context, destID uint, deviceID *uint, customCfg *model.DestinationPayloadConfig) (string, error)
 	TestPayload(ctx context.Context, destID uint) (*TestPayloadResult, error)
+	TestPayloadWithConfig(ctx context.Context, destID uint, customCfg *model.DestinationPayloadConfig) (*TestPayloadResult, error)
 
 	// Queue Inspection & Management
 	GetQueueItems(ctx context.Context, filter repository.QueueFilter) ([]model.OutboundDeliveryQueue, int64, error)
@@ -70,12 +71,38 @@ type PurgeProgress struct {
 }
 
 type TestPayloadResult struct {
-	Success      bool   `json:"success"`
-	HTTPCode     int    `json:"http_code,omitempty"`
-	LatencyMs    int64  `json:"latency_ms"`
-	ResponseText string `json:"response_text"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	PayloadSent  string `json:"payload_sent"`
+	Success          bool   `json:"success"`
+	HTTPCode         int    `json:"http_code,omitempty"`
+	LatencyMs        int64  `json:"latency_ms"`
+	ResponseText     string `json:"response_text"`
+	ErrorMessage     string `json:"error_message,omitempty"`
+	PayloadSent      string `json:"payload_sent"`
+	IsTwoStep        bool   `json:"is_two_step,omitempty"`
+	AuthURL          string `json:"auth_url,omitempty"`
+	DataURL          string `json:"data_url,omitempty"`
+	AuthUsedCache    bool   `json:"auth_used_cache,omitempty"`
+	AuthSuccess      bool   `json:"auth_success,omitempty"`
+	AuthHTTPCode     int    `json:"auth_http_code,omitempty"`
+	AuthLatencyMs    int64  `json:"auth_latency_ms,omitempty"`
+	AuthTokenPreview string `json:"auth_token_preview,omitempty"`
+	AuthMessage      string `json:"auth_message,omitempty"`
+	DataLatencyMs    int64  `json:"data_latency_ms,omitempty"`
+}
+
+type restDeliveryOutcome struct {
+	httpCode         int
+	body             string
+	isAck            bool
+	isPermanent      bool
+	err              error
+	isTwoStep        bool
+	authUsedCache    bool
+	authSuccess      bool
+	authHTTPCode     int
+	authLatencyMs    int64
+	authTokenPreview string
+	authMessage      string
+	dataLatencyMs    int64
 }
 
 type QueueItemDetailResponse struct {
@@ -311,10 +338,73 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 // deliverREST executes an outbound HTTP request to a third-party webhook/endpoint,
 // including 2-step authentication (Step 1: POST auth_url -> Step 2: POST data_url with Bearer token) when AuthType == "LOGIN_BEARER".
 func (s *outboundService) deliverREST(ctx context.Context, dest *model.OutputDestination, payload string) (int, string, bool, bool, error) {
-	sendDataPost := func(dynamicBearer string) (int, string, bool, bool, error) {
+	out := s.deliverRESTDetailed(ctx, dest, payload)
+	return out.httpCode, out.body, out.isAck, out.isPermanent, out.err
+}
+
+func maskAuthTokenPreview(tok string) string {
+	t := strings.TrimSpace(tok)
+	if len(t) <= 10 {
+		if t == "" {
+			return ""
+		}
+		return "****"
+	}
+	return t[:8] + "...****"
+}
+
+func detectApplicationLevelError(body []byte) (string, bool) {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return "", false
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal(trimmed, &obj); err != nil {
+		return "", false
+	}
+
+	isFalsyFailure := func(v interface{}) bool {
+		switch val := v.(type) {
+		case bool:
+			return !val
+		case float64:
+			return val == 0
+		case string:
+			lower := strings.ToLower(strings.TrimSpace(val))
+			return lower == "0" || lower == "false" || lower == "error" || lower == "failed" || lower == "fail" || lower == "gagal"
+		}
+		return false
+	}
+
+	rejected := false
+	if st, ok := lookupCaseInsensitiveKey(obj, "status"); ok && isFalsyFailure(st) {
+		rejected = true
+	}
+	if !rejected {
+		if sc, ok := lookupCaseInsensitiveKey(obj, "success"); ok && isFalsyFailure(sc) {
+			rejected = true
+		}
+	}
+	if !rejected {
+		return "", false
+	}
+
+	for _, msgKey := range []string{"message", "msg", "error", "detail", "keterangan"} {
+		if mv, ok := lookupCaseInsensitiveKey(obj, msgKey); ok {
+			if ms, isStr := mv.(string); isStr && strings.TrimSpace(ms) != "" {
+				return strings.TrimSpace(ms), true
+			}
+		}
+	}
+	return string(trimmed), true
+}
+
+func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.OutputDestination, payload string) restDeliveryOutcome {
+	sendDataPost := func(dynamicBearer string) (int, string, bool, bool, int64, error) {
+		dataStart := time.Now()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.Endpoint, bytes.NewBufferString(payload))
 		if err != nil {
-			return 0, "", false, true, fmt.Errorf("invalid endpoint URL: %w", err)
+			return 0, "", false, true, 0, fmt.Errorf("invalid endpoint URL: %w", err)
 		}
 
 		req.Header.Set("Content-Type", "application/json")
@@ -356,9 +446,10 @@ func (s *outboundService) deliverREST(ctx context.Context, dest *model.OutputDes
 		}
 
 		resp, err := s.httpClient.Do(req)
+		dataLatency := time.Since(dataStart).Milliseconds()
 		if err != nil {
 			// Network connection error / timeout -> retryable
-			return 0, "", false, false, fmt.Errorf("network error: %w", err)
+			return 0, "", false, false, dataLatency, fmt.Errorf("network error: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -366,10 +457,13 @@ func (s *outboundService) deliverREST(ctx context.Context, dest *model.OutputDes
 		bodyStr := string(bodyBytes)
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			if appErrMsg, rejected := detectApplicationLevelError(bodyBytes); rejected {
+				return resp.StatusCode, bodyStr, false, true, dataLatency, fmt.Errorf("Application rejected (HTTP %d): %s", resp.StatusCode, appErrMsg)
+			}
 			isAck := strings.Contains(strings.ToLower(bodyStr), "ack") ||
 				strings.Contains(strings.ToLower(bodyStr), "success") ||
 				strings.Contains(strings.ToLower(bodyStr), "received")
-			return resp.StatusCode, bodyStr, isAck, false, nil
+			return resp.StatusCode, bodyStr, isAck, false, dataLatency, nil
 		}
 
 		isPermanent := false
@@ -377,47 +471,99 @@ func (s *outboundService) deliverREST(ctx context.Context, dest *model.OutputDes
 			isPermanent = true
 		}
 
-		return resp.StatusCode, bodyStr, false, isPermanent, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, bodyStr)
+		return resp.StatusCode, bodyStr, false, isPermanent, dataLatency, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	if dest.AuthType == "LOGIN_BEARER" {
+		outcome := restDeliveryOutcome{isTwoStep: true}
 		var token string
 		usedCachedToken := false
 		if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
 			if cached := s.getCachedAuthToken(dest.ID); cached != "" {
 				token = cached
 				usedCachedToken = true
+				outcome.authUsedCache = true
+				outcome.authSuccess = true
+				outcome.authTokenPreview = maskAuthTokenPreview(token)
+				outcome.authMessage = "Menggunakan Bearer token aktif dari cache"
 			}
 		}
 
 		if token == "" {
+			authStart := time.Now()
 			freshToken, authCode, authBody, authPerm, authErr := s.performLoginAuth(ctx, dest)
+			outcome.authLatencyMs = time.Since(authStart).Milliseconds()
+			outcome.authHTTPCode = authCode
 			if authErr != nil {
-				return authCode, authBody, false, authPerm, authErr
+				outcome.authSuccess = false
+				outcome.authMessage = authErr.Error()
+				outcome.httpCode = authCode
+				outcome.body = authBody
+				outcome.isPermanent = authPerm
+				outcome.err = authErr
+				return outcome
 			}
 			token = freshToken
+			outcome.authSuccess = true
+			outcome.authTokenPreview = maskAuthTokenPreview(token)
+			outcome.authMessage = fmt.Sprintf("Login berhasil & Bearer token diterima (HTTP %d)", authCode)
 			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
 				s.setCachedAuthToken(dest.ID, token, time.Duration(dest.AuthCacheSeconds)*time.Second)
 			}
 		}
 
-		code, body, isAck, isPerm, err := sendDataPost(token)
+		code, body, isAck, isPerm, dataLat, err := sendDataPost(token)
+		outcome.dataLatencyMs = dataLat
 		if err != nil && usedCachedToken && code == http.StatusUnauthorized {
 			// Cached token expired or revoked early: clear cache, re-authenticate once, and retry Step 2 immediately
 			s.clearCachedAuthToken(dest.ID)
+			outcome.authUsedCache = false
+			authStart := time.Now()
 			freshToken, authCode, authBody, authPerm, authErr := s.performLoginAuth(ctx, dest)
+			outcome.authLatencyMs = time.Since(authStart).Milliseconds()
+			outcome.authHTTPCode = authCode
 			if authErr != nil {
-				return authCode, authBody, false, authPerm, authErr
+				outcome.authSuccess = false
+				outcome.authMessage = authErr.Error()
+				outcome.httpCode = authCode
+				outcome.body = authBody
+				outcome.isPermanent = authPerm
+				outcome.err = authErr
+				return outcome
 			}
+			outcome.authSuccess = true
+			outcome.authTokenPreview = maskAuthTokenPreview(freshToken)
+			outcome.authMessage = fmt.Sprintf("Token cache kedaluwarsa (401) → Re-login berhasil (HTTP %d)", authCode)
 			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
 				s.setCachedAuthToken(dest.ID, freshToken, time.Duration(dest.AuthCacheSeconds)*time.Second)
 			}
-			return sendDataPost(freshToken)
+			code2, body2, isAck2, isPerm2, dataLat2, err2 := sendDataPost(freshToken)
+			outcome.httpCode = code2
+			outcome.body = body2
+			outcome.isAck = isAck2
+			outcome.isPermanent = isPerm2
+			outcome.dataLatencyMs += dataLat2
+			outcome.err = err2
+			return outcome
 		}
-		return code, body, isAck, isPerm, err
+
+		outcome.httpCode = code
+		outcome.body = body
+		outcome.isAck = isAck
+		outcome.isPermanent = isPerm
+		outcome.err = err
+		return outcome
 	}
 
-	return sendDataPost("")
+	code, body, isAck, isPerm, dataLat, err := sendDataPost("")
+	return restDeliveryOutcome{
+		httpCode:      code,
+		body:          body,
+		isAck:         isAck,
+		isPermanent:   isPerm,
+		dataLatencyMs: dataLat,
+		err:           err,
+	}
 }
 
 func (s *outboundService) getCachedAuthToken(destID uint) string {
@@ -508,6 +654,9 @@ func (s *outboundService) performLoginAuth(ctx context.Context, dest *model.Outp
 
 	token := extractTokenFromAuthResponse(bodyBytes, resp.Header, dest.AuthTokenPath)
 	if token == "" {
+		if appErrMsg, rejected := detectApplicationLevelError(bodyBytes); rejected {
+			return "", resp.StatusCode, bodyStr, true, fmt.Errorf("Step 1 Auth rejected (HTTP %d): %s", resp.StatusCode, appErrMsg)
+		}
 		return "", resp.StatusCode, bodyStr, true, fmt.Errorf("Step 1 Auth succeeded (HTTP %d) but no token found in response from %s", resp.StatusCode, authURL)
 	}
 
@@ -1283,12 +1432,17 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 
 // TestPayload generates a preview payload and attempts direct delivery to destination
 func (s *outboundService) TestPayload(ctx context.Context, destID uint) (*TestPayloadResult, error) {
+	return s.TestPayloadWithConfig(ctx, destID, nil)
+}
+
+// TestPayloadWithConfig generates a preview payload (using custom draft config if provided) and attempts direct delivery to destination
+func (s *outboundService) TestPayloadWithConfig(ctx context.Context, destID uint, customCfg *model.DestinationPayloadConfig) (*TestPayloadResult, error) {
 	dest, err := s.repo.GetDestinationByID(ctx, destID)
 	if err != nil {
 		return nil, fmt.Errorf("destination not found: %w", err)
 	}
 
-	previewJSON, err := s.GeneratePreview(ctx, destID, nil)
+	previewJSON, err := s.GeneratePreviewWithConfig(ctx, destID, nil, customCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate payload: %w", err)
 	}
@@ -1300,13 +1454,25 @@ func (s *outboundService) TestPayload(ctx context.Context, destID uint) (*TestPa
 	startTime := time.Now()
 	switch dest.Type {
 	case model.DestREST:
-		httpCode, respBody, _, _, err := s.deliverREST(ctx, dest, previewJSON)
+		out := s.deliverRESTDetailed(ctx, dest, previewJSON)
 		result.LatencyMs = time.Since(startTime).Milliseconds()
-		result.HTTPCode = httpCode
-		result.ResponseText = respBody
-		if err != nil {
+		result.HTTPCode = out.httpCode
+		result.ResponseText = out.body
+		result.IsTwoStep = out.isTwoStep
+		if out.isTwoStep {
+			result.AuthURL = dest.AuthURL
+			result.DataURL = dest.Endpoint
+			result.AuthUsedCache = out.authUsedCache
+			result.AuthSuccess = out.authSuccess
+			result.AuthHTTPCode = out.authHTTPCode
+			result.AuthLatencyMs = out.authLatencyMs
+			result.AuthTokenPreview = out.authTokenPreview
+			result.AuthMessage = out.authMessage
+			result.DataLatencyMs = out.dataLatencyMs
+		}
+		if out.err != nil {
 			result.Success = false
-			result.ErrorMessage = err.Error()
+			result.ErrorMessage = out.err.Error()
 		} else {
 			result.Success = true
 		}
