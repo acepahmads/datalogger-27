@@ -178,7 +178,7 @@ runTest('5.1: Telemetry Parameters table hides SCALE / OFFSET column for non-adm
     'Parameters table data cell for scale/offset must be guarded by canAccessRawMode'
   );
   assert(
-    ddContent.includes('<td :colspan="canAccessRawMode ? 10 : 9" class="py-8 text-center text-xs text-slate-400">'),
+    ddContent.includes('<td :colspan="canAccessRawMode ? 11 : 10" class="py-8 text-center text-xs text-slate-400">'),
     'Parameters table empty row colspan must adapt to canAccessRawMode'
   );
 });

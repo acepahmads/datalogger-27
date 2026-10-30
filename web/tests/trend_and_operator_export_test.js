@@ -136,6 +136,69 @@ it('Test 13: Custom period modal supports Excel XLS with downloadCustomTrendXls'
   assert(occContent.includes('downloadCustomTrendXls(activeSeriesList, timeBounds, `data_telemetri_${periodSafe}.xlsx`)'), 'Missing call to downloadCustomTrendXls in submitDownloadCustomTrendChart');
 });
 
+// Test 14: RAW SENSOR export authorizes via canAccessRawTrendMode (ADMIN & SUPERADMIN)
+it('Test 14: executeTelemetryExport authorizes RAW mode via canAccessRawTrendMode', () => {
+  assert(
+    occContent.includes("if (this.exportForm.mode === 'RAW') {\n          if (!this.canAccessRawTrendMode) {"),
+    'executeTelemetryExport must check canAccessRawTrendMode so both ADMIN and SUPERADMIN can export RAW data'
+  );
+  assert(!occContent.includes("if (this.exportForm.mode === 'RAW') {\n          if (!this.isSuperAdmin)"), 'executeTelemetryExport must not block ADMIN from RAW export with !this.isSuperAdmin');
+});
+
+// Test 15: RAW SENSOR export extracts raw_value instead of processed_value
+it('Test 15: formatVal extracts raw_value in RAW mode, avg_value in AGGREGATED mode, and processed_value in PROCESSED mode', () => {
+  assert(occContent.includes("const isRawMode = this.exportForm.mode === 'RAW' && this.canAccessRawTrendMode;"), 'Missing isRawMode flag in executeTelemetryExport');
+  assert(occContent.includes("raw = i.raw_value != null ? i.raw_value : (i.value != null ? i.value : '');"), 'formatVal must read i.raw_value first when isRawMode is true');
+  assert(occContent.includes("Number(Number(raw).toFixed(6))"), 'RAW mode must preserve raw sensor decimal fidelity');
+
+  // Behavioral simulation of formatVal across modes
+  const makeFormatter = (mode, canAccessRaw) => {
+    const isRawMode = mode === 'RAW' && canAccessRaw;
+    const isAggMode = mode === 'AGGREGATED';
+    return (i) => {
+      let raw = '';
+      if (isRawMode) {
+        raw = i.raw_value != null ? i.raw_value : (i.value != null ? i.value : '');
+        if (raw !== '' && !isNaN(Number(raw))) {
+          return Number(Number(raw).toFixed(6));
+        }
+        return raw;
+      }
+      if (isAggMode) {
+        raw = i.value != null ? i.value : (i.avg_value != null ? i.avg_value : (i.processed_value != null ? i.processed_value : ''));
+      } else {
+        raw = i.processed_value != null ? i.processed_value : (i.value != null ? i.value : '');
+      }
+      if (raw !== '' && !isNaN(Number(raw))) {
+        return Number(Number(raw).toFixed(2));
+      }
+      return raw;
+    };
+  };
+
+  const sampleRecord = {
+    parameter_id: 10,
+    raw_value: 2048.123456,
+    raw_hex: '0x450001F9',
+    processed_value: 54.0,
+    value: 54.0,
+  };
+
+  assert.strictEqual(makeFormatter('RAW', true)(sampleRecord), 2048.123456, 'RAW export for Admin/Superadmin must output raw_value');
+  assert.strictEqual(makeFormatter('PROCESSED', true)(sampleRecord), 54, 'PROCESSED export must output processed_value');
+  assert.strictEqual(makeFormatter('RAW', false)(sampleRecord), 54, 'Unauthorized RAW mode must fall back to processed_value');
+  assert.strictEqual(makeFormatter('AGGREGATED', true)({ avg_value: 42.678 }), 42.68, 'AGGREGATED export must support avg_value');
+});
+
+// Test 16: RAW SENSOR columns & fields across Excel, PDF, CSV, JSON + Custom Trend Chart
+it('Test 16: RAW mode exports Nilai Raw & Raw Hex across Excel, PDF, CSV, JSON and Custom Trend Chart', () => {
+  assert(occContent.includes("['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai Raw', 'Raw Hex', 'Kualitas']"), 'Excel RAW mode must show Nilai Raw & Raw Hex headers');
+  assert(occContent.includes("[['No', 'Waktu', 'Parameter', 'Kode', 'Nilai Raw', 'Raw Hex', 'Kualitas']]"), 'PDF RAW mode must show Nilai Raw & Raw Hex headers');
+  assert(occContent.includes("['Waktu', 'Parameter', 'Kode', 'Nilai Raw', 'Raw Hex', 'Kualitas']"), 'CSV RAW mode must show Nilai Raw & Raw Hex headers');
+  assert(occContent.includes("raw_value: val,\n                  raw_hex: i.raw_hex || null,"), 'JSON RAW mode must include raw_value and raw_hex');
+  assert(occContent.includes("const isRawTrend = this.canAccessRawTrendMode && this.chartMode === 'raw';"), 'submitDownloadCustomTrendChart must also honor raw chartMode');
+});
+
 console.log('===============================================================');
 console.log(`TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED (TOTAL: ${passedTests + failedTests})`);
 console.log('===============================================================');

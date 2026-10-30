@@ -13782,9 +13782,11 @@ export default {
         const batchSize = 1000;
         let page = 1;
         let allItems = [];
+        const isRawTrend = this.canAccessRawTrendMode && this.chartMode === 'raw';
+        const trendEndpoint = isRawTrend ? '/api/telemetry/raw' : '/api/telemetry/history';
         while (page <= 10) {
           this.customTrendStatusMsg = `Mengunduh sampel data (Halaman ${page})...`;
-          const res = await axios.get('/api/telemetry/history', {
+          const res = await axios.get(trendEndpoint, {
             params: {
               start_time: startISO,
               end_time: endISO,
@@ -13820,7 +13822,7 @@ export default {
             id: numId,
             name: pMeta.name || pMeta.param_name || `Param #${numId}`,
             code: pMeta.code || pMeta.param_code || '',
-            unit: pMeta.unit || '',
+            unit: isRawTrend ? 'RAW' : (pMeta.unit || ''),
             color: color,
             points: [],
           };
@@ -13829,10 +13831,13 @@ export default {
         allItems.forEach(item => {
           const pId = Number(item.parameter_id);
           if (seriesMap[pId]) {
-            const rawVal = item.processed_value != null ? item.processed_value : item.value;
+            const rawVal = isRawTrend
+              ? (item.raw_value != null ? item.raw_value : item.value)
+              : (item.processed_value != null ? item.processed_value : item.value);
             if (rawVal != null && !isNaN(Number(rawVal))) {
               const ts = new Date(item.received_at || item.timestamp || item.period_start || item.created_at).getTime();
-              seriesMap[pId].points.push({ x: ts, y: Number(Number(rawVal).toFixed(2)) });
+              const yVal = isRawTrend ? Number(Number(rawVal).toFixed(6)) : Number(Number(rawVal).toFixed(2));
+              seriesMap[pId].points.push({ x: ts, y: yVal });
             }
           }
         });
@@ -13942,6 +13947,9 @@ export default {
       const past24h = new Date(now.getTime() - 24 * 3600 * 1000);
       this.exportForm.endTime = this.toLocalISO(now);
       this.exportForm.startTime = this.toLocalISO(past24h);
+      if (this.exportForm.mode === 'RAW' && !this.canAccessRawTrendMode) {
+        this.exportForm.mode = 'PROCESSED';
+      }
       this.exportStatusMessage = '';
       this.exportSettingsFeedback = '';
 
@@ -14057,7 +14065,10 @@ export default {
         desc = 'CSV Spreadsheet (*.csv)';
       }
 
-      const suggestedFilename = `telemetry_export_${timestampStr}.${ext}`;
+      const modePrefix = (this.exportForm.mode === 'RAW' && this.canAccessRawTrendMode)
+        ? 'raw_'
+        : (this.exportForm.mode === 'AGGREGATED' ? 'aggregated_' : '');
+      const suggestedFilename = `telemetry_${modePrefix}export_${timestampStr}.${ext}`;
       let fileHandle = null;
 
       // 2. Open native File Explorer ("Save As" dialog) immediately on direct user click event
@@ -14137,7 +14148,7 @@ export default {
 
         let endpoint = '/api/telemetry/history';
         if (this.exportForm.mode === 'RAW') {
-          if (!this.isSuperAdmin) {
+          if (!this.canAccessRawTrendMode) {
             this.exportForm.mode = 'PROCESSED';
             endpoint = '/api/telemetry/history';
           } else {
@@ -14266,8 +14277,24 @@ export default {
           return p?.unit || i.parameter?.unit || '';
         };
 
+        const isRawMode = this.exportForm.mode === 'RAW' && this.canAccessRawTrendMode;
+        const isAggMode = this.exportForm.mode === 'AGGREGATED';
+        const modePrefix = isRawMode ? 'raw_' : (isAggMode ? 'aggregated_' : '');
+
         const formatVal = (i) => {
-          const raw = i.processed_value != null ? i.processed_value : (i.value != null ? i.value : '');
+          let raw = '';
+          if (isRawMode) {
+            raw = i.raw_value != null ? i.raw_value : (i.value != null ? i.value : '');
+            if (raw !== '' && !isNaN(Number(raw))) {
+              return Number(Number(raw).toFixed(6));
+            }
+            return raw;
+          }
+          if (isAggMode) {
+            raw = i.value != null ? i.value : (i.avg_value != null ? i.avg_value : (i.processed_value != null ? i.processed_value : ''));
+          } else {
+            raw = i.processed_value != null ? i.processed_value : (i.value != null ? i.value : '');
+          }
           if (raw !== '' && !isNaN(Number(raw))) {
             return Number(Number(raw).toFixed(2));
           }
@@ -14280,12 +14307,21 @@ export default {
         if (this.exportForm.format === 'json') {
           this.exportStatusMessage = `Menyiapkan berkas JSON (${items.length} data)...`;
           const records = items.map(i => {
-            const rec = {
-              timestamp: formatTime(i.received_at || i.timestamp || i.period_start || i.created_at),
-              parameter_name: formatName(i),
-              value: formatVal(i),
-              unit: formatUnit(i),
-            };
+            const val = formatVal(i);
+            const rec = isRawMode
+              ? {
+                  timestamp: formatTime(i.received_at || i.timestamp || i.period_start || i.bucket_time || i.created_at),
+                  parameter_name: formatName(i),
+                  raw_value: val,
+                  raw_hex: i.raw_hex || null,
+                  value: val,
+                }
+              : {
+                  timestamp: formatTime(i.received_at || i.timestamp || i.period_start || i.bucket_time || i.created_at),
+                  parameter_name: formatName(i),
+                  value: val,
+                  unit: formatUnit(i),
+                };
             if (!isOperator) {
               rec.parameter_code = formatCode(i);
               rec.quality = i.quality || 'GOOD';
@@ -14294,21 +14330,34 @@ export default {
             return rec;
           });
           const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
-          const filename = preselectedFilename || `telemetry_export_${timestampStr}.json`;
+          const filename = preselectedFilename || `telemetry_${modePrefix}export_${timestampStr}.json`;
           await this.finalizeExportDownload(blob, filename, 'application/json', 'JSON Records', preselectedFileHandle);
         } else if (this.exportForm.format === 'xlsx' || this.exportForm.format === 'xls') {
           this.exportStatusMessage = `Menghasilkan berkas Excel (${items.length} data)...`;
           // Operator Role: Hide 'Kode' and 'Kualitas' columns
           const headers = isOperator
             ? ['No', 'Waktu (Timestamp)', 'Parameter', 'Nilai', 'Satuan']
-            : ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+            : (isRawMode
+              ? ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai Raw', 'Raw Hex', 'Kualitas']
+              : ['No', 'Waktu (Timestamp)', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']);
           const rows = items.map((i, idx) => {
-            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.created_at);
+            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.bucket_time || i.created_at);
             const name = formatName(i);
             const val = formatVal(i);
             const unit = formatUnit(i);
             if (isOperator) {
               return [idx + 1, time, name, val, unit];
+            }
+            if (isRawMode) {
+              return [
+                idx + 1,
+                time,
+                name,
+                formatCode(i),
+                val,
+                i.raw_hex || '-',
+                i.quality || 'GOOD',
+              ];
             }
             return [
               idx + 1,
@@ -14333,14 +14382,14 @@ export default {
             { wch: 22 }, // Waktu
             { wch: 28 }, // Parameter
             { wch: 12 }, // Kode
-            { wch: 14 }, // Nilai
-            { wch: 12 }, // Satuan
+            { wch: 16 }, // Nilai / Nilai Raw
+            { wch: isRawMode ? 16 : 12 }, // Raw Hex / Satuan
             { wch: 12 }, // Kualitas
           ];
-          XLSX.utils.book_append_sheet(wb, ws, 'Telemetry_Data');
+          XLSX.utils.book_append_sheet(wb, ws, isRawMode ? 'Telemetry_Raw_Data' : 'Telemetry_Data');
           const xlsBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
           const blob = new Blob([xlsBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          const filename = preselectedFilename || `telemetry_export_${timestampStr}.xlsx`;
+          const filename = preselectedFilename || `telemetry_${modePrefix}export_${timestampStr}.xlsx`;
           await this.finalizeExportDownload(blob, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Excel Spreadsheet', preselectedFileHandle);
         } else if (this.exportForm.format === 'pdf') {
           this.exportStatusMessage = `Menghasilkan dokumen PDF (${items.length} data)...`;
@@ -14356,7 +14405,7 @@ export default {
           doc.setFontSize(13);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(255, 255, 255);
-          doc.text('LAPORAN DATA TELEMETRI OPERASIONAL', 14, 12);
+          doc.text(isRawMode ? 'LAPORAN DATA TELEMETRI RAW SENSOR' : 'LAPORAN DATA TELEMETRI OPERASIONAL', 14, 12);
           doc.setFontSize(8);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(203, 213, 225);
@@ -14368,21 +14417,34 @@ export default {
           const startFmt = formatTime(this.exportForm.startTime);
           const endFmt = formatTime(this.exportForm.endTime);
           doc.text(`Periode: ${startFmt} s/d ${endFmt}`, 14, 28);
-          doc.text(`Mode Data: ${this.exportForm.mode}  |  Total Rekaman: ${items.length} baris`, 14, 33);
+          doc.text(`Mode Data: ${isRawMode ? 'RAW SENSOR' : this.exportForm.mode}  |  Total Rekaman: ${items.length} baris`, 14, 33);
           const printTime = formatTime(new Date());
           doc.text(`Dicetak: ${printTime}`, 14, 38);
 
           // Table Rows (Hide 'Kode' and 'Kualitas' for Operator)
           const head = isOperator
             ? [['No', 'Waktu', 'Parameter', 'Nilai', 'Satuan']]
-            : [['No', 'Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']];
+            : (isRawMode
+              ? [['No', 'Waktu', 'Parameter', 'Kode', 'Nilai Raw', 'Raw Hex', 'Kualitas']]
+              : [['No', 'Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']]);
           const body = items.map((i, idx) => {
-            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.created_at);
+            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.bucket_time || i.created_at);
             const name = formatName(i);
             const val = String(formatVal(i));
             const unit = formatUnit(i);
             if (isOperator) {
               return [String(idx + 1), time, name, val, unit];
+            }
+            if (isRawMode) {
+              return [
+                String(idx + 1),
+                time,
+                name,
+                formatCode(i),
+                val,
+                i.raw_hex || '-',
+                i.quality || 'GOOD',
+              ];
             }
             return [
               String(idx + 1),
@@ -14403,11 +14465,11 @@ export default {
             4: { cellWidth: 30, halign: 'center' },
           } : {
             0: { cellWidth: 10, halign: 'center' },
-            1: { cellWidth: 36 },
-            2: { cellWidth: 46 },
+            1: { cellWidth: 35 },
+            2: { cellWidth: 43 },
             3: { cellWidth: 18 },
-            4: { cellWidth: 20, halign: 'right' },
-            5: { cellWidth: 18, halign: 'center' },
+            4: { cellWidth: 22, halign: 'right' },
+            5: { cellWidth: 22, halign: 'center' },
             6: { cellWidth: 22, halign: 'center' },
           };
 
@@ -14444,7 +14506,7 @@ export default {
             doc.text(`Halaman ${p} dari ${totalPages}`, 196, 290, { align: 'right' });
           }
 
-          const filename = preselectedFilename || `telemetry_export_${timestampStr}.pdf`;
+          const filename = preselectedFilename || `telemetry_${modePrefix}export_${timestampStr}.pdf`;
           const pdfBlob = doc.output('blob');
           await this.finalizeExportDownload(pdfBlob, filename, 'application/pdf', 'PDF Report', preselectedFileHandle);
         } else {
@@ -14452,14 +14514,26 @@ export default {
           this.exportStatusMessage = `Menyiapkan berkas CSV (${items.length} data)...`;
           const headers = isOperator
             ? ['Waktu', 'Parameter', 'Nilai', 'Satuan']
-            : ['Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas'];
+            : (isRawMode
+              ? ['Waktu', 'Parameter', 'Kode', 'Nilai Raw', 'Raw Hex', 'Kualitas']
+              : ['Waktu', 'Parameter', 'Kode', 'Nilai', 'Satuan', 'Kualitas']);
           const rows = items.map(i => {
-            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.created_at);
+            const time = formatTime(i.received_at || i.timestamp || i.period_start || i.bucket_time || i.created_at);
             const name = `"${formatName(i).replace(/"/g, '""')}"`;
             const val = formatVal(i);
             const unit = formatUnit(i);
             if (isOperator) {
               return [time, name, val, unit];
+            }
+            if (isRawMode) {
+              return [
+                time,
+                name,
+                formatCode(i),
+                val,
+                i.raw_hex || '',
+                i.quality || 'GOOD',
+              ];
             }
             return [
               time,
@@ -14472,7 +14546,7 @@ export default {
           });
           const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-          const filename = preselectedFilename || `telemetry_export_${timestampStr}.csv`;
+          const filename = preselectedFilename || `telemetry_${modePrefix}export_${timestampStr}.csv`;
           await this.finalizeExportDownload(blob, filename, 'text/csv', 'CSV Spreadsheet', preselectedFileHandle);
         }
 
