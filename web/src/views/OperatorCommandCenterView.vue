@@ -1976,22 +1976,26 @@
                   <div class="p-1.5 rounded bg-slate-100 dark:bg-[#0E1726] border border-slate-200/70 dark:border-[#1E3048] mb-2 flex items-center justify-between text-[9px]">
                     <div>
                       <span class="text-slate-400">Queue: </span>
-                      <strong class="text-slate-700 dark:text-slate-300">{{ networkStatus.outbound.queue_summary.total }}</strong>
+                      <strong :class="((networkStatus.outbound.queue_summary.pending || 0) + (networkStatus.outbound.queue_summary.sending || 0) + (networkStatus.outbound.queue_summary.retrying || 0)) > 0 ? 'text-cyan-500 font-bold' : 'text-slate-700 dark:text-slate-300'">
+                        {{ (networkStatus.outbound.queue_summary.pending || 0) + (networkStatus.outbound.queue_summary.sending || 0) + (networkStatus.outbound.queue_summary.retrying || 0) }}
+                      </strong>
                     </div>
                     <div>
-                      <span class="text-slate-400">Pending: </span>
-                      <strong class="text-cyan-500">{{ networkStatus.outbound.queue_summary.pending }}</strong>
+                      <span class="text-slate-400">Delivered: </span>
+                      <strong class="text-emerald-600 dark:text-emerald-400">
+                        {{ (networkStatus.outbound.queue_summary.delivered || 0) + (networkStatus.outbound.queue_summary.acknowledged || 0) }}
+                      </strong>
                     </div>
                     <div>
-                      <span class="text-slate-400">Sending: </span>
-                      <strong :class="networkStatus.outbound.queue_summary.sending > 0 ? 'text-amber-500 font-bold' : 'text-slate-400'">
-                        {{ networkStatus.outbound.queue_summary.sending }}
+                      <span class="text-slate-400">Retrying: </span>
+                      <strong :class="(networkStatus.outbound.queue_summary.retrying || 0) > 0 ? 'text-amber-500 font-bold' : 'text-slate-400'">
+                        {{ networkStatus.outbound.queue_summary.retrying || 0 }}
                       </strong>
                     </div>
                     <div>
                       <span class="text-slate-400">Failed: </span>
-                      <strong :class="networkStatus.outbound.queue_summary.failed > 0 ? 'text-rose-500 font-bold' : 'text-slate-400'">
-                        {{ networkStatus.outbound.queue_summary.failed }}
+                      <strong :class="(networkStatus.outbound.queue_summary.failed || 0) > 0 ? 'text-rose-500 font-bold' : 'text-slate-400'">
+                        {{ networkStatus.outbound.queue_summary.failed || 0 }}
                       </strong>
                     </div>
                   </div>

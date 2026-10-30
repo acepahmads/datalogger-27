@@ -18,6 +18,8 @@ type OutboundRepository interface {
 	CreateDestination(ctx context.Context, dest *model.OutputDestination) error
 	UpdateDestination(ctx context.Context, dest *model.OutputDestination) error
 	DeleteDestination(ctx context.Context, id uint) error
+	RecordDestinationLastDelivery(ctx context.Context, destinationID uint, deliveredAt time.Time) error
+	SyncDestinationStatsFromQueue(ctx context.Context, destinationID *uint) error
 
 	// Destination Payload Configs
 	GetPayloadConfigByDestinationID(ctx context.Context, destinationID uint) (*model.DestinationPayloadConfig, error)
@@ -61,6 +63,7 @@ type QueueFilter struct {
 	DestinationID   *uint
 	DeviceID        *uint
 	Status          string
+	UndeliveredOnly bool
 	Search          string
 	StartDate       *time.Time
 	EndDate         *time.Time
@@ -304,6 +307,13 @@ func (r *outboundRepository) GetQueueItems(ctx context.Context, filter QueueFilt
 	if filter.Status != "" && filter.Status != "ALL" {
 		query = query.Where("status = ?", filter.Status)
 	}
+	if filter.UndeliveredOnly {
+		query = query.Where("status NOT IN ?", []string{
+			string(model.DeliveryDelivered),
+			string(model.DeliveryAcknowledged),
+			string(model.DeliveryCancelled),
+		})
+	}
 	if filter.IntervalSeconds != nil && *filter.IntervalSeconds > 0 {
 		query = query.Where("interval_seconds = ?", *filter.IntervalSeconds)
 	}
@@ -437,6 +447,85 @@ func (r *outboundRepository) UpdateDeliveryResult(ctx context.Context, item *mod
 		}).Error
 }
 
+// RecordDestinationLastDelivery updates only the last_delivery timestamp on a destination without clobbering concurrent config edits
+func (r *outboundRepository) RecordDestinationLastDelivery(ctx context.Context, destinationID uint, deliveredAt time.Time) error {
+	return r.db.WithContext(ctx).Model(&model.OutputDestination{}).
+		Where("id = ?", destinationID).
+		Update("last_delivery", &deliveredAt).Error
+}
+
+// SyncDestinationStatsFromQueue reconciles success_deliveries, failed_deliveries, and status on output_destinations
+// directly from active outbound_delivery_queues rows so Network & Delivery Monitor and Destination Cards never retain stale/purged errors.
+func (r *outboundRepository) SyncDestinationStatsFromQueue(ctx context.Context, destinationID *uint) error {
+	var destinations []model.OutputDestination
+	dq := r.db.WithContext(ctx).Model(&model.OutputDestination{})
+	if destinationID != nil && *destinationID > 0 {
+		dq = dq.Where("id = ?", *destinationID)
+	}
+	if err := dq.Find(&destinations).Error; err != nil {
+		return err
+	}
+	if len(destinations) == 0 {
+		return nil
+	}
+
+	type destStatusCount struct {
+		DestinationID uint
+		Status        string
+		Count         int64
+	}
+	var counts []destStatusCount
+	qq := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).
+		Select("destination_id, status, COUNT(*) as count").
+		Group("destination_id, status")
+	if destinationID != nil && *destinationID > 0 {
+		qq = qq.Where("destination_id = ?", *destinationID)
+	}
+	if err := qq.Scan(&counts).Error; err != nil {
+		return err
+	}
+
+	type agg struct {
+		delivered int64
+		failed    int64
+		retrying  int64
+	}
+	aggByDest := make(map[uint]agg, len(destinations))
+	for _, c := range counts {
+		a := aggByDest[c.DestinationID]
+		switch model.OutboundDeliveryStatus(c.Status) {
+		case model.DeliveryDelivered, model.DeliveryAcknowledged:
+			a.delivered += c.Count
+		case model.DeliveryFailed:
+			a.failed += c.Count
+		case model.DeliveryRetrying:
+			a.retrying += c.Count
+		}
+		aggByDest[c.DestinationID] = a
+	}
+
+	for _, d := range destinations {
+		a := aggByDest[d.ID]
+		nextStatus := "IDLE"
+		if a.failed > 0 || a.retrying > 0 {
+			nextStatus = "ERROR"
+		} else if a.delivered > 0 {
+			nextStatus = "ACTIVE"
+		}
+		if err := r.db.WithContext(ctx).Model(&model.OutputDestination{}).
+			Where("id = ?", d.ID).
+			Updates(map[string]interface{}{
+				"success_deliveries": a.delivered,
+				"failed_deliveries":  a.failed,
+				"status":             nextStatus,
+			}).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // CancelQueueItem marks a pending or retrying queue item as CANCELLED
 func (r *outboundRepository) CancelQueueItem(ctx context.Context, id uint64) error {
 	return r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).
@@ -444,15 +533,24 @@ func (r *outboundRepository) CancelQueueItem(ctx context.Context, id uint64) err
 		Update("status", model.DeliveryCancelled).Error
 }
 
-// ResetQueueItemForRetry resets an item to PENDING for immediate retry
+// ResetQueueItemForRetry resets an item to PENDING for immediate retry and syncs destination stats
 func (r *outboundRepository) ResetQueueItemForRetry(ctx context.Context, id uint64) error {
+	var item model.OutboundDeliveryQueue
+	_ = r.db.WithContext(ctx).Select("id", "destination_id").Where("id = ?", id).First(&item).Error
+
 	now := time.Now()
-	return r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).
+	if err := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"status":        model.DeliveryPending,
 			"next_retry_at": &now,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+	if item.DestinationID > 0 {
+		_ = r.SyncDestinationStatsFromQueue(ctx, &item.DestinationID)
+	}
+	return nil
 }
 
 // CreateDeliveryLog persists a transmission log entry
@@ -460,12 +558,19 @@ func (r *outboundRepository) CreateDeliveryLog(ctx context.Context, log *model.D
 	return r.db.WithContext(ctx).Create(log).Error
 }
 
-// DeleteQueueItem permanently removes a single queue item from the database
+// DeleteQueueItem permanently removes a single queue item from the database and syncs destination stats
 func (r *outboundRepository) DeleteQueueItem(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var item model.OutboundDeliveryQueue
+	_ = r.db.WithContext(ctx).Select("id", "destination_id").Where("id = ?", id).First(&item).Error
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		_ = tx.Unscoped().Where("queue_item_id = ?", id).Delete(&model.DeliveryLog{}).Error
 		return tx.Unscoped().Where("id = ?", id).Delete(&model.OutboundDeliveryQueue{}).Error
 	})
+	if err == nil && item.DestinationID > 0 {
+		_ = r.SyncDestinationStatsFromQueue(ctx, &item.DestinationID)
+	}
+	return err
 }
 
 // PurgeQueueItems manually purges queue items and optional delivery logs matching criteria
@@ -532,6 +637,10 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 
 		return nil
 	})
+
+	if err == nil {
+		_ = r.SyncDestinationStatsFromQueue(ctx, filter.DestinationID)
+	}
 
 	return deletedQueue, deletedLogs, err
 }
@@ -672,5 +781,8 @@ func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePu
 	})
 
 	done := !moreLogs && !moreQueue
+	if err == nil && done {
+		_ = r.SyncDestinationStatsFromQueue(ctx, filter.DestinationID)
+	}
 	return deletedQueue, deletedLogs, done, err
 }

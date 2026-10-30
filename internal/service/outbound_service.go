@@ -140,6 +140,9 @@ func (s *outboundService) StartWorker() {
 	s.running = true
 	s.stopCh = make(chan struct{})
 
+	// Reconcile destination success/failed counters and status with actual queue items on startup
+	_ = s.repo.SyncDestinationStatsFromQueue(context.Background(), nil)
+
 	go s.workerLoop()
 	logger.Info("[Outbound] Background delivery worker started")
 }
@@ -260,12 +263,6 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 		item.DeliveredAt = &now
 		item.LastError = ""
 		item.NextRetryAt = nil
-
-		// Update destination counters
-		dest.SuccessDeliveries++
-		dest.LastDelivery = &now
-		dest.Status = "ACTIVE"
-		_ = s.repo.UpdateDestination(ctx, dest)
 	} else {
 		// Failure handling
 		item.LastError = err.Error()
@@ -286,13 +283,15 @@ func (s *outboundService) deliverItem(ctx context.Context, item *model.OutboundD
 				item.NextRetryAt = nil
 			}
 		}
-
-		dest.FailedDeliveries++
-		dest.Status = "ERROR"
-		_ = s.repo.UpdateDestination(ctx, dest)
 	}
 
 	_ = s.repo.UpdateDeliveryResult(ctx, item)
+
+	// Reconcile destination last_delivery, counters, and health status directly from persisted queue states
+	if err == nil {
+		_ = s.repo.RecordDestinationLastDelivery(ctx, dest.ID, now)
+	}
+	_ = s.repo.SyncDestinationStatsFromQueue(ctx, &dest.ID)
 
 	// Record DeliveryLog
 	logStatus := string(item.Status)

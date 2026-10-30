@@ -175,9 +175,10 @@ func (h *SystemHandler) GetNetworkStatus(c *gin.Context) {
 				var destQueueCount int64
 
 				qItems, qTotal, qErr := h.outboundService.GetQueueItems(ctx, repository.QueueFilter{
-					DestinationID: &destID,
-					Page:          1,
-					PageSize:      1,
+					DestinationID:   &destID,
+					UndeliveredOnly: true,
+					Page:            1,
+					PageSize:        1,
 				})
 				if qErr == nil {
 					destQueueCount = qTotal

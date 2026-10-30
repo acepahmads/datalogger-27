@@ -247,3 +247,104 @@ func TestGetNetworkStatus_CacheFastResponse(t *testing.T) {
 	}
 }
 
+func TestGetNetworkStatus_DeliveredNotCountedInQueueAndPurgeSync(t *testing.T) {
+	r, db, outboundService := setupNetworkTestRouter(t)
+	ctx := context.Background()
+
+	dest := &model.OutputDestination{
+		Name:              "CBI",
+		Type:              model.DestREST,
+		Endpoint:          "https://cbi.mdtapps.id/api/v1/ticks/create_multi",
+		Enabled:           true,
+		Status:            "ERROR",
+		SuccessDeliveries: 42,
+		FailedDeliveries:  190,
+	}
+	if err := outboundService.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("Failed to create dest: %v", err)
+	}
+
+	now := time.Now()
+	// Seed 28 DELIVERED batches and 2 FAILED batches
+	for i := 1; i <= 28; i++ {
+		_ = db.Create(&model.OutboundDeliveryQueue{
+			DestinationID:   dest.ID,
+			BatchID:         fmt.Sprintf("BATCH-OK-%d", i),
+			IdempotencyKey:  fmt.Sprintf("IDEMP-OK-%d", i),
+			PayloadSnapshot: "{}",
+			Status:          model.DeliveryDelivered,
+			DeliveredAt:     &now,
+		})
+	}
+	for i := 1; i <= 2; i++ {
+		_ = db.Create(&model.OutboundDeliveryQueue{
+			DestinationID:   dest.ID,
+			BatchID:         fmt.Sprintf("BATCH-ERR-%d", i),
+			IdempotencyKey:  fmt.Sprintf("IDEMP-ERR-%d", i),
+			PayloadSnapshot: "{}",
+			Status:          model.DeliveryFailed,
+			LastError:       "old error",
+		})
+	}
+
+	// Purge FAILED items -> destination stats MUST auto-sync to 28 OK / 0 FAIL / ACTIVE
+	if _, _, err := outboundService.PurgeQueue(ctx, repository.QueuePurgeFilter{
+		DestinationID: &dest.ID,
+		Status:        string(model.DeliveryFailed),
+		PurgeLogs:     true,
+	}); err != nil {
+		t.Fatalf("PurgeQueue failed: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/api/system/network", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data struct {
+			Outbound struct {
+				OverallStatus string `json:"overall_status"`
+				Destinations  []struct {
+					ID                uint    `json:"id"`
+					Status            string  `json:"status"`
+					SuccessDeliveries int64   `json:"success_deliveries"`
+					FailedDeliveries  int64   `json:"failed_deliveries"`
+					SuccessRate       float64 `json:"success_rate"`
+					QueueCount        int64   `json:"queue_count"`
+					LastError         string  `json:"last_error"`
+				} `json:"destinations"`
+			} `json:"outbound"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if resp.Data.Outbound.OverallStatus != "HEALTHY" {
+		t.Errorf("Expected OverallStatus HEALTHY after purging failed batches, got %s", resp.Data.Outbound.OverallStatus)
+	}
+	if len(resp.Data.Outbound.Destinations) != 1 {
+		t.Fatalf("Expected 1 destination, got %d", len(resp.Data.Outbound.Destinations))
+	}
+	d := resp.Data.Outbound.Destinations[0]
+	if d.Status != "HEALTHY" {
+		t.Errorf("Expected destination status HEALTHY, got %s", d.Status)
+	}
+	if d.SuccessDeliveries != 28 {
+		t.Errorf("Expected SuccessDeliveries=28, got %d", d.SuccessDeliveries)
+	}
+	if d.FailedDeliveries != 0 {
+		t.Errorf("Expected FailedDeliveries=0, got %d", d.FailedDeliveries)
+	}
+	if d.QueueCount != 0 {
+		t.Errorf("Expected active QueueCount=0 (since all 28 are DELIVERED), got %d", d.QueueCount)
+	}
+	if d.LastError != "" {
+		t.Errorf("Expected empty LastError, got %q", d.LastError)
+	}
+}
+
