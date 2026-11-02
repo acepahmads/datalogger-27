@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100">
+  <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100 font-sans">
     <!-- Breadcrumb & Top Bar -->
     <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-[#20354B]">
       <div class="flex items-center space-x-3">
@@ -15,14 +15,14 @@
         <div>
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-            <h1 class="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-900 dark:text-white uppercase">
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
               INDEKS STANDAR PENCEMAR UDARA (ISPU)
             </h1>
             <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
               PERMEN LHK NO. 14 TAHUN 2020
             </span>
           </div>
-          <p class="text-3xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+          <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
             Authoritative regulatory air quality index calculation, continuous 24h data window verification, and compliance records.
           </p>
         </div>
@@ -31,16 +31,16 @@
       <!-- Station Selector & Top Controls -->
       <div class="flex flex-wrap items-center gap-2">
         <!-- Unified Station Badge -->
-        <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
+        <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#20354B] text-2xs">
           <span class="text-slate-500">Stasiun:</span>
-          <span class="font-bold text-cyan-600 dark:text-cyan-400">AQMS Station (Semua Device Aktif)</span>
+          <span class="font-semibold text-cyan-600 dark:text-cyan-400">AQMS Station (Semua Device Aktif)</span>
         </div>
 
         <!-- Mode Toggle: 24-Hour (Regulatory) vs Per Agregasi (Real-time Interval) -->
-        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-3xs font-mono">
+        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-2xs">
           <button
             @click="setMode('REGULATORY')"
-            class="px-2 py-1 rounded-md transition font-bold"
+            class="px-2.5 py-1 rounded-md transition font-semibold"
             :class="ispuMode === 'REGULATORY'
               ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
@@ -50,7 +50,7 @@
           </button>
           <button
             @click="setMode('OPERATIONAL')"
-            class="px-2 py-1 rounded-md transition font-bold"
+            class="px-2.5 py-1 rounded-md transition font-semibold"
             :class="ispuMode === 'OPERATIONAL'
               ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-xs'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'"
@@ -64,7 +64,7 @@
         <button
           v-if="canManageMapping"
           @click="openMappingsModal"
-          class="px-2.5 py-1.5 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-500"
+          class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition border flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-500"
           title="Configure station parameter mappings to official ISPU pollutants"
         >
           <span>⚙️</span>
@@ -75,7 +75,7 @@
         <button
           @click="triggerRecalculation"
           :disabled="recalculating"
-          class="px-2.5 py-1.5 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-500"
+          class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition border flex items-center space-x-1.5 bg-slate-100 dark:bg-[#101B2B] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-500"
           title="Trigger on-demand 24h recalculation from aggregation data"
         >
           <svg class="w-3 h-3" :class="{ 'animate-spin': recalculating }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +87,7 @@
         <!-- Export CSV -->
         <button
           @click="exportData('csv')"
-          class="px-2.5 py-1.5 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-400 shadow-xs"
+          class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition border flex items-center space-x-1 bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-400 shadow-xs"
         >
           <span>⬇️ CSV</span>
         </button>
@@ -95,7 +95,7 @@
         <!-- Export Excel -->
         <button
           @click="exportData('excel')"
-          class="px-2.5 py-1.5 rounded-lg text-3xs font-mono font-semibold transition border flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 shadow-xs"
+          class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition border flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 shadow-xs"
         >
           <span>📊 Excel</span>
         </button>
@@ -103,7 +103,7 @@
     </div>
 
     <!-- Non-AQMS Warning Banner -->
-    <div v-if="!isAqmsDomain" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-mono flex items-center space-x-2">
+    <div v-if="!isAqmsDomain" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center space-x-2">
       <span>⚠️</span>
       <span>
         Active deployment monitoring domain is <strong>{{ currentMonitoringDomain }}</strong>. ISPU calculations are regulatory-valid strictly for <strong>AQMS</strong> (Air Quality Monitoring Station) installations.
@@ -122,13 +122,13 @@
           <div>
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-2">
-                <span class="text-3xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <span class="text-3xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   {{ isOverallMode ? (ispuMode === 'OPERATIONAL' ? `LATEST STATION ISPU — PER AGREGASI (${aggregationIntervalLabel})` : 'LATEST STATION ISPU — 24-JAM REGULASI') : `LATEST ISPU — ${selectedPollutant} (${ispuMode === 'OPERATIONAL' ? 'PER AGREGASI' : '24-JAM REGULASI'})` }}
                 </span>
                 <button
                   v-if="!isOverallMode"
                   @click="selectPollutant('OVERALL')"
-                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
+                  class="px-1.5 py-0.2 rounded text-4xs font-semibold bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
                   title="Kembali ke ISPU Stasiun (Dominan)"
                 >
                   ← Overall
@@ -143,7 +143,7 @@
             </div>
 
             <!-- Pollutant Name Header if specific concentrate selected -->
-            <div v-if="!isOverallMode" class="text-2xs font-mono font-semibold text-slate-500 dark:text-slate-400 mt-1">
+            <div v-if="!isOverallMode" class="text-2xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
               {{ selectedPollutantInfo?.name }}
             </div>
 
@@ -153,13 +153,13 @@
                 {{ displayISPU }}
               </span>
               <div>
-                <div class="text-lg font-bold font-mono uppercase tracking-wider" :class="categoryTextClass">
+                <div class="text-lg font-bold uppercase tracking-wide" :class="categoryTextClass">
                   {{ ispuCategory }}
                 </div>
-                <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">
+                <div class="text-3xs text-slate-500 dark:text-slate-400">
                   <template v-if="isOverallMode">
-                    Dominant: <strong class="text-slate-900 dark:text-white">{{ dominantPollutant === '-' ? 'None' : dominantPollutant }}</strong>
-                    <span v-if="latestData?.tied_pollutants" class="text-4xs text-amber-500 ml-1">
+                    Dominant: <strong class="font-mono text-slate-900 dark:text-white">{{ dominantPollutant === '-' ? 'None' : dominantPollutant }}</strong>
+                    <span v-if="latestData?.tied_pollutants" class="text-4xs font-mono text-amber-500 ml-1">
                       (Tied: {{ latestData.tied_pollutants }})
                     </span>
                   </template>
@@ -170,8 +170,8 @@
                     <span class="text-slate-400 italic">Tidak Tersedia (0 Data Valid)</span>
                   </template>
                   <template v-else>
-                    Conc: <strong class="text-slate-900 dark:text-white">{{ Number(activeConcentration || 0).toFixed(2) }}</strong> µg/m³
-                    <span v-if="selectedPollutantResult?.xb !== undefined" class="text-4xs text-slate-400 ml-1">
+                    Conc: <strong class="font-mono tabular-nums text-slate-900 dark:text-white">{{ Number(activeConcentration || 0).toFixed(2) }}</strong> µg/m³
+                    <span v-if="selectedPollutantResult?.xb !== undefined" class="text-4xs font-mono tabular-nums text-slate-400 ml-1">
                       [Bp: {{ selectedPollutantResult.xb }} - {{ selectedPollutantResult.xa }}]
                     </span>
                   </template>
@@ -181,17 +181,17 @@
           </div>
 
           <!-- Measurement Period & Completeness Bar -->
-          <div class="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-3xs font-mono">
+          <div class="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 space-y-2 text-3xs">
             <div class="flex items-center justify-between text-slate-500 dark:text-slate-400">
               <span>{{ ispuMode === 'OPERATIONAL' ? 'Bucket Window:' : '24h Rolling Window:' }}</span>
-              <span class="font-bold text-slate-800 dark:text-slate-200">{{ formattedPeriod }}</span>
+              <span class="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{{ formattedPeriod }}</span>
             </div>
             <div>
               <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
                 <span>
                   {{ ispuMode === 'OPERATIONAL' ? 'Bucket Completeness:' : (isOverallMode ? 'Data Completeness (Pasal 7 ayat 3):' : 'Hourly Data Samples:') }}
                 </span>
-                <span class="font-bold" :class="ispuMode === 'OPERATIONAL' || completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
+                <span class="font-mono tabular-nums font-bold" :class="ispuMode === 'OPERATIONAL' || completenessPercent >= 75 ? 'text-emerald-500' : 'text-amber-500'">
                   <template v-if="ispuMode === 'OPERATIONAL'">
                     100.0% (Lengkap)
                   </template>
@@ -218,7 +218,7 @@
               <span>
                 {{ ispuMode === 'OPERATIONAL' ? `Data Source: Single Bucket (${latestData?.source_bucket_identifier || '-'})` : `Data Source: 24h Aggregations (${latestData?.aggregation_interval_seconds || 120}s)` }}
               </span>
-              <span>Timezone: {{ latestData?.timezone || 'Asia/Jakarta' }}</span>
+              <span>Timezone: <span class="font-mono">{{ latestData?.timezone || 'Asia/Jakarta' }}</span></span>
             </div>
           </div>
         </div>
@@ -242,20 +242,20 @@
 
       <!-- Quick Concentrate Selector & 7 Official ISPU Pollutants Breakdown -->
       <div class="space-y-2.5">
-        <div class="flex flex-wrap items-center justify-between gap-2 text-3xs font-mono">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-2xs">
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
             <span class="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
               OFFICIAL 7 PARAMETERS EVALUATION BREAKDOWN
             </span>
-            <span class="text-slate-400 hidden sm:inline">(Permen LHK No. 14/2020 Lampiran I & II)</span>
+            <span class="text-slate-400 hidden sm:inline text-3xs">(Permen LHK No. 14/2020 Lampiran I & II)</span>
           </div>
 
           <!-- Quick Selector Buttons -->
           <div class="flex flex-wrap items-center gap-1">
             <button
               @click="selectPollutant('OVERALL')"
-              class="px-2 py-0.5 rounded text-4xs font-mono font-bold transition border flex items-center space-x-1"
+              class="px-2 py-0.5 rounded text-3xs font-semibold transition border flex items-center space-x-1"
               :class="selectedPollutant === 'OVERALL'
                 ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs ring-1 ring-cyan-400'
                 : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#20354B] hover:text-slate-900 dark:hover:text-white'"
@@ -296,7 +296,7 @@
                     </span>
                     <span
                       v-if="selectedPollutant === p.code"
-                      class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500 text-slate-950 uppercase"
+                      class="px-1 py-0.2 rounded text-[8px] font-bold bg-cyan-500 text-slate-950 uppercase"
                     >
                       Active
                     </span>
@@ -306,7 +306,7 @@
                   </div>
                 </div>
                 <span
-                  class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase border"
+                  class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase border"
                   :class="getParameterBadgeClass(p.code)"
                 >
                   {{ getParameterBadgeLabel(p.code) }}
@@ -319,24 +319,24 @@
                   <span class="text-2xl font-black font-mono tabular-nums text-slate-900 dark:text-white">
                     {{ getParameterDisplayISPU(p.code) }}
                   </span>
-                  <span class="text-3xs font-mono text-slate-400">ISPU</span>
+                  <span class="text-3xs font-semibold text-slate-400">ISPU</span>
                 </div>
-                <div class="text-3xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                <div class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
                   <template v-if="!isParameterMapped(p.code)">
-                    Conc: <strong class="text-slate-400">-</strong>
+                    Conc: <strong class="font-mono text-slate-400">-</strong>
                   </template>
                   <template v-else-if="getParameterResult(p.code)?.valid_samples === 0 || getParameterResult(p.code)?.category === 'TIDAK_TERSEDIA'">
-                    Conc: <strong class="text-slate-400">-</strong>
+                    Conc: <strong class="font-mono text-slate-400">-</strong>
                   </template>
                   <template v-else>
-                    Conc: <strong class="text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
+                    Conc: <strong class="font-mono tabular-nums text-slate-700 dark:text-slate-200">{{ getParameterDisplayConc(p.code) }}</strong> µg/m³
                   </template>
                 </div>
               </div>
             </div>
 
             <!-- Footer: Breakpoints & Inspect Math -->
-            <div class="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
+            <div class="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-[10px]">
               <span class="text-slate-400">
                 <template v-if="!isParameterMapped(p.code)">
                   <span class="text-slate-400 italic">Unmapped</span>
@@ -345,16 +345,16 @@
                   <span class="text-amber-500 font-semibold" title="Data agregasi belum tersedia untuk parameter ini">0 Data Agregasi</span>
                 </template>
                 <template v-else-if="ispuMode === 'OPERATIONAL'">
-                  {{ getParameterResult(p.code)?.source_aggregation_count || 1 }} bucket
+                  <span class="font-mono tabular-nums">{{ getParameterResult(p.code)?.source_aggregation_count || 1 }}</span> bucket
                 </template>
                 <template v-else>
-                  {{ getParameterResult(p.code)?.valid_samples || 0 }}/24h
+                  <span class="font-mono tabular-nums">{{ getParameterResult(p.code)?.valid_samples || 0 }}/24h</span>
                 </template>
               </span>
               <button
                 v-if="isParameterMapped(p.code)"
                 @click.stop="openFormulaModal(p.code)"
-                class="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                class="text-cyan-600 dark:text-cyan-400 font-medium hover:underline cursor-pointer"
                 title="Inspect regulatory interpolation formula"
               >
                 Inspect →
@@ -362,7 +362,7 @@
               <button
                 v-else-if="canManageMapping"
                 @click.stop="openMappingsModal"
-                class="text-slate-400 hover:text-cyan-400 hover:underline cursor-pointer"
+                class="text-slate-400 hover:text-cyan-400 font-medium hover:underline cursor-pointer"
                 title="Map datalogger sensor to this pollutant"
               >
                 + Map
@@ -378,21 +378,21 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center space-x-2">
             <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-            <h3 class="text-xs font-bold font-mono uppercase tracking-wider text-slate-800 dark:text-white">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-white">
               HISTORICAL ISPU CALCULATION RECORDS
             </h3>
-            <span class="text-3xs text-slate-400 font-mono">
+            <span class="text-3xs text-slate-400 tabular-nums">
               ({{ historyTotal }} records found)
             </span>
           </div>
 
           <!-- Filters -->
-          <div class="flex flex-wrap items-center gap-1.5 text-3xs font-mono">
+          <div class="flex flex-wrap items-center gap-1.5 text-2xs">
             <!-- Category Filter -->
             <select
               v-model="filterCategory"
               @change="fetchHistory(1)"
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden"
+              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium"
             >
               <option value="">All Categories</option>
               <option value="BAIK">Baik</option>
@@ -406,7 +406,7 @@
             <select
               v-model="filterStatus"
               @change="fetchHistory(1)"
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden"
+              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium"
             >
               <option value="">All Status</option>
               <option value="VALID">Valid (≥75%)</option>
@@ -418,7 +418,7 @@
             <select
               v-model="filterDominant"
               @change="fetchHistory(1)"
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden"
+              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] text-slate-700 dark:text-slate-300 focus:outline-hidden font-medium"
             >
               <option value="">All Pollutants</option>
               <option v-for="p in sevenOfficialParameters" :key="p.code" :value="p.code">
@@ -430,8 +430,8 @@
 
         <!-- Table -->
         <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
-          <table class="w-full text-left text-3xs font-mono select-none">
-            <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#20354B]">
+          <table class="w-full text-left text-3xs select-none">
+            <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#20354B] font-semibold">
               <tr>
                 <th class="py-2 px-3">
                   {{ ispuMode === 'OPERATIONAL' ? `Bucket Period (${latestData?.aggregation_interval_seconds || 120}s)` : 'Period (24h)' }}
@@ -454,7 +454,7 @@
                 <th
                   v-for="p in sevenOfficialParameters"
                   :key="p.code"
-                  class="py-2 px-3 transition cursor-pointer"
+                  class="py-2 px-3 font-mono transition cursor-pointer"
                   :class="selectedPollutant === p.code ? 'bg-cyan-500/20 text-cyan-400 font-extrabold' : 'hover:text-cyan-400'"
                   @click="selectPollutant(p.code)"
                   :title="`Klik untuk fokus pada ${p.code}`"
@@ -477,7 +477,7 @@
                 class="hover:bg-slate-50 dark:hover:bg-[#101B2B]/60 transition cursor-pointer"
                 @click="openDetailModal(r)"
               >
-                <td class="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
+                <td class="py-2 px-3 font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">
                   <div>{{ formatDate(r.period_end) }}</div>
                   <div class="text-4xs text-slate-400 font-normal">
                     {{ r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL' ? `${r.aggregation_interval_seconds || 120}s: ${formatShortTime(r.period_start)} → ${formatShortTime(r.period_end)}` : `24h: ${formatShortTime(r.period_start)} → ${formatShortTime(r.period_end)}` }}
@@ -487,11 +487,11 @@
                   <div class="font-bold text-cyan-600 dark:text-cyan-400">{{ r.source_bucket_identifier || '-' }}</div>
                   <div class="text-4xs text-slate-400 font-normal">{{ r.aggregation_interval_seconds || 120 }}s {{ r.aggregation_function || 'AVG' }}</div>
                 </td>
-                <td class="py-2 px-3 font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap text-3xs">
+                <td class="py-2 px-3 font-mono tabular-nums text-slate-500 dark:text-slate-400 whitespace-nowrap text-3xs">
                   {{ formatDateTime(r.calculated_at) }}
                 </td>
                 <!-- Main ISPU column (overall or selected pollutant) -->
-                <td class="py-2 px-3 font-bold text-sm tabular-nums" :style="{ color: getRowDisplayColor(r) }">
+                <td class="py-2 px-3 font-mono font-bold text-sm tabular-nums" :style="{ color: getRowDisplayColor(r) }">
                   {{ getRowDisplayISPU(r) }}
                 </td>
                 <!-- Main Category column (overall or selected pollutant) -->
@@ -500,10 +500,10 @@
                     {{ getRowDisplayCategory(r) }}
                   </span>
                 </td>
-                <td class="py-2 px-3 font-bold text-slate-700 dark:text-slate-300">
+                <td class="py-2 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">
                   {{ r.dominant_pollutant || '-' }}
                 </td>
-                <td class="py-2 px-3 tabular-nums">
+                <td class="py-2 px-3 font-mono tabular-nums">
                   <span :class="(r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL') || (r.completeness_percent || 0) >= 75 ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'">
                     {{ r.calculation_mode === 'OPERATIONAL' || ispuMode === 'OPERATIONAL' ? '100%' : `${(r.completeness_percent || 0).toFixed(1)}%` }}
                   </span>
@@ -520,7 +520,7 @@
                 <td
                   v-for="p in sevenOfficialParameters"
                   :key="p.code"
-                  class="py-2 px-3 tabular-nums transition"
+                  class="py-2 px-3 font-mono tabular-nums transition"
                   :class="selectedPollutant === p.code ? 'bg-cyan-500/15 text-cyan-400 font-black' : ''"
                 >
                   {{ getParamVal(r, p.code) }}
@@ -529,7 +529,7 @@
                   <div class="flex items-center justify-end space-x-1.5">
                     <span
                       v-if="getRowReason(r)"
-                      class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold max-w-[150px] truncate"
+                      class="px-1.5 py-0.5 rounded text-4xs font-semibold max-w-[150px] truncate"
                       :class="getRowReasonClass(r)"
                       :title="getRowReasonTooltip(r)"
                     >
@@ -537,7 +537,7 @@
                     </span>
                     <button
                       @click.stop="openDetailModal(r)"
-                      class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-400 text-3xs font-mono font-semibold transition"
+                      class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-400 text-3xs font-semibold transition"
                     >
                       Detail
                     </button>
@@ -549,7 +549,7 @@
         </div>
 
         <!-- Pagination -->
-        <div class="flex items-center justify-between text-3xs font-mono text-slate-500 pt-1">
+        <div class="flex items-center justify-between text-2xs tabular-nums text-slate-500 pt-1">
           <div>
             Page {{ historyPage }} of {{ totalPages || 1 }}
           </div>
@@ -557,14 +557,14 @@
             <button
               :disabled="historyPage <= 1"
               @click="fetchHistory(historyPage - 1)"
-              class="px-2.5 py-1 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] disabled:opacity-30 hover:border-cyan-500 transition"
+              class="px-2.5 py-1 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] disabled:opacity-30 hover:border-cyan-500 transition font-medium"
             >
               Prev
             </button>
             <button
               :disabled="historyPage >= totalPages"
               @click="fetchHistory(historyPage + 1)"
-              class="px-2.5 py-1 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] disabled:opacity-30 hover:border-cyan-500 transition"
+              class="px-2.5 py-1 rounded bg-slate-100 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] disabled:opacity-30 hover:border-cyan-500 transition font-medium"
             >
               Next
             </button>
@@ -583,7 +583,7 @@
         <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#20354B]">
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <h3 class="text-sm font-bold font-mono text-slate-900 dark:text-white uppercase">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">
               ISPU CALCULATION REPRODUCTION & AUDIT DETAILS
             </h3>
           </div>
@@ -591,10 +591,10 @@
         </div>
 
         <!-- Traceability & Provenance Information Card -->
-        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono text-xs space-y-2">
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] text-xs space-y-2">
           <div class="text-2xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span class="text-cyan-600 dark:text-cyan-400 font-bold">Provenance & Traceability Metadata</span>
-            <div class="flex items-center space-x-1.5">
+            <div class="flex items-center space-x-1.5 font-mono">
               <span class="px-2 py-0.5 rounded text-4xs font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
                 MODE: {{ selectedRecord?.calculation_mode || ispuMode }}
               </span>
@@ -606,28 +606,28 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-3xs pt-1 border-t border-slate-200 dark:border-slate-800">
             <div>
               <span class="text-slate-400 block">Source Bucket:</span>
-              <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ selectedRecord?.source_bucket_identifier || '-' }}</span>
+              <span class="font-mono font-bold text-cyan-600 dark:text-cyan-400">{{ selectedRecord?.source_bucket_identifier || '-' }}</span>
             </div>
             <div>
               <span class="text-slate-400 block">Aggregation Setup:</span>
-              <span class="font-bold text-slate-800 dark:text-slate-200">{{ selectedRecord?.aggregation_interval_seconds || 120 }}s · {{ selectedRecord?.aggregation_function || 'AVG' }}</span>
+              <span class="font-mono font-bold text-slate-800 dark:text-slate-200">{{ selectedRecord?.aggregation_interval_seconds || 120 }}s · {{ selectedRecord?.aggregation_function || 'AVG' }}</span>
             </div>
             <div>
               <span class="text-slate-400 block">
                 {{ (selectedRecord?.calculation_mode || ispuMode) === 'OPERATIONAL' ? 'Bucket Window:' : 'Calculation Window (24h):' }}
               </span>
-              <span class="font-bold text-slate-800 dark:text-slate-200">{{ formatDate(selectedRecord?.period_start) }} → {{ formatDate(selectedRecord?.period_end) }}</span>
+              <span class="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{{ formatDate(selectedRecord?.period_start) }} → {{ formatDate(selectedRecord?.period_end) }}</span>
             </div>
             <div>
               <span class="text-slate-400 block">Calculated At:</span>
-              <span class="font-bold text-slate-800 dark:text-slate-200">{{ formatDateTime(selectedRecord?.calculated_at) }}</span>
+              <span class="font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200">{{ formatDateTime(selectedRecord?.calculated_at) }}</span>
             </div>
           </div>
         </div>
 
         <!-- Pollutant Inspector Tabs -->
         <div class="flex items-center space-x-2 overflow-x-auto pb-1">
-          <span class="text-3xs font-mono font-bold text-slate-400 uppercase tracking-wider shrink-0">Pollutant Inspector:</span>
+          <span class="text-3xs font-bold text-slate-400 uppercase tracking-wider shrink-0">Pollutant Inspector:</span>
           <button
             v-for="p in selectedRecord?.parameter_results || []"
             :key="'tab-' + p.pollutant_code"
@@ -647,11 +647,11 @@
         </div>
 
         <!-- Peak Anomaly & Outlier Tracking Panel -->
-        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono space-y-3">
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-2xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center space-x-1.5">
               <span>🎯 Peak & Anomaly Occurrence Tracking:</span>
-              <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-black">{{ activeInspectPollutant }}</span>
+              <span class="px-1.5 py-0.2 rounded font-mono bg-cyan-500/20 text-cyan-300 font-black">{{ activeInspectPollutant }}</span>
             </span>
             <div v-if="auditTrackingLoading" class="text-4xs text-cyan-400 animate-pulse flex items-center space-x-1">
               <span>Analyzing buckets...</span>
@@ -692,28 +692,28 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-3xs">
             <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
               <span class="text-slate-400 block text-4xs">Peak Concentration:</span>
-              <span class="font-bold text-rose-500 text-xs block tabular-nums">
+              <span class="font-mono font-bold text-rose-500 text-xs block tabular-nums">
                 {{ formatConcentration(auditTrackingData?.peak_concentration || getParameterResult(activeInspectPollutant)?.peak_concentration) }} {{ auditTrackingData?.normalized_unit || 'µg/m³' }}
               </span>
             </div>
             <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
               <span class="text-slate-400 block text-4xs">Peak Occurrence Time:</span>
-              <span class="font-bold text-cyan-600 dark:text-cyan-400 text-xs block">
+              <span class="font-mono tabular-nums font-bold text-cyan-600 dark:text-cyan-400 text-xs block">
                 {{ formatDateTime(auditTrackingData?.peak_timestamp || getParameterResult(activeInspectPollutant)?.peak_timestamp) }}
               </span>
               <span class="text-4xs text-slate-400 block font-normal">
-                Bucket ID: {{ auditTrackingData?.peak_bucket_identifier || getParameterResult(activeInspectPollutant)?.peak_bucket_identifier || '-' }}
+                Bucket ID: <span class="font-mono">{{ auditTrackingData?.peak_bucket_identifier || getParameterResult(activeInspectPollutant)?.peak_bucket_identifier || '-' }}</span>
               </span>
             </div>
             <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
               <span class="text-slate-400 block text-4xs">Window 24h Average:</span>
-              <span class="font-bold text-slate-800 dark:text-slate-200 text-xs block tabular-nums">
+              <span class="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs block tabular-nums">
                 {{ formatConcentration(auditTrackingData?.avg_concentration || getParameterResult(activeInspectPollutant)?.normalized_concentration) }} {{ auditTrackingData?.normalized_unit || 'µg/m³' }}
               </span>
             </div>
             <div class="p-2 rounded-lg bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-slate-800">
               <span class="text-slate-400 block text-4xs">Min Concentration:</span>
-              <span class="font-bold text-emerald-500 text-xs block tabular-nums">
+              <span class="font-mono font-bold text-emerald-500 text-xs block tabular-nums">
                 {{ formatConcentration(auditTrackingData?.min_concentration || getParameterResult(activeInspectPollutant)?.min_concentration) }} {{ auditTrackingData?.normalized_unit || 'µg/m³' }}
               </span>
             </div>
@@ -723,11 +723,11 @@
           <div v-if="auditTrackingData?.top_spikes && auditTrackingData.top_spikes.length > 0" class="space-y-1.5">
             <div class="text-3xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
               <span>Highest Concentration Spikes in Window (Top {{ auditTrackingData.top_spikes.length }} Buckets):</span>
-              <span class="text-4xs text-slate-500">Total Analyzed: {{ auditTrackingData.total_buckets || auditTrackingData.top_spikes.length }} buckets</span>
+              <span class="text-4xs text-slate-500 tabular-nums">Total Analyzed: {{ auditTrackingData.total_buckets || auditTrackingData.top_spikes.length }} buckets</span>
             </div>
             <div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto">
-              <table class="w-full text-left text-3xs font-mono">
-                <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 sticky top-0 border-b border-slate-200 dark:border-slate-800">
+              <table class="w-full text-left text-3xs">
+                <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 sticky top-0 border-b border-slate-200 dark:border-slate-800 font-semibold">
                   <tr>
                     <th class="p-1.5">#</th>
                     <th class="p-1.5">Timestamp</th>
@@ -747,15 +747,15 @@
                     <td class="p-1.5 font-bold">
                       <span v-if="spike.is_excluded" class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 dark:text-amber-400 font-bold text-4xs">QUARANTINED</span>
                       <span v-else-if="sIdx === 0" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-bold text-4xs">#1 PEAK</span>
-                      <span v-else class="text-slate-400">#{{ sIdx + 1 }}</span>
+                      <span v-else class="font-mono text-slate-400">#{{ sIdx + 1 }}</span>
                     </td>
-                    <td class="p-1.5 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                    <td class="p-1.5 font-mono tabular-nums font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                       {{ formatDateTime(spike.timestamp) }}
                     </td>
-                    <td class="p-1.5 text-cyan-600 dark:text-cyan-400">{{ spike.identifier || '-' }}</td>
-                    <td class="p-1.5 tabular-nums text-slate-500">{{ formatConcentration(spike.raw_value) }}</td>
+                    <td class="p-1.5 font-mono text-cyan-600 dark:text-cyan-400">{{ spike.identifier || '-' }}</td>
+                    <td class="p-1.5 font-mono tabular-nums text-slate-500">{{ formatConcentration(spike.raw_value) }}</td>
                     <td class="p-1.5 tabular-nums font-bold" :class="spike.is_excluded ? 'text-amber-400' : (sIdx === 0 ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300')">
-                      <span :class="spike.is_excluded ? 'line-through opacity-70' : ''">
+                      <span class="font-mono" :class="spike.is_excluded ? 'line-through opacity-70' : ''">
                         {{ formatConcentration(spike.normalized_value) }} {{ auditTrackingData.normalized_unit || 'µg/m³' }}
                       </span>
                       <span v-if="spike.is_excluded" class="block text-4xs text-amber-500 dark:text-amber-400 font-normal mt-0.5" :title="spike.exclude_reason">
@@ -765,7 +765,7 @@
                     <td class="p-1.5 text-right">
                       <button
                         @click="goToTelemetryInvestigation(spike)"
-                        class="px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-500 dark:text-cyan-400 text-4xs font-bold transition flex items-center space-x-1 ml-auto cursor-pointer"
+                        class="px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-500 dark:text-cyan-400 text-4xs font-semibold transition flex items-center space-x-1 ml-auto cursor-pointer"
                         title="Investigate this timestamp in Telemetry Analysis"
                       >
                         <span>🔍 Inspect Telemetry</span>
@@ -779,11 +779,11 @@
         </div>
 
         <!-- Formula Box -->
-        <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] font-mono text-xs space-y-1.5">
+        <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] text-xs space-y-1.5">
           <div class="text-cyan-600 dark:text-cyan-400 font-bold">
             Mathematical Equation (Permen LHK No. 14 Tahun 2020 Lampiran I Persamaan 1):
           </div>
-          <div class="text-slate-700 dark:text-slate-300 font-bold text-sm bg-white dark:bg-[#0B1422] p-2 rounded border border-slate-200 dark:border-slate-800">
+          <div class="text-slate-700 dark:text-slate-300 font-mono font-bold text-sm bg-white dark:bg-[#0B1422] p-2 rounded border border-slate-200 dark:border-slate-800">
             I = [ (Ia - Ib) / (Xa - Xb) ] × (Xx - Xb) + Ib
           </div>
           <div class="text-3xs text-slate-400">
@@ -793,8 +793,8 @@
 
         <!-- Parameter Detail Table -->
         <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
-          <table class="w-full text-left text-3xs font-mono">
-            <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-b border-slate-200 dark:border-[#20354B]">
+          <table class="w-full text-left text-3xs">
+            <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-b border-slate-200 dark:border-[#20354B] font-semibold">
               <tr>
                 <th class="p-2">Pollutant</th>
                 <th class="p-2">Conc 24h</th>
@@ -817,34 +817,34 @@
                 :class="activeInspectPollutant === pr.pollutant_code ? 'bg-cyan-500/10' : ''"
                 @click="selectInspectPollutant(pr.pollutant_code)"
               >
-                <td class="p-2 font-bold text-slate-900 dark:text-white flex items-center space-x-1">
+                <td class="p-2 font-mono font-bold text-slate-900 dark:text-white flex items-center space-x-1">
                   <span>{{ pr.pollutant_code }}</span>
                   <span v-if="activeInspectPollutant === pr.pollutant_code" class="text-cyan-400 text-4xs font-normal">◀</span>
                 </td>
-                <td class="p-2 tabular-nums">
+                <td class="p-2 font-mono tabular-nums">
                   {{ pr.valid_samples > 0 ? `${formatConcentration(pr.normalized_concentration)} µg/m³` : '-' }}
                 </td>
-                <td class="p-2 tabular-nums font-bold" :class="pr.peak_concentration && pr.xa && pr.peak_concentration > pr.xa ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300'">
+                <td class="p-2 font-mono tabular-nums font-bold" :class="pr.peak_concentration && pr.xa && pr.peak_concentration > pr.xa ? 'text-rose-400' : 'text-slate-700 dark:text-slate-300'">
                   {{ pr.peak_concentration ? `${formatConcentration(pr.peak_concentration)} µg/m³` : '-' }}
                 </td>
-                <td class="p-2 text-4xs whitespace-nowrap text-cyan-600 dark:text-cyan-400">
+                <td class="p-2 text-4xs font-mono tabular-nums whitespace-nowrap text-cyan-600 dark:text-cyan-400">
                   {{ pr.peak_timestamp ? formatDateTime(pr.peak_timestamp) : '-' }}
                 </td>
-                <td class="p-2 tabular-nums">
+                <td class="p-2 font-mono tabular-nums">
                   {{ pr.valid_samples > 0 ? `${formatConcentration(pr.aggregation_concentration || pr.normalized_concentration)} µg/m³` : '-' }}
                 </td>
-                <td class="p-2 tabular-nums">{{ pr.source_aggregation_count || pr.valid_samples || 0 }}</td>
-                <td class="p-2 tabular-nums">[{{ pr.xb }}, {{ pr.xa }}]</td>
-                <td class="p-2 tabular-nums">[{{ pr.ib }}, {{ pr.ia }}]</td>
-                <td class="p-2 text-4xs font-mono">
+                <td class="p-2 font-mono tabular-nums">{{ pr.source_aggregation_count || pr.valid_samples || 0 }}</td>
+                <td class="p-2 font-mono tabular-nums">[{{ pr.xb }}, {{ pr.xa }}]</td>
+                <td class="p-2 font-mono tabular-nums">[{{ pr.ib }}, {{ pr.ia }}]</td>
+                <td class="p-2 text-4xs">
                   <span v-if="pr.valid_samples === 0 || pr.category === 'TIDAK_TERSEDIA'" class="text-amber-500 dark:text-amber-400 font-semibold">
                     {{ pr.formula || '⚠️ Belum ada data agregasi pada interval ini' }}
                   </span>
-                  <span v-else class="text-slate-500 dark:text-slate-400">
+                  <span v-else class="font-mono text-slate-500 dark:text-slate-400">
                     {{ pr.formula || '-' }}
                   </span>
                 </td>
-                <td class="p-2 font-bold text-sm tabular-nums" :style="{ color: getCategoryColor(pr.category) }">
+                <td class="p-2 font-mono font-bold text-sm tabular-nums" :style="{ color: getCategoryColor(pr.category) }">
                   {{ pr.valid_samples > 0 && pr.category !== 'TIDAK_TERSEDIA' ? Math.round(pr.calculated_ispu) : '-' }}
                 </td>
                 <td class="p-2 font-bold">
@@ -860,7 +860,7 @@
         <div class="flex justify-end pt-2">
           <button
             @click="showDetailModal = false"
-            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-mono font-bold hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold hover:bg-slate-300 dark:hover:bg-slate-700 cursor-pointer"
           >
             Close
           </button>
@@ -878,21 +878,21 @@
         <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#20354B]">
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-            <h3 class="text-sm font-bold font-mono text-slate-900 dark:text-white uppercase">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">
               STATION PARAMETER MAPPINGS (ISPU COMPLIANCE)
             </h3>
           </div>
           <button @click="showMappingsModal = false" class="text-slate-400 hover:text-white text-lg">✕</button>
         </div>
 
-        <p class="text-3xs text-slate-400 font-mono">
+        <p class="text-2xs text-slate-500 dark:text-slate-400">
           Explicitly map physical datalogger telemetry parameters to the seven official pollutants regulated by Permen LHK No. 14 Tahun 2020.
         </p>
 
         <!-- Current Mappings Table -->
         <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#20354B]">
-          <table class="w-full text-left text-3xs font-mono">
-            <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-b border-slate-200 dark:border-[#20354B]">
+          <table class="w-full text-left text-3xs">
+            <thead class="bg-slate-100 dark:bg-[#101B2B] text-slate-500 border-b border-slate-200 dark:border-[#20354B] font-semibold">
               <tr>
                 <th class="p-2">Official Pollutant</th>
                 <th class="p-2">Mapped Parameter</th>
@@ -909,21 +909,21 @@
                 <td colspan="8" class="p-4 text-center text-slate-400">No parameter mappings configured yet</td>
               </tr>
               <tr v-for="m in stationMappings" :key="m.id">
-                <td class="p-2 font-bold text-cyan-400">{{ m.pollutant_code }}</td>
-                <td class="p-2 font-bold">
+                <td class="p-2 font-mono font-bold text-cyan-400">{{ m.pollutant_code }}</td>
+                <td class="p-2 font-semibold">
                   {{ m.parameter?.parameter_name || m.parameter?.name || m.parameter?.parameter_code || m.parameter_id }}
                 </td>
                 <td class="p-2">{{ m.source_unit }}</td>
-                <td class="p-2">{{ m.conversion_factor }}</td>
-                <td class="p-2 text-cyan-400 font-bold font-mono">{{ formatStartHour(m.daily_start_hour) }}</td>
-                <td class="p-2">{{ m.min_completeness }}%</td>
+                <td class="p-2 font-mono tabular-nums">{{ m.conversion_factor }}</td>
+                <td class="p-2 text-cyan-400 font-bold font-mono tabular-nums">{{ formatStartHour(m.daily_start_hour) }}</td>
+                <td class="p-2 font-mono tabular-nums">{{ m.min_completeness }}%</td>
                 <td class="p-2">
                   <span class="px-1.5 py-0.2 rounded text-4xs font-bold" :class="m.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'">
                     {{ m.enabled ? 'ENABLED' : 'DISABLED' }}
                   </span>
                 </td>
                 <td class="p-2 text-right space-x-1">
-                  <button @click="deleteMapping(m.id)" class="text-rose-500 hover:text-rose-400">Delete</button>
+                  <button @click="deleteMapping(m.id)" class="text-rose-500 hover:text-rose-400 font-medium">Delete</button>
                 </td>
               </tr>
             </tbody>
@@ -931,11 +931,11 @@
         </div>
 
         <!-- Add Mapping Form -->
-        <div class="p-3 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] space-y-3 font-mono text-3xs">
+        <div class="p-3 rounded-xl bg-slate-100 dark:bg-[#070D18] border border-slate-200 dark:border-[#1E293B] space-y-3 text-3xs">
           <div class="font-bold text-slate-800 dark:text-slate-200 uppercase">Add / Update Parameter Mapping</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <div>
-              <label class="block text-slate-400 mb-1">Official Pollutant</label>
+              <label class="block text-slate-500 dark:text-slate-400 mb-1">Official Pollutant</label>
               <select v-model="newMapping.pollutant_code" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700">
                 <option v-for="p in sevenOfficialParameters" :key="p.code" :value="p.code">
                   {{ p.code }} ({{ p.name }})
@@ -943,7 +943,7 @@
               </select>
             </div>
             <div>
-              <label class="block text-slate-400 mb-1">Datalogger Parameter</label>
+              <label class="block text-slate-500 dark:text-slate-400 mb-1">Datalogger Parameter</label>
               <select v-model="newMapping.parameter_id" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700">
                 <option v-for="p in stationParameters" :key="p.id" :value="p.id">
                   {{ p.parameter_name || p.name || p.parameter_code }} ({{ p.unit || 'µg/m³' }})
@@ -951,14 +951,14 @@
               </select>
             </div>
             <div>
-              <label class="block text-slate-400 mb-1">Source Unit</label>
+              <label class="block text-slate-500 dark:text-slate-400 mb-1">Source Unit</label>
               <input v-model="newMapping.source_unit" class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700" placeholder="µg/m³" />
             </div>
             <div>
-              <label class="block text-slate-400 mb-1">Jam Mulai Harian</label>
+              <label class="block text-slate-500 dark:text-slate-400 mb-1">Jam Mulai Harian</label>
               <select
                 v-model.number="newMapping.daily_start_hour"
-                class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 font-mono"
+                class="w-full p-1.5 rounded bg-white dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700"
                 title="Jam acuan dimulainya siklus perhitungan harian 24 jam"
               >
                 <option v-for="h in 24" :key="h-1" :value="h-1">
@@ -971,7 +971,7 @@
           <div class="flex justify-end pt-1">
             <button
               @click="saveMapping"
-              class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+              class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold"
             >
               Save Mapping
             </button>
@@ -981,7 +981,7 @@
         <div class="flex justify-end">
           <button
             @click="showMappingsModal = false"
-            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-mono font-bold"
+            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-semibold"
           >
             Close
           </button>

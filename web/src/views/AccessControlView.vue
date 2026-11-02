@@ -123,7 +123,7 @@
                 <th class="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-2xs">
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-2xs">
               <tr v-if="usersLoading">
                 <td colspan="6" class="px-4 py-8 text-center text-slate-500 font-sans">
                   <div class="flex items-center justify-center gap-2">
@@ -172,12 +172,12 @@
                 </td>
 
                 <!-- Email -->
-                <td class="px-4 py-3 font-mono text-2xs text-slate-500">
+                <td class="px-4 py-3 text-2xs text-slate-500">
                   {{ u.email || '-' }}
                 </td>
 
                 <!-- Last Login -->
-                <td class="px-4 py-3 font-mono text-3xs text-slate-500">
+                <td class="px-4 py-3 font-mono tabular-nums text-3xs text-slate-500">
                   {{ formatTimestamp(u.last_login) }}
                 </td>
 

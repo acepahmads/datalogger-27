@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 font-sans">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -407,11 +407,11 @@
                 </td>
               </tr>
             </tbody>
-            <tbody v-else-if="storage && storage.tables && storage.tables.length" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200 font-mono">
+            <tbody v-else-if="storage && storage.tables && storage.tables.length" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200 font-mono tabular-nums text-xs">
               <tr v-for="tbl in storage.tables" :key="tbl.table_name" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                 <td class="px-5 py-3 font-semibold text-slate-900 dark:text-white font-sans">
                   <div class="flex items-center space-x-2">
-                    <span>{{ tbl.table_name }}</span>
+                    <span class="font-mono">{{ tbl.table_name }}</span>
                     <button v-if="isSuperAdmin && tbl.table_name === 'raw_data'"
                             @click="openPurgeRawModal"
                             class="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-3xs font-semibold shadow-sm transition-colors">

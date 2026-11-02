@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 font-sans">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
@@ -441,7 +441,7 @@
             <input
               v-model="branding.customer.name"
               type="text"
-              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
               placeholder="e.g. PT. Mitra Industri Enviro"
             />
           </div>
@@ -470,7 +470,7 @@
             <input
               v-model="branding.customer.subtitle"
               type="text"
-              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
               placeholder="e.g. AQMS, WQMS, Sparing"
             />
           </div>
@@ -483,10 +483,10 @@
             <div class="flex items-center space-x-3">
               <div class="w-24 h-14 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 flex items-center justify-center p-1 overflow-hidden">
                 <img v-if="customerLogoPreview" :src="customerLogoPreview" class="max-h-full max-w-full object-contain" alt="Customer Logo Preview" />
-                <span v-else class="text-4xs text-slate-500 font-mono text-center">No Logo (Default Icon)</span>
+                <span v-else class="text-4xs text-slate-500 text-center">No Logo (Default Icon)</span>
               </div>
               <div class="flex flex-col space-y-1.5 flex-1">
-                <label class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-3xs font-mono font-bold cursor-pointer transition text-center flex items-center justify-center space-x-1 shadow-xs">
+                <label class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold cursor-pointer transition text-center flex items-center justify-center space-x-1 shadow-xs">
                   <span>📁</span>
                   <span>{{ customerLogoPreview ? 'Ganti Logo...' : 'Upload Logo...' }}</span>
                   <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" @change="handleCustomerLogoUpload" />
@@ -495,7 +495,7 @@
                   v-if="customerLogoPreview"
                   type="button"
                   @click="deleteCustomerLogo"
-                  class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 text-4xs font-mono transition text-center"
+                  class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 text-3xs font-medium transition text-center"
                 >
                   Hapus Logo (Gunakan Icon)
                 </button>
@@ -526,7 +526,7 @@
             <input
               v-model="branding.maker.name"
               type="text"
-              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
               placeholder="e.g. PT. Centra Biotech Indonesia"
             />
           </div>
@@ -539,7 +539,7 @@
             <input
               v-model="branding.maker.subtitle"
               type="text"
-              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
               placeholder="e.g. CBI Industrial IoT"
             />
           </div>
@@ -552,10 +552,10 @@
             <div class="flex items-center space-x-3">
               <div class="w-24 h-14 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 flex items-center justify-center p-1 overflow-hidden">
                 <img v-if="makerLogoPreview" :src="makerLogoPreview" class="max-h-full max-w-full object-contain" alt="Maker Logo Preview" />
-                <span v-else class="text-4xs text-slate-500 font-mono text-center">No Logo (Default Icon)</span>
+                <span v-else class="text-4xs text-slate-500 text-center">No Logo (Default Icon)</span>
               </div>
               <div class="flex flex-col space-y-1.5 flex-1">
-                <label class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-3xs font-mono font-bold cursor-pointer transition text-center flex items-center justify-center space-x-1 shadow-xs">
+                <label class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold cursor-pointer transition text-center flex items-center justify-center space-x-1 shadow-xs">
                   <span>📁</span>
                   <span>{{ makerLogoPreview ? 'Ganti Logo...' : 'Upload Logo...' }}</span>
                   <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" @change="handleMakerLogoUpload" />
@@ -564,7 +564,7 @@
                   v-if="makerLogoPreview"
                   type="button"
                   @click="deleteMakerLogo"
-                  class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 text-4xs font-mono transition text-center"
+                  class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 text-3xs font-medium transition text-center"
                 >
                   Hapus Logo (Gunakan Icon)
                 </button>
@@ -856,7 +856,7 @@
                 </p>
               </div>
             </div>
-            <p v-if="exportSavedMessage" class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono mt-2">
+            <p v-if="exportSavedMessage" class="text-2xs text-emerald-600 dark:text-emerald-400 font-medium mt-2">
               ✓ {{ exportSavedMessage }}
             </p>
           </div>
@@ -892,11 +892,11 @@
               🔄
             </div>
             <div>
-              <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide font-mono uppercase">
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight uppercase">
                 {{ $t('config.domain.confirmModalTitle') || 'Confirm Monitoring Domain Transition' }}
               </h2>
-              <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                Transitioning primary domain from <strong class="text-cyan-600 dark:text-cyan-400">{{ form.monitoring_domain || 'AQMS' }}</strong> ➔ <strong class="text-emerald-600 dark:text-emerald-400">{{ targetDomainForModal }}</strong>
+              <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Transitioning primary domain from <strong class="font-mono text-cyan-600 dark:text-cyan-400">{{ form.monitoring_domain || 'AQMS' }}</strong> ➔ <strong class="font-mono text-emerald-600 dark:text-emerald-400">{{ targetDomainForModal }}</strong>
               </p>
             </div>
           </div>
@@ -917,21 +917,21 @@
           </div>
 
           <!-- Compatibility Summary Stats -->
-          <div v-if="compatibilityReport" class="grid grid-cols-3 gap-3 font-mono text-center">
+          <div v-if="compatibilityReport" class="grid grid-cols-3 gap-3 text-center">
             <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800">
-              <span class="text-3xs text-slate-500 dark:text-slate-400 block uppercase">Total Parameters</span>
-              <span class="text-base font-bold text-slate-900 dark:text-white mt-0.5 block">{{ compatibilityReport.total_parameters }}</span>
+              <span class="text-3xs font-semibold text-slate-500 dark:text-slate-400 block uppercase">Total Parameters</span>
+              <span class="text-base font-mono tabular-nums font-bold text-slate-900 dark:text-white mt-0.5 block">{{ compatibilityReport.total_parameters }}</span>
             </div>
             <div class="p-3 rounded-xl bg-emerald-50/50 dark:bg-[#080E18] border border-emerald-200 dark:border-emerald-500/30">
-              <span class="text-3xs text-emerald-700 dark:text-emerald-400 block uppercase">Compatible</span>
-              <span class="text-base font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 block">{{ compatibilityReport.compatible_parameters }}</span>
+              <span class="text-3xs font-semibold text-emerald-700 dark:text-emerald-400 block uppercase">Compatible</span>
+              <span class="text-base font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 block">{{ compatibilityReport.compatible_parameters }}</span>
             </div>
             <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#080E18] border"
                  :class="compatibilityReport.incompatible_parameters > 0 ? 'border-amber-300 dark:border-amber-500/30 bg-amber-50/50 dark:bg-[#080E18]' : 'border-slate-200 dark:border-slate-800'">
-              <span class="text-3xs block uppercase" :class="compatibilityReport.incompatible_parameters > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'">
+              <span class="text-3xs font-semibold block uppercase" :class="compatibilityReport.incompatible_parameters > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'">
                 Incompatible
               </span>
-              <span class="text-base font-bold mt-0.5 block" :class="compatibilityReport.incompatible_parameters > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'">
+              <span class="text-base font-mono tabular-nums font-bold mt-0.5 block" :class="compatibilityReport.incompatible_parameters > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'">
                 {{ compatibilityReport.incompatible_parameters }}
               </span>
             </div>
@@ -951,10 +951,10 @@
 
             <div class="space-y-2 max-h-56 overflow-y-auto custom-scroller pr-1">
               <div v-for="inc in compatibilityReport.incompatibilities" :key="inc.parameter_id"
-                   class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-2xs font-mono">
+                   class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-2xs">
                 <div>
-                  <div class="font-bold text-slate-900 dark:text-white">{{ inc.parameter_name }} <span class="text-slate-500 dark:text-slate-400 font-normal">({{ inc.parameter_code }})</span></div>
-                  <div class="text-3xs text-slate-500 dark:text-slate-400">Current Category: <span class="text-cyan-600 dark:text-cyan-400">{{ inc.category_name }}</span> ({{ inc.category_domain }})</div>
+                  <div class="font-bold text-slate-900 dark:text-white">{{ inc.parameter_name }} <span class="font-mono text-slate-500 dark:text-slate-400 font-normal">({{ inc.parameter_code }})</span></div>
+                  <div class="text-3xs text-slate-500 dark:text-slate-400">Current Category: <span class="font-semibold text-cyan-600 dark:text-cyan-400">{{ inc.category_name }}</span> (<span class="font-mono">{{ inc.category_domain }}</span>)</div>
                 </div>
 
                 <div class="flex items-center space-x-2">
@@ -1001,10 +1001,10 @@
               🚀
             </div>
             <div>
-              <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide font-mono uppercase">
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight uppercase">
                 {{ $t('config.firstRun.title') || 'Application First-Run Setup Wizard' }}
               </h2>
-              <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {{ $t('config.firstRun.subtitle') || 'Configure initial monitoring domain and station identity for this edge installation.' }}
               </p>
             </div>
@@ -1013,7 +1013,7 @@
         </div>
 
         <!-- Wizard Step Indicators -->
-        <div class="px-6 py-2.5 bg-slate-100 dark:bg-[#0e192a] border-b border-slate-200 dark:border-[#20354B] flex items-center justify-between text-3xs font-mono text-slate-500 dark:text-slate-400">
+        <div class="px-6 py-2.5 bg-slate-100 dark:bg-[#0e192a] border-b border-slate-200 dark:border-[#20354B] flex items-center justify-between text-2xs font-medium text-slate-500 dark:text-slate-400">
           <span :class="wizardStep >= 1 ? 'text-cyan-600 dark:text-cyan-400 font-bold' : ''">1. Monitoring Domain</span>
           <span>→</span>
           <span :class="wizardStep >= 2 ? 'text-cyan-600 dark:text-cyan-400 font-bold' : ''">2. Edge Identity</span>
@@ -1062,19 +1062,19 @@
               Configure station and site identification:
             </div>
 
-            <div class="space-y-3 font-mono text-2xs">
+            <div class="space-y-3 text-2xs">
               <div>
-                <label class="block text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold">Station / Host Identifier</label>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold text-3xs">Station / Host Identifier</label>
                 <input type="text" v-model="wizardStationName"
-                       class="w-full bg-white dark:bg-[#080E18] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white" />
+                       class="w-full bg-white dark:bg-[#080E18] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono" />
               </div>
               <div>
-                <label class="block text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold">Deployment Site / Location</label>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold text-3xs">Deployment Site / Location</label>
                 <input type="text" v-model="wizardSiteName"
                        class="w-full bg-white dark:bg-[#080E18] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white" />
               </div>
               <div>
-                <label class="block text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold">Operating Organization</label>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold text-3xs">Operating Organization</label>
                 <input type="text" v-model="wizardOrganization"
                        class="w-full bg-white dark:bg-[#080E18] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white" />
               </div>
@@ -1082,7 +1082,7 @@
           </div>
 
           <!-- Step 3: Review & Summary -->
-          <div v-else-if="wizardStep === 3" class="space-y-3 font-mono text-2xs">
+          <div v-else-if="wizardStep === 3" class="space-y-3 text-2xs">
             <div class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 space-y-1">
               <div class="font-bold">✓ Ready to Activate Application Profile</div>
               <p class="text-3xs text-emerald-700/90 dark:text-emerald-300/90 leading-relaxed">
@@ -1093,19 +1093,19 @@
             <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#080E18] border border-slate-200 dark:border-slate-800 space-y-2">
               <div class="flex justify-between py-1 border-b border-slate-200 dark:border-slate-800/80">
                 <span class="text-slate-500 dark:text-slate-400">Target Monitoring Domain:</span>
-                <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ wizardDomain }}</span>
+                <span class="font-mono font-bold text-cyan-600 dark:text-cyan-400">{{ wizardDomain }}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-slate-200 dark:border-slate-800/80">
                 <span class="text-slate-500 dark:text-slate-400">Station Identifier:</span>
-                <span class="text-slate-900 dark:text-white">{{ wizardStationName }}</span>
+                <span class="font-mono font-semibold text-slate-900 dark:text-white">{{ wizardStationName }}</span>
               </div>
               <div class="flex justify-between py-1 border-b border-slate-200 dark:border-slate-800/80">
                 <span class="text-slate-500 dark:text-slate-400">Deployment Location:</span>
-                <span class="text-slate-900 dark:text-white">{{ wizardSiteName }}</span>
+                <span class="font-medium text-slate-900 dark:text-white">{{ wizardSiteName }}</span>
               </div>
               <div class="flex justify-between py-1">
                 <span class="text-slate-500 dark:text-slate-400">Operating Organization:</span>
-                <span class="text-slate-900 dark:text-white">{{ wizardOrganization }}</span>
+                <span class="font-medium text-slate-900 dark:text-white">{{ wizardOrganization }}</span>
               </div>
             </div>
           </div>

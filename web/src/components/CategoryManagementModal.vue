@@ -10,7 +10,7 @@
             </svg>
           </div>
           <div>
-            <h2 class="text-sm font-bold text-white tracking-wide font-mono uppercase">
+            <h2 class="text-sm font-bold text-white tracking-tight uppercase">
               {{ $t('categoryManagement.title') || 'PARAMETER CATEGORY MANAGEMENT' }}
             </h2>
             <p class="text-3xs text-slate-400 mt-0.5">
@@ -27,7 +27,7 @@
       </div>
 
       <!-- Tab Strip & Actions Bar -->
-      <div class="px-6 py-2.5 bg-[#0e192a] border-b border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-2xs font-mono">
+      <div class="px-6 py-2.5 bg-[#0e192a] border-b border-[#20354B] flex flex-wrap items-center justify-between gap-3 text-2xs">
         <div class="flex items-center space-x-1.5 bg-[#080E18] p-1 rounded-xl border border-[#20354B]">
           <button
             @click="activeTab = 'list'"
@@ -36,7 +36,7 @@
           >
             <span>▦</span>
             <span>{{ $t('categoryManagement.tabs.categories') || 'Categories & Layout' }}</span>
-            <span class="px-1.5 py-0.2 rounded-full bg-[#18283D] text-slate-300 text-3xs">{{ categories.length }}</span>
+            <span class="px-1.5 py-0.2 rounded-full bg-[#18283D] text-slate-300 text-3xs font-mono tabular-nums">{{ categories.length }}</span>
           </button>
 
           <button
@@ -77,7 +77,7 @@
         <!-- TAB 1: CATEGORY LIST & LAYOUT REORDERING              -->
         <!-- ==================================================== -->
         <div v-if="activeTab === 'list'" class="space-y-3">
-          <div class="text-3xs text-slate-400 font-mono flex items-center justify-between">
+          <div class="text-3xs text-slate-400 flex items-center justify-between">
             <span>Arrange category display order and configure desktop column span (1 to 4 columns).</span>
             <span v-if="hasReorderChanges" class="text-amber-400 font-semibold animate-pulse">● Unsaved order changes</span>
           </div>
@@ -122,7 +122,7 @@
                 <!-- Info -->
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center space-x-2">
-                    <span class="text-xs font-bold text-white font-mono truncate">{{ cat.name }}</span>
+                    <span class="text-xs font-bold text-white truncate">{{ cat.name }}</span>
                     <span class="text-4xs font-mono px-1.5 py-0.5 rounded bg-[#18283D] text-slate-400 border border-slate-700">
                       {{ cat.code }}
                     </span>
@@ -133,22 +133,22 @@
                       {{ cat.domain || 'AQMS' }}
                     </span>
                     <span
-                      class="text-4xs font-mono px-1.5 py-0.5 rounded font-bold uppercase"
+                      class="text-4xs px-1.5 py-0.5 rounded font-bold uppercase"
                       :class="cat.enabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700/40 text-slate-400 border border-slate-600'"
                     >
                       {{ cat.enabled ? 'Active' : 'Disabled' }}
                     </span>
                   </div>
-                  <div class="flex items-center space-x-3 text-3xs text-slate-400 mt-1 font-mono">
+                  <div class="flex items-center space-x-3 text-3xs text-slate-400 mt-1">
                     <span class="truncate max-w-[280px]">{{ cat.description || 'No description provided' }}</span>
                     <span class="text-slate-600">·</span>
-                    <span class="text-cyan-400">{{ cat.parameter_count || 0 }} parameters</span>
+                    <span class="text-cyan-400"><span class="font-mono tabular-nums font-semibold">{{ cat.parameter_count || 0 }}</span> parameters</span>
                   </div>
                 </div>
               </div>
 
               <!-- Right: Column Span Selector & Action Buttons -->
-              <div class="flex items-center space-x-2 flex-shrink-0 self-end sm:self-center font-mono text-2xs">
+              <div class="flex items-center space-x-2 flex-shrink-0 self-end sm:self-center text-2xs">
                 <!-- Column Span Select -->
                 <div class="flex items-center space-x-1 bg-[#101B2B] px-2 py-1 rounded-lg border border-[#20354B]">
                   <span class="text-3xs text-slate-400">Span:</span>
@@ -182,7 +182,7 @@
                 <button
                   v-if="canManage"
                   @click="openEditForm(cat)"
-                  class="px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/30 text-3xs transition"
+                  class="px-2 py-1 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/30 text-3xs font-medium transition"
                 >
                   {{ $t('categoryManagement.actions.edit') || 'Edit' }}
                 </button>
@@ -191,7 +191,7 @@
                 <button
                   v-if="canManage"
                   @click="openDeleteDialog(cat)"
-                  class="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 text-3xs transition"
+                  class="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 text-3xs font-medium transition"
                 >
                   {{ $t('categoryManagement.actions.delete') || 'Delete' }}
                 </button>
@@ -204,7 +204,7 @@
             <button
               @click="saveReorderedCategories"
               :disabled="isSaving"
-              class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-2xs transition font-mono flex items-center space-x-1.5"
+              class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-2xs transition flex items-center space-x-1.5"
             >
               <span>💾</span>
               <span>{{ isSaving ? $t('categoryManagement.actions.saving') : $t('categoryManagement.actions.reorder') || 'Save Order' }}</span>
@@ -215,7 +215,7 @@
         <!-- ==================================================== -->
         <!-- TAB 2: PARAMETER ASSIGNMENT MATRIX                    -->
         <!-- ==================================================== -->
-        <div v-if="activeTab === 'assignments'" class="space-y-3 font-mono">
+        <div v-if="activeTab === 'assignments'" class="space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2 text-2xs">
             <input
               type="text"
@@ -224,7 +224,7 @@
               class="px-3 py-1.5 bg-[#080E18] border border-[#20354B] rounded-lg text-white text-3xs focus:outline-none focus:border-cyan-500 min-w-[240px]"
             />
             <div class="text-3xs text-slate-400">
-              Total Parameters: {{ allParametersList.length }} | Uncategorized: {{ uncategorizedCount }}
+              Total Parameters: <span class="font-mono tabular-nums font-semibold text-slate-200">{{ allParametersList.length }}</span> | Uncategorized: <span class="font-mono tabular-nums font-semibold text-amber-400">{{ uncategorizedCount }}</span>
             </div>
           </div>
 
@@ -245,7 +245,7 @@
                     :key="param.id"
                     class="hover:bg-[#101B2B]/60 transition"
                   >
-                    <td class="p-2.5 text-cyan-400/90 font-bold whitespace-nowrap">
+                    <td class="p-2.5 text-cyan-400/90 font-bold font-mono whitespace-nowrap">
                       {{ param.device_code || ('DEV-' + param.device_id) }}
                     </td>
                     <td class="p-2.5">
@@ -294,7 +294,7 @@
             <div class="px-6 py-3.5 border-b border-[#20354B] flex items-center justify-between bg-[#080E18]">
               <div class="flex items-center space-x-2">
                 <span class="w-2.5 h-2.5 rounded-full" :class="getCategoryTheme(form.color_key).dot"></span>
-                <h3 class="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                <h3 class="text-xs font-bold text-white uppercase tracking-wider">
                   {{ editingId ? ($t('categoryManagement.tabs.edit') || 'Edit Category') : ($t('categoryManagement.tabs.create') || 'Create Category') }}
                 </h3>
               </div>
@@ -302,7 +302,7 @@
             </div>
 
             <!-- Form Content -->
-            <form @submit.prevent="submitCategoryForm" class="flex-1 overflow-y-auto p-6 space-y-4 font-mono text-2xs custom-scroller">
+            <form @submit.prevent="submitCategoryForm" class="flex-1 overflow-y-auto p-6 space-y-4 text-2xs custom-scroller">
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Category Code -->
                 <div>
@@ -315,7 +315,7 @@
                     required
                     :disabled="!!editingId"
                     placeholder="e.g. water_quality"
-                    class="w-full px-3 py-2 bg-[#080E18] border border-[#20354B] rounded-xl text-white focus:outline-none focus:border-cyan-500 disabled:opacity-50"
+                    class="w-full px-3 py-2 bg-[#080E18] border border-[#20354B] rounded-xl text-white font-mono focus:outline-none focus:border-cyan-500 disabled:opacity-50"
                   />
                   <span class="text-4xs text-slate-400 mt-1 block">Stable alphanumeric code (letters, numbers, _ -)</span>
                 </div>
@@ -492,7 +492,7 @@
         <!-- SAFE DELETE CONFIRMATION MODAL                        -->
         <!-- ==================================================== -->
         <div v-if="deleteTarget" class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
-          <div class="bg-[#0B1422] border border-rose-500/40 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 font-mono">
+          <div class="bg-[#0B1422] border border-rose-500/40 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
             <div class="flex items-center space-x-2 text-rose-400">
               <svg class="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />

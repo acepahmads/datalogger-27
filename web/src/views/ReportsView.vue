@@ -293,10 +293,10 @@
                 <th class="px-4 py-2.5 text-right">Availability</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-2xs">
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               <tr v-for="d in reportData.device_summaries" :key="d.device_id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                <td class="px-4 py-3 font-bold text-slate-900 dark:text-white">{{ d.device_code }}</td>
-                <td class="px-4 py-3 font-sans text-xs text-slate-700 dark:text-slate-300">{{ d.device_name }}</td>
+                <td class="px-4 py-3 font-bold font-mono text-2xs text-slate-900 dark:text-white">{{ d.device_code }}</td>
+                <td class="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{{ d.device_name }}</td>
                 <td class="px-4 py-3">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold uppercase"
                         :class="d.status === 'ONLINE' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'">
@@ -304,10 +304,10 @@
                     {{ d.status }}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-slate-500">{{ d.latency_ms }} ms</td>
-                <td class="px-4 py-3">{{ d.success_count }} / <span class="text-rose-500">{{ d.failed_count }}</span></td>
-                <td class="px-4 py-3 text-slate-500">{{ d.parameters_count }} active</td>
-                <td class="px-4 py-3 text-right font-bold text-emerald-500">{{ d.availability_percent.toFixed(1) }}%</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-2xs text-slate-500">{{ d.latency_ms }} ms</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-2xs">{{ d.success_count }} / <span class="text-rose-500">{{ d.failed_count }}</span></td>
+                <td class="px-4 py-3 text-2xs text-slate-500"><span class="font-mono tabular-nums font-semibold text-slate-700 dark:text-slate-300">{{ d.parameters_count }}</span> active</td>
+                <td class="px-4 py-3 text-right font-bold font-mono tabular-nums text-2xs text-emerald-500">{{ d.availability_percent.toFixed(1) }}%</td>
               </tr>
             </tbody>
           </table>
@@ -341,19 +341,19 @@
                 <th class="px-4 py-2.5 text-right">Data Source</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-2xs">
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               <tr v-for="p in reportData.parameter_summaries" :key="p.parameter_id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                <td class="px-4 py-3 text-slate-500">{{ p.device_code }}</td>
-                <td class="px-4 py-3 font-sans">
+                <td class="px-4 py-3 font-mono text-2xs text-slate-500">{{ p.device_code }}</td>
+                <td class="px-4 py-3">
                   <span class="font-bold text-slate-900 dark:text-white">{{ p.parameter_name }}</span>
                   <span class="text-3xs font-mono text-slate-400 block">{{ p.parameter_code }}</span>
                 </td>
-                <td class="px-4 py-3 text-slate-500">{{ p.unit || '-' }}</td>
-                <td class="px-4 py-3">{{ p.sample_count.toLocaleString() }}</td>
-                <td class="px-4 py-3">{{ p.min_value !== null ? p.min_value.toFixed(2) : '-' }}</td>
-                <td class="px-4 py-3">{{ p.max_value !== null ? p.max_value.toFixed(2) : '-' }}</td>
-                <td class="px-4 py-3 font-bold text-blue-600 dark:text-blue-400">{{ p.avg_value !== null ? p.avg_value.toFixed(2) : '-' }}</td>
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 font-mono text-2xs text-slate-500">{{ p.unit || '-' }}</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-2xs">{{ p.sample_count.toLocaleString() }}</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-2xs">{{ p.min_value !== null ? p.min_value.toFixed(2) : '-' }}</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-2xs">{{ p.max_value !== null ? p.max_value.toFixed(2) : '-' }}</td>
+                <td class="px-4 py-3 font-bold font-mono tabular-nums text-2xs text-blue-600 dark:text-blue-400">{{ p.avg_value !== null ? p.avg_value.toFixed(2) : '-' }}</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-2xs">
                   <div class="flex items-center gap-1.5">
                     <span class="text-emerald-500 font-bold">{{ p.good_percent.toFixed(0) }}%</span>
                     <span class="text-slate-400">/</span>
@@ -386,7 +386,7 @@
           <span class="text-3xs font-mono text-slate-500">{{ reportData.alarm_summary.total_alarms }} recorded</span>
         </div>
 
-        <div v-if="reportData.alarm_summary.recent_alarms.length === 0" class="p-6 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+        <div v-if="reportData.alarm_summary.recent_alarms.length === 0" class="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
           {{ $t('reports.noAlarmsRecorded') || 'No critical or warning alarms occurred during this reporting interval.' }}
         </div>
 
@@ -402,19 +402,19 @@
                 <th class="px-4 py-2.5 text-right">Triggered Time</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-2xs">
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               <tr v-for="a in reportData.alarm_summary.recent_alarms" :key="a.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                <td class="px-4 py-3 font-bold text-slate-900 dark:text-white">{{ a.alarm_code }}</td>
-                <td class="px-4 py-3 font-sans text-slate-700 dark:text-slate-300">{{ a.device_name }}</td>
+                <td class="px-4 py-3 font-bold font-mono text-2xs text-slate-900 dark:text-white">{{ a.alarm_code }}</td>
+                <td class="px-4 py-3 text-slate-700 dark:text-slate-300">{{ a.device_name }}</td>
                 <td class="px-4 py-3">
                   <span class="inline-block px-2 py-0.5 rounded text-3xs font-bold uppercase tracking-wider"
                         :class="a.severity === 'CRITICAL' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'">
                     {{ a.severity }}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-slate-500">{{ a.status }}</td>
-                <td class="px-4 py-3 font-sans text-xs text-slate-800 dark:text-slate-200 max-w-xs truncate">{{ a.message }}</td>
-                <td class="px-4 py-3 text-right text-slate-500">{{ formatTimestamp(a.triggered_at) }}</td>
+                <td class="px-4 py-3 text-2xs font-medium text-slate-500">{{ a.status }}</td>
+                <td class="px-4 py-3 text-xs text-slate-800 dark:text-slate-200 max-w-xs truncate">{{ a.message }}</td>
+                <td class="px-4 py-3 text-right font-mono tabular-nums text-2xs text-slate-500">{{ formatTimestamp(a.triggered_at) }}</td>
               </tr>
             </tbody>
           </table>

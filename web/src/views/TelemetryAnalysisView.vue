@@ -783,7 +783,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
-            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition font-mono">
+            <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition font-mono tabular-nums">
               <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
               <td v-if="!isOperator" class="py-2.5 px-4">
                 <router-link :to="'/monitoring/devices/' + r.device_id" class="text-blue-600 dark:text-blue-400 hover:underline font-bold">
@@ -823,7 +823,7 @@
         </table>
 
         <!-- MODE 2: RAW TELEMETRY TABLE -->
-        <table v-else-if="activeMode === 'RAW'" class="w-full text-left text-xs font-mono">
+        <table v-else-if="activeMode === 'RAW'" class="w-full text-left text-xs font-sans">
           <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
@@ -837,7 +837,7 @@
               <th class="py-2.5 px-4 text-right">UUID</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs font-mono tabular-nums">
             <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
               <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">{{ formatTimestamp(r.received_at || r.timestamp) }}</td>
               <td v-if="!isOperator" class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-bold">
@@ -881,7 +881,7 @@
               <th class="py-2.5 px-4 text-center">{{ $t('common.quality') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs font-mono">
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs font-mono tabular-nums">
             <tr v-for="r in paginatedRecords" :key="r.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
               <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300">
                 {{ formatTimestamp(r.period_start) }} → {{ formatTimeOnly(r.period_end) }}

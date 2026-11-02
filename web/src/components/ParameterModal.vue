@@ -104,7 +104,7 @@
           <div class="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2">
               <span class="text-blue-600 dark:text-cyan-400 text-xs font-mono font-bold">#</span>
-              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono">
+              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Parameter Identity & Profile
               </h3>
             </div>
@@ -177,14 +177,14 @@
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2">
               <span class="text-purple-600 dark:text-purple-400 text-xs">🏷️</span>
-              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono">
+              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 {{ $t('operator.categorySettings') || 'Category & Sensor Presentation' }}
               </h3>
             </div>
             <!-- Live Preview Badge with Category -->
-            <div class="flex items-center space-x-1.5 text-2xs font-mono px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-lg shadow-2xs">
+            <div class="flex items-center space-x-1.5 text-2xs px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-lg shadow-2xs">
               <span class="text-slate-400 text-3xs">{{ $t('parameterModal.iconCardPreview') || 'Card Preview' }}:</span>
-              <span class="text-cyan-600 dark:text-cyan-400/90 font-semibold text-3xs">{{ currentDevice ? (currentDevice.device_code || currentDevice.code) : 'DEV-01' }}</span>
+              <span class="text-cyan-600 dark:text-cyan-400/90 font-semibold font-mono text-3xs">{{ currentDevice ? (currentDevice.device_code || currentDevice.code) : 'DEV-01' }}</span>
               <span class="text-slate-400">·</span>
               <div class="flex items-center space-x-1 font-bold text-slate-900 dark:text-white">
                 <ParameterIcon :icon="form.icon" :code="form.parameter_code" :name="form.parameter_name" :unit="form.unit" size-class="w-3 h-3" />
@@ -227,7 +227,7 @@
               <select
                 v-model="form.category_id"
                 @change="onCategorySelectionChange"
-                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               >
                 <option :value="null">— {{ $t('operator.uncategorized') || 'Uncategorized' }} —</option>
                 <option v-for="cat in availableCategories" :key="cat.id" :value="cat.id">
@@ -243,7 +243,7 @@
               </label>
               <select
                 v-model="form.icon"
-                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="">✨ {{ $t('parameterModal.iconAuto') || 'Auto-Detect (Based on Code/Name/Unit)' }}</option>
                 <option v-for="cat in iconCatalog" :key="cat.key" :value="cat.key">
@@ -253,11 +253,11 @@
             </div>
           </div>
 
-          <div class="text-3xs text-slate-500 dark:text-slate-400 flex items-center space-x-1.5 font-mono pt-0.5">
+          <div class="text-3xs text-slate-500 dark:text-slate-400 flex items-center space-x-1.5 pt-0.5">
             <span>{{ $t('parameterModal.iconResolved') || 'Resolved Icon' }}:</span>
-            <span class="font-bold text-cyan-600 dark:text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
-            <span v-if="!form.icon" class="text-slate-400 dark:text-slate-500 font-sans italic">(automatic heuristic)</span>
-            <span v-else class="text-emerald-600 dark:text-emerald-400 font-sans italic">(manually configured)</span>
+            <span class="font-bold font-mono text-cyan-600 dark:text-cyan-400 capitalize">{{ currentResolvedIconKey }}</span>
+            <span v-if="!form.icon" class="text-slate-400 dark:text-slate-500 italic">(automatic heuristic)</span>
+            <span v-else class="text-emerald-600 dark:text-emerald-400 italic">(manually configured)</span>
           </div>
 
           <!-- Discrete SCADA Status Labels Configurator (Shown automatically for Status category or Boolean/Coil registers) -->
@@ -268,7 +268,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center space-x-1.5">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/60"></span>
-                <span class="text-2xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider font-mono">
+                <span class="text-2xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
                   Label Status SCADA (Tampilan Dashboard Operator)
                 </span>
               </div>
@@ -293,7 +293,7 @@
                 <select
                   :value="currentStatusPresetKey"
                   @change="applyStatusLabelPreset($event.target.value)"
-                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  class="w-full px-2.5 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="auto">✨ Otomatis Sesuai Nama Alat</option>
                   <option value="pump">Pompa / Blower / Motor (NYALA / MATI)</option>
@@ -335,7 +335,7 @@
               </div>
             </div>
 
-            <div class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-3xs font-mono text-emerald-700 dark:text-emerald-300 flex items-center space-x-1.5">
+            <div class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-3xs text-emerald-700 dark:text-emerald-300 flex items-center space-x-1.5">
               <span>🛡️</span>
               <span>Mode Status Diskrit: Nilai tetap (0 / 1) otomatis bebas dari alarm <strong>Stuck Value</strong>, <strong>Spike</strong>, dan error nilai <strong>0</strong>.</span>
             </div>
@@ -349,7 +349,7 @@
           <div class="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2">
               <span class="text-cyan-600 dark:text-cyan-400 text-xs">⚡</span>
-              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono">
+              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Modbus Communication & Polling Configuration
               </h3>
             </div>
@@ -381,7 +381,7 @@
               </label>
               <select
                 v-model="form.register_type"
-                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="HOLDING_REGISTER">Holding Register (4x)</option>
                 <option value="INPUT_REGISTER">Input Register (3x)</option>
@@ -495,7 +495,7 @@
                     v-if="!isPollingIntervalInherited"
                     type="button"
                     @click="form.polling_interval_ms = null"
-                    class="text-4xs text-blue-600 dark:text-cyan-400 hover:underline font-mono"
+                    class="text-4xs text-blue-600 dark:text-cyan-400 hover:underline font-medium"
                     :title="$t('parameterModal.resetToDeviceInterval')"
                   >
                     {{ $t('parameterModal.resetToDeviceInterval') || 'Reset' }}
@@ -543,7 +543,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              <span class="text-xs font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wider">
+              <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                 {{ $t('parameterModal.byteOrderEditor') || 'Custom Byte Order Mapping' }}
               </span>
               <span class="text-3xs font-mono font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-500/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-500/30">
@@ -665,17 +665,17 @@
             </div>
           </div>
 
-          <div v-if="byteOrderValidationError" class="flex items-center space-x-2 text-3xs text-rose-600 dark:text-rose-400 font-mono font-medium">
+          <div v-if="byteOrderValidationError" class="flex items-center space-x-2 text-3xs text-rose-600 dark:text-rose-400 font-medium">
             <span>⚠️</span>
             <span>{{ byteOrderValidationError }}</span>
           </div>
-          <div v-else class="flex items-center space-x-2 text-3xs text-emerald-600 dark:text-emerald-400 font-mono font-medium">
+          <div v-else class="flex items-center space-x-2 text-3xs text-emerald-600 dark:text-emerald-400 font-medium">
             <span>✓</span>
-            <span>{{ $t('parameterModal.validPermutation') || 'Valid Permutation' }}: <strong class="font-bold tracking-wider">{{ customByteOrderString }}</strong></span>
+            <span>{{ $t('parameterModal.validPermutation') || 'Valid Permutation' }}: <strong class="font-bold font-mono tracking-wider">{{ customByteOrderString }}</strong></span>
           </div>
         </div>
 
-        <div v-if="unknownByteOrderWarning" class="p-2.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-3xs text-amber-800 dark:text-amber-300 font-mono flex items-center space-x-2">
+        <div v-if="unknownByteOrderWarning" class="p-2.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-3xs text-amber-800 dark:text-amber-300 flex items-center space-x-2">
           <span class="text-amber-600 dark:text-amber-400 font-bold">⚠️</span>
           <span>{{ unknownByteOrderWarning }}</span>
         </div>
@@ -687,7 +687,7 @@
           <div class="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2">
               <span class="text-blue-600 dark:text-blue-400 text-xs">📐</span>
-              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono">
+              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Scaling & Measurement Bounds
               </h3>
             </div>
@@ -788,7 +788,7 @@
           <div class="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2">
               <span class="text-amber-500 text-xs">🔔</span>
-              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono">
+              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Alarm Thresholds & Quality Limits
               </h3>
             </div>
@@ -858,7 +858,7 @@
             </div>
             <select
               v-model="form.zero_value_alarm_policy"
-              class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-mono"
+              class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
             >
               <option value="NORMAL">{{ $t('parameterModal.zeroPolicyNormal') }}</option>
               <option value="SUPPRESS_THRESHOLD">{{ $t('parameterModal.zeroPolicySuppress') }}</option>
@@ -890,7 +890,7 @@
             <div class="flex items-center space-x-2">
               <span class="text-indigo-600 dark:text-indigo-400 text-xs font-mono font-bold">ƒ(x)</span>
               <div>
-                <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider font-mono">
+                <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                   Advanced: Formulas, Hold Protection & Spike Filter
                 </h3>
                 <span class="text-3xs text-slate-400 dark:text-slate-500 block">

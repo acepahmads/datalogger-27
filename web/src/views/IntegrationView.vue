@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100">
+  <div class="space-y-4 p-3 sm:p-5 max-w-[1920px] mx-auto min-h-screen text-slate-800 dark:text-slate-100 font-sans">
     <!-- Header & Breadcrumb (Sticky Top Navigation) -->
     <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md pt-2 pb-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
       <div class="flex items-center space-x-3">
@@ -15,21 +15,21 @@
         <div>
           <div class="flex items-center space-x-2">
             <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-            <h1 class="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-900 dark:text-white uppercase">
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
               OUTBOUND INTEGRATION &amp; DELIVERY
             </h1>
             <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
               PHASE 8
             </span>
           </div>
-          <p class="text-3xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+          <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
             Aggregation-based outbound routing, configurable JSON payloads, offline buffering &amp; queue inspection.
           </p>
         </div>
       </div>
 
       <!-- Navigation Tabs (Setup & Queue) -->
-      <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-300 dark:border-slate-700/80 font-mono text-xs shadow-inner">
+      <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-300 dark:border-slate-700/80 text-xs shadow-inner">
         <!-- TAB 1: DESTINATIONS SETUP -->
         <button
           @click="selectTab('destinations')"
@@ -71,7 +71,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
           <span>Delivery Queue</span>
-          <span v-if="summary.pending > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-4xs bg-amber-400 text-slate-900 font-bold">
+          <span v-if="summary.pending > 0" class="ml-1 px-1.5 py-0.2 rounded-full text-4xs font-mono tabular-nums bg-amber-400 text-slate-900 font-bold">
             {{ summary.pending }}
           </span>
         </button>
@@ -86,91 +86,91 @@
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
         <!-- PENDING -->
         <div class="p-3 rounded-xl border bg-amber-500/10 border-amber-500/30 text-amber-500">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Pending</span>
             <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-amber-600 dark:text-amber-400">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-amber-600 dark:text-amber-400">
             {{ summary.pending || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">Awaiting dispatch</div>
+          <div class="text-4xs text-slate-500 mt-0.5">Awaiting dispatch</div>
         </div>
 
         <!-- SENDING -->
         <div class="p-3 rounded-xl border bg-blue-500/10 border-blue-500/30 text-blue-500">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Sending</span>
             <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-blue-600 dark:text-blue-400">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-blue-600 dark:text-blue-400">
             {{ summary.sending || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">In-flight transmission</div>
+          <div class="text-4xs text-slate-500 mt-0.5">In-flight transmission</div>
         </div>
 
         <!-- DELIVERED -->
         <div class="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-500">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Delivered</span>
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-emerald-600 dark:text-emerald-400">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-emerald-600 dark:text-emerald-400">
             {{ summary.delivered || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">HTTP 2xx / Socket OK</div>
+          <div class="text-4xs text-slate-500 mt-0.5">HTTP 2xx / Socket OK</div>
         </div>
 
         <!-- ACKNOWLEDGED -->
         <div class="p-3 rounded-xl border bg-purple-500/10 border-purple-500/30 text-purple-500">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Acknowledged</span>
             <span class="w-2 h-2 rounded-full bg-purple-400"></span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-purple-600 dark:text-purple-400">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-purple-600 dark:text-purple-400">
             {{ summary.acknowledged || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">Upstream receipt confirmed</div>
+          <div class="text-4xs text-slate-500 mt-0.5">Upstream receipt confirmed</div>
         </div>
 
         <!-- RETRYING -->
         <div class="p-3 rounded-xl border bg-orange-500/10 border-orange-500/30 text-orange-500">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Retrying</span>
             <span class="w-2 h-2 rounded-full bg-orange-400"></span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-orange-600 dark:text-orange-400">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-orange-600 dark:text-orange-400">
             {{ summary.retrying || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">Backoff & jitter active</div>
+          <div class="text-4xs text-slate-500 mt-0.5">Backoff & jitter active</div>
         </div>
 
         <!-- FAILED -->
         <div class="p-3 rounded-xl border bg-rose-500/10 border-rose-500/30 text-rose-500">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Failed</span>
             <span class="w-2 h-2 rounded-full bg-rose-400"></span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-rose-600 dark:text-rose-400">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-rose-600 dark:text-rose-400">
             {{ summary.failed || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">Permanent / exhausted</div>
+          <div class="text-4xs text-slate-500 mt-0.5">Permanent / exhausted</div>
         </div>
 
         <!-- TOTAL -->
         <div class="p-3 rounded-xl border bg-slate-500/10 border-slate-500/30 text-slate-500 dark:text-slate-400">
-          <div class="text-3xs font-mono font-semibold uppercase tracking-wider flex items-center justify-between">
+          <div class="text-3xs font-semibold uppercase tracking-wider flex items-center justify-between">
             <span>Total Batches</span>
             <span>Σ</span>
           </div>
-          <div class="text-xl sm:text-2xl font-bold font-mono mt-1 text-slate-900 dark:text-white">
+          <div class="text-xl sm:text-2xl font-bold font-mono tabular-nums mt-1 text-slate-900 dark:text-white">
             {{ summary.total || 0 }}
           </div>
-          <div class="text-4xs text-slate-500 font-mono mt-0.5">Lifetime buffered</div>
+          <div class="text-4xs text-slate-500 mt-0.5">Lifetime buffered</div>
         </div>
       </div>
 
       <!-- Search, Filter & Refresh Bar -->
-      <div class="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-xs">
+      <div class="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
         <div class="flex flex-wrap items-center gap-2">
           <!-- Status Filter -->
           <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -253,8 +253,8 @@
       <!-- Queue Items Table -->
       <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
         <div class="overflow-x-auto">
-          <table class="w-full text-left font-mono text-2xs">
-            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
+          <table class="w-full text-left text-2xs">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider font-semibold">
               <tr>
                 <th class="py-2.5 px-3">Batch ID / Key</th>
                 <th v-if="!isOperator" class="py-2.5 px-3">Devices</th>
@@ -271,8 +271,8 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-if="queueItems.length === 0">
-                <td :colspan="isOperator ? 10 : 11" class="py-12 text-center text-slate-400 font-mono">
-                  <div class="text-sm">No outbound delivery queue items found</div>
+                <td :colspan="isOperator ? 10 : 11" class="py-12 text-center text-slate-400">
+                  <div class="text-sm font-medium">No outbound delivery queue items found</div>
                   <div class="text-3xs text-slate-500 mt-1">
                     Aggregation batches are automatically enqueued when an aggregation window completes.
                   </div>
@@ -284,10 +284,10 @@
                 class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition"
               >
                 <!-- Batch ID -->
-                <td class="py-2.5 px-3">
+                <td class="py-2.5 px-3 font-mono">
                   <div class="font-bold text-slate-900 dark:text-white flex items-center space-x-1.5">
                     <span>{{ item.batch_id }}</span>
-                    <span v-if="item.is_replay" class="px-1.5 py-0.2 rounded text-4xs bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    <span v-if="item.is_replay" class="px-1.5 py-0.2 rounded text-4xs font-sans bg-purple-500/20 text-purple-400 border border-purple-500/30">
                       REPLAY
                     </span>
                   </div>
@@ -302,11 +302,11 @@
                     <span class="px-2 py-0.5 rounded-md font-bold bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-3xs" :title="item.devices_summary">
                       {{ item.device_count || 2 }} Devices
                     </span>
-                    <div class="text-4xs text-slate-400 truncate max-w-[150px] mt-0.5" :title="item.devices_summary">
+                    <div class="text-4xs text-slate-400 font-mono truncate max-w-[150px] mt-0.5" :title="item.devices_summary">
                       {{ item.devices_summary }}
                     </div>
                   </div>
-                  <span v-else class="px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-3xs">
+                  <span v-else class="px-2 py-0.5 rounded-md font-semibold font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-3xs">
                     {{ item.devices_summary || (item.device ? item.device.device_code : (item.device_id ? 'Station #' + item.device_id : 'All Devices')) }}
                   </span>
                 </td>
@@ -316,13 +316,13 @@
                   <div class="font-semibold text-slate-800 dark:text-slate-200">
                     {{ item.destination ? item.destination.name : ('Dest #' + item.destination_id) }}
                   </div>
-                  <span class="px-1.5 py-0.2 rounded text-4xs font-bold" :class="protocolBadgeClass(item.destination ? item.destination.type : 'REST')">
+                  <span class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="protocolBadgeClass(item.destination ? item.destination.type : 'REST')">
                     {{ item.destination ? item.destination.type : 'REST_API' }}
                   </span>
                 </td>
 
                 <!-- Waktu Pertama Kirim (Enqueued / Dispatched) -->
-                <td class="py-2.5 px-3 text-3xs whitespace-nowrap">
+                <td class="py-2.5 px-3 text-3xs font-mono tabular-nums whitespace-nowrap">
                   <div class="font-semibold text-slate-800 dark:text-slate-200">{{ formatTime(item.created_at) }}</div>
                   <div class="text-4xs text-slate-400">{{ formatDate(item.created_at) }}</div>
                   <div v-if="item.attempts > 1 && item.last_attempt_at" class="text-4xs text-amber-500 font-medium mt-0.5" :title="'Terakhir dicoba: ' + formatTime(item.last_attempt_at)">
@@ -331,20 +331,20 @@
                 </td>
 
                 <!-- Window -->
-                <td class="py-2.5 px-3 text-3xs text-slate-500">
+                <td class="py-2.5 px-3 text-3xs font-mono tabular-nums text-slate-500">
                   <div>{{ formatTime(item.period_start) }}</div>
                   <div>→ {{ formatTime(item.period_end) }}</div>
                 </td>
 
                 <!-- Interval -->
                 <td class="py-2.5 px-3 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-3xs font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+                  <span class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
                     {{ formatQueueIntervalBadge(item) }}
                   </span>
                 </td>
 
                 <!-- Params Count -->
-                <td class="py-2.5 px-3 text-center font-bold">
+                <td class="py-2.5 px-3 text-center font-mono tabular-nums font-bold">
                   {{ item.parameter_count }}
                 </td>
 
@@ -353,13 +353,13 @@
                   <span class="px-2 py-0.5 rounded-md text-3xs font-bold" :class="statusBadgeClass(item.status)">
                     {{ item.status }}
                   </span>
-                  <div v-if="item.next_retry_at && item.status === 'RETRYING'" class="text-4xs text-orange-400 mt-0.5">
+                  <div v-if="item.next_retry_at && item.status === 'RETRYING'" class="text-4xs font-mono tabular-nums text-orange-400 mt-0.5">
                     Retry at {{ formatTime(item.next_retry_at) }}
                   </div>
                 </td>
 
                 <!-- Attempts -->
-                <td class="py-2.5 px-3 text-center">
+                <td class="py-2.5 px-3 text-center font-mono tabular-nums">
                   <span :class="item.attempts >= item.max_retries ? 'text-rose-500 font-bold' : 'text-slate-600 dark:text-slate-300'">
                     {{ item.attempts }} / {{ item.max_retries }}
                   </span>
@@ -367,13 +367,13 @@
 
                 <!-- Last HTTP Code / Error -->
                 <td class="py-2.5 px-3 max-w-[200px]">
-                  <div v-if="item.last_http_code > 0" class="font-bold" :class="httpCodeClass(item.last_http_code)">
+                  <div v-if="item.last_http_code > 0" class="font-mono font-bold" :class="httpCodeClass(item.last_http_code)">
                     HTTP {{ item.last_http_code }}
                   </div>
-                  <div v-if="item.last_error" class="text-4xs text-rose-400 truncate" :title="item.last_error">
+                  <div v-if="item.last_error" class="text-4xs font-mono text-rose-400 truncate" :title="item.last_error">
                     {{ item.last_error }}
                   </div>
-                  <div v-else-if="item.last_response" class="text-4xs text-emerald-500 truncate" :title="item.last_response">
+                  <div v-else-if="item.last_response" class="text-4xs font-mono text-emerald-500 truncate" :title="item.last_response">
                     {{ item.last_response }}
                   </div>
                 </td>
@@ -383,7 +383,7 @@
                   <!-- Inspect Detail Modal -->
                   <button
                     @click="openInspectModal(item.id)"
-                    class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-3xs"
+                    class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition text-3xs font-medium"
                     title="Deep Inspect: Source Aggregations vs Serialized JSON vs Response"
                   >
                     Inspect
@@ -413,7 +413,7 @@
                   <button
                     v-if="canManageQueue && (item.status === 'PENDING' || item.status === 'RETRYING')"
                     @click="cancelQueueItem(item.id)"
-                    class="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 transition text-3xs"
+                    class="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 transition text-3xs font-medium"
                     title="Cancel pending delivery"
                   >
                     Cancel
@@ -435,7 +435,7 @@
         </div>
 
         <!-- Pagination Bar -->
-        <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-2xs font-mono text-slate-500">
+        <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-2xs tabular-nums text-slate-500">
           <div>
             Showing {{ queueItems.length }} of {{ queueTotal }} items (Page {{ page }} of {{ totalPages }})
           </div>
@@ -443,14 +443,14 @@
             <button
               @click="changePage(page - 1)"
               :disabled="page <= 1"
-              class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-30 cursor-pointer"
+              class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-30 cursor-pointer font-medium"
             >
               Prev
             </button>
             <button
               @click="changePage(page + 1)"
               :disabled="page >= totalPages"
-              class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-30 cursor-pointer"
+              class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-30 cursor-pointer font-medium"
             >
               Next
             </button>
@@ -465,17 +465,17 @@
     <div v-if="activeTab === 'destinations'" class="space-y-4">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-sm font-bold font-mono text-slate-900 dark:text-white uppercase">
+          <h2 class="text-sm font-bold tracking-tight text-slate-900 dark:text-white uppercase">
             Upstream Outbound Destinations
           </h2>
-          <p class="text-3xs text-slate-500 font-mono">
+          <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
             Configure target servers, webhooks, brokers, and telemetry interval filters.
           </p>
         </div>
         <button
           v-if="canManageDestinations"
           @click="openAddDestinationModal"
-          class="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white font-mono text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
+          class="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs"
         >
           <span>+ Add Destination</span>
         </button>
@@ -484,7 +484,7 @@
       <!-- Empty State when 0 Destinations -->
       <div
         v-if="destinations.length === 0"
-        class="p-10 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 text-center bg-white/40 dark:bg-slate-900/40 font-mono space-y-3"
+        class="p-10 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 text-center bg-white/40 dark:bg-slate-900/40 space-y-3"
       >
         <div class="w-12 h-12 rounded-full bg-cyan-500/10 text-cyan-500 flex items-center justify-center mx-auto">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -501,7 +501,7 @@
         <div v-if="canManageDestinations" class="pt-2">
           <button
             @click="openAddDestinationModal"
-            class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs transition inline-flex items-center space-x-2 shadow-md cursor-pointer"
+            class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-xs transition inline-flex items-center space-x-2 shadow-md cursor-pointer"
           >
             <span>+ Add Your First Destination</span>
           </button>
@@ -524,7 +524,7 @@
                 <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold" :class="protocolBadgeClass(dest.type)">
                   {{ dest.type }}
                 </span>
-                <h3 class="text-sm font-bold font-mono text-slate-900 dark:text-white mt-1.5">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white mt-1.5">
                   {{ dest.name }}
                 </h3>
               </div>
@@ -532,9 +532,9 @@
               <button
                 v-if="canManageDestinations"
                 @click="toggleDestinationEnabled(dest)"
-                class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border transition cursor-pointer shadow-xs hover:scale-105"
+                class="px-2 py-0.5 rounded-full text-3xs font-semibold border transition cursor-pointer shadow-xs hover:scale-105"
                 :class="dest.enabled
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
                   : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700'"
                 :title="dest.enabled ? 'Klik untuk nonaktifkan (disable) pengiriman ke destinasi ini' : 'Klik untuk aktifkan (enable) pengiriman ke destinasi ini'"
               >
@@ -542,9 +542,9 @@
               </button>
               <span
                 v-else
-                class="px-2 py-0.5 rounded-full text-3xs font-mono font-bold border cursor-default"
+                class="px-2 py-0.5 rounded-full text-3xs font-semibold border cursor-default"
                 :class="dest.enabled
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
                   : 'bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700'"
                 :title="dest.enabled ? 'Status: Pengiriman Aktif' : 'Status: Pengiriman Dinonaktifkan'"
               >
@@ -553,7 +553,7 @@
             </div>
 
             <!-- Details List -->
-            <div class="mt-3 space-y-1.5 font-mono text-2xs text-slate-600 dark:text-slate-300">
+            <div class="mt-3 space-y-1.5 text-2xs text-slate-600 dark:text-slate-300">
               <div v-if="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP') && dest.auth_url" class="flex items-center justify-between">
                 <span class="text-slate-400">{{ dest.auth_type === 'SPARING_JWT_2STEP' ? 'Secret URL:' : 'Auth URL:' }}</span>
                 <span class="font-mono text-3xs truncate max-w-[200px] text-amber-500 dark:text-amber-400" :title="dest.auth_url">{{ dest.auth_url }}</span>
@@ -564,43 +564,45 @@
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Schedule:</span>
-                <span class="font-bold text-cyan-500">
+                <span class="font-semibold text-cyan-600 dark:text-cyan-400">
                   {{ formatDestinationSchedule(dest) }}
                 </span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Auth Mode:</span>
-                <span :class="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC') ? 'text-cyan-500 font-bold' : ''">
+                <span :class="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC') ? 'text-cyan-600 dark:text-cyan-400 font-semibold' : 'font-medium'">
                   {{ formatAuthModeLabel(dest.auth_type) }}
                 </span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Deliveries:</span>
-                <span class="text-emerald-500 font-bold">{{ dest.success_deliveries }} OK</span>
-                <span v-if="dest.failed_deliveries > 0" class="text-rose-500 font-bold ml-1">{{ dest.failed_deliveries }} ERR</span>
+                <div class="font-mono tabular-nums text-3xs">
+                  <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ dest.success_deliveries }} OK</span>
+                  <span v-if="dest.failed_deliveries > 0" class="text-rose-500 font-bold ml-1.5">{{ dest.failed_deliveries }} ERR</span>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Card Actions -->
-          <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between font-mono text-3xs">
+          <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
             <button
               @click="selectDestinationForConfig(dest.id)"
-              class="text-cyan-500 hover:text-cyan-400 font-bold transition"
+              class="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 font-semibold transition"
             >
               Configure JSON Schema →
             </button>
             <div class="space-x-1">
               <button
                 @click="openEditDestinationModal(dest)"
-                class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-2xs font-medium"
               >
                 Edit
               </button>
               <button
                 v-if="canManageDestinations"
                 @click="deleteDestination(dest.id)"
-                class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                class="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 dark:text-rose-400 border border-rose-500/30 text-2xs font-medium"
               >
                 Delete
               </button>
@@ -613,7 +615,7 @@
     <!-- ============================================================== -->
     <!-- TAB 3: CONFIGURABLE JSON & FIELD MAPPINGS                      -->
     <!-- ============================================================== -->
-    <div v-if="activeTab === 'config'" class="space-y-4 font-mono">
+    <div v-if="activeTab === 'config'" class="space-y-4">
       <!-- Empty State when 0 Destinations -->
       <div
         v-if="destinations.length === 0"
@@ -627,7 +629,7 @@
         </p>
         <button
           @click="selectTab('destinations')"
-          class="mt-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs transition inline-flex items-center space-x-1.5 shadow-md cursor-pointer"
+          class="mt-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white font-semibold text-xs transition inline-flex items-center space-x-1.5 shadow-md cursor-pointer"
         >
           <span>→ Go to Destinations Setup</span>
         </button>
@@ -637,17 +639,17 @@
         <!-- Destination Selector Header -->
         <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
         <div class="flex items-center space-x-2">
-          <span class="text-xs text-slate-500 font-bold">Active Destination:</span>
+          <span class="text-xs text-slate-500 font-semibold">Active Destination:</span>
           <select
             v-model="selectedDestinationId"
             @change="loadDestinationPayloadConfig"
-            class="bg-slate-100 dark:bg-slate-800 text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-hidden"
+            class="bg-slate-100 dark:bg-slate-800 text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-hidden"
           >
             <option v-for="d in destinations" :key="d.id" :value="d.id">
               {{ d.name }} ({{ d.type }})
             </option>
           </select>
-          <span class="text-3xs text-slate-400">Version #{{ payloadConfig.version || 1 }}</span>
+          <span class="text-3xs font-mono text-slate-400">Version #{{ payloadConfig.version || 1 }}</span>
         </div>
 
         <div class="flex items-center space-x-2">
@@ -655,7 +657,7 @@
           <button
             @click="testPayloadTransmission"
             :disabled="testingPayload"
-            class="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
+            class="px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs"
             title="Dispatch a test serialized payload directly to this destination"
           >
             <span v-if="testingPayload" class="animate-spin">⏳</span>
@@ -667,7 +669,7 @@
             v-if="canManageDestinations"
             @click="savePayloadConfig"
             :disabled="savingConfig"
-            class="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
+            class="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs"
           >
             <span>💾 Save Configuration</span>
           </button>
@@ -679,8 +681,8 @@
         v-if="testResult"
         class="p-3.5 rounded-xl border text-2xs space-y-2.5"
         :class="testResult.success
-          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-          : 'bg-rose-500/10 border-rose-500/30 text-rose-400'"
+          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+          : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'"
       >
         <div class="flex items-start justify-between">
           <div>
@@ -690,8 +692,8 @@
                   ? (testResult.success ? '✔ 2-STEP TEST DELIVERY SUCCEEDED' : '✖ 2-STEP TEST DELIVERY FAILED')
                   : (testResult.success ? '✔ TEST DELIVERY SUCCEEDED' : '✖ TEST DELIVERY FAILED') }}
               </span>
-              <span v-if="testResult.http_code">HTTP {{ testResult.http_code }}</span>
-              <span>({{ testResult.latency_ms }}ms)</span>
+              <span v-if="testResult.http_code" class="font-mono">HTTP {{ testResult.http_code }}</span>
+              <span class="font-mono">({{ testResult.latency_ms }}ms)</span>
             </div>
             <div v-if="!testResult.is_two_step" class="mt-1 text-3xs opacity-90 font-mono break-all">
               {{ testResult.error_message || testResult.response_text }}
@@ -701,13 +703,13 @@
         </div>
 
         <!-- 2-Step Auth + Data Breakdown -->
-        <div v-if="testResult.is_two_step" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 font-mono text-3xs">
+        <div v-if="testResult.is_two_step" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1 text-3xs">
           <!-- Step 1 Card -->
           <div
             class="p-2.5 rounded-lg border space-y-1"
             :class="testResult.auth_success
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'"
           >
             <div class="flex items-center justify-between font-bold">
               <span>
@@ -715,19 +717,19 @@
                   ? (testResult.auth_success ? '✔ STEP 1 — SECRET SENSOR & JWT OK' : '✖ STEP 1 — SECRET SENSOR FAILED')
                   : (testResult.auth_success ? '✔ STEP 1 — AUTH LOGIN OK' : '✖ STEP 1 — AUTH LOGIN FAILED') }}
               </span>
-              <span>
+              <span class="font-mono">
                 <template v-if="testResult.auth_used_cache">CACHE</template>
                 <template v-else>
                   <span v-if="testResult.auth_http_code">HTTP {{ testResult.auth_http_code }} · </span>{{ testResult.auth_latency_ms || 0 }}ms
                 </template>
               </span>
             </div>
-            <div v-if="testResult.auth_url" class="text-slate-400 truncate" :title="testResult.auth_url">
+            <div v-if="testResult.auth_url" class="text-slate-400 font-mono truncate" :title="testResult.auth_url">
               {{ isActiveDestSparing2Step ? 'GET' : 'POST' }} {{ testResult.auth_url }}
             </div>
-            <div class="opacity-95 break-all">
+            <div class="opacity-95 font-mono break-all">
               {{ testResult.auth_message }}
-              <span v-if="testResult.auth_token_preview" class="text-cyan-400 ml-1">
+              <span v-if="testResult.auth_token_preview" class="text-cyan-500 dark:text-cyan-400 ml-1">
                 [{{ isActiveDestSparing2Step ? 'JWT' : 'Bearer' }} {{ testResult.auth_token_preview }}]
               </span>
             </div>
@@ -739,8 +741,8 @@
             :class="!testResult.auth_success
               ? 'bg-slate-800/40 border-slate-700/60 text-slate-400'
               : testResult.success
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'"
           >
             <div class="flex items-center justify-between font-bold">
               <span>
@@ -748,14 +750,14 @@
                   ? '○ STEP 2 — DATA SKIPPED'
                   : (testResult.success ? '✔ STEP 2 — DATA ACCEPTED' : '✖ STEP 2 — DATA REJECTED / ERROR') }}
               </span>
-              <span v-if="testResult.auth_success">
+              <span v-if="testResult.auth_success" class="font-mono">
                 <span v-if="testResult.http_code">HTTP {{ testResult.http_code }} · </span>{{ testResult.data_latency_ms || 0 }}ms
               </span>
             </div>
-            <div v-if="testResult.data_url" class="text-slate-400 truncate" :title="testResult.data_url">
+            <div v-if="testResult.data_url" class="text-slate-400 font-mono truncate" :title="testResult.data_url">
               POST {{ testResult.data_url }}{{ isActiveDestSparing2Step ? '  {"token": "<jwt_hs256>"}' : '' }}
             </div>
-            <div v-if="testResult.auth_success" class="opacity-95 break-all">
+            <div v-if="testResult.auth_success" class="opacity-95 font-mono break-all">
               {{ testResult.response_text || testResult.error_message }}
             </div>
             <div v-else class="opacity-75">
@@ -836,7 +838,7 @@
                 <select
                   v-model="payloadConfig.device_identity_mode"
                   @change="triggerLivePreview"
-                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-medium"
                 >
                   <option value="NONE">NONE (Omit from external JSON)</option>
                   <option value="FIELD">FIELD (Top-level Station ID field)</option>
@@ -851,7 +853,7 @@
                 <select
                   v-model="payloadConfig.conflict_resolution"
                   @change="triggerLivePreview"
-                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono font-bold text-amber-500"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-bold text-amber-500"
                 >
                   <option value="FAIL_ON_CONFLICT">FAIL_ON_CONFLICT (Validate & Error)</option>
                   <option value="PREFIX">PREFIX (Auto-prefix: aqms01_pm25)</option>
@@ -1053,14 +1055,14 @@
                 v-if="payloadConfig.include_sensor_stat_flags"
                 v-model="payloadConfig.sensor_stat_mode"
                 @change="triggerLivePreview"
-                class="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-mono"
+                class="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs font-medium"
               >
                 <option value="STATIC_1">Static 1 (Selalu bernilai 1)</option>
                 <option value="AUTO_QUALITY">Auto Quality (1 = GOOD, 0 = BAD/Null)</option>
               </select>
             </div>
-            <p v-if="payloadConfig.include_sensor_stat_flags" class="text-4xs text-slate-400 font-mono">
-              Menambahkan key otomatis: stat_pm10, stat_pm25, stat_so2, stat_co, stat_o3, stat_no2, stat_hc
+            <p v-if="payloadConfig.include_sensor_stat_flags" class="text-4xs text-slate-400">
+              Menambahkan key otomatis: <span class="font-mono">stat_pm10, stat_pm25, stat_so2, stat_co, stat_o3, stat_no2, stat_hc</span>
             </p>
           </div>
 
@@ -1069,7 +1071,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2 text-2xs">
               <div class="flex items-center space-x-2">
                 <span class="font-bold text-slate-700 dark:text-slate-300">Parameter External Aliases & Filters</span>
-                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-mono text-3xs font-semibold">
+                <span class="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 font-mono tabular-nums text-3xs font-semibold">
                   {{ activeParameterCount }} / {{ parameterMappings.length }} Aktif
                 </span>
               </div>
@@ -1095,7 +1097,7 @@
                   @click="syncDeviceParameters(true)"
                   :disabled="loadingParameters"
                   class="px-2 py-0.5 rounded text-3xs bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-medium transition flex items-center space-x-1 cursor-pointer"
-                  title="Ambil dan sinkronkan semua parameter dari seluruh perangkat fisik yang terpasang"
+                  title="Ambil dan sinkronkan semua parameter dari seluruh perangkat fisik terpasang"
                 >
                   <span :class="{'animate-spin': loadingParameters}">🔄</span>
                   <span>Sinkronkan Alat</span>
@@ -1117,13 +1119,13 @@
                 v-model="paramSearch"
                 type="text"
                 placeholder="🔍 Cari kode atau nama parameter..."
-                class="w-full bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-3xs font-mono"
+                class="w-full bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-3xs"
               />
             </div>
 
             <div class="max-h-72 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800">
               <table class="w-full text-left text-3xs">
-                <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 sticky top-0 z-10 shadow-xs">
+                <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-500 sticky top-0 z-10 shadow-xs font-semibold">
                   <tr>
                     <th class="p-2 w-12 text-center">Aktif</th>
                     <th class="p-2">Internal Code & Asal Alat</th>
@@ -1148,7 +1150,7 @@
                     <td class="p-2">
                       <div class="font-bold text-slate-700 dark:text-slate-300 font-mono">
                         {{ param.parameter_code }}
-                        <span v-if="param.parameter_name && param.parameter_name !== param.parameter_code" class="text-slate-400 font-normal">
+                        <span v-if="param.parameter_name && param.parameter_name !== param.parameter_code" class="text-slate-400 font-sans font-normal">
                           ({{ param.parameter_name }})
                         </span>
                       </div>
@@ -1211,7 +1213,7 @@
 
           <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-3xs text-slate-400 flex items-center justify-between">
             <span>● Matches actual serialized bytes dispatched by OutboundService</span>
-            <span>UTF-8 JSON</span>
+            <span class="font-mono">UTF-8 JSON</span>
           </div>
         </div>
       </div>
@@ -1223,7 +1225,7 @@
     <!-- ============================================================== -->
     <div
       v-if="showInspectModal && inspectDetail"
-      class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs font-mono"
+      class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs"
     >
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         <!-- Modal Header -->
@@ -1234,11 +1236,11 @@
                 {{ inspectDetail.status }}
               </span>
               <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                Queue Inspection: {{ inspectDetail.batch_id }}
+                Queue Inspection: <span class="font-mono">{{ inspectDetail.batch_id }}</span>
               </h3>
             </div>
             <div class="text-3xs text-slate-400 mt-0.5">
-              Idempotency Key: {{ inspectDetail.idempotency_key }}
+              Idempotency Key: <span class="font-mono">{{ inspectDetail.idempotency_key }}</span>
             </div>
           </div>
           <button @click="showInspectModal = false" class="text-slate-400 hover:text-white text-lg">✕</button>
@@ -1253,11 +1255,11 @@
                 <span>1. Persisted Source Aggregation Values</span>
                 <span class="text-3xs text-slate-400 font-normal">({{ inspectDetail.source_values ? inspectDetail.source_values.length : 0 }} records)</span>
               </h4>
-              <span class="text-4xs text-slate-500">Source Type: CUSTOMER_PROCESSED</span>
+              <span class="text-4xs text-slate-500">Source Type: <span class="font-mono">CUSTOMER_PROCESSED</span></span>
             </div>
             <div class="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <table class="w-full text-left text-3xs">
-                <thead class="bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase">
+                <thead class="bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase font-semibold">
                   <tr>
                     <th class="p-2">Device</th>
                     <th class="p-2">Param Code</th>
@@ -1270,12 +1272,12 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                   <tr v-for="val in inspectDetail.source_values" :key="val.aggregation_result_id + '-' + val.parameter_id">
-                    <td class="p-2 font-bold text-cyan-600 dark:text-cyan-400">
+                    <td class="p-2 font-mono font-bold text-cyan-600 dark:text-cyan-400">
                       {{ val.device_code || ('Device #' + val.device_id) }}
                     </td>
-                    <td class="p-2 font-bold text-slate-900 dark:text-white">{{ val.parameter_code }}</td>
+                    <td class="p-2 font-mono font-bold text-slate-900 dark:text-white">{{ val.parameter_code }}</td>
                     <td class="p-2 text-slate-600 dark:text-slate-300">{{ val.parameter_name }}</td>
-                    <td class="p-2 text-right font-bold" :class="val.value !== null && val.value !== undefined ? 'text-cyan-500' : 'text-slate-400'">
+                    <td class="p-2 text-right font-mono tabular-nums font-bold" :class="val.value !== null && val.value !== undefined ? 'text-cyan-500' : 'text-slate-400'">
                       {{ formatAggValue(val.value) }}
                     </td>
                     <td class="p-2 text-slate-400">{{ val.unit || '-' }}</td>
@@ -1284,7 +1286,7 @@
                         {{ val.quality }}
                       </span>
                     </td>
-                    <td class="p-2 text-slate-500">#{{ val.aggregation_result_id }}</td>
+                    <td class="p-2 font-mono text-slate-500">#{{ val.aggregation_result_id }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1295,11 +1297,11 @@
           <div>
             <div class="flex items-center justify-between mb-2">
               <h4 class="font-bold text-emerald-500 uppercase tracking-wider">
-                2. Serialized Outbound Payload Snapshot (v{{ inspectDetail.payload_version }})
+                2. Serialized Outbound Payload Snapshot (<span class="font-mono">v{{ inspectDetail.payload_version }}</span>)
               </h4>
               <button
                 @click="copyToClipboard(inspectDetail.payload_snapshot)"
-                class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-300 hover:text-white text-3xs font-semibold"
+                class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-3xs font-semibold"
               >
                 📋 Copy Outbound JSON
               </button>
@@ -1315,18 +1317,18 @@
             <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2 text-3xs">
               <div class="flex items-center space-x-3">
                 <span class="font-bold">HTTP Code:</span>
-                <span class="font-bold" :class="httpCodeClass(inspectDetail.last_http_code)">
+                <span class="font-mono font-bold" :class="httpCodeClass(inspectDetail.last_http_code)">
                   {{ inspectDetail.last_http_code || 'N/A' }}
                 </span>
-                <span class="text-slate-500">Last Attempt: {{ formatTime(inspectDetail.last_attempt_at) }}</span>
+                <span class="text-slate-500">Last Attempt: <span class="font-mono">{{ formatTime(inspectDetail.last_attempt_at) }}</span></span>
               </div>
-              <div v-if="inspectDetail.last_response" class="text-emerald-400 font-mono">
-                <div class="text-slate-400 mb-0.5">Response Body:</div>
-                <div class="p-2 rounded bg-slate-900 border border-slate-800 break-all">{{ inspectDetail.last_response }}</div>
+              <div v-if="inspectDetail.last_response" class="text-emerald-400">
+                <div class="text-slate-400 mb-0.5 font-medium">Response Body:</div>
+                <div class="p-2 rounded bg-slate-900 border border-slate-800 font-mono break-all">{{ inspectDetail.last_response }}</div>
               </div>
-              <div v-if="inspectDetail.last_error" class="text-rose-400 font-mono">
-                <div class="text-slate-400 mb-0.5">Last Error:</div>
-                <div class="p-2 rounded bg-rose-950/30 border border-rose-900/50 break-all">{{ inspectDetail.last_error }}</div>
+              <div v-if="inspectDetail.last_error" class="text-rose-400">
+                <div class="text-slate-400 mb-0.5 font-medium">Last Error:</div>
+                <div class="p-2 rounded bg-rose-950/30 border border-rose-900/50 font-mono break-all">{{ inspectDetail.last_error }}</div>
               </div>
             </div>
           </div>
@@ -1338,21 +1340,21 @@
             <button
               v-if="canManageQueue && (inspectDetail.status === 'FAILED' || inspectDetail.status === 'RETRYING')"
               @click="retryQueueItem(inspectDetail.id); showInspectModal = false;"
-              class="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30"
+              class="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-500 font-semibold border border-amber-500/30"
             >
               Retry Item
             </button>
             <button
               v-if="canManageQueue"
               @click="replayQueueItem(inspectDetail.id); showInspectModal = false;"
-              class="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 font-bold border border-purple-500/30"
+              class="px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 font-semibold border border-purple-500/30"
             >
               Replay as New Delivery
             </button>
           </div>
           <button
             @click="showInspectModal = false"
-            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white font-bold"
+            class="px-4 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white font-semibold"
           >
             Close
           </button>
@@ -1365,7 +1367,7 @@
     <!-- ============================================================== -->
     <div
       v-if="showPurgeModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 font-mono"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
     >
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
         <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -1386,7 +1388,7 @@
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Kriteria Status Antrean</label>
             <select
               v-model="purgeConfig.status"
-              class="w-full bg-slate-100 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold"
             >
               <option value="ALL">SEMUA STATUS (Total Purge Seluruh Antrean)</option>
               <option value="FAILED">Hanya Antrean GAGAL (FAILED)</option>
@@ -1449,7 +1451,7 @@
                 class="w-5 h-5 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center font-bold text-xs"
               >✕</span>
               <span
-                class="text-xs font-bold font-mono"
+                class="text-xs font-bold"
                 :class="{
                   'text-cyan-500': purgingQueue,
                   'text-emerald-500': purgeProgress.status === 'COMPLETED',
@@ -1463,7 +1465,7 @@
                 }}
               </span>
             </div>
-            <div class="text-sm font-bold font-mono text-slate-900 dark:text-white">
+            <div class="text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">
               {{ (purgeProgress.percent || 0).toFixed(1) }}%
             </div>
           </div>
@@ -1480,24 +1482,24 @@
           </div>
 
           <!-- Progress Counts & Summary Grid -->
-          <div class="grid grid-cols-2 gap-2 text-2xs font-mono">
+          <div class="grid grid-cols-2 gap-2 text-2xs">
             <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-              <span class="text-4xs text-slate-400 block uppercase">Antrean Terhapus</span>
-              <div class="font-bold text-xs text-rose-500 mt-0.5">
+              <span class="text-4xs text-slate-400 block uppercase font-semibold">Antrean Terhapus</span>
+              <div class="font-bold font-mono tabular-nums text-xs text-rose-500 mt-0.5">
                 {{ purgeProgress.purged_queue.toLocaleString() }}
                 <span class="text-4xs text-slate-400 font-normal">/ {{ purgeProgress.total_queue.toLocaleString() }}</span>
               </div>
             </div>
             <div class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-              <span class="text-4xs text-slate-400 block uppercase">Log Terhapus</span>
-              <div class="font-bold text-xs text-amber-500 mt-0.5">
+              <span class="text-4xs text-slate-400 block uppercase font-semibold">Log Terhapus</span>
+              <div class="font-bold font-mono tabular-nums text-xs text-amber-500 mt-0.5">
                 {{ purgeProgress.purged_logs.toLocaleString() }}
                 <span class="text-4xs text-slate-400 font-normal">/ {{ purgeProgress.total_logs.toLocaleString() }}</span>
               </div>
             </div>
           </div>
 
-          <div v-if="purgeProgress.status === 'COMPLETED'" class="text-3xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 font-mono">
+          <div v-if="purgeProgress.status === 'COMPLETED'" class="text-3xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
             ✓ Database telah dibersihkan secara aman tanpa mengganggu sistem monitoring.
           </div>
           <div v-else-if="purgeProgress.error_message" class="text-3xs text-rose-500 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20 font-mono">
@@ -1509,13 +1511,13 @@
           <template v-if="!purgingQueue && purgeProgress.status === 'IDLE'">
             <button
               @click="closePurgeModal"
-              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
             >
               Batal
             </button>
             <button
               @click="executePurgeQueue"
-              class="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition flex items-center space-x-1.5 shadow-md cursor-pointer"
+              class="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition flex items-center space-x-1.5 shadow-md cursor-pointer"
             >
               <span>Eksekusi Purge</span>
             </button>
@@ -1523,7 +1525,7 @@
           <template v-else-if="purgingQueue">
             <button
               @click="cancelPurgeExecution"
-              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
             >
               Batalkan Pembersihan
             </button>
@@ -1531,13 +1533,13 @@
           <template v-else>
             <button
               @click="resetPurgeProgressState"
-              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+              class="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
             >
               Bersihkan Lagi
             </button>
             <button
               @click="closePurgeModal"
-              class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition shadow-md cursor-pointer"
+              class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold transition shadow-md cursor-pointer"
             >
               Selesai & Tutup
             </button>
@@ -1551,7 +1553,7 @@
     <!-- ============================================================== -->
     <div
       v-if="showDestModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs font-mono"
+      class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs"
     >
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
         <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">

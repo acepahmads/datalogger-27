@@ -1,5 +1,5 @@
 <template>
-  <div v-if="shouldShowBanner" class="relative z-30 select-none transition-all duration-200" role="region" aria-label="Global Alarm Notification">
+  <div v-if="shouldShowBanner" class="relative z-30 select-none transition-all duration-200 font-sans" role="region" aria-label="Global Alarm Notification">
     <!-- Main Banner Bar -->
     <div
       class="px-4 py-2 sm:px-6 flex items-center justify-between shadow-md border-b text-xs transition-colors"
@@ -71,14 +71,14 @@
           </span>
 
           <!-- Timestamp Relative -->
-          <span class="opacity-75 text-3xs font-mono hidden sm:inline flex-shrink-0" :title="formatFullDate(highestAlarm.triggered_at)">
+          <span class="opacity-75 text-3xs hidden sm:inline flex-shrink-0" :title="formatFullDate(highestAlarm.triggered_at)">
             · {{ formatRelativeTime(highestAlarm.triggered_at) }}
           </span>
 
           <!-- Acknowledged Tag if already acked -->
           <span
             v-if="highestAlarm.status === 'ACKNOWLEDGED'"
-            class="bg-black/20 text-3xs px-1.5 py-0.5 rounded font-mono font-semibold uppercase flex-shrink-0"
+            class="bg-black/20 text-3xs px-1.5 py-0.5 rounded font-semibold uppercase flex-shrink-0"
           >
             ✓ {{ $t('alarms.acknowledgedState') || 'Acked' }}
           </span>
@@ -88,10 +88,10 @@
         <button
           v-if="activeAlarmsCount > 1"
           @click="isExpanded = !isExpanded"
-          class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-black/20 hover:bg-black/30 text-3xs font-mono font-bold transition-colors flex-shrink-0 ml-1"
+          class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-black/20 hover:bg-black/30 text-3xs font-bold transition-colors flex-shrink-0 ml-1"
           :title="$t('alarms.toggleAlarmList') || 'Toggle active alarms list'"
         >
-          <span>+{{ activeAlarmsCount - 1 }} {{ $t('alarms.more') || 'more' }}</span>
+          <span>+<span class="font-mono tabular-nums">{{ activeAlarmsCount - 1 }}</span> {{ $t('alarms.more') || 'more' }}</span>
           <svg class="w-3 h-3 transition-transform duration-200" :class="{ 'rotate-180': isExpanded }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
@@ -115,7 +115,7 @@
         <button
           v-if="highestAlarm.status === 'ACTIVE'"
           @click="openAckModal(highestAlarm)"
-          class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-3xs font-bold font-mono tracking-wide transition-colors flex items-center space-x-1 shadow-sm"
+          class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-3xs font-bold tracking-wide transition-colors flex items-center space-x-1 shadow-sm"
           :title="$t('alarms.acknowledgeTooltip') || 'Acknowledge this alarm incident'"
         >
           <span>✓</span>
@@ -194,19 +194,19 @@
           <span class="truncate text-slate-700 dark:text-slate-300">
             {{ item.message || item.alarm_code }}
           </span>
-          <span class="text-4xs text-slate-400 font-mono flex-shrink-0">
+          <span class="text-4xs text-slate-400 flex-shrink-0">
             {{ formatRelativeTime(item.triggered_at) }}
           </span>
         </div>
 
         <div class="flex items-center space-x-2 flex-shrink-0">
-          <span v-if="item.status === 'ACKNOWLEDGED'" class="text-3xs text-emerald-600 dark:text-emerald-400 font-mono">
+          <span v-if="item.status === 'ACKNOWLEDGED'" class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium">
             ✓ {{ item.acknowledged_by || 'Acked' }}
           </span>
           <button
             v-else
             @click="openAckModal(item)"
-            class="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-3xs font-semibold font-mono transition-colors"
+            class="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-3xs font-semibold transition-colors"
           >
             {{ $t('alarms.acknowledge') || 'Acknowledge' }}
           </button>

@@ -13,9 +13,9 @@
           </svg>
         </div>
         <div>
-          <div class="text-xs font-black tracking-widest uppercase text-slate-900 dark:text-white flex items-center gap-1.5 font-mono">
+          <div class="text-xs font-bold tracking-tight uppercase text-slate-900 dark:text-white flex items-center gap-1.5">
             DATALOGGER-27
-            <span class="px-1.5 py-0.5 rounded text-4xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-bold">AQMS &bull; CBI</span>
+            <span class="px-1.5 py-0.5 rounded text-4xs font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-bold">AQMS &bull; CBI</span>
           </div>
           <div class="text-3xs text-slate-500 dark:text-slate-400">Continuous Environmental Monitoring Platform</div>
         </div>
@@ -27,7 +27,7 @@
         <button
           type="button"
           @click="toggleLanguage"
-          class="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-500 transition-colors shadow-xs"
+          class="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-500 transition-colors shadow-xs"
           :title="$t('header.toggleLang') || 'Switch Language'"
         >
           <span>🌐</span>
@@ -53,7 +53,7 @@
         
         <!-- Header in Card -->
         <div class="text-center mb-6">
-          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-3xs font-mono font-bold uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 mb-3">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-3xs font-bold uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 mb-3">
             <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
             {{ $t('auth.systemAccess') || 'SYSTEM ACCESS CONTROL' }}
           </div>

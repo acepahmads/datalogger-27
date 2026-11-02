@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 font-sans">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -476,8 +476,8 @@
               <h3 class="text-sm font-bold text-slate-900 dark:text-white">
                 {{ activeJob.status === 'COMPLETED' ? (activeJob.type + ' Selesai') : activeJob.status === 'FAILED' ? (activeJob.type + ' Gagal') : ('Memproses ' + activeJob.type + '...') }}
               </h3>
-              <p class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
-                Job ID: {{ activeJob.id }} • {{ jobElapsedSeconds }}s berjalan
+              <p class="text-3xs text-slate-500 dark:text-slate-400">
+                Job ID: <span class="font-mono">{{ activeJob.id }}</span> • <span class="font-mono tabular-nums">{{ jobElapsedSeconds }}s</span> berjalan
               </p>
             </div>
           </div>

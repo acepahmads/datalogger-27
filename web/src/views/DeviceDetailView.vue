@@ -2141,7 +2141,7 @@
       <!-- Raw Inspection Table -->
       <div class="saas-card overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs font-mono">
+          <table class="w-full text-left text-xs font-sans">
             <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
               <tr>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
@@ -2153,7 +2153,7 @@
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 text-2xs">
+            <tbody class="divide-y divide-slate-800/60 text-2xs font-mono tabular-nums">
               <tr v-for="rec in rawRecords" :key="rec.id" class="hover:bg-slate-800/30 transition">
                 <td class="py-2.5 px-4 text-slate-300">
                   {{ formatTimestamp(rec.received_at || rec.timestamp) }}
@@ -2197,7 +2197,7 @@
           >
             {{ $t('common.previous') }}
           </button>
-          <span class="text-slate-400 text-2xs font-mono">
+          <span class="text-slate-400 text-2xs tabular-nums">
             {{ $t('deviceDetail.pageOfWithRecords', { page: rawPage, totalPages: Math.ceil(rawTotal / rawPageSize) || 1, total: rawTotal }) }}
           </span>
           <button
@@ -2302,7 +2302,7 @@
             </span>
             <div>
               <h3 class="text-sm font-bold text-emerald-300">{{ $t('aggregation.customerPreviewTitle') }}</h3>
-              <p class="text-3xs text-slate-300 font-mono">{{ $t('aggregation.customerPreviewSubtitle') }}</p>
+              <p class="text-3xs text-slate-300">{{ $t('aggregation.customerPreviewSubtitle') }}</p>
             </div>
           </div>
           <div class="flex items-center space-x-2">
@@ -2732,7 +2732,7 @@
               <h2 class="text-sm font-bold text-white tracking-wide">
                 {{ isEditingAggDef ? $t('aggregation.modalEditTitle') : $t('aggregation.modalCreateTitle') }}
               </h2>
-              <p class="text-3xs text-slate-400 font-mono">{{ $t('aggregation.modalDesc') }}</p>
+              <p class="text-3xs text-slate-400">{{ $t('aggregation.modalDesc') }}</p>
             </div>
           </div>
           <button @click="isAggDefModalOpen = false" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
@@ -2792,7 +2792,7 @@
             <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.sourceType') }} *</label>
             <select
               v-model="aggDefForm.source_type"
-              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="CUSTOMER_PROCESSED">{{ $t('aggregation.sourceCustomerProcessed') }}</option>
               <option value="INTERNAL_RAW">{{ $t('aggregation.sourceInternalRaw') }}</option>
@@ -2808,7 +2808,7 @@
               <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.function') }} *</label>
               <select
                 v-model="aggDefForm.function"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="AVG">AVG (Average)</option>
                 <option value="MIN">MIN (Minimum)</option>
@@ -2864,7 +2864,7 @@
               <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.qualityPolicy') }}</label>
               <select
                 v-model="aggDefForm.quality_policy"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="STRICT">STRICT (Requires Good Samples)</option>
                 <option value="BEST_EFFORT">BEST_EFFORT (Include Uncertain)</option>
@@ -2934,9 +2934,9 @@
                   {{ $t('aggregation.finalized') }}
                 </span>
               </div>
-              <p class="text-3xs text-slate-400 font-mono mt-0.5">
-                Window: <strong class="text-slate-200">{{ formatPeriodWindow(selectedBucketResult.period_start, selectedBucketResult.period_end) }}</strong>
-                • Target: <strong class="text-cyan-400">{{ selectedBucketResult.identifier }}</strong>
+              <p class="text-3xs text-slate-400 mt-0.5">
+                Window: <strong class="text-slate-200 font-mono tabular-nums">{{ formatPeriodWindow(selectedBucketResult.period_start, selectedBucketResult.period_end) }}</strong>
+                • Target: <strong class="text-cyan-400 font-mono">{{ selectedBucketResult.identifier }}</strong>
                 • Parameter: <strong class="text-indigo-300">{{ selectedBucketResult.parameter ? selectedBucketResult.parameter.parameter_name : getParamName(selectedBucketResult.parameter_id) }}</strong>
               </p>
             </div>
@@ -2951,32 +2951,32 @@
         <!-- KPI Cards -->
         <div class="px-6 py-3 bg-[#0B0F19]/40 border-b border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
-            <span class="text-3xs text-slate-400 uppercase font-mono block">Sample Count</span>
-            <span class="text-base font-bold font-mono text-cyan-400">
+            <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Sample Count</span>
+            <span class="text-base font-bold font-mono tabular-nums text-cyan-400">
               N={{ bucketSamplesData ? bucketSamplesData.sample_count : (selectedBucketResult.sample_count || 0) }}
             </span>
           </div>
           <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
-            <span class="text-3xs text-slate-400 uppercase font-mono block">Calculated Avg</span>
-            <span class="text-base font-bold font-mono text-white">
+            <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Calculated Avg</span>
+            <span class="text-base font-bold font-mono tabular-nums text-white">
               {{ (bucketSamplesData && bucketSamplesData.avg_value !== null) ? Number(bucketSamplesData.avg_value).toFixed(2) : (selectedBucketResult.value !== null ? Number(selectedBucketResult.value).toFixed(2) : '--') }}
-              <span class="text-3xs font-normal text-slate-400">{{ bucketSamplesData ? bucketSamplesData.unit : '' }}</span>
+              <span class="text-3xs font-normal text-slate-400 font-sans">{{ bucketSamplesData ? bucketSamplesData.unit : '' }}</span>
             </span>
           </div>
           <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
-            <span class="text-3xs text-slate-400 uppercase font-mono block">Min / Max</span>
-            <span class="text-xs font-mono text-slate-200">
+            <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Min / Max</span>
+            <span class="text-xs font-mono tabular-nums text-slate-200">
               {{ selectedBucketResult.min_value !== null ? Number(selectedBucketResult.min_value).toFixed(2) : '--' }} / {{ selectedBucketResult.max_value !== null ? Number(selectedBucketResult.max_value).toFixed(2) : '--' }}
             </span>
           </div>
           <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 flex items-center justify-between">
             <div>
-              <span class="text-3xs text-slate-400 uppercase font-mono block">Quality</span>
+              <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Quality</span>
               <div class="flex items-center space-x-1.5 mt-0.5">
                 <span class="text-xs font-bold font-mono text-emerald-400">
                   {{ selectedBucketResult.quality || 'GOOD' }}
                 </span>
-                <span class="text-3xs font-mono text-slate-400">
+                <span class="text-3xs font-mono tabular-nums text-slate-400">
                   (✓{{ selectedBucketResult.good_count || 0 }} / ?{{ selectedBucketResult.uncertain_count || 0 }} / ✗{{ selectedBucketResult.bad_count || 0 }})
                 </span>
               </div>
@@ -3042,8 +3042,8 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-3 border-t border-slate-800/80 bg-[#0B0F19]/80 flex items-center justify-between text-xs font-mono text-slate-400">
-          <span>Total records: <strong class="text-white">{{ bucketSamplesData ? bucketSamplesData.samples.length : 0 }}</strong></span>
+        <div class="px-6 py-3 border-t border-slate-800/80 bg-[#0B0F19]/80 flex items-center justify-between text-xs text-slate-400">
+          <span>Total records: <strong class="text-white font-mono tabular-nums">{{ bucketSamplesData ? bucketSamplesData.samples.length : 0 }}</strong></span>
           <button @click="closeBucketSamplesModal" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">
             Close
           </button>
@@ -3102,8 +3102,8 @@
                   {{ device.device_code }} · {{ testParam.parameter_code }}
                 </span>
               </div>
-              <p class="text-3xs text-slate-400 font-mono mt-0.5">
-                {{ testParam.parameter_name }} · {{ testParam.data_type }} ({{ testParam.unit || '--' }})
+              <p class="text-3xs text-slate-400 mt-0.5">
+                {{ testParam.parameter_name }} · <span class="font-mono">{{ testParam.data_type }} ({{ testParam.unit || '--' }})</span>
               </p>
             </div>
           </div>

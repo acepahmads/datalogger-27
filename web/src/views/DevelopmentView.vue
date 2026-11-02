@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 font-sans">
     <!-- Header: Development Lifecycle -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
@@ -138,13 +138,13 @@
               </div>
 
               <!-- Percentage -->
-              <span class="text-2xs font-bold w-12 text-right font-sans"
+              <span class="text-2xs font-bold w-12 text-right font-mono tabular-nums"
                     :class="phase.progress >= 100 ? 'text-emerald-500 dark:text-emerald-400' : phase.progress > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'">
                 {{ phase.progress % 1 === 0 ? phase.progress : phase.progress.toFixed(1) }}%
               </span>
 
               <!-- Status Pill -->
-              <span class="px-2 py-0.5 rounded-md text-3xs font-semibold tracking-wider font-mono uppercase"
+              <span class="px-2 py-0.5 rounded-md text-3xs font-semibold tracking-wider uppercase"
                     :class="getStatusPillClass(phase.status)">
                 {{ phase.status === 'COMPLETED' ? $t('status.done') : $t('status.' + phase.status.toLowerCase()) }}
               </span>
