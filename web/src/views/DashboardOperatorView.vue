@@ -12,11 +12,11 @@
     <!-- =================================================================== -->
     <header class="header-shell">
       <div class="h-row1" :class="{ 'is-compact-row1': isCompactScreen }">
-        <!-- Area 1 (Left): Customer Company Branding (Anti-Truncate) -->
+        <!-- Area 1 (Left): Customer Company Branding (Configured Values Only — No Default Text) -->
         <div
           class="brand-left cursor-pointer"
           @click="openBrandingModal('customer')"
-          :title="(customerCompanyName || 'Customer Organization') + ' · Klik untuk konfigurasi branding'"
+          :title="(customerCompanyName ? customerCompanyName + ' · ' : '') + 'Klik untuk konfigurasi branding'"
         >
           <div v-if="customerLogoUrl" class="logo-img-wrap">
             <img
@@ -30,39 +30,33 @@
               <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
               <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
               <circle cx="12" cy="12" r="2" />
-              <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+              <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0-8.5" />
               <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
             </svg>
           </div>
 
-          <div class="min-w-0 flex-1">
-            <div class="station-name">
-              <span class="truncate">{{ customerCompanyName || 'PT. Mitra Industri Enviro' }}</span>
-              <span class="cbi-chip">CBI</span>
+          <div
+            v-if="customerCompanyName || stationTypeLabel || (stationLocation && (stationLocation.station_name || stationLocation.address))"
+            class="min-w-0 flex-1"
+          >
+            <div v-if="customerCompanyName" class="station-name">
+              <span class="truncate">{{ customerCompanyName }}</span>
             </div>
-            <div class="station-loc truncate">
-              <span>Stasiun <strong>{{ stationTypeLabel || currentMonitoringDomain || 'AQMS' }}</strong></span>
+            <div
+              v-if="stationTypeLabel || (stationLocation && (stationLocation.station_name || stationLocation.address))"
+              class="station-loc truncate"
+            >
+              <span v-if="stationTypeLabel">Stasiun <strong>{{ stationTypeLabel }}</strong></span>
               <span v-if="stationLocation && (stationLocation.station_name || stationLocation.address)">
-                · {{ stationLocation.station_name || stationLocation.address }}
+                <template v-if="stationTypeLabel"> · </template>{{ stationLocation.station_name || stationLocation.address }}
               </span>
             </div>
           </div>
         </div>
 
-        <!-- Area 2 (Center): Adaptive Sensor Summary Pill + Calm Digital Clock -->
-        <div class="clock-center" :class="{ 'is-wide-center': !isCompactScreen }">
-          <button
-            type="button"
-            class="online-pill cursor-pointer"
-            :class="bentoFleetSummary.toneClass"
-            @click.stop="toggleToolbarPopover('healthAndAlarms')"
-            :title="bentoFleetSummary.label + ' · Klik untuk membuka Pusat Kesehatan Stasiun & Alarm'"
-          >
-            <span class="status-dot" :class="bentoFleetSummary.dotClass"></span>
-            <span>{{ isCompactScreen ? bentoFleetSummary.shortLabel : bentoFleetSummary.label }}</span>
-          </button>
-
-          <div v-if="currentTime" class="clock-pill">
+        <!-- Area 2 (Center): Calm Digital Clock -->
+        <div v-if="currentTime" class="clock-center" :class="{ 'is-wide-center': !isCompactScreen }">
+          <div class="clock-pill">
             <svg width="12.5" height="12.5" viewBox="0 0 24 24" fill="none" :stroke="isDark ? '#38BDF8' : '#0284C7'" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
@@ -74,18 +68,18 @@
           </div>
         </div>
 
-        <!-- Area 3 (Right): Single Clean Maker Branding -->
+        <!-- Area 3 (Right): Single Clean Maker Branding (Configured Values Only — No Default Text) -->
         <div
           class="brand-right cursor-pointer"
           @click="openBrandingModal('maker')"
-          :title="(makerCompanyName || 'PT. Centra Biotech Indonesia') + ' · Klik untuk konfigurasi branding'"
+          :title="(makerCompanyName ? makerCompanyName + ' · ' : '') + 'Klik untuk konfigurasi branding'"
         >
-          <div class="maker-info hidden lg:block">
-            <div class="maker-title truncate" :class="isCompactScreen ? 'max-w-[165px]' : 'max-w-[215px]'">
-              {{ makerCompanyName || 'PT. Centra Biotech Indonesia' }}
+          <div v-if="makerCompanyName || makerSubtitle" class="maker-info hidden lg:block">
+            <div v-if="makerCompanyName" class="maker-title truncate" :class="isCompactScreen ? 'max-w-[165px]' : 'max-w-[215px]'">
+              {{ makerCompanyName }}
             </div>
-            <div class="maker-sub truncate" :class="isCompactScreen ? 'max-w-[165px]' : 'max-w-[215px]'">
-              {{ makerSubtitle || 'CBI Industrial IoT · Edge Telemetry' }}
+            <div v-if="makerSubtitle" class="maker-sub truncate" :class="isCompactScreen ? 'max-w-[165px]' : 'max-w-[215px]'">
+              {{ makerSubtitle }}
             </div>
           </div>
 
@@ -6115,6 +6109,10 @@ export default {
     let autoGrid = true;
     let splitMode = '2T';
     let savedTrendHeight = 205;
+    let savedCustName = '';
+    let savedCustSub = '';
+    let savedMakerName = '';
+    let savedMakerSub = '';
     try {
       const savedAuto = localStorage.getItem('datalogger_bento_auto_grid');
       if (savedAuto === 'false') autoGrid = false;
@@ -6123,6 +6121,18 @@ export default {
       const rawTrendH = parseInt(localStorage.getItem('datalogger_bento_trend_height'), 10);
       if (isFinite(rawTrendH) && rawTrendH >= 120 && rawTrendH <= 560) {
         savedTrendHeight = rawTrendH;
+      }
+      const rawBrand = localStorage.getItem('datalogger.organization_branding');
+      if (rawBrand) {
+        const parsedBrand = JSON.parse(rawBrand);
+        if (parsedBrand && parsedBrand.customer) {
+          savedCustName = parsedBrand.customer.name || '';
+          savedCustSub = parsedBrand.customer.subtitle === 'Local Autonomous Edge' ? '' : (parsedBrand.customer.subtitle || '');
+        }
+        if (parsedBrand && parsedBrand.maker) {
+          savedMakerName = parsedBrand.maker.name || '';
+          savedMakerSub = parsedBrand.maker.subtitle || '';
+        }
       }
     } catch (e) {}
     return {
@@ -6133,6 +6143,10 @@ export default {
       bentoTrendSearch: '',
       bentoTrendCanvasHeight: savedTrendHeight,
       isResizingBentoTrend: false,
+      customerCompanyName: savedCustName,
+      customerSubtitle: savedCustSub,
+      makerCompanyName: savedMakerName,
+      makerSubtitle: savedMakerSub,
     };
   },
   computed: {
@@ -6294,6 +6308,43 @@ export default {
       }
       if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onDocumentClick) {
         OperatorCommandCenterView.methods.onDocumentClick.call(this, e);
+      }
+    },
+    async initCompanyBranding() {
+      let hadSavedLocal = false;
+      try {
+        hadSavedLocal = !!localStorage.getItem('datalogger.organization_branding');
+      } catch (e) {}
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.initCompanyBranding) {
+        await OperatorCommandCenterView.methods.initCompanyBranding.call(this);
+      }
+      try {
+        const res = await fetch('/api/system/branding');
+        if (res && res.ok) {
+          const json = await res.json();
+          const remote = (json && json.data) ? json.data : json;
+          if (remote) {
+            this.customerCompanyName = remote.customer_name || '';
+            this.customerSubtitle = remote.customer_subtitle === 'Local Autonomous Edge' ? '' : (remote.customer_subtitle || '');
+            this.makerCompanyName = remote.maker_name || '';
+            this.makerSubtitle = remote.maker_subtitle || '';
+            this.companyName = this.makerCompanyName;
+          }
+        } else if (!hadSavedLocal) {
+          this.customerCompanyName = '';
+          this.customerSubtitle = '';
+          this.makerCompanyName = '';
+          this.makerSubtitle = '';
+          this.companyName = '';
+        }
+      } catch (e) {
+        if (!hadSavedLocal) {
+          this.customerCompanyName = '';
+          this.customerSubtitle = '';
+          this.makerCompanyName = '';
+          this.makerSubtitle = '';
+          this.companyName = '';
+        }
       }
     },
     onDocumentContextMenu(e) {

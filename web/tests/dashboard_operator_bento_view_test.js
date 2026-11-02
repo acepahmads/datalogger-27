@@ -170,6 +170,18 @@ check('9.1: Parameter cards & tables read configured limits (warning_high, max_v
   assert(viewContent.includes('OUT_OF_HARD_RANGE'), 'Must distinguish online OUT_OF_HARD_RANGE limit exceedance from communication offline');
 });
 
+// 10. Strict Empty Branding Support & Clean Header (No Default Branding Text or Redundant "Semua Sensor Aktif" Pill)
+check('10.1: Header renders only configured Customer & Maker branding and centered clock without default branding or "Semua Sensor Aktif" pill', () => {
+  const headerSlice = viewContent.slice(0, viewContent.indexOf('<div class="h-divider">'));
+  assert(!headerSlice.includes('PT. Centra Biotech Indonesia'), 'Header must not contain default PT. Centra Biotech Indonesia text');
+  assert(!headerSlice.includes('CBI Industrial IoT · Edge Telemetry'), 'Header must not contain default CBI Industrial IoT · Edge Telemetry subtitle');
+  assert(!headerSlice.includes('PT. Mitra Industri Enviro'), 'Header must not contain default PT. Mitra Industri Enviro text');
+  assert(!headerSlice.includes('online-pill') && !headerSlice.includes('bentoFleetSummary'), 'Header must not render the redundant "Semua Sensor Aktif" online-pill badge');
+  assert(headerSlice.includes('v-if="makerCompanyName || makerSubtitle"'), 'Maker info block must be hidden when both name and subtitle are empty');
+  assert(headerSlice.includes('v-if="makerCompanyName"') && headerSlice.includes('v-if="makerSubtitle"'), 'Maker name and subtitle must each be conditionally rendered');
+  assert(headerSlice.includes('v-if="customerCompanyName"'), 'Customer name must be hidden when empty');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');
