@@ -2671,14 +2671,14 @@
                 getBentoCardAlertClass(param),
                 perfSettings.cardBlinksEnabled && liveBlinks[param.param_id] ? 's-card-blink' : ''
               ]"
-              :title="getParamTimingTitle(param)"
+              :title="getBentoParamCardTitle(param)"
             >
               <!-- Card Header -->
               <div class="s-head">
                 <div class="s-title-wrap">
                   <span
                     class="s-dot"
-                    :style="{ background: !isBentoParamCommOffline(param) ? '#10B981' : '#F43F5E' }"
+                    :style="{ background: getBentoDotColor(param) }"
                   ></span>
                   <span class="s-name" :title="param.param_name || param.param_code">
                     {{ param.param_name || param.param_code }}
@@ -2689,7 +2689,12 @@
                   <span v-if="!isCompactScreen && getParamCategory(param)" class="s-cat">
                     {{ getParamCategoryShortLabel(param) }}
                   </span>
-                  <span class="s-badge" :class="getBentoStatusBadge(param).toneClass">
+                  <span
+                    class="s-badge"
+                    :class="[getBentoStatusBadge(param).toneClass, { 'is-clickable-alarm': getBentoStatusBadge(param).isAlarm }]"
+                    :title="getBentoStatusBadge(param).tooltip || ''"
+                    @click="getBentoStatusBadge(param).isAlarm ? ($event.stopPropagation(), onBentoStatusBadgeClick(param)) : null"
+                  >
                     {{ getBentoStatusBadge(param).label }}
                   </span>
                   <button
@@ -2876,14 +2881,14 @@
                         { 'is-row-selected': isParamSelectedForTrend(param) },
                         getBentoRowAlertClass(param)
                       ]"
-                      :title="getParamTimingTitle(param)"
+                      :title="getBentoParamCardTitle(param)"
                     >
                       <!-- 1. Parameter Name + Category -->
                       <td>
                         <div class="bt-param-cell">
                           <span
                             class="s-dot"
-                            :style="{ background: !isBentoParamCommOffline(param) ? '#10B981' : '#F43F5E' }"
+                            :style="{ background: getBentoDotColor(param) }"
                           ></span>
                           <span class="bt-name truncate" :title="param.param_name || param.param_code">
                             {{ param.param_name || param.param_code }}
@@ -2963,8 +2968,13 @@
 
                       <!-- 4. Status Pill + Mini Threshold Bar + Configured Limit -->
                       <td>
-                        <div class="bt-status-cell" :title="getBentoCardProgress(param).limitTooltip">
-                          <span class="s-badge" :class="getBentoStatusBadge(param).toneClass">
+                        <div class="bt-status-cell" :title="getBentoStatusBadge(param).tooltip || getBentoCardProgress(param).limitTooltip">
+                          <span
+                            class="s-badge"
+                            :class="[getBentoStatusBadge(param).toneClass, { 'is-clickable-alarm': getBentoStatusBadge(param).isAlarm }]"
+                            :title="getBentoStatusBadge(param).tooltip || ''"
+                            @click="getBentoStatusBadge(param).isAlarm ? ($event.stopPropagation(), onBentoStatusBadgeClick(param)) : null"
+                          >
                             {{ getBentoStatusBadge(param).label }}
                           </span>
                           <div class="bt-mini-track">
@@ -6240,6 +6250,77 @@ export default {
       }
       return map;
     },
+    bentoParamActiveAlarmMap() {
+      const map = {};
+      const byDevCode = {};
+      const list = this.activeAlarmsList || [];
+      if (!list.length) return map;
+
+      const getPriorityScore = (a) => {
+        if (!a) return 0;
+        let score = String(a.severity || '').toUpperCase() === 'CRITICAL' ? 1000 : 500;
+        const code = String(a.alarm_code || a.alarm_type || a.type || '').toUpperCase();
+        if (code.includes('CRITICAL')) score += 90;
+        else if (code.includes('THRESHOLD')) score += 80;
+        else if (code.includes('BAD_QUALITY')) score += 70;
+        else if (code.includes('STALE')) score += 60;
+        else if (code.includes('STUCK')) score += 50;
+        else if (code.includes('SPIKE')) score += 45;
+        else if (code.includes('ZERO')) score += 40;
+        return score;
+      };
+
+      const addEntry = (targetMap, key, alm) => {
+        if (key == null || key === '') return;
+        if (!targetMap[key]) {
+          targetMap[key] = { primary: alm, all: [alm], count: 1 };
+          return;
+        }
+        targetMap[key].all.push(alm);
+        targetMap[key].count = targetMap[key].all.length;
+        const curScore = getPriorityScore(targetMap[key].primary);
+        const newScore = getPriorityScore(alm);
+        if (newScore > curScore) {
+          targetMap[key].primary = alm;
+        } else if (newScore === curScore) {
+          const curT = new Date(targetMap[key].primary.triggered_at || targetMap[key].primary.created_at || 0).getTime();
+          const newT = new Date(alm.triggered_at || alm.created_at || 0).getTime();
+          if (newT > curT) {
+            targetMap[key].primary = alm;
+          }
+        }
+      };
+
+      for (const a of list) {
+        if (!a || (a.status && a.status !== 'ACTIVE')) continue;
+        const embP = a.parameter || a.Parameter || null;
+        const pid = a.parameter_id != null
+          ? Number(a.parameter_id)
+          : (embP && (embP.id || embP.param_id) != null ? Number(embP.id || embP.param_id) : null);
+        if (pid != null && !isNaN(pid)) {
+          addEntry(map, pid, a);
+        } else if (embP && (embP.parameter_code || embP.code)) {
+          const devId = a.device_id != null
+            ? Number(a.device_id)
+            : (a.device && a.device.id != null ? Number(a.device.id) : 0);
+          const pCode = String(embP.parameter_code || embP.code).toUpperCase();
+          addEntry(byDevCode, devId + ':' + pCode, a);
+        }
+      }
+
+      if (Object.keys(byDevCode).length > 0) {
+        for (const p of (this.allParameters || [])) {
+          const pid = Number(p.param_id || p.id);
+          if (!pid || map[pid]) continue;
+          const fbKey = Number(p.device_id || 0) + ':' + String(p.param_code || '').toUpperCase();
+          if (byDevCode[fbKey]) {
+            map[pid] = byDevCode[fbKey];
+          }
+        }
+      }
+
+      return map;
+    },
     bentoFleetSummary() {
       const total = this.allParameters.length;
       if (total === 0) {
@@ -6730,6 +6811,81 @@ export default {
       const lim = this.resolveBentoParamLimits(param);
       return lim && lim.upper !== null ? lim.upper : null;
     },
+    getBentoParamActiveAlarm(param) {
+      if (!param) return null;
+      const pid = Number(param.param_id || param.id);
+      const entry = (pid && this.bentoParamActiveAlarmMap && this.bentoParamActiveAlarmMap[pid]) || null;
+      if (!entry || !entry.primary) return null;
+
+      const alm = entry.primary;
+      const code = String(alm.alarm_code || alm.alarm_type || alm.type || '').toUpperCase();
+      const sev = String(alm.severity || 'WARNING').toUpperCase();
+      const isCrit = sev === 'CRITICAL' || code.includes('CRITICAL');
+
+      let badgeLabel = isCrit ? 'Kritis' : '⚠ Alarm';
+      let shortMeta = isCrit ? 'Alarm Kritis' : 'Alarm Aktif';
+
+      if (code.includes('STUCK')) {
+        badgeLabel = '⚠ Stuck';
+        shortMeta = 'Stuck';
+      } else if (code.includes('SPIKE')) {
+        badgeLabel = '⚠ Spike';
+        shortMeta = 'Spike';
+      } else if (code.includes('ZERO_INVALID') || code.includes('ZERO')) {
+        badgeLabel = '⚠ Zero';
+        shortMeta = 'Zero Invalid';
+      } else if (code.includes('STALE')) {
+        badgeLabel = '⚠ Stale';
+        shortMeta = 'Stale';
+      } else if (code.includes('BAD_QUALITY')) {
+        badgeLabel = '⚠ Bad';
+        shortMeta = 'Bad Data';
+      } else if (code.includes('THRESHOLD_WARNING') || code === 'WARNING') {
+        badgeLabel = 'Waspada';
+        shortMeta = 'Warning Limit';
+      } else if (code.includes('THRESHOLD_CRITICAL')) {
+        badgeLabel = 'Kritis';
+        shortMeta = 'Critical Limit';
+      }
+
+      const trigTime = alm.triggered_at || alm.created_at;
+      const ageStr = trigTime ? this.formatRelative(trigTime) : '';
+      const msgStr = alm.message || code || 'Active Alarm';
+      const extraStr = entry.count > 1 ? ' (+' + (entry.count - 1) + ' alarm aktif lainnya)' : '';
+      const tooltipText = 'Alarm Aktif [' + sev + ']: ' + msgStr + (ageStr ? ' · ' + ageStr : '') + extraStr + ' — Klik badge untuk Acknowledge';
+
+      return {
+        primary: alm,
+        count: entry.count,
+        all: entry.all,
+        code,
+        severity: isCrit ? 'CRITICAL' : 'WARNING',
+        toneClass: isCrit ? 'badge-rose' : 'badge-amber',
+        badgeLabel,
+        shortMeta,
+        ageStr,
+        tooltipText,
+      };
+    },
+    getBentoDotColor(param) {
+      if (this.isBentoParamCommOffline(param)) return '#F43F5E';
+      const tone = this.getBentoStatusBadge(param).toneClass;
+      if (tone === 'badge-rose') return '#F43F5E';
+      if (tone === 'badge-amber') return '#F59E0B';
+      return '#10B981';
+    },
+    getBentoParamCardTitle(param) {
+      const baseTitle = typeof this.getParamTimingTitle === 'function' ? this.getParamTimingTitle(param) : '';
+      const activeInfo = this.getBentoParamActiveAlarm(param);
+      if (!activeInfo) return baseTitle;
+      return baseTitle ? (activeInfo.tooltipText + '\n' + baseTitle) : activeInfo.tooltipText;
+    },
+    onBentoStatusBadgeClick(param) {
+      const badge = this.getBentoStatusBadge(param);
+      if (badge && badge.isAlarm && badge.alarm && typeof this.openAckModal === 'function') {
+        this.openAckModal(badge.alarm);
+      }
+    },
     getBentoCardAlertClass(param) {
       const tone = this.getBentoStatusBadge(param).toneClass;
       if (tone === 'badge-rose') return 's-card-fault';
@@ -6743,14 +6899,32 @@ export default {
       return '';
     },
     getBentoStatusBadge(param) {
-      if (!param) return { label: 'Normal', toneClass: 'badge-green' };
+      if (!param) return { label: 'Normal', toneClass: 'badge-green', isAlarm: false, alarm: null, tooltip: '' };
+      const activeInfo = this.getBentoParamActiveAlarm(param);
+
       if (this.isBentoParamCommOffline(param)) {
-        return { label: 'Offline', toneClass: 'badge-rose' };
+        return {
+          label: 'Offline',
+          toneClass: 'badge-rose',
+          isAlarm: Boolean(activeInfo),
+          alarm: activeInfo ? activeInfo.primary : null,
+          tooltip: activeInfo ? activeInfo.tooltipText : 'Sensor tidak terhubung / Offline',
+        };
       }
       if (this.isDiscreteStatusParam(param)) {
+        if (activeInfo && !activeInfo.code.includes('STUCK') && !activeInfo.code.includes('THRESHOLD')) {
+          return {
+            label: activeInfo.badgeLabel,
+            toneClass: activeInfo.toneClass,
+            isAlarm: true,
+            alarm: activeInfo.primary,
+            tooltip: activeInfo.tooltipText,
+          };
+        }
         const info = this.getDiscreteStatusInfo(param);
-        return { label: info.label || 'Aktif', toneClass: 'badge-teal' };
+        return { label: info.label || 'Aktif', toneClass: 'badge-teal', isAlarm: false, alarm: null, tooltip: '' };
       }
+
       const limits = this.resolveBentoParamLimits(param);
       const val = Number(param.value);
       const hasVal = param.value !== null && param.value !== undefined && param.value !== '' && isFinite(val);
@@ -6758,37 +6932,78 @@ export default {
 
       if (
         param.alarm_status === 'CRITICAL' ||
+        (activeInfo && activeInfo.severity === 'CRITICAL') ||
         (param.quality === 'BAD' && param.quality_reason === 'OUT_OF_HARD_RANGE') ||
         (hasVal && limits && (
           (limits.hardMax !== null && val > limits.hardMax) ||
           (!isZeroSuppressed && limits.hardMin !== null && val < limits.hardMin)
         ))
       ) {
-        return { label: 'Kritis', toneClass: 'badge-rose' };
+        return {
+          label: activeInfo && activeInfo.severity === 'CRITICAL' ? activeInfo.badgeLabel : 'Kritis',
+          toneClass: 'badge-rose',
+          isAlarm: Boolean(activeInfo),
+          alarm: activeInfo ? activeInfo.primary : null,
+          tooltip: activeInfo ? activeInfo.tooltipText : 'Melewati batas kritis parameter',
+        };
       }
-      if (
+
+      const isThresholdWarn =
         param.alarm_status === 'WARNING' ||
         param.quality_reason === 'OUT_OF_WARNING_RANGE' ||
         (hasVal && limits && (
           (limits.warnHigh !== null && val >= limits.warnHigh) ||
           (!isZeroSuppressed && limits.warnLow !== null && val <= limits.warnLow)
-        ))
-      ) {
-        return { label: 'Waspada', toneClass: 'badge-amber' };
+        ));
+
+      if (activeInfo) {
+        return {
+          label: isThresholdWarn && activeInfo.code.includes('THRESHOLD') ? 'Waspada' : activeInfo.badgeLabel,
+          toneClass: activeInfo.toneClass,
+          isAlarm: true,
+          alarm: activeInfo.primary,
+          tooltip: activeInfo.tooltipText,
+        };
+      }
+
+      if (isThresholdWarn) {
+        return {
+          label: 'Waspada',
+          toneClass: 'badge-amber',
+          isAlarm: false,
+          alarm: null,
+          tooltip: 'Melewati batas peringatan (Warning Limit)',
+        };
       }
       if (param.quality === 'STALE') {
-        return { label: 'Stale', toneClass: 'badge-amber' };
+        return {
+          label: 'Stale',
+          toneClass: 'badge-amber',
+          isAlarm: false,
+          alarm: null,
+          tooltip: 'Data sensor belum diperbarui (Stale)',
+        };
       }
       if (hasVal && limits && limits.upper !== null) {
         const base = limits.lower !== null ? limits.lower : 0;
         const span = limits.upper - base;
         if (span > 0) {
           const ratio = (val - base) / span;
-          if (ratio >= 1.0) return { label: limits.source === 'configured' ? 'Waspada' : 'Tinggi', toneClass: 'badge-amber' };
-          if (ratio >= 0.5) return { label: 'Sedang', toneClass: 'badge-blue' };
+          if (ratio >= 1.0) {
+            return {
+              label: limits.source === 'configured' ? 'Waspada' : 'Tinggi',
+              toneClass: 'badge-amber',
+              isAlarm: false,
+              alarm: null,
+              tooltip: '',
+            };
+          }
+          if (ratio >= 0.5) {
+            return { label: 'Sedang', toneClass: 'badge-blue', isAlarm: false, alarm: null, tooltip: '' };
+          }
         }
       }
-      return { label: 'Baik', toneClass: 'badge-green' };
+      return { label: 'Baik', toneClass: 'badge-green', isAlarm: false, alarm: null, tooltip: '' };
     },
     getBentoCardColor(param) {
       const dark = this.isDark;
@@ -6816,6 +7031,11 @@ export default {
       }
       const editHint = this.canEditConfig ? 'Klik untuk mengatur limit parameter' : 'Klik untuk melihat konfigurasi limit';
       const rel = param.received_at ? this.formatRelative(param.received_at) : '';
+      const activeInfo = this.getBentoParamActiveAlarm(param);
+      const activeMetaSuffix = activeInfo
+        ? (activeInfo.shortMeta + (activeInfo.ageStr ? ' ' + activeInfo.ageStr : ''))
+        : rel;
+
       if (this.isBentoParamCommOffline(param)) {
         return {
           pct: 0,
@@ -6851,7 +7071,7 @@ export default {
         const displayPct = hasVal ? Math.max(0, Math.min(rawPct, 999)) : 0;
         return {
           pct: barPct,
-          metaLabel: rel ? `${limits.longLabel} · ${rel}` : limits.longLabel,
+          metaLabel: activeMetaSuffix ? `${limits.longLabel} · ${activeMetaSuffix}` : limits.longLabel,
           shortMetaLabel: limits.shortLabel,
           rightLabel: hasVal ? `${displayPct}%` : '--',
           tableLimitLabel: limits.shortLabel,
@@ -6862,9 +7082,9 @@ export default {
       if (limits && limits.lower !== null) {
         return {
           pct: hasVal && val <= limits.lower ? 100 : 35,
-          metaLabel: rel ? `${limits.longLabel} · ${rel}` : limits.longLabel,
+          metaLabel: activeMetaSuffix ? `${limits.longLabel} · ${activeMetaSuffix}` : limits.longLabel,
           shortMetaLabel: limits.shortLabel,
-          rightLabel: param.quality || 'GOOD',
+          rightLabel: activeInfo ? activeInfo.shortMeta : (param.quality || 'GOOD'),
           tableLimitLabel: limits.shortLabel,
           isConfiguredLimit: true,
           limitTooltip: `${limits.detailNote} · ${editHint}`,
@@ -6872,9 +7092,9 @@ export default {
       }
       return {
         pct: hasVal ? 35 : 0,
-        metaLabel: rel ? `Update · ${rel}` : 'Online',
-        shortMetaLabel: rel || 'Online',
-        rightLabel: param.quality || 'GOOD',
+        metaLabel: activeMetaSuffix ? `Update · ${activeMetaSuffix}` : 'Online',
+        shortMetaLabel: activeInfo ? activeInfo.shortMeta : (rel || 'Online'),
+        rightLabel: activeInfo ? activeInfo.shortMeta : (param.quality || 'GOOD'),
         tableLimitLabel: '',
         isConfiguredLimit: false,
         limitTooltip: `Belum ada limit khusus · ${editHint}`,
@@ -7743,11 +7963,21 @@ export default {
 .is-night .s-card-selected {
   border-color: rgba(56, 189, 248, 0.50);
 }
-.s-card-fault {
-  border-color: rgba(244, 63, 94, 0.55) !important;
+.is-day .s-card-fault {
+  border-color: rgba(244, 63, 94, 0.65) !important;
+  background: linear-gradient(180deg, rgba(255, 228, 230, 0.36), #FFFFFF);
 }
-.s-card-warn {
-  border-color: rgba(245, 158, 11, 0.55) !important;
+.is-night .s-card-fault {
+  border-color: rgba(244, 63, 94, 0.58) !important;
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.08), var(--b-card));
+}
+.is-day .s-card-warn {
+  border-color: rgba(245, 158, 11, 0.68) !important;
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.44), #FFFFFF);
+}
+.is-night .s-card-warn {
+  border-color: rgba(245, 158, 11, 0.58) !important;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.08), var(--b-card));
 }
 .s-card-blink {
   box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
@@ -7807,6 +8037,15 @@ export default {
   font-size: 9px;
   font-weight: 700;
   white-space: nowrap;
+}
+.s-badge.is-clickable-alarm {
+  cursor: pointer;
+  border: 1px solid currentColor;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.s-badge.is-clickable-alarm:hover {
+  filter: brightness(1.08);
+  transform: translateY(-0.5px);
 }
 .sensors-grid.is-compact-cards .s-badge {
   padding: 1px 5px;

@@ -182,6 +182,17 @@ check('10.1: Header renders only configured Customer & Maker branding and center
   assert(headerSlice.includes('v-if="customerCompanyName"'), 'Customer name must be hidden when empty');
 });
 
+// 11. Active Abnormality Alarms (Stuck Value, Spike, Zero Invalid, etc.) Surfaced Directly on Parameter Cards & Tables
+check('11.1: Parameter cards & tables display active Stuck Value / abnormality alarms (badge, amber border, amber dot, tooltip, 1-click Acknowledge)', () => {
+  assert(viewContent.includes('bentoParamActiveAlarmMap()'), 'Must build reactive bentoParamActiveAlarmMap from activeAlarmsList');
+  assert(viewContent.includes('getBentoParamActiveAlarm(param)'), 'Must resolve active alarm details per parameter');
+  assert(viewContent.includes("badgeLabel = '⚠ Stuck'"), 'Must display clear "⚠ Stuck" badge for DATA_ABNORMALITY_STUCK_VALUE');
+  assert(viewContent.includes("badgeLabel = '⚠ Spike'"), 'Must display "⚠ Spike" badge for DATA_ABNORMALITY_SPIKE');
+  assert(viewContent.includes('getBentoDotColor(param)'), 'Must update parameter status dot color to amber/rose when in alarm');
+  assert(viewContent.includes('onBentoStatusBadgeClick(param)') && viewContent.includes('this.openAckModal(badge.alarm)'), 'Clicking an active alarm badge on a card/table must open Acknowledge modal');
+  assert(viewContent.includes('is-clickable-alarm'), 'Active alarm badge must have interactive clickable styling');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');
