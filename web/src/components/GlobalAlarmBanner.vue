@@ -293,7 +293,7 @@
 
 <script>
 import audioAlert from '../utils/audioAlert';
-import { getStoredAlarmPreferences, applyAlarmPreferences } from '../utils/alarmPreferences';
+import { getStoredAlarmPreferences, saveAlarmPreferences, applyAlarmPreferences } from '../utils/alarmPreferences';
 import AlarmNotificationModal from './AlarmNotificationModal.vue';
 
 export default {
@@ -542,11 +542,13 @@ export default {
     },
     toggleMute() {
       const newMuted = audioAlert.toggleMute();
-      this.$store.dispatch('updateAlarmPreferences', {
+      const updated = saveAlarmPreferences({
         ...this.prefs,
         isMuted: newMuted,
+        muteDurationMinutes: newMuted ? -1 : 0,
         muteUntil: audioAlert.muteUntil,
-      });
+      }, this.username);
+      this.$store.dispatch('updateAlarmPreferences', updated);
     },
     dismissHighestAlarm() {
       if (this.highestAlarm && this.highestAlarm.id) {

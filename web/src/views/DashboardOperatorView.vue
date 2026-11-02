@@ -6209,6 +6209,12 @@
 <script>
 import OperatorCommandCenterView from './OperatorCommandCenterView.vue';
 import BentoISPUHeroCard from '../components/BentoISPUHeroCard.vue';
+import audioAlert from '../utils/audioAlert';
+import {
+  getStoredAlarmPreferences,
+  saveAlarmPreferences,
+  applyAlarmPreferences,
+} from '../utils/alarmPreferences';
 
 const REGULATORY_REF_LIMITS = {
   PM10: 150,
@@ -6272,6 +6278,8 @@ export default {
       customerSubtitle: savedCustSub,
       makerCompanyName: savedMakerName,
       makerSubtitle: savedMakerSub,
+      bentoAudioEngineMuted: audioAlert.checkMuteActive(),
+      bentoAudioEngineSoundEnabled: audioAlert.soundEnabled !== false,
     };
   },
   computed: {
@@ -6696,8 +6704,39 @@ export default {
         p => !this.isDiscreteStatusParam(p) && !plottedIds.has(Number(p.param_id))
       );
     },
+    isAudioMuted() {
+      const prefs = this.$store && this.$store.state ? this.$store.state.alarmPreferences : null;
+      if (prefs && prefs.isMuted !== undefined) {
+        if (prefs.isMuted && prefs.muteUntil && Number(this.currentTimeMs || Date.now()) > Number(prefs.muteUntil)) {
+          return false;
+        }
+        return !!prefs.isMuted;
+      }
+      return !!this.bentoAudioEngineMuted;
+    },
+    isSoundEnabled() {
+      const prefs = this.$store && this.$store.state ? this.$store.state.alarmPreferences : null;
+      const prefSound = prefs && prefs.soundEnabled !== undefined
+        ? !!prefs.soundEnabled
+        : !!this.bentoAudioEngineSoundEnabled;
+      const perfSound = !this.perfSettings || this.perfSettings.alarmSoundEnabled !== false;
+      return prefSound && perfSound;
+    },
+  },
+  watch: {
+    currentUserIdentifier(newId, oldId) {
+      if (newId && newId !== oldId) {
+        this.initAudioPreferences();
+      }
+    },
   },
   mounted() {
+    this.initAudioPreferences();
+    this._unsubBentoAudioState = audioAlert.onStateChange((state) => {
+      if (!state) return;
+      this.bentoAudioEngineMuted = !!state.isMuted;
+      this.bentoAudioEngineSoundEnabled = state.soundEnabled !== false;
+    });
     this.ensureBentoFontsLoaded();
     this.trendChartHeight = this.bentoTrendCanvasHeight;
     if (typeof window !== 'undefined') {
@@ -6717,6 +6756,10 @@ export default {
   },
   beforeDestroy() {
     this.stopBentoTrendResize();
+    if (this._unsubBentoAudioState) {
+      this._unsubBentoAudioState();
+      this._unsubBentoAudioState = null;
+    }
     if (this._bentoParamsRO) {
       this._bentoParamsRO.disconnect();
       this._bentoParamsRO = null;
@@ -6726,6 +6769,111 @@ export default {
     }
   },
   methods: {
+    initAudioPreferences() {
+      const prefs = getStoredAlarmPreferences(this.currentUserIdentifier);
+      if (this.perfSettings && this.perfSettings.alarmSoundEnabled === false && prefs.soundEnabled !== false) {
+        prefs.soundEnabled = false;
+      }
+      applyAlarmPreferences(prefs);
+      this.$store.commit('SET_ALARM_PREFERENCES', prefs);
+      this.audioVolume = prefs.volume !== undefined ? prefs.volume : 0.7;
+      this.audioRepeatInterval = prefs.repeatIntervalSeconds !== undefined ? prefs.repeatIntervalSeconds : 5;
+      this.audioSoundEnabled = prefs.soundEnabled !== undefined ? prefs.soundEnabled : true;
+      this.audioMuteDuration = prefs.isMuted
+        ? (prefs.muteDurationMinutes && prefs.muteDurationMinutes !== 0 ? prefs.muteDurationMinutes : -1)
+        : 0;
+      this.bentoAudioEngineMuted = audioAlert.checkMuteActive();
+      this.bentoAudioEngineSoundEnabled = audioAlert.soundEnabled !== false;
+    },
+    toggleAudioMute() {
+      audioAlert.unlockAudio().catch(() => {});
+      const nextMuted = !this.isAudioMuted;
+      const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+      const updated = saveAlarmPreferences(
+        {
+          ...current,
+          isMuted: nextMuted,
+          muteUntil: null,
+          muteDurationMinutes: nextMuted ? -1 : 0,
+        },
+        this.currentUserIdentifier
+      );
+      this.$store.commit('SET_ALARM_PREFERENCES', updated);
+      this.audioMuteDuration = updated.muteDurationMinutes;
+      this.bentoAudioEngineMuted = !!updated.isMuted;
+      if (!nextMuted && this.isSoundEnabled) {
+        audioAlert.previewSound('WARNING');
+      }
+    },
+    onAudioMuteDurationChange() {
+      audioAlert.unlockAudio().catch(() => {});
+      const dur = Number(this.audioMuteDuration);
+      const nextMuted = dur !== 0;
+      const muteUntil = dur > 0 ? (Date.now() + dur * 60 * 1000) : null;
+      const current = getStoredAlarmPreferences(this.currentUserIdentifier);
+      const updated = saveAlarmPreferences(
+        {
+          ...current,
+          isMuted: nextMuted,
+          muteDurationMinutes: nextMuted ? dur : 0,
+          muteUntil,
+        },
+        this.currentUserIdentifier
+      );
+      this.$store.commit('SET_ALARM_PREFERENCES', updated);
+      this.audioMuteDuration = updated.muteDurationMinutes;
+      this.bentoAudioEngineMuted = !!updated.isMuted;
+      if (!nextMuted && this.isSoundEnabled) {
+        audioAlert.previewSound('WARNING');
+      }
+    },
+    applyPerformanceSettings(changedKey = null, changedVal = null) {
+      if (!this.perfSettings) return;
+      // 1. Alarm Sound — preserve persisted mute state (never overwrite isMuted with !soundOn)
+      if (changedKey === 'alarmSoundEnabled' || changedKey === null) {
+        const soundOn = this.perfSettings.alarmSoundEnabled !== false;
+        const stored = getStoredAlarmPreferences(this.currentUserIdentifier);
+        if (changedKey === 'alarmSoundEnabled') {
+          const updated = saveAlarmPreferences(
+            { ...stored, soundEnabled: soundOn },
+            this.currentUserIdentifier
+          );
+          this.$store.commit('SET_ALARM_PREFERENCES', updated);
+          this.audioSoundEnabled = updated.soundEnabled;
+        } else {
+          const effective = soundOn ? stored : { ...stored, soundEnabled: false };
+          applyAlarmPreferences(effective);
+          this.$store.commit('SET_ALARM_PREFERENCES', effective);
+          this.audioSoundEnabled = effective.soundEnabled !== false;
+          this.audioMuteDuration = effective.isMuted
+            ? (effective.muteDurationMinutes && effective.muteDurationMinutes !== 0 ? effective.muteDurationMinutes : -1)
+            : 0;
+        }
+        this.bentoAudioEngineMuted = audioAlert.checkMuteActive();
+        this.bentoAudioEngineSoundEnabled = audioAlert.soundEnabled !== false;
+      }
+      // 2. Trend Analysis
+      if (changedKey === 'trendAnalysisEnabled') {
+        if (changedVal === true) {
+          this.fetchTrendData(true);
+          this.startTrendTimers();
+        } else {
+          this.stopTrendTimers();
+        }
+      }
+      // 3. Sparklines
+      if (changedKey === 'parameterSparklinesEnabled' && changedVal === true) {
+        this.fetchInitialSparklines();
+      }
+      // 4. Alarm Visual
+      if (changedKey === 'alarmVisualEnabled' && changedVal === false) {
+        this.isAlarmPulseActive = false;
+        if (this.alarmPulseTimer) {
+          clearTimeout(this.alarmPulseTimer);
+          this.alarmPulseTimer = null;
+        }
+      }
+    },
     measureBentoParamsWrap() {
       const el = this.$refs && this.$refs.bentoParamsWrap;
       if (el && el.clientWidth > 0) {

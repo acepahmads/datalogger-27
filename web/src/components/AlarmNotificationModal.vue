@@ -221,6 +221,7 @@ import {
   getStoredAlarmPreferences,
   saveAlarmPreferences,
   resetAlarmPreferences,
+  applyAlarmPreferences,
 } from '../utils/alarmPreferences';
 
 export default {
@@ -361,9 +362,12 @@ export default {
     saveAndClose() {
       const saved = saveAlarmPreferences(this.localPrefs, this.username);
       this.$store.dispatch('updateAlarmPreferences', saved);
-      this.close();
+      this.$emit('close');
     },
     close() {
+      const stored = getStoredAlarmPreferences(this.username);
+      applyAlarmPreferences(stored);
+      this.$store.dispatch('updateAlarmPreferences', stored);
       this.$emit('close');
     },
   },

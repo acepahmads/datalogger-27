@@ -232,6 +232,28 @@ check('12.4: Parameter tables and cards expand to full unclipped height when Tre
   assert(viewContent.includes('id="btn-bento-trend-hide"') && viewContent.includes('id="btn-bento-trend-show"'), 'Must provide direct 1-click Hide & Show Trend buttons right on the Trend Studio bar');
 });
 
+// 13. Persistent Audio Mute Enforcement Across localStorage, Performance Settings & GlobalAlarmBanner
+check('13.1: Audio Mute state persists reliably in localStorage and is never silently unmuted by applyPerformanceSettings or split user keys', () => {
+  const audioAlertContent = fs.readFileSync(path.join(__dirname, '../src/utils/audioAlert.js'), 'utf8');
+  const alarmPrefsContent = fs.readFileSync(path.join(__dirname, '../src/utils/alarmPreferences.js'), 'utf8');
+  const globalBannerContent = fs.readFileSync(path.join(__dirname, '../src/components/GlobalAlarmBanner.vue'), 'utf8');
+  const alarmModalContent = fs.readFileSync(path.join(__dirname, '../src/components/AlarmNotificationModal.vue'), 'utf8');
+
+  assert(alarmPrefsContent.includes("ACTIVE_PREFS_MIRROR_KEY = 'datalogger.alarm_prefs.__active__'"), 'alarmPreferences.js must mirror active alarm preferences to canonical __active__ key to prevent user.id vs username split-brain');
+  assert(alarmPrefsContent.includes('audioAlert.setMuteUntil(true, normalized.muteUntil)'), 'alarmPreferences.js must restore exact muteUntil expiration timestamp without resetting timer');
+  assert(alarmPrefsContent.includes('applyAlarmPreferences(getStoredAlarmPreferences())'), 'alarmPreferences.js must hydrate singleton audioAlert immediately on module load');
+
+  assert(audioAlertContent.includes('if (!this._isPreviewing && (!this.soundEnabled || this.checkMuteActive())) return;'), 'audioAlert.js playTone/playWarningAlert/playCriticalAlert must strictly block sound synthesis while muted unless previewing');
+  assert(audioAlertContent.includes('setMuteUntil(muted, muteUntilTimestamp = null)'), 'audioAlert.js must implement setMuteUntil');
+
+  assert(globalBannerContent.includes('saveAlarmPreferences('), 'GlobalAlarmBanner.vue toggleMute must persist mute state to localStorage');
+  assert(alarmModalContent.includes('applyAlarmPreferences(stored)'), 'AlarmNotificationModal.vue close() must restore persisted preferences when dismissed without saving');
+
+  assert(viewContent.includes('applyPerformanceSettings(changedKey = null, changedVal = null)'), 'DashboardOperatorView.vue must override applyPerformanceSettings');
+  assert(!viewContent.includes('audioAlert.setMute(!soundOn)'), 'DashboardOperatorView.vue applyPerformanceSettings must NEVER overwrite isMuted with !soundOn');
+  assert(viewContent.includes('toggleAudioMute()') && viewContent.includes('onAudioMuteDurationChange()'), 'DashboardOperatorView.vue must persist mute toggle and timer changes atomically to localStorage');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

@@ -20,6 +20,8 @@ class AudioAlertEngine {
     this.volume = 0.7; // Default 70% volume
     this.soundEnabled = true;
     this.repeatIntervalSeconds = 5; // Default 5s repeat for unacknowledged alarms
+    this._isPreviewing = false;
+    this._previewRestoreTimer = null;
 
     // Track active unacknowledged alarms: Map<alarmId, { severity, lastUpdated }>
     this.activeAlarmMap = new Map();
@@ -76,7 +78,7 @@ class AudioAlertEngine {
    * Calculate effective master gain factoring volume and mute state
    */
   effectiveGainValue() {
-    if (!this.soundEnabled || this.checkMuteActive()) {
+    if (!this._isPreviewing && (!this.soundEnabled || this.checkMuteActive())) {
       return 0;
     }
     return Math.max(0, Math.min(1, this.volume));
@@ -106,6 +108,12 @@ class AudioAlertEngine {
           // Mute period expired
           this.isMuted = false;
           this.muteUntil = null;
+          if (this.audioCtx && this.masterGain) {
+            const target = this.soundEnabled ? Math.max(0, Math.min(1, this.volume)) : 0;
+            const t = this.audioCtx.currentTime;
+            this.masterGain.gain.cancelScheduledValues(t);
+            this.masterGain.gain.setTargetAtTime(target, t, 0.02);
+          }
           return false;
         }
       }
@@ -154,6 +162,7 @@ class AudioAlertEngine {
    * Plays a synthesized tone burst with clean attack and decay
    */
   playTone(frequency, startTime, duration, type = 'sine', peakGain = 0.5) {
+    if (!this._isPreviewing && (!this.soundEnabled || this.checkMuteActive())) return;
     const ctx = this.getAudioContext();
     if (!ctx || !this.masterGain) return;
 
@@ -194,7 +203,7 @@ class AudioAlertEngine {
    * Enforces Single Audio Stream: debounced so multiple concurrent warning alarms sound only once
    */
   playWarningAlert(force = false) {
-    if (!this.soundEnabled || this.checkMuteActive()) return;
+    if (!this._isPreviewing && (!this.soundEnabled || this.checkMuteActive())) return;
 
     // SCADA Priority Rule: If any critical alarm is actively repeating and not forced, suppress
     if (!force && this.currentLoopSeverity === 'CRITICAL') {
@@ -229,7 +238,7 @@ class AudioAlertEngine {
    * High attention-commanding acoustic signature
    */
   playCriticalAlert(force = false) {
-    if (!this.soundEnabled || this.checkMuteActive()) return;
+    if (!this._isPreviewing && (!this.soundEnabled || this.checkMuteActive())) return;
 
     // Throttle successive critical alert chimes to prevent sound overlap/cacophony
     const now = Date.now();
@@ -510,6 +519,22 @@ class AudioAlertEngine {
   }
 
   /**
+   * Explicitly set mute state with an exact expiration timestamp (e.g. restored from localStorage)
+   */
+  setMuteUntil(muted, muteUntilTimestamp = null) {
+    this.isMuted = !!muted;
+    if (this.isMuted && muteUntilTimestamp && Number(muteUntilTimestamp) > Date.now()) {
+      this.muteUntil = Number(muteUntilTimestamp);
+    } else if (this.isMuted && muteUntilTimestamp && Number(muteUntilTimestamp) <= Date.now()) {
+      this.isMuted = false;
+      this.muteUntil = null;
+    } else {
+      this.muteUntil = null;
+    }
+    this.updateMasterGain();
+  }
+
+  /**
    * Compatibility alias for setMute
    */
   setMuted(muted, durationMinutes = null) {
@@ -558,21 +583,29 @@ class AudioAlertEngine {
   previewSound(severity = 'WARNING') {
     // Ensure context is unlocked on click
     this.unlockAudio().then(() => {
-      // Temporarily unmute if needed for preview test
-      const wasMuted = this.isMuted;
-
-      if (this.masterGain) {
-        this.masterGain.gain.setValueAtTime(Math.max(0.1, this.volume), this.audioCtx.currentTime);
+      if (this._previewRestoreTimer) {
+        clearTimeout(this._previewRestoreTimer);
+        this._previewRestoreTimer = null;
       }
 
-      this.triggerPulse(severity);
+      if (this.masterGain && this.audioCtx) {
+        const now = this.audioCtx.currentTime;
+        this.masterGain.gain.cancelScheduledValues(now);
+        this.masterGain.gain.setValueAtTime(Math.max(0.1, this.volume), now);
+      }
 
-      // Restore gain after preview duration
-      setTimeout(() => {
-        if (wasMuted || !this.soundEnabled) {
-          this.updateMasterGain();
-        }
-      }, 500);
+      this._isPreviewing = true;
+      try {
+        this.executePulseNow((severity || 'WARNING').toUpperCase());
+      } finally {
+        this._isPreviewing = false;
+      }
+
+      // Restore strict mute/soundEnabled master gain after preview chime finishes
+      this._previewRestoreTimer = setTimeout(() => {
+        this._previewRestoreTimer = null;
+        this.updateMasterGain();
+      }, 380);
     });
   }
 
