@@ -3,6 +3,9 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -151,6 +154,28 @@ func NewOutboundService(
 		formatter:  formatter,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("stopped after 10 redirects")
+				}
+				// Preserve POST method, JSON body, and headers when HTTP redirects to HTTPS (e.g. http://sparing.kemenlh.go.id/api/send -> https://...)
+				if len(via) > 0 && via[0].Method == http.MethodPost && req.Response != nil &&
+					(req.Response.StatusCode == http.StatusMovedPermanently || req.Response.StatusCode == http.StatusFound) {
+					req.Method = http.MethodPost
+					if via[0].GetBody != nil {
+						if bodyCopy, err := via[0].GetBody(); err == nil {
+							req.Body = bodyCopy
+							req.ContentLength = via[0].ContentLength
+						}
+					}
+					for _, hdr := range []string{"Content-Type", "Accept", "Authorization", "User-Agent"} {
+						if val := via[0].Header.Get(hdr); val != "" && req.Header.Get(hdr) == "" {
+							req.Header.Set(hdr, val)
+						}
+					}
+				}
+				return nil
+			},
 		},
 		stopCh:    make(chan struct{}),
 		wakeCh:    make(chan struct{}, 1),
@@ -428,20 +453,63 @@ func detectApplicationLevelError(body []byte) (string, bool) {
 		return "", false
 	}
 
-	for _, msgKey := range []string{"message", "msg", "error", "detail", "keterangan"} {
+	for _, msgKey := range []string{"desc", "description", "message", "msg", "error", "detail", "keterangan"} {
 		if mv, ok := lookupCaseInsensitiveKey(obj, msgKey); ok {
-			if ms, isStr := mv.(string); isStr && strings.TrimSpace(ms) != "" {
-				return strings.TrimSpace(ms), true
+			switch typed := mv.(type) {
+			case string:
+				if strings.TrimSpace(typed) != "" {
+					return strings.TrimSpace(typed), true
+				}
+			case []interface{}:
+				var parts []string
+				for _, el := range typed {
+					if s, ok := el.(string); ok && strings.TrimSpace(s) != "" {
+						parts = append(parts, strings.TrimSpace(s))
+					}
+				}
+				if len(parts) > 0 {
+					return strings.Join(parts, "; "), true
+				}
 			}
 		}
 	}
 	return string(trimmed), true
 }
 
+// encodeJWT_HS256 signs a JSON payload string as an RFC 7519 HS256 JWT ({"typ":"JWT","alg":"HS256"}).
+func encodeJWT_HS256(payloadJSON string, secret string) (string, error) {
+	trimmedSecret := strings.TrimSpace(secret)
+	if trimmedSecret == "" {
+		return "", fmt.Errorf("JWT secret key is empty")
+	}
+	var payloadBytes []byte
+	var compactBuf bytes.Buffer
+	if err := json.Compact(&compactBuf, []byte(payloadJSON)); err == nil {
+		payloadBytes = compactBuf.Bytes()
+	} else {
+		payloadBytes = []byte(strings.TrimSpace(payloadJSON))
+	}
+
+	const headerJSON = `{"typ":"JWT","alg":"HS256"}`
+	headerB64 := base64.RawURLEncoding.EncodeToString([]byte(headerJSON))
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadBytes)
+	signingInput := headerB64 + "." + payloadB64
+
+	mac := hmac.New(sha256.New, []byte(trimmedSecret))
+	_, _ = mac.Write([]byte(signingInput))
+	sigB64 := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+
+	return signingInput + "." + sigB64, nil
+}
+
 func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.OutputDestination, payload string) restDeliveryOutcome {
-	sendDataPost := func(dynamicBearer string) (int, string, bool, bool, int64, error) {
+	sendDataPost := func(dynamicBearer string, bodyOverride string) (int, string, bool, bool, int64, error) {
 		dataStart := time.Now()
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.Endpoint, bytes.NewBufferString(payload))
+		reqPayload := payload
+		if bodyOverride != "" {
+			reqPayload = bodyOverride
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.Endpoint, bytes.NewReader([]byte(reqPayload)))
 		if err != nil {
 			return 0, "", false, true, 0, fmt.Errorf("invalid endpoint URL: %w", err)
 		}
@@ -499,9 +567,12 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 			if appErrMsg, rejected := detectApplicationLevelError(bodyBytes); rejected {
 				return resp.StatusCode, bodyStr, false, true, dataLatency, fmt.Errorf("Application rejected (HTTP %d): %s", resp.StatusCode, appErrMsg)
 			}
-			isAck := strings.Contains(strings.ToLower(bodyStr), "ack") ||
-				strings.Contains(strings.ToLower(bodyStr), "success") ||
-				strings.Contains(strings.ToLower(bodyStr), "received")
+			lowerBody := strings.ToLower(bodyStr)
+			isAck := strings.Contains(lowerBody, "ack") ||
+				strings.Contains(lowerBody, "success") ||
+				strings.Contains(lowerBody, "received") ||
+				strings.Contains(lowerBody, `"status":true`) ||
+				strings.Contains(lowerBody, `"status": true`)
 			return resp.StatusCode, bodyStr, isAck, false, dataLatency, nil
 		}
 
@@ -511,6 +582,137 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 		}
 
 		return resp.StatusCode, bodyStr, false, isPermanent, dataLatency, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, bodyStr)
+	}
+
+	if dest.AuthType == "SPARING_JWT_2STEP" {
+		outcome := restDeliveryOutcome{isTwoStep: true}
+		var secret string
+		usedCachedSecret := false
+		if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
+			if cached := s.getCachedAuthToken(dest.ID); cached != "" {
+				secret = cached
+				usedCachedSecret = true
+				outcome.authUsedCache = true
+				outcome.authSuccess = true
+			}
+		}
+
+		if secret == "" {
+			authStart := time.Now()
+			freshSecret, authCode, authBody, authPerm, authErr := s.performSparingSecretFetch(ctx, dest)
+			outcome.authLatencyMs = time.Since(authStart).Milliseconds()
+			outcome.authHTTPCode = authCode
+			if authErr != nil {
+				outcome.authSuccess = false
+				outcome.authMessage = authErr.Error()
+				outcome.httpCode = authCode
+				outcome.body = authBody
+				outcome.isPermanent = authPerm
+				outcome.err = authErr
+				return outcome
+			}
+			secret = freshSecret
+			outcome.authSuccess = true
+			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
+				s.setCachedAuthToken(dest.ID, secret, time.Duration(dest.AuthCacheSeconds)*time.Second)
+			}
+		}
+
+		jwtToken, jwtErr := encodeJWT_HS256(payload, secret)
+		if jwtErr != nil {
+			outcome.authSuccess = false
+			outcome.authMessage = jwtErr.Error()
+			outcome.isPermanent = true
+			outcome.err = jwtErr
+			return outcome
+		}
+		outcome.authTokenPreview = maskAuthTokenPreview(jwtToken)
+		if usedCachedSecret {
+			outcome.authMessage = "Menggunakan secret-sensor dari cache → JWT HS256 berhasil dibuat"
+		} else {
+			outcome.authMessage = fmt.Sprintf("Secret sensor diterima (HTTP %d) → JWT HS256 berhasil dibuat", outcome.authHTTPCode)
+		}
+
+		wrappedBytes, _ := json.Marshal(map[string]string{"token": jwtToken})
+		code, body, isAck, isPerm, dataLat, err := sendDataPost("", string(wrappedBytes))
+		outcome.dataLatencyMs = dataLat
+
+		// If cached secret was rotated upstream (401/403 or signature/token rejection), refresh secret once & retry immediately
+		if err != nil && usedCachedSecret &&
+			(code == http.StatusUnauthorized || code == http.StatusForbidden ||
+				strings.Contains(strings.ToLower(body), "signature") ||
+				strings.Contains(strings.ToLower(body), "token") ||
+				strings.Contains(strings.ToLower(body), "secret") ||
+				strings.Contains(strings.ToLower(err.Error()), "application rejected")) {
+			s.clearCachedAuthToken(dest.ID)
+			outcome.authUsedCache = false
+			authStart := time.Now()
+			freshSecret, authCode, authBody, authPerm, authErr := s.performSparingSecretFetch(ctx, dest)
+			outcome.authLatencyMs = time.Since(authStart).Milliseconds()
+			outcome.authHTTPCode = authCode
+			if authErr != nil {
+				outcome.authSuccess = false
+				outcome.authMessage = authErr.Error()
+				outcome.httpCode = authCode
+				outcome.body = authBody
+				outcome.isPermanent = authPerm
+				outcome.err = authErr
+				return outcome
+			}
+			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
+				s.setCachedAuthToken(dest.ID, freshSecret, time.Duration(dest.AuthCacheSeconds)*time.Second)
+			}
+			freshJWT, freshJWTErr := encodeJWT_HS256(payload, freshSecret)
+			if freshJWTErr != nil {
+				outcome.authSuccess = false
+				outcome.authMessage = freshJWTErr.Error()
+				outcome.isPermanent = true
+				outcome.err = freshJWTErr
+				return outcome
+			}
+			outcome.authSuccess = true
+			outcome.authTokenPreview = maskAuthTokenPreview(freshJWT)
+			outcome.authMessage = fmt.Sprintf("Secret cache diperbarui → Re-sign JWT HS256 berhasil (HTTP %d)", authCode)
+
+			wrappedFreshBytes, _ := json.Marshal(map[string]string{"token": freshJWT})
+			code2, body2, isAck2, isPerm2, dataLat2, err2 := sendDataPost("", string(wrappedFreshBytes))
+			outcome.httpCode = code2
+			outcome.body = body2
+			outcome.isAck = isAck2
+			outcome.isPermanent = isPerm2
+			outcome.dataLatencyMs += dataLat2
+			outcome.err = err2
+			return outcome
+		}
+
+		outcome.httpCode = code
+		outcome.body = body
+		outcome.isAck = isAck
+		outcome.isPermanent = isPerm
+		outcome.err = err
+		return outcome
+	}
+
+	if dest.AuthType == "SPARING_JWT_STATIC" {
+		secret := strings.TrimSpace(dest.AuthToken)
+		if secret == "" {
+			err := fmt.Errorf("SPARING static secret (auth_token) belum diisi")
+			return restDeliveryOutcome{isPermanent: true, err: err}
+		}
+		jwtToken, jwtErr := encodeJWT_HS256(payload, secret)
+		if jwtErr != nil {
+			return restDeliveryOutcome{isPermanent: true, err: jwtErr}
+		}
+		wrappedBytes, _ := json.Marshal(map[string]string{"token": jwtToken})
+		code, body, isAck, isPerm, dataLat, err := sendDataPost("", string(wrappedBytes))
+		return restDeliveryOutcome{
+			httpCode:      code,
+			body:          body,
+			isAck:         isAck,
+			isPermanent:   isPerm,
+			dataLatencyMs: dataLat,
+			err:           err,
+		}
 	}
 
 	if dest.AuthType == "LOGIN_BEARER" {
@@ -551,7 +753,7 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 			}
 		}
 
-		code, body, isAck, isPerm, dataLat, err := sendDataPost(token)
+		code, body, isAck, isPerm, dataLat, err := sendDataPost(token, "")
 		outcome.dataLatencyMs = dataLat
 		if err != nil && usedCachedToken && code == http.StatusUnauthorized {
 			// Cached token expired or revoked early: clear cache, re-authenticate once, and retry Step 2 immediately
@@ -576,7 +778,7 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 			if dest.AuthCacheSeconds > 0 && dest.ID > 0 {
 				s.setCachedAuthToken(dest.ID, freshToken, time.Duration(dest.AuthCacheSeconds)*time.Second)
 			}
-			code2, body2, isAck2, isPerm2, dataLat2, err2 := sendDataPost(freshToken)
+			code2, body2, isAck2, isPerm2, dataLat2, err2 := sendDataPost(freshToken, "")
 			outcome.httpCode = code2
 			outcome.body = body2
 			outcome.isAck = isAck2
@@ -594,7 +796,7 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 		return outcome
 	}
 
-	code, body, isAck, isPerm, dataLat, err := sendDataPost("")
+	code, body, isAck, isPerm, dataLat, err := sendDataPost("", "")
 	return restDeliveryOutcome{
 		httpCode:      code,
 		body:          body,
@@ -700,6 +902,148 @@ func (s *outboundService) performLoginAuth(ctx context.Context, dest *model.Outp
 	}
 
 	return token, resp.StatusCode, bodyStr, false, nil
+}
+
+// performSparingSecretFetch executes Step 1 of KLHK SPARING 2-step delivery:
+// HTTP GET to AuthURL (e.g. https://sparing.kemenlh.go.id/api/secret-sensor) to retrieve the dynamic HS256 signing secret.
+func (s *outboundService) performSparingSecretFetch(ctx context.Context, dest *model.OutputDestination) (string, int, string, bool, error) {
+	authURL := strings.TrimSpace(dest.AuthURL)
+	if authURL == "" {
+		return "", 0, "", true, fmt.Errorf("Step 1 SPARING Secret configuration error: auth_url (KLHK Secret URL) is empty")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, authURL, nil)
+	if err != nil {
+		return "", 0, "", true, fmt.Errorf("Step 1 SPARING Secret invalid auth_url %q: %w", authURL, err)
+	}
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("User-Agent", "Datalogger-Outbound/1.0")
+
+	if strings.TrimSpace(dest.CustomHeaders) != "" {
+		var headers map[string]string
+		if err := json.Unmarshal([]byte(dest.CustomHeaders), &headers); err == nil {
+			for k, v := range headers {
+				req.Header.Set(k, v)
+			}
+		}
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", 0, "", false, fmt.Errorf("Step 1 SPARING Secret network error (%s): %w", authURL, err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	bodyStr := string(bodyBytes)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		isPerm := resp.StatusCode == 400 || resp.StatusCode == 401 || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 422
+		return "", resp.StatusCode, bodyStr, isPerm, fmt.Errorf("Step 1 SPARING Secret HTTP %d (%s): %s", resp.StatusCode, authURL, bodyStr)
+	}
+
+	if appErrMsg, rejected := detectApplicationLevelError(bodyBytes); rejected {
+		return "", resp.StatusCode, bodyStr, true, fmt.Errorf("Step 1 SPARING Secret rejected (HTTP %d): %s", resp.StatusCode, appErrMsg)
+	}
+
+	secret := extractSecretFromSparingResponse(bodyBytes, resp.Header, dest.AuthTokenPath)
+	if secret == "" {
+		return "", resp.StatusCode, bodyStr, true, fmt.Errorf("Step 1 SPARING Secret succeeded (HTTP %d) but no secret key found in response from %s", resp.StatusCode, authURL)
+	}
+
+	return secret, resp.StatusCode, bodyStr, false, nil
+}
+
+func extractSecretFromSparingResponse(body []byte, headers http.Header, customPath string) string {
+	var parsed interface{}
+	if err := json.Unmarshal(body, &parsed); err == nil {
+		if s, ok := parsed.(string); ok {
+			if sec := strings.Trim(strings.TrimSpace(s), `"'`); sec != "" {
+				return sec
+			}
+		}
+
+		if rootObj, ok := parsed.(map[string]interface{}); ok {
+			if trimmedPath := strings.TrimSpace(customPath); trimmedPath != "" {
+				parts := strings.Split(trimmedPath, ".")
+				var cur interface{} = rootObj
+				for _, p := range parts {
+					obj, isMap := cur.(map[string]interface{})
+					if !isMap {
+						cur = nil
+						break
+					}
+					next, found := lookupCaseInsensitiveKey(obj, strings.TrimSpace(p))
+					if !found {
+						cur = nil
+						break
+					}
+					cur = next
+				}
+				if s, isStr := cur.(string); isStr {
+					if sec := strings.Trim(strings.TrimSpace(s), `"'`); sec != "" {
+						return sec
+					}
+				}
+			}
+
+			candidateKeys := []string{"secret", "secret_key", "secret_sensor", "secretsensor", "api_secret", "jwt_secret", "key", "token", "access_token"}
+			for _, key := range candidateKeys {
+				if val, found := lookupCaseInsensitiveKey(rootObj, key); found {
+					if s, isStr := val.(string); isStr {
+						if sec := strings.Trim(strings.TrimSpace(s), `"'`); sec != "" {
+							return sec
+						}
+					}
+				}
+			}
+
+			wrapperKeys := []string{"data", "result", "payload", "response"}
+			for _, wKey := range wrapperKeys {
+				if wrapped, found := lookupCaseInsensitiveKey(rootObj, wKey); found {
+					switch w := wrapped.(type) {
+					case string:
+						if sec := strings.Trim(strings.TrimSpace(w), `"'`); sec != "" {
+							return sec
+						}
+					case map[string]interface{}:
+						for _, key := range candidateKeys {
+							if val, ok := lookupCaseInsensitiveKey(w, key); ok {
+								if s, isStr := val.(string); isStr {
+									if sec := strings.Trim(strings.TrimSpace(s), `"'`); sec != "" {
+										return sec
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if headers != nil {
+		for _, h := range []string{"X-Secret-Sensor", "X-Secret-Key", "X-Auth-Token"} {
+			if hv := strings.Trim(strings.TrimSpace(headers.Get(h)), `"'`); hv != "" {
+				return hv
+			}
+		}
+	}
+
+	// Plain-text single-line secret response (standard KLHK SPARING /api/secret-sensor returns raw secret string)
+	plain := strings.TrimSpace(string(body))
+	lowerPlain := strings.ToLower(plain)
+	if plain != "" &&
+		!strings.HasPrefix(plain, "{") &&
+		!strings.HasPrefix(plain, "[") &&
+		!strings.HasPrefix(lowerPlain, "<html") &&
+		!strings.HasPrefix(lowerPlain, "<!doctype") &&
+		!strings.HasPrefix(plain, "<") &&
+		!strings.ContainsAny(plain, "\r\n") {
+		return strings.Trim(plain, `"'`)
+	}
+
+	return ""
 }
 
 func cleanExtractedBearerToken(raw string) string {
@@ -894,16 +1238,6 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			queryDeviceIDs = []uint{*dest.DeviceID}
 		}
 
-		// Query strictly persisted CUSTOMER_PROCESSED aggregation records for this window and destination
-		results, err := s.repo.GetCustomerAggregationResultsForWindow(ctx, bucketEnd, dest.IntervalSeconds, queryDeviceIDs)
-		if err != nil {
-			logger.Error("[Outbound] Failed to fetch aggregation results for window %s dest %d: %v", bucketEnd.Format(time.RFC3339), dest.ID, err)
-			continue
-		}
-		if len(results) == 0 {
-			continue
-		}
-
 		// Resolve destination payload configuration & checklist matcher upfront
 		cfg := dest.PayloadConfig
 		if cfg == nil {
@@ -917,6 +1251,74 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			}
 		}
 		matcher := buildParameterMappingMatcher(cfg)
+
+		// Mode A: Bundled Multi-Bucket Dispatch Schedule (e.g. SPARING 2-minute aggregation sent once every 1 hour = 30 rows)
+		sourceInterval := dest.IntervalSeconds
+		if dest.DispatchIntervalSeconds > 0 {
+			if sourceInterval <= 0 {
+				sourceInterval = 120
+			}
+			if dest.DispatchIntervalSeconds > sourceInterval {
+				// Only build & enqueue bundle when bucketEnd lands on the configured dispatch boundary (e.g. :00:00 for 3600s)
+				if bucketEnd.Unix()%int64(dest.DispatchIntervalSeconds) != 0 {
+					continue
+				}
+				windowStart := bucketEnd.Add(-time.Duration(dest.DispatchIntervalSeconds) * time.Second)
+				windowEnd := bucketEnd
+
+				rangeResults, err := s.repo.GetCustomerAggregationResultsForRange(ctx, windowStart, windowEnd, sourceInterval, queryDeviceIDs)
+				if err != nil {
+					logger.Error("[Outbound] Failed to fetch bundled aggregation range [%s, %s] for dest %d: %v",
+						windowStart.Format(time.RFC3339), windowEnd.Format(time.RFC3339), dest.ID, err)
+					continue
+				}
+				if len(rangeResults) == 0 {
+					continue
+				}
+
+				var group []model.AggregationResult
+				for _, item := range rangeResults {
+					if !isActiveOutboundAggregationResult(item) {
+						continue
+					}
+					devCode := item.Device.DeviceCode
+					if devCode == "" {
+						devCode = fmt.Sprintf("DEV-%d", item.DeviceID)
+					}
+					if enabled, _ := matcher.Resolve(item.DeviceID, devCode, item.ParameterID, item.Parameter.ParameterCode); !enabled {
+						continue
+					}
+					group = append(group, item)
+				}
+				if len(group) == 0 {
+					continue
+				}
+
+				dispMinutes := dest.DispatchIntervalSeconds / 60
+				if dispMinutes <= 0 {
+					dispMinutes = 1
+				}
+				srcMinutes := sourceInterval / 60
+				if srcMinutes <= 0 {
+					srcMinutes = 1
+				}
+				batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%dM-%s", dest.ID, dispMinutes, srcMinutes, windowEnd.Format("20060102150405"))
+				idempotencyKey := fmt.Sprintf("DEST%d_DISP%d_SRC%d_%d", dest.ID, dest.DispatchIntervalSeconds, sourceInterval, windowEnd.Unix())
+
+				s.enqueueAggregatedBatchGroup(ctx, &dest, cfg, group, sourceInterval, windowStart, windowEnd, batchID, idempotencyKey)
+				continue
+			}
+		}
+
+		// Mode B: Immediate Per-Bucket Dispatch (e.g. every 2m, 5m, 30m, or 60m single-bucket aggregation)
+		results, err := s.repo.GetCustomerAggregationResultsForWindow(ctx, bucketEnd, dest.IntervalSeconds, queryDeviceIDs)
+		if err != nil {
+			logger.Error("[Outbound] Failed to fetch aggregation results for window %s dest %d: %v", bucketEnd.Format(time.RFC3339), dest.ID, err)
+			continue
+		}
+		if len(results) == 0 {
+			continue
+		}
 
 		// Group results by IntervalSeconds
 		resultsByInterval := make(map[int][]model.AggregationResult)
@@ -956,145 +1358,159 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, periodEnd.Format("20060102150405"))
 			idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, intervalSec, periodEnd.Unix())
 
-			// Collect unique devices in stable order strictly from checked & active parameters
-			deviceMap := make(map[uint]BatchDeviceSummary)
-			var deviceOrder []uint
-			for _, item := range group {
-				if _, exists := deviceMap[item.DeviceID]; !exists {
-					devCode := fmt.Sprintf("DEV-%d", item.DeviceID)
-					devName := fmt.Sprintf("Device %d", item.DeviceID)
-					if item.Device != nil {
-						if item.Device.DeviceCode != "" {
-							devCode = item.Device.DeviceCode
-						}
-						if item.Device.DeviceName != "" {
-							devName = item.Device.DeviceName
-						}
-					}
-					deviceMap[item.DeviceID] = BatchDeviceSummary{
-						DeviceID:   item.DeviceID,
-						DeviceCode: devCode,
-						DeviceName: devName,
-					}
-					deviceOrder = append(deviceOrder, item.DeviceID)
-				}
-			}
-
-			var devicesList []BatchDeviceSummary
-			var devCodes []string
-			for _, dID := range deviceOrder {
-				dev := deviceMap[dID]
-				devicesList = append(devicesList, dev)
-				devCodes = append(devCodes, dev.DeviceCode)
-			}
-			devicesSummary := strings.Join(devCodes, ", ")
-			deviceCount := len(devicesList)
-
-			// Collect checked & active parameters across devices
-			var sourceIDs []uint64
-			var sourceItems []model.SourceAggregationValueItem
-
-			for _, item := range group {
-				sourceIDs = append(sourceIDs, item.ID)
-				paramCode := item.Parameter.ParameterCode
-				paramName := item.Parameter.ParameterName
-				unit := item.Parameter.Unit
-				devInfo := deviceMap[item.DeviceID]
-
-				val := item.Value
-				qual := string(item.Quality)
-
-				// POS 3: Outbound Gatekeeper (Sanitize unphysical float/register overflow before transmission)
-				if val != nil && (math.IsNaN(*val) || math.IsInf(*val, 0) || math.Abs(*val) > 1e8) {
-					logger.Warn("[Outbound Gatekeeper] Quarantined implausible value %.2e for parameter %s (%s) in batch %s",
-						*val, paramCode, devInfo.DeviceCode, batchID)
-					val = nil
-					qual = string(model.QualityBad)
-				} else if val != nil {
-					roundedVal := roundOutboundValue(*val)
-					val = &roundedVal
-				}
-
-				sourceItems = append(sourceItems, model.SourceAggregationValueItem{
-					DeviceID:            item.DeviceID,
-					DeviceCode:          devInfo.DeviceCode,
-					DeviceName:          devInfo.DeviceName,
-					ParameterID:         item.ParameterID,
-					ParameterCode:       paramCode,
-					ParameterName:       paramName,
-					Value:               val,
-					Unit:                unit,
-					Quality:             qual,
-					AggregationResultID: item.ID,
-					PeriodStart:         item.PeriodStart,
-					PeriodEnd:           item.PeriodEnd,
-				})
-			}
-
-			sourceIDsJSON, _ := json.Marshal(sourceIDs)
-			sourceValuesJSON, _ := json.Marshal(sourceItems)
-
-			batchData := &OutboundBatchData{
-				DeviceCount:     deviceCount,
-				DevicesSummary:  devicesSummary,
-				Devices:         devicesList,
-				IntervalSeconds: intervalSec,
-				PeriodStart:     periodStart,
-				PeriodEnd:       periodEnd,
-				Values:          sourceItems,
-			}
-			if deviceCount == 1 {
-				batchData.DeviceID = devicesList[0].DeviceID
-				batchData.DeviceCode = devicesList[0].DeviceCode
-				batchData.DeviceName = devicesList[0].DeviceName
-			}
-
-			payloadBytes, err := s.formatter.Format(batchData, cfg)
-			if err != nil {
-				logger.Error("[Outbound] Serialization failed for dest %d batch %s: %v", dest.ID, batchID, err)
-				continue
-			}
-
-			var queueDeviceID *uint
-			if deviceCount == 1 {
-				dID := devicesList[0].DeviceID
-				queueDeviceID = &dID
-			} else if dest.DeviceID != nil {
-				queueDeviceID = dest.DeviceID
-			}
-
-			queueItem := &model.OutboundDeliveryQueue{
-				BatchID:              batchID,
-				DestinationID:        dest.ID,
-				DeviceID:             queueDeviceID,
-				DeviceCount:          deviceCount,
-				DevicesSummary:       devicesSummary,
-				PeriodStart:          periodStart,
-				PeriodEnd:            periodEnd,
-				IntervalSeconds:      intervalSec,
-				ParameterCount:       len(sourceItems),
-				SourceAggregationIDs: string(sourceIDsJSON),
-				SourceValuesJSON:     string(sourceValuesJSON),
-				PayloadSnapshot:      string(payloadBytes),
-				PayloadVersion:       cfg.Version,
-				IdempotencyKey:       idempotencyKey,
-				Status:               model.DeliveryPending,
-				Attempts:             0,
-				MaxRetries:           dest.RetryLimit,
-				IsReplay:             false,
-				CreatedAt:            time.Now(),
-			}
-			if queueItem.MaxRetries <= 0 {
-				queueItem.MaxRetries = 5
-			}
-
-			if err := s.repo.EnqueueDelivery(ctx, queueItem); err == nil {
-				s.notifyWorker()
-			}
+			s.enqueueAggregatedBatchGroup(ctx, &dest, cfg, group, intervalSec, periodStart, periodEnd, batchID, idempotencyKey)
 		}
 	}
 
 	return nil
+}
+
+func (s *outboundService) enqueueAggregatedBatchGroup(
+	ctx context.Context,
+	dest *model.OutputDestination,
+	cfg *model.DestinationPayloadConfig,
+	group []model.AggregationResult,
+	intervalSec int,
+	periodStart time.Time,
+	periodEnd time.Time,
+	batchID string,
+	idempotencyKey string,
+) {
+	// Collect unique devices in stable order strictly from checked & active parameters
+	deviceMap := make(map[uint]BatchDeviceSummary)
+	var deviceOrder []uint
+	for _, item := range group {
+		if _, exists := deviceMap[item.DeviceID]; !exists {
+			devCode := fmt.Sprintf("DEV-%d", item.DeviceID)
+			devName := fmt.Sprintf("Device %d", item.DeviceID)
+			if item.Device != nil {
+				if item.Device.DeviceCode != "" {
+					devCode = item.Device.DeviceCode
+				}
+				if item.Device.DeviceName != "" {
+					devName = item.Device.DeviceName
+				}
+			}
+			deviceMap[item.DeviceID] = BatchDeviceSummary{
+				DeviceID:   item.DeviceID,
+				DeviceCode: devCode,
+				DeviceName: devName,
+			}
+			deviceOrder = append(deviceOrder, item.DeviceID)
+		}
+	}
+
+	var devicesList []BatchDeviceSummary
+	var devCodes []string
+	for _, dID := range deviceOrder {
+		dev := deviceMap[dID]
+		devicesList = append(devicesList, dev)
+		devCodes = append(devCodes, dev.DeviceCode)
+	}
+	devicesSummary := strings.Join(devCodes, ", ")
+	deviceCount := len(devicesList)
+
+	// Collect checked & active parameters across devices & chronological buckets
+	var sourceIDs []uint64
+	var sourceItems []model.SourceAggregationValueItem
+
+	for _, item := range group {
+		sourceIDs = append(sourceIDs, item.ID)
+		paramCode := item.Parameter.ParameterCode
+		paramName := item.Parameter.ParameterName
+		unit := item.Parameter.Unit
+		devInfo := deviceMap[item.DeviceID]
+
+		val := item.Value
+		qual := string(item.Quality)
+
+		// POS 3: Outbound Gatekeeper (Sanitize unphysical float/register overflow before transmission)
+		if val != nil && (math.IsNaN(*val) || math.IsInf(*val, 0) || math.Abs(*val) > 1e8) {
+			logger.Warn("[Outbound Gatekeeper] Quarantined implausible value %.2e for parameter %s (%s) in batch %s",
+				*val, paramCode, devInfo.DeviceCode, batchID)
+			val = nil
+			qual = string(model.QualityBad)
+		} else if val != nil {
+			roundedVal := roundOutboundValue(*val)
+			val = &roundedVal
+		}
+
+		sourceItems = append(sourceItems, model.SourceAggregationValueItem{
+			DeviceID:            item.DeviceID,
+			DeviceCode:          devInfo.DeviceCode,
+			DeviceName:          devInfo.DeviceName,
+			ParameterID:         item.ParameterID,
+			ParameterCode:       paramCode,
+			ParameterName:       paramName,
+			Value:               val,
+			Unit:                unit,
+			Quality:             qual,
+			AggregationResultID: item.ID,
+			PeriodStart:         item.PeriodStart,
+			PeriodEnd:           item.PeriodEnd,
+		})
+	}
+
+	sourceIDsJSON, _ := json.Marshal(sourceIDs)
+	sourceValuesJSON, _ := json.Marshal(sourceItems)
+
+	batchData := &OutboundBatchData{
+		DeviceCount:     deviceCount,
+		DevicesSummary:  devicesSummary,
+		Devices:         devicesList,
+		IntervalSeconds: intervalSec,
+		PeriodStart:     periodStart,
+		PeriodEnd:       periodEnd,
+		Values:          sourceItems,
+	}
+	if deviceCount == 1 {
+		batchData.DeviceID = devicesList[0].DeviceID
+		batchData.DeviceCode = devicesList[0].DeviceCode
+		batchData.DeviceName = devicesList[0].DeviceName
+	}
+
+	payloadBytes, err := s.formatter.Format(batchData, cfg)
+	if err != nil {
+		logger.Error("[Outbound] Serialization failed for dest %d batch %s: %v", dest.ID, batchID, err)
+		return
+	}
+
+	var queueDeviceID *uint
+	if deviceCount == 1 {
+		dID := devicesList[0].DeviceID
+		queueDeviceID = &dID
+	} else if dest.DeviceID != nil {
+		queueDeviceID = dest.DeviceID
+	}
+
+	queueItem := &model.OutboundDeliveryQueue{
+		BatchID:              batchID,
+		DestinationID:        dest.ID,
+		DeviceID:             queueDeviceID,
+		DeviceCount:          deviceCount,
+		DevicesSummary:       devicesSummary,
+		PeriodStart:          periodStart,
+		PeriodEnd:            periodEnd,
+		IntervalSeconds:      intervalSec,
+		ParameterCount:       len(sourceItems),
+		SourceAggregationIDs: string(sourceIDsJSON),
+		SourceValuesJSON:     string(sourceValuesJSON),
+		PayloadSnapshot:      string(payloadBytes),
+		PayloadVersion:       cfg.Version,
+		IdempotencyKey:       idempotencyKey,
+		Status:               model.DeliveryPending,
+		Attempts:             0,
+		MaxRetries:           dest.RetryLimit,
+		IsReplay:             false,
+		CreatedAt:            time.Now(),
+	}
+	if queueItem.MaxRetries <= 0 {
+		queueItem.MaxRetries = 5
+	}
+
+	if err := s.repo.EnqueueDelivery(ctx, queueItem); err == nil {
+		s.notifyWorker()
+	}
 }
 
 // GetDestinations returns all destinations, with sensitive credentials redacted when requested
@@ -1158,6 +1574,9 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 	if dest.AuthType == "LOGIN_BEARER" && dest.AuthURL == "" {
 		return fmt.Errorf("auth_url wajib diisi untuk mode autentikasi 2-Step Login (LOGIN_BEARER)")
 	}
+	if dest.AuthType == "SPARING_JWT_2STEP" && dest.AuthURL == "" {
+		return fmt.Errorf("auth_url (KLHK Secret Sensor URL) wajib diisi untuk mode SPARING 2-Step JWT (SPARING_JWT_2STEP)")
+	}
 	if err := validateCustomHeadersJSON(dest.CustomHeaders); err != nil {
 		return err
 	}
@@ -1199,6 +1618,24 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 		cfg.IncludeSensorStatFlags = true
 		cfg.SensorStatMode = "STATIC_1"
 		cfg.ConflictResolution = "PRIORITY_PRIMARY"
+	} else if dest.AuthType == "SPARING_JWT_2STEP" || dest.AuthType == "SPARING_JWT_STATIC" {
+		// Initialize with KLHK SPARING Water Quality defaults (Flat 2-min or Hourly 30-row data[] based on DispatchIntervalSeconds)
+		cfg.StationIDField = "uid"
+		cfg.TimestampField = "datetime"
+		cfg.TimestampFormat = "UNIX_SEC"
+		cfg.TimestampSource = "PERIOD_START"
+		cfg.NumericPrecisionMode = "NATURAL_2"
+		cfg.OmitIntervalField = true
+		cfg.IncludeMetadata = false
+		cfg.NestedDataKey = "data"
+		cfg.ConflictResolution = "PRIORITY_PRIMARY"
+		if dest.DispatchIntervalSeconds > 0 {
+			cfg.TemplateType = "KLHK_SPARING_HOURLY"
+			cfg.Structure = "SPARING_DATA_ARRAY"
+		} else {
+			cfg.TemplateType = "KLHK_SPARING"
+			cfg.Structure = "FLAT"
+		}
 	}
 	_ = s.repo.UpsertPayloadConfig(ctx, cfg)
 	return nil
@@ -1217,6 +1654,9 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 	dest.CustomHeaders = strings.TrimSpace(dest.CustomHeaders)
 	if dest.AuthType == "LOGIN_BEARER" && dest.AuthURL == "" {
 		return fmt.Errorf("auth_url wajib diisi untuk mode autentikasi 2-Step Login (LOGIN_BEARER)")
+	}
+	if dest.AuthType == "SPARING_JWT_2STEP" && dest.AuthURL == "" {
+		return fmt.Errorf("auth_url (KLHK Secret Sensor URL) wajib diisi untuk mode SPARING 2-Step JWT (SPARING_JWT_2STEP)")
 	}
 	if err := validateCustomHeadersJSON(dest.CustomHeaders); err != nil {
 		return err
@@ -1265,8 +1705,43 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 		return err
 	}
 
+	// Keep SPARING payload structure synchronized when user toggles DispatchIntervalSeconds (Per 2 Menit <-> Per 1 Jam / 30 Data)
+	var updatedCfg *model.DestinationPayloadConfig
+	if existing.DispatchIntervalSeconds != dest.DispatchIntervalSeconds {
+		if cfg, cfgErr := s.repo.GetPayloadConfigByDestinationID(ctx, dest.ID); cfgErr == nil && cfg != nil {
+			tpl := strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
+			str := strings.ToUpper(strings.TrimSpace(cfg.Structure))
+			isSparing := tpl == "KLHK_SPARING" || tpl == "KLHK_SPARING_HOURLY" ||
+				dest.AuthType == "SPARING_JWT_2STEP" || dest.AuthType == "SPARING_JWT_STATIC"
+			if isSparing {
+				if dest.DispatchIntervalSeconds > 0 && str == "FLAT" {
+					cfg.TemplateType = "KLHK_SPARING_HOURLY"
+					cfg.Structure = "SPARING_DATA_ARRAY"
+					if cfg.NestedDataKey == "" {
+						cfg.NestedDataKey = "data"
+					}
+					if cfg.TimestampSource == "" || cfg.TimestampSource == "PERIOD_END" {
+						cfg.TimestampSource = "PERIOD_START"
+					}
+					if cfg.NumericPrecisionMode == "" || cfg.NumericPrecisionMode == "FIXED_2" {
+						cfg.NumericPrecisionMode = "NATURAL_2"
+					}
+					cfg.OmitIntervalField = true
+					cfg.IncludeMetadata = false
+					_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+					updatedCfg = cfg
+				} else if dest.DispatchIntervalSeconds == 0 && str == "SPARING_DATA_ARRAY" {
+					cfg.TemplateType = "KLHK_SPARING"
+					cfg.Structure = "FLAT"
+					_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+					updatedCfg = cfg
+				}
+			}
+		}
+	}
+
 	if dest.Enabled {
-		dest.RequeuedBatches = s.reprocessUndeliveredItemsForDestination(ctx, dest.ID, nil, true)
+		dest.RequeuedBatches = s.reprocessUndeliveredItemsForDestination(ctx, dest.ID, updatedCfg, true)
 	} else {
 		_ = s.repo.SyncDestinationStatsFromQueue(ctx, &dest.ID)
 	}
@@ -1478,7 +1953,29 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 	}
 
 	matcher := buildParameterMappingMatcher(cfg)
-	realResults, err := s.repo.GetLatestAggregationResultsMultiDevice(ctx, targetDeviceIDs)
+	structureUpper := strings.ToUpper(strings.TrimSpace(cfg.Structure))
+	templateUpper := strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
+	isSparingArray := structureUpper == "SPARING_DATA_ARRAY"
+
+	var realResults []model.AggregationResult
+	var err error
+	if isSparingArray || (dest != nil && dest.DispatchIntervalSeconds > 0 && customCfg == nil) {
+		srcInterval := 120
+		if dest != nil && dest.IntervalSeconds > 0 {
+			srcInterval = dest.IntervalSeconds
+		}
+		winDur := time.Hour
+		if dest != nil && dest.DispatchIntervalSeconds > 0 {
+			winDur = time.Duration(dest.DispatchIntervalSeconds) * time.Second
+		}
+		realResults, err = s.repo.GetRecentAggregationResultsMultiDevice(ctx, srcInterval, winDur, targetDeviceIDs)
+		if (err != nil || len(realResults) == 0) && srcInterval > 0 {
+			realResults, err = s.repo.GetRecentAggregationResultsMultiDevice(ctx, 0, winDur, targetDeviceIDs)
+		}
+	} else {
+		realResults, err = s.repo.GetLatestAggregationResultsMultiDevice(ctx, targetDeviceIDs)
+	}
+
 	var filteredReal []model.AggregationResult
 	if err == nil && len(realResults) > 0 {
 		for _, r := range realResults {
@@ -1561,7 +2058,146 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			Devices:         devicesList,
 			IntervalSeconds: filteredReal[0].IntervalSeconds,
 			PeriodStart:     filteredReal[0].PeriodStart,
-			PeriodEnd:       filteredReal[0].PeriodEnd,
+			PeriodEnd:       filteredReal[len(filteredReal)-1].PeriodEnd,
+			Values:          items,
+		}
+		if len(devicesList) == 1 {
+			batch.DeviceID = devicesList[0].DeviceID
+			batch.DeviceCode = devicesList[0].DeviceCode
+			batch.DeviceName = devicesList[0].DeviceName
+		}
+	} else if isSparingArray || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
+		// Construct realistic KLHK SPARING sample batch (either 30x 2-minute hourly bundle or 1x 2-minute flat record)
+		srcSec := 120
+		if dest != nil && dest.IntervalSeconds > 0 {
+			srcSec = dest.IntervalSeconds
+		}
+		dispSec := 3600
+		if dest != nil && dest.DispatchIntervalSeconds > 0 {
+			dispSec = dest.DispatchIntervalSeconds
+		}
+		bucketCount := 1
+		if isSparingArray {
+			bucketCount = dispSec / srcSec
+			if bucketCount < 1 {
+				bucketCount = 30
+			} else if bucketCount > 60 {
+				bucketCount = 60
+			}
+		}
+
+		alignedHourEnd := time.Unix((time.Now().Unix()/3600)*3600, 0).UTC()
+		if !isSparingArray {
+			alignedHourEnd = time.Unix((time.Now().Unix()/int64(srcSec))*int64(srcSec), 0).UTC()
+		}
+		windowStart := alignedHourEnd.Add(-time.Duration(bucketCount*srcSec) * time.Second)
+
+		type sparingParamSpec struct {
+			deviceID   uint
+			deviceCode string
+			paramID    uint
+			code       string
+			name       string
+			baseVal    float64
+			stepDelta  float64
+		}
+		var specs []sparingParamSpec
+		if cfg != nil && strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
+			var mappings []model.ParameterMappingItem
+			_ = json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings)
+			for idx, m := range mappings {
+				if !m.Enabled || strings.TrimSpace(m.ParameterCode) == "" {
+					continue
+				}
+				dID := m.DeviceID
+				if dID == 0 {
+					dID = 1
+				}
+				dCode := strings.TrimSpace(m.DeviceCode)
+				if dCode == "" {
+					dCode = fmt.Sprintf("SPARING-%02d", dID)
+				}
+				base := 15.0 + float64(idx)*5.25
+				delta := 0.02
+				switch strings.ToLower(strings.TrimSpace(m.ParameterCode)) {
+				case "ph", "p_h":
+					base, delta = 6.93, 0.01
+				case "cod":
+					base, delta = 40.99, 0.12
+				case "tss":
+					base, delta = 27.95, 0.03
+				case "nh3n", "nh3-n", "nh3_n", "ammonia", "amonia":
+					base, delta = 0, 0
+				case "debit", "flow", "flowrate", "flow_rate", "flow-rate":
+					base, delta = 0.24, 0.01
+				}
+				specs = append(specs, sparingParamSpec{
+					deviceID:   dID,
+					deviceCode: dCode,
+					paramID:    m.ParameterID,
+					code:       m.ParameterCode,
+					name:       m.ParameterName,
+					baseVal:    base,
+					stepDelta:  delta,
+				})
+			}
+		}
+		if len(specs) == 0 {
+			specs = []sparingParamSpec{
+				{deviceID: 1, deviceCode: "SPARING-01", paramID: 1, code: "ph", name: "pH", baseVal: 6.93, stepDelta: 0.01},
+				{deviceID: 1, deviceCode: "SPARING-01", paramID: 2, code: "cod", name: "COD", baseVal: 40.99, stepDelta: 0.12},
+				{deviceID: 1, deviceCode: "SPARING-01", paramID: 3, code: "tss", name: "TSS", baseVal: 27.95, stepDelta: 0.03},
+				{deviceID: 1, deviceCode: "SPARING-01", paramID: 4, code: "nh3n", name: "NH3-N", baseVal: 0, stepDelta: 0},
+				{deviceID: 1, deviceCode: "SPARING-01", paramID: 5, code: "debit", name: "Debit", baseVal: 0.24, stepDelta: 0.01},
+			}
+		}
+
+		deviceMap := make(map[string]BatchDeviceSummary)
+		var deviceOrder []string
+		var items []model.SourceAggregationValueItem
+		aggSeq := uint64(1000)
+
+		for bIdx := 0; bIdx < bucketCount; bIdx++ {
+			bStart := windowStart.Add(time.Duration(bIdx*srcSec) * time.Second)
+			bEnd := bStart.Add(time.Duration(srcSec) * time.Second)
+			for _, sp := range specs {
+				if _, ok := deviceMap[sp.deviceCode]; !ok {
+					deviceMap[sp.deviceCode] = BatchDeviceSummary{
+						DeviceID:   sp.deviceID,
+						DeviceCode: sp.deviceCode,
+						DeviceName: sp.deviceCode,
+					}
+					deviceOrder = append(deviceOrder, sp.deviceCode)
+				}
+				v := roundOutboundValue(sp.baseVal + float64(bIdx%8)*sp.stepDelta)
+				aggSeq++
+				items = append(items, model.SourceAggregationValueItem{
+					DeviceID:            sp.deviceID,
+					DeviceCode:          sp.deviceCode,
+					DeviceName:          sp.deviceCode,
+					ParameterID:         sp.paramID,
+					ParameterCode:       sp.code,
+					ParameterName:       sp.name,
+					Value:               &v,
+					Quality:             "GOOD",
+					AggregationResultID: aggSeq,
+					PeriodStart:         bStart,
+					PeriodEnd:           bEnd,
+				})
+			}
+		}
+
+		var devicesList []BatchDeviceSummary
+		for _, dc := range deviceOrder {
+			devicesList = append(devicesList, deviceMap[dc])
+		}
+		batch = &OutboundBatchData{
+			DeviceCount:     len(devicesList),
+			DevicesSummary:  strings.Join(deviceOrder, ", "),
+			Devices:         devicesList,
+			IntervalSeconds: srcSec,
+			PeriodStart:     windowStart,
+			PeriodEnd:       alignedHourEnd,
 			Values:          items,
 		}
 		if len(devicesList) == 1 {

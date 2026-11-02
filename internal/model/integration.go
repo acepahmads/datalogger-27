@@ -36,19 +36,20 @@ type OutputDestination struct {
 	Type              DestinationType          `gorm:"size:32;not null" json:"type"`
 	Endpoint          string                   `gorm:"size:255;not null" json:"endpoint"` // URL or host:port
 	Enabled           bool                     `gorm:"default:false" json:"enabled"`     // Local-first: default false unless explicitly activated
-	Format            string                   `gorm:"size:32;default:'JSON'" json:"format"` // JSON, PROTOBUF, CSV
-	IntervalSeconds   int                      `gorm:"default:0" json:"interval_seconds"` // 0 = all configured intervals, or 120, 300, 1800, 3600
-	DeviceID          *uint                    `gorm:"index" json:"device_id,omitempty"` // nil = all stations
-	BatchSize         int                      `gorm:"default:100" json:"batch_size"`
-	RetryLimit        int                      `gorm:"default:5" json:"retry_limit"`
-	QueueLimit        int                      `gorm:"default:10000" json:"queue_limit"`
-	Status            string                   `gorm:"size:32;default:'IDLE'" json:"status"` // IDLE, ACTIVE, ERROR, DISABLED
-	
+	Format                  string                   `gorm:"size:32;default:'JSON'" json:"format"`                   // JSON, PROTOBUF, CSV
+	IntervalSeconds         int                      `gorm:"default:0" json:"interval_seconds"`                      // Source aggregation interval: 0 = all configured intervals, or 120, 300, 1800, 3600
+	DispatchIntervalSeconds int                      `gorm:"default:0" json:"dispatch_interval_seconds"`             // 0 = send immediately per bucket; >0 (e.g. 3600) = bundle source buckets and send per cycle
+	DeviceID                *uint                    `gorm:"index" json:"device_id,omitempty"`                       // nil = all stations
+	BatchSize               int                      `gorm:"default:100" json:"batch_size"`
+	RetryLimit              int                      `gorm:"default:5" json:"retry_limit"`
+	QueueLimit              int                      `gorm:"default:10000" json:"queue_limit"`
+	Status                  string                   `gorm:"size:32;default:'IDLE'" json:"status"` // IDLE, ACTIVE, ERROR, DISABLED
+
 	// Authentication & Security (redacted on API response)
-	AuthType          string                   `gorm:"size:32;default:'NONE'" json:"auth_type"` // NONE, BEARER_TOKEN, API_KEY, BASIC_AUTH, LOGIN_BEARER
-	AuthURL           string                   `gorm:"size:255" json:"auth_url,omitempty"`      // Step-1 login endpoint for LOGIN_BEARER (2-step auth)
-	AuthTokenPath     string                   `gorm:"size:128" json:"auth_token_path,omitempty"` // Optional JSON dot-path (e.g. "token", "data.token")
-	AuthCacheSeconds  int                      `gorm:"default:0" json:"auth_cache_seconds"`       // 0 = always auth before each data send (strict 2x); >0 = cache TTL seconds
+	AuthType         string `gorm:"size:32;default:'NONE'" json:"auth_type"`    // NONE, BEARER_TOKEN, API_KEY, BASIC_AUTH, LOGIN_BEARER, SPARING_JWT_2STEP, SPARING_JWT_STATIC
+	AuthURL          string `gorm:"size:255" json:"auth_url,omitempty"`         // Step-1 endpoint for LOGIN_BEARER (POST login) or SPARING_JWT_2STEP (GET secret-sensor)
+	AuthTokenPath    string `gorm:"size:128" json:"auth_token_path,omitempty"`  // Optional JSON dot-path (e.g. "token", "data.token", "secret")
+	AuthCacheSeconds int    `gorm:"default:0" json:"auth_cache_seconds"`        // 0 = always fetch before each data send; >0 = cache TTL seconds
 	AuthToken         string                   `gorm:"size:255" json:"auth_token,omitempty"`
 	APIKeyHeader      string                   `gorm:"size:64;default:'X-API-Key'" json:"api_key_header,omitempty"`
 	APIKeyValue       string                   `gorm:"size:255" json:"api_key_value,omitempty"`
@@ -76,17 +77,19 @@ type OutputDestination struct {
 // DestinationPayloadConfig defines destination-specific serialization formatting and field aliasing
 type DestinationPayloadConfig struct {
 	ID                    uint      `gorm:"primaryKey" json:"id"`
-	DestinationID         uint      `gorm:"uniqueIndex;not null" json:"destination_id"`
-	TemplateType          string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_SPARING, NESTED_SCADA, MULTI_DEVICE, CUSTOM
-	StationIDField        string    `gorm:"size:64;default:'station_id'" json:"station_id_field"`
-	StationIDValue        string    `gorm:"size:64" json:"station_id_value,omitempty"` // optional override
-	ModuleIDValue         string    `gorm:"size:64" json:"module_id_value,omitempty"`  // optional override for tick schemas
+	DestinationID          uint      `gorm:"uniqueIndex;not null" json:"destination_id"`
+	TemplateType           string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_SPARING, KLHK_SPARING_HOURLY, KLHK_ISPU_AQMS, NESTED_SCADA, MULTI_DEVICE, CUSTOM
+	StationIDField         string    `gorm:"size:64;default:'station_id'" json:"station_id_field"`
+	StationIDValue         string    `gorm:"size:64" json:"station_id_value,omitempty"` // optional override
+	ModuleIDValue          string    `gorm:"size:64" json:"module_id_value,omitempty"`  // optional override for tick schemas
 	TimestampField         string    `gorm:"size:64;default:'timestamp'" json:"timestamp_field"`
-	TimestampFormat        string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"` // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
-	TimestampTimezone      string    `gorm:"size:64;default:''" json:"timestamp_timezone,omitempty"` // e.g. Asia/Jakarta, Asia/Makassar, Asia/Jayapura, UTC
+	TimestampFormat        string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"`                    // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
+	TimestampSource        string    `gorm:"size:24;default:'PERIOD_END'" json:"timestamp_source,omitempty"`       // PERIOD_END (default) or PERIOD_START
+	TimestampTimezone      string    `gorm:"size:64;default:''" json:"timestamp_timezone,omitempty"`               // e.g. Asia/Jakarta, Asia/Makassar, Asia/Jayapura, UTC
+	NumericPrecisionMode   string    `gorm:"size:24;default:'FIXED_2'" json:"numeric_precision_mode,omitempty"`    // FIXED_2 (default 41.00) or NATURAL_2 (41, 41.1, 40.99, 0)
 	IntervalField          string    `gorm:"size:64;default:'interval_minutes'" json:"interval_field"`
 	OmitIntervalField      bool      `gorm:"default:false" json:"omit_interval_field"`
-	Structure              string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE, MULTI_TICK_ARRAY
+	Structure              string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE, MULTI_TICK_ARRAY, SPARING_DATA_ARRAY
 	NestedDataKey          string    `gorm:"size:64;default:'data'" json:"nested_data_key"`
 	IncludeDeviceIdentity  bool      `gorm:"default:false" json:"include_device_identity"` // true: include device code/name in payload
 	DeviceIdentityMode     string    `gorm:"size:32;default:'NONE'" json:"device_identity_mode"` // NONE, PREFIX, NESTED, TAG

@@ -117,7 +117,7 @@ func RunMigrations(db *gorm.DB) error {
 		_ = db.Model(&model.DeviceConnection{}).Where("max_register_gap IS NULL OR max_register_gap < 0").Update("max_register_gap", 0).Error
 	}
 
-	// 1b3. Ensure 2-step outbound auth and KLHK ISPU payload columns exist on existing installations
+	// 1b3. Ensure 2-step outbound auth, KLHK ISPU, and KLHK SPARING payload columns exist on existing installations
 	if db.Migrator().HasTable(&model.OutputDestination{}) {
 		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auth_url") {
 			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auth_url")
@@ -128,10 +128,20 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.OutputDestination{}, "auth_cache_seconds") {
 			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "auth_cache_seconds")
 		}
+		if !db.Migrator().HasColumn(&model.OutputDestination{}, "dispatch_interval_seconds") {
+			_ = db.Migrator().AddColumn(&model.OutputDestination{}, "dispatch_interval_seconds")
+		}
+		_ = db.Model(&model.OutputDestination{}).Where("dispatch_interval_seconds IS NULL").Update("dispatch_interval_seconds", 0).Error
 	}
 	if db.Migrator().HasTable(&model.DestinationPayloadConfig{}) {
 		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "timestamp_timezone") {
 			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "timestamp_timezone")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "timestamp_source") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "timestamp_source")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "numeric_precision_mode") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "numeric_precision_mode")
 		}
 		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "omit_interval_field") {
 			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "omit_interval_field")

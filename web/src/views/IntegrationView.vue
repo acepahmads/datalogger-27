@@ -339,7 +339,7 @@
                 <!-- Interval -->
                 <td class="py-2.5 px-3 text-center">
                   <span class="px-2 py-0.5 rounded-full text-3xs font-bold bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
-                    {{ Math.round(item.interval_seconds / 60) }}m
+                    {{ formatQueueIntervalBadge(item) }}
                   </span>
                 </td>
 
@@ -554,24 +554,24 @@
 
             <!-- Details List -->
             <div class="mt-3 space-y-1.5 font-mono text-2xs text-slate-600 dark:text-slate-300">
-              <div v-if="dest.auth_type === 'LOGIN_BEARER' && dest.auth_url" class="flex items-center justify-between">
-                <span class="text-slate-400">Auth URL:</span>
+              <div v-if="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP') && dest.auth_url" class="flex items-center justify-between">
+                <span class="text-slate-400">{{ dest.auth_type === 'SPARING_JWT_2STEP' ? 'Secret URL:' : 'Auth URL:' }}</span>
                 <span class="font-mono text-3xs truncate max-w-[200px] text-amber-500 dark:text-amber-400" :title="dest.auth_url">{{ dest.auth_url }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-slate-400">{{ dest.auth_type === 'LOGIN_BEARER' ? 'Data URL:' : 'Endpoint:' }}</span>
+                <span class="text-slate-400">{{ dest.auth_type === 'LOGIN_BEARER' ? 'Data URL:' : (dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC' ? 'Send URL:' : 'Endpoint:') }}</span>
                 <span class="font-mono text-3xs truncate max-w-[200px]" :title="dest.endpoint">{{ dest.endpoint }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span class="text-slate-400">Interval:</span>
+                <span class="text-slate-400">Schedule:</span>
                 <span class="font-bold text-cyan-500">
-                  {{ dest.interval_seconds > 0 ? (dest.interval_seconds / 60 + ' min') : 'All Intervals' }}
+                  {{ formatDestinationSchedule(dest) }}
                 </span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Auth Mode:</span>
-                <span :class="dest.auth_type === 'LOGIN_BEARER' ? 'text-cyan-500 font-bold' : ''">
-                  {{ dest.auth_type === 'LOGIN_BEARER' ? '2-STEP LOGIN → BEARER' : (dest.auth_type || 'NONE') }}
+                <span :class="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC') ? 'text-cyan-500 font-bold' : ''">
+                  {{ formatAuthModeLabel(dest.auth_type) }}
                 </span>
               </div>
               <div class="flex items-center justify-between">
@@ -710,7 +710,11 @@
               : 'bg-rose-500/10 border-rose-500/30 text-rose-300'"
           >
             <div class="flex items-center justify-between font-bold">
-              <span>{{ testResult.auth_success ? '✔ STEP 1 — AUTH LOGIN OK' : '✖ STEP 1 — AUTH LOGIN FAILED' }}</span>
+              <span>
+                {{ isActiveDestSparing2Step
+                  ? (testResult.auth_success ? '✔ STEP 1 — SECRET SENSOR & JWT OK' : '✖ STEP 1 — SECRET SENSOR FAILED')
+                  : (testResult.auth_success ? '✔ STEP 1 — AUTH LOGIN OK' : '✖ STEP 1 — AUTH LOGIN FAILED') }}
+              </span>
               <span>
                 <template v-if="testResult.auth_used_cache">CACHE</template>
                 <template v-else>
@@ -719,12 +723,12 @@
               </span>
             </div>
             <div v-if="testResult.auth_url" class="text-slate-400 truncate" :title="testResult.auth_url">
-              POST {{ testResult.auth_url }}
+              {{ isActiveDestSparing2Step ? 'GET' : 'POST' }} {{ testResult.auth_url }}
             </div>
             <div class="opacity-95 break-all">
               {{ testResult.auth_message }}
               <span v-if="testResult.auth_token_preview" class="text-cyan-400 ml-1">
-                [Bearer {{ testResult.auth_token_preview }}]
+                [{{ isActiveDestSparing2Step ? 'JWT' : 'Bearer' }} {{ testResult.auth_token_preview }}]
               </span>
             </div>
           </div>
@@ -749,13 +753,15 @@
               </span>
             </div>
             <div v-if="testResult.data_url" class="text-slate-400 truncate" :title="testResult.data_url">
-              POST {{ testResult.data_url }}
+              POST {{ testResult.data_url }}{{ isActiveDestSparing2Step ? '  {"token": "<jwt_hs256>"}' : '' }}
             </div>
             <div v-if="testResult.auth_success" class="opacity-95 break-all">
               {{ testResult.response_text || testResult.error_message }}
             </div>
             <div v-else class="opacity-75">
-              Menunggu Step 1 Login berhasil sebelum mengirim data sensor.
+              {{ isActiveDestSparing2Step
+                ? 'Menunggu Step 1 Secret Sensor berhasil diambil sebelum mengirim token JWT.'
+                : 'Menunggu Step 1 Login berhasil sebelum mengirim data sensor.' }}
             </div>
           </div>
         </div>
@@ -779,12 +785,13 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="STANDARD">Standard Datalogger</option>
+                <option value="KLHK_SPARING_HOURLY">KLHK SPARING — Per 1 Jam / 30 Data (uid + data[30])</option>
+                <option value="KLHK_SPARING">KLHK SPARING — Per 2 Menit (Flat: uid + datetime + sensor)</option>
                 <option value="KLHK_ISPU_AQMS">KLHK ISPU AQMS (id_stasiun + waktu + stat_*)</option>
                 <option value="MULTI_TICK_SENSOR">Multi-Sensor Tick Array (multi[tick])</option>
                 <option value="MULTI_DEVICE_FLAT">Multi-Device Unified Flat</option>
                 <option value="MULTI_DEVICE_NESTED">Multi-Device Nested by Device</option>
                 <option value="MULTI_DEVICE_ARRAY">Multi-Device Array of Devices</option>
-                <option value="KLHK_SPARING">KLHK SPARING (Flat Standard)</option>
                 <option value="NESTED_SCADA">Nested CBI Telemetry</option>
                 <option value="CUSTOM">Custom Schema</option>
               </select>
@@ -799,6 +806,7 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-cyan-600 dark:text-cyan-400"
               >
                 <option value="FLAT">FLAT (Root Key-Value)</option>
+                <option value="SPARING_DATA_ARRAY">SPARING_DATA_ARRAY (Root uid + data[datetime, ...])</option>
                 <option value="MULTI_TICK_ARRAY">MULTI_TICK_ARRAY (Array multi[tick])</option>
                 <option value="NESTED">NESTED (Sub-Object under key)</option>
                 <option value="NESTED_BY_DEVICE">NESTED_BY_DEVICE (Grouped by Device)</option>
@@ -859,14 +867,14 @@
             </p>
           </div>
 
-          <!-- Nested Key Name (if NESTED) -->
-          <div v-if="payloadConfig.structure === 'NESTED'" class="text-2xs">
-            <label class="block text-slate-500 mb-1">Nested Data Key Name</label>
+          <!-- Nested Key Name (if NESTED or SPARING_DATA_ARRAY) -->
+          <div v-if="payloadConfig.structure === 'NESTED' || payloadConfig.structure === 'SPARING_DATA_ARRAY'" class="text-2xs">
+            <label class="block text-slate-500 mb-1">Nested Array / Object Key Name</label>
             <input
               v-model="payloadConfig.nested_data_key"
               @input="triggerLivePreview"
               type="text"
-              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
               placeholder="e.g. data, measurements, telemetry"
             />
           </div>
@@ -874,23 +882,23 @@
           <!-- Station ID & Override -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-2xs" :class="{'sm:grid-cols-3': payloadConfig.structure === 'MULTI_TICK_ARRAY'}">
             <div>
-              <label class="block text-slate-500 mb-1">Station ID Field Name</label>
+              <label class="block text-slate-500 mb-1">Station ID / UID Field Name</label>
               <input
                 v-model="payloadConfig.station_id_field"
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="station_id"
+                placeholder="uid / station_id"
               />
             </div>
             <div>
-              <label class="block text-slate-500 mb-1">Station ID Value Override</label>
+              <label class="block text-slate-500 mb-1">Station ID / UID Value Override</label>
               <input
                 v-model="payloadConfig.station_id_value"
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="e.g. 3453"
+                placeholder="e.g. 79456d9c51128700b78b6fd0"
               />
             </div>
             <div v-if="payloadConfig.structure === 'MULTI_TICK_ARRAY'">
@@ -914,7 +922,7 @@
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="timestamp"
+                placeholder="datetime / timestamp"
               />
             </div>
             <div>
@@ -926,7 +934,7 @@
               >
                 <option value="ISO8601">ISO 8601 / RFC 3339</option>
                 <option value="UNIX_MS">UNIX Epoch Milliseconds</option>
-                <option value="UNIX_SEC">UNIX Epoch Seconds</option>
+                <option value="UNIX_SEC">UNIX Epoch Seconds (int_datetime)</option>
                 <option value="CUSTOM">Custom (YYYY-MM-DD HH:mm:ss)</option>
               </select>
             </div>
@@ -942,6 +950,32 @@
                 <option value="Asia/Makassar">WITA (Asia/Makassar UTC+8)</option>
                 <option value="Asia/Jayapura">WIT (Asia/Jayapura UTC+9)</option>
                 <option value="UTC">UTC</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Timestamp Bucket Source & Numeric Formatting -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-2xs">
+            <div>
+              <label class="block text-slate-500 mb-1">Sumber Waktu Bucket Agregasi</label>
+              <select
+                v-model="payloadConfig.timestamp_source"
+                @change="triggerLivePreview"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+              >
+                <option value="PERIOD_END">Akhir Periode (Period End — Default)</option>
+                <option value="PERIOD_START">Awal Periode (Period Start :00..:58 — SPARING)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-500 mb-1">Format Angka Sensor JSON</label>
+              <select
+                v-model="payloadConfig.numeric_precision_mode"
+                @change="triggerLivePreview"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
+              >
+                <option value="FIXED_2">2 Desimal Tetap (41.00, 0.00)</option>
+                <option value="NATURAL_2">Natural Maks 2 Desimal (41, 41.1, 40.99, 0 — SPARING)</option>
               </select>
             </div>
           </div>
@@ -1519,7 +1553,7 @@
       v-if="showDestModal"
       class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-xs font-mono"
     >
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
         <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase">
           {{ editingDest.id ? 'Edit Destination' : 'Add New Outbound Destination' }}
         </h3>
@@ -1531,11 +1565,11 @@
               v-model="editingDest.name"
               type="text"
               class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
-              placeholder="e.g. KLHK SPARING Webhook"
+              placeholder="e.g. KLHK SPARING Outbound"
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-slate-500 mb-1">Protocol Type</label>
               <select
@@ -1551,37 +1585,58 @@
               </select>
             </div>
             <div>
-              <label class="block text-slate-500 mb-1">Interval Filter</label>
+              <label class="block text-slate-500 mb-1">Interval Agregasi Sumber</label>
               <select
-                v-model="editingDest.interval_seconds"
+                v-model.number="editingDest.interval_seconds"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold"
               >
                 <option :value="0">All Configured Intervals</option>
-                <option :value="120">2 Minutes</option>
-                <option :value="300">5 Minutes</option>
-                <option :value="1800">30 Minutes</option>
-                <option :value="3600">60 Minutes</option>
+                <option :value="120">2 Menit (Standar SPARING)</option>
+                <option :value="300">5 Menit</option>
+                <option :value="1800">30 Menit (Standar ISPU AQMS)</option>
+                <option :value="3600">60 Menit (Rata-rata 1 Jam)</option>
               </select>
             </div>
           </div>
 
+          <!-- Jadwal Pengiriman (Immediate Per-Bucket vs Bundled Per-Jam / 30 Data) -->
+          <div>
+            <label class="block text-slate-500 mb-1">Jadwal Pengiriman Data (Dispatch Schedule)</label>
+            <select
+              v-model.number="editingDest.dispatch_interval_seconds"
+              class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-cyan-600 dark:text-cyan-400"
+            >
+              <option :value="0">Kirim Langsung Tiap Selesai Agregasi (mis. Per 2 Menit / Realtime)</option>
+              <option :value="1800">Kumpulkan & Kirim Tiap 30 Menit (Bundle 15 Data × 2 Menit)</option>
+              <option :value="3600">Kumpulkan & Kirim Tiap 1 Jam (Bundle 30 Data × 2 Menit — SPARING)</option>
+            </select>
+            <p v-if="editingDest.dispatch_interval_seconds > 0" class="mt-1 text-3xs text-cyan-600 dark:text-cyan-400">
+              📦 Mode Bundling: Mengumpulkan {{ Math.max(1, Math.round(editingDest.dispatch_interval_seconds / (editingDest.interval_seconds || 120))) }} data agregasi {{ (editingDest.interval_seconds || 120) / 60 }} menit ({{ ':00..' + String(Math.max(0, Math.round(editingDest.dispatch_interval_seconds / 60) - Math.round((editingDest.interval_seconds || 120) / 60))).padStart(2, '0') }}) lalu dikirim setiap {{ editingDest.dispatch_interval_seconds / 60 }} menit dalam format array "data": [...].
+            </p>
+          </div>
+
           <!-- Auth Settings -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div :class="editingDest.auth_type === 'LOGIN_BEARER' ? 'sm:col-span-2' : ''">
+            <div :class="(editingDest.auth_type === 'LOGIN_BEARER' || editingDest.auth_type === 'SPARING_JWT_2STEP') ? 'sm:col-span-2' : ''">
               <label class="block text-slate-500 mb-1">Authentication Type</label>
               <select
                 v-model="editingDest.auth_type"
+                @change="onEditingAuthTypeChange"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="NONE">None / Open</option>
+                <option value="SPARING_JWT_2STEP">2-Step Secret Sensor → JWT HS256 (KLHK SPARING)</option>
+                <option value="SPARING_JWT_STATIC">Static Secret Key → JWT HS256 (KLHK SPARING)</option>
                 <option value="LOGIN_BEARER">2-Step Auth Login → Bearer Token (KLHK / ISPU AQMS)</option>
                 <option value="BEARER_TOKEN">Static Bearer Token</option>
                 <option value="API_KEY">API Key Header</option>
                 <option value="BASIC_AUTH">HTTP Basic Auth</option>
               </select>
             </div>
-            <div v-if="editingDest.auth_type === 'BEARER_TOKEN'">
-              <label class="block text-slate-500 mb-1">Bearer Token</label>
+            <div v-if="editingDest.auth_type === 'BEARER_TOKEN' || editingDest.auth_type === 'SPARING_JWT_STATIC'">
+              <label class="block text-slate-500 mb-1">
+                {{ editingDest.auth_type === 'SPARING_JWT_STATIC' ? 'SPARING JWT Secret Key (HS256)' : 'Bearer Token' }}
+              </label>
               <input
                 v-model="editingDest.auth_token"
                 type="password"
@@ -1609,6 +1664,53 @@
                 />
               </div>
             </div>
+          </div>
+
+          <!-- 2-Step KLHK SPARING Secret Sensor -> JWT HS256 -->
+          <div
+            v-if="editingDest.auth_type === 'SPARING_JWT_2STEP'"
+            class="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/30 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider text-3xs">
+                Step 1 — KLHK SPARING Secret Sensor (GET secret → Sign JWT HS256)
+              </span>
+            </div>
+            <div>
+              <label class="block text-slate-500 mb-1">Secret Sensor URL (KLHK_SECRET_URL_2STEP — HTTP GET)</label>
+              <input
+                v-model="editingDest.auth_url"
+                type="text"
+                class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                placeholder="https://sparing.kemenlh.go.id/api/secret-sensor"
+              />
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-500 mb-1">Siklus Pengambilan Secret</label>
+                <select
+                  v-model.number="editingDest.auth_cache_seconds"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-3xs"
+                >
+                  <option :value="0">Ambil Secret Baru Setiap Kirim (Strict 2-Step)</option>
+                  <option :value="900">Cache Secret 15 Menit (Auto Refresh jika ditolak)</option>
+                  <option :value="1800">Cache Secret 30 Menit (Auto Refresh jika ditolak)</option>
+                  <option :value="3300">Cache Secret 55 Menit (Auto Refresh jika ditolak)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-slate-500 mb-1">JSON Field Secret (Opsional)</label>
+                <input
+                  v-model="editingDest.auth_token_path"
+                  type="text"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="Auto (Plain text / secret / token)"
+                />
+              </div>
+            </div>
+            <p class="text-4xs text-slate-400 leading-relaxed">
+              Otomatis mengambil dynamic secret via GET, mengenkode payload JSON ke JWT HS256, dan mengirim <code class="text-emerald-400">{"token": "&lt;jwt&gt;"}</code> ke URL Step 2.
+            </p>
           </div>
 
           <!-- 2-Step Auth Login (Step 1: POST auth_url -> Token) -->
@@ -1677,13 +1779,21 @@
 
           <div>
             <label class="block text-slate-500 mb-1">
-              {{ editingDest.auth_type === 'LOGIN_BEARER' ? 'Step 2 — Data Endpoint URL (data_url, Bearer Token otomatis)' : 'Endpoint (URL or host:port)' }}
+              {{ editingDest.auth_type === 'LOGIN_BEARER'
+                ? 'Step 2 — Data Endpoint URL (data_url, Bearer Token otomatis)'
+                : (editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'SPARING_JWT_STATIC'
+                  ? 'Step 2 — KLHK Send URL (KLHK_URL_2STEP — POST {"token": "<jwt_hs256>"})'
+                  : 'Endpoint (URL or host:port)') }}
             </label>
             <input
               v-model="editingDest.endpoint"
               type="text"
               class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
-              :placeholder="editingDest.auth_type === 'LOGIN_BEARER' ? 'https://ispu.kemenlh.go.id/api/v1/aqmdata' : 'https://sparing.menlhk.go.id/api/telemetry or 192.168.1.50:5000'"
+              :placeholder="editingDest.auth_type === 'LOGIN_BEARER'
+                ? 'https://ispu.kemenlh.go.id/api/v1/aqmdata'
+                : (editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'SPARING_JWT_STATIC'
+                  ? 'https://sparing.kemenlh.go.id/api/send'
+                  : 'https://sparing.kemenlh.go.id/api/send or 192.168.1.50:5000')"
             />
           </div>
 
@@ -1811,6 +1921,7 @@ export default {
         type: 'REST_API',
         endpoint: '',
         interval_seconds: 0,
+        dispatch_interval_seconds: 0,
         auth_type: 'NONE',
         auth_url: '',
         auth_token_path: '',
@@ -1834,7 +1945,9 @@ export default {
         module_id_value: '',
         timestamp_field: 'timestamp',
         timestamp_format: 'ISO8601',
+        timestamp_source: 'PERIOD_END',
         timestamp_timezone: '',
+        numeric_precision_mode: 'FIXED_2',
         interval_field: 'interval_minutes',
         omit_interval_field: false,
         structure: 'FLAT',
@@ -1864,6 +1977,10 @@ export default {
   computed: {
     activeParameterCount() {
       return (this.parameterMappings || []).filter(p => p.enabled).length;
+    },
+    isActiveDestSparing2Step() {
+      const dest = (this.destinations || []).find(d => d.id === this.selectedDestinationId);
+      return Boolean(dest && dest.auth_type === 'SPARING_JWT_2STEP');
     },
     filteredParameterMappings() {
       if (!this.paramSearch || !this.paramSearch.trim()) {
@@ -2209,12 +2326,20 @@ export default {
         const res = await axios.get(`/api/destinations/${this.selectedDestinationId}/payload-config`);
         if (res.data && res.data.success) {
           this.payloadConfig = {
+            timestamp_source: 'PERIOD_END',
             timestamp_timezone: '',
+            numeric_precision_mode: 'FIXED_2',
             omit_interval_field: false,
             include_sensor_stat_flags: false,
             sensor_stat_mode: 'STATIC_1',
             ...res.data.data,
           };
+          if (!this.payloadConfig.timestamp_source) {
+            this.payloadConfig.timestamp_source = 'PERIOD_END';
+          }
+          if (!this.payloadConfig.numeric_precision_mode) {
+            this.payloadConfig.numeric_precision_mode = 'FIXED_2';
+          }
           if (this.payloadConfig.parameter_mappings_json) {
             try {
               const parsed = JSON.parse(this.payloadConfig.parameter_mappings_json);
@@ -2233,6 +2358,24 @@ export default {
       }
     },
     getPresetAliasMap(templateType) {
+      if (templateType === 'KLHK_SPARING' || templateType === 'KLHK_SPARING_HOURLY') {
+        return {
+          'ph': 'pH',
+          'p_h': 'pH',
+          'cod': 'cod',
+          'tss': 'tss',
+          'nh3n': 'nh3n',
+          'nh3-n': 'nh3n',
+          'nh3_n': 'nh3n',
+          'ammonia': 'nh3n',
+          'amonia': 'nh3n',
+          'debit': 'debit',
+          'flow': 'debit',
+          'flowrate': 'debit',
+          'flow_rate': 'debit',
+          'flow-rate': 'debit',
+        };
+      }
       if (templateType === 'KLHK_ISPU_AQMS') {
         return {
           'pm10': 'pm10',
@@ -2487,6 +2630,7 @@ export default {
         type: 'REST_API',
         endpoint: '',
         interval_seconds: 0,
+        dispatch_interval_seconds: 0,
         auth_type: 'NONE',
         auth_url: '',
         auth_token_path: '',
@@ -2504,6 +2648,7 @@ export default {
     },
     openEditDestinationModal(dest) {
       this.editingDest = {
+        dispatch_interval_seconds: 0,
         auth_url: '',
         auth_token_path: '',
         auth_cache_seconds: 0,
@@ -2512,6 +2657,29 @@ export default {
         ...JSON.parse(JSON.stringify(dest)),
       };
       this.showDestModal = true;
+    },
+    onEditingAuthTypeChange() {
+      if (this.editingDest.auth_type === 'SPARING_JWT_2STEP') {
+        if (!this.editingDest.interval_seconds) {
+          this.editingDest.interval_seconds = 120;
+        }
+        if (!this.editingDest.id && !this.editingDest.dispatch_interval_seconds) {
+          this.editingDest.dispatch_interval_seconds = 3600;
+        }
+        if (!this.editingDest.auth_url) {
+          this.editingDest.auth_url = 'https://sparing.kemenlh.go.id/api/secret-sensor';
+        }
+        if (!this.editingDest.endpoint) {
+          this.editingDest.endpoint = 'https://sparing.kemenlh.go.id/api/send';
+        }
+      } else if (this.editingDest.auth_type === 'SPARING_JWT_STATIC') {
+        if (!this.editingDest.interval_seconds) {
+          this.editingDest.interval_seconds = 120;
+        }
+        if (!this.editingDest.endpoint) {
+          this.editingDest.endpoint = 'https://sparing.kemenlh.go.id/api/send';
+        }
+      }
     },
     async saveDestination() {
       try {
@@ -2653,19 +2821,33 @@ export default {
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
         this.payloadConfig.include_sensor_stat_flags = false;
-      } else if (p === 'KLHK_SPARING') {
-        this.payloadConfig.station_id_field = 'station_id';
-        this.payloadConfig.timestamp_field = 'timestamp';
-        this.payloadConfig.timestamp_format = 'ISO8601';
-        this.payloadConfig.interval_field = 'interval_minutes';
-        this.payloadConfig.omit_interval_field = false;
-        this.payloadConfig.structure = 'FLAT';
+      } else if (p === 'KLHK_SPARING_HOURLY' || p === 'KLHK_SPARING') {
+        this.payloadConfig.station_id_field = 'uid';
+        this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || '';
+        this.payloadConfig.timestamp_field = 'datetime';
+        this.payloadConfig.timestamp_format = 'UNIX_SEC';
+        this.payloadConfig.timestamp_source = 'PERIOD_START';
+        this.payloadConfig.timestamp_timezone = '';
+        this.payloadConfig.numeric_precision_mode = 'NATURAL_2';
+        this.payloadConfig.omit_interval_field = true;
+        this.payloadConfig.structure = p === 'KLHK_SPARING_HOURLY' ? 'SPARING_DATA_ARRAY' : 'FLAT';
+        this.payloadConfig.nested_data_key = 'data';
         this.payloadConfig.include_device_identity = false;
         this.payloadConfig.device_identity_mode = 'NONE';
-        this.payloadConfig.conflict_resolution = 'PREFIX';
+        this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
         this.payloadConfig.include_units = false;
         this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_metadata = false;
         this.payloadConfig.include_sensor_stat_flags = false;
+
+        const aliasMap = this.getPresetAliasMap(p);
+        for (const m of this.parameterMappings || []) {
+          const lower = (m.parameter_code || '').toLowerCase().trim();
+          if (aliasMap[lower]) {
+            m.external_name = aliasMap[lower];
+            m.enabled = true;
+          }
+        }
       } else if (p === 'NESTED_SCADA') {
         this.payloadConfig.station_id_field = 'stationCode';
         this.payloadConfig.timestamp_field = 'datetime';
@@ -2686,6 +2868,46 @@ export default {
         this.payloadConfig.include_sensor_stat_flags = false;
       }
       this.triggerLivePreview();
+    },
+    formatQueueIntervalBadge(item) {
+      if (!item) return '-';
+      const srcSec = Number(item.interval_seconds) || 0;
+      const srcMin = srcSec > 0 ? Math.max(1, Math.round(srcSec / 60)) : 0;
+      if (item.period_start && item.period_end && srcSec > 0) {
+        const startMs = new Date(item.period_start).getTime();
+        const endMs = new Date(item.period_end).getTime();
+        if (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) {
+          const spanSec = Math.round((endMs - startMs) / 1000);
+          if (spanSec > srcSec * 1.5) {
+            const bucketCount = Math.max(1, Math.round(spanSec / srcSec));
+            const spanMin = Math.max(1, Math.round(spanSec / 60));
+            return `${srcMin}m × ${bucketCount} (${spanMin}m)`;
+          }
+        }
+      }
+      return srcMin > 0 ? `${srcMin}m` : 'ALL';
+    },
+    formatDestinationSchedule(dest) {
+      if (!dest) return 'All Intervals';
+      const srcSec = Number(dest.interval_seconds) || 0;
+      const dispSec = Number(dest.dispatch_interval_seconds) || 0;
+      if (dispSec > 0) {
+        const effSrc = srcSec > 0 ? srcSec : 120;
+        const srcMin = Math.max(1, Math.round(effSrc / 60));
+        const dispMin = Math.max(1, Math.round(dispSec / 60));
+        const count = Math.max(1, Math.round(dispSec / effSrc));
+        return `${srcMin}m → Kirim tiap ${dispMin}m (${count} data)`;
+      }
+      if (srcSec > 0) {
+        return `${Math.max(1, Math.round(srcSec / 60))} min (Langsung)`;
+      }
+      return 'All Intervals';
+    },
+    formatAuthModeLabel(authType) {
+      if (authType === 'LOGIN_BEARER') return '2-STEP LOGIN → BEARER';
+      if (authType === 'SPARING_JWT_2STEP') return '2-STEP SECRET → JWT HS256';
+      if (authType === 'SPARING_JWT_STATIC') return 'STATIC SECRET → JWT HS256';
+      return authType || 'NONE';
     },
     formatDate(t) {
       if (!t) return '';
@@ -2721,6 +2943,7 @@ export default {
         return str;
       }
 
+      const preserveNaturalNumbers = /"uid"\s*:/.test(str);
       let out = '';
       let depth = 0;
       const len = str.length;
@@ -2778,7 +3001,7 @@ export default {
             numStr += str[i];
             i++;
           }
-          if (numStr.includes('.') || numStr.includes('e') || numStr.includes('E')) {
+          if (!preserveNaturalNumbers && (numStr.includes('.') || numStr.includes('e') || numStr.includes('E'))) {
             const parsedNum = Number(numStr);
             out += isNaN(parsedNum) ? numStr : parsedNum.toFixed(2);
           } else {

@@ -417,4 +417,167 @@ func TestPayloadFormatter_KLHKISPUAQMS(t *testing.T) {
 	}
 }
 
+func TestPayloadFormatter_KLHKSPARING_TwoMinuteAndHourly30Data(t *testing.T) {
+	formatter := NewConfigurablePayloadFormatter()
+
+	// 1. Single 2-minute flat SPARING record
+	ph0 := 6.93
+	cod0 := 40.99
+	tss0 := 27.95
+	nh3n0 := 0.0
+	debit0 := 0.24
+
+	pStart0 := time.Unix(1793588400, 0).UTC()
+	pEnd0 := time.Unix(1793588520, 0).UTC()
+
+	singleBatch := &OutboundBatchData{
+		DeviceID:        1,
+		DeviceCode:      "WQ-01",
+		DeviceCount:     1,
+		IntervalSeconds: 120,
+		PeriodStart:     pStart0,
+		PeriodEnd:       pEnd0,
+		Values: []model.SourceAggregationValueItem{
+			{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 1, ParameterCode: "debit", Value: &debit0, Quality: "GOOD", PeriodStart: pStart0, PeriodEnd: pEnd0},
+			{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 2, ParameterCode: "ph", Value: &ph0, Quality: "GOOD", PeriodStart: pStart0, PeriodEnd: pEnd0},
+			{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 3, ParameterCode: "cod", Value: &cod0, Quality: "GOOD", PeriodStart: pStart0, PeriodEnd: pEnd0},
+			{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 4, ParameterCode: "tss", Value: &tss0, Quality: "GOOD", PeriodStart: pStart0, PeriodEnd: pEnd0},
+			{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 5, ParameterCode: "nh3n", Value: &nh3n0, Quality: "GOOD", PeriodStart: pStart0, PeriodEnd: pEnd0},
+		},
+	}
+
+	flatCfg := &model.DestinationPayloadConfig{
+		TemplateType:         "KLHK_SPARING",
+		StationIDField:       "uid",
+		StationIDValue:       "79456d9c51128700b78b6fd0",
+		TimestampField:       "datetime",
+		TimestampFormat:      "UNIX_SEC",
+		TimestampSource:      "PERIOD_START",
+		NumericPrecisionMode: "NATURAL_2",
+		OmitIntervalField:    true,
+		Structure:            "FLAT",
+		ConflictResolution:   "PRIORITY_PRIMARY",
+		IncludeMetadata:      false,
+	}
+
+	rawFlat, err := formatter.Format(singleBatch, flatCfg)
+	if err != nil {
+		t.Fatalf("unexpected Format error for flat SPARING: %v", err)
+	}
+
+	expectedFlat := `{"uid":"79456d9c51128700b78b6fd0","datetime":1793588400,"pH":6.93,"cod":40.99,"tss":27.95,"nh3n":0,"debit":0.24}`
+	if string(rawFlat) != expectedFlat {
+		t.Errorf("flat SPARING JSON mismatch:\ngot:  %s\nwant: %s", string(rawFlat), expectedFlat)
+	}
+
+	// 2. Hourly bundled 30-record SPARING array (30 x 2-minute buckets: 1793588400 .. 1793591880)
+	var bundledValues []model.SourceAggregationValueItem
+	for i := 0; i < 30; i++ {
+		bStart := time.Unix(1793588400+int64(i*120), 0).UTC()
+		bEnd := bStart.Add(120 * time.Second)
+
+		ph := 6.93
+		cod := 40.99 + float64(i)*0.25
+		tss := 27.95
+		nh3n := 0.0
+		debit := 0.24
+
+		if i == 1 {
+			cod = 41.00 // should serialize as 41
+			tss = 27.94
+		} else if i == 3 {
+			cod = 41.10 // should serialize as 41.1
+			tss = 28.25
+		} else if i == 4 {
+			ph = 7.30 // should serialize as 7.3
+			cod = 41.08
+			tss = 28.32
+			debit = 0.25
+		} else if i == 29 {
+			ph = 7.00 // should serialize as 7
+			cod = 48.08
+			tss = 28.55
+			debit = 0.33
+		}
+
+		phCopy, codCopy, tssCopy, nh3nCopy, debitCopy := ph, cod, tss, nh3n, debit
+		bundledValues = append(bundledValues,
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 1, ParameterCode: "ph", Value: &phCopy, Quality: "GOOD", PeriodStart: bStart, PeriodEnd: bEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 2, ParameterCode: "cod", Value: &codCopy, Quality: "GOOD", PeriodStart: bStart, PeriodEnd: bEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 3, ParameterCode: "tss", Value: &tssCopy, Quality: "GOOD", PeriodStart: bStart, PeriodEnd: bEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 4, ParameterCode: "nh3n", Value: &nh3nCopy, Quality: "GOOD", PeriodStart: bStart, PeriodEnd: bEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "WQ-01", ParameterID: 5, ParameterCode: "flow", Value: &debitCopy, Quality: "GOOD", PeriodStart: bStart, PeriodEnd: bEnd},
+		)
+	}
+
+	hourlyBatch := &OutboundBatchData{
+		DeviceID:        1,
+		DeviceCode:      "WQ-01",
+		DeviceCount:     1,
+		IntervalSeconds: 120,
+		PeriodStart:     time.Unix(1793588400, 0).UTC(),
+		PeriodEnd:       time.Unix(1793592000, 0).UTC(),
+		Values:          bundledValues,
+	}
+
+	hourlyCfg := &model.DestinationPayloadConfig{
+		TemplateType:         "KLHK_SPARING_HOURLY",
+		StationIDField:       "uid",
+		StationIDValue:       "79456d9c51128700b78b6fd0",
+		TimestampField:       "datetime",
+		TimestampFormat:      "UNIX_SEC",
+		TimestampSource:      "PERIOD_START",
+		NumericPrecisionMode: "NATURAL_2",
+		OmitIntervalField:    true,
+		Structure:            "SPARING_DATA_ARRAY",
+		NestedDataKey:        "data",
+		ConflictResolution:   "PRIORITY_PRIMARY",
+		IncludeMetadata:      false,
+		RequiredFieldsJSON:   `["uid","datetime","pH","cod","tss","nh3n","debit"]`,
+	}
+
+	rawHourly, err := formatter.Format(hourlyBatch, hourlyCfg)
+	if err != nil {
+		t.Fatalf("unexpected Format error for hourly SPARING: %v", err)
+	}
+
+	rawHourlyStr := string(rawHourly)
+	if !strings.HasPrefix(rawHourlyStr, `{"uid":"79456d9c51128700b78b6fd0","data":[{"datetime":1793588400,"pH":6.93,"cod":40.99,"tss":27.95,"nh3n":0,"debit":0.24}`) {
+		t.Errorf("unexpected prefix in hourly SPARING JSON:\n%s", rawHourlyStr[:min(len(rawHourlyStr), 220)])
+	}
+	if !strings.Contains(rawHourlyStr, `{"datetime":1793588520,"pH":6.93,"cod":41,"tss":27.94,"nh3n":0,"debit":0.24}`) {
+		t.Errorf("expected natural integer cod:41 in bucket #2, got:\n%s", rawHourlyStr)
+	}
+	if !strings.Contains(rawHourlyStr, `{"datetime":1793588760,"pH":6.93,"cod":41.1,"tss":28.25,"nh3n":0,"debit":0.24}`) {
+		t.Errorf("expected natural 1-decimal cod:41.1 in bucket #4, got:\n%s", rawHourlyStr)
+	}
+	if !strings.Contains(rawHourlyStr, `{"datetime":1793591880,"pH":7,"cod":48.08,"tss":28.55,"nh3n":0,"debit":0.33}`) {
+		t.Errorf("expected 30th bucket 1793591880 with pH:7, got:\n%s", rawHourlyStr)
+	}
+
+	var parsedHourly map[string]interface{}
+	if err := json.Unmarshal(rawHourly, &parsedHourly); err != nil {
+		t.Fatalf("failed to unmarshal hourly SPARING JSON: %v", err)
+	}
+	if len(parsedHourly) != 2 {
+		t.Errorf("expected exactly 2 root keys (uid, data), got %d: %v", len(parsedHourly), parsedHourly)
+	}
+	dataArr, ok := parsedHourly["data"].([]interface{})
+	if !ok {
+		t.Fatalf("expected data array at root, got %T", parsedHourly["data"])
+	}
+	if len(dataArr) != 30 {
+		t.Fatalf("expected 30 items in data array, got %d", len(dataArr))
+	}
+
+	previewHourly, err := formatter.GeneratePreview(hourlyBatch, hourlyCfg)
+	if err != nil {
+		t.Fatalf("unexpected GeneratePreview error for hourly SPARING: %v", err)
+	}
+	if !strings.Contains(previewHourly, `"cod": 41,`) || !strings.Contains(previewHourly, `"cod": 41.1,`) || !strings.Contains(previewHourly, `"nh3n": 0,`) {
+		t.Errorf("expected natural numeric formatting in GeneratePreview, got:\n%s", previewHourly)
+	}
+}
+
+
 

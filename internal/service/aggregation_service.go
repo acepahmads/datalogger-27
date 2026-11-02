@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -517,6 +518,11 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 
 // ProcessPendingBucketsForDefinition calculates completed missing buckets in real-time
 func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration) (int, error) {
+	count, _, err := s.processPendingBucketsInternal(ctx, def, lookback, false)
+	return count, err
+}
+
+func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration, deferBucketCallback bool) (int, []time.Time, error) {
 	now := time.Now().UTC()
 	startWindow := now.Add(-lookback)
 
@@ -537,6 +543,7 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 
 	processedCount := 0
 	var lastProcessedEnd time.Time
+	var completedEnds []time.Time
 
 	for _, b := range buckets {
 		samples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, b.PeriodStart, b.PeriodEnd)
@@ -572,6 +579,7 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 			go s.onAggregationCompleted(context.Background(), event)
 		}
 		processedCount++
+		completedEnds = append(completedEnds, b.PeriodEnd)
 		if b.PeriodEnd.After(lastProcessedEnd) {
 			lastProcessedEnd = b.PeriodEnd
 		}
@@ -579,8 +587,14 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 
 	if !lastProcessedEnd.IsZero() {
 		_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, lastProcessedEnd)
-		if s.onBucketCompleted != nil {
-			go s.onBucketCompleted(context.Background(), def.DeviceID, lastProcessedEnd)
+		if !deferBucketCallback && s.onBucketCompleted != nil && len(completedEnds) > 0 {
+			devID := def.DeviceID
+			endsCopy := append([]time.Time(nil), completedEnds...)
+			go func() {
+				for _, pe := range endsCopy {
+					s.onBucketCompleted(context.Background(), devID, pe)
+				}
+			}()
 		}
 	}
 
@@ -605,7 +619,34 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 		}
 	}
 
-	return processedCount, nil
+	return processedCount, completedEnds, nil
+}
+
+func (s *AggregationService) fireDeferredBucketCallbacks(completedByDevice map[uint]map[int64]time.Time) {
+	if s.onBucketCompleted == nil || len(completedByDevice) == 0 {
+		return
+	}
+	type devBucket struct {
+		deviceID  uint
+		periodEnd time.Time
+	}
+	var events []devBucket
+	for devID, endMap := range completedByDevice {
+		for _, pe := range endMap {
+			events = append(events, devBucket{deviceID: devID, periodEnd: pe})
+		}
+	}
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].periodEnd.Equal(events[j].periodEnd) {
+			return events[i].deviceID < events[j].deviceID
+		}
+		return events[i].periodEnd.Before(events[j].periodEnd)
+	})
+	go func() {
+		for _, ev := range events {
+			s.onBucketCompleted(context.Background(), ev.deviceID, ev.periodEnd)
+		}
+	}()
 }
 
 // RunAllActiveDefinitions triggers a calculation cycle for all enabled definitions
@@ -616,18 +657,28 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 	}
 
 	totalBuckets := 0
+	completedByDevice := make(map[uint]map[int64]time.Time)
 	for _, def := range defs {
 		if !isDefinitionActiveTarget(&def) {
 			continue
 		}
 		// Lookback 2 hours by default during continuous polling
-		count, err := s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
+		count, ends, err := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour, true)
 		if err != nil {
 			logger.Warn("Error processing definition %s: %v", def.Name, err)
 		} else {
 			totalBuckets += count
+			if len(ends) > 0 {
+				if completedByDevice[def.DeviceID] == nil {
+					completedByDevice[def.DeviceID] = make(map[int64]time.Time)
+				}
+				for _, pe := range ends {
+					completedByDevice[def.DeviceID][pe.UnixNano()] = pe
+				}
+			}
 		}
 	}
+	s.fireDeferredBucketCallbacks(completedByDevice)
 	return totalBuckets, nil
 }
 
@@ -635,12 +686,22 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 func (s *AggregationService) GetResults(ctx context.Context, filter repository.AggregationResultFilter) ([]model.AggregationResult, int64, error) {
 	defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
 	if err == nil {
+		completedByDevice := make(map[uint]map[int64]time.Time)
 		for _, def := range defs {
 			if !isDefinitionActiveTarget(&def) {
 				continue
 			}
-			_, _ = s.ProcessPendingBucketsForDefinition(ctx, &def, 2*time.Hour)
+			_, ends, _ := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour, true)
+			if len(ends) > 0 {
+				if completedByDevice[def.DeviceID] == nil {
+					completedByDevice[def.DeviceID] = make(map[int64]time.Time)
+				}
+				for _, pe := range ends {
+					completedByDevice[def.DeviceID][pe.UnixNano()] = pe
+				}
+			}
 		}
+		s.fireDeferredBucketCallbacks(completedByDevice)
 	}
 	return s.repo.GetResultsByFilter(ctx, filter)
 }

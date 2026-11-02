@@ -28,8 +28,10 @@ type OutboundRepository interface {
 	// Aggregation Results Query for Outbound Batching
 	GetCustomerAggregationResults(ctx context.Context, deviceID uint, bucketEnd time.Time, intervalSeconds int) ([]model.AggregationResult, error)
 	GetCustomerAggregationResultsForWindow(ctx context.Context, bucketEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error)
+	GetCustomerAggregationResultsForRange(ctx context.Context, windowStart time.Time, windowEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error)
 	GetLatestAggregationResults(ctx context.Context, deviceID uint) ([]model.AggregationResult, error)
 	GetLatestAggregationResultsMultiDevice(ctx context.Context, deviceIDs []uint) ([]model.AggregationResult, error)
+	GetRecentAggregationResultsMultiDevice(ctx context.Context, intervalSeconds int, windowDuration time.Duration, deviceIDs []uint) ([]model.AggregationResult, error)
 
 	// Delivery Queue
 	EnqueueDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) error
@@ -153,7 +155,18 @@ func (r *outboundRepository) UpsertPayloadConfig(ctx context.Context, cfg *model
 	if cfg.Version <= 0 {
 		cfg.Version = 1
 	}
-	return r.db.WithContext(ctx).Create(cfg).Error
+	desiredIncludeMetadata := cfg.IncludeMetadata
+	if err := r.db.WithContext(ctx).Create(cfg).Error; err != nil {
+		return err
+	}
+	// Preserve explicit IncludeMetadata=false on initial INSERT (GORM skips zero-valued bools when column has default:true)
+	if !desiredIncludeMetadata && cfg.IncludeMetadata {
+		if err := r.db.WithContext(ctx).Model(cfg).Update("include_metadata", false).Error; err != nil {
+			return err
+		}
+		cfg.IncludeMetadata = false
+	}
+	return nil
 }
 
 // applyActiveDeviceParamScope restricts aggregation_results queries strictly to active, non-deleted devices and active, non-deleted parameters.
@@ -249,6 +262,67 @@ func (r *outboundRepository) GetLatestAggregationResultsMultiDevice(ctx context.
 	}
 
 	err = query.Order("aggregation_results.device_id ASC, aggregation_results.parameter_id ASC").Find(&results).Error
+	return results, err
+}
+
+// GetCustomerAggregationResultsForRange queries strictly persisted CUSTOMER_PROCESSED aggregation records across a multi-bucket time range [windowStart, windowEnd]
+// ordered chronologically by period_start ASC (e.g. 30 buckets of 2-minute SPARING data within 1 hour).
+func (r *outboundRepository) GetCustomerAggregationResultsForRange(ctx context.Context, windowStart time.Time, windowEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error) {
+	var results []model.AggregationResult
+	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+		Preload("Parameter").
+		Preload("Device").
+		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
+		Where("aggregation_results.period_start >= ? AND aggregation_results.period_end <= ?", windowStart, windowEnd)
+
+	if intervalSeconds > 0 {
+		query = query.Where("aggregation_results.interval_seconds = ?", intervalSeconds)
+	}
+	if len(deviceIDs) > 0 {
+		query = query.Where("aggregation_results.device_id IN (?)", deviceIDs)
+	}
+
+	err := query.Order("aggregation_results.period_start ASC, aggregation_results.device_id ASC, aggregation_results.parameter_id ASC").Find(&results).Error
+	return results, err
+}
+
+// GetRecentAggregationResultsMultiDevice fetches chronological multi-bucket customer aggregation values ending at the latest completed bucket
+// for live preview and test delivery of bundled schemas (e.g. KLHK SPARING 1-hour / 30x 2-minute data array).
+func (r *outboundRepository) GetRecentAggregationResultsMultiDevice(ctx context.Context, intervalSeconds int, windowDuration time.Duration, deviceIDs []uint) ([]model.AggregationResult, error) {
+	if windowDuration <= 0 {
+		windowDuration = time.Hour
+	}
+
+	buildBase := func() *gorm.DB {
+		q := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+			Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed)
+		if intervalSeconds > 0 {
+			q = q.Where("aggregation_results.interval_seconds = ?", intervalSeconds)
+		}
+		if len(deviceIDs) > 0 {
+			q = q.Where("aggregation_results.device_id IN (?)", deviceIDs)
+		}
+		return q
+	}
+
+	var latest model.AggregationResult
+	nowUTC := time.Now().UTC()
+	err := buildBase().Where("aggregation_results.period_end <= ?", nowUTC).Order("aggregation_results.period_end DESC").First(&latest).Error
+	if err != nil {
+		err = buildBase().Order("aggregation_results.period_end DESC").First(&latest).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	windowStart := latest.PeriodEnd.Add(-windowDuration)
+	var results []model.AggregationResult
+	err = buildBase().
+		Preload("Parameter").
+		Preload("Device").
+		Where("aggregation_results.period_start >= ? AND aggregation_results.period_end <= ?", windowStart, latest.PeriodEnd).
+		Order("aggregation_results.period_start ASC, aggregation_results.device_id ASC, aggregation_results.parameter_id ASC").
+		Find(&results).Error
 	return results, err
 }
 

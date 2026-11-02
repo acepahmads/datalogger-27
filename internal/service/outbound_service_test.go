@@ -2,6 +2,9 @@ package service_test
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -714,3 +717,273 @@ func TestOutboundService_AutoRebuildAndRequeueOnConfigAndCredentialFix(t *testin
 		t.Errorf("expected destination stats synced to Success=1 Failed=0 ACTIVE, got %+v", updatedDest)
 	}
 }
+
+func TestOutboundService_SparingTwoStepJWT_HourlyAndTwoMinute(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+
+	ctx := context.Background()
+
+	// Seed active SPARING water quality device & 5 parameters
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "WQ-01",
+		DeviceName: "SPARING Water Quality",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	sparingParams := []model.Parameter{
+		{ID: 1, DeviceID: 1, ParameterCode: "ph", ParameterName: "pH", Unit: "", Enabled: true},
+		{ID: 2, DeviceID: 1, ParameterCode: "cod", ParameterName: "COD", Unit: "mg/L", Enabled: true},
+		{ID: 3, DeviceID: 1, ParameterCode: "tss", ParameterName: "TSS", Unit: "mg/L", Enabled: true},
+		{ID: 4, DeviceID: 1, ParameterCode: "nh3n", ParameterName: "NH3-N", Unit: "mg/L", Enabled: true},
+		{ID: 5, DeviceID: 1, ParameterCode: "debit", ParameterName: "Debit", Unit: "m3/s", Enabled: true},
+	}
+	for _, p := range sparingParams {
+		pCopy := p
+		db.Create(&pCopy)
+	}
+
+	// Seed 30 x 2-minute CUSTOMER_PROCESSED buckets: [1793588400 .. 1793591880], ending at 1793592000 (1793592000 % 3600 == 0)
+	var aggID uint64 = 1000
+	for i := 0; i < 30; i++ {
+		pStart := time.Unix(1793588400+int64(i*120), 0).UTC()
+		pEnd := pStart.Add(120 * time.Second)
+		vals := []float64{6.93, 40.99, 27.95, 0.0, 0.24}
+		if i == 1 {
+			vals[1] = 41.00
+			vals[2] = 27.94
+		} else if i == 29 {
+			vals[0] = 7.00
+			vals[1] = 48.08
+			vals[2] = 28.55
+			vals[4] = 0.33
+		}
+		for pIdx, param := range sparingParams {
+			aggID++
+			v := vals[pIdx]
+			db.Create(&model.AggregationResult{
+				ID:                      aggID,
+				AggregationDefinitionID: uint(param.ID),
+				DeviceID:                1,
+				ParameterID:             param.ID,
+				SourceType:              model.SourceCustomerProcessed,
+				PeriodStart:             pStart,
+				PeriodEnd:               pEnd,
+				IntervalSeconds:         120,
+				Value:                   &v,
+				Quality:                 "GOOD",
+				Identifier:              fmt.Sprintf("%d_%d", param.ID, pEnd.Unix()),
+			})
+		}
+	}
+
+	var secretHits int32
+	var sendHits int32
+	var currentSecret atomic.Value
+	currentSecret.Store("sparing-secret-key-2026")
+	var lastDecodedPayload atomic.Value
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/secret-sensor":
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			atomic.AddInt32(&secretHits, 1)
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(currentSecret.Load().(string)))
+
+		case "/api/send-redirect":
+			// Simulate HTTP -> HTTPS 301 redirect on sparing.kemenlh.go.id
+			http.Redirect(w, r, "/api/send", http.StatusMovedPermanently)
+
+		case "/api/send":
+			atomic.AddInt32(&sendHits, 1)
+			if r.Method != http.MethodPost {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				_, _ = w.Write([]byte(`{"status":false,"desc":"Method must be POST"}`))
+				return
+			}
+			var reqBody map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil || reqBody["token"] == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"status":false,"desc":"Token kosong"}`))
+				return
+			}
+
+			parts := strings.Split(reqBody["token"], ".")
+			if len(parts) != 3 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"status":false,"desc":"Format JWT tidak valid"}`))
+				return
+			}
+
+			hdrBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			var hdr map[string]string
+			_ = json.Unmarshal(hdrBytes, &hdr)
+			if hdr["alg"] != "HS256" || hdr["typ"] != "JWT" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"status":false,"desc":"Header JWT wajib HS256"}`))
+				return
+			}
+
+			mac := hmac.New(sha256.New, []byte(currentSecret.Load().(string)))
+			_, _ = mac.Write([]byte(parts[0] + "." + parts[1]))
+			expectedSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+			if parts[2] != expectedSig {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"status":false,"desc":"Signature JWT tidak valid"}`))
+				return
+			}
+
+			payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			var decoded map[string]interface{}
+			if err := json.Unmarshal(payloadBytes, &decoded); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if decoded["uid"] != "79456d9c51128700b78b6fd0" {
+				_, _ = w.Write([]byte(`{"status":false,"desc":"UID tidak terdaftar pada sistem SPARING"}`))
+				return
+			}
+
+			lastDecodedPayload.Store(string(payloadBytes))
+			_, _ = w.Write([]byte(`{"status":true,"desc":null}`))
+		}
+	}))
+	defer ts.Close()
+
+	// 1. Create Hourly Bundled SPARING 2-Step destination (2m source -> 1h dispatch)
+	dest := &model.OutputDestination{
+		Name:                    "KLHK SPARING Hourly",
+		Type:                    model.DestREST,
+		Endpoint:                ts.URL + "/api/send-redirect",
+		IntervalSeconds:         120,
+		DispatchIntervalSeconds: 3600,
+		AuthType:                "SPARING_JWT_2STEP",
+		AuthURL:                 ts.URL + "/api/secret-sensor",
+		AuthCacheSeconds:        600,
+		Enabled:                 true,
+		RetryLimit:              5,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	cfg, err := svc.GetPayloadConfig(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("GetPayloadConfig failed: %v", err)
+	}
+	if cfg.TemplateType != "KLHK_SPARING_HOURLY" || cfg.Structure != "SPARING_DATA_ARRAY" {
+		t.Fatalf("expected auto-initialized KLHK_SPARING_HOURLY / SPARING_DATA_ARRAY, got template=%s structure=%s",
+			cfg.TemplateType, cfg.Structure)
+	}
+
+	// 2. Test rejection detection when UID is wrong ("status": false, "desc": "...")
+	cfg.StationIDValue = "WRONG_UID"
+	resReject, err := svc.TestPayloadWithConfig(ctx, dest.ID, cfg)
+	if err != nil {
+		t.Fatalf("TestPayloadWithConfig error: %v", err)
+	}
+	if !resReject.IsTwoStep || !resReject.AuthSuccess || resReject.Success {
+		t.Fatalf("expected Step 1 OK and Step 2 rejected on wrong UID, got %+v", resReject)
+	}
+	if !strings.Contains(resReject.ErrorMessage, "UID tidak terdaftar") {
+		t.Errorf("expected SPARING desc error message, got %q", resReject.ErrorMessage)
+	}
+
+	// Set valid UID and save config
+	cfg.StationIDValue = "79456d9c51128700b78b6fd0"
+	if err := svc.UpdatePayloadConfig(ctx, cfg); err != nil {
+		t.Fatalf("UpdatePayloadConfig failed: %v", err)
+	}
+
+	// 3. Non-hourly 2-minute bucket completion (:02:00) MUST NOT enqueue anything yet
+	if err := svc.HandleBucketCompleted(ctx, 1, time.Unix(1793588520, 0).UTC()); err != nil {
+		t.Fatalf("HandleBucketCompleted non-hourly failed: %v", err)
+	}
+	qEarly, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(qEarly) != 0 {
+		t.Fatalf("expected 0 queue items at non-hourly 2m mark, got %d", len(qEarly))
+	}
+
+	// 4. Hourly boundary completion (1793592000 % 3600 == 0) MUST bundle all 30 2-minute buckets into 1 queue item!
+	if err := svc.HandleBucketCompleted(ctx, 1, time.Unix(1793592000, 0).UTC()); err != nil {
+		t.Fatalf("HandleBucketCompleted hourly failed: %v", err)
+	}
+	qHourly, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(qHourly) != 1 {
+		t.Fatalf("expected 1 bundled hourly queue item, got %d", len(qHourly))
+	}
+	if qHourly[0].ParameterCount != 150 {
+		t.Errorf("expected ParameterCount=150 (30 buckets x 5 params), got %d", qHourly[0].ParameterCount)
+	}
+
+	// Dispatch hourly bundled item via worker (through 301 redirect!)
+	svc.ProcessPendingQueueOnce()
+
+	qAfterHourly, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if qAfterHourly[0].Status != model.DeliveryAcknowledged {
+		t.Fatalf("expected ACKNOWLEDGED for hourly SPARING JWT delivery, got status=%s err=%s",
+			qAfterHourly[0].Status, qAfterHourly[0].LastError)
+	}
+
+	decodedHourlyStr, _ := lastDecodedPayload.Load().(string)
+	if !strings.HasPrefix(decodedHourlyStr, `{"uid":"79456d9c51128700b78b6fd0","data":[{"datetime":1793588400,"pH":6.93,"cod":40.99,"tss":27.95,"nh3n":0,"debit":0.24}`) {
+		t.Errorf("unexpected decoded JWT payload prefix: %s", decodedHourlyStr)
+	}
+
+	// 5. Switch destination schedule to Immediate Per 2 Minutes (DispatchIntervalSeconds = 0) + rotate upstream secret
+	currentSecret.Store("sparing-secret-rotated-v2")
+	dest.DispatchIntervalSeconds = 0
+	if err := svc.UpdateDestination(ctx, dest); err != nil {
+		t.Fatalf("UpdateDestination to 2m immediate failed: %v", err)
+	}
+
+	cfgAfterSwitch, _ := svc.GetPayloadConfig(ctx, dest.ID)
+	if cfgAfterSwitch.Structure != "FLAT" || cfgAfterSwitch.TemplateType != "KLHK_SPARING" {
+		t.Fatalf("expected payload structure to auto-switch to FLAT / KLHK_SPARING, got structure=%s template=%s",
+			cfgAfterSwitch.Structure, cfgAfterSwitch.TemplateType)
+	}
+
+	// Now 2-minute bucket completion (:02:00) immediately enqueues a single flat SPARING record!
+	if err := svc.HandleBucketCompleted(ctx, 1, time.Unix(1793588520, 0).UTC()); err != nil {
+		t.Fatalf("HandleBucketCompleted 2m immediate failed: %v", err)
+	}
+	svc.ProcessPendingQueueOnce()
+
+	qAll, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(qAll) != 2 {
+		t.Fatalf("expected 2 total queue items (1 hourly + 1 immediate 2m), got %d", len(qAll))
+	}
+	for _, item := range qAll {
+		if item.Status != model.DeliveryAcknowledged {
+			t.Errorf("expected queue item #%d to be ACKNOWLEDGED, got status=%s err=%s", item.ID, item.Status, item.LastError)
+		}
+	}
+
+	decodedFlatStr, _ := lastDecodedPayload.Load().(string)
+	expectedFlatDecoded := `{"uid":"79456d9c51128700b78b6fd0","datetime":1793588400,"pH":6.93,"cod":40.99,"tss":27.95,"nh3n":0,"debit":0.24}`
+	if decodedFlatStr != expectedFlatDecoded {
+		t.Errorf("decoded 2m flat JWT payload mismatch:\ngot:  %s\nwant: %s", decodedFlatStr, expectedFlatDecoded)
+	}
+}
+
