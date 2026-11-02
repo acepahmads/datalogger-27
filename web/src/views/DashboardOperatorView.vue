@@ -2350,7 +2350,7 @@
       />
 
       <!-- Parameter Workspace: Compact Icon Filter + Icon Card/Table Setup + Dense Cards / Dual Table -->
-      <div class="right-params-wrap">
+      <div ref="bentoParamsWrap" class="right-params-wrap">
         <div
           class="param-ctrl-bar"
           :class="{ 'has-open-popover': bentoActiveMiniPopover === 'paramFilter' || bentoActiveMiniPopover === 'cardSetup' }"
@@ -2891,7 +2891,8 @@
             class="bento-dual-table-grid"
             :class="{
               'is-dual-cols': bentoEffectiveTableGridCols === 2,
-              'is-tri-cols': bentoEffectiveTableGridCols === 3
+              'is-tri-cols': bentoEffectiveTableGridCols === 3,
+              'is-dense-tbl': isBentoDenseTableCard
             }"
           >
             <div
@@ -2919,8 +2920,11 @@
                 </div>
               </div>
 
-              <div class="bento-tbl-wrap">
-                <table class="bento-tbl">
+              <div class="bento-tbl-wrap custom-scroller">
+                <table
+                  class="bento-tbl"
+                  :class="{ 'has-spark-col': showBentoTableSparklineCol }"
+                >
                   <colgroup>
                     <col class="bt-col-param" />
                     <col class="bt-col-val" />
@@ -6226,6 +6230,7 @@ export default {
     } catch (e) {}
     return {
       bentoViewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1600,
+      bentoParamsWrapWidth: 0,
       bentoAutoGrid: autoGrid,
       bentoTableSplitMode: splitMode,
       bentoActiveMiniPopover: null,
@@ -6299,6 +6304,9 @@ export default {
       return this.bentoTableSplitMode || '2T';
     },
     bentoAvailableParamsWidth() {
+      if (this.bentoParamsWrapWidth && this.bentoParamsWrapWidth > 100) {
+        return this.bentoParamsWrapWidth;
+      }
       const vw = this.bentoViewportWidth || 1600;
       const hasLeftIspu = Boolean(this.isAQMSDomain && this.isIspuBarVisible && !this.isCompactScreen);
       return Math.max(320, vw - (hasLeftIspu ? 284 : 28));
@@ -6493,22 +6501,31 @@ export default {
     bentoEffectiveTableGridCols() {
       const count = (this.bentoSplitTableColumns && this.bentoSplitTableColumns.length) || 1;
       const availW = this.bentoAvailableParamsWidth || 1200;
-      if (count <= 1 || availW < 620) return 1;
+      // Require >= 796px container width for 2 side-by-side tables (~394px+ per table)
+      if (count <= 1 || availW < 796) return 1;
       if (this.bentoTableSplitMode === '2T' || count === 2) return 2;
+      // Require >= 1216px container width for 3 side-by-side category tables (~400px+ per table)
       if (this.bentoTableSplitMode === 'CAT' && count >= 3) {
-        if (availW >= 920) return 3;
+        if (availW >= 1216) return 3;
         return 2;
       }
       return Math.min(2, count);
     },
+    bentoPerTableCardWidth() {
+      const cols = this.bentoEffectiveTableGridCols || 1;
+      const availW = this.bentoAvailableParamsWidth || 1200;
+      const gapTotal = (cols - 1) * 8;
+      return Math.floor((availW - gapTotal) / cols);
+    },
+    isBentoDenseTableCard() {
+      return this.bentoEffectiveTableGridCols >= 3 || this.bentoPerTableCardWidth < 500;
+    },
     showBentoTableSparklineCol() {
-      if (this.bentoEffectiveTableGridCols <= 2) return true;
-      return this.bentoAvailableParamsWidth >= 1220;
+      return this.bentoPerTableCardWidth >= 445;
     },
     showBentoTableUpdateCol() {
-      if (this.bentoEffectiveTableGridCols === 1) return true;
-      if (this.bentoEffectiveTableGridCols === 2) return this.bentoAvailableParamsWidth >= 1200;
-      return false;
+      if (this.bentoEffectiveTableGridCols >= 3) return false;
+      return this.bentoPerTableCardWidth >= 560;
     },
     bentoRawParamMap() {
       const map = {};
@@ -6644,17 +6661,38 @@ export default {
       this.bentoViewportWidth = window.innerWidth;
       window.addEventListener('resize', this.onBentoViewportResize, { passive: true });
     }
+    this.measureBentoParamsWrap();
+    this.$nextTick(() => {
+      this.measureBentoParamsWrap();
+      if (typeof ResizeObserver !== 'undefined' && this.$refs && this.$refs.bentoParamsWrap) {
+        this._bentoParamsRO = new ResizeObserver(() => {
+          this.measureBentoParamsWrap();
+        });
+        this._bentoParamsRO.observe(this.$refs.bentoParamsWrap);
+      }
+    });
   },
   beforeDestroy() {
     this.stopBentoTrendResize();
+    if (this._bentoParamsRO) {
+      this._bentoParamsRO.disconnect();
+      this._bentoParamsRO = null;
+    }
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.onBentoViewportResize);
     }
   },
   methods: {
+    measureBentoParamsWrap() {
+      const el = this.$refs && this.$refs.bentoParamsWrap;
+      if (el && el.clientWidth > 0) {
+        this.bentoParamsWrapWidth = el.clientWidth;
+      }
+    },
     onBentoViewportResize() {
       if (typeof window === 'undefined') return;
       this.bentoViewportWidth = window.innerWidth;
+      this.measureBentoParamsWrap();
     },
     onDocumentClick(e) {
       if (this.bentoActiveMiniPopover && e && e.target && !e.target.closest('.bento-mini-popover-anchor')) {
@@ -8491,12 +8529,12 @@ export default {
 /* 2B. SIDE-BY-SIDE 2-TABLE & 1-TABLE BENTO VIEW                             */
 /* ========================================================================= */
 .bento-table-area {
-  max-height: 332px;
+  max-height: 360px;
   overflow-y: auto;
   padding-right: 2px;
 }
 .bento-table-area.is-compact-scroll {
-  max-height: 274px;
+  max-height: 325px;
 }
 
 .bento-dual-table-grid {
@@ -8539,7 +8577,8 @@ export default {
 .bento-tbl-subhead.is-cat-subhead {
   color: var(--b-text-main);
 }
-.is-tri-cols .bento-tbl-subhead {
+.is-tri-cols .bento-tbl-subhead,
+.is-dense-tbl .bento-tbl-subhead {
   height: 29px;
   padding: 0 9px;
   font-size: 9.2px;
@@ -8580,9 +8619,13 @@ export default {
 
 .bento-tbl {
   width: 100%;
+  min-width: 376px;
   table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
+}
+.bento-tbl.has-spark-col {
+  min-width: 422px;
 }
 
 /* Deterministic Column Widths Across All Side-by-Side Tables */
@@ -8608,19 +8651,24 @@ export default {
   width: 50px;
 }
 
-.is-tri-cols .bento-tbl col.bt-col-val {
-  width: 106px;
+.is-tri-cols .bento-tbl col.bt-col-val,
+.is-dense-tbl .bento-tbl col.bt-col-val {
+  width: 102px;
 }
-.is-tri-cols .bento-tbl col.bt-col-spark {
+.is-tri-cols .bento-tbl col.bt-col-spark,
+.is-dense-tbl .bento-tbl col.bt-col-spark {
   width: 46px;
 }
-.is-tri-cols .bento-tbl col.bt-col-status {
-  width: 62px;
+.is-tri-cols .bento-tbl col.bt-col-status,
+.is-dense-tbl .bento-tbl col.bt-col-status {
+  width: 60px;
 }
-.is-tri-cols .bento-tbl col.bt-col-limit {
-  width: 78px;
+.is-tri-cols .bento-tbl col.bt-col-limit,
+.is-dense-tbl .bento-tbl col.bt-col-limit {
+  width: 74px;
 }
-.is-tri-cols .bento-tbl col.bt-col-act {
+.is-tri-cols .bento-tbl col.bt-col-act,
+.is-dense-tbl .bento-tbl col.bt-col-act {
   width: 42px;
 }
 
@@ -8636,10 +8684,13 @@ export default {
   color: var(--b-text-muted);
   border-bottom: 1px solid var(--b-border-soft);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   vertical-align: middle;
   box-sizing: border-box;
 }
-.is-tri-cols .bento-tbl thead th {
+.is-tri-cols .bento-tbl thead th,
+.is-dense-tbl .bento-tbl thead th {
   padding: 0 5px;
   font-size: 8.6px;
 }
@@ -8647,7 +8698,8 @@ export default {
   text-align: left;
   padding-left: 10px;
 }
-.is-tri-cols .bento-tbl thead th.bt-th-param {
+.is-tri-cols .bento-tbl thead th.bt-th-param,
+.is-dense-tbl .bento-tbl thead th.bt-th-param {
   padding-left: 8px;
 }
 .bento-tbl thead th.bt-th-val {
@@ -8655,9 +8707,10 @@ export default {
   padding-left: 4px;
   padding-right: 48px;
 }
-.is-tri-cols .bento-tbl thead th.bt-th-val {
+.is-tri-cols .bento-tbl thead th.bt-th-val,
+.is-dense-tbl .bento-tbl thead th.bt-th-val {
   padding-left: 3px;
-  padding-right: 40px;
+  padding-right: 38px;
 }
 .bento-tbl thead th.bt-th-center {
   text-align: center;
@@ -8669,7 +8722,8 @@ export default {
   height: 33px;
 }
 .is-compact-vp .bento-tbl tbody tr,
-.is-tri-cols .bento-tbl tbody tr {
+.is-tri-cols .bento-tbl tbody tr,
+.is-dense-tbl .bento-tbl tbody tr {
   height: 31px;
 }
 
@@ -8693,14 +8747,16 @@ export default {
   padding-left: 10px;
   padding-right: 6px;
 }
-.is-tri-cols .bento-tbl tbody td.bt-td-param {
+.is-tri-cols .bento-tbl tbody td.bt-td-param,
+.is-dense-tbl .bento-tbl tbody td.bt-td-param {
   padding-left: 8px;
   padding-right: 5px;
 }
 .bento-tbl tbody td.bt-td-val {
   padding: 0 8px;
 }
-.is-tri-cols .bento-tbl tbody td.bt-td-val {
+.is-tri-cols .bento-tbl tbody td.bt-td-val,
+.is-dense-tbl .bento-tbl tbody td.bt-td-val {
   padding: 0 5px;
 }
 .bento-tbl tbody td.bt-td-center {
@@ -8739,7 +8795,8 @@ export default {
   width: 100%;
   min-width: 0;
 }
-.is-tri-cols .bt-param-cell {
+.is-tri-cols .bt-param-cell,
+.is-dense-tbl .bt-param-cell {
   gap: 5px;
 }
 .bt-param-cell .s-dot {
@@ -8749,14 +8806,15 @@ export default {
 }
 .bt-name {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 44px;
   font-weight: 700;
   color: var(--b-text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.is-tri-cols .bt-name {
+.is-tri-cols .bt-name,
+.is-dense-tbl .bt-name {
   font-size: 10.5px;
 }
 
@@ -8768,8 +8826,9 @@ export default {
   align-items: baseline;
   width: 100%;
 }
-.is-tri-cols .bt-reading-grid {
-  grid-template-columns: minmax(0, 1fr) 32px;
+.is-tri-cols .bt-reading-grid,
+.is-dense-tbl .bt-reading-grid {
+  grid-template-columns: minmax(0, 1fr) 30px;
   column-gap: 3px;
 }
 .bt-val {
@@ -8783,8 +8842,9 @@ export default {
   text-overflow: ellipsis;
 }
 .is-compact-vp .bt-val,
-.is-tri-cols .bt-val {
-  font-size: 11.1px;
+.is-tri-cols .bt-val,
+.is-dense-tbl .bt-val {
+  font-size: 11px;
 }
 .bt-unit-slot {
   text-align: left;
@@ -8795,8 +8855,9 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.is-tri-cols .bt-unit-slot {
-  font-size: 8.6px;
+.is-tri-cols .bt-unit-slot,
+.is-dense-tbl .bt-unit-slot {
+  font-size: 8.5px;
 }
 
 .bt-reading-discrete {
@@ -8807,8 +8868,9 @@ export default {
   width: 100%;
   box-sizing: border-box;
 }
-.is-tri-cols .bt-reading-discrete {
-  padding-right: 35px;
+.is-tri-cols .bt-reading-discrete,
+.is-dense-tbl .bt-reading-discrete {
+  padding-right: 33px;
 }
 .bt-discrete-pill {
   height: 19px;
@@ -8840,7 +8902,8 @@ export default {
   width: 38px;
   height: 13px;
 }
-.is-tri-cols .bt-spark-box {
+.is-tri-cols .bt-spark-box,
+.is-dense-tbl .bt-spark-box {
   width: 34px;
   height: 13px;
 }
@@ -8858,10 +8921,12 @@ export default {
   white-space: nowrap;
   box-sizing: border-box;
 }
-.is-tri-cols .bt-status-pill {
-  width: 54px;
+.is-tri-cols .bt-status-pill,
+.is-dense-tbl .bt-status-pill {
+  width: 52px;
   height: 18.5px;
-  font-size: 8.8px;
+  padding: 0 2px;
+  font-size: 8.6px;
 }
 
 .bt-limit-btn {
@@ -8885,10 +8950,12 @@ export default {
   box-sizing: border-box;
   transition: border-color 0.15s ease, color 0.15s ease;
 }
-.is-tri-cols .bt-limit-btn {
-  width: 70px;
+.is-tri-cols .bt-limit-btn,
+.is-dense-tbl .bt-limit-btn {
+  width: 66px;
   height: 18.5px;
-  font-size: 8.6px;
+  padding: 0 3px;
+  font-size: 8.4px;
 }
 .bt-limit-btn.is-custom-limit {
   color: var(--b-accent-blue);
@@ -8922,12 +8989,17 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 70px;
-  height: 18.5px;
+  width: 76px;
+  height: 19px;
   font-size: 10px;
   font-weight: 600;
   color: var(--b-text-muted);
   opacity: 0.45;
+}
+.is-tri-cols .bt-limit-dash,
+.is-dense-tbl .bt-limit-dash {
+  width: 66px;
+  height: 18.5px;
 }
 
 .bt-fresh {
@@ -8942,10 +9014,12 @@ export default {
   justify-content: center;
   gap: 2px;
 }
-.is-tri-cols .bt-act-group {
+.is-tri-cols .bt-act-group,
+.is-dense-tbl .bt-act-group {
   gap: 1px;
 }
-.is-tri-cols .bt-act-btn {
+.is-tri-cols .bt-act-btn,
+.is-dense-tbl .bt-act-btn {
   width: 17px;
   height: 18px;
 }

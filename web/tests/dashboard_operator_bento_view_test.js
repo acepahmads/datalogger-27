@@ -213,6 +213,17 @@ check('12.2: Parameter tables enforce strict column alignment (table-layout: fix
   assert(viewContent.includes('class="bt-limit-bar"'), 'Limit pills must embed subtle progress fill bar without shifting column positions');
 });
 
+check('12.3: Parameter tables remain clean and readable on small/narrow screens without header overlap or collapsed parameter names', () => {
+  assert(viewContent.includes('ref="bentoParamsWrap"') && viewContent.includes('measureBentoParamsWrap()'), 'Must measure actual .right-params-wrap container width');
+  assert(viewContent.includes('new ResizeObserver'), 'Must observe container resize via ResizeObserver for sidebar/split-window changes');
+  assert(viewContent.includes('availW < 796') && viewContent.includes('availW >= 1216'), 'Must step down table grid columns cleanly (3 -> 2 -> 1) before Parameter column gets squeezed');
+  assert(viewContent.includes("'is-dense-tbl': isBentoDenseTableCard"), 'Must apply .is-dense-tbl compact column sizing when per-table card width < 500px');
+  assert(viewContent.includes('min-width: 376px;') && viewContent.includes('min-width: 422px;'), 'Must enforce minimum table width so narrow mobile screens scroll cleanly instead of crushing Parameter column');
+  assert(viewContent.includes('min-width: 44px;'), 'Parameter name (.bt-name) must retain minimum width so rows never collapse to colored dots only');
+  const theadBlock = viewContent.slice(viewContent.indexOf('.bento-tbl thead th {'), viewContent.indexOf('.bento-tbl thead th {') + 380);
+  assert(theadBlock.includes('overflow: hidden;') && theadBlock.includes('text-overflow: ellipsis;'), 'Table headers must clip overflow cleanly so PARAMETER and NILAI can never overlap');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');
