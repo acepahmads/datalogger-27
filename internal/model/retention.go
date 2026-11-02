@@ -66,8 +66,9 @@ type RetentionPolicy struct {
 type RetentionExecutionType string
 
 const (
-	ExecutionDryRun  RetentionExecutionType = "DRY_RUN"
-	ExecutionExecute RetentionExecutionType = "EXECUTE"
+	ExecutionDryRun   RetentionExecutionType = "DRY_RUN"
+	ExecutionExecute  RetentionExecutionType = "EXECUTE"
+	ExecutionPurgeAll RetentionExecutionType = "PURGE_ALL"
 )
 
 // RetentionExecutionStatus tracks the state of an individual retention job run

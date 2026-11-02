@@ -411,6 +411,116 @@ func (s *RetentionService) ExecutePolicy(ctx context.Context, policyID string, i
 	return execLog, nil
 }
 
+// PurgeAllRawTelemetry permanently deletes 100% of records in raw_data (SUPERADMIN explicit action).
+// Device, parameter, category, alarm, and user configurations are strictly preserved.
+func (s *RetentionService) PurgeAllRawTelemetry(ctx context.Context, initiatedBy string) (*model.RetentionExecutionLog, error) {
+	if strings.TrimSpace(initiatedBy) == "" {
+		initiatedBy = "superadmin"
+	}
+
+	s.opMu.Lock()
+	if s.isRunning {
+		s.opMu.Unlock()
+		return nil, ErrRetentionOpRunning
+	}
+	s.isRunning = true
+	s.activeID = "purge_all_raw_telemetry"
+	s.opMu.Unlock()
+
+	defer func() {
+		s.opMu.Lock()
+		s.isRunning = false
+		s.activeID = ""
+		s.opMu.Unlock()
+	}()
+
+	startTime := time.Now()
+	cutoff := startTime.UTC()
+
+	var candidateCount int64
+	_ = s.db.WithContext(ctx).Model(&model.RawData{}).Count(&candidateCount)
+
+	policyID := "policy_raw_telemetry"
+	if policies, pErr := s.GetAllPolicies(); pErr == nil {
+		for _, p := range policies {
+			if p.Category == model.CategoryRawTelemetry {
+				policyID = p.ID
+				break
+			}
+		}
+	}
+
+	execLog := &model.RetentionExecutionLog{
+		PolicyID:               policyID,
+		Category:               model.CategoryRawTelemetry,
+		ExecutionType:          model.ExecutionPurgeAll,
+		TriggerType:            "SUPERADMIN_PURGE",
+		Status:                 model.RetentionStatusRunning,
+		CutoffTimestamp:        cutoff,
+		CandidateCount:         candidateCount,
+		BytesRecoveredEstimate: candidateCount * 180,
+		BackupSafetyVerified:   true,
+		BackupEvidence:         "Superadmin explicit full raw telemetry purge",
+		RollupSafetyVerified:   true,
+		RollupEvidence:         "Superadmin explicit override",
+		InitiatedBy:            initiatedBy,
+		CreatedAt:              cutoff,
+	}
+	if s.retentionRepo != nil {
+		_ = s.retentionRepo.CreateExecutionLog(execLog)
+	}
+
+	cfg := s.cfg
+	if cfg == nil {
+		cfg = config.Get()
+	}
+
+	var deletedCount int64
+	var delErr error
+
+	if cfg != nil && (strings.EqualFold(cfg.DBType, "mariadb") || strings.EqualFold(cfg.DBType, "mysql")) {
+		if err := s.db.WithContext(ctx).Exec("TRUNCATE TABLE raw_data").Error; err == nil {
+			deletedCount = candidateCount
+		} else {
+			// Fallback to bounded deletion if TRUNCATE privilege or FK lock prevents DDL truncate
+			deletedCount, delErr = s.performBoundedDeletion(ctx, model.CategoryRawTelemetry, cutoff.Add(24*time.Hour), 2000, 0)
+		}
+	} else {
+		res := s.db.WithContext(ctx).Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.RawData{})
+		deletedCount = res.RowsAffected
+		delErr = res.Error
+		if delErr == nil {
+			_ = s.db.WithContext(ctx).Exec("DELETE FROM sqlite_sequence WHERE name = 'raw_data'")
+		}
+	}
+
+	execLog.DurationMs = time.Since(startTime).Milliseconds()
+	execLog.DeletedCount = deletedCount
+
+	if delErr != nil {
+		execLog.Status = model.RetentionStatusFailed
+		execLog.ErrorMessage = delErr.Error()
+		if s.retentionRepo != nil {
+			_ = s.retentionRepo.UpdateExecutionLog(execLog)
+			_ = s.retentionRepo.UpdateExecutionResult(policyID, "FAILED", deletedCount, execLog.DurationMs)
+		}
+		s.logAudit("RAW_TELEMETRY_PURGE_FAILED", "raw_data", initiatedBy, fmt.Sprintf("Superadmin raw telemetry purge failed: %v", delErr))
+		return execLog, delErr
+	}
+
+	execLog.Status = model.RetentionStatusCompleted
+	if s.retentionRepo != nil {
+		_ = s.retentionRepo.UpdateExecutionLog(execLog)
+		_ = s.retentionRepo.UpdateExecutionResult(policyID, "SUCCESS", deletedCount, execLog.DurationMs)
+	}
+
+	s.logAudit("RAW_TELEMETRY_PURGED", "raw_data", initiatedBy,
+		fmt.Sprintf("Superadmin purged all %d raw telemetry records from raw_data in %dms", deletedCount, execLog.DurationMs))
+
+	logger.Info("Superadmin %s purged all raw telemetry (%d records) in %dms", initiatedBy, deletedCount, execLog.DurationMs)
+	return execLog, nil
+}
+
 // ----------------- Candidate Evaluation & Bounded Deletion -----------------
 
 func (s *RetentionService) evaluateCandidateRecords(ctx context.Context, category model.RetentionCategory, cutoff time.Time) (int64, int64, int64, error) {

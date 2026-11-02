@@ -79,6 +79,8 @@ func setupTestRetentionRouter(t *testing.T) (*gin.Engine, *gorm.DB, string, stri
 			retentionGroup.POST("/policies/:id/dry-run", middleware.RequirePermission("retention.view"), retentionHandler.DryRun)
 			retentionGroup.POST("/policies/:id/execute", middleware.RequirePermission("retention.execute"), retentionHandler.ExecutePolicy)
 			retentionGroup.POST("/housekeeping/trigger", middleware.RequirePermission("retention.execute"), retentionHandler.TriggerHousekeeping)
+			retentionGroup.POST("/raw-telemetry/purge", middleware.RequireRole("SUPERADMIN"), retentionHandler.PurgeAllRawTelemetry)
+			retentionGroup.DELETE("/raw-telemetry", middleware.RequireRole("SUPERADMIN"), retentionHandler.PurgeAllRawTelemetry)
 			retentionGroup.GET("/storage", middleware.RequirePermission("retention.view"), retentionHandler.GetStorageOverview)
 			retentionGroup.GET("/history", middleware.RequirePermission("retention.view"), retentionHandler.GetHistory)
 		}
@@ -281,4 +283,139 @@ func TestRetentionHandlerEndpoints(t *testing.T) {
 		t.Errorf("expected audit trails logged for policy operations, got %d", auditCount)
 	}
 	_ = svc
+}
+
+func TestSuperadminPurgeAllRawTelemetry(t *testing.T) {
+	r, db, superadminToken, engineerToken, operatorToken, _, cleanup := setupTestRetentionRouter(t)
+	defer cleanup()
+
+	// Create a regular ADMIN (non-SUPERADMIN) user to verify strict SUPERADMIN-only access
+	var regularAdminRole model.Role
+	if err := db.Where("name = ?", "ADMIN").First(&regularAdminRole).Error; err != nil || regularAdminRole.ID == 0 {
+		regularAdminRole = model.Role{Name: "ADMIN", Description: "Operational Admin"}
+		db.Create(&regularAdminRole)
+	}
+	regAdminHash, _ := bcrypt.GenerateFromPassword([]byte("regadmin123"), bcrypt.DefaultCost)
+	db.Create(&model.User{
+		Username: "regular_admin_test",
+		Email:    "regadmin@test.local",
+		Password: string(regAdminHash),
+		FullName: "Regular Admin",
+		RoleID:   regularAdminRole.ID,
+		IsActive: true,
+	})
+	systemRepo := repository.NewSystemRepository(db)
+	authSvc := service.NewAuthService(systemRepo, config.DefaultConfig())
+	regAdminToken, _, errRA := authSvc.Login("regular_admin_test", "regadmin123", "127.0.0.1", "TestClient")
+	if errRA != nil {
+		t.Fatalf("failed login as regular admin: %v", errRA)
+	}
+
+	// Seed fresh live raw_data rows (including 1 second ago — younger than normal 1-day retention!)
+	now := time.Now().UTC()
+	for i := 0; i < 15; i++ {
+		db.Create(&model.RawData{
+			DeviceID:       1,
+			ParameterID:    1,
+			Value:          float64(10 + i),
+			ProcessedValue: float64(10 + i),
+			RawValue:       float64(100 + i),
+			Quality:        model.QualityGood,
+			ReceivedAt:     now.Add(-time.Duration(i) * time.Minute),
+			StoredAt:       now,
+		})
+	}
+
+	var beforeCount int64
+	db.Model(&model.RawData{}).Count(&beforeCount)
+	if beforeCount < 15 {
+		t.Fatalf("expected at least 15 raw_data rows before purge, got %d", beforeCount)
+	}
+
+	validPayload, _ := json.Marshal(map[string]interface{}{
+		"confirm":      true,
+		"confirm_text": "PURGE",
+	})
+
+	// 1. Operator, Engineer, and Regular ADMIN must be strictly rejected with 403 Forbidden
+	for roleName, tok := range map[string]string{
+		"OPERATOR":      operatorToken,
+		"ENGINEER":      engineerToken,
+		"REGULAR_ADMIN": regAdminToken,
+	} {
+		req, _ := http.NewRequest(http.MethodPost, "/api/retention/raw-telemetry/purge", bytes.NewBuffer(validPayload))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("expected 403 Forbidden for %s purging all raw telemetry, got %d (%s)", roleName, w.Code, w.Body.String())
+		}
+	}
+
+	// 2. Superadmin without confirmation keyword must be rejected with 400 Bad Request
+	badPayload, _ := json.Marshal(map[string]interface{}{
+		"confirm":      true,
+		"confirm_text": "WRONG",
+	})
+	reqBad, _ := http.NewRequest(http.MethodPost, "/api/retention/raw-telemetry/purge", bytes.NewBuffer(badPayload))
+	reqBad.Header.Set("Authorization", "Bearer "+superadminToken)
+	reqBad.Header.Set("Content-Type", "application/json")
+	wBad := httptest.NewRecorder()
+	r.ServeHTTP(wBad, reqBad)
+	if wBad.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request when confirm_text is invalid, got %d", wBad.Code)
+	}
+
+	// Ensure rows are still untouched after rejected attempts
+	var midCount int64
+	db.Model(&model.RawData{}).Count(&midCount)
+	if midCount != beforeCount {
+		t.Fatalf("expected raw_data count unchanged (%d) after rejected attempts, got %d", beforeCount, midCount)
+	}
+
+	// 3. Superadmin with valid confirmation ("HAPUS" or "PURGE") wipes 100% of raw_data
+	idPayload, _ := json.Marshal(map[string]interface{}{
+		"confirm":      true,
+		"confirm_text": "HAPUS",
+	})
+	reqOK, _ := http.NewRequest(http.MethodPost, "/api/retention/raw-telemetry/purge", bytes.NewBuffer(idPayload))
+	reqOK.Header.Set("Authorization", "Bearer "+superadminToken)
+	reqOK.Header.Set("Content-Type", "application/json")
+	wOK := httptest.NewRecorder()
+	r.ServeHTTP(wOK, reqOK)
+	if wOK.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for superadmin purge, got %d (%s)", wOK.Code, wOK.Body.String())
+	}
+
+	var purgeResp struct {
+		Success bool                         `json:"success"`
+		Data    *model.RetentionExecutionLog `json:"data"`
+	}
+	if err := json.Unmarshal(wOK.Body.Bytes(), &purgeResp); err != nil {
+		t.Fatalf("failed unmarshaling purge response: %v", err)
+	}
+	if !purgeResp.Success || purgeResp.Data == nil {
+		t.Fatalf("expected success=true and execution log data, got %s", wOK.Body.String())
+	}
+	if purgeResp.Data.DeletedCount != beforeCount {
+		t.Errorf("expected DeletedCount=%d, got %d", beforeCount, purgeResp.Data.DeletedCount)
+	}
+	if purgeResp.Data.ExecutionType != model.ExecutionPurgeAll {
+		t.Errorf("expected ExecutionType=PURGE_ALL, got %s", purgeResp.Data.ExecutionType)
+	}
+
+	// Verify 0 rows remain in raw_data
+	var afterCount int64
+	db.Model(&model.RawData{}).Count(&afterCount)
+	if afterCount != 0 {
+		t.Errorf("expected 0 rows remaining in raw_data after purge, got %d", afterCount)
+	}
+
+	// Verify AuditTrail recorded RAW_TELEMETRY_PURGED
+	var purgeAudits int64
+	db.Model(&model.AuditTrail{}).Where("action = ?", "RAW_TELEMETRY_PURGED").Count(&purgeAudits)
+	if purgeAudits != 1 {
+		t.Errorf("expected 1 RAW_TELEMETRY_PURGED audit trail entry, got %d", purgeAudits)
+	}
 }

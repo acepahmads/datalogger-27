@@ -74,6 +74,20 @@
           </div>
         </div>
 
+        <!-- Superadmin Purge All Raw Telemetry (visible only in RAW mode for SUPERADMIN) -->
+        <button
+          v-if="isSuperAdmin && activeMode === 'RAW'"
+          id="btn-analysis-purge-raw"
+          @click="openPurgeRawModal"
+          :disabled="isPurgingRaw || loading"
+          class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white border border-rose-500 text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span>{{ $t('retention.purgeAllRawBtn') }}</span>
+        </button>
+
         <!-- Shortcut to Live Telemetry -->
         <router-link
           to="/monitoring/telemetry"
@@ -83,6 +97,22 @@
           <span>{{ $t('navigation.liveTelemetry') }}</span>
         </router-link>
       </div>
+    </div>
+
+    <!-- Purge Success Banner -->
+    <div
+      v-if="purgeSuccessMsg"
+      class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300"
+    >
+      <div class="flex items-center space-x-2.5">
+        <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        <span class="font-semibold">{{ purgeSuccessMsg }}</span>
+      </div>
+      <button @click="purgeSuccessMsg = ''" class="text-emerald-600 dark:text-emerald-400 hover:opacity-75 text-2xs font-bold px-2 py-0.5">
+        ✕
+      </button>
     </div>
 
     <!-- Data Source / Semantic Mode Selector Bar -->
@@ -1010,6 +1040,91 @@
         {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
       </div>
     </div>
+
+    <!-- SUPERADMIN PURGE ALL RAW TELEMETRY MODAL -->
+    <div
+      v-if="showPurgeRawModal && isSuperAdmin"
+      class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+      <div class="bg-white dark:bg-[#111827] border border-rose-300 dark:border-rose-900/80 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-6">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-full bg-rose-100 dark:bg-rose-950/90 border border-rose-300 dark:border-rose-800 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
+                {{ $t('retention.purgeRawModalTitle') }}
+              </h3>
+              <span class="text-3xs text-rose-600 dark:text-rose-400 font-semibold font-sans block">
+                {{ $t('retention.purgeRawModalSubtitle') }}
+              </span>
+            </div>
+          </div>
+          <button @click="showPurgeRawModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-600 dark:text-slate-300 font-sans leading-relaxed">
+          {{ $t('retention.purgeRawModalDesc') }}
+        </p>
+
+        <div class="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-start space-x-2 text-2xs text-emerald-800 dark:text-emerald-300 font-sans">
+          <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <span>{{ $t('retention.purgeRawSafeNote') }}</span>
+        </div>
+
+        <div class="space-y-1">
+          <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 font-sans">
+            {{ $t('retention.purgeRawKeywordLabel') }}
+          </label>
+          <input
+            v-model="purgeConfirmText"
+            type="text"
+            autocomplete="off"
+            placeholder="PURGE / HAPUS"
+            class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs uppercase tracking-wider focus:outline-none focus:border-rose-500"
+          >
+        </div>
+
+        <div class="flex items-start space-x-2 pt-0.5">
+          <input
+            type="checkbox"
+            id="confirmAnalysisPurgeRaw"
+            v-model="purgeConfirmCheck"
+            class="mt-0.5 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500"
+          >
+          <label for="confirmAnalysisPurgeRaw" class="text-2xs text-slate-600 dark:text-slate-300 cursor-pointer select-none font-sans">
+            {{ $t('retention.purgeRawConfirmCheck') }}
+          </label>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+          <button
+            @click="showPurgeRawModal = false"
+            :disabled="isPurgingRaw"
+            class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold"
+          >
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            @click="executePurgeAllRaw"
+            :disabled="!isPurgeRawValid || isPurgingRaw"
+            class="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-semibold shadow-sm transition-colors flex items-center"
+          >
+            <span v-if="isPurgingRaw" class="animate-spin w-3 h-3 mr-1.5 border-2 border-white border-t-transparent rounded-full"></span>
+            {{ isPurgingRaw ? $t('retention.purgingRaw') : $t('retention.purgeRawExecuteBtn') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1062,6 +1177,12 @@ export default {
       hiddenSeriesIds: [],
       chartScaleMode: 'normalized', // 'normalized' | 'native'
       resizeObserver: null,
+      // Superadmin Purge All Raw Telemetry state
+      showPurgeRawModal: false,
+      purgeConfirmText: '',
+      purgeConfirmCheck: false,
+      isPurgingRaw: false,
+      purgeSuccessMsg: '',
     };
   },
   computed: {
@@ -1077,6 +1198,10 @@ export default {
     },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    isPurgeRawValid() {
+      const kw = (this.purgeConfirmText || '').trim().toUpperCase();
+      return this.purgeConfirmCheck && (kw === 'PURGE' || kw === 'HAPUS');
     },
     canAccessRawMode() {
       if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
@@ -1936,6 +2061,52 @@ export default {
       a.download = `telemetry_${this.activeMode.toLowerCase()}_${Date.now()}.json`;
       a.click();
       URL.revokeObjectURL(url);
+    },
+    getAuthHeaders() {
+      const token = (this.$store && this.$store.state && this.$store.state.token) ||
+                    localStorage.getItem('datalogger_token') ||
+                    localStorage.getItem('token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
+    openPurgeRawModal() {
+      if (!this.isSuperAdmin) return;
+      this.purgeConfirmText = '';
+      this.purgeConfirmCheck = false;
+      this.showPurgeRawModal = true;
+    },
+    async executePurgeAllRaw() {
+      if (!this.isSuperAdmin || !this.isPurgeRawValid) return;
+      this.isPurgingRaw = true;
+      try {
+        const res = await axios.post(
+          '/api/retention/raw-telemetry/purge',
+          {
+            confirm: true,
+            confirm_text: this.purgeConfirmText.trim().toUpperCase(),
+          },
+          {
+            headers: this.getAuthHeaders(),
+          }
+        );
+        if (res.data && res.data.success) {
+          const log = res.data.data || {};
+          const deletedCount = Number(log.deleted_count || 0).toLocaleString();
+          const durMs = Number(log.duration_ms || 0);
+          this.showPurgeRawModal = false;
+          this.purgeSuccessMsg = `${this.$t('retention.purgeRawSuccessBanner')}: ${deletedCount} rows (${durMs}ms)`;
+          this.currentPage = 1;
+          await this.fetchData();
+        } else {
+          alert('Purge failed: ' + ((res.data && res.data.error) || 'Unknown error'));
+        }
+      } catch (err) {
+        const errMsg = err.response && err.response.data && err.response.data.error
+          ? err.response.data.error
+          : (err.message || 'Unknown network error');
+        alert(`Purge error: ${errMsg}`);
+      } finally {
+        this.isPurgingRaw = false;
+      }
     },
   },
 };

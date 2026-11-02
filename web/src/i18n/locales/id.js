@@ -1636,7 +1636,19 @@ export default {
     "successSweep": "Siklus pembersihan selesai",
     "errorOccurred": "Terjadi kesalahan",
     "measured": "Terukur",
-    "estimated": "Perkiraan"
+    "estimated": "Perkiraan",
+    "purgeAllRawBtn": "Hapus Semua Raw Telemetry",
+    "purgeAllRawShort": "Hapus Semua (0h)",
+    "purgeRawTableBtn": "Kosongkan Tabel",
+    "purgeRawModalTitle": "Hapus Semua Data Raw Telemetry (Superadmin)",
+    "purgeRawModalSubtitle": "Pengosongan Penuh Tabel raw_data • Khusus Superadmin",
+    "purgeRawModalDesc": "Tindakan ini akan menghapus permanen 100% seluruh data historis maupun hari ini di dalam tabel raw_data secara langsung (melewati batas hari retensi).",
+    "purgeRawSafeNote": "Konfigurasi perangkat, parameter, kategori, limit alarm, dan user tetap aman 100%.",
+    "purgeRawKeywordLabel": "Ketik PURGE atau HAPUS untuk otorisasi:",
+    "purgeRawConfirmCheck": "Saya memahami seluruh data raw_data akan dihapus permanen dan dicatat pada Audit Trail Keamanan.",
+    "purgeRawExecuteBtn": "Hapus Permanen Semua Raw Telemetry",
+    "purgingRaw": "Menghapus...",
+    "purgeRawSuccessBanner": "Berhasil menghapus seluruh data raw telemetry"
   },
   "analysis": {
     "title": "Analisis Telemetri Terpadu",

@@ -15,7 +15,18 @@
       </div>
 
       <!-- Action Buttons & Tabs -->
-      <div class="flex items-center space-x-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <button v-if="isSuperAdmin"
+                id="btn-superadmin-purge-raw"
+                @click="openPurgeRawModal"
+                :disabled="isPurgingRaw || isSweeping || (storage && storage.active_housekeeping_running)"
+                class="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
+          <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+          </svg>
+          {{ $t('retention.purgeAllRawBtn') }}
+        </button>
+
         <button @click="triggerSweep"
                 :disabled="isSweeping || (storage && storage.active_housekeeping_running)"
                 class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
@@ -92,6 +103,20 @@
       </div>
       <button @click="refreshAll" class="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-2xs font-semibold transition-colors">
         {{ $t('common.retry') || 'Retry' }}
+      </button>
+    </div>
+
+    <!-- Purge Success Banner -->
+    <div v-if="purgeSuccessMsg"
+         class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300">
+      <div class="flex items-center space-x-2.5">
+        <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span class="font-semibold">{{ purgeSuccessMsg }}</span>
+      </div>
+      <button @click="purgeSuccessMsg = ''" class="text-emerald-600 dark:text-emerald-400 hover:opacity-75 text-2xs font-bold px-2 py-0.5">
+        ✕
       </button>
     </div>
 
@@ -317,6 +342,12 @@
                           class="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 disabled:opacity-30 disabled:hover:bg-rose-600 text-white text-2xs font-semibold shadow-sm transition-colors">
                     {{ $t('retention.cleanNow') }}
                   </button>
+                  <button v-if="isSuperAdmin && policy.category === 'RAW_TELEMETRY'"
+                          @click="openPurgeRawModal"
+                          :title="$t('retention.purgeAllRawBtn')"
+                          class="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-700 dark:bg-rose-950 dark:hover:bg-rose-800 border border-rose-500/50 text-rose-100 text-2xs font-semibold shadow-sm transition-colors">
+                    {{ $t('retention.purgeAllRawShort') }}
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -378,7 +409,16 @@
             </tbody>
             <tbody v-else-if="storage && storage.tables && storage.tables.length" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-200 font-mono">
               <tr v-for="tbl in storage.tables" :key="tbl.table_name" class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                <td class="px-5 py-3 font-semibold text-slate-900 dark:text-white font-sans">{{ tbl.table_name }}</td>
+                <td class="px-5 py-3 font-semibold text-slate-900 dark:text-white font-sans">
+                  <div class="flex items-center space-x-2">
+                    <span>{{ tbl.table_name }}</span>
+                    <button v-if="isSuperAdmin && tbl.table_name === 'raw_data'"
+                            @click="openPurgeRawModal"
+                            class="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-3xs font-semibold shadow-sm transition-colors">
+                      {{ $t('retention.purgeRawTableBtn') }}
+                    </button>
+                  </div>
+                </td>
                 <td class="px-4 py-3 text-2xs text-slate-500 dark:text-slate-400 font-sans">{{ tbl.category }}</td>
                 <td class="px-4 py-3 text-right">{{ tbl.row_count.toLocaleString() }}</td>
                 <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">{{ formatBytes(tbl.data_size_bytes) }}</td>
@@ -464,7 +504,11 @@
                 </td>
                 <td class="px-4 py-3">
                   <span class="px-2 py-0.5 rounded text-3xs font-mono font-semibold"
-                        :class="log.execution_type === 'DRY_RUN' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800' : 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-800'">
+                        :class="log.execution_type === 'DRY_RUN'
+                          ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800'
+                          : (log.execution_type === 'PURGE_ALL'
+                            ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                            : 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-800')">
                     {{ log.execution_type }}
                   </span>
                 </td>
@@ -763,6 +807,100 @@
         </form>
       </div>
     </div>
+
+    <!-- SUPERADMIN PURGE ALL RAW TELEMETRY MODAL -->
+    <div v-if="showPurgeRawModal && isSuperAdmin"
+         class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-rose-300 dark:border-rose-900/80 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-6">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-full bg-rose-100 dark:bg-rose-950/90 border border-rose-300 dark:border-rose-800 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans">
+                {{ $t('retention.purgeRawModalTitle') }}
+              </h3>
+              <span class="text-3xs text-rose-600 dark:text-rose-400 font-semibold font-sans block">
+                {{ $t('retention.purgeRawModalSubtitle') }}
+              </span>
+            </div>
+          </div>
+          <button @click="showPurgeRawModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-600 dark:text-slate-300 font-sans leading-relaxed">
+          {{ $t('retention.purgeRawModalDesc') }}
+        </p>
+
+        <!-- Target Table Live Snapshot -->
+        <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-2xs space-y-1.5 font-mono">
+          <div class="flex justify-between">
+            <span class="text-slate-500 dark:text-slate-400">Target Table:</span>
+            <span class="text-rose-600 dark:text-rose-400 font-bold">raw_data (RAW_TELEMETRY)</span>
+          </div>
+          <div v-if="rawDataTableInfo" class="flex justify-between">
+            <span class="text-slate-500 dark:text-slate-400">Estimated Rows:</span>
+            <span class="text-slate-900 dark:text-white font-bold">{{ Number(rawDataTableInfo.row_count || 0).toLocaleString() }} rows</span>
+          </div>
+          <div v-if="rawDataTableInfo" class="flex justify-between">
+            <span class="text-slate-500 dark:text-slate-400">Footprint:</span>
+            <span class="text-indigo-600 dark:text-indigo-400 font-bold">{{ Number(rawDataTableInfo.total_size_mb || 0).toFixed(2) }} MB</span>
+          </div>
+        </div>
+
+        <!-- Safety Guarantee Note -->
+        <div class="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-start space-x-2 text-2xs text-emerald-800 dark:text-emerald-300 font-sans">
+          <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+          </svg>
+          <span>{{ $t('retention.purgeRawSafeNote') }}</span>
+        </div>
+
+        <!-- Confirmation Keyword Input -->
+        <div class="space-y-1">
+          <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 font-sans">
+            {{ $t('retention.purgeRawKeywordLabel') }}
+          </label>
+          <input id="input-purge-raw-confirm"
+                 v-model="purgeConfirmText"
+                 type="text"
+                 autocomplete="off"
+                 placeholder="PURGE / HAPUS"
+                 class="w-full px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-xs uppercase tracking-wider focus:outline-none focus:border-rose-500">
+        </div>
+
+        <!-- Explicit Checkbox -->
+        <div class="flex items-start space-x-2 pt-0.5">
+          <input type="checkbox" id="confirmPurgeAllRaw" v-model="purgeConfirmCheck"
+                 class="mt-0.5 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500">
+          <label for="confirmPurgeAllRaw" class="text-2xs text-slate-600 dark:text-slate-300 cursor-pointer select-none font-sans">
+            {{ $t('retention.purgeRawConfirmCheck') }}
+          </label>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+          <button @click="showPurgeRawModal = false"
+                  :disabled="isPurgingRaw"
+                  class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+            {{ $t('common.cancel') }}
+          </button>
+          <button id="btn-confirm-purge-raw"
+                  @click="executePurgeAllRaw"
+                  :disabled="!isPurgeRawValid || isPurgingRaw"
+                  class="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
+            <span v-if="isPurgingRaw" class="animate-spin w-3 h-3 mr-1.5 border-2 border-white border-t-transparent rounded-full"></span>
+            {{ isPurgingRaw ? $t('retention.purgingRaw') : $t('retention.purgeRawExecuteBtn') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -800,7 +938,31 @@ export default {
       confirmExplicitCheck: false,
       showEditModal: false,
       editingPolicy: null,
+
+      // Superadmin Purge All Raw Telemetry state
+      showPurgeRawModal: false,
+      purgeConfirmText: '',
+      purgeConfirmCheck: false,
+      isPurgingRaw: false,
+      purgeSuccessMsg: '',
     };
+  },
+  computed: {
+    userRole() {
+      const u = (this.$store && this.$store.state && this.$store.state.user) || {};
+      return (u.role || '').toUpperCase();
+    },
+    isSuperAdmin() {
+      return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
+    },
+    rawDataTableInfo() {
+      if (!this.storage || !Array.isArray(this.storage.tables)) return null;
+      return this.storage.tables.find((t) => t.table_name === 'raw_data') || null;
+    },
+    isPurgeRawValid() {
+      const kw = (this.purgeConfirmText || '').trim().toUpperCase();
+      return this.purgeConfirmCheck && (kw === 'PURGE' || kw === 'HAPUS');
+    },
   },
   mounted() {
     this.refreshAll();
@@ -993,6 +1155,45 @@ export default {
         alert(`Save policy error: ${errMsg}`);
       } finally {
         this.isSaving = false;
+      }
+    },
+    openPurgeRawModal() {
+      if (!this.isSuperAdmin) return;
+      this.purgeConfirmText = '';
+      this.purgeConfirmCheck = false;
+      this.showPurgeRawModal = true;
+    },
+    async executePurgeAllRaw() {
+      if (!this.isSuperAdmin || !this.isPurgeRawValid) return;
+      this.isPurgingRaw = true;
+      try {
+        const res = await axios.post(
+          '/api/retention/raw-telemetry/purge',
+          {
+            confirm: true,
+            confirm_text: this.purgeConfirmText.trim().toUpperCase(),
+          },
+          {
+            headers: this.getAuthHeaders(),
+          }
+        );
+        if (res.data && res.data.success) {
+          const log = res.data.data || {};
+          const deletedCount = Number(log.deleted_count || 0).toLocaleString();
+          const durMs = Number(log.duration_ms || 0);
+          this.showPurgeRawModal = false;
+          this.purgeSuccessMsg = `${this.$t('retention.purgeRawSuccessBanner')}: ${deletedCount} rows (${durMs}ms)`;
+          await this.refreshAll();
+        } else {
+          alert('Purge failed: ' + ((res.data && res.data.error) || 'Unknown error'));
+        }
+      } catch (err) {
+        const errMsg = err.response && err.response.data && err.response.data.error
+          ? err.response.data.error
+          : (err.message || 'Unknown network error');
+        alert(`Purge error: ${errMsg}`);
+      } finally {
+        this.isPurgingRaw = false;
       }
     },
     getCategoryBadgeClass(category) {

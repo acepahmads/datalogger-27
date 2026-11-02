@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -209,6 +210,45 @@ func (h *RetentionHandler) TriggerHousekeeping(c *gin.Context) {
 		"total_runs":  len(results),
 		"executed_by": username,
 	})
+}
+
+type PurgeAllRawTelemetryRequest struct {
+	Confirm     bool   `json:"confirm"`
+	ConfirmText string `json:"confirm_text"`
+}
+
+// PurgeAllRawTelemetry permanently wipes all records in raw_data (Strictly SUPERADMIN only)
+func (h *RetentionHandler) PurgeAllRawTelemetry(c *gin.Context) {
+	role := c.GetString("role")
+	if !strings.EqualFold(role, "SUPERADMIN") && !strings.EqualFold(role, "Administrator") {
+		response.Forbidden(c, "Access denied: purging all raw telemetry is restricted to SUPERADMIN only")
+		return
+	}
+
+	var req PurgeAllRawTelemetryRequest
+	if err := c.ShouldBindJSON(&req); err != nil || !req.Confirm {
+		response.BadRequest(c, "Explicit confirmation (confirm: true) is required to purge all raw telemetry")
+		return
+	}
+
+	tokenWord := strings.ToUpper(strings.TrimSpace(req.ConfirmText))
+	if tokenWord != "PURGE" && tokenWord != "HAPUS" {
+		response.BadRequest(c, "Confirmation keyword must be 'PURGE' or 'HAPUS'")
+		return
+	}
+
+	username := c.GetString("username")
+	if username == "" {
+		username = "superadmin"
+	}
+
+	execLog, err := h.retentionService.PurgeAllRawTelemetry(c.Request.Context(), username)
+	if err != nil {
+		response.InternalError(c, fmt.Sprintf("Failed to purge raw telemetry: %v", err))
+		return
+	}
+
+	response.OK(c, execLog)
 }
 
 // GetStorageOverview returns comprehensive database, table, WAL, and filesystem metrics

@@ -1636,7 +1636,19 @@ export default {
     "successSweep": "Housekeeping sweep completed",
     "errorOccurred": "An error occurred",
     "measured": "Measured",
-    "estimated": "Estimated"
+    "estimated": "Estimated",
+    "purgeAllRawBtn": "Purge All Raw Telemetry",
+    "purgeAllRawShort": "Purge All (0d)",
+    "purgeRawTableBtn": "Empty Table",
+    "purgeRawModalTitle": "Purge All Raw Telemetry Data (Superadmin)",
+    "purgeRawModalSubtitle": "Permanent Full Table Wipe • Superadmin Exclusive",
+    "purgeRawModalDesc": "This action permanently deletes 100% of historical & today's records inside the raw_data table immediately (bypassing retention days).",
+    "purgeRawSafeNote": "Device, parameter, category, alarm limit, and user configurations remain 100% intact.",
+    "purgeRawKeywordLabel": "Type PURGE or HAPUS to authorize:",
+    "purgeRawConfirmCheck": "I understand all raw_data records will be permanently erased and recorded in the Security Audit Trail.",
+    "purgeRawExecuteBtn": "Permanently Purge All Raw Telemetry",
+    "purgingRaw": "Purging...",
+    "purgeRawSuccessBanner": "Successfully purged all raw telemetry records"
   },
   "analysis": {
     "title": "Unified Telemetry Analysis",

@@ -538,6 +538,8 @@ func main() {
 			retentionGroup.POST("/policies/:id/dry-run", middleware.RequirePermission("retention.view"), retentionHandler.DryRun)
 			retentionGroup.POST("/policies/:id/execute", middleware.RequirePermission("retention.execute"), retentionHandler.ExecutePolicy)
 			retentionGroup.POST("/housekeeping/trigger", middleware.RequirePermission("retention.execute"), retentionHandler.TriggerHousekeeping)
+			retentionGroup.POST("/raw-telemetry/purge", middleware.RequireRole("SUPERADMIN"), retentionHandler.PurgeAllRawTelemetry)
+			retentionGroup.DELETE("/raw-telemetry", middleware.RequireRole("SUPERADMIN"), retentionHandler.PurgeAllRawTelemetry)
 			retentionGroup.GET("/storage", middleware.RequirePermission("retention.view"), retentionHandler.GetStorageOverview)
 			retentionGroup.GET("/history", middleware.RequirePermission("retention.view"), retentionHandler.GetHistory)
 		}
