@@ -522,6 +522,7 @@ func main() {
 			backupGroup.GET("/:id/restore-preview", middleware.RequirePermission("backup.view"), backupHandler.GetRestorePreview)
 			backupGroup.GET("/:id/download", middleware.RequirePermission("backup.view"), backupHandler.DownloadBackup)
 			backupGroup.POST("", middleware.RequirePermission("backup.create"), backupHandler.CreateBackup)
+			backupGroup.POST("/import", middleware.RequirePermission("backup.create"), backupHandler.ImportBackup)
 			backupGroup.POST("/:id/validate", middleware.RequirePermission("backup.validate"), backupHandler.ValidateBackup)
 			backupGroup.POST("/:id/restore", middleware.RequirePermission("backup.restore"), backupHandler.RestoreBackup)
 			backupGroup.DELETE("/:id", middleware.RequirePermission("backup.manage"), backupHandler.DeleteBackup)

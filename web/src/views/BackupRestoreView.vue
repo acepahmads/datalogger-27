@@ -15,7 +15,7 @@
       </div>
 
       <!-- Action Buttons & Tabs -->
-      <div class="flex items-center space-x-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button @click="showCreateModal = true"
                 class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
           <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
@@ -23,6 +23,14 @@
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
           {{ $t('backup.createBackup') }}
+        </button>
+
+        <button @click="openImportModal"
+                class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
+          <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"></path>
+          </svg>
+          {{ $t('backup.importBackup') }}
         </button>
 
         <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs">
@@ -808,6 +816,133 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL 4: Import External Backup Archive (.tar.gz) -->
+    <div v-if="showImportModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 max-w-lg w-full space-y-4 shadow-2xl font-sans">
+        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center space-x-2">
+            <svg class="w-4 h-4 text-emerald-500 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"></path>
+            </svg>
+            <span>{{ $t('backup.importModalTitle') }}</span>
+          </h3>
+          <button @click="closeImportModal" :disabled="importing" class="text-slate-400 hover:text-slate-700 dark:hover:text-white disabled:opacity-40">&times;</button>
+        </div>
+
+        <p class="text-xs text-slate-600 dark:text-slate-300 font-sans leading-relaxed">
+          {{ $t('backup.importModalDesc') }}
+        </p>
+
+        <!-- Hidden Native File Input -->
+        <input ref="importFileInput"
+               type="file"
+               accept=".tar.gz,.tgz,application/gzip,application/x-gzip"
+               class="hidden"
+               @change="onImportFileSelected">
+
+        <!-- Drag & Drop / File Picker Area -->
+        <div @click="!importing && triggerImportFileSelect()"
+             @dragover.prevent="importDragOver = true"
+             @dragleave.prevent="importDragOver = false"
+             @drop.prevent="onImportDrop"
+             class="rounded-xl border-2 border-dashed p-5 text-center transition-colors"
+             :class="[
+               importing ? 'cursor-not-allowed opacity-70 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F19]' : 'cursor-pointer',
+               importDragOver
+                 ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10'
+                 : (importFile
+                     ? 'border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-950/20'
+                     : 'border-slate-300 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500/50 bg-slate-50/80 dark:bg-[#0B0F19]')
+             ]">
+          <div v-if="!importFile" class="space-y-1.5">
+            <div class="w-10 h-10 mx-auto rounded-xl bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+            </div>
+            <p class="text-xs font-semibold text-slate-800 dark:text-slate-200 font-sans">
+              {{ $t('backup.importDropzoneTitle') }}
+            </p>
+            <p class="text-2xs text-slate-500 dark:text-slate-400 font-sans">
+              {{ $t('backup.importDropzoneHint') }}
+            </p>
+          </div>
+
+          <div v-else class="flex items-center justify-between text-left gap-3">
+            <div class="flex items-center space-x-3 min-w-0">
+              <div class="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold font-mono text-slate-900 dark:text-white truncate">
+                  {{ importFile.name }}
+                </p>
+                <p class="text-2xs font-mono tabular-nums text-emerald-700 dark:text-emerald-400 mt-0.5">
+                  {{ formatBytes(importFile.size) }}
+                </p>
+              </div>
+            </div>
+            <button v-if="!importing"
+                    type="button"
+                    @click.stop="triggerImportFileSelect"
+                    class="px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-2xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex-shrink-0">
+              {{ $t('backup.importChangeFile') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Auto-open Restore Confirmation Checkbox -->
+        <label class="flex items-center space-x-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer">
+          <input type="checkbox"
+                 v-model="importAutoOpenRestore"
+                 :disabled="importing"
+                 class="rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-0">
+          <span class="text-slate-700 dark:text-slate-300 text-2xs font-medium font-sans">
+            {{ $t('backup.importAutoRestoreLabel') }}
+          </span>
+        </label>
+
+        <!-- Live Upload & Verification Progress -->
+        <div v-if="importing" class="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-500/30 space-y-2">
+          <div class="flex items-center justify-between text-2xs">
+            <span class="font-semibold text-blue-800 dark:text-blue-300 font-sans flex items-center gap-1.5">
+              <svg class="animate-spin w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              {{ importProgress < 100 ? $t('backup.importUploadingStage') : $t('backup.importValidatingStage') }}
+            </span>
+            <span class="font-mono tabular-nums font-bold text-blue-700 dark:text-blue-300">{{ importProgress }}%</span>
+          </div>
+          <div class="w-full bg-blue-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-blue-600 dark:bg-blue-500 h-1.5 rounded-full transition-all duration-200"
+                 :style="{ width: Math.max(importProgress, 5) + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- Inline Validation / Upload Error -->
+        <div v-if="importError" class="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-sans leading-relaxed">
+          {{ importError }}
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <button @click="closeImportModal" :disabled="importing"
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent text-xs font-medium transition-colors shadow-xs disabled:opacity-50">
+            {{ $t('backup.cancel') }}
+          </button>
+          <button @click="submitImportBackup" :disabled="!importFile || importing"
+                  class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
+            <svg v-if="importing" class="animate-spin w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+            </svg>
+            {{ importing ? $t('backup.importingBackup') : $t('backup.importButton') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -859,6 +994,14 @@ export default {
       restoreTargetId: null,
       restorePreview: null,
       restoreSafetyBackup: true,
+
+      showImportModal: false,
+      importFile: null,
+      importing: false,
+      importProgress: 0,
+      importError: '',
+      importAutoOpenRestore: true,
+      importDragOver: false,
 
       // Schedule Form
       scheduleForm: {
@@ -933,6 +1076,8 @@ export default {
           return 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20';
         case 'SAFETY':
           return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20';
+        case 'IMPORTED':
+          return 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-500/20';
         default:
           return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
       }
@@ -1099,6 +1244,113 @@ export default {
         this.creating = false;
       }
     },
+    openImportModal() {
+      this.importFile = null;
+      this.importing = false;
+      this.importProgress = 0;
+      this.importError = '';
+      this.importDragOver = false;
+      this.showImportModal = true;
+      this.$nextTick(() => {
+        if (this.$refs.importFileInput) {
+          this.$refs.importFileInput.value = '';
+        }
+      });
+    },
+    closeImportModal() {
+      if (this.importing) return;
+      this.showImportModal = false;
+      this.importError = '';
+      this.importDragOver = false;
+    },
+    triggerImportFileSelect() {
+      if (this.$refs.importFileInput) {
+        this.$refs.importFileInput.click();
+      }
+    },
+    onImportFileSelected(event) {
+      const files = event && event.target && event.target.files;
+      if (files && files.length > 0) {
+        this.selectImportFile(files[0]);
+      }
+    },
+    onImportDrop(event) {
+      this.importDragOver = false;
+      if (this.importing) return;
+      const files = event && event.dataTransfer && event.dataTransfer.files;
+      if (files && files.length > 0) {
+        this.selectImportFile(files[0]);
+      }
+    },
+    selectImportFile(file) {
+      this.importError = '';
+      if (!file) return;
+      const lowerName = (file.name || '').toLowerCase();
+      if (!lowerName.endsWith('.tar.gz') && !lowerName.endsWith('.tgz')) {
+        this.importFile = null;
+        this.importError = 'Format file tidak didukung. Harap pilih arsip cadangan berformat .tar.gz atau .tgz.';
+        return;
+      }
+      if (file.size === 0) {
+        this.importFile = null;
+        this.importError = 'File arsip kosong (0 bytes).';
+        return;
+      }
+      this.importFile = file;
+    },
+    async submitImportBackup() {
+      if (!this.importFile || this.importing) return;
+
+      this.importing = true;
+      this.importProgress = 0;
+      this.importError = '';
+      this.downloadError = '';
+      this.downloadSuccessMsg = '';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', this.importFile);
+
+        const res = await axios.post('/api/backups/import', formData, {
+          timeout: 0, // Allow large multi-hundred-MB uploads over LAN/Wi-Fi without client timeout
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total && progressEvent.total > 0) {
+              this.importProgress = Math.min(100, Math.round((progressEvent.loaded * 100) / progressEvent.total));
+            }
+          },
+        });
+
+        const payload = (res.data && res.data.data) ? res.data.data : {};
+        const importedBackup = payload.backup || null;
+        const importedId = importedBackup ? (importedBackup.id || importedBackup.backup_id) : '';
+        const shouldOpenRestore = this.importAutoOpenRestore;
+
+        this.page = 1;
+        this.activeTab = 'catalog';
+        await Promise.all([
+          this.fetchBackups(),
+          this.fetchStatus(),
+        ]);
+
+        this.importing = false;
+        this.showImportModal = false;
+        this.importFile = null;
+
+        if (importedId) {
+          this.downloadSuccessMsg = `Arsip cadangan '${importedBackup.filename || importedId}' berhasil diimpor & divalidasi (VALID & COMPATIBLE).`;
+          if (shouldOpenRestore) {
+            await this.prepareRestore(importedId);
+          }
+        } else {
+          this.downloadSuccessMsg = 'Arsip cadangan eksternal berhasil diimpor & divalidasi.';
+        }
+      } catch (err) {
+        this.importing = false;
+        this.importError = (err.response && err.response.data && err.response.data.error)
+          ? err.response.data.error
+          : (err.message || 'Gagal mengimpor arsip cadangan.');
+      }
+    },
     async openDetails(backup) {
       this.selectedBackup = backup;
       this.selectedManifest = null;
@@ -1171,101 +1423,56 @@ export default {
         this.restoring = false;
       }
     },
-    async downloadBackup(backupId) {
+    downloadBackup(backupId) {
       if (!backupId || this.downloadingId) return;
 
-      this.downloadingId = backupId;
       this.downloadError = '';
       this.downloadSuccessMsg = '';
 
+      const token = (this.$store && this.$store.state.token)
+        || localStorage.getItem('datalogger_token')
+        || localStorage.getItem('token')
+        || '';
+
+      if (!token) {
+        this.downloadError = 'Session expired or authentication missing. Please log in again.';
+        return;
+      }
+
+      this.downloadingId = backupId;
+
       try {
-        const token = this.$store ? this.$store.state.token : localStorage.getItem('token');
-        const headers = {};
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
+        const matched = Array.isArray(this.backupsList)
+          ? this.backupsList.find(b => (b.id || b.backup_id) === backupId)
+          : null;
+        const filename = (matched && matched.filename)
+          ? matched.filename
+          : `${backupId}.tar.gz`;
+        const sizeBytes = matched
+          ? (matched.size_bytes !== undefined ? matched.size_bytes : matched.total_size_bytes)
+          : 0;
+        const sizeInfo = sizeBytes ? ` (${this.formatBytes(sizeBytes)})` : '';
 
-        const res = await axios.get(`/api/backups/${backupId}/download`, {
-          responseType: 'blob',
-          headers,
-        });
-
-        // Verify response is valid non-empty binary data
-        const blob = res.data;
-        if (!blob || blob.size === 0) {
-          throw new Error('Downloaded backup archive is empty.');
-        }
-
-        // Verify that the response is an archive rather than a JSON error payload
-        if (blob.type === 'application/json' || (blob.type && blob.type.includes('json'))) {
-          const text = await blob.text();
-          let serverErr = 'Server returned an error response instead of the archive file.';
-          try {
-            const errObj = JSON.parse(text);
-            if (errObj && errObj.error) {
-              serverErr = errObj.error;
-            }
-          } catch (_) {}
-          throw new Error(serverErr);
-        }
-
-        // Derive filename from Content-Disposition header, falling back to safe ID-based name
-        let filename = `${backupId}.tar.gz`;
-        const disposition = res.headers ? (res.headers['content-disposition'] || res.headers['Content-Disposition']) : null;
-        if (disposition) {
-          const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)["']?/i);
-          if (match && match[1]) {
-            filename = decodeURIComponent(match[1].trim());
-          }
-        }
-
-        // Create temporary browser download URL and trigger download
-        const blobUrl = window.URL.createObjectURL(blob);
+        // Trigger native browser streaming download directly via same-origin URL + JWT token query param.
+        // Avoids buffering large archives in JS Blob RAM and works cleanly when accessed via LAN/IP over HTTP.
+        const downloadUrl = `/api/backups/${encodeURIComponent(backupId)}/download?token=${encodeURIComponent(token)}`;
         const link = document.createElement('a');
-        link.href = blobUrl;
+        link.href = downloadUrl;
         link.setAttribute('download', filename);
+        link.rel = 'noopener';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        // Release temporary object URL after download has been initiated
-        setTimeout(() => {
-          window.URL.revokeObjectURL(blobUrl);
-        }, 1000);
-
-        this.downloadSuccessMsg = `Backup archive '${filename}' downloaded successfully (${this.formatBytes(blob.size)}).`;
+        this.downloadSuccessMsg = `Browser download started for '${filename}'${sizeInfo}.`;
       } catch (err) {
-        let errorMsg = 'Failed to download backup archive.';
-        if (err.response) {
-          if (err.response.status === 401) {
-            errorMsg = 'Session expired or authentication missing. Please log in again.';
-          } else if (err.response.status === 403) {
-            errorMsg = 'Access denied: insufficient permission (backup.view required).';
-          } else if (err.response.status === 404) {
-            errorMsg = 'Backup archive not found on storage server.';
-          } else if (err.response.status >= 500) {
-            errorMsg = 'Server encountered an error while streaming the backup archive.';
-          }
-
-          // If response body is a Blob (due to responseType: 'blob'), parse the underlying JSON error
-          if (err.response.data && typeof err.response.data.text === 'function') {
-            try {
-              const text = await err.response.data.text();
-              const json = JSON.parse(text);
-              if (json && json.error) {
-                errorMsg = json.error;
-              }
-            } catch (_) {}
-          } else if (err.response.data && err.response.data.error) {
-            errorMsg = err.response.data.error;
-          }
-        } else if (err.message) {
-          errorMsg = err.message;
-        }
-
-        this.downloadError = errorMsg;
+        this.downloadError = (err && err.message) ? err.message : 'Failed to initiate backup archive download.';
       } finally {
-        this.downloadingId = null;
+        setTimeout(() => {
+          if (this.downloadingId === backupId) {
+            this.downloadingId = null;
+          }
+        }, 1200);
       }
     },
     async deleteBackup(backupId) {

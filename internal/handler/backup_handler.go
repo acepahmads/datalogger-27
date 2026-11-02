@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"datalogger/internal/model"
 	"datalogger/internal/service"
@@ -322,8 +325,91 @@ func (h *BackupHandler) DownloadBackup(c *gin.Context) {
 	c.Header("Content-Length", fmt.Sprintf("%d", fi.Size()))
 	c.Header("Access-Control-Expose-Headers", "Content-Disposition, Content-Length")
 
+	// Extend write deadline so large archives (>100 MB) over LAN/Wi-Fi are not cut off by http.Server.WriteTimeout
+	rc := http.NewResponseController(c.Writer)
+	_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Minute))
+
 	// c.File uses http.ServeFile which streams using io.Copy without loading whole file to RAM
 	c.File(cleanFilePath)
+}
+
+const maxImportArchiveBytes = 4 * 1024 * 1024 * 1024 // 4 GB upper bound for backup archive upload
+
+// ImportBackup streams an externally uploaded .tar.gz backup archive to disk without RAM buffering,
+// validates its manifest, SHA-256 checksums, and SQL dump, and registers it into the Backup Catalog.
+func (h *BackupHandler) ImportBackup(c *gin.Context) {
+	// Extend read & write deadlines so multi-hundred-MB uploads over LAN/Wi-Fi do not hit the 15s http.Server timeout
+	rc := http.NewResponseController(c.Writer)
+	_ = rc.SetReadDeadline(time.Now().Add(30 * time.Minute))
+	_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Minute))
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImportArchiveBytes)
+
+	mr, err := c.Request.MultipartReader()
+	if err != nil {
+		response.BadRequest(c, "Expected multipart/form-data upload containing a .tar.gz backup archive")
+		return
+	}
+
+	username := c.GetString("username")
+	if username == "" {
+		username = "admin"
+	}
+
+	for {
+		part, nextErr := mr.NextPart()
+		if nextErr == io.EOF {
+			break
+		}
+		if nextErr != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(nextErr, &maxBytesErr) {
+				response.Error(c, http.StatusRequestEntityTooLarge, "Backup archive exceeds maximum allowed upload size (4 GB)")
+				return
+			}
+			response.BadRequest(c, fmt.Sprintf("Failed reading multipart upload stream: %v", nextErr))
+			return
+		}
+
+		formName := part.FormName()
+		if formName != "file" && formName != "archive" {
+			_ = part.Close()
+			continue
+		}
+
+		origFilename := filepath.Base(strings.TrimSpace(part.FileName()))
+		lowerName := strings.ToLower(origFilename)
+		if !strings.HasSuffix(lowerName, ".tar.gz") && !strings.HasSuffix(lowerName, ".tgz") {
+			_ = part.Close()
+			response.BadRequest(c, "Invalid file format: only .tar.gz or .tgz backup archives are supported")
+			return
+		}
+
+		record, manifest, importErr := h.backupService.ImportBackupArchive(c.Request.Context(), part, origFilename, username)
+		_ = part.Close()
+		if importErr != nil {
+			var maxBytesErr *http.MaxBytesError
+			switch {
+			case errors.As(importErr, &maxBytesErr):
+				response.Error(c, http.StatusRequestEntityTooLarge, "Backup archive exceeds maximum allowed upload size (4 GB)")
+			case errors.Is(importErr, service.ErrInsufficientDisk):
+				response.Error(c, http.StatusInsufficientStorage, importErr.Error())
+			case errors.Is(importErr, service.ErrInvalidManifest), errors.Is(importErr, service.ErrInvalidArchive):
+				response.BadRequest(c, importErr.Error())
+			default:
+				response.InternalError(c, fmt.Sprintf("Failed importing backup archive: %v", importErr))
+			}
+			return
+		}
+
+		response.Message(c, "External backup archive imported and verified successfully", gin.H{
+			"backup":   record,
+			"manifest": manifest,
+		})
+		return
+	}
+
+	response.BadRequest(c, "No backup archive file provided in 'file' form field")
 }
 
 // GetSchedule returns current scheduler configuration

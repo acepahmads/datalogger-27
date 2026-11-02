@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -92,6 +93,7 @@ func setupTestBackupRouter(t *testing.T) (*gin.Engine, *gorm.DB, string, string,
 			backupGroup.GET("/:id/restore-preview", middleware.RequirePermission("backup.view"), backupHandler.GetRestorePreview)
 			backupGroup.GET("/:id/download", middleware.RequirePermission("backup.view"), backupHandler.DownloadBackup)
 			backupGroup.POST("", middleware.RequirePermission("backup.create"), backupHandler.CreateBackup)
+			backupGroup.POST("/import", middleware.RequirePermission("backup.create"), backupHandler.ImportBackup)
 			backupGroup.POST("/:id/validate", middleware.RequirePermission("backup.validate"), backupHandler.ValidateBackup)
 			backupGroup.POST("/:id/restore", middleware.RequirePermission("backup.restore"), backupHandler.RestoreBackup)
 			backupGroup.DELETE("/:id", middleware.RequirePermission("backup.manage"), backupHandler.DeleteBackup)
@@ -534,5 +536,170 @@ func TestPhase43_DashboardVerification_TwoArchivesDownloadAndIntegrity(t *testin
 				t.Fatalf("validation returned nil manifest")
 			}
 		})
+	}
+}
+
+func buildMultipartUploadRequest(t *testing.T, url, fieldName, filename string, payload []byte, bearerToken string) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	part, err := mw.CreateFormFile(fieldName, filename)
+	if err != nil {
+		t.Fatalf("failed creating form file: %v", err)
+	}
+	if _, err := part.Write(payload); err != nil {
+		t.Fatalf("failed writing upload payload: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("failed closing multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, url, &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+	return req
+}
+
+func TestBackupImportAndRestoreEndToEnd(t *testing.T) {
+	// 1. Setup Server A, seed custom device, create backup, and download .tar.gz bytes
+	routerA, dbA, adminTokenA, _, _, backupSvcA, cleanupA := setupTestBackupRouter(t)
+	defer cleanupA()
+
+	srcDevice := model.Device{
+		DeviceCode: "IMPORT-EDGE-99",
+		DeviceName: "Imported External Gateway",
+	}
+	if err := dbA.Create(&srcDevice).Error; err != nil {
+		t.Fatalf("failed creating test device on Server A: %v", err)
+	}
+
+	ctx := context.Background()
+	exportedRec, err := backupSvcA.CreateBackup(ctx, model.BackupTypeManual, "admin")
+	if err != nil {
+		t.Fatalf("failed creating backup on Server A: %v", err)
+	}
+
+	dlReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/backups/%s/download", exportedRec.ID), nil)
+	dlReq.Header.Set("Authorization", "Bearer "+adminTokenA)
+	dlW := httptest.NewRecorder()
+	routerA.ServeHTTP(dlW, dlReq)
+	if dlW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK downloading Server A backup, got %d", dlW.Code)
+	}
+	archiveBytes := dlW.Body.Bytes()
+
+	// 2. Setup fresh Server B (simulating a newly installed mini-PC / edge gateway)
+	routerB, dbB, adminTokenB, operatorTokenB, _, backupSvcB, cleanupB := setupTestBackupRouter(t)
+	defer cleanupB()
+
+	// Verify Server B does NOT yet have IMPORT-EDGE-99
+	var preCount int64
+	dbB.Model(&model.Device{}).Where("device_code = ?", "IMPORT-EDGE-99").Count(&preCount)
+	if preCount != 0 {
+		t.Fatalf("expected 0 IMPORT-EDGE-99 devices on fresh Server B, got %d", preCount)
+	}
+
+	// 2a. RBAC check: Operator role without backup.create must be rejected with 403
+	opReq := buildMultipartUploadRequest(t, "/api/backups/import", "file", exportedRec.Filename, archiveBytes, operatorTokenB)
+	opW := httptest.NewRecorder()
+	routerB.ServeHTTP(opW, opReq)
+	if opW.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden for operator import, got %d (%s)", opW.Code, opW.Body.String())
+	}
+
+	// 2b. Validation check: non-.tar.gz extension must be rejected with 400
+	badExtReq := buildMultipartUploadRequest(t, "/api/backups/import", "file", "notes.txt", []byte("hello"), adminTokenB)
+	badExtW := httptest.NewRecorder()
+	routerB.ServeHTTP(badExtW, badExtReq)
+	if badExtW.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for .txt upload, got %d", badExtW.Code)
+	}
+
+	// 2c. Validation check: corrupted .tar.gz payload must be rejected with 400
+	corruptReq := buildMultipartUploadRequest(t, "/api/backups/import", "file", "corrupted.tar.gz", []byte("not-a-valid-gzip-stream"), adminTokenB)
+	corruptW := httptest.NewRecorder()
+	routerB.ServeHTTP(corruptW, corruptReq)
+	if corruptW.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for corrupted .tar.gz, got %d (%s)", corruptW.Code, corruptW.Body.String())
+	}
+
+	// 3. Import valid external .tar.gz onto Server B
+	impReq := buildMultipartUploadRequest(t, "/api/backups/import", "file", exportedRec.Filename, archiveBytes, adminTokenB)
+	impW := httptest.NewRecorder()
+	routerB.ServeHTTP(impW, impReq)
+	if impW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK importing valid .tar.gz, got %d (%s)", impW.Code, impW.Body.String())
+	}
+
+	var impResp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Backup model.BackupRecord `json:"backup"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(impW.Body.Bytes(), &impResp); err != nil {
+		t.Fatalf("failed decoding import response: %v", err)
+	}
+	if !impResp.Success {
+		t.Fatalf("expected success=true on import response")
+	}
+	imported := impResp.Data.Backup
+	if imported.Type != model.BackupTypeImported {
+		t.Errorf("expected imported backup type IMPORTED, got %s", imported.Type)
+	}
+	if imported.ValidationStatus != model.ValidationStatusValid {
+		t.Errorf("expected VALID status, got %s", imported.ValidationStatus)
+	}
+	if !imported.IsCompatible {
+		t.Errorf("expected IsCompatible=true on imported backup")
+	}
+
+	// 4. Re-import same archive to verify non-destructive collision handling (*_imp_*)
+	dupReq := buildMultipartUploadRequest(t, "/api/backups/import", "file", exportedRec.Filename, archiveBytes, adminTokenB)
+	dupW := httptest.NewRecorder()
+	routerB.ServeHTTP(dupW, dupReq)
+	if dupW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on duplicate import, got %d (%s)", dupW.Code, dupW.Body.String())
+	}
+	var dupResp struct {
+		Data struct {
+			Backup model.BackupRecord `json:"backup"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(dupW.Body.Bytes(), &dupResp)
+	if dupResp.Data.Backup.ID == imported.ID {
+		t.Errorf("expected unique collision-safe ID on duplicate import, got identical ID %s", dupResp.Data.Backup.ID)
+	}
+	if !strings.Contains(dupResp.Data.Backup.ID, "_imp_") {
+		t.Errorf("expected collision-safe ID to contain _imp_, got %s", dupResp.Data.Backup.ID)
+	}
+
+	// 5. Verify Restore Preview works on imported archive
+	prevReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/backups/%s/restore-preview", imported.ID), nil)
+	prevReq.Header.Set("Authorization", "Bearer "+adminTokenB)
+	prevW := httptest.NewRecorder()
+	routerB.ServeHTTP(prevW, prevReq)
+	if prevW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on restore-preview for imported archive, got %d (%s)", prevW.Code, prevW.Body.String())
+	}
+
+	// 6. Execute synchronous Restore from imported archive onto Server B
+	if err := backupSvcB.RestoreBackup(ctx, imported.ID, "admin", true); err != nil {
+		t.Fatalf("RestoreBackup from imported archive failed: %v", err)
+	}
+
+	// Confirm IMPORT-EDGE-99 from Server A now exists on Server B!
+	var postCount int64
+	dbB.Model(&model.Device{}).Where("device_code = ?", "IMPORT-EDGE-99").Count(&postCount)
+	if postCount != 1 {
+		t.Fatalf("expected IMPORT-EDGE-99 device to be restored on Server B, got count=%d", postCount)
+	}
+
+	// Confirm imported backup record is still intact & valid in Server B's catalog after restore
+	afterRec, _, err := backupSvcB.GetBackupByID(imported.ID)
+	if err != nil || afterRec == nil {
+		t.Fatalf("expected imported backup %s to remain in Server B catalog after restore, got err=%v", imported.ID, err)
 	}
 }

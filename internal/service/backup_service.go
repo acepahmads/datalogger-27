@@ -30,6 +30,7 @@ var (
 	ErrBackupNotFound      = errors.New("backup artifact not found")
 	ErrInsufficientDisk    = errors.New("insufficient free disk space for backup")
 	ErrInvalidManifest     = errors.New("invalid or corrupt backup manifest")
+	ErrInvalidArchive      = errors.New("invalid or unsupported backup archive")
 )
 
 type BackupService struct {
@@ -468,6 +469,244 @@ func (s *BackupService) ValidateBackup(ctx context.Context, backupID string) (*m
 	return manifest, nil
 }
 
+// ImportBackupArchive streams an externally uploaded .tar.gz backup archive to temporary storage,
+// verifies its manifest, artifact SHA-256 checksums, Zip-Slip safety, and SQL dump syntax,
+// and registers it into the local Backup Catalog ready for restoration.
+func (s *BackupService) ImportBackupArchive(
+	ctx context.Context,
+	srcReader io.Reader,
+	originalFilename string,
+	initiatedBy string,
+) (*model.BackupRecord, *model.BackupManifest, error) {
+	if srcReader == nil {
+		return nil, nil, fmt.Errorf("%w: empty upload stream", ErrInvalidArchive)
+	}
+	if initiatedBy == "" {
+		initiatedBy = "admin"
+	}
+
+	backupDir := s.GetBackupDir()
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return nil, nil, fmt.Errorf("failed preparing backup storage directory: %w", err)
+	}
+
+	minFreeMB := int64(50)
+	if s.cfg != nil && s.cfg.BackupMinFreeSpaceMB > 0 {
+		minFreeMB = int64(s.cfg.BackupMinFreeSpaceMB)
+	}
+	if freeBytes, err := s.checkFreeDiskSpace(backupDir); err == nil {
+		if freeBytes < minFreeMB*1024*1024 {
+			return nil, nil, fmt.Errorf("%w: available %d MB is less than minimum required %d MB",
+				ErrInsufficientDisk, freeBytes/(1024*1024), minFreeMB)
+		}
+	}
+
+	// Create temporary file inside backupDir so final os.Rename stays on the same filesystem/volume (Windows-safe)
+	tmpFile, err := os.CreateTemp(backupDir, ".import_backup_*.tmp")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed creating staging file for import: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	promoted := false
+	defer func() {
+		if !promoted {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	hasher := sha256.New()
+	tee := io.TeeReader(srcReader, hasher)
+	writtenBytes, copyErr := io.Copy(tmpFile, tee)
+	closeErr := tmpFile.Close() // Always close file handle before reading/renaming/removing on Windows
+	if copyErr != nil {
+		return nil, nil, fmt.Errorf("failed receiving uploaded backup stream: %w", copyErr)
+	}
+	if closeErr != nil {
+		return nil, nil, fmt.Errorf("failed flushing temporary backup file: %w", closeErr)
+	}
+	if writtenBytes == 0 {
+		return nil, nil, fmt.Errorf("%w: uploaded backup file is empty (0 bytes)", ErrInvalidArchive)
+	}
+
+	archiveSHA := hex.EncodeToString(hasher.Sum(nil))
+
+	// 1. Inspect and validate manifest.json from the .tar.gz archive
+	manifest, err := s.readManifestFromArchive(tmpPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidManifest, err)
+	}
+	if manifest.FormatVersion != "" && manifest.FormatVersion != "1.0" {
+		return nil, nil, fmt.Errorf("%w: unsupported format version %q (expected 1.0)", ErrInvalidManifest, manifest.FormatVersion)
+	}
+
+	// 2. Extract to isolated temporary staging directory (enforces Zip-Slip protection)
+	tempValidateDir, err := os.MkdirTemp("", "import_validate_*")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed creating validation staging directory: %w", err)
+	}
+	defer os.RemoveAll(tempValidateDir)
+
+	if err := s.extractTarGz(tmpPath, tempValidateDir); err != nil {
+		return nil, nil, fmt.Errorf("%w: archive extraction failed: %v", ErrInvalidArchive, err)
+	}
+
+	// 3. Verify all manifest artifacts (existence, exact byte size, and SHA-256 digest)
+	for _, art := range manifest.Artifacts {
+		artPath := filepath.Join(tempValidateDir, filepath.FromSlash(art.Path))
+		fi, statErr := os.Stat(artPath)
+		if statErr != nil {
+			return nil, nil, fmt.Errorf("%w: missing artifact %s in archive", ErrInvalidArchive, art.Path)
+		}
+		if fi.Size() != art.SizeBytes {
+			return nil, nil, fmt.Errorf("%w: artifact %s size mismatch (expected %d bytes, got %d)",
+				ErrInvalidArchive, art.Path, art.SizeBytes, fi.Size())
+		}
+		sha, shaErr := s.calculateFileSHA256(artPath)
+		if shaErr != nil || sha != art.SHA256 {
+			return nil, nil, fmt.Errorf("%w: artifact %s SHA-256 checksum mismatch", ErrInvalidArchive, art.Path)
+		}
+	}
+
+	// 4. Verify database/dump.sql exists and passes SQL header/footer validation
+	dumpPath := filepath.Join(tempValidateDir, "database", "dump.sql")
+	if s.dbAdapter != nil {
+		if err := s.dbAdapter.ValidateDumpFile(dumpPath); err != nil {
+			return nil, nil, fmt.Errorf("%w: database dump validation failed: %v", ErrInvalidArchive, err)
+		}
+	} else {
+		if fi, statErr := os.Stat(dumpPath); statErr != nil || fi.Size() == 0 {
+			return nil, nil, fmt.Errorf("%w: database/dump.sql missing or empty", ErrInvalidArchive)
+		}
+	}
+
+	// 5. Resolve conflict-free Backup ID without overwriting active local backups
+	rawCandidate := manifest.BackupID
+	if strings.TrimSpace(rawCandidate) == "" {
+		base := filepath.Base(originalFilename)
+		base = strings.TrimSuffix(base, ".tar.gz")
+		base = strings.TrimSuffix(base, ".tgz")
+		rawCandidate = base
+	}
+	baseID := sanitizeBackupID(rawCandidate)
+	targetID := baseID
+	reuseExisting := false
+
+	if s.backupRepo != nil {
+		if existing, getErr := s.backupRepo.GetByID(baseID); getErr == nil && existing != nil {
+			// If existing catalog record points to a missing file on disk, heal/replace it; otherwise mint a unique ID
+			filePresent := false
+			if existing.FilePath != "" {
+				if st, stErr := os.Stat(existing.FilePath); stErr == nil && st.Size() > 0 {
+					filePresent = true
+				}
+			}
+			if !filePresent {
+				reuseExisting = true
+			} else {
+				targetID = fmt.Sprintf("%s_imp_%s", baseID, time.Now().UTC().Format("20060102_150405"))
+			}
+		}
+	}
+
+	finalFilename := fmt.Sprintf("%s.tar.gz", targetID)
+	finalPath := filepath.Join(backupDir, finalFilename)
+	if !reuseExisting {
+		if _, statErr := os.Stat(finalPath); statErr == nil {
+			targetID = fmt.Sprintf("%s_imp_%s_%04d", baseID, time.Now().UTC().Format("20060102_150405"), time.Now().Nanosecond()%10000)
+			finalFilename = fmt.Sprintf("%s.tar.gz", targetID)
+			finalPath = filepath.Join(backupDir, finalFilename)
+		}
+	}
+
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		return nil, nil, fmt.Errorf("failed moving verified backup archive into storage: %w", err)
+	}
+	promoted = true
+
+	formatVer := manifest.FormatVersion
+	if formatVer == "" {
+		formatVer = "1.0"
+	}
+	walSegmentsCount := len(manifest.WAL.SegmentFiles)
+	if walSegmentsCount == 0 && len(manifest.WAL.Segments) > 0 {
+		walSegmentsCount = len(manifest.WAL.Segments)
+	}
+
+	now := time.Now().UTC()
+	safeOrigName := filepath.Base(strings.TrimSpace(originalFilename))
+	if safeOrigName == "" || safeOrigName == "." {
+		safeOrigName = finalFilename
+	}
+
+	record := &model.BackupRecord{
+		ID:                targetID,
+		Filename:          finalFilename,
+		FilePath:          finalPath,
+		Type:              model.BackupTypeImported,
+		Status:            model.BackupStatusCompleted,
+		ValidationStatus:  model.ValidationStatusValid,
+		ConsistencyStatus: "CONSISTENT",
+		SizeBytes:         writtenBytes,
+		SHA256Checksum:    archiveSHA,
+		FormatVersion:     formatVer,
+		AppVersion:        manifest.AppVersion,
+		DatabaseEngine:    manifest.Database.Engine,
+		DatabaseName:      manifest.Database.DatabaseName,
+		DumpMethod:        manifest.Database.DumpMethod,
+		TableCount:        manifest.Database.TableCount,
+		TotalRows:         manifest.Database.TotalRows,
+		WALSegmentsCount:  walSegmentsCount,
+		WALPendingRecords: manifest.WAL.PendingRecords,
+		CreatedBy:         initiatedBy,
+		ValidationDetails: fmt.Sprintf("Imported external archive (%s); all artifacts, SHA-256 checksums, and SQL dump verified", safeOrigName),
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	if s.backupRepo != nil {
+		var saveErr error
+		if reuseExisting {
+			saveErr = s.backupRepo.Update(record)
+		} else {
+			saveErr = s.backupRepo.Create(record)
+		}
+		if saveErr != nil {
+			_ = os.Remove(finalPath)
+			return nil, nil, fmt.Errorf("failed registering imported backup in catalog: %w", saveErr)
+		}
+	}
+
+	record.PopulateVirtualFields()
+	s.logAudit(
+		"BACKUP_IMPORTED",
+		targetID,
+		initiatedBy,
+		fmt.Sprintf("Imported external backup archive %s (%d bytes, %d tables, %d rows)",
+			safeOrigName, writtenBytes, manifest.Database.TableCount, manifest.Database.TotalRows),
+	)
+
+	return record, manifest, nil
+}
+
+func sanitizeBackupID(raw string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(raw) {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else if r == '.' || r == ' ' {
+			b.WriteRune('_')
+		}
+	}
+	cleaned := strings.Trim(b.String(), "_-")
+	if len(cleaned) > 40 {
+		cleaned = cleaned[:40]
+	}
+	if cleaned == "" {
+		return fmt.Sprintf("backup_import_%s", time.Now().UTC().Format("20060102_150405"))
+	}
+	return cleaned
+}
+
 // GetRestorePreview calculates differences and impact assessment before executing restore
 func (s *BackupService) GetRestorePreview(ctx context.Context, backupID string) (*model.RestorePreview, error) {
 	manifest, err := s.ValidateBackup(ctx, backupID)
@@ -641,11 +880,47 @@ func (s *BackupService) executeRestore(
 		return fmt.Errorf("failed extracting backup archive: %w", err)
 	}
 
+	// Snapshot local backup catalog entries whose physical archives exist on this server
+	// so older CLI-generated dumps (which included backup_records) cannot orphan local archives.
+	var localValidRecords []model.BackupRecord
+	if s.backupRepo != nil {
+		if recs, _, listErr := s.backupRepo.List(1, 500, ""); listErr == nil {
+			for _, r := range recs {
+				if r.FilePath != "" {
+					if st, stErr := os.Stat(r.FilePath); stErr == nil && st.Size() > 0 {
+						localValidRecords = append(localValidRecords, r)
+					}
+				}
+			}
+		}
+	}
+
 	// 3. Restore Database Dump
 	s.updateJob(job, 55.0, "Restoring database tables and records")
 	dumpPath := filepath.Join(tempDir, "database", "dump.sql")
 	if err := s.dbAdapter.Restore(ctx, dumpPath); err != nil {
 		return fmt.Errorf("database restore failed: %w", err)
+	}
+
+	// Reconcile local backup catalog entries if dump overwrote backup_records
+	if s.backupRepo != nil && len(localValidRecords) > 0 {
+		for i := range localValidRecords {
+			rec := localValidRecords[i]
+			existing, getErr := s.backupRepo.GetByID(rec.ID)
+			if getErr != nil || existing == nil {
+				_ = s.backupRepo.Create(&rec)
+			} else if existing.FilePath != rec.FilePath || existing.ValidationStatus != rec.ValidationStatus {
+				existing.Filename = rec.Filename
+				existing.FilePath = rec.FilePath
+				existing.Type = rec.Type
+				existing.Status = rec.Status
+				existing.ValidationStatus = rec.ValidationStatus
+				existing.ConsistencyStatus = rec.ConsistencyStatus
+				existing.SizeBytes = rec.SizeBytes
+				existing.SHA256Checksum = rec.SHA256Checksum
+				_ = s.backupRepo.Update(existing)
+			}
+		}
 	}
 
 	// 4. Restore WAL Snapshot

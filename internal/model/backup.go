@@ -13,6 +13,7 @@ const (
 	BackupTypeManual    BackupType = "MANUAL"
 	BackupTypeScheduled BackupType = "SCHEDULED"
 	BackupTypeSafety    BackupType = "SAFETY"
+	BackupTypeImported  BackupType = "IMPORTED"
 )
 
 type BackupStatus string

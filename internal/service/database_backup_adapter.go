@@ -195,6 +195,7 @@ func (a *DatabaseBackupAdapter) dumpWithCLI(ctx context.Context, tool string, ou
 		"--skip-lock-tables",
 		"--routines",
 		"--triggers",
+		fmt.Sprintf("--ignore-table=%s.backup_records", dbName),
 		"--default-character-set=utf8mb4",
 		"--hex-blob",
 	}
