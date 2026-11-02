@@ -168,7 +168,7 @@
               <span
                 v-else
                 class="op-corner-pill tone-Density"
-              >{{ viewMode === 'table' ? bentoTableSplitMode : (effectiveBentoCols + 'P') }}</span>
+              >{{ viewMode === 'table' ? bentoTableModeShortBadge : (effectiveBentoCols + 'P') }}</span>
             </button>
             <div
               v-if="activeToolbarPopover === 'viewOptions'"
@@ -2509,6 +2509,26 @@
                 <OperatorDashboardIcon name="layout" :size="13" />
               </button>
 
+              <!-- Category Tables Side-by-Side Icon (CAT) -->
+              <button
+                id="btn-bento-view-cat"
+                type="button"
+                class="isc-btn"
+                :class="{ active: viewMode === 'table' && bentoTableSplitMode === 'CAT' }"
+                @click="setBentoDisplayMode('CAT')"
+                :title="'Tampilan Tabel per Kategori (' + bentoCategoryTableSections.length + ' Tabel)'"
+                aria-label="Mode Tabel per Kategori"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="5.2" height="16" rx="1.2" />
+                  <rect x="9.4" y="4" width="5.2" height="16" rx="1.2" />
+                  <rect x="16.8" y="4" width="5.2" height="16" rx="1.2" />
+                  <line x1="3.4" y1="8.5" x2="5.8" y2="8.5" />
+                  <line x1="10.8" y1="8.5" x2="13.2" y2="8.5" />
+                  <line x1="18.2" y1="8.5" x2="20.6" y2="8.5" />
+                </svg>
+              </button>
+
               <!-- 2-Table Side-by-Side Icon -->
               <button
                 id="btn-bento-view-2t"
@@ -2553,27 +2573,27 @@
                 @click="toggleBentoMiniPopover('cardSetup')"
                 class="op-icon-btn xs"
                 :class="{ 'is-active': bentoActiveMiniPopover === 'cardSetup' || !bentoAutoGrid }"
-                :title="'Setup Kartu & Tabel (' + (viewMode === 'table' ? bentoTableSplitMode : ((bentoAutoGrid ? 'Auto ' : '') + effectiveBentoCols + 'P')) + ')'"
+                :title="'Setup Kartu & Tabel (' + (viewMode === 'table' ? bentoTableModeShortBadge : ((bentoAutoGrid ? 'Auto ' : '') + effectiveBentoCols + 'P')) + ')'"
                 aria-label="Setup Kartu dan Tabel"
               >
                 <OperatorDashboardIcon name="sliders" :size="13" />
                 <span class="op-corner-pill tone-Density">
-                  {{ viewMode === 'table' ? bentoTableSplitMode : (effectiveBentoCols + 'P') }}
+                  {{ viewMode === 'table' ? bentoTableModeShortBadge : (effectiveBentoCols + 'P') }}
                 </span>
               </button>
 
               <div
                 v-if="bentoActiveMiniPopover === 'cardSetup'"
-                class="bento-mini-popover align-right w-64"
+                class="bento-mini-popover align-right w-72"
               >
                 <div class="bmp-head">
                   <span class="bmp-title">Setup Kartu &amp; Tabel</span>
-                  <span class="bmp-badge">{{ viewMode === 'table' ? ('Tabel ' + bentoTableSplitMode) : ((bentoAutoGrid ? 'Auto · ' : 'Manual · ') + effectiveBentoCols + 'P') }}</span>
+                  <span class="bmp-badge">{{ viewMode === 'table' ? (bentoTableSplitMode === 'CAT' ? ('Kategori · ' + bentoCategoryTableSections.length + ' Tabel') : ('Tabel ' + bentoTableSplitMode)) : ((bentoAutoGrid ? 'Auto · ' : 'Manual · ') + effectiveBentoCols + 'P') }}</span>
                 </div>
 
                 <div class="bmp-section">
                   <div class="bmp-label">Mode Tampilan</div>
-                  <div class="bmp-seg-grid cols-3">
+                  <div class="bmp-seg-grid cols-4">
                     <button
                       type="button"
                       class="bmp-seg-btn"
@@ -2581,6 +2601,15 @@
                       @click="setBentoDisplayMode('auto-cards')"
                     >
                       Kartu
+                    </button>
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'table' && bentoTableSplitMode === 'CAT' }"
+                      @click="setBentoDisplayMode('CAT')"
+                      title="Tabel otomatis sebanyak kategori aktif yang terpakai"
+                    >
+                      Kategori
                     </button>
                     <button
                       type="button"
@@ -2597,6 +2626,20 @@
                       @click="setBentoDisplayMode('1T')"
                     >
                       1 Tabel
+                    </button>
+                  </div>
+                  <div
+                    v-if="viewMode === 'table' && bentoTableSplitMode === 'CAT'"
+                    class="mt-1.5 flex items-center justify-between text-[9.5px] opacity-85"
+                  >
+                    <span>{{ bentoCategoryTableSections.length }} tabel kategori aktif</span>
+                    <button
+                      v-if="canManageCategories || canViewCategories"
+                      type="button"
+                      class="bmp-link-btn"
+                      @click="openCategoryManagementModal(); bentoActiveMiniPopover = null"
+                    >
+                      Kelola Kategori
                     </button>
                   </div>
                 </div>
@@ -2836,7 +2879,7 @@
         </div>
 
         <!-- =============================================================== -->
-        <!-- VIEW MODE B: SIDE-BY-SIDE 2-TABLE & 1-TABLE BENTO VIEW          -->
+        <!-- VIEW MODE B: CATEGORY TABLES (UP TO 3 SIDE-BY-SIDE), 2T & 1T    -->
         <!-- =============================================================== -->
         <div
           v-else
@@ -2846,16 +2889,34 @@
           <div
             v-if="filteredParameters.length > 0"
             class="bento-dual-table-grid"
-            :class="{ 'is-dual-cols': bentoSplitTableColumns.length === 2 }"
+            :class="{
+              'is-dual-cols': bentoEffectiveTableGridCols === 2,
+              'is-tri-cols': bentoEffectiveTableGridCols === 3
+            }"
           >
             <div
               v-for="(col, colIdx) in bentoSplitTableColumns"
-              :key="'bento-tcol-' + colIdx"
+              :key="col.key || ('bento-tcol-' + colIdx)"
               class="bento-table-card"
+              :style="col.isCategoryTable && col.accentColor ? { borderTop: '2px solid ' + col.accentColor } : null"
             >
-              <div class="bento-tbl-subhead">
-                <span>{{ col.title }}</span>
-                <span>{{ col.params.length }} Kanal</span>
+              <div
+                class="bento-tbl-subhead"
+                :class="{ 'is-cat-subhead': col.isCategoryTable }"
+              >
+                <div class="bento-tbl-subhead-left">
+                  <span
+                    v-if="col.isCategoryTable"
+                    class="bento-cat-dot"
+                    :style="{ background: col.accentColor || '#06B6D4' }"
+                  ></span>
+                  <span class="truncate" :title="col.title">{{ col.title }}</span>
+                </div>
+                <div class="bento-tbl-subhead-right">
+                  <span v-if="col.faultCount > 0" class="s-badge badge-rose">{{ col.faultCount }} Fault</span>
+                  <span v-else-if="col.warnCount > 0" class="s-badge badge-amber">{{ col.warnCount }} Alarm</span>
+                  <span>{{ col.params.length }} Kanal</span>
+                </div>
               </div>
 
               <div class="overflow-x-auto custom-scroller">
@@ -2863,10 +2924,10 @@
                   <thead>
                     <tr>
                       <th>Parameter</th>
-                      <th class="text-right">Nilai Bacaan</th>
-                      <th class="text-center">Tren</th>
+                      <th class="text-right">{{ bentoEffectiveTableGridCols >= 3 ? 'Nilai' : 'Nilai Bacaan' }}</th>
+                      <th v-if="showBentoTableSparklineCol" class="text-center">Tren</th>
                       <th>Status &amp; Limit</th>
-                      <th v-if="!isCompactScreen || bentoSplitTableColumns.length === 1">Update</th>
+                      <th v-if="showBentoTableUpdateCol">Update</th>
                       <th class="text-right">Aksi</th>
                     </tr>
                   </thead>
@@ -2883,7 +2944,7 @@
                       ]"
                       :title="getBentoParamCardTitle(param)"
                     >
-                      <!-- 1. Parameter Name + Category -->
+                      <!-- 1. Parameter Name + Category (category pill omitted when already grouped by category) -->
                       <td>
                         <div class="bt-param-cell">
                           <span
@@ -2893,7 +2954,7 @@
                           <span class="bt-name truncate" :title="param.param_name || param.param_code">
                             {{ param.param_name || param.param_code }}
                           </span>
-                          <span v-if="!isCompactScreen && getParamCategory(param)" class="s-cat">
+                          <span v-if="!col.isCategoryTable && !isCompactScreen && getParamCategory(param)" class="s-cat">
                             {{ getParamCategoryShortLabel(param) }}
                           </span>
                         </div>
@@ -2919,7 +2980,7 @@
                       </td>
 
                       <!-- 3. Inline Mini Sparkline -->
-                      <td class="text-center">
+                      <td v-if="showBentoTableSparklineCol" class="text-center">
                         <div class="bt-spark-box mx-auto">
                           <template v-if="isDiscreteStatusParam(param)">
                             <svg
@@ -2977,7 +3038,7 @@
                           >
                             {{ getBentoStatusBadge(param).label }}
                           </span>
-                          <div class="bt-mini-track">
+                          <div v-if="showBentoTableMiniTrack" class="bt-mini-track">
                             <div
                               class="bt-mini-fill"
                               :style="{ width: getBentoCardProgress(param).pct + '%', background: getBentoCardColor(param) }"
@@ -2993,14 +3054,14 @@
                           >
                             {{ getBentoCardProgress(param).tableLimitLabel }}
                           </button>
-                          <span v-else-if="!isCompactScreen" class="bt-pct">
+                          <span v-else-if="!isCompactScreen && bentoEffectiveTableGridCols < 3" class="bt-pct">
                             {{ getBentoCardProgress(param).rightLabel }}
                           </span>
                         </div>
                       </td>
 
-                      <!-- 5. Freshness (Shown on Wide or 1-Table) -->
-                      <td v-if="!isCompactScreen || bentoSplitTableColumns.length === 1" class="whitespace-nowrap">
+                      <!-- 5. Freshness (Shown on 1T or Wide 2T) -->
+                      <td v-if="showBentoTableUpdateCol" class="whitespace-nowrap">
                         <span class="bt-fresh">
                           {{ param.received_at ? formatRelative(param.received_at) : '-' }}
                         </span>
@@ -6127,7 +6188,7 @@ export default {
       const savedAuto = localStorage.getItem('datalogger_bento_auto_grid');
       if (savedAuto === 'false') autoGrid = false;
       const savedSplit = localStorage.getItem('datalogger_bento_table_split');
-      if (savedSplit === '1T' || savedSplit === '2T') splitMode = savedSplit;
+      if (savedSplit === '1T' || savedSplit === '2T' || savedSplit === 'CAT') splitMode = savedSplit;
       const rawTrendH = parseInt(localStorage.getItem('datalogger_bento_trend_height'), 10);
       if (isFinite(rawTrendH) && rawTrendH >= 120 && rawTrendH <= 560) {
         savedTrendHeight = rawTrendH;
@@ -6215,12 +6276,184 @@ export default {
       const n = (this.filteredParameters && this.filteredParameters.length) || 0;
       return this.isCompactScreen || n >= 11;
     },
+    bentoTableModeShortBadge() {
+      if (this.bentoTableSplitMode === 'CAT') return 'KAT';
+      return this.bentoTableSplitMode || '2T';
+    },
+    bentoAvailableParamsWidth() {
+      const vw = this.bentoViewportWidth || 1600;
+      const hasLeftIspu = Boolean(this.isAQMSDomain && this.isIspuBarVisible && !this.isCompactScreen);
+      return Math.max(320, vw - (hasLeftIspu ? 284 : 28));
+    },
+    bentoCategoryTableSections() {
+      const list = this.filteredParameters || [];
+      if (!list.length) return [];
+
+      const colorHexMap = {
+        cyan: '#06B6D4',
+        sky: '#0EA5E9',
+        blue: '#3B82F6',
+        indigo: '#6366F1',
+        purple: '#8B5CF6',
+        violet: '#8B5CF6',
+        emerald: '#10B981',
+        green: '#10B981',
+        teal: '#14B8A6',
+        amber: '#F59E0B',
+        yellow: '#EAB308',
+        orange: '#F97316',
+        rose: '#F43F5E',
+        red: '#EF4444',
+        pink: '#EC4899',
+        slate: '#64748B',
+      };
+      const resolveAccent = (cat) => {
+        if (!cat) return '#64748B';
+        if (cat.color && String(cat.color).startsWith('#')) return cat.color;
+        const ck = String(cat.color_key || '').toLowerCase();
+        if (colorHexMap[ck]) return colorHexMap[ck];
+        const nm = String(cat.name || '').toLowerCase();
+        if (/gas|pollutant/.test(nm)) return '#06B6D4';
+        if (/particulate|pm/.test(nm)) return '#3B82F6';
+        if (/weather|meteorolog/.test(nm)) return '#0EA5E9';
+        if (/water|chemical|flow/.test(nm)) return '#14B8A6';
+        if (/status/.test(nm)) return '#10B981';
+        return '#64748B';
+      };
+
+      const buildColMeta = (key, title, accentColor, params, isUncategorized = false) => {
+        let faultCount = 0;
+        let warnCount = 0;
+        for (const p of params) {
+          const tone = this.getBentoStatusBadge(p).toneClass;
+          if (tone === 'badge-rose') faultCount += 1;
+          else if (tone === 'badge-amber') warnCount += 1;
+        }
+        return {
+          key,
+          title,
+          accentColor,
+          isCategoryTable: true,
+          isUncategorized,
+          faultCount,
+          warnCount,
+          params,
+        };
+      };
+
+      const resolveParamCatId = (p) => {
+        if (!p) return null;
+        if (p.category_id != null && p.category_id !== '') return Number(p.category_id);
+        if (p.category && p.category.id != null) return Number(p.category.id);
+        const pid = p.param_id || p.id;
+        const raw = (pid != null && this.bentoRawParamMap && this.bentoRawParamMap[pid]) || null;
+        if (raw) {
+          if (raw.category_id != null && raw.category_id !== '') return Number(raw.category_id);
+          if (raw.category && raw.category.id != null) return Number(raw.category.id);
+        }
+        return null;
+      };
+
+      const sections = [];
+      const usedIds = new Set();
+
+      // 1. Primary domain categories ordered by display_order
+      const orderedCats = [];
+      const seenCatIds = new Set();
+      for (const c of (this.activeCategoriesList || [])) {
+        if (c && c.id != null && !seenCatIds.has(Number(c.id))) {
+          seenCatIds.add(Number(c.id));
+          orderedCats.push(c);
+        }
+      }
+      // Also include any enabled cross-domain categories from categoriesList in display_order
+      const allSortedCats = Array.isArray(this.categoriesList)
+        ? [...this.categoriesList]
+            .filter(c => c && c.id != null && c.enabled !== false)
+            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        : [];
+      for (const c of allSortedCats) {
+        if (!seenCatIds.has(Number(c.id))) {
+          seenCatIds.add(Number(c.id));
+          orderedCats.push(c);
+        }
+      }
+
+      for (const cat of orderedCats) {
+        const catId = Number(cat.id);
+        const catParams = list.filter(p => {
+          const pid = p.param_id || p.id;
+          if (usedIds.has(pid)) return false;
+          return resolveParamCatId(p) === catId;
+        });
+        if (catParams.length > 0) {
+          catParams.forEach(p => usedIds.add(p.param_id || p.id));
+          sections.push(
+            buildColMeta(
+              'cat-' + catId,
+              String(cat.name || cat.code || 'KATEGORI').toUpperCase(),
+              resolveAccent(cat),
+              catParams,
+              false
+            )
+          );
+        }
+      }
+
+      // 2. Fallback for embedded parameter category objects not present in categoriesList
+      const extraGroups = new Map();
+      for (const p of list) {
+        const pid = p.param_id || p.id;
+        if (usedIds.has(pid)) continue;
+        const raw = (pid != null && this.bentoRawParamMap && this.bentoRawParamMap[pid]) || null;
+        const cat = this.getParamCategory(p) || (raw ? this.getParamCategory(raw) : null);
+        if (cat && (cat.id != null || cat.name)) {
+          const gKey = cat.id != null ? ('id-' + cat.id) : ('nm-' + String(cat.name).toLowerCase());
+          if (!extraGroups.has(gKey)) {
+            extraGroups.set(gKey, { cat, params: [] });
+          }
+          extraGroups.get(gKey).params.push(p);
+          usedIds.add(pid);
+        }
+      }
+      for (const [gKey, grp] of extraGroups.entries()) {
+        sections.push(
+          buildColMeta(
+            'extra-' + gKey,
+            String(grp.cat.name || grp.cat.code || 'KATEGORI').toUpperCase(),
+            resolveAccent(grp.cat),
+            grp.params,
+            false
+          )
+        );
+      }
+
+      // 3. Uncategorized parameters (only spawned if there are uncategorized parameters)
+      const uncatParams = list.filter(p => !usedIds.has(p.param_id || p.id));
+      if (uncatParams.length > 0) {
+        sections.push(
+          buildColMeta(
+            'cat-uncategorized',
+            sections.length > 0 ? 'TANPA KATEGORI' : 'PARAMETER TANPA KATEGORI',
+            '#64748B',
+            uncatParams,
+            true
+          )
+        );
+      }
+
+      return sections;
+    },
     bentoSplitTableColumns() {
       const list = this.filteredParameters || [];
+      if (this.bentoTableSplitMode === 'CAT') {
+        return this.bentoCategoryTableSections;
+      }
       if (this.bentoTableSplitMode === '1T' || list.length <= 2) {
         return [
           {
-            title: `DAFTAR PARAMETER TELEMETRI (${list.length} KANAL)`,
+            key: 'tbl-1t',
+            title: 'DAFTAR PARAMETER TELEMETRI (' + list.length + ' KANAL)',
             params: list,
           },
         ];
@@ -6228,14 +6461,40 @@ export default {
       const mid = Math.ceil(list.length / 2);
       return [
         {
-          title: `KOLOM 1 · PARAMETER (#1–${mid})`,
+          key: 'tbl-2t-1',
+          title: 'KOLOM 1 · PARAMETER (#1–' + mid + ')',
           params: list.slice(0, mid),
         },
         {
-          title: `KOLOM 2 · PARAMETER (#${mid + 1}–${list.length})`,
+          key: 'tbl-2t-2',
+          title: 'KOLOM 2 · PARAMETER (#' + (mid + 1) + '–' + list.length + ')',
           params: list.slice(mid),
         },
       ];
+    },
+    bentoEffectiveTableGridCols() {
+      const count = (this.bentoSplitTableColumns && this.bentoSplitTableColumns.length) || 1;
+      const availW = this.bentoAvailableParamsWidth || 1200;
+      if (count <= 1 || availW < 620) return 1;
+      if (this.bentoTableSplitMode === '2T' || count === 2) return 2;
+      if (this.bentoTableSplitMode === 'CAT' && count >= 3) {
+        if (availW >= 920) return 3;
+        return 2;
+      }
+      return Math.min(2, count);
+    },
+    showBentoTableSparklineCol() {
+      if (this.bentoEffectiveTableGridCols <= 2) return true;
+      return this.bentoAvailableParamsWidth >= 1140;
+    },
+    showBentoTableMiniTrack() {
+      if (this.bentoEffectiveTableGridCols <= 2) return true;
+      return this.bentoAvailableParamsWidth >= 1460;
+    },
+    showBentoTableUpdateCol() {
+      if (this.bentoEffectiveTableGridCols === 1) return true;
+      if (this.bentoEffectiveTableGridCols === 2) return !this.isCompactScreen;
+      return false;
     },
     bentoRawParamMap() {
       const map = {};
@@ -6623,7 +6882,7 @@ export default {
         } catch (e) {}
         return;
       }
-      if (target === '2T' || target === '1T') {
+      if (target === 'CAT' || target === '2T' || target === '1T') {
         this.viewMode = 'table';
         this.bentoTableSplitMode = target;
         try {
@@ -8232,10 +8491,11 @@ export default {
   gap: 8px;
   align-items: start;
 }
-@media (min-width: 768px) {
-  .bento-dual-table-grid.is-dual-cols {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.bento-dual-table-grid.is-dual-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.bento-dual-table-grid.is-tri-cols {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .bento-table-card {
@@ -8244,6 +8504,7 @@ export default {
   border-radius: 12px;
   box-shadow: var(--b-shadow);
   overflow: hidden;
+  min-width: 0;
 }
 
 .bento-tbl-subhead {
@@ -8253,10 +8514,38 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   font-size: 9.8px;
   font-weight: 800;
   letter-spacing: 0.04em;
   color: var(--b-text-muted);
+}
+.bento-tbl-subhead.is-cat-subhead {
+  color: var(--b-text-main);
+}
+.is-tri-cols .bento-tbl-subhead {
+  padding: 5px 8.5px;
+  font-size: 9.2px;
+}
+.bento-tbl-subhead-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bento-tbl-subhead-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--b-text-muted);
+  font-weight: 700;
+}
+.bento-cat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .bento-tbl {
@@ -8274,6 +8563,10 @@ export default {
   border-bottom: 1px solid var(--b-border-soft);
   white-space: nowrap;
 }
+.is-tri-cols .bento-tbl thead th {
+  padding: 4.5px 6.5px;
+  font-size: 8.8px;
+}
 .bento-tbl tbody td {
   padding: 5px 9px;
   font-size: 11px;
@@ -8283,6 +8576,10 @@ export default {
 .is-compact-vp .bento-tbl tbody td {
   padding: 4px 7.5px;
   font-size: 10.5px;
+}
+.is-tri-cols .bento-tbl tbody td {
+  padding: 4px 6.5px;
+  font-size: 10.3px;
 }
 .bento-tbl tbody tr:last-child td {
   border-bottom: none;
@@ -8314,6 +8611,9 @@ export default {
   gap: 6px;
   min-width: 0;
 }
+.is-tri-cols .bt-param-cell {
+  gap: 4.5px;
+}
 .bt-name {
   font-weight: 700;
   color: var(--b-text-main);
@@ -8321,6 +8621,9 @@ export default {
 }
 .is-compact-vp .bt-name {
   max-width: 105px;
+}
+.is-tri-cols .bt-name {
+  max-width: 108px;
 }
 
 .bt-val {
@@ -8331,11 +8634,18 @@ export default {
 .is-compact-vp .bt-val {
   font-size: 11.2px;
 }
+.is-tri-cols .bt-val {
+  font-size: 11.2px;
+}
 .bt-unit {
   font-size: 9.8px;
   font-weight: 600;
   color: var(--b-text-muted);
   margin-left: 3px;
+}
+.is-tri-cols .bt-unit {
+  font-size: 9px;
+  margin-left: 2px;
 }
 
 .bt-spark-box {
@@ -8349,11 +8659,18 @@ export default {
   width: 42px;
   height: 13px;
 }
+.is-tri-cols .bt-spark-box {
+  width: 36px;
+  height: 13px;
+}
 
 .bt-status-cell {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.is-tri-cols .bt-status-cell {
+  gap: 4px;
 }
 .bt-mini-track {
   width: 38px;

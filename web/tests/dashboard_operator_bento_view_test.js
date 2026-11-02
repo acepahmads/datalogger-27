@@ -137,7 +137,7 @@ check('7.2: Sensor cards, dual tables, Trend Studio, Docked Footer, and all oper
 check('8.1: Parameter filter and Card/Table setup use compact icon-only buttons & popovers without horizontal scrollbars', () => {
   assert(viewContent.includes('class="param-ctrl-bar"'), 'Must render compact .param-ctrl-bar');
   assert(!viewContent.includes('class="cat-pills'), 'Must not render wide horizontal .cat-pills row');
-  for (const btnId of ['btn-bento-param-filter', 'btn-bento-param-pin', 'btn-bento-view-cards', 'btn-bento-view-2t', 'btn-bento-view-1t', 'btn-bento-card-setup']) {
+  for (const btnId of ['btn-bento-param-filter', 'btn-bento-param-pin', 'btn-bento-view-cards', 'btn-bento-view-cat', 'btn-bento-view-2t', 'btn-bento-view-1t', 'btn-bento-card-setup']) {
     assert(viewContent.includes(`id="${btnId}"`), `Must render compact icon button #${btnId}`);
   }
   assert(viewContent.includes("toggleBentoMiniPopover('paramFilter')"), 'Must wire parameter filter popover');
@@ -191,6 +191,18 @@ check('11.1: Parameter cards & tables display active Stuck Value / abnormality a
   assert(viewContent.includes('getBentoDotColor(param)'), 'Must update parameter status dot color to amber/rose when in alarm');
   assert(viewContent.includes('onBentoStatusBadgeClick(param)') && viewContent.includes('this.openAckModal(badge.alarm)'), 'Clicking an active alarm badge on a card/table must open Acknowledge modal');
   assert(viewContent.includes('is-clickable-alarm'), 'Active alarm badge must have interactive clickable styling');
+});
+
+// 12. Category-Grouped Side-by-Side Table View (CAT Mode — Up to 3 Compact Columns)
+check('12.1: Category Table View (CAT) creates one table per active used category and arranges up to 3 compact columns side-by-side', () => {
+  assert(viewContent.includes('id="btn-bento-view-cat"'), 'Must render #btn-bento-view-cat switcher icon button');
+  assert(viewContent.includes("@click=\"setBentoDisplayMode('CAT')\""), 'Must support switching to CAT table mode');
+  assert(viewContent.includes("savedSplit === 'CAT'"), 'Must restore CAT table mode from localStorage');
+  assert(viewContent.includes('bentoCategoryTableSections()'), 'Must compute dynamic category table sections for active used categories');
+  assert(viewContent.includes('bentoEffectiveTableGridCols()'), 'Must compute responsive table grid columns up to 3 side-by-side');
+  assert(viewContent.includes("'is-tri-cols': bentoEffectiveTableGridCols === 3"), 'Must bind .is-tri-cols class when 3+ category tables are active');
+  assert(viewContent.includes('.bento-dual-table-grid.is-tri-cols'), 'Must define CSS repeat(3, minmax(0, 1fr)) for 3 side-by-side category tables');
+  assert(viewContent.includes('!col.isCategoryTable && !isCompactScreen && getParamCategory(param)'), 'Must omit redundant per-row category pill when already grouped by category table');
 });
 
 console.log('========================================================================');
