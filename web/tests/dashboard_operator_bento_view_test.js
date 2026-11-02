@@ -224,6 +224,14 @@ check('12.3: Parameter tables remain clean and readable on small/narrow screens 
   assert(theadBlock.includes('overflow: hidden;') && theadBlock.includes('text-overflow: ellipsis;'), 'Table headers must clip overflow cleanly so PARAMETER and NILAI can never overlap');
 });
 
+check('12.4: Parameter tables and cards expand to full unclipped height when Trend Chart is hidden, with 1-click Hide/Show toggle on Trend Studio', () => {
+  assert(viewContent.includes("'is-trend-hidden': !perfSettings.trendAnalysisEnabled"), 'Must bind .is-trend-hidden when trendAnalysisEnabled is false');
+  assert(viewContent.includes('.bento-table-area.is-trend-hidden') && viewContent.includes('max-height: none !important;'), 'Must remove max-height clamp on parameter tables when trend chart is hidden so all wrapped tables are visible');
+  assert(viewContent.includes('.sensors-scroll-area.is-trend-hidden'), 'Must also remove max-height clamp on parameter cards when trend chart is hidden');
+  assert(viewContent.includes('bentoParamsScrollAreaStyle()'), 'Must dynamically scale parameter area max-height to available viewport height when trend chart is open');
+  assert(viewContent.includes('id="btn-bento-trend-hide"') && viewContent.includes('id="btn-bento-trend-show"'), 'Must provide direct 1-click Hide & Show Trend buttons right on the Trend Studio bar');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

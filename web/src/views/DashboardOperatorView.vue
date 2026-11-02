@@ -2335,7 +2335,8 @@
       class="bento-mid"
       :class="{
         'bento-mid-single': !(isAQMSDomain && isIspuBarVisible) || isCompactScreen,
-        'is-compact-mid': isCompactScreen
+        'is-compact-mid': isCompactScreen,
+        'is-trend-hidden': !perfSettings.trendAnalysisEnabled
       }"
     >
       <!-- ISPU Component: Automatically switches between Compact Bar & Full Left Hero Card -->
@@ -2690,7 +2691,11 @@
         <div
           v-if="viewMode === 'cards'"
           class="sensors-scroll-area custom-scroller"
-          :class="{ 'is-compact-scroll': isCompactScreen }"
+          :class="{
+            'is-compact-scroll': isCompactScreen,
+            'is-trend-hidden': !perfSettings.trendAnalysisEnabled
+          }"
+          :style="bentoParamsScrollAreaStyle"
         >
           <div
             v-if="filteredParameters.length > 0"
@@ -2884,7 +2889,11 @@
         <div
           v-else
           class="bento-table-area custom-scroller"
-          :class="{ 'is-compact-scroll': isCompactScreen }"
+          :class="{
+            'is-compact-scroll': isCompactScreen,
+            'is-trend-hidden': !perfSettings.trendAnalysisEnabled
+          }"
+          :style="bentoParamsScrollAreaStyle"
         >
           <div
             v-if="filteredParameters.length > 0"
@@ -3765,6 +3774,21 @@
           >
             <OperatorDashboardIcon name="fullscreen" :size="13" />
           </button>
+
+          <!-- Icon-Only Hide / Minimize Trend Chart (Expands Parameter Area to Full View) -->
+          <button
+            id="btn-bento-trend-hide"
+            type="button"
+            class="op-icon-btn xs"
+            @click="setPerfSetting('trendAnalysisEnabled', false)"
+            title="Sembunyikan Grafik Tren (Tampilkan Semua Tabel/Kartu Penuh)"
+            aria-label="Hide Trend Chart"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+              <line x1="5" y1="19" x2="19" y2="19" stroke-opacity="0.5" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -4053,14 +4077,21 @@
       </div>
     </section>
 
-    <!-- Trend Analysis Paused Placeholder -->
-    <section v-else class="trend-studio !py-3 !flex-row items-center justify-between">
-      <div>
-        <div class="ts-title">Analisis Tren Telemetri (Dijeda)</div>
-        <div class="text-xs opacity-70">Mode hemat performa aktif — grafik SVG dinonaktifkan sementara.</div>
+    <!-- Trend Analysis Hidden / Paused Slim Bar -->
+    <section v-else class="trend-studio is-collapsed-trend">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="ts-title">Analisis Tren Telemetri (Disembunyikan)</span>
+        <span class="text-[11px] opacity-70 hidden sm:inline truncate">
+          · Area tabel &amp; kartu parameter ditampilkan penuh (grafik SVG dijeda)
+        </span>
       </div>
-      <button type="button" @click="setPerfSetting('trendAnalysisEnabled', true)" class="dock-btn cyan">
-        ▶ Aktifkan Grafik Tren
+      <button
+        id="btn-bento-trend-show"
+        type="button"
+        @click="setPerfSetting('trendAnalysisEnabled', true)"
+        class="dock-btn cyan flex-shrink-0"
+      >
+        <span>▶ Aktifkan Grafik Tren</span>
       </button>
     </section>
 
@@ -6527,6 +6558,18 @@ export default {
       if (this.bentoEffectiveTableGridCols >= 3) return false;
       return this.bentoPerTableCardWidth >= 560;
     },
+    bentoParamsScrollAreaStyle() {
+      if (!this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
+        return null;
+      }
+      const isTable = this.viewMode === 'table';
+      const minH = isTable ? (this.isCompactScreen ? 325 : 360) : (this.isCompactScreen ? 268 : 332);
+      const topIspuOffset = (this.isCompactScreen && this.isAQMSDomain && this.isIspuBarVisible) ? 62 : 0;
+      const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + 230 + topIspuOffset);
+      return {
+        maxHeight: 'max(' + minH + 'px, calc(100vh - ' + reservedPx + 'px))',
+      };
+    },
     bentoRawParamMap() {
       const map = {};
       for (const dev of (this.devicesList || [])) {
@@ -7861,6 +7904,9 @@ export default {
 .bento-mid.is-compact-mid {
   gap: 7px;
 }
+.bento-mid.is-trend-hidden {
+  align-items: start;
+}
 
 .right-params-wrap {
   display: flex;
@@ -8218,6 +8264,11 @@ export default {
 .sensors-scroll-area.is-compact-scroll {
   max-height: 268px;
 }
+.sensors-scroll-area.is-trend-hidden {
+  max-height: none !important;
+  overflow-y: visible !important;
+  padding-right: 0;
+}
 
 .sensors-grid {
   display: grid;
@@ -8535,6 +8586,11 @@ export default {
 }
 .bento-table-area.is-compact-scroll {
   max-height: 325px;
+}
+.bento-table-area.is-trend-hidden {
+  max-height: none !important;
+  overflow-y: visible !important;
+  padding-right: 0;
 }
 
 .bento-dual-table-grid {
@@ -9051,6 +9107,13 @@ export default {
 }
 .is-compact-vp .trend-studio {
   padding: 6px 10px 4px;
+}
+.trend-studio.is-collapsed-trend {
+  padding: 7px 12px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .ts-compact-bar {
