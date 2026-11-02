@@ -205,6 +205,14 @@ check('12.1: Category Table View (CAT) creates one table per active used categor
   assert(viewContent.includes('!col.isCategoryTable && !isCompactScreen && getParamCategory(param)'), 'Must omit redundant per-row category pill when already grouped by category table');
 });
 
+check('12.2: Parameter tables enforce strict column alignment (table-layout: fixed, colgroup, decimal-aligned reading + unit slot, dedicated uniform Status & Limit columns)', () => {
+  assert(viewContent.includes('<colgroup>') && viewContent.includes('class="bt-col-val"') && viewContent.includes('class="bt-col-status"') && viewContent.includes('class="bt-col-limit"'), 'Must define explicit <colgroup> columns for Parameter, Nilai, Tren, Status, Limit, Update, and Aksi');
+  assert(viewContent.includes('table-layout: fixed;'), 'Table must use table-layout: fixed for deterministic column geometry across tables');
+  assert(viewContent.includes('class="bt-reading-grid"') && viewContent.includes('class="bt-unit-slot"'), 'Numeric readings must use 2-track grid so decimals align vertically regardless of unit length');
+  assert(viewContent.includes('class="s-badge bt-status-pill"'), 'Status badges in tables must use uniform fixed-width .bt-status-pill');
+  assert(viewContent.includes('class="bt-limit-bar"'), 'Limit pills must embed subtle progress fill bar without shifting column positions');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

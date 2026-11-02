@@ -2919,16 +2919,26 @@
                 </div>
               </div>
 
-              <div class="overflow-x-auto custom-scroller">
+              <div class="bento-tbl-wrap">
                 <table class="bento-tbl">
+                  <colgroup>
+                    <col class="bt-col-param" />
+                    <col class="bt-col-val" />
+                    <col v-if="showBentoTableSparklineCol" class="bt-col-spark" />
+                    <col class="bt-col-status" />
+                    <col class="bt-col-limit" />
+                    <col v-if="showBentoTableUpdateCol" class="bt-col-update" />
+                    <col class="bt-col-act" />
+                  </colgroup>
                   <thead>
                     <tr>
-                      <th>Parameter</th>
-                      <th class="text-right">{{ bentoEffectiveTableGridCols >= 3 ? 'Nilai' : 'Nilai Bacaan' }}</th>
-                      <th v-if="showBentoTableSparklineCol" class="text-center">Tren</th>
-                      <th>Status &amp; Limit</th>
-                      <th v-if="showBentoTableUpdateCol">Update</th>
-                      <th class="text-right">Aksi</th>
+                      <th class="bt-th-param">Parameter</th>
+                      <th class="bt-th-val">Nilai</th>
+                      <th v-if="showBentoTableSparklineCol" class="bt-th-center">Tren</th>
+                      <th class="bt-th-center">Status</th>
+                      <th class="bt-th-center">Limit</th>
+                      <th v-if="showBentoTableUpdateCol" class="bt-th-center">Update</th>
+                      <th class="bt-th-center">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2945,42 +2955,42 @@
                       :title="getBentoParamCardTitle(param)"
                     >
                       <!-- 1. Parameter Name + Category (category pill omitted when already grouped by category) -->
-                      <td>
+                      <td class="bt-td-param">
                         <div class="bt-param-cell">
                           <span
                             class="s-dot"
                             :style="{ background: getBentoDotColor(param) }"
                           ></span>
-                          <span class="bt-name truncate" :title="param.param_name || param.param_code">
+                          <span class="bt-name" :title="param.param_name || param.param_code">
                             {{ param.param_name || param.param_code }}
                           </span>
-                          <span v-if="!col.isCategoryTable && !isCompactScreen && getParamCategory(param)" class="s-cat">
+                          <span v-if="!col.isCategoryTable && !isCompactScreen && getParamCategory(param)" class="s-cat flex-shrink-0">
                             {{ getParamCategoryShortLabel(param) }}
                           </span>
                         </div>
                       </td>
 
-                      <!-- 2. Value + Unit -->
-                      <td class="text-right whitespace-nowrap">
-                        <template v-if="isDiscreteStatusParam(param)">
+                      <!-- 2. Decimal-Aligned Value + Fixed Unit Track -->
+                      <td class="bt-td-val">
+                        <div v-if="isDiscreteStatusParam(param)" class="bt-reading-discrete">
                           <span
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded border font-bold text-[9.5px] uppercase"
+                            class="bt-discrete-pill"
                             :class="getDiscreteStatusInfo(param).pillClass"
                           >
-                            <span class="w-1.5 h-1.5 rounded-full" :class="getDiscreteStatusInfo(param).dotClass"></span>
+                            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="getDiscreteStatusInfo(param).dotClass"></span>
                             <span>{{ getDiscreteStatusInfo(param).label }}</span>
                           </span>
-                        </template>
-                        <template v-else>
+                        </div>
+                        <div v-else class="bt-reading-grid">
                           <span class="bt-val" :class="{ 's-val-muted': formatParamValue(param) === '--' }">
                             {{ formatParamValue(param) }}
                           </span>
-                          <span v-if="param.unit" class="bt-unit">{{ param.unit }}</span>
-                        </template>
+                          <span class="bt-unit-slot" :title="param.unit || ''">{{ param.unit || '' }}</span>
+                        </div>
                       </td>
 
                       <!-- 3. Inline Mini Sparkline -->
-                      <td v-if="showBentoTableSparklineCol" class="text-center">
+                      <td v-if="showBentoTableSparklineCol" class="bt-td-center">
                         <div class="bt-spark-box mx-auto">
                           <template v-if="isDiscreteStatusParam(param)">
                             <svg
@@ -3027,52 +3037,60 @@
                         </div>
                       </td>
 
-                      <!-- 4. Status Pill + Mini Threshold Bar + Configured Limit -->
-                      <td>
-                        <div class="bt-status-cell" :title="getBentoStatusBadge(param).tooltip || getBentoCardProgress(param).limitTooltip">
-                          <span
-                            class="s-badge"
-                            :class="[getBentoStatusBadge(param).toneClass, { 'is-clickable-alarm': getBentoStatusBadge(param).isAlarm }]"
-                            :title="getBentoStatusBadge(param).tooltip || ''"
-                            @click="getBentoStatusBadge(param).isAlarm ? ($event.stopPropagation(), onBentoStatusBadgeClick(param)) : null"
-                          >
-                            {{ getBentoStatusBadge(param).label }}
-                          </span>
-                          <div v-if="showBentoTableMiniTrack" class="bt-mini-track">
-                            <div
-                              class="bt-mini-fill"
-                              :style="{ width: getBentoCardProgress(param).pct + '%', background: getBentoCardColor(param) }"
-                            ></div>
-                          </div>
-                          <button
-                            v-if="getBentoCardProgress(param).tableLimitLabel"
-                            type="button"
-                            class="bt-limit-btn"
-                            :class="{ 'is-custom-limit': getBentoCardProgress(param).isConfiguredLimit }"
-                            @click.stop="openBentoQuickLimitEdit(param)"
-                            :title="getBentoCardProgress(param).limitTooltip"
-                          >
-                            {{ getBentoCardProgress(param).tableLimitLabel }}
-                          </button>
-                          <span v-else-if="!isCompactScreen && bentoEffectiveTableGridCols < 3" class="bt-pct">
-                            {{ getBentoCardProgress(param).rightLabel }}
-                          </span>
-                        </div>
+                      <!-- 4. Uniform Fixed-Width Status Pill -->
+                      <td class="bt-td-center">
+                        <span
+                          class="s-badge bt-status-pill"
+                          :class="[getBentoStatusBadge(param).toneClass, { 'is-clickable-alarm': getBentoStatusBadge(param).isAlarm }]"
+                          :title="getBentoStatusBadge(param).tooltip || ''"
+                          @click="getBentoStatusBadge(param).isAlarm ? ($event.stopPropagation(), onBentoStatusBadgeClick(param)) : null"
+                        >
+                          {{ getBentoStatusBadge(param).label }}
+                        </span>
                       </td>
 
-                      <!-- 5. Freshness (Shown on 1T or Wide 2T) -->
-                      <td v-if="showBentoTableUpdateCol" class="whitespace-nowrap">
+                      <!-- 5. Uniform Fixed-Width Configured Limit Pill (+ Subtle Bottom Fill Bar) -->
+                      <td class="bt-td-center">
+                        <span v-if="isDiscreteStatusParam(param)" class="bt-limit-dash" title="Kanal status digital">—</span>
+                        <button
+                          v-else-if="getBentoCardProgress(param).tableLimitLabel"
+                          type="button"
+                          class="bt-limit-btn"
+                          :class="{ 'is-custom-limit': getBentoCardProgress(param).isConfiguredLimit }"
+                          @click.stop="openBentoQuickLimitEdit(param)"
+                          :title="getBentoCardProgress(param).limitTooltip"
+                        >
+                          <span class="bt-limit-text">{{ getBentoCardProgress(param).tableLimitLabel }}</span>
+                          <span
+                            v-if="getBentoCardProgress(param).pct > 0"
+                            class="bt-limit-bar"
+                            :style="{ width: getBentoCardProgress(param).pct + '%', background: getBentoCardColor(param) }"
+                          ></span>
+                        </button>
+                        <button
+                          v-else
+                          type="button"
+                          class="bt-limit-btn is-empty-limit"
+                          @click.stop="openBentoQuickLimitEdit(param)"
+                          :title="getBentoCardProgress(param).limitTooltip"
+                        >
+                          <span class="bt-limit-text">Set Limit</span>
+                        </button>
+                      </td>
+
+                      <!-- 6. Freshness (Shown on 1T or Wide 2T) -->
+                      <td v-if="showBentoTableUpdateCol" class="bt-td-center whitespace-nowrap">
                         <span class="bt-fresh">
                           {{ param.received_at ? formatRelative(param.received_at) : '-' }}
                         </span>
                       </td>
 
-                      <!-- 6. Favorite + Context Menu Actions -->
-                      <td class="text-right whitespace-nowrap" @click.stop>
-                        <div class="inline-flex items-center justify-end gap-0.5">
+                      <!-- 7. Favorite + Context Menu Actions -->
+                      <td class="bt-td-center whitespace-nowrap" @click.stop>
+                        <div class="bt-act-group">
                           <button
                             type="button"
-                            class="s-icon-btn"
+                            class="s-icon-btn bt-act-btn"
                             @click.stop="togglePin(param.param_id)"
                             :title="isPinned(param.param_id) ? 'Lepas Favorit' : 'Sematkan Favorit'"
                           >
@@ -3085,7 +3103,7 @@
                           </button>
                           <button
                             type="button"
-                            class="s-icon-btn"
+                            class="s-icon-btn bt-act-btn"
                             @click.stop="openParamContextMenu($event, param)"
                             title="Menu Aksi Parameter"
                           >
@@ -6485,15 +6503,11 @@ export default {
     },
     showBentoTableSparklineCol() {
       if (this.bentoEffectiveTableGridCols <= 2) return true;
-      return this.bentoAvailableParamsWidth >= 1140;
-    },
-    showBentoTableMiniTrack() {
-      if (this.bentoEffectiveTableGridCols <= 2) return true;
-      return this.bentoAvailableParamsWidth >= 1460;
+      return this.bentoAvailableParamsWidth >= 1220;
     },
     showBentoTableUpdateCol() {
       if (this.bentoEffectiveTableGridCols === 1) return true;
-      if (this.bentoEffectiveTableGridCols === 2) return !this.isCompactScreen;
+      if (this.bentoEffectiveTableGridCols === 2) return this.bentoAvailableParamsWidth >= 1200;
       return false;
     },
     bentoRawParamMap() {
@@ -7295,15 +7309,16 @@ export default {
         ? (activeInfo.shortMeta + (activeInfo.ageStr ? ' ' + activeInfo.ageStr : ''))
         : rel;
 
+      const limits = this.resolveBentoParamLimits(param);
       if (this.isBentoParamCommOffline(param)) {
         return {
           pct: 0,
           metaLabel: rel ? `Terakhir aktif · ${rel}` : 'Sensor tidak terhubung',
           shortMetaLabel: rel || 'Offline',
           rightLabel: 'Offline',
-          tableLimitLabel: '',
-          isConfiguredLimit: false,
-          limitTooltip: `Status Offline · ${editHint}`,
+          tableLimitLabel: limits ? limits.shortLabel : '',
+          isConfiguredLimit: Boolean(limits && limits.source === 'configured'),
+          limitTooltip: `Status Offline${limits ? ' · ' + limits.detailNote : ''} · ${editHint}`,
         };
       }
       if (this.isDiscreteStatusParam(param)) {
@@ -7318,7 +7333,6 @@ export default {
           limitTooltip: editHint,
         };
       }
-      const limits = this.resolveBentoParamLimits(param);
       const val = Number(param.value);
       const hasVal = param.value !== null && param.value !== undefined && param.value !== '' && isFinite(val);
 
@@ -8508,7 +8522,9 @@ export default {
 }
 
 .bento-tbl-subhead {
-  padding: 5.5px 11px;
+  height: 30px;
+  padding: 0 11px;
+  box-sizing: border-box;
   background: var(--b-subtle);
   border-bottom: 1px solid var(--b-border);
   display: flex;
@@ -8524,7 +8540,8 @@ export default {
   color: var(--b-text-main);
 }
 .is-tri-cols .bento-tbl-subhead {
-  padding: 5px 8.5px;
+  height: 29px;
+  padding: 0 9px;
   font-size: 9.2px;
 }
 .bento-tbl-subhead-left {
@@ -8540,6 +8557,14 @@ export default {
   flex-shrink: 0;
   color: var(--b-text-muted);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bento-tbl-subhead-right .s-badge {
+  height: 17px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 .bento-cat-dot {
   width: 7px;
@@ -8548,39 +8573,141 @@ export default {
   flex-shrink: 0;
 }
 
+.bento-tbl-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .bento-tbl {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
 }
+
+/* Deterministic Column Widths Across All Side-by-Side Tables */
+.bento-tbl col.bt-col-param {
+  width: auto;
+}
+.bento-tbl col.bt-col-val {
+  width: 118px;
+}
+.bento-tbl col.bt-col-spark {
+  width: 58px;
+}
+.bento-tbl col.bt-col-status {
+  width: 68px;
+}
+.bento-tbl col.bt-col-limit {
+  width: 86px;
+}
+.bento-tbl col.bt-col-update {
+  width: 74px;
+}
+.bento-tbl col.bt-col-act {
+  width: 50px;
+}
+
+.is-tri-cols .bento-tbl col.bt-col-val {
+  width: 106px;
+}
+.is-tri-cols .bento-tbl col.bt-col-spark {
+  width: 46px;
+}
+.is-tri-cols .bento-tbl col.bt-col-status {
+  width: 62px;
+}
+.is-tri-cols .bento-tbl col.bt-col-limit {
+  width: 78px;
+}
+.is-tri-cols .bento-tbl col.bt-col-act {
+  width: 42px;
+}
+
+.bento-tbl thead tr {
+  height: 25px;
+}
 .bento-tbl thead th {
-  padding: 5px 9px;
-  font-size: 9.5px;
+  padding: 0 8px;
+  font-size: 9.2px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--b-text-muted);
   border-bottom: 1px solid var(--b-border-soft);
   white-space: nowrap;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 .is-tri-cols .bento-tbl thead th {
-  padding: 4.5px 6.5px;
-  font-size: 8.8px;
+  padding: 0 5px;
+  font-size: 8.6px;
 }
+.bento-tbl thead th.bt-th-param {
+  text-align: left;
+  padding-left: 10px;
+}
+.is-tri-cols .bento-tbl thead th.bt-th-param {
+  padding-left: 8px;
+}
+.bento-tbl thead th.bt-th-val {
+  text-align: right;
+  padding-left: 4px;
+  padding-right: 48px;
+}
+.is-tri-cols .bento-tbl thead th.bt-th-val {
+  padding-left: 3px;
+  padding-right: 40px;
+}
+.bento-tbl thead th.bt-th-center {
+  text-align: center;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
+.bento-tbl tbody tr {
+  height: 33px;
+}
+.is-compact-vp .bento-tbl tbody tr,
+.is-tri-cols .bento-tbl tbody tr {
+  height: 31px;
+}
+
 .bento-tbl tbody td {
-  padding: 5px 9px;
+  padding: 0 6px;
   font-size: 11px;
   border-bottom: 1px solid var(--b-border-soft);
   vertical-align: middle;
+  box-sizing: border-box;
 }
-.is-compact-vp .bento-tbl tbody td {
-  padding: 4px 7.5px;
-  font-size: 10.5px;
+.is-day .bento-tbl thead th:not(:last-child),
+.is-day .bento-tbl tbody td:not(:last-child) {
+  border-right: 1px solid rgba(15, 23, 42, 0.045);
 }
-.is-tri-cols .bento-tbl tbody td {
-  padding: 4px 6.5px;
-  font-size: 10.3px;
+.is-night .bento-tbl thead th:not(:last-child),
+.is-night .bento-tbl tbody td:not(:last-child) {
+  border-right: 1px solid rgba(148, 163, 184, 0.055);
 }
+
+.bento-tbl tbody td.bt-td-param {
+  padding-left: 10px;
+  padding-right: 6px;
+}
+.is-tri-cols .bento-tbl tbody td.bt-td-param {
+  padding-left: 8px;
+  padding-right: 5px;
+}
+.bento-tbl tbody td.bt-td-val {
+  padding: 0 8px;
+}
+.is-tri-cols .bento-tbl tbody td.bt-td-val {
+  padding: 0 5px;
+}
+.bento-tbl tbody td.bt-td-center {
+  text-align: center;
+  padding: 0 3px;
+}
+
 .bento-tbl tbody tr:last-child td {
   border-bottom: none;
 }
@@ -8609,113 +8736,218 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   min-width: 0;
 }
 .is-tri-cols .bt-param-cell {
-  gap: 4.5px;
+  gap: 5px;
+}
+.bt-param-cell .s-dot {
+  width: 6.5px;
+  height: 6.5px;
+  flex-shrink: 0;
 }
 .bt-name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 700;
   color: var(--b-text-main);
-  max-width: 140px;
-}
-.is-compact-vp .bt-name {
-  max-width: 105px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .is-tri-cols .bt-name {
-  max-width: 108px;
+  font-size: 10.5px;
 }
 
+/* Decimal-Aligned Numeric Reading + Fixed Unit Slot */
+.bt-reading-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  column-gap: 4px;
+  align-items: baseline;
+  width: 100%;
+}
+.is-tri-cols .bt-reading-grid {
+  grid-template-columns: minmax(0, 1fr) 32px;
+  column-gap: 3px;
+}
 .bt-val {
+  text-align: right;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11.8px;
+  font-variant-numeric: tabular-nums;
   color: var(--b-text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.is-compact-vp .bt-val {
-  font-size: 11.2px;
-}
+.is-compact-vp .bt-val,
 .is-tri-cols .bt-val {
-  font-size: 11.2px;
+  font-size: 11.1px;
 }
-.bt-unit {
-  font-size: 9.8px;
+.bt-unit-slot {
+  text-align: left;
+  font-size: 9.2px;
   font-weight: 600;
   color: var(--b-text-muted);
-  margin-left: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.is-tri-cols .bt-unit {
+.is-tri-cols .bt-unit-slot {
+  font-size: 8.6px;
+}
+
+.bt-reading-discrete {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.is-tri-cols .bt-reading-discrete {
+  padding-right: 35px;
+}
+.bt-discrete-pill {
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border-width: 1px;
+  border-style: solid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   font-size: 9px;
-  margin-left: 2px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .bt-spark-box {
-  width: 50px;
-  height: 15px;
+  width: 44px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .is-compact-vp .bt-spark-box {
-  width: 42px;
+  width: 38px;
   height: 13px;
 }
 .is-tri-cols .bt-spark-box {
-  width: 36px;
+  width: 34px;
   height: 13px;
 }
 
-.bt-status-cell {
-  display: flex;
+/* Uniform Fixed-Width Status & Limit Pills */
+.bt-status-pill {
+  width: 58px;
+  height: 19px;
+  padding: 0 3px;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-.is-tri-cols .bt-status-cell {
-  gap: 4px;
-}
-.bt-mini-track {
-  width: 38px;
-  height: 3.5px;
-  border-radius: 999px;
-  background: var(--b-track);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.is-compact-vp .bt-mini-track {
-  width: 28px;
-}
-.bt-mini-fill {
-  height: 100%;
-  border-radius: 999px;
-}
-.bt-limit-btn {
-  font-size: 9.2px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--b-pill);
-  border: 1px solid transparent;
-  color: var(--b-text-muted);
+  justify-content: center;
+  text-align: center;
+  line-height: 1;
   white-space: nowrap;
+  box-sizing: border-box;
+}
+.is-tri-cols .bt-status-pill {
+  width: 54px;
+  height: 18.5px;
+  font-size: 8.8px;
+}
+
+.bt-limit-btn {
+  position: relative;
+  width: 76px;
+  height: 19.5px;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: var(--b-pill);
+  border: 1px solid var(--b-border-soft);
+  color: var(--b-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
-  transition: all 0.15s ease;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.is-tri-cols .bt-limit-btn {
+  width: 70px;
+  height: 18.5px;
+  font-size: 8.6px;
 }
 .bt-limit-btn.is-custom-limit {
   color: var(--b-accent-blue);
   border-color: rgba(14, 165, 233, 0.25);
 }
+.bt-limit-btn.is-empty-limit {
+  opacity: 0.65;
+  font-weight: 600;
+}
 .bt-limit-btn:hover {
   border-color: var(--b-accent-blue);
   color: var(--b-accent-blue);
+  opacity: 1;
+}
+.bt-limit-text {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bt-limit-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 0 2px 0 0;
+  opacity: 0.85;
+  pointer-events: none;
+}
+.bt-limit-dash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 18.5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--b-text-muted);
+  opacity: 0.45;
 }
 
-.bt-pct {
+.bt-fresh {
   font-size: 9.5px;
-  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--b-text-muted);
 }
-.bt-fresh {
-  font-size: 9.8px;
-  color: var(--b-text-muted);
+
+.bt-act-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.is-tri-cols .bt-act-group {
+  gap: 1px;
+}
+.is-tri-cols .bt-act-btn {
+  width: 17px;
+  height: 18px;
 }
 
 .bento-empty-cards {
