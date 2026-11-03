@@ -103,7 +103,7 @@
         <div class="flex justify-between"><span class="text-slate-600 dark:text-slate-400 font-medium">{{ $t('systemMonitoring.workers') }}</span><span class="text-slate-900 dark:text-slate-200 font-mono font-medium">{{ status.worker_status }}</span></div>
         <div class="flex justify-between"><span class="text-slate-600 dark:text-slate-400 font-medium">{{ $t('systemMonitoring.scheduler') }}</span><span class="text-slate-900 dark:text-slate-200 font-mono font-medium">{{ status.scheduler_status }}</span></div>
         <div class="flex justify-between"><span class="text-slate-600 dark:text-slate-400 font-medium">{{ $t('systemMonitoring.localQueue') }}</span><span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">{{ status.queue_status }}</span></div>
-        <div class="flex justify-between"><span class="text-slate-600 dark:text-slate-400 font-medium">{{ $t('systemMonitoring.database') }}</span><span class="text-emerald-600 dark:text-emerald-400 font-semibold font-mono">MariaDB Edge</span></div>
+        <div v-if="!isOperator" class="flex justify-between"><span class="text-slate-600 dark:text-slate-400 font-medium">{{ $t('systemMonitoring.database') }}</span><span class="text-emerald-600 dark:text-emerald-400 font-semibold font-mono">MariaDB Edge</span></div>
       </div>
 
       <!-- 2. Devices Summary -->
@@ -156,6 +156,9 @@ export default {
   computed: {
     status() {
       return this.$store.state.systemStatus;
+    },
+    isOperator() {
+      return !!this.$store.getters.isOperator;
     },
   },
   mounted() {

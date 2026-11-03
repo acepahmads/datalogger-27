@@ -333,18 +333,41 @@
       </div>
     </nav>
 
-    <!-- Bottom Database Indicator (MariaDB Edge ● LOCAL) -->
-    <div class="p-4 border-t border-slate-200 dark:border-slate-800/50 bg-slate-50 dark:bg-[#0A0E18]/60">
-      <div class="flex items-center justify-between text-2xs mb-1.5">
-        <span class="font-medium text-slate-700 dark:text-slate-200">{{ $t('navigation.edgeDatabase') }}</span>
-        <span class="flex items-center text-emerald-600 dark:text-emerald-400 text-3xs font-semibold tracking-wide">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
-          LOCAL
-        </span>
+    <!-- Bottom Footer: Database Indicator (Hidden for Operator) & Logout Menu -->
+    <div class="border-t border-slate-200 dark:border-slate-800/50 bg-slate-50 dark:bg-[#0A0E18]/60">
+      <!-- Bottom Database Indicator (MariaDB Edge ● LOCAL) — Hidden for Operator Role -->
+      <div v-if="!isOperator" class="px-4 pt-3.5 pb-3 border-b border-slate-200/80 dark:border-slate-800/50">
+        <div class="flex items-center justify-between text-2xs mb-1.5">
+          <span class="font-medium text-slate-700 dark:text-slate-200">{{ $t('navigation.edgeDatabase') }}</span>
+          <span class="flex items-center text-emerald-600 dark:text-emerald-400 text-3xs font-semibold tracking-wide">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
+            LOCAL
+          </span>
+        </div>
+        <div class="text-3xs text-slate-500 font-mono flex items-center justify-between">
+          <span>127.0.0.1:3306</span>
+          <span class="text-slate-600 dark:text-slate-400">10.4.x</span>
+        </div>
       </div>
-      <div class="text-3xs text-slate-500 font-mono flex items-center justify-between">
-        <span>127.0.0.1:3306</span>
-        <span class="text-slate-600 dark:text-slate-400">10.4.x</span>
+
+      <!-- Logout Menu Action -->
+      <div class="p-3">
+        <button
+          type="button"
+          id="btn-sidebar-logout"
+          @click="handleSidebarLogout"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-transparent hover:border-rose-200/80 dark:hover:border-rose-500/20 transition-colors cursor-pointer"
+        >
+          <span class="flex items-center">
+            <svg class="w-4 h-4 mr-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.9">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>{{ $t('auth.logout') || 'Logout' }}</span>
+          </span>
+          <span v-if="currentUsername" class="text-3xs font-mono font-medium px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 truncate max-w-[96px]">
+            @{{ currentUsername }}
+          </span>
+        </button>
       </div>
     </div>
   </aside>
@@ -372,6 +395,10 @@ export default {
     userRole() {
       const u = this.$store.state.user || {};
       return (u.role || '').toUpperCase();
+    },
+    currentUsername() {
+      const u = this.$store.state.user || {};
+      return u.username || '';
     },
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
@@ -402,6 +429,17 @@ export default {
     },
     onNavClick() {
       this.$emit('navigate');
+    },
+    async handleSidebarLogout() {
+      this.$emit('navigate');
+      if (this.$listeners && this.$listeners['request-logout']) {
+        this.$emit('request-logout');
+        return;
+      }
+      await this.$store.dispatch('logout');
+      if (this.$route.path !== '/login') {
+        this.$router.push('/login');
+      }
     },
     onTraceStatus(e) {
       if (e && e.detail) {

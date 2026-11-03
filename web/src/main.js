@@ -27,8 +27,10 @@ axios.interceptors.response.use(
       const originalRequest = error.config || {};
       const url = originalRequest.url || '';
 
-      // Don't intercept auth login/logout endpoint errors
-      if (!url.includes('/auth/login') && !url.includes('/auth/logout')) {
+      // Don't intercept auth login/logout endpoint errors or when user explicitly navigated to /login
+      const onLoginScreen = (router.currentRoute && router.currentRoute.path === '/login') ||
+        (typeof window !== 'undefined' && (window.location.hash || '').startsWith('#/login'));
+      if (!url.includes('/auth/login') && !url.includes('/auth/logout') && !onLoginScreen) {
         // Silently re-authenticate as default operator rather than dumping user to login screen
         store.dispatch('autoLoginOperator').catch(() => {});
       }
@@ -62,7 +64,9 @@ new Vue({
     });
 
     // Automatically ensure operator session exists on startup without requiring manual login
-    if (!this.$store.state.token) {
+    // (Skip auto-login when user explicitly opened or refreshed the /login screen)
+    const isLoginEntry = typeof window !== 'undefined' && (window.location.hash || '').startsWith('#/login');
+    if (!this.$store.state.token && !isLoginEntry) {
       this.$store.dispatch('autoLoginOperator').then(() => {
         this.$store.dispatch('fetchSystemStatus');
         this.$store.dispatch('fetchDevices');

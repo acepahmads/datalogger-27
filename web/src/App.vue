@@ -19,6 +19,7 @@
         :is-collapsed="isSidebarCollapsed"
         :is-auto-hide="false"
         @toggle-autohide="onSidebarAutoHideToggle"
+        @request-logout="openLogoutConfirmModal"
       />
 
       <!-- 2. Auto-Hide Edge Hover Trigger Zone (rendered when auto-hide is TRUE) -->
@@ -46,6 +47,7 @@
             :is-auto-hide="true"
             @toggle-autohide="onSidebarAutoHideToggle"
             @navigate="closeSidebarHoverImmediate"
+            @request-logout="openLogoutConfirmModal"
           />
         </div>
       </transition>
@@ -79,6 +81,45 @@
     <main v-else class="flex-1 overflow-y-auto p-0 bg-transparent">
       <router-view />
     </main>
+
+    <!-- Global Logout Confirmation Modal (Accessible from Sidebar even when Top Header is hidden) -->
+    <div
+      v-if="showLogoutConfirmModal"
+      @click.self="showLogoutConfirmModal = false"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-sans"
+    >
+      <div class="bg-white dark:bg-[#0E1626] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 text-center m-auto max-h-[90vh] overflow-y-auto">
+        <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </div>
+
+        <div>
+          <h2 class="text-base font-bold text-slate-900 dark:text-white">{{ $t('auth.logoutConfirmTitle') || 'Confirm Session Logout' }}</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {{ $t('auth.logoutConfirmMsg') || 'Are you sure you want to end your active session? You will be redirected to the sign-in screen.' }}
+          </p>
+        </div>
+
+        <div class="pt-3 flex items-center justify-center gap-2 border-t border-slate-100 dark:border-slate-800">
+          <button
+            type="button"
+            @click="showLogoutConfirmModal = false"
+            class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+          >
+            {{ $t('auth.cancel') || 'Cancel' }}
+          </button>
+          <button
+            type="button"
+            @click="confirmAppLogout"
+            class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs cursor-pointer"
+          >
+            {{ $t('auth.confirmLogout') || 'Yes, Logout' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -100,6 +141,7 @@ export default {
       isTopPanelHidden: true,
       isSidebarHovered: false,
       hoverCloseTimer: null,
+      showLogoutConfirmModal: false,
     };
   },
   computed: {
@@ -173,6 +215,18 @@ export default {
     closeSidebarHoverImmediate() {
       this.cancelCloseSidebarHover();
       this.isSidebarHovered = false;
+    },
+    openLogoutConfirmModal() {
+      this.closeSidebarHoverImmediate();
+      this.showLogoutConfirmModal = true;
+    },
+    async confirmAppLogout() {
+      this.showLogoutConfirmModal = false;
+      this.closeSidebarHoverImmediate();
+      await this.$store.dispatch('logout');
+      if (this.$route.path !== '/login') {
+        this.$router.push('/login');
+      }
     },
   },
 };

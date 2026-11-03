@@ -735,11 +735,10 @@ func main() {
 
 	// 12. Start Server with Graceful Shutdown
 	srv := &http.Server{
-		Addr:         fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
-		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Handler:           r,
+		ReadHeaderTimeout: 15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {

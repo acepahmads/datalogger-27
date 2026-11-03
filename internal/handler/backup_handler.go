@@ -338,10 +338,10 @@ const maxImportArchiveBytes = 4 * 1024 * 1024 * 1024 // 4 GB upper bound for bac
 // ImportBackup streams an externally uploaded .tar.gz backup archive to disk without RAM buffering,
 // validates its manifest, SHA-256 checksums, and SQL dump, and registers it into the Backup Catalog.
 func (h *BackupHandler) ImportBackup(c *gin.Context) {
-	// Extend read & write deadlines so multi-hundred-MB uploads over LAN/Wi-Fi do not hit the 15s http.Server timeout
+	// Extend read & write deadlines so multi-hundred-MB uploads and streaming checksum verification over LAN/Wi-Fi never time out
 	rc := http.NewResponseController(c.Writer)
 	_ = rc.SetReadDeadline(time.Now().Add(30 * time.Minute))
-	_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Minute))
+	_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Minute))
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImportArchiveBytes)
 
@@ -354,6 +354,11 @@ func (h *BackupHandler) ImportBackup(c *gin.Context) {
 	username := c.GetString("username")
 	if username == "" {
 		username = "admin"
+	}
+
+	drainMultipartTail := func() {
+		// Drain trailing multipart boundary bytes (bounded to 2 MB) so http.Server sees EOF and never sends TCP RST
+		_, _ = io.Copy(io.Discard, io.LimitReader(c.Request.Body, 2<<20))
 	}
 
 	for {
@@ -381,12 +386,14 @@ func (h *BackupHandler) ImportBackup(c *gin.Context) {
 		lowerName := strings.ToLower(origFilename)
 		if !strings.HasSuffix(lowerName, ".tar.gz") && !strings.HasSuffix(lowerName, ".tgz") {
 			_ = part.Close()
+			drainMultipartTail()
 			response.BadRequest(c, "Invalid file format: only .tar.gz or .tgz backup archives are supported")
 			return
 		}
 
 		record, manifest, importErr := h.backupService.ImportBackupArchive(c.Request.Context(), part, origFilename, username)
 		_ = part.Close()
+		drainMultipartTail()
 		if importErr != nil {
 			var maxBytesErr *http.MaxBytesError
 			switch {
@@ -409,6 +416,7 @@ func (h *BackupHandler) ImportBackup(c *gin.Context) {
 		return
 	}
 
+	drainMultipartTail()
 	response.BadRequest(c, "No backup archive file provided in 'file' form field")
 }
 

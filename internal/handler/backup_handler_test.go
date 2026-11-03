@@ -574,6 +574,35 @@ func TestBackupImportAndRestoreEndToEnd(t *testing.T) {
 	if err := dbA.Create(&srcDevice).Error; err != nil {
 		t.Fatalf("failed creating test device on Server A: %v", err)
 	}
+	srcParam := model.Parameter{
+		DeviceID:      srcDevice.ID,
+		ParameterCode: "PM10_IMP",
+		ParameterName: "Imported PM10",
+	}
+	if err := dbA.Create(&srcParam).Error; err != nil {
+		t.Fatalf("failed creating test parameter on Server A: %v", err)
+	}
+
+	// Seed 600 telemetry rows (>128 KB SQL dump) so streaming multi-64KB chunk head/tail validation is exercised
+	nowUTC := time.Now().UTC()
+	batchRows := make([]model.RawData, 0, 600)
+	for i := 0; i < 600; i++ {
+		batchRows = append(batchRows, model.RawData{
+			RecordUUID:  fmt.Sprintf("imp-stream-uuid-%04d", i),
+			DeviceID:    srcDevice.ID,
+			ParameterID: srcParam.ID,
+			Value:       float64(42 + (i % 50)),
+			Quality:     model.QualityGood,
+			ReceivedAt:  nowUTC.Add(time.Duration(i) * time.Second),
+			StoredAt:    nowUTC,
+			Timestamp:   nowUTC.Add(time.Duration(i) * time.Second),
+			Source:      "MODBUS_TCP",
+			CreatedAt:   nowUTC,
+		})
+	}
+	if err := dbA.CreateInBatches(batchRows, 200).Error; err != nil {
+		t.Fatalf("failed seeding telemetry rows on Server A: %v", err)
+	}
 
 	ctx := context.Background()
 	exportedRec, err := backupSvcA.CreateBackup(ctx, model.BackupTypeManual, "admin")

@@ -1346,9 +1346,13 @@ export default {
         }
       } catch (err) {
         this.importing = false;
-        this.importError = (err.response && err.response.data && err.response.data.error)
-          ? err.response.data.error
-          : (err.message || 'Gagal mengimpor arsip cadangan.');
+        if (err.response && err.response.data && err.response.data.error) {
+          this.importError = err.response.data.error;
+        } else if (!err.response && err.message === 'Network Error') {
+          this.importError = 'Koneksi ke server terputus saat mengunggah arsip (ERR_CONNECTION_RESET). Pastikan service backend terbaru sudah di-update/restart dan koneksi jaringan stabil.';
+        } else {
+          this.importError = err.message || 'Gagal mengimpor arsip cadangan.';
+        }
       }
     },
     async openDetails(backup) {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -405,12 +406,6 @@ func (s *BackupService) ValidateBackup(ctx context.Context, backupID string) (*m
 		return nil, fmt.Errorf("%w: %s", ErrBackupNotFound, errStr)
 	}
 
-	manifest, err := s.readManifestFromArchive(record.FilePath)
-	if err != nil {
-		s.markValidation(record, model.ValidationStatusInvalid, err.Error())
-		return nil, fmt.Errorf("manifest validation failed: %w", err)
-	}
-
 	// Verify archive checksum if stored in record
 	if record.SHA256Checksum != "" {
 		currentSHA, err := s.calculateFileSHA256(record.FilePath)
@@ -421,46 +416,11 @@ func (s *BackupService) ValidateBackup(ctx context.Context, backupID string) (*m
 		}
 	}
 
-	// Extract to temporary staging to validate internal files
-	tempDir, err := os.MkdirTemp("", "validate_backup_*")
+	// Single-pass streaming validation (zero /tmp disk extraction; constant ~64 KB RAM even on multi-GB SQL dumps)
+	manifest, err := s.validateArchiveStream(record.FilePath)
 	if err != nil {
+		s.markValidation(record, model.ValidationStatusInvalid, err.Error())
 		return nil, err
-	}
-	defer os.RemoveAll(tempDir)
-
-	if err := s.extractTarGz(record.FilePath, tempDir); err != nil {
-		s.markValidation(record, model.ValidationStatusInvalid, "failed extracting archive: "+err.Error())
-		return nil, fmt.Errorf("archive extraction failed: %w", err)
-	}
-
-	// Validate each artifact checksum
-	for _, art := range manifest.Artifacts {
-		artPath := filepath.Join(tempDir, filepath.FromSlash(art.Path))
-		fi, err := os.Stat(artPath)
-		if err != nil {
-			errStr := fmt.Sprintf("missing artifact %s: %v", art.Path, err)
-			s.markValidation(record, model.ValidationStatusInvalid, errStr)
-			return nil, errors.New(errStr)
-		}
-		if fi.Size() != art.SizeBytes {
-			errStr := fmt.Sprintf("artifact %s size mismatch: expected %d bytes, got %d", art.Path, art.SizeBytes, fi.Size())
-			s.markValidation(record, model.ValidationStatusInvalid, errStr)
-			return nil, errors.New(errStr)
-		}
-		sha, err := s.calculateFileSHA256(artPath)
-		if err != nil || sha != art.SHA256 {
-			errStr := fmt.Sprintf("artifact %s checksum mismatch: expected %s, got %s", art.Path, art.SHA256, sha)
-			s.markValidation(record, model.ValidationStatusInvalid, errStr)
-			return nil, errors.New(errStr)
-		}
-	}
-
-	// Validate SQL dump readability
-	dumpPath := filepath.Join(tempDir, "database", "dump.sql")
-	if err := s.dbAdapter.ValidateDumpFile(dumpPath); err != nil {
-		errStr := "dump validation failed: " + err.Error()
-		s.markValidation(record, model.ValidationStatusInvalid, errStr)
-		return nil, errors.New(errStr)
 	}
 
 	s.markValidation(record, model.ValidationStatusValid, "All artifacts, checksums, and SQL syntax verified")
@@ -530,56 +490,13 @@ func (s *BackupService) ImportBackupArchive(
 
 	archiveSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	// 1. Inspect and validate manifest.json from the .tar.gz archive
-	manifest, err := s.readManifestFromArchive(tmpPath)
+	// 1. Validate archive manifest, Zip-Slip safety, per-artifact SHA-256 digests, and SQL syntax in a single zero-disk-write stream pass
+	manifest, err := s.validateArchiveStream(tmpPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidManifest, err)
-	}
-	if manifest.FormatVersion != "" && manifest.FormatVersion != "1.0" {
-		return nil, nil, fmt.Errorf("%w: unsupported format version %q (expected 1.0)", ErrInvalidManifest, manifest.FormatVersion)
+		return nil, nil, err
 	}
 
-	// 2. Extract to isolated temporary staging directory (enforces Zip-Slip protection)
-	tempValidateDir, err := os.MkdirTemp("", "import_validate_*")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed creating validation staging directory: %w", err)
-	}
-	defer os.RemoveAll(tempValidateDir)
-
-	if err := s.extractTarGz(tmpPath, tempValidateDir); err != nil {
-		return nil, nil, fmt.Errorf("%w: archive extraction failed: %v", ErrInvalidArchive, err)
-	}
-
-	// 3. Verify all manifest artifacts (existence, exact byte size, and SHA-256 digest)
-	for _, art := range manifest.Artifacts {
-		artPath := filepath.Join(tempValidateDir, filepath.FromSlash(art.Path))
-		fi, statErr := os.Stat(artPath)
-		if statErr != nil {
-			return nil, nil, fmt.Errorf("%w: missing artifact %s in archive", ErrInvalidArchive, art.Path)
-		}
-		if fi.Size() != art.SizeBytes {
-			return nil, nil, fmt.Errorf("%w: artifact %s size mismatch (expected %d bytes, got %d)",
-				ErrInvalidArchive, art.Path, art.SizeBytes, fi.Size())
-		}
-		sha, shaErr := s.calculateFileSHA256(artPath)
-		if shaErr != nil || sha != art.SHA256 {
-			return nil, nil, fmt.Errorf("%w: artifact %s SHA-256 checksum mismatch", ErrInvalidArchive, art.Path)
-		}
-	}
-
-	// 4. Verify database/dump.sql exists and passes SQL header/footer validation
-	dumpPath := filepath.Join(tempValidateDir, "database", "dump.sql")
-	if s.dbAdapter != nil {
-		if err := s.dbAdapter.ValidateDumpFile(dumpPath); err != nil {
-			return nil, nil, fmt.Errorf("%w: database dump validation failed: %v", ErrInvalidArchive, err)
-		}
-	} else {
-		if fi, statErr := os.Stat(dumpPath); statErr != nil || fi.Size() == 0 {
-			return nil, nil, fmt.Errorf("%w: database/dump.sql missing or empty", ErrInvalidArchive)
-		}
-	}
-
-	// 5. Resolve conflict-free Backup ID without overwriting active local backups
+	// 2. Resolve conflict-free Backup ID without overwriting active local backups
 	rawCandidate := manifest.BackupID
 	if strings.TrimSpace(rawCandidate) == "" {
 		base := filepath.Base(originalFilename)
@@ -868,11 +785,16 @@ func (s *BackupService) executeRestore(
 		}
 	}
 
-	// 2. Extract backup to temporary directory
+	// 2. Extract backup to persistent backup disk staging directory (avoids /tmp RAM tmpfs exhaustion on multi-GB SQL dumps)
 	s.updateJob(job, 35.0, "Extracting backup archive")
-	tempDir, err := os.MkdirTemp("", "restore_stage_*")
+	stageBaseDir := s.GetBackupDir()
+	_ = os.MkdirAll(stageBaseDir, 0755)
+	tempDir, err := os.MkdirTemp(stageBaseDir, ".restore_stage_*")
 	if err != nil {
-		return err
+		tempDir, err = os.MkdirTemp("", "restore_stage_*")
+		if err != nil {
+			return err
+		}
 	}
 	defer os.RemoveAll(tempDir)
 
@@ -1282,7 +1204,7 @@ func (s *BackupService) extractTarGz(tarGzPath, destDir string) error {
 			if err := os.MkdirAll(cleanTarget, 0755); err != nil {
 				return err
 			}
-		case tar.TypeReg:
+		case tar.TypeReg, tar.TypeRegA:
 			if err := os.MkdirAll(filepath.Dir(cleanTarget), 0755); err != nil {
 				return err
 			}
@@ -1299,6 +1221,201 @@ func (s *BackupService) extractTarGz(tarGzPath, destDir string) error {
 	}
 
 	return nil
+}
+
+type observedArchiveEntry struct {
+	size   int64
+	sha256 string
+}
+
+// validateArchiveStream validates a .tar.gz backup archive in a single streaming pass without extracting
+// files to /tmp. This prevents RAM-disk (/tmp tmpfs) exhaustion and redundant multi-GB disk I/O on edge devices.
+func (s *BackupService) validateArchiveStream(tarGzPath string) (*model.BackupManifest, error) {
+	inFile, err := os.Open(tarGzPath)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed opening archive: %v", ErrInvalidArchive, err)
+	}
+	defer inFile.Close()
+
+	gr, err := gzip.NewReader(inFile)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid gzip archive stream: %v", ErrInvalidArchive, err)
+	}
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	virtualRoot := filepath.Clean(filepath.Join(os.TempDir(), "virtual_tar_root"))
+
+	var manifest *model.BackupManifest
+	observed := make(map[string]observedArchiveEntry)
+	copyBuf := make([]byte, 64*1024)
+
+	var dumpHead []byte
+	var dumpTail []byte
+
+	for {
+		header, nextErr := tr.Next()
+		if nextErr == io.EOF {
+			break
+		}
+		if nextErr != nil {
+			return nil, fmt.Errorf("%w: corrupted tar archive stream: %v", ErrInvalidArchive, nextErr)
+		}
+
+		rawName := strings.TrimSpace(header.Name)
+		if rawName == "" {
+			continue
+		}
+		if strings.HasPrefix(rawName, "/") || strings.HasPrefix(rawName, "\\") || filepath.VolumeName(rawName) != "" {
+			return nil, fmt.Errorf("%w: illegal absolute path in archive: %s", ErrInvalidArchive, header.Name)
+		}
+
+		slashPath := path.Clean(strings.ReplaceAll(rawName, "\\", "/"))
+		slashPath = strings.TrimPrefix(slashPath, "./")
+		if slashPath == ".." || strings.HasPrefix(slashPath, "../") || strings.HasPrefix(slashPath, "/") {
+			return nil, fmt.Errorf("%w: illegal path traversal in archive: %s", ErrInvalidArchive, header.Name)
+		}
+
+		cleanTarget := filepath.Clean(filepath.Join(virtualRoot, filepath.FromSlash(slashPath)))
+		if !strings.HasPrefix(cleanTarget, virtualRoot+string(os.PathSeparator)) && cleanTarget != virtualRoot {
+			return nil, fmt.Errorf("%w: illegal path in archive: %s", ErrInvalidArchive, header.Name)
+		}
+
+		if header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+			continue
+		}
+
+		if slashPath == "manifest.json" {
+			const maxManifestBytes = 16 << 20 // 16 MB safety bound
+			manifestBytes, readErr := io.ReadAll(io.LimitReader(tr, maxManifestBytes+1))
+			if readErr != nil {
+				return nil, fmt.Errorf("%w: failed reading manifest.json: %v", ErrInvalidManifest, readErr)
+			}
+			if len(manifestBytes) > maxManifestBytes {
+				return nil, fmt.Errorf("%w: manifest.json exceeds maximum permitted size", ErrInvalidManifest)
+			}
+			var parsed model.BackupManifest
+			if decErr := json.Unmarshal(manifestBytes, &parsed); decErr != nil {
+				return nil, fmt.Errorf("%w: malformed manifest.json: %v", ErrInvalidManifest, decErr)
+			}
+			manifest = &parsed
+			sum := sha256.Sum256(manifestBytes)
+			observed[slashPath] = observedArchiveEntry{
+				size:   int64(len(manifestBytes)),
+				sha256: hex.EncodeToString(sum[:]),
+			}
+			continue
+		}
+
+		hasher := sha256.New()
+		var totalBytes int64
+		isDump := slashPath == "database/dump.sql"
+		if isDump {
+			dumpHead = make([]byte, 0, 2048)
+			dumpTail = make([]byte, 0, 2048)
+		}
+
+		for {
+			n, rErr := tr.Read(copyBuf)
+			if n > 0 {
+				chunk := copyBuf[:n]
+				_, _ = hasher.Write(chunk)
+				totalBytes += int64(n)
+
+				if isDump {
+					if len(dumpHead) < 2048 {
+						need := 2048 - len(dumpHead)
+						if len(chunk) < need {
+							need = len(chunk)
+						}
+						dumpHead = append(dumpHead, chunk[:need]...)
+					}
+					if len(chunk) >= 2048 {
+						dumpTail = append(dumpTail[:0], chunk[len(chunk)-2048:]...)
+					} else if len(dumpTail)+len(chunk) <= 2048 {
+						dumpTail = append(dumpTail, chunk...)
+					} else {
+						keep := 2048 - len(chunk)
+						copy(dumpTail, dumpTail[len(dumpTail)-keep:])
+						dumpTail = append(dumpTail[:keep], chunk...)
+					}
+				}
+			}
+			if rErr == io.EOF {
+				break
+			}
+			if rErr != nil {
+				return nil, fmt.Errorf("%w: failed reading %s from archive: %v", ErrInvalidArchive, slashPath, rErr)
+			}
+		}
+
+		observed[slashPath] = observedArchiveEntry{
+			size:   totalBytes,
+			sha256: hex.EncodeToString(hasher.Sum(nil)),
+		}
+	}
+
+	if err := gr.Close(); err != nil {
+		return nil, fmt.Errorf("%w: gzip checksum/footer verification failed: %v", ErrInvalidArchive, err)
+	}
+
+	if manifest == nil {
+		return nil, fmt.Errorf("%w: manifest.json not found in archive", ErrInvalidManifest)
+	}
+	if manifest.FormatVersion != "" && manifest.FormatVersion != "1.0" {
+		return nil, fmt.Errorf("%w: unsupported format version %q (expected 1.0)", ErrInvalidManifest, manifest.FormatVersion)
+	}
+
+	for _, art := range manifest.Artifacts {
+		artKey := path.Clean(strings.ReplaceAll(art.Path, "\\", "/"))
+		artKey = strings.TrimPrefix(artKey, "./")
+		obs, exists := observed[artKey]
+		if !exists {
+			return nil, fmt.Errorf("%w: missing artifact %s in archive", ErrInvalidArchive, art.Path)
+		}
+		if obs.size != art.SizeBytes {
+			return nil, fmt.Errorf("%w: artifact %s size mismatch (expected %d bytes, got %d)",
+				ErrInvalidArchive, art.Path, art.SizeBytes, obs.size)
+		}
+		if art.SHA256 != "" && obs.sha256 != art.SHA256 {
+			return nil, fmt.Errorf("%w: artifact %s SHA-256 checksum mismatch (expected %s, got %s)",
+				ErrInvalidArchive, art.Path, art.SHA256, obs.sha256)
+		}
+	}
+
+	dumpObs, hasDump := observed["database/dump.sql"]
+	if !hasDump {
+		return nil, fmt.Errorf("%w: missing database/dump.sql in archive", ErrInvalidArchive)
+	}
+	if dumpObs.size == 0 {
+		return nil, fmt.Errorf("%w: database dump validation failed: dump file is empty (0 bytes)", ErrInvalidArchive)
+	}
+
+	headerText := string(dumpHead)
+	validHeader := strings.Contains(headerText, "--") ||
+		strings.Contains(headerText, "CREATE") ||
+		strings.Contains(headerText, "INSERT") ||
+		strings.Contains(headerText, "/*") ||
+		strings.Contains(headerText, "PRAGMA")
+	if !validHeader {
+		return nil, fmt.Errorf("%w: database dump validation failed: dump file does not contain valid SQL header or syntax markers", ErrInvalidArchive)
+	}
+
+	if dumpObs.size > 64 {
+		tailText := string(dumpTail)
+		trimmedTail := strings.TrimSpace(tailText)
+		validTail := strings.HasSuffix(trimmedTail, ";") ||
+			strings.Contains(tailText, "-- Dump completed") ||
+			strings.Contains(tailText, "COMMIT") ||
+			strings.Contains(tailText, "/*!40101") ||
+			strings.Contains(tailText, "/*!40014") ||
+			strings.HasSuffix(trimmedTail, "--")
+		if !validTail {
+			return nil, fmt.Errorf("%w: database dump validation failed: dump file appears incomplete or truncated (missing SQL termination)", ErrInvalidArchive)
+		}
+	}
+
+	return manifest, nil
 }
 
 func (s *BackupService) readManifestFromArchive(tarGzPath string) (*model.BackupManifest, error) {
