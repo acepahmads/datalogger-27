@@ -254,7 +254,7 @@ check('13.1: Audio Mute state persists reliably in localStorage and is never sil
   assert(viewContent.includes('toggleAudioMute()') && viewContent.includes('onAudioMuteDurationChange()'), 'DashboardOperatorView.vue must persist mute toggle and timer changes atomically to localStorage');
 });
 
-// 14. Category-Separated Parameter Cards Setup & Display Mode
+// 14. Category-Separated Parameter Cards Setup & Compact Zero-Scroll Optimization
 check('14.1: Card Setup supports Category-Separated Parameter Cards (Kartu per Kategori) with collapsible category containers and localStorage persistence', () => {
   assert(viewContent.includes('id="btn-bento-view-cat-cards"'), 'Must render #btn-bento-view-cat-cards icon button in display switcher');
   assert(viewContent.includes("setBentoDisplayMode('cat-cards')") && viewContent.includes('setBentoCardGrouping('), 'Must support switching to category-separated cards from quick bar and Setup Kartu popover');
@@ -262,6 +262,15 @@ check('14.1: Card Setup supports Category-Separated Parameter Cards (Kartu per K
   assert(viewContent.includes('bentoActiveCardSections()'), 'Must compute bentoActiveCardSections reusing active category resolution');
   assert(viewContent.includes('bento-cat-card-group') && viewContent.includes('bento-cat-card-head'), 'Must render dedicated category card group container and header');
   assert(viewContent.includes('toggleBentoCatCardCollapse('), 'Must support collapsing/expanding individual category card sections');
+});
+
+check('14.2: Category-Separated Cards use proportional multi-category row packing (up to 8-9 slots) and compact 56px card density to avoid vertical scrolling', () => {
+  assert(viewContent.includes('bentoCategorySlotCols()'), 'Must compute responsive bentoCategorySlotCols up to 8-9 slots across');
+  assert(viewContent.includes("'--cat-total-cols': bentoCategorySlotCols"), 'Must bind --cat-total-cols CSS variable on .bento-cat-cards-stack');
+  assert(viewContent.includes("gridColumn: 'span ' + (sec.colSpan || bentoCategorySlotCols)"), 'Must span category groups proportionally so small categories share rows with larger categories');
+  assert(viewContent.includes("gridTemplateColumns: 'repeat(' + (sec.innerCols || 1) + ', minmax(0, 1fr))'"), 'Must pack all cards inside each category group up to innerCols per row');
+  assert(viewContent.includes('bentoCardGroupByCategory ? [3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5]'), 'Setup Kartu popover must offer 3P..8P high-density column choices in category card mode');
+  assert(viewContent.includes('.sensors-grid.is-inside-cat-group .s-card') && viewContent.includes('min-height: 56px;'), 'Must apply compact 56px high-density card styling inside category groups');
 });
 
 console.log('========================================================================');

@@ -2761,18 +2761,18 @@
 
                 <div class="bmp-section">
                   <div class="bmp-label">Kolom Kartu Parameter</div>
-                  <div class="bmp-seg-grid cols-6">
+                  <div class="bmp-seg-grid" :class="bentoCardGroupByCategory ? 'cols-7' : 'cols-6'">
                     <button
                       type="button"
                       class="bmp-seg-btn"
                       :class="{ active: viewMode === 'cards' && bentoAutoGrid }"
                       @click="setBentoDisplayMode('auto-cards')"
-                      title="Otomatis menyesuaikan ukuran layar"
+                      title="Otomatis menyesuaikan ukuran layar agar seluruh kategori muat tanpa scroll"
                     >
                       Auto
                     </button>
                     <button
-                      v-for="col in [1, 2, 3, 4, 5]"
+                      v-for="col in (bentoCardGroupByCategory ? [3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5])"
                       :key="'bento-col-setup-' + col"
                       type="button"
                       class="bmp-seg-btn"
@@ -2814,12 +2814,13 @@
           <div
             v-if="filteredParameters.length > 0"
             :class="{ 'bento-cat-cards-stack': bentoCardGroupByCategory }"
+            :style="bentoCardGroupByCategory ? { '--cat-total-cols': bentoCategorySlotCols } : null"
           >
             <div
               v-for="sec in bentoActiveCardSections"
               :key="sec.key"
               :class="{ 'bento-cat-card-group': sec.isCategoryGroup }"
-              :style="sec.isCategoryGroup && sec.accentColor ? { borderLeftColor: sec.accentColor } : null"
+              :style="sec.isCategoryGroup ? { borderLeftColor: sec.accentColor || '#06B6D4', gridColumn: 'span ' + (sec.colSpan || bentoCategorySlotCols) } : null"
             >
               <!-- Category Section Header (shown when cards are separated by category) -->
               <div
@@ -2837,12 +2838,12 @@
                   <span class="bento-cat-card-title truncate" :title="sec.title">{{ sec.title }}</span>
                 </div>
                 <div class="bento-cat-card-head-right">
-                  <span v-if="sec.faultCount > 0" class="s-badge badge-rose">{{ sec.faultCount }} Fault</span>
-                  <span v-else-if="sec.warnCount > 0" class="s-badge badge-amber">{{ sec.warnCount }} Alarm</span>
-                  <span class="bento-cat-count-pill">{{ sec.params.length }} Kanal</span>
+                  <span v-if="sec.faultCount > 0 && (sec.colSpan || 2) >= 2" class="s-badge badge-rose">{{ sec.faultCount }} Fault</span>
+                  <span v-else-if="sec.warnCount > 0 && (sec.colSpan || 2) >= 2" class="s-badge badge-amber">{{ sec.warnCount }} Alarm</span>
+                  <span class="bento-cat-count-pill">{{ (sec.colSpan || 2) === 1 ? sec.params.length : (sec.params.length + ' Kanal') }}</span>
                   <svg
-                    width="12"
-                    height="12"
+                    width="11"
+                    height="11"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -2861,13 +2862,14 @@
                 v-show="!sec.isCategoryGroup || !isBentoCatCardCollapsed(sec.key)"
                 class="sensors-grid"
                 :class="[
-                  'bento-cols-' + effectiveBentoCols,
+                  sec.isCategoryGroup ? ('bento-cols-' + (sec.innerCols || effectiveBentoCols)) : ('bento-cols-' + effectiveBentoCols),
                   {
-                    'is-micro-cards': isMicroCardDensity,
+                    'is-micro-cards': isMicroCardDensity || sec.isCategoryGroup,
                     'is-compact-cards': isCompactScreen,
                     'is-inside-cat-group': sec.isCategoryGroup
                   }
                 ]"
+                :style="sec.isCategoryGroup ? { gridTemplateColumns: 'repeat(' + (sec.innerCols || 1) + ', minmax(0, 1fr))' } : null"
               >
                 <div
                   v-for="param in sec.params"
@@ -2906,31 +2908,34 @@
                   >
                     {{ getBentoStatusBadge(param).label }}
                   </span>
-                  <button
-                    type="button"
-                    class="s-icon-btn"
-                    @click.stop="togglePin(param.param_id)"
-                    :title="isPinned(param.param_id) ? 'Lepas Favorit' : 'Sematkan Favorit'"
-                  >
-                    <svg v-if="isPinned(param.param_id)" width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.8" stroke-linejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                    <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    class="s-icon-btn"
-                    @click.stop="openParamContextMenu($event, param)"
-                    title="Menu Aksi Parameter (Test Read, Konfigurasi, Riwayat)"
-                  >
-                    <svg width="10.5" height="10.5" viewBox="0 0 24 24" fill="currentColor">
-                      <circle cx="12" cy="5" r="2" />
-                      <circle cx="12" cy="12" r="2" />
-                      <circle cx="12" cy="19" r="2" />
-                    </svg>
-                  </button>
+                  <span class="s-card-quick-actions" :class="{ 'has-pinned-star': isPinned(param.param_id) }">
+                    <button
+                      type="button"
+                      class="s-icon-btn"
+                      :class="{ 'is-pinned-star': isPinned(param.param_id) }"
+                      @click.stop="togglePin(param.param_id)"
+                      :title="isPinned(param.param_id) ? 'Lepas Favorit' : 'Sematkan Favorit'"
+                    >
+                      <svg v-if="isPinned(param.param_id)" width="11" height="11" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" stroke-width="1.8" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                      <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="s-icon-btn s-icon-menu-btn"
+                      @click.stop="openParamContextMenu($event, param)"
+                      title="Menu Aksi Parameter (Test Read, Konfigurasi, Riwayat)"
+                    >
+                      <svg width="10.5" height="10.5" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="5" r="2" />
+                        <circle cx="12" cy="12" r="2" />
+                        <circle cx="12" cy="19" r="2" />
+                      </svg>
+                    </button>
+                  </span>
                 </div>
               </div>
 
@@ -2938,13 +2943,13 @@
               <div v-if="isDiscreteStatusParam(param)" class="s-body">
                 <div class="flex items-center gap-1.5 min-w-0">
                   <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold text-[10.5px] uppercase"
+                    class="s-discrete-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold text-[10.5px] uppercase"
                     :class="getDiscreteStatusInfo(param).pillClass"
                   >
                     <span class="w-1.5 h-1.5 rounded-full" :class="getDiscreteStatusInfo(param).dotClass"></span>
                     <span>{{ getDiscreteStatusInfo(param).label }}</span>
                   </span>
-                  <span v-if="getDiscreteStatusInfo(param).durationText" class="text-[9.5px] opacity-75 truncate">
+                  <span v-if="getDiscreteStatusInfo(param).durationText" class="s-discrete-dur text-[9.5px] opacity-75 truncate">
                     {{ getDiscreteStatusInfo(param).durationText }}
                   </span>
                 </div>
@@ -3031,7 +3036,7 @@
                     @click.stop="openBentoQuickLimitEdit(param)"
                     :title="getBentoCardProgress(param).limitTooltip"
                   >
-                    {{ isMicroCardDensity ? getBentoCardProgress(param).shortMetaLabel : getBentoCardProgress(param).metaLabel }}
+                    {{ (sec.isCategoryGroup || isMicroCardDensity) ? getBentoCardProgress(param).shortMetaLabel : getBentoCardProgress(param).metaLabel }}
                   </button>
                   <span class="s-meta-pct">{{ getBentoCardProgress(param).rightLabel }}</span>
                 </div>
@@ -6747,18 +6752,38 @@ export default {
       if (!this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
         return null;
       }
-      const isTableOrGrouped = this.viewMode === 'table' || Boolean(this.bentoCardGroupByCategory);
-      const minH = isTableOrGrouped ? (this.isCompactScreen ? 325 : 365) : (this.isCompactScreen ? 268 : 332);
+      const isCatCards = this.viewMode === 'cards' && Boolean(this.bentoCardGroupByCategory);
+      const isTableOrGrouped = this.viewMode === 'table' || isCatCards;
+      const minH = isCatCards
+        ? (this.isCompactScreen ? 340 : 385)
+        : (isTableOrGrouped ? (this.isCompactScreen ? 325 : 365) : (this.isCompactScreen ? 268 : 332));
       const topIspuOffset = (this.isCompactScreen && this.isAQMSDomain && this.isIspuBarVisible) ? 62 : 0;
       const topWqmsOffset = (this.isWQMSDomain && this.isIspuBarVisible) ? 62 : 0;
-      const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + 230 + topIspuOffset + topWqmsOffset);
+      const chromeOffset = isCatCards ? 212 : 230;
+      const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + chromeOffset + topIspuOffset + topWqmsOffset);
       return {
         maxHeight: 'max(' + minH + 'px, calc(100vh - ' + reservedPx + 'px))',
       };
     },
+    bentoCategorySlotCols() {
+      const availW = this.bentoAvailableParamsWidth || this.bentoViewportWidth || 1280;
+      if (!this.bentoAutoGrid) {
+        const manual = Math.max(1, Math.min(8, Number(this.gridColumns) || 5));
+        if (availW < 560) return Math.min(manual, 2);
+        if (availW < 820) return Math.min(manual, 4);
+        return manual;
+      }
+      if (availW >= 1460) return 9;
+      if (availW >= 1050) return 8;
+      if (availW >= 910) return 7;
+      if (availW >= 770) return 6;
+      if (availW >= 620) return 5;
+      if (availW >= 460) return 4;
+      return 2;
+    },
     bentoCardModeShortBadge() {
       if (this.bentoCardGroupByCategory) {
-        return 'K·' + this.effectiveBentoCols + 'P';
+        return 'K·' + this.bentoCategorySlotCols + 'P';
       }
       return this.effectiveBentoCols + 'P';
     },
@@ -6766,10 +6791,73 @@ export default {
       const list = this.filteredParameters || [];
       if (!list.length) return [];
       if (this.bentoCardGroupByCategory) {
-        return (this.bentoCategoryTableSections || []).map(sec => ({
-          ...sec,
-          isCategoryGroup: true,
-        }));
+        const totalCols = Math.max(2, this.bentoCategorySlotCols || 8);
+        const rawItems = (this.bentoCategoryTableSections || []).map(sec => {
+          const collapsed = this.isBentoCatCardCollapsed(sec.key);
+          const count = Math.max(1, (sec.params && sec.params.length) || 1);
+          const neededCols = collapsed ? Math.min(totalCols, 2) : Math.min(totalCols, count);
+          const innerCols = collapsed ? 1 : Math.min(totalCols, count);
+          return {
+            ...sec,
+            isCategoryGroup: true,
+            collapsed,
+            count,
+            neededCols,
+            colSpan: neededCols,
+            innerCols,
+          };
+        });
+
+        // First-fit proportional Bento row packing so small categories (e.g. STATUS: 1)
+        // share a row side-by-side with larger categories (e.g. GAS: 7 -> 1 + 7 = 8 slots)
+        const rows = [];
+        for (const item of rawItems) {
+          let placed = false;
+          for (const r of rows) {
+            if (r.used + item.neededCols <= totalCols) {
+              r.items.push(item);
+              r.used += item.neededCols;
+              placed = true;
+              break;
+            }
+          }
+          if (!placed) {
+            rows.push({ items: [item], used: item.neededCols });
+          }
+        }
+
+        for (const r of rows) {
+          const rem = totalCols - r.used;
+          if (rem <= 0) continue;
+          if (r.items.length === 1) {
+            const single = r.items[0];
+            if (!single.collapsed && single.count >= Math.ceil(totalCols * 0.65)) {
+              // Align wide single-category row (e.g. 7 cards on 8-slot grid) flush right
+              single.colSpan = totalCols;
+            } else if (!single.collapsed && single.count === 1 && totalCols >= 4) {
+              // Give a standalone 1-card row enough header breathing room without stretching full width
+              single.colSpan = Math.min(totalCols, 2);
+            }
+          } else if (r.used >= Math.ceil(totalCols * 0.72)) {
+            let widest = null;
+            for (const it of r.items) {
+              if (!it.collapsed && (!widest || it.colSpan >= widest.colSpan)) {
+                widest = it;
+              }
+            }
+            if (widest) {
+              widest.colSpan += rem;
+            }
+          }
+        }
+
+        const packed = [];
+        for (const r of rows) {
+          for (const it of r.items) {
+            packed.push(it);
+          }
+        }
+        return packed;
       }
       return [
         {
@@ -6943,6 +7031,12 @@ export default {
       this.bentoAudioEngineSoundEnabled = state.soundEnabled !== false;
     });
     this.ensureBentoFontsLoaded();
+    try {
+      const savedBentoCols = parseInt(localStorage.getItem('datalogger_bento_grid_cols'), 10);
+      if (savedBentoCols >= 1 && savedBentoCols <= 8) {
+        this.gridColumns = savedBentoCols;
+      }
+    } catch (e) {}
     this.trendChartHeight = this.bentoTrendCanvasHeight;
     if (typeof window !== 'undefined') {
       this.bentoViewportWidth = window.innerWidth;
@@ -7371,15 +7465,18 @@ export default {
       return Boolean(secKey && this.bentoCollapsedCatCards && this.bentoCollapsedCatCards[secKey]);
     },
     setGridColumns(cols) {
-      const count = Math.min(5, Math.max(1, parseInt(cols, 10) || 4));
+      const maxCols = this.bentoCardGroupByCategory ? 8 : 5;
+      const count = Math.min(maxCols, Math.max(1, parseInt(cols, 10) || 4));
+      const legacySafeCols = Math.min(5, count);
       this.bentoAutoGrid = false;
       this.viewMode = 'cards';
       this.gridColumns = count;
-      this.panelCount = count;
+      this.panelCount = legacySafeCols;
       try {
         localStorage.setItem('datalogger_bento_auto_grid', 'false');
-        localStorage.setItem('operator_monitoring_grid_cols', String(count));
-        localStorage.setItem('operator_console_grid_columns', String(count));
+        localStorage.setItem('datalogger_bento_grid_cols', String(count));
+        localStorage.setItem('operator_monitoring_grid_cols', String(legacySafeCols));
+        localStorage.setItem('operator_console_grid_columns', String(legacySafeCols));
       } catch (e) {}
       if (typeof this.savePanelLayoutConfig === 'function') {
         this.savePanelLayoutConfig();
@@ -8601,6 +8698,9 @@ export default {
 .bmp-seg-grid.cols-6 {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
+.bmp-seg-grid.cols-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
 .bmp-seg-btn {
   height: 24px;
   border-radius: 6px;
@@ -8669,37 +8769,42 @@ export default {
   gap: 6px;
 }
 .sensors-grid.is-inside-cat-group {
-  padding: 8px 9px 9px;
+  padding: 5px 6px 6px;
+  gap: 5px;
 }
 .sensors-grid.is-compact-cards.is-inside-cat-group {
-  padding: 6px 7px 7px;
+  padding: 4.5px 5.5px 5.5px;
+  gap: 4.5px;
 }
 
-/* Category-Separated Card Group Containers */
+/* Category-Separated Card Group Containers (Proportional Multi-Category Bento Grid) */
 .bento-cat-cards-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
+  display: grid;
+  grid-template-columns: repeat(var(--cat-total-cols, 8), minmax(0, 1fr));
+  gap: 6px;
+  align-items: start;
 }
 .bento-cat-card-group {
+  min-width: 0;
   border: 1px solid var(--b-border);
   border-left: 3px solid #06B6D4;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 .is-day .bento-cat-card-group {
-  background: rgba(248, 250, 252, 0.85);
+  background: rgba(248, 250, 252, 0.88);
 }
 .is-night .bento-cat-card-group {
-  background: rgba(15, 23, 42, 0.42);
+  background: rgba(15, 23, 42, 0.44);
 }
 .bento-cat-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 3.5px 7.5px;
+  min-height: 23px;
   cursor: pointer;
   user-select: none;
   border-bottom: 1px solid var(--b-border-soft);
@@ -8709,10 +8814,10 @@ export default {
   border-bottom: none;
 }
 .is-day .bento-cat-card-head {
-  background: rgba(241, 245, 249, 0.9);
+  background: rgba(241, 245, 249, 0.92);
 }
 .is-night .bento-cat-card-head {
-  background: rgba(30, 41, 59, 0.48);
+  background: rgba(30, 41, 59, 0.5);
 }
 .bento-cat-card-head:hover {
   filter: brightness(0.98);
@@ -8720,26 +8825,33 @@ export default {
 .bento-cat-card-head-left {
   display: flex;
   align-items: center;
-  gap: 6.5px;
+  gap: 5px;
   min-width: 0;
 }
 .bento-cat-card-title {
-  font-size: 10.2px;
+  font-size: 9.4px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.035em;
   text-transform: uppercase;
   color: var(--b-text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .bento-cat-card-head-right {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   flex-shrink: 0;
 }
+.bento-cat-card-head-right .s-badge {
+  font-size: 8px;
+  padding: 0.5px 4.5px;
+}
 .bento-cat-count-pill {
-  font-size: 9.5px;
+  font-size: 8.6px;
   font-weight: 700;
-  padding: 1px 6.5px;
+  padding: 0.5px 5px;
   border-radius: 999px;
   background: var(--b-pill);
   color: var(--b-text-muted);
@@ -8748,6 +8860,7 @@ export default {
 .bento-cat-chevron {
   color: var(--b-text-muted);
   transition: transform 0.16s ease;
+  flex-shrink: 0;
 }
 .bento-cat-chevron.is-collapsed {
   transform: rotate(-90deg);
@@ -8758,6 +8871,10 @@ export default {
 .bento-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .bento-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .bento-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bento-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.bento-cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.bento-cols-8 { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.bento-cols-9 { grid-template-columns: repeat(9, minmax(0, 1fr)); }
 
 .s-card {
   background: var(--b-card);
@@ -9049,6 +9166,105 @@ export default {
   font-weight: 700;
   color: var(--b-text-sec);
   flex-shrink: 0;
+}
+
+.s-card-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* High-Density Compact Cards inside Category-Separated Containers (Zero-Scroll Optimization) */
+.sensors-grid.is-inside-cat-group .s-card {
+  padding: 5px 6.5px;
+  min-height: 56px;
+  border-radius: 8.5px;
+  gap: 2.5px;
+}
+.sensors-grid.is-compact-cards.is-inside-cat-group .s-card {
+  padding: 4.5px 6px;
+  min-height: 53px;
+  border-radius: 8px;
+  gap: 2px;
+}
+.sensors-grid.is-inside-cat-group .s-head {
+  position: relative;
+  gap: 3px;
+}
+.sensors-grid.is-inside-cat-group .s-title-wrap {
+  gap: 4px;
+}
+.sensors-grid.is-inside-cat-group .s-dot {
+  width: 5px;
+  height: 5px;
+}
+.sensors-grid.is-inside-cat-group .s-name {
+  font-size: 9.8px;
+}
+.sensors-grid.is-inside-cat-group .s-badge {
+  font-size: 7.8px;
+  padding: 1px 4px;
+}
+.sensors-grid.is-inside-cat-group .s-body {
+  gap: 4px;
+}
+.sensors-grid.is-inside-cat-group .s-reading {
+  gap: 2.5px;
+}
+.sensors-grid.is-inside-cat-group .s-val {
+  font-size: 15px;
+}
+.sensors-grid.is-inside-cat-group .s-unit {
+  font-size: 8.6px;
+}
+.sensors-grid.is-inside-cat-group .s-spark-wrap {
+  width: 36px;
+  height: 13px;
+  flex-shrink: 1;
+  min-width: 20px;
+}
+.sensors-grid.is-inside-cat-group .s-spark-empty {
+  width: 24px;
+}
+.sensors-grid.is-inside-cat-group .s-discrete-pill {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+.sensors-grid.is-inside-cat-group .s-discrete-dur {
+  font-size: 8.5px;
+}
+.sensors-grid.is-inside-cat-group .s-foot {
+  gap: 2px;
+}
+.sensors-grid.is-inside-cat-group .s-bar-track {
+  height: 2.5px;
+}
+.sensors-grid.is-inside-cat-group .s-meta {
+  font-size: 8.4px;
+  line-height: 1.15;
+}
+@media (hover: hover) {
+  .sensors-grid.is-inside-cat-group .s-card-quick-actions:not(.has-pinned-star) {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--b-card);
+    padding: 0 1px 0 4px;
+    border-radius: 4px;
+    z-index: 2;
+    box-shadow: -4px 0 6px var(--b-card);
+  }
+  .sensors-grid.is-inside-cat-group .s-card-quick-actions.has-pinned-star .s-icon-menu-btn {
+    display: none;
+  }
+  .sensors-grid.is-inside-cat-group .s-card:hover .s-card-quick-actions {
+    display: inline-flex;
+  }
+  .sensors-grid.is-inside-cat-group .s-card:hover .s-card-quick-actions.has-pinned-star .s-icon-menu-btn {
+    display: inline-flex;
+  }
 }
 
 /* ========================================================================= */
