@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"datalogger/internal/config"
+	"datalogger/internal/database"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 
@@ -14,9 +16,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type cachedRolePerms struct {
+	codes     map[string]bool
+	expiresAt time.Time
+}
+
 type AuthService struct {
-	repo   *repository.SystemRepository
-	config *config.Config
+	repo      *repository.SystemRepository
+	config    *config.Config
+	permMu    sync.RWMutex
+	permCache map[string]cachedRolePerms
 }
 
 type JWTClaims struct {
@@ -531,6 +540,7 @@ func (s *AuthService) CreateRole(input RoleInput, actorID uint, actorUsername, i
 	if len(input.PermissionIDs) > 0 {
 		_ = s.repo.UpdateRolePermissions(role.ID, input.PermissionIDs)
 	}
+	s.invalidatePermCache()
 
 	created, err := s.repo.GetRoleByID(role.ID)
 	if err != nil {
@@ -570,6 +580,7 @@ func (s *AuthService) UpdateRole(id uint, input RoleInput, actorID uint, actorUs
 	if err := s.repo.UpdateRole(id, input.Name, input.Description); err != nil {
 		return nil, err
 	}
+	s.invalidatePermCache()
 
 	_ = s.repo.AddAuditTrail(&model.AuditTrail{
 		UserID:    &actorID,
@@ -613,6 +624,7 @@ func (s *AuthService) UpdateRolePermissions(roleID uint, permissionIDs []uint, a
 	if err := s.repo.UpdateRolePermissions(roleID, permissionIDs); err != nil {
 		return err
 	}
+	s.invalidatePermCache()
 
 	_ = s.repo.AddAuditTrail(&model.AuditTrail{
 		UserID:    &actorID,
@@ -649,6 +661,7 @@ func (s *AuthService) DeleteRole(id uint, actorID uint, actorUsername, ip, ua st
 	if err := s.repo.DeleteRole(id); err != nil {
 		return err
 	}
+	s.invalidatePermCache()
 
 	_ = s.repo.AddAuditTrail(&model.AuditTrail{
 		UserID:    &actorID,
@@ -662,6 +675,12 @@ func (s *AuthService) DeleteRole(id uint, actorID uint, actorUsername, ip, ua st
 	})
 
 	return nil
+}
+
+func (s *AuthService) invalidatePermCache() {
+	s.permMu.Lock()
+	s.permCache = nil
+	s.permMu.Unlock()
 }
 
 func (s *AuthService) GetPermissions() ([]model.Permission, error) {
@@ -683,14 +702,44 @@ func (s *AuthService) HasPermission(roleName, permCode string) bool {
 		return false
 	}
 
+	roleKey := strings.ToUpper(strings.TrimSpace(roleName))
+	permKey := strings.ToLower(strings.TrimSpace(permCode))
+	now := time.Now()
+
+	s.permMu.RLock()
+	if s.permCache != nil {
+		if entry, ok := s.permCache[roleKey]; ok && (now.Before(entry.expiresAt) || database.IsRestoreMode()) {
+			allowed := entry.codes[permKey]
+			s.permMu.RUnlock()
+			return allowed
+		}
+	}
+	s.permMu.RUnlock()
+
+	// During active database restore, avoid querying roles/permissions tables if cache missed;
+	// middleware.RequirePermission automatically falls back to built-in ADMIN/ENGINEER/OPERATOR defaults.
+	if database.IsRestoreMode() || s.repo == nil {
+		return false
+	}
+
 	codes, err := s.repo.GetRolePermissionCodes(roleName)
 	if err != nil {
 		return false
 	}
+	codeMap := make(map[string]bool, len(codes))
 	for _, code := range codes {
-		if strings.EqualFold(code, permCode) {
-			return true
-		}
+		codeMap[strings.ToLower(strings.TrimSpace(code))] = true
 	}
-	return false
+
+	s.permMu.Lock()
+	if s.permCache == nil {
+		s.permCache = make(map[string]cachedRolePerms)
+	}
+	s.permCache[roleKey] = cachedRolePerms{
+		codes:     codeMap,
+		expiresAt: now.Add(60 * time.Second),
+	}
+	s.permMu.Unlock()
+
+	return codeMap[permKey]
 }

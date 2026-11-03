@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -250,6 +251,9 @@ func (s *outboundService) ProcessPendingQueueOnce() {
 
 // processPendingQueue retrieves and dispatches pending deliveries
 func (s *outboundService) processPendingQueue() {
+	if database.IsRestoreMode() {
+		return
+	}
 	s.dispatchMu.Lock()
 	defer s.dispatchMu.Unlock()
 

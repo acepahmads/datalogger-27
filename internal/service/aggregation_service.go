@@ -8,9 +8,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"datalogger/internal/aggregation"
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -109,6 +111,7 @@ type AggregationService struct {
 	wg                     sync.WaitGroup
 	isWorkerRun            bool
 	workerMu               sync.Mutex
+	paused                 int32
 	onBucketCompleted      func(ctx context.Context, deviceID uint, bucketEnd time.Time)
 	onAggregationCompleted func(ctx context.Context, event AggregationCompletedEvent)
 }
@@ -146,6 +149,20 @@ func (s *AggregationService) SetOnAggregationCompleted(fn func(ctx context.Conte
 	s.onAggregationCompleted = fn
 }
 
+// SetPaused pauses or resumes background aggregation scans (e.g., during exclusive database restore).
+func (s *AggregationService) SetPaused(paused bool) {
+	if paused {
+		atomic.StoreInt32(&s.paused, 1)
+	} else {
+		atomic.StoreInt32(&s.paused, 0)
+	}
+}
+
+// IsPaused returns true when background aggregation is paused or global database restore mode is active.
+func (s *AggregationService) IsPaused() bool {
+	return atomic.LoadInt32(&s.paused) == 1 || database.IsRestoreMode()
+}
+
 // StartWorker initiates the background aggregation scheduler and recovery worker
 func (s *AggregationService) StartWorker() {
 	s.workerMu.Lock()
@@ -161,9 +178,11 @@ func (s *AggregationService) StartWorker() {
 		logger.Info("Aggregation background worker started (poll interval: %v)", s.pollInterval)
 
 		// 1. Initial Restart Recovery
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		s.performRestartRecovery(ctx)
-		cancel()
+		if !s.IsPaused() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			s.performRestartRecovery(ctx)
+			cancel()
+		}
 
 		ticker := time.NewTicker(s.pollInterval)
 		defer ticker.Stop()
@@ -174,9 +193,12 @@ func (s *AggregationService) StartWorker() {
 				logger.Info("Aggregation worker received stop signal")
 				return
 			case <-ticker.C:
+				if s.IsPaused() {
+					continue
+				}
 				runCtx, runCancel := context.WithTimeout(context.Background(), 30*time.Second)
 				_, err := s.RunAllActiveDefinitions(runCtx)
-				if err != nil {
+				if err != nil && !s.IsPaused() {
 					logger.Warn("Aggregation worker cycle error: %v", err)
 				}
 				runCancel()
@@ -523,6 +545,9 @@ func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Cont
 }
 
 func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration, deferBucketCallback bool) (int, []time.Time, error) {
+	if s.IsPaused() || ctx.Err() != nil {
+		return 0, nil, ctx.Err()
+	}
 	now := time.Now().UTC()
 	startWindow := now.Add(-lookback)
 
@@ -546,9 +571,17 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 	var completedEnds []time.Time
 
 	for _, b := range buckets {
+		if s.IsPaused() || ctx.Err() != nil {
+			break
+		}
 		samples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, b.PeriodStart, b.PeriodEnd)
 		if err != nil {
-			logger.Warn("Failed to query telemetry for bucket [%v, %v): %v", b.PeriodStart, b.PeriodEnd, err)
+			if !s.IsPaused() {
+				logger.Warn("Failed to query telemetry for bucket [%v, %v): %v", b.PeriodStart, b.PeriodEnd, err)
+			}
+			if ctx.Err() != nil {
+				break
+			}
 			continue
 		}
 
@@ -601,7 +634,7 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 	// Real-Time Active (In-Progress) Bucket Evaluation:
 	// Tracks the ongoing interval (e.g. 26:00 to 27:59 for Menit 28)
 	activeBucket := aggregation.GetCurrentActiveBucket(now, def.IntervalSeconds, def.Timezone)
-	if activeBucket.PeriodEnd.After(now) {
+	if !s.IsPaused() && ctx.Err() == nil && activeBucket.PeriodEnd.After(now) {
 		activeSamples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, activeBucket.PeriodStart, now)
 		if err == nil && len(activeSamples) > 0 {
 			activeResult := s.engine.Calculate(def, activeBucket.PeriodStart, activeBucket.PeriodEnd, activeSamples)
@@ -651,6 +684,9 @@ func (s *AggregationService) fireDeferredBucketCallbacks(completedByDevice map[u
 
 // RunAllActiveDefinitions triggers a calculation cycle for all enabled definitions
 func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, error) {
+	if s.IsPaused() {
+		return 0, nil
+	}
 	defs, err := s.repo.ListDefinitions(ctx, 0, true)
 	if err != nil {
 		return 0, err
@@ -659,13 +695,18 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 	totalBuckets := 0
 	completedByDevice := make(map[uint]map[int64]time.Time)
 	for _, def := range defs {
+		if s.IsPaused() || ctx.Err() != nil {
+			break
+		}
 		if !isDefinitionActiveTarget(&def) {
 			continue
 		}
 		// Lookback 2 hours by default during continuous polling
 		count, ends, err := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour, true)
 		if err != nil {
-			logger.Warn("Error processing definition %s: %v", def.Name, err)
+			if !s.IsPaused() && ctx.Err() == nil {
+				logger.Warn("Error processing definition %s: %v", def.Name, err)
+			}
 		} else {
 			totalBuckets += count
 			if len(ends) > 0 {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"datalogger/internal/config"
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -96,7 +97,7 @@ func (s *WQMSService) StopWorker() {
 
 // EnqueueCalculation enqueues an asynchronous WQMS calculation when WQMS domain or WQMS mappings are active.
 func (s *WQMSService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, reason string) {
-	if bucketEnd.IsZero() {
+	if bucketEnd.IsZero() || database.IsRestoreMode() {
 		return
 	}
 	cfg := config.Get()
@@ -160,6 +161,9 @@ func (s *WQMSService) workerLoop(ctx context.Context) {
 			s.jobMu.Unlock()
 
 		case <-ticker.C:
+			if database.IsRestoreMode() {
+				continue
+			}
 			now := time.Now()
 			var due []wqmsTriggerJob
 			s.jobMu.Lock()

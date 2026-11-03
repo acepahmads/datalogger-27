@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/quality"
@@ -578,6 +579,9 @@ func (s *TelemetryService) staleDetectionWorker() {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
+			if database.IsRestoreMode() {
+				continue
+			}
 			s.evaluateStaleParameters()
 		}
 	}

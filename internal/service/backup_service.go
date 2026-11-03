@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"datalogger/internal/config"
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -1011,19 +1012,24 @@ func (s *BackupService) executeRestore(
 		return fmt.Errorf("failed extracting backup archive: %w", err)
 	}
 
-	// Pause background device polling workers during DDL/LOCK TABLES restore window
+	// Pause all background DB workers, enable HTTP maintenance guard, and abort lingering SELECT scans
+	// during the exclusive DDL / LOCK TABLES restore window so MariaDB Metadata Locks never stall.
 	s.opMu.Lock()
 	beforeHook := s.onBeforeRestore
 	afterHook := s.onAfterRestore
 	s.opMu.Unlock()
 
+	s.updateJob(job, 49.0, "Suspending background workers & acquiring exclusive database lock")
+	database.SetRestoreMode(true)
+	defer database.SetRestoreMode(false)
+
 	if beforeHook != nil {
-		s.updateJob(job, 49.0, "Suspending device polling workers for clean database lock")
 		beforeHook()
 		if afterHook != nil {
 			defer afterHook()
 		}
 	}
+	database.AbortCompetingQueries(s.db)
 
 	// 3. Restore Database Dump
 	s.updateJob(job, 50.0, "Restoring database tables and records")
@@ -1041,6 +1047,9 @@ func (s *BackupService) executeRestore(
 	}); err != nil {
 		return fmt.Errorf("database restore failed: %w", err)
 	}
+
+	// Re-open database access for catalog reconciliation & WAL replay while polling/aggregation remain paused until return
+	database.SetRestoreMode(false)
 
 	// Reconcile local backup catalog entries if dump overwrote backup_records
 	s.updateJob(job, 86.0, "Reconciling local backup catalog")

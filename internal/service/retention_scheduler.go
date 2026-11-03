@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"datalogger/internal/config"
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 )
@@ -101,6 +102,9 @@ func (s *RetentionScheduler) workerLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if database.IsRestoreMode() {
+				continue
+			}
 			s.evaluateDuePolicies(ctx)
 		}
 	}

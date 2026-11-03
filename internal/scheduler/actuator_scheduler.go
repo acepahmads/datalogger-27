@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -88,6 +89,9 @@ func (s *ActuatorScheduler) Stop() {
 }
 
 func (s *ActuatorScheduler) tick() {
+	if database.IsRestoreMode() {
+		return
+	}
 	now := time.Now().UTC()
 
 	// 1. Process Auto-Off Watchdog Timers

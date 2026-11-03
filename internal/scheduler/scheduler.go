@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -59,6 +60,9 @@ func (s *Scheduler) Start() {
 			case <-s.ctx.Done():
 				return
 			case <-ticker.C:
+				if database.IsRestoreMode() {
+					continue
+				}
 				info := sysinfo.GetInfo()
 				_ = s.systemRepo.RecordSystemHealth(&model.SystemHealth{
 					Timestamp:      time.Now(),
@@ -94,6 +98,9 @@ func (s *Scheduler) Start() {
 				case <-s.ctx.Done():
 					return
 				case <-ticker.C:
+					if database.IsRestoreMode() {
+						continue
+					}
 					job.Fn()
 				}
 			}

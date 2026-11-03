@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"datalogger/internal/config"
@@ -18,13 +19,81 @@ import (
 )
 
 var (
-	DB           *gorm.DB
-	dbMu         sync.RWMutex
-	lastPingTime time.Time
-	lastLatency  float64
-	dbVersion    string
-	dbSizeMB     float64
+	DB                *gorm.DB
+	dbMu              sync.RWMutex
+	lastPingTime      time.Time
+	lastLatency       float64
+	dbVersion         string
+	dbSizeMB          float64
+	restoreModeActive int32
 )
+
+// SetRestoreMode toggles database restore maintenance mode so all background workers
+// and non-essential HTTP API polls pause SQL queries while DDL/LOCK TABLES restore runs.
+func SetRestoreMode(active bool) {
+	if active {
+		atomic.StoreInt32(&restoreModeActive, 1)
+	} else {
+		atomic.StoreInt32(&restoreModeActive, 0)
+	}
+}
+
+// IsRestoreMode returns true while an active database dump restoration is holding exclusive locks.
+func IsRestoreMode() bool {
+	return atomic.LoadInt32(&restoreModeActive) == 1
+}
+
+// AbortCompetingQueries terminates lingering in-flight application SELECT/DML queries on MariaDB/MySQL
+// right after RestoreMode is enabled so DROP TABLE / LOCK TABLES never hangs on Metadata Locks (MDL).
+func AbortCompetingQueries(targetDB *gorm.DB) int {
+	if targetDB == nil || targetDB.Dialector == nil || targetDB.Dialector.Name() != "mysql" {
+		return 0
+	}
+	sqlDB, err := targetDB.DB()
+	if err != nil || sqlDB == nil {
+		return 0
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		return 0
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(ctx, `
+		SELECT ID
+		FROM information_schema.PROCESSLIST
+		WHERE DB = DATABASE()
+		  AND ID <> CONNECTION_ID()
+		  AND COMMAND IN ('Query', 'Execute')
+		  AND (INFO IS NULL OR UPPER(INFO) NOT LIKE '%PROCESSLIST%')
+	`)
+	if err != nil {
+		return 0
+	}
+	var ids []int64
+	for rows.Next() {
+		var pid int64
+		if scanErr := rows.Scan(&pid); scanErr == nil && pid > 0 {
+			ids = append(ids, pid)
+		}
+	}
+	_ = rows.Close()
+
+	killed := 0
+	for _, pid := range ids {
+		if _, kErr := conn.ExecContext(ctx, fmt.Sprintf("KILL QUERY %d", pid)); kErr == nil {
+			killed++
+		}
+	}
+	if killed > 0 {
+		logger.Info("Aborted %d in-flight MariaDB background queries prior to exclusive restore lock", killed)
+	}
+	return killed
+}
 
 type DatabaseMetrics struct {
 	Type              string    `json:"type"`
@@ -243,6 +312,11 @@ func GetMetrics() DatabaseMetrics {
 	}
 
 	if DB == nil {
+		return metrics
+	}
+	if IsRestoreMode() {
+		metrics.Status = "Restoring"
+		metrics.DatabaseSizeMB = dbSizeMB
 		return metrics
 	}
 

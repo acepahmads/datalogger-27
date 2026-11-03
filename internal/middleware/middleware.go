@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -212,5 +213,31 @@ func RequestLogger() gin.HandlerFunc {
 		if path != "/ws" && !strings.HasPrefix(path, "/static") {
 			logger.Debug("%s %s -> %d", method, path, status)
 		}
+	}
+}
+
+// RestoreMaintenanceGuard prevents background browser tabs (e.g., Dashboard Operator, Telemetry charts,
+// Alarm bell) from issuing concurrent SQL queries against MariaDB while an active Disaster Recovery Restore
+// is dropping, locking, and rebuilding tables. Backup status/job progress & Auth endpoints remain 100% open.
+func RestoreMaintenanceGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !database.IsRestoreMode() {
+			c.Next()
+			return
+		}
+
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/backups") ||
+			path == "/api/auth/login" ||
+			path == "/api/auth/logout" {
+			c.Next()
+			return
+		}
+
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
+			"success":             false,
+			"restore_in_progress": true,
+			"error":               "Database restoration is currently in progress. Please wait until recovery finishes.",
+		})
 	}
 }

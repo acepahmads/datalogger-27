@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"datalogger/internal/config"
+	"datalogger/internal/database"
 	"datalogger/internal/model"
 	"datalogger/internal/queue"
 	"datalogger/internal/repository"
@@ -800,5 +801,92 @@ func TestPhase43_FastRestorePreviewAndManifestFirstOrder(t *testing.T) {
 	_ = os.WriteFile(rec.FilePath, []byte("corrupted_non_gzip_payload"), 0644)
 	if _, err := backupService.GetRestorePreview(ctx, rec.ID); err == nil {
 		t.Fatalf("expected GetRestorePreview to reject corrupted archive on disk, got nil")
+	}
+}
+
+// 13. Regression Test: Restore Mode Quiesces Aggregation/WAL Workers, Caches Auth Permissions & Batches Autocommit
+func TestPhase43_RestoreModeQuiescesWorkersAndBatchesAutocommit(t *testing.T) {
+	db, cfg, backupRepo, systemRepo, walAdapter, _, cleanup := setupTestBackupEnvironment(t)
+	defer cleanup()
+	defer database.SetRestoreMode(false)
+
+	if !strings.Contains(mysqlRestoreSessionPreamble, "SET @OLD_AUTOCOMMIT=0, AUTOCOMMIT=0;") {
+		t.Fatalf("expected mysqlRestoreSessionPreamble to disable per-statement autocommit fsyncs, got:\n%s", mysqlRestoreSessionPreamble)
+	}
+	if !strings.Contains(mysqlRestoreSessionPreamble, "SET SESSION lock_wait_timeout=120;") {
+		t.Fatalf("expected mysqlRestoreSessionPreamble to bound MDL lock_wait_timeout, got:\n%s", mysqlRestoreSessionPreamble)
+	}
+
+	aggRepo := repository.NewAggregationRepository(db)
+	devRepo := repository.NewDeviceRepository(db)
+	aggService := NewAggregationService(aggRepo, devRepo, systemRepo, nil)
+	authService := NewAuthService(systemRepo, cfg)
+
+	// Enable RestoreMode and verify AggregationService immediately pauses without querying DB
+	database.SetRestoreMode(true)
+	if !aggService.IsPaused() {
+		t.Fatalf("expected aggService.IsPaused() == true when database.IsRestoreMode() is active")
+	}
+	processed, err := aggService.RunAllActiveDefinitions(context.Background())
+	if err != nil || processed != 0 {
+		t.Fatalf("expected RunAllActiveDefinitions to short-circuit cleanly during restore mode, got processed=%d err=%v", processed, err)
+	}
+
+	// Verify WAL SaveBatch spools durably to disk without hitting DB during RestoreMode
+	batch := []*model.RawData{
+		{
+			RecordUUID:  "rec-restore-mode-wal-only",
+			DeviceID:    1,
+			ParameterID: 1,
+			Value:       123.45,
+			Quality:     model.QualityGood,
+			ReceivedAt:  time.Now().UTC(),
+			StoredAt:    time.Now().UTC(),
+			Timestamp:   time.Now().UTC(),
+			Source:      "MODBUS_TCP",
+		},
+	}
+	if err := walAdapter.SaveBatch(context.Background(), batch); err != nil {
+		t.Fatalf("expected WAL SaveBatch to spool cleanly during restore mode, got: %v", err)
+	}
+	var rawCnt int64
+	db.Model(&model.RawData{}).Where("record_uuid = ?", "rec-restore-mode-wal-only").Count(&rawCnt)
+	if rawCnt != 0 {
+		t.Fatalf("expected 0 DB writes while database.IsRestoreMode() is active, got %d", rawCnt)
+	}
+
+	// Verify AuthService.HasPermission returns false without querying DB on uncached role during RestoreMode
+	if authService.HasPermission("ADMIN", "backup.view") {
+		t.Fatalf("expected uncached HasPermission to return false during RestoreMode so middleware fallback handles it without DB query")
+	}
+
+	// Verify RestoreBackup toggles RestoreMode cleanly and leaves it false after completion
+	database.SetRestoreMode(false)
+	dbAdapter := NewDatabaseBackupAdapter(db, cfg)
+	backupService := NewBackupService(db, cfg, backupRepo, dbAdapter, walAdapter, nil, systemRepo)
+
+	var pausedDuringRestore bool
+	backupService.SetRestoreLifecycleHooks(
+		func() {
+			aggService.SetPaused(true)
+			pausedDuringRestore = database.IsRestoreMode() && aggService.IsPaused()
+		},
+		func() {
+			aggService.SetPaused(false)
+		},
+	)
+
+	rec, err := backupService.CreateBackup(context.Background(), model.BackupTypeManual, "admin")
+	if err != nil {
+		t.Fatalf("CreateBackup failed: %v", err)
+	}
+	if err := backupService.RestoreBackup(context.Background(), rec.ID, "admin", false); err != nil {
+		t.Fatalf("RestoreBackup failed: %v", err)
+	}
+	if !pausedDuringRestore {
+		t.Fatalf("expected RestoreMode and aggService pause to be active when beforeHook ran")
+	}
+	if database.IsRestoreMode() || aggService.IsPaused() {
+		t.Fatalf("expected RestoreMode and aggService pause to be cleared after RestoreBackup finished")
 	}
 }

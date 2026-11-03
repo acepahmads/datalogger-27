@@ -195,6 +195,7 @@ func (a *DatabaseBackupAdapter) dumpWithCLI(ctx context.Context, tool string, ou
 		"--single-transaction",
 		"--quick",
 		"--skip-lock-tables",
+		"--no-autocommit",
 		"--routines",
 		"--triggers",
 		fmt.Sprintf("--ignore-table=%s.backup_records", dbName),
@@ -375,7 +376,7 @@ func (a *DatabaseBackupAdapter) dumpTableData(ctx context.Context, sqlDB *sql.DB
 	}
 	colHeader := strings.Join(quotedCols, ", ")
 
-	batchValues := make([]string, 0, 50)
+	batchValues := make([]string, 0, 500)
 	rowCount := 0
 
 	for rows.Next() {
@@ -403,7 +404,7 @@ func (a *DatabaseBackupAdapter) dumpTableData(ctx context.Context, sqlDB *sql.DB
 		batchValues = append(batchValues, "("+strings.Join(rowStrs, ", ")+")")
 		rowCount++
 
-		if len(batchValues) >= 50 {
+		if len(batchValues) >= 500 {
 			stmt := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES\n%s;\n",
 				table, colHeader, strings.Join(batchValues, ",\n"))
 			if _, err := writer.WriteString(stmt); err != nil {
@@ -523,7 +524,8 @@ var (
 	reDefinerPlain            = regexp.MustCompile(`(?i)\bDEFINER\s*=\s*(?:` + "`[^`]+`" + `|'[^']+'|"[^"]+"|[a-zA-Z0-9_]+)\s*@\s*(?:` + "`[^`]+`" + `|'[^']+'|"[^"]+"|[a-zA-Z0-9_.%-]+)`)
 )
 
-const mysqlRestoreSessionPreamble = "SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT;\n" +
+const mysqlRestoreSessionPreamble = "SET @OLD_AUTOCOMMIT=0, AUTOCOMMIT=0;\n" +
+	"SET SESSION lock_wait_timeout=120;\n" +
 	"SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT;\n" +
 	"SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS;\n" +
 	"SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION;\n" +
@@ -644,9 +646,12 @@ func (a *DatabaseBackupAdapter) restoreWithCLI(ctx context.Context, tool string,
 			return
 		}
 
+		const commitBatchBytes = 24 * 1024 * 1024
 		br := bufio.NewReaderSize(f, 256*1024)
 		var bytesRead int64
 		var lastReport int64
+		var bytesSinceCommit int64
+		prevLineComplete := true
 
 		for {
 			line, rErr := br.ReadString('\n')
@@ -673,9 +678,20 @@ func (a *DatabaseBackupAdapter) restoreWithCLI(ctx context.Context, tool string,
 				if len(trimmed) < 1024 && strings.Contains(strings.ToUpper(trimmed), "@OLD_") {
 					line = sanitizeMySQLSessionRestore(line)
 				}
+				if bytesSinceCommit >= commitBatchBytes && prevLineComplete && strings.HasPrefix(trimmed, "INSERT INTO `") {
+					if _, wErr := bw.WriteString("COMMIT;\nSET AUTOCOMMIT=0;\n"); wErr != nil {
+						_ = pw.CloseWithError(wErr)
+						return
+					}
+					bytesSinceCommit = 0
+				}
 				if _, wErr := bw.WriteString(line); wErr != nil {
 					_ = pw.CloseWithError(wErr)
 					return
+				}
+				bytesSinceCommit += int64(len(line))
+				if trimmed != "" && !strings.HasPrefix(trimmed, "--") {
+					prevLineComplete = strings.HasSuffix(trimmed, ");")
 				}
 			}
 			if rErr == io.EOF {
@@ -687,7 +703,7 @@ func (a *DatabaseBackupAdapter) restoreWithCLI(ctx context.Context, tool string,
 			}
 		}
 
-		_, _ = bw.WriteString("\nCOMMIT;\nSET FOREIGN_KEY_CHECKS=1;\nSET UNIQUE_CHECKS=1;\nSET AUTOCOMMIT=1;\n")
+		_, _ = bw.WriteString("\nCOMMIT;\nUNLOCK TABLES;\nSET FOREIGN_KEY_CHECKS=1;\nSET UNIQUE_CHECKS=1;\nSET AUTOCOMMIT=1;\n")
 		_ = bw.Flush()
 	}()
 
@@ -842,7 +858,8 @@ func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dum
 		_, _ = conn.ExecContext(ctx, "PRAGMA foreign_keys = OFF;")
 	} else {
 		for _, initStmt := range []string{
-			"SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT",
+			"SET @OLD_AUTOCOMMIT=0, AUTOCOMMIT=0",
+			"SET SESSION lock_wait_timeout=120",
 			"SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT",
 			"SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS",
 			"SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION",
@@ -868,6 +885,7 @@ func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dum
 		}
 	}
 
+	pendingInsertStmts := 0
 	return streamSQLStatements(ctx, f, !isSQLite, progressCb, func(rawStmt string) error {
 		stmt := rawStmt
 		if !isSQLite {
@@ -876,6 +894,14 @@ func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dum
 
 		_, execErr := conn.ExecContext(ctx, stmt)
 		if execErr == nil {
+			if !isSQLite && len(stmt) >= 12 && strings.EqualFold(stmt[:6], "INSERT") {
+				pendingInsertStmts++
+				if pendingInsertStmts >= 1000 {
+					_, _ = conn.ExecContext(ctx, "COMMIT")
+					_, _ = conn.ExecContext(ctx, "SET AUTOCOMMIT=0")
+					pendingInsertStmts = 0
+				}
+			}
 			return nil
 		}
 

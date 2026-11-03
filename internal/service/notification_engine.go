@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -284,7 +285,7 @@ func (e *NotificationEngine) runDispatcher() {
 
 // processQueue fetches pending/retrying notifications and delivers them through providers
 func (e *NotificationEngine) processQueue() {
-	if e.repo == nil {
+	if e.repo == nil || database.IsRestoreMode() {
 		return
 	}
 

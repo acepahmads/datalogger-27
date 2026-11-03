@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -112,7 +113,7 @@ func (s *ISPUService) StopWorker() {
 
 // EnqueueCalculation enqueues an asynchronous calculation job with debouncing and coalescing.
 func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, reason string) {
-	if deviceID == 0 || bucketEnd.IsZero() {
+	if deviceID == 0 || bucketEnd.IsZero() || database.IsRestoreMode() {
 		return
 	}
 	if reason == "" {
@@ -140,7 +141,7 @@ func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 // HandleAggregationCompleted evaluates whether a completed aggregation bucket is relevant to an enabled ISPU mapping,
 // and if so, enqueues the station window calculation.
 func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event AggregationCompletedEvent) {
-	if event.DeviceID == 0 || event.ParameterID == 0 {
+	if event.DeviceID == 0 || event.ParameterID == 0 || database.IsRestoreMode() {
 		return
 	}
 
@@ -210,6 +211,9 @@ func (s *ISPUService) workerLoop(ctx context.Context) {
 			s.jobMu.Unlock()
 
 		case <-ticker.C:
+			if database.IsRestoreMode() {
+				continue
+			}
 			now := time.Now()
 			var dueJobs []ispuTriggerJob
 

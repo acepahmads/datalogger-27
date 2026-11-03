@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/queue"
@@ -101,8 +102,9 @@ func (a *PersistentQueueAdapter) SaveBatch(ctx context.Context, batch []*model.R
 		a.mu.Unlock()
 	}
 
-	// If no database repository is configured, data is safely spooled
-	if a.repo == nil {
+	// If no database repository is configured or exclusive database restore is active,
+	// data is safely spooled on disk WAL and will be replayed automatically when restore finishes.
+	if a.repo == nil || database.IsRestoreMode() {
 		return nil
 	}
 
@@ -242,6 +244,9 @@ func (a *PersistentQueueAdapter) backgroundReplayWorker() {
 		case <-a.replayerCtx.Done():
 			return
 		case <-ticker.C:
+			if database.IsRestoreMode() {
+				continue
+			}
 			if a.wal != nil && a.wal.PendingCount() > 0 {
 				a.triggerReplay()
 			}

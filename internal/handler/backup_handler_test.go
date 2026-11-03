@@ -732,3 +732,39 @@ func TestBackupImportAndRestoreEndToEnd(t *testing.T) {
 		t.Fatalf("expected imported backup %s to remain in Server B catalog after restore, got err=%v", imported.ID, err)
 	}
 }
+
+func TestPhase43_RestoreMaintenanceGuardAllowsBackupProgressAndBlocksCompetingEndpoints(t *testing.T) {
+	r, _, adminToken, _, _, _, cleanup := setupTestBackupRouter(t)
+	defer cleanup()
+	defer database.SetRestoreMode(false)
+
+	// Mount a dummy non-backup API route behind RestoreMaintenanceGuard to simulate Dashboard/Telemetry tabs
+	guarded := gin.New()
+	api := guarded.Group("/api")
+	api.Use(middleware.RestoreMaintenanceGuard())
+	api.GET("/telemetry/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
+	api.Any("/backups/*any", func(c *gin.Context) {
+		r.ServeHTTP(c.Writer, c.Request)
+	})
+
+	database.SetRestoreMode(true)
+
+	// 1. Non-backup endpoint must fast-return 503 Service Unavailable without touching DB
+	wTel := httptest.NewRecorder()
+	reqTel := httptest.NewRequest(http.MethodGet, "/api/telemetry/live", nil)
+	guarded.ServeHTTP(wTel, reqTel)
+	if wTel.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 ServiceUnavailable for /api/telemetry/live during restore, got %d (%s)", wTel.Code, wTel.Body.String())
+	}
+
+	// 2. Backup status endpoint must still pass through 200 OK with ADMIN token during RestoreMode
+	wStat := httptest.NewRecorder()
+	reqStat := httptest.NewRequest(http.MethodGet, "/api/backups/status", nil)
+	reqStat.Header.Set("Authorization", "Bearer "+adminToken)
+	guarded.ServeHTTP(wStat, reqStat)
+	if wStat.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /api/backups/status during RestoreMode, got %d (%s)", wStat.Code, wStat.Body.String())
+	}
+}
