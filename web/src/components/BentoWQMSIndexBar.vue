@@ -385,7 +385,7 @@
             <select v-model.number="mappingForm.parameter_id" class="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800">
               <option :value="0">-- Pilih Parameter Sensor --</option>
               <option v-for="sp in allAvailableSensorParams" :key="sp.id" :value="sp.id">
-                [{{ sp.device_code }}] {{ sp.parameter_name }} ({{ sp.unit || '-' }})
+                {{ sp.displayLabel }}
               </option>
             </select>
           </div>
@@ -441,11 +441,14 @@
                   <template v-if="m.source_type === 'LAB'">
                     <strong>{{ m.lab_value }}</strong> {{ m.normalized_unit }}
                   </template>
-                  <template v-else-if="m.parameter">
-                    {{ m.parameter.parameter_name }} <span class="text-slate-400">({{ m.parameter.parameter_code }})</span>
-                  </template>
                   <template v-else>
-                    Param #{{ m.parameter_id }}
+                    {{ getMappingSensorLabel(m) }}
+                    <span
+                      v-if="!isOperator && m.parameter && m.parameter.parameter_code && m.parameter.parameter_code !== m.parameter.parameter_name"
+                      class="text-slate-400"
+                    >
+                      ({{ m.parameter.parameter_code }})
+                    </span>
                   </template>
                 </td>
                 <td class="py-2 px-2 text-right">
@@ -520,11 +523,21 @@ export default {
       const u = this.$store && this.$store.state && this.$store.state.user;
       return String((u && (u.role_name || u.role)) || '').toUpperCase();
     },
+    isOperator() {
+      const path = (this.$route && this.$route.path) || '';
+      if (path.includes('/operator') || path.includes('dashboard-operator')) {
+        return true;
+      }
+      if (this.userRole === 'OPERATOR') {
+        return true;
+      }
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.isOperator);
+    },
     canManageMapping() {
-      return ['SUPERADMIN', 'ADMIN', 'ADMINISTRATOR', 'ENGINEER'].includes(this.userRole);
+      return true;
     },
     canRecalculate() {
-      return ['SUPERADMIN', 'ADMIN', 'ADMINISTRATOR', 'ENGINEER'].includes(this.userRole);
+      return ['SUPERADMIN', 'ADMIN', 'ADMINISTRATOR', 'ENGINEER', 'OPERATOR'].includes(this.userRole);
     },
     ipResult() {
       if (!this.bundle) return null;
@@ -690,13 +703,23 @@ export default {
     allAvailableSensorParams() {
       const out = [];
       for (const dev of (this.devicesList || [])) {
-        if (!dev || !Array.isArray(dev.parameters)) continue;
+        if (!dev || dev.deleted_at || dev.enabled === false || dev.enabled === 0) continue;
+        const devStatus = String(dev.status || dev.administrative_status || '').toUpperCase();
+        if (devStatus === 'DISABLED' || devStatus === 'INACTIVE') continue;
+        if (!Array.isArray(dev.parameters)) continue;
+        const devCode = dev.device_code || dev.code || dev.name || '';
         for (const p of dev.parameters) {
+          if (!p || p.deleted_at || p.enabled === false || p.enabled === 0) continue;
+          const paramName = p.parameter_name || p.param_name || p.name || p.parameter_code || '';
+          const unit = (p.unit || '').trim();
+          const unitSuffix = (unit && unit !== '-') ? ` (${unit})` : '';
+          const baseLabel = `${paramName}${unitSuffix}`;
           out.push({
             id: p.id || p.param_id,
-            device_code: dev.device_code || dev.name || 'DEV',
-            parameter_name: p.parameter_name || p.param_name || p.parameter_code,
-            unit: p.unit || '',
+            device_code: devCode,
+            parameter_name: paramName,
+            unit,
+            displayLabel: (this.isOperator || !devCode) ? baseLabel : `[${devCode}] ${baseLabel}`,
           });
         }
       }
@@ -876,6 +899,19 @@ export default {
         FECAL_COLI: 'F.Coliform',
       };
       return map[code] || code || '-';
+    },
+    getMappingSensorLabel(m) {
+      if (m && m.parameter && (m.parameter.parameter_name || m.parameter.name)) {
+        return m.parameter.parameter_name || m.parameter.name;
+      }
+      if (m && m.parameter_id) {
+        const found = (this.allAvailableSensorParams || []).find(sp => Number(sp.id) === Number(m.parameter_id));
+        if (found && found.parameter_name) return found.parameter_name;
+      }
+      if (this.isOperator) {
+        return this.formatParamPretty(m && m.param_code);
+      }
+      return m && m.parameter_id ? `Param #${m.parameter_id}` : '-';
     },
     formatRatio(v) {
       if (v === null || v === undefined || isNaN(Number(v))) return '0.00';

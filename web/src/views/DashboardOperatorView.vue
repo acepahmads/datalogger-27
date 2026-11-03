@@ -168,7 +168,7 @@
               <span
                 v-else
                 class="op-corner-pill tone-Density"
-              >{{ viewMode === 'table' ? bentoTableModeShortBadge : (effectiveBentoCols + 'P') }}</span>
+              >{{ viewMode === 'table' ? bentoTableModeShortBadge : bentoCardModeShortBadge }}</span>
             </button>
             <div
               v-if="activeToolbarPopover === 'viewOptions'"
@@ -199,31 +199,44 @@
                 <div>
                   <div class="text-[9.5px] font-bold uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
                     <span>{{ $t('operator.displayMode') || 'Display Mode' }}</span>
-                    <span class="text-[9px] text-cyan-500 font-semibold">{{ viewMode === 'cards' ? 'Cards' : 'Table' }}</span>
+                    <span class="text-[9px] text-cyan-500 font-semibold">{{ viewMode === 'cards' ? (bentoCardGroupByCategory ? 'Cards · Per Kategori' : 'Cards · Gabung') : 'Table' }}</span>
                   </div>
-                  <div class="grid grid-cols-2 gap-1.5 font-mono">
+                  <div class="grid grid-cols-3 gap-1.5 font-mono">
                     <button
                       type="button"
-                      @click="viewMode = 'cards'"
-                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
-                      :class="viewMode === 'cards'
+                      @click="setBentoDisplayMode('cards')"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-1.5"
+                      :class="viewMode === 'cards' && !bentoCardGroupByCategory
                         ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
                         : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                     >
-                      <OperatorDashboardIcon name="layout" :size="14" class="text-cyan-500 flex-shrink-0" />
-                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewCards') || 'Cards View' }}</span>
-                      <span v-if="viewMode === 'cards'" class="text-cyan-500 font-bold text-xs">✓</span>
+                      <OperatorDashboardIcon name="layout" :size="13" class="text-cyan-500 flex-shrink-0" />
+                      <span class="text-[9.5px] truncate flex-1">Kartu</span>
+                      <span v-if="viewMode === 'cards' && !bentoCardGroupByCategory" class="text-cyan-500 font-bold text-xs">✓</span>
+                    </button>
+                    <button
+                      type="button"
+                      @click="setBentoDisplayMode('cat-cards')"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-1.5"
+                      :class="viewMode === 'cards' && bentoCardGroupByCategory
+                        ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
+                        : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                      title="Tampilkan kartu parameter terpisah sesuai kategori"
+                    >
+                      <OperatorDashboardIcon name="layout" :size="13" class="text-emerald-500 flex-shrink-0" />
+                      <span class="text-[9.5px] truncate flex-1">Kartu Kat.</span>
+                      <span v-if="viewMode === 'cards' && bentoCardGroupByCategory" class="text-cyan-500 font-bold text-xs">✓</span>
                     </button>
                     <button
                       type="button"
                       @click="viewMode = 'table'"
-                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-2"
+                      class="p-1.5 rounded-md border text-left transition flex items-center space-x-1.5"
                       :class="viewMode === 'table'
                         ? 'bg-cyan-500/15 dark:bg-cyan-500/20 text-slate-900 dark:text-white border-cyan-500/60 shadow-xs font-bold'
                         : 'bg-slate-50 dark:bg-[#0E1726] border-slate-200 dark:border-[#20354B] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
                     >
-                      <OperatorDashboardIcon name="menu" :size="14" class="text-cyan-500 flex-shrink-0" />
-                      <span class="text-[10px] truncate flex-1">{{ $t('operator.viewTable') || 'Table View' }}</span>
+                      <OperatorDashboardIcon name="menu" :size="13" class="text-cyan-500 flex-shrink-0" />
+                      <span class="text-[9.5px] truncate flex-1">Tabel</span>
                       <span v-if="viewMode === 'table'" class="text-cyan-500 font-bold text-xs">✓</span>
                     </button>
                   </div>
@@ -2531,17 +2544,37 @@
           <!-- Right: Icon-Only Card & Table Display Switcher + Setup Popover -->
           <div class="param-ctrl-right flex-shrink-0">
             <div class="icon-seg-capsule" role="group" aria-label="Mode Tampilan Parameter">
-              <!-- Cards Mode Icon -->
+              <!-- Cards Mode Icon (All Combined) -->
               <button
                 id="btn-bento-view-cards"
                 type="button"
                 class="isc-btn"
-                :class="{ active: viewMode === 'cards' }"
-                @click="setBentoDisplayMode('auto-cards')"
-                :title="'Tampilan Kartu (' + (bentoAutoGrid ? 'Otomatis ' : '') + effectiveBentoCols + 'P)'"
-                aria-label="Mode Kartu"
+                :class="{ active: viewMode === 'cards' && !bentoCardGroupByCategory }"
+                @click="setBentoDisplayMode('cards')"
+                :title="'Tampilan Kartu Gabung (' + (bentoAutoGrid ? 'Otomatis ' : '') + effectiveBentoCols + 'P)'"
+                aria-label="Mode Kartu Gabung"
               >
                 <OperatorDashboardIcon name="layout" :size="13" />
+              </button>
+
+              <!-- Category-Separated Cards Icon -->
+              <button
+                id="btn-bento-view-cat-cards"
+                type="button"
+                class="isc-btn"
+                :class="{ active: viewMode === 'cards' && bentoCardGroupByCategory }"
+                @click="setBentoDisplayMode('cat-cards')"
+                :title="'Tampilan Kartu Terpisah per Kategori (' + bentoCategoryTableSections.length + ' Kategori · ' + effectiveBentoCols + 'P)'"
+                aria-label="Mode Kartu per Kategori"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="2.5" y1="3.5" x2="10.5" y2="3.5" />
+                  <rect x="2.5" y="6" width="8.5" height="5.2" rx="1.2" />
+                  <rect x="13" y="6" width="8.5" height="5.2" rx="1.2" />
+                  <line x1="2.5" y1="14.3" x2="10.5" y2="14.3" />
+                  <rect x="2.5" y="16.8" width="8.5" height="5.2" rx="1.2" />
+                  <rect x="13" y="16.8" width="8.5" height="5.2" rx="1.2" />
+                </svg>
               </button>
 
               <!-- Category Tables Side-by-Side Icon (CAT) -->
@@ -2607,35 +2640,45 @@
                 type="button"
                 @click="toggleBentoMiniPopover('cardSetup')"
                 class="op-icon-btn xs"
-                :class="{ 'is-active': bentoActiveMiniPopover === 'cardSetup' || !bentoAutoGrid }"
-                :title="'Setup Kartu & Tabel (' + (viewMode === 'table' ? bentoTableModeShortBadge : ((bentoAutoGrid ? 'Auto ' : '') + effectiveBentoCols + 'P')) + ')'"
+                :class="{ 'is-active': bentoActiveMiniPopover === 'cardSetup' || !bentoAutoGrid || (viewMode === 'cards' && bentoCardGroupByCategory) }"
+                :title="'Setup Kartu & Tabel (' + (viewMode === 'table' ? bentoTableModeShortBadge : ((bentoCardGroupByCategory ? 'Per Kategori · ' : '') + (bentoAutoGrid ? 'Auto ' : '') + effectiveBentoCols + 'P')) + ')'"
                 aria-label="Setup Kartu dan Tabel"
               >
                 <OperatorDashboardIcon name="sliders" :size="13" />
                 <span class="op-corner-pill tone-Density">
-                  {{ viewMode === 'table' ? bentoTableModeShortBadge : (effectiveBentoCols + 'P') }}
+                  {{ viewMode === 'table' ? bentoTableModeShortBadge : bentoCardModeShortBadge }}
                 </span>
               </button>
 
               <div
                 v-if="bentoActiveMiniPopover === 'cardSetup'"
-                class="bento-mini-popover align-right w-72"
+                class="bento-mini-popover align-right w-80"
               >
                 <div class="bmp-head">
                   <span class="bmp-title">Setup Kartu &amp; Tabel</span>
-                  <span class="bmp-badge">{{ viewMode === 'table' ? (bentoTableSplitMode === 'CAT' ? ('Kategori · ' + bentoCategoryTableSections.length + ' Tabel') : ('Tabel ' + bentoTableSplitMode)) : ((bentoAutoGrid ? 'Auto · ' : 'Manual · ') + effectiveBentoCols + 'P') }}</span>
+                  <span class="bmp-badge">{{ viewMode === 'table' ? (bentoTableSplitMode === 'CAT' ? ('Kategori · ' + bentoCategoryTableSections.length + ' Tabel') : ('Tabel ' + bentoTableSplitMode)) : ((bentoCardGroupByCategory ? 'Kat. Kartu · ' : '') + (bentoAutoGrid ? 'Auto · ' : 'Manual · ') + effectiveBentoCols + 'P') }}</span>
                 </div>
 
                 <div class="bmp-section">
                   <div class="bmp-label">Mode Tampilan</div>
-                  <div class="bmp-seg-grid cols-4">
+                  <div class="bmp-seg-grid cols-5">
                     <button
                       type="button"
                       class="bmp-seg-btn"
-                      :class="{ active: viewMode === 'cards' }"
-                      @click="setBentoDisplayMode('auto-cards')"
+                      :class="{ active: viewMode === 'cards' && !bentoCardGroupByCategory }"
+                      @click="setBentoDisplayMode('cards')"
+                      title="Tampilan kartu parameter gabungan dalam 1 grid"
                     >
                       Kartu
+                    </button>
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: viewMode === 'cards' && bentoCardGroupByCategory }"
+                      @click="setBentoDisplayMode('cat-cards')"
+                      title="Tampilan kartu parameter terpisah sesuai kategori"
+                    >
+                      Kartu Kat.
                     </button>
                     <button
                       type="button"
@@ -2644,7 +2687,7 @@
                       @click="setBentoDisplayMode('CAT')"
                       title="Tabel otomatis sebanyak kategori aktif yang terpakai"
                     >
-                      Kategori
+                      Tabel Kat.
                     </button>
                     <button
                       type="button"
@@ -2663,11 +2706,33 @@
                       1 Tabel
                     </button>
                   </div>
+                </div>
+
+                <div v-if="viewMode === 'cards'" class="bmp-section">
+                  <div class="bmp-label">Susunan Kartu Parameter</div>
+                  <div class="bmp-seg-grid cols-2">
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: !bentoCardGroupByCategory }"
+                      @click="setBentoCardGrouping(false)"
+                    >
+                      Gabung Semua
+                    </button>
+                    <button
+                      type="button"
+                      class="bmp-seg-btn"
+                      :class="{ active: bentoCardGroupByCategory }"
+                      @click="setBentoCardGrouping(true)"
+                    >
+                      Pisah Kategori
+                    </button>
+                  </div>
                   <div
-                    v-if="viewMode === 'table' && bentoTableSplitMode === 'CAT'"
+                    v-if="bentoCardGroupByCategory"
                     class="mt-1.5 flex items-center justify-between text-[9.5px] opacity-85"
                   >
-                    <span>{{ bentoCategoryTableSections.length }} tabel kategori aktif</span>
+                    <span>{{ bentoCategoryTableSections.length }} grup kartu kategori aktif</span>
                     <button
                       v-if="canManageCategories || canViewCategories"
                       type="button"
@@ -2677,6 +2742,21 @@
                       Kelola Kategori
                     </button>
                   </div>
+                </div>
+
+                <div
+                  v-if="viewMode === 'table' && bentoTableSplitMode === 'CAT'"
+                  class="bmp-section -mt-1 flex items-center justify-between text-[9.5px] opacity-85"
+                >
+                  <span>{{ bentoCategoryTableSections.length }} tabel kategori aktif</span>
+                  <button
+                    v-if="canManageCategories || canViewCategories"
+                    type="button"
+                    class="bmp-link-btn"
+                    @click="openCategoryManagementModal(); bentoActiveMiniPopover = null"
+                  >
+                    Kelola Kategori
+                  </button>
                 </div>
 
                 <div class="bmp-section">
@@ -2733,44 +2813,91 @@
         >
           <div
             v-if="filteredParameters.length > 0"
-            class="sensors-grid"
-            :class="[
-              'bento-cols-' + effectiveBentoCols,
-              {
-                'is-micro-cards': isMicroCardDensity,
-                'is-compact-cards': isCompactScreen
-              }
-            ]"
+            :class="{ 'bento-cat-cards-stack': bentoCardGroupByCategory }"
           >
             <div
-              v-for="param in filteredParameters"
-              :key="param.param_id"
-              @click="selectParamForTrend(param)"
-              @contextmenu.prevent="openParamContextMenu($event, param)"
-              class="s-card"
-              :class="[
-                { 's-card-selected': isParamSelectedForTrend(param) },
-                getBentoCardAlertClass(param),
-                perfSettings.cardBlinksEnabled && liveBlinks[param.param_id] ? 's-card-blink' : ''
-              ]"
-              :title="getBentoParamCardTitle(param)"
+              v-for="sec in bentoActiveCardSections"
+              :key="sec.key"
+              :class="{ 'bento-cat-card-group': sec.isCategoryGroup }"
+              :style="sec.isCategoryGroup && sec.accentColor ? { borderLeftColor: sec.accentColor } : null"
             >
-              <!-- Card Header -->
-              <div class="s-head">
-                <div class="s-title-wrap">
+              <!-- Category Section Header (shown when cards are separated by category) -->
+              <div
+                v-if="sec.isCategoryGroup"
+                class="bento-cat-card-head"
+                :class="{ 'is-collapsed-head': isBentoCatCardCollapsed(sec.key) }"
+                @click="toggleBentoCatCardCollapse(sec.key)"
+                :title="isBentoCatCardCollapsed(sec.key) ? 'Klik untuk menampilkan kartu kategori ini' : 'Klik untuk melipat kartu kategori ini'"
+              >
+                <div class="bento-cat-card-head-left">
                   <span
-                    class="s-dot"
-                    :style="{ background: getBentoDotColor(param) }"
+                    class="bento-cat-dot"
+                    :style="{ background: sec.accentColor || '#06B6D4' }"
                   ></span>
-                  <span class="s-name" :title="param.param_name || param.param_code">
-                    {{ param.param_name || param.param_code }}
-                  </span>
+                  <span class="bento-cat-card-title truncate" :title="sec.title">{{ sec.title }}</span>
                 </div>
+                <div class="bento-cat-card-head-right">
+                  <span v-if="sec.faultCount > 0" class="s-badge badge-rose">{{ sec.faultCount }} Fault</span>
+                  <span v-else-if="sec.warnCount > 0" class="s-badge badge-amber">{{ sec.warnCount }} Alarm</span>
+                  <span class="bento-cat-count-pill">{{ sec.params.length }} Kanal</span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="bento-cat-chevron"
+                    :class="{ 'is-collapsed': isBentoCatCardCollapsed(sec.key) }"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+              </div>
 
-                <div class="s-head-right">
-                  <span v-if="!isCompactScreen && getParamCategory(param)" class="s-cat">
-                    {{ getParamCategoryShortLabel(param) }}
-                  </span>
+              <div
+                v-show="!sec.isCategoryGroup || !isBentoCatCardCollapsed(sec.key)"
+                class="sensors-grid"
+                :class="[
+                  'bento-cols-' + effectiveBentoCols,
+                  {
+                    'is-micro-cards': isMicroCardDensity,
+                    'is-compact-cards': isCompactScreen,
+                    'is-inside-cat-group': sec.isCategoryGroup
+                  }
+                ]"
+              >
+                <div
+                  v-for="param in sec.params"
+                  :key="param.param_id"
+                  @click="selectParamForTrend(param)"
+                  @contextmenu.prevent="openParamContextMenu($event, param)"
+                  class="s-card"
+                  :class="[
+                    { 's-card-selected': isParamSelectedForTrend(param) },
+                    getBentoCardAlertClass(param),
+                    perfSettings.cardBlinksEnabled && liveBlinks[param.param_id] ? 's-card-blink' : ''
+                  ]"
+                  :title="getBentoParamCardTitle(param)"
+                >
+                  <!-- Card Header -->
+                  <div class="s-head">
+                    <div class="s-title-wrap">
+                      <span
+                        class="s-dot"
+                        :style="{ background: getBentoDotColor(param) }"
+                      ></span>
+                      <span class="s-name" :title="param.param_name || param.param_code">
+                        {{ param.param_name || param.param_code }}
+                      </span>
+                    </div>
+
+                    <div class="s-head-right">
+                      <span v-if="!sec.isCategoryGroup && !isCompactScreen && getParamCategory(param)" class="s-cat">
+                        {{ getParamCategoryShortLabel(param) }}
+                      </span>
                   <span
                     class="s-badge"
                     :class="[getBentoStatusBadge(param).toneClass, { 'is-clickable-alarm': getBentoStatusBadge(param).isAlarm }]"
@@ -2907,6 +3034,8 @@
                     {{ isMicroCardDensity ? getBentoCardProgress(param).shortMetaLabel : getBentoCardProgress(param).metaLabel }}
                   </button>
                   <span class="s-meta-pct">{{ getBentoCardProgress(param).rightLabel }}</span>
+                </div>
+              </div>
                 </div>
               </div>
             </div>
@@ -6273,6 +6402,7 @@ export default {
   },
   data() {
     let autoGrid = true;
+    let cardGroupByCat = false;
     let splitMode = '2T';
     let savedTrendHeight = 205;
     let savedCustName = '';
@@ -6282,6 +6412,8 @@ export default {
     try {
       const savedAuto = localStorage.getItem('datalogger_bento_auto_grid');
       if (savedAuto === 'false') autoGrid = false;
+      const savedCardGroup = localStorage.getItem('datalogger_bento_card_group_cat');
+      if (savedCardGroup === 'true') cardGroupByCat = true;
       const savedSplit = localStorage.getItem('datalogger_bento_table_split');
       if (savedSplit === '1T' || savedSplit === '2T' || savedSplit === 'CAT') splitMode = savedSplit;
       const rawTrendH = parseInt(localStorage.getItem('datalogger_bento_trend_height'), 10);
@@ -6305,6 +6437,8 @@ export default {
       bentoViewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1600,
       bentoParamsWrapWidth: 0,
       bentoAutoGrid: autoGrid,
+      bentoCardGroupByCategory: cardGroupByCat,
+      bentoCollapsedCatCards: {},
       bentoTableSplitMode: splitMode,
       bentoActiveMiniPopover: null,
       bentoTrendSearch: '',
@@ -6613,14 +6747,41 @@ export default {
       if (!this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
         return null;
       }
-      const isTable = this.viewMode === 'table';
-      const minH = isTable ? (this.isCompactScreen ? 325 : 360) : (this.isCompactScreen ? 268 : 332);
+      const isTableOrGrouped = this.viewMode === 'table' || Boolean(this.bentoCardGroupByCategory);
+      const minH = isTableOrGrouped ? (this.isCompactScreen ? 325 : 365) : (this.isCompactScreen ? 268 : 332);
       const topIspuOffset = (this.isCompactScreen && this.isAQMSDomain && this.isIspuBarVisible) ? 62 : 0;
       const topWqmsOffset = (this.isWQMSDomain && this.isIspuBarVisible) ? 62 : 0;
       const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + 230 + topIspuOffset + topWqmsOffset);
       return {
         maxHeight: 'max(' + minH + 'px, calc(100vh - ' + reservedPx + 'px))',
       };
+    },
+    bentoCardModeShortBadge() {
+      if (this.bentoCardGroupByCategory) {
+        return 'K·' + this.effectiveBentoCols + 'P';
+      }
+      return this.effectiveBentoCols + 'P';
+    },
+    bentoActiveCardSections() {
+      const list = this.filteredParameters || [];
+      if (!list.length) return [];
+      if (this.bentoCardGroupByCategory) {
+        return (this.bentoCategoryTableSections || []).map(sec => ({
+          ...sec,
+          isCategoryGroup: true,
+        }));
+      }
+      return [
+        {
+          key: 'all-flat-cards',
+          title: '',
+          accentColor: '',
+          isCategoryGroup: false,
+          faultCount: 0,
+          warnCount: 0,
+          params: list,
+        },
+      ];
     },
     bentoRawParamMap() {
       const map = {};
@@ -7161,6 +7322,22 @@ export default {
       this.$store.dispatch('setTheme', mode);
     },
     setBentoDisplayMode(target) {
+      if (target === 'cards') {
+        this.viewMode = 'cards';
+        this.bentoCardGroupByCategory = false;
+        try {
+          localStorage.setItem('datalogger_bento_card_group_cat', 'false');
+        } catch (e) {}
+        return;
+      }
+      if (target === 'cat-cards') {
+        this.viewMode = 'cards';
+        this.bentoCardGroupByCategory = true;
+        try {
+          localStorage.setItem('datalogger_bento_card_group_cat', 'true');
+        } catch (e) {}
+        return;
+      }
       if (target === 'auto-cards') {
         this.viewMode = 'cards';
         this.bentoAutoGrid = true;
@@ -7176,6 +7353,22 @@ export default {
           localStorage.setItem('datalogger_bento_table_split', target);
         } catch (e) {}
       }
+    },
+    setBentoCardGrouping(grouped) {
+      const flag = Boolean(grouped);
+      this.viewMode = 'cards';
+      this.bentoCardGroupByCategory = flag;
+      try {
+        localStorage.setItem('datalogger_bento_card_group_cat', flag ? 'true' : 'false');
+      } catch (e) {}
+    },
+    toggleBentoCatCardCollapse(secKey) {
+      if (!secKey) return;
+      const next = !this.bentoCollapsedCatCards[secKey];
+      this.$set(this.bentoCollapsedCatCards, secKey, next);
+    },
+    isBentoCatCardCollapsed(secKey) {
+      return Boolean(secKey && this.bentoCollapsedCatCards && this.bentoCollapsedCatCards[secKey]);
     },
     setGridColumns(cols) {
       const count = Math.min(5, Math.max(1, parseInt(cols, 10) || 4));
@@ -8393,11 +8586,17 @@ export default {
   display: grid;
   gap: 3.5px;
 }
+.bmp-seg-grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .bmp-seg-grid.cols-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .bmp-seg-grid.cols-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.bmp-seg-grid.cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .bmp-seg-grid.cols-6 {
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -8468,6 +8667,90 @@ export default {
 }
 .sensors-grid.is-compact-cards {
   gap: 6px;
+}
+.sensors-grid.is-inside-cat-group {
+  padding: 8px 9px 9px;
+}
+.sensors-grid.is-compact-cards.is-inside-cat-group {
+  padding: 6px 7px 7px;
+}
+
+/* Category-Separated Card Group Containers */
+.bento-cat-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.bento-cat-card-group {
+  border: 1px solid var(--b-border);
+  border-left: 3px solid #06B6D4;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.is-day .bento-cat-card-group {
+  background: rgba(248, 250, 252, 0.85);
+}
+.is-night .bento-cat-card-group {
+  background: rgba(15, 23, 42, 0.42);
+}
+.bento-cat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--b-border-soft);
+  transition: background 0.12s ease;
+}
+.bento-cat-card-head.is-collapsed-head {
+  border-bottom: none;
+}
+.is-day .bento-cat-card-head {
+  background: rgba(241, 245, 249, 0.9);
+}
+.is-night .bento-cat-card-head {
+  background: rgba(30, 41, 59, 0.48);
+}
+.bento-cat-card-head:hover {
+  filter: brightness(0.98);
+}
+.bento-cat-card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 6.5px;
+  min-width: 0;
+}
+.bento-cat-card-title {
+  font-size: 10.2px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--b-text-main);
+}
+.bento-cat-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.bento-cat-count-pill {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6.5px;
+  border-radius: 999px;
+  background: var(--b-pill);
+  color: var(--b-text-muted);
+  border: 1px solid var(--b-border-soft);
+}
+.bento-cat-chevron {
+  color: var(--b-text-muted);
+  transition: transform 0.16s ease;
+}
+.bento-cat-chevron.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .bento-cols-1 { grid-template-columns: minmax(0, 1fr); }

@@ -163,7 +163,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"notification.view": true,
 				"report.view":       true,
 				"ispu.view":         true, "ispu.export": true,
-				"wqms.view":         true, "wqms.export": true,
+				"wqms.view":         true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 			}
 			if opAllowed[permissionCode] {
 				c.Next()

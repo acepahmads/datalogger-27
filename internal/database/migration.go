@@ -3632,7 +3632,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"notification.view": true,
 			"report.view":       true,
 			"ispu.view":         true, "ispu.export": true,
-			"wqms.view":         true, "wqms.export": true,
+			"wqms.view":         true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 			"integration.view":  true,
 		}
 		for _, p := range dbAllPerms {

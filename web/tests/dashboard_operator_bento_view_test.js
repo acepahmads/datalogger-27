@@ -254,6 +254,16 @@ check('13.1: Audio Mute state persists reliably in localStorage and is never sil
   assert(viewContent.includes('toggleAudioMute()') && viewContent.includes('onAudioMuteDurationChange()'), 'DashboardOperatorView.vue must persist mute toggle and timer changes atomically to localStorage');
 });
 
+// 14. Category-Separated Parameter Cards Setup & Display Mode
+check('14.1: Card Setup supports Category-Separated Parameter Cards (Kartu per Kategori) with collapsible category containers and localStorage persistence', () => {
+  assert(viewContent.includes('id="btn-bento-view-cat-cards"'), 'Must render #btn-bento-view-cat-cards icon button in display switcher');
+  assert(viewContent.includes("setBentoDisplayMode('cat-cards')") && viewContent.includes('setBentoCardGrouping('), 'Must support switching to category-separated cards from quick bar and Setup Kartu popover');
+  assert(viewContent.includes("localStorage.getItem('datalogger_bento_card_group_cat')"), 'Must persist bentoCardGroupByCategory preference in localStorage');
+  assert(viewContent.includes('bentoActiveCardSections()'), 'Must compute bentoActiveCardSections reusing active category resolution');
+  assert(viewContent.includes('bento-cat-card-group') && viewContent.includes('bento-cat-card-head'), 'Must render dedicated category card group container and header');
+  assert(viewContent.includes('toggleBentoCatCardCollapse('), 'Must support collapsing/expanding individual category card sections');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

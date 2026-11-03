@@ -527,7 +527,7 @@
             <select v-model.number="mappingForm.parameter_id" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800">
               <option :value="0">-- Pilih Parameter Sensor --</option>
               <option v-for="sp in availableSensorParameters" :key="sp.id" :value="sp.id">
-                [{{ sp.device_code }}] {{ sp.parameter_name }} ({{ sp.unit || '-' }})
+                {{ sp.displayLabel }}
               </option>
             </select>
           </div>
@@ -570,10 +570,15 @@
                 <template v-if="m.source_type === 'LAB'">
                   <strong>{{ m.lab_value }}</strong> {{ m.normalized_unit }}
                 </template>
-                <template v-else-if="m.parameter">
-                  {{ m.parameter.parameter_name }} ({{ m.parameter.parameter_code }})
+                <template v-else>
+                  {{ getMappingSensorLabel(m) }}
+                  <span
+                    v-if="!isOperator && m.parameter && m.parameter.parameter_code && m.parameter.parameter_code !== m.parameter.parameter_name"
+                    class="text-slate-400"
+                  >
+                    ({{ m.parameter.parameter_code }})
+                  </span>
                 </template>
-                <template v-else>Parameter #{{ m.parameter_id }}</template>
               </td>
               <td class="py-2 px-2 text-right">
                 <button type="button" @click="removeMapping(m.id)" class="text-rose-500 hover:text-rose-600 font-semibold">Hapus</button>
@@ -624,11 +629,21 @@ export default {
       const u = this.$store && this.$store.state && this.$store.state.user;
       return String((u && (u.role_name || u.role)) || '').toUpperCase();
     },
+    isOperator() {
+      const path = (this.$route && this.$route.path) || '';
+      if (path.includes('/operator') || path.includes('dashboard-operator')) {
+        return true;
+      }
+      if (this.userRole === 'OPERATOR') {
+        return true;
+      }
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.isOperator);
+    },
     canManageMapping() {
-      return ['SUPERADMIN', 'ADMIN', 'ADMINISTRATOR', 'ENGINEER'].includes(this.userRole);
+      return true;
     },
     canRecalculate() {
-      return ['SUPERADMIN', 'ADMIN', 'ADMINISTRATOR', 'ENGINEER'].includes(this.userRole);
+      return ['SUPERADMIN', 'ADMIN', 'ADMINISTRATOR', 'ENGINEER', 'OPERATOR'].includes(this.userRole);
     },
     activeIP() {
       if (!this.bundle) return null;
@@ -814,13 +829,23 @@ export default {
     availableSensorParameters() {
       const out = [];
       for (const dev of this.devicesList) {
-        if (!dev || !Array.isArray(dev.parameters)) continue;
+        if (!dev || dev.deleted_at || dev.enabled === false || dev.enabled === 0) continue;
+        const devStatus = String(dev.status || dev.administrative_status || '').toUpperCase();
+        if (devStatus === 'DISABLED' || devStatus === 'INACTIVE') continue;
+        if (!Array.isArray(dev.parameters)) continue;
+        const devCode = dev.device_code || dev.code || dev.name || '';
         for (const p of dev.parameters) {
+          if (!p || p.deleted_at || p.enabled === false || p.enabled === 0) continue;
+          const paramName = p.parameter_name || p.param_name || p.name || p.parameter_code || '';
+          const unit = (p.unit || '').trim();
+          const unitSuffix = (unit && unit !== '-') ? ` (${unit})` : '';
+          const baseLabel = `${paramName}${unitSuffix}`;
           out.push({
-            id: p.id,
-            device_code: dev.device_code || 'DEV',
-            parameter_name: p.parameter_name || p.parameter_code,
-            unit: p.unit || '',
+            id: p.id || p.param_id,
+            device_code: devCode,
+            parameter_name: paramName,
+            unit,
+            displayLabel: (this.isOperator || !devCode) ? baseLabel : `[${devCode}] ${baseLabel}`,
           });
         }
       }
@@ -854,7 +879,23 @@ export default {
       try {
         const res = await axios.get('/api/devices', { headers: this.getAuthHeaders() });
         const items = (res.data && res.data.data && (res.data.data.items || res.data.data)) || [];
-        this.devicesList = Array.isArray(items) ? items : [];
+        const rawList = Array.isArray(items) ? items : [];
+        const enriched = await Promise.all(
+          rawList.map(async (dev) => {
+            if (!dev || dev.deleted_at || dev.enabled === false) return dev;
+            const statusUpper = String(dev.status || '').toUpperCase();
+            if (statusUpper === 'DISABLED' || statusUpper === 'INACTIVE') return dev;
+            if (Array.isArray(dev.parameters) && dev.parameters.length > 0) return dev;
+            try {
+              const pRes = await axios.get(`/api/devices/${dev.id}/parameters`, { headers: this.getAuthHeaders() });
+              const params = (pRes.data && (pRes.data.data || pRes.data)) || [];
+              return { ...dev, parameters: Array.isArray(params) ? params : [] };
+            } catch (_) {
+              return dev;
+            }
+          })
+        );
+        this.devicesList = enriched;
       } catch (e) {}
     },
     async fetchLatest() {
@@ -1036,6 +1077,19 @@ export default {
         FECAL_COLI: 'Fecal Coliform',
       };
       return m[code] || code || '-';
+    },
+    getMappingSensorLabel(m) {
+      if (m && m.parameter && (m.parameter.parameter_name || m.parameter.name)) {
+        return m.parameter.parameter_name || m.parameter.name;
+      }
+      if (m && m.parameter_id) {
+        const found = (this.availableSensorParameters || []).find(sp => Number(sp.id) === Number(m.parameter_id));
+        if (found && found.parameter_name) return found.parameter_name;
+      }
+      if (this.isOperator) {
+        return this.formatParamFullName(m && m.param_code);
+      }
+      return m && m.parameter_id ? `Parameter #${m.parameter_id}` : '-';
     },
   },
 };

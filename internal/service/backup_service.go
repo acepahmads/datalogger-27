@@ -818,9 +818,15 @@ func (s *BackupService) executeRestore(
 	}
 
 	// 3. Restore Database Dump
-	s.updateJob(job, 55.0, "Restoring database tables and records")
+	s.updateJob(job, 50.0, "Restoring database tables and records")
 	dumpPath := filepath.Join(tempDir, "database", "dump.sql")
-	if err := s.dbAdapter.Restore(ctx, dumpPath); err != nil {
+	if err := s.dbAdapter.RestoreWithProgress(ctx, dumpPath, func(frac float64) {
+		pct := 50.0 + frac*22.0
+		if pct > 72.0 {
+			pct = 72.0
+		}
+		s.updateJob(job, pct, fmt.Sprintf("Restoring database tables and records (%.0f%%)", frac*100.0))
+	}); err != nil {
 		return fmt.Errorf("database restore failed: %w", err)
 	}
 
@@ -1409,6 +1415,7 @@ func (s *BackupService) validateArchiveStream(tarGzPath string) (*model.BackupMa
 			strings.Contains(tailText, "COMMIT") ||
 			strings.Contains(tailText, "/*!40101") ||
 			strings.Contains(tailText, "/*!40014") ||
+			strings.Contains(tailText, "/*M!") ||
 			strings.HasSuffix(trimmedTail, "--")
 		if !validTail {
 			return nil, fmt.Errorf("%w: database dump validation failed: dump file appears incomplete or truncated (missing SQL termination)", ErrInvalidArchive)

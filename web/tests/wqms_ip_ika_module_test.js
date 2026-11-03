@@ -149,6 +149,20 @@ check('6.1: WQMSAnalysisView, Vue Router (/monitoring/wqms), Sidebar (PP.22), Vu
   assert(idContent.includes('"wqmsAnalysis"'), 'id.js must include wqmsAnalysis');
 });
 
+// 7. Operator Role Hygiene on WQMS Mapping UI & RBAC
+check('7.1: WQMS Mapping UI hides device/dev codes ([com*], parameter_code, Param #id) for Operator role & Dashboard Operator', () => {
+  const barContent = fs.readFileSync(path.join(__dirname, '../src/components/BentoWQMSIndexBar.vue'), 'utf8');
+  const viewContent = fs.readFileSync(path.join(__dirname, '../src/views/WQMSAnalysisView.vue'), 'utf8');
+
+  assert(!barContent.includes('[{{ sp.device_code }}]'), 'BentoWQMSIndexBar must not hardcode [device_code] in sensor dropdown');
+  assert(!viewContent.includes('[{{ sp.device_code }}]'), 'WQMSAnalysisView must not hardcode [device_code] in sensor dropdown');
+  assert(barContent.includes('isOperator') && barContent.includes('displayLabel') && barContent.includes('getMappingSensorLabel'), 'BentoWQMSIndexBar must sanitize sensor labels for Operator');
+  assert(viewContent.includes('isOperator') && viewContent.includes('displayLabel') && viewContent.includes('getMappingSensorLabel'), 'WQMSAnalysisView must sanitize sensor labels for Operator');
+
+  const mwContent = fs.readFileSync(path.join(repoRoot, 'internal/middleware/middleware.go'), 'utf8');
+  assert(mwContent.includes('"wqms.manage_mapping": true'), 'Middleware must grant wqms.manage_mapping appropriately');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

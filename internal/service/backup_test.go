@@ -584,3 +584,88 @@ func TestPhase43_DiagnosticsAndIntegrityHotfix(t *testing.T) {
 		t.Fatalf("expected error validating backup with missing file, got nil")
 	}
 }
+
+// 10. Regression Test: MariaDB 11.x /*M!...*/ Conditional Comments, @OLD_AUTOCOMMIT NULL Guard, DELIMITER, Quotes & >10MB Statements
+func TestPhase43_MariaDB11RestoreSessionAndLexerRegression(t *testing.T) {
+	// 1. Verify @OLD_* NULL-safe rewrite does not break initialization statements
+	initStmt := "/*M!100000 SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, AUTOCOMMIT=0 */"
+	if got := sanitizeMySQLSessionRestore(initStmt); got != initStmt {
+		t.Fatalf("expected init statement unchanged, got: %s", got)
+	}
+
+	restoreStmt := "SET AUTOCOMMIT=@OLD_AUTOCOMMIT"
+	if got := sanitizeMySQLSessionRestore(restoreStmt); got != "SET AUTOCOMMIT=IFNULL(@OLD_AUTOCOMMIT, 1)" {
+		t.Fatalf("unexpected sanitized AUTOCOMMIT restore: %s", got)
+	}
+
+	sessionAutocommit := "SET @@session.autocommit = @OLD_AUTOCOMMIT"
+	if got := sanitizeMySQLSessionRestore(sessionAutocommit); got != "SET @@session.AUTOCOMMIT=IFNULL(@OLD_AUTOCOMMIT, 1)" {
+		t.Fatalf("unexpected sanitized session AUTOCOMMIT restore: %s", got)
+	}
+
+	// 2. Verify SQL statement streamer preserves /*M!...*/ executable comments, skips /*M!999999 sandbox header,
+	// respects semicolons/comments inside multi-line string literals, and supports DELIMITER blocks.
+	sampleDump := strings.Join([]string{
+		"/*M!999999\\- enable the sandbox mode */",
+		"-- MariaDB dump 10.19-11.8.6-MariaDB",
+		"/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;",
+		"/* regular multi-line",
+		"   comment that must be skipped */",
+		"/*M!100000 SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, AUTOCOMMIT=0 */;",
+		"INSERT INTO `notes` VALUES (1, 'line1;\nline2 -- not a comment\n/* also not a comment */', 'O\\'Reilly');",
+		"DELIMITER ;;",
+		"/*!50003 CREATE TRIGGER `tr_sample` AFTER INSERT ON `notes` FOR EACH ROW BEGIN",
+		"  SET @cnt = 1;",
+		"END */;;",
+		"DELIMITER ;",
+		"/*M!100000 COMMIT */;",
+		"SET AUTOCOMMIT=@OLD_AUTOCOMMIT;",
+	}, "\n")
+
+	var statements []string
+	err := streamSQLStatements(context.Background(), strings.NewReader(sampleDump), true, nil, func(stmt string) error {
+		statements = append(statements, stmt)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("streamSQLStatements failed: %v", err)
+	}
+
+	if len(statements) != 6 {
+		t.Fatalf("expected 6 parsed SQL statements, got %d: %#v", len(statements), statements)
+	}
+	if strings.Contains(statements[0], "999999") {
+		t.Errorf("sandbox directive /*M!999999 must be stripped, got: %s", statements[0])
+	}
+	if statements[1] != "/*M!100000 SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, AUTOCOMMIT=0 */" {
+		t.Errorf("expected MariaDB /*M!100000 ... */ comment preserved, got: %s", statements[1])
+	}
+	if !strings.Contains(statements[2], "line1;\nline2 -- not a comment") || !strings.Contains(statements[2], "'O\\'Reilly'") {
+		t.Errorf("multiline quoted string with semicolon/comment corrupted: %s", statements[2])
+	}
+	if !strings.Contains(statements[3], "SET @cnt = 1;") || strings.Contains(statements[3], "DELIMITER") {
+		t.Errorf("DELIMITER trigger block parsed incorrectly: %s", statements[3])
+	}
+	if statements[4] != "/*M!100000 COMMIT */" {
+		t.Errorf("expected /*M!100000 COMMIT */, got: %s", statements[4])
+	}
+	if sanitizeMySQLSessionRestore(statements[5]) != "SET AUTOCOMMIT=IFNULL(@OLD_AUTOCOMMIT, 1)" {
+		t.Errorf("expected IFNULL guard on final statement, got: %s", sanitizeMySQLSessionRestore(statements[5]))
+	}
+
+	// 3. Verify lines > 10MB (exceeding bufio.Scanner limit) stream without error
+	largePayload := "INSERT INTO `raw_data` VALUES ('" + strings.Repeat("A", 11*1024*1024) + "');\n"
+	var largeCount int
+	if err := streamSQLStatements(context.Background(), strings.NewReader(largePayload), true, nil, func(stmt string) error {
+		largeCount++
+		if len(stmt) < 11*1024*1024 {
+			t.Errorf("expected >11MB statement preserved, got %d bytes", len(stmt))
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("failed streaming >10MB SQL statement: %v", err)
+	}
+	if largeCount != 1 {
+		t.Fatalf("expected 1 large statement, got %d", largeCount)
+	}
+}
