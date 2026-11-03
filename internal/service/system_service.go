@@ -360,6 +360,11 @@ func (s *SystemService) GetDatabaseMetrics() database.DatabaseMetrics {
 }
 
 func (s *SystemService) TestDatabaseConnection(host, port, user, password, dbName string) (bool, string, float64, error) {
+	if password == "" || password == "••••••••" || password == "********" || password == "***REDACTED***" {
+		if cfg := config.Get(); cfg != nil {
+			password = cfg.DBPassword
+		}
+	}
 	return database.TestConnection(host, port, user, password, dbName)
 }
 

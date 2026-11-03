@@ -45,11 +45,6 @@
                   :class="activeTab === 'database' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             {{ $t('config.tabDatabase') || 'Database' }}
           </button>
-          <button @click="activeTab = 'serial'"
-                  class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="activeTab === 'serial' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
-            Serial & Comm
-          </button>
           <button @click="activeTab = 'general'"
                   class="px-3 py-1.5 rounded-md transition-colors"
                   :class="activeTab === 'general' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
@@ -691,96 +686,6 @@
       </div>
     </div>
 
-    <!-- TAB 2: Serial & Communication Ports (#83) -->
-    <div v-else-if="activeTab === 'serial'" class="space-y-4 max-w-4xl font-sans">
-      <div class="saas-card p-5 space-y-4 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div class="border-b border-slate-200 dark:border-slate-800/80 pb-3 flex items-center justify-between">
-          <div>
-            <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Hardware Serial Bus & Port Defaults</h2>
-            <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">Default communication parameters for RS-485 and USB Serial COM interfaces.</p>
-          </div>
-          <span class="text-3xs font-mono px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 font-bold">
-            MAY DISRUPT ACQUISITION
-          </span>
-        </div>
-
-        <!-- Warning notice -->
-        <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 space-y-1">
-          <div class="font-bold">⚠️ Acquisition Interruption Notice</div>
-          <p class="text-2xs text-amber-700 dark:text-amber-400/90 leading-relaxed">
-            Changing serial baud rate, parity, or COM port settings will cause active Modbus RTU polling routines on affected ports to reconnect. Ensure field instruments support the new baud rate.
-          </p>
-        </div>
-
-        <form @submit.prevent="submitConfig" class="space-y-4 text-xs font-sans">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400 mb-1.5">Default Serial Port</label>
-              <input type="text" v-model="form.serial_port" placeholder="e.g. COM1 or /dev/ttyUSB0"
-                     class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono" />
-            </div>
-
-            <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400 mb-1.5">Baud Rate (bps)</label>
-              <select v-model.number="form.serial_baud_rate"
-                      class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono">
-                <option :value="1200">1200</option>
-                <option :value="2400">2400</option>
-                <option :value="4800">4800</option>
-                <option :value="9600">9600 (Standard)</option>
-                <option :value="19200">19200</option>
-                <option :value="38400">38400</option>
-                <option :value="57600">57600</option>
-                <option :value="115200">115200 (High-Speed)</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400 mb-1.5">Data Bits</label>
-              <select v-model.number="form.serial_data_bits"
-                      class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono">
-                <option :value="8">8 Data Bits (Standard)</option>
-                <option :value="7">7 Data Bits</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400 mb-1.5">Stop Bits</label>
-              <select v-model.number="form.serial_stop_bits"
-                      class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono">
-                <option :value="1">1 Stop Bit</option>
-                <option :value="2">2 Stop Bits</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400 mb-1.5">Parity</label>
-              <select v-model.number="form.serial_parity"
-                      class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono">
-                <option value="N">None (N)</option>
-                <option value="E">Even (E)</option>
-                <option value="O">Odd (O)</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-3xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-400 mb-1.5">Response Timeout (ms)</label>
-              <input type="number" v-model.number="form.serial_timeout_ms" min="100" max="10000" step="50"
-                     class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono" />
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-end space-x-3">
-            <button type="submit" :disabled="saving"
-                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-soft transition-colors flex items-center">
-              <span v-if="saving" class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5"></span>
-              Save Serial Parameters
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
     <!-- TAB 3: General & Server Runtime -->
     <div v-else-if="activeTab === 'general'" class="space-y-4 max-w-4xl font-sans">
       <div class="saas-card p-5 space-y-4 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -1240,7 +1145,7 @@ export default {
     },
   },
   mounted() {
-    if (this.$route.query && this.$route.query.tab) {
+    if (this.$route.query && this.$route.query.tab && this.$route.query.tab !== 'serial') {
       this.activeTab = this.$route.query.tab;
     }
     this.fetchDbStatus();
@@ -1486,12 +1391,6 @@ export default {
       }
     },
     async submitConfig() {
-      if (this.activeTab === 'serial') {
-        if (!confirm('Warning: Modifying serial parameters may temporarily interrupt active telemetry acquisition. Do you wish to continue?')) {
-          return;
-        }
-      }
-
       this.saving = true;
       this.saveResult = null;
       try {
