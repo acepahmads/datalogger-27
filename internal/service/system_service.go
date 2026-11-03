@@ -705,8 +705,8 @@ type CategoryMiniDTO struct {
 
 func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCompatibilityReport, error) {
 	target := strings.ToUpper(strings.TrimSpace(targetDomain))
-	if target != "AQMS" && target != "WQMS" && target != "CUSTOM" {
-		return nil, errors.New("target domain must be 'AQMS', 'WQMS', or 'CUSTOM'")
+	if target != "AQMS" && target != "WQMS" && target != "SPARING" && target != "CUSTOM" {
+		return nil, errors.New("target domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
 	}
 
 	currentDomain := s.cfg.MonitoringDomain

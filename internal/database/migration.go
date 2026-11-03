@@ -58,6 +58,10 @@ func RunMigrations(db *gorm.DB) error {
 		&model.ISPUParameterMapping{},
 		&model.ISPUCalculationResult{},
 		&model.ISPUParameterResult{},
+		&model.WQMSStationConfig{},
+		&model.WQMSParameterMapping{},
+		&model.WQMSCalculationResult{},
+		&model.WQMSParameterResult{},
 		&model.SystemBranding{},
 		&model.StationLocation{},
 		&model.DeviceActuator{},
@@ -3484,6 +3488,11 @@ func ensurePhase7RBAC(db *gorm.DB) {
 		{Code: "ispu.export", Name: "Export ISPU Data", Category: "ISPU", Description: "Export ISPU calculations and parameters to CSV and Excel"},
 		{Code: "ispu.recalculate", Name: "Trigger ISPU Recalculation", Category: "ISPU", Description: "Trigger regulatory recalculation of ISPU for selected station and time window"},
 		{Code: "ispu.manage_mapping", Name: "Manage ISPU Parameter Mappings", Category: "ISPU", Description: "Configure and update station parameter mappings to official ISPU pollutants"},
+		// WQMS (IP & IKA)
+		{Code: "wqms.view", Name: "View WQMS IP & IKA Dashboard & Records", Category: "WQMS", Description: "View WQMS Pollution Index (IP) and Water Quality Index (IKA) indicator bar, trend chart, and historical records"},
+		{Code: "wqms.export", Name: "Export WQMS IP & IKA Data", Category: "WQMS", Description: "Export WQMS IP and IKA calculations to CSV and Excel"},
+		{Code: "wqms.recalculate", Name: "Trigger WQMS IP & IKA Recalculation", Category: "WQMS", Description: "Trigger manual recalculation and water class evaluation for WQMS IP and IKA"},
+		{Code: "wqms.manage_mapping", Name: "Manage WQMS Parameter & Lab Mappings", Category: "WQMS", Description: "Configure water sensor mappings, water class, and periodic laboratory inputs for WQMS"},
 		// Categories
 		{Code: "category.view", Name: "View Parameter Categories", Category: "CATEGORY", Description: "View dynamic parameter groupings and display categories"},
 		{Code: "category.manage", Name: "Manage Parameter Categories", Category: "CATEGORY", Description: "Create, reorder, and update parameter display categories"},
@@ -3600,6 +3609,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"notification.view": true, "notification.manage": true,
 			"report.view": true, "report.generate": true,
 			"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
+			"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 			"config.view": true,
 			"integration.view": true, "integration.test": true,
 		}
@@ -3622,6 +3632,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"notification.view": true,
 			"report.view":       true,
 			"ispu.view":         true, "ispu.export": true,
+			"wqms.view":         true, "wqms.export": true,
 			"integration.view":  true,
 		}
 		for _, p := range dbAllPerms {

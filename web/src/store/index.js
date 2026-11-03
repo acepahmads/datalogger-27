@@ -933,6 +933,8 @@ export default new Vuex.Store({
               window.dispatchEvent(new CustomEvent('aggregation-result-event', { detail: msg.data }));
             } else if (msg.type === 'ispu.calculated' && msg.data) {
               window.dispatchEvent(new CustomEvent('ispu-calculated-event', { detail: msg.data }));
+            } else if (msg.type === 'wqms.calculated' && msg.data) {
+              window.dispatchEvent(new CustomEvent('wqms-calculated-event', { detail: msg.data }));
             } else if (msg.type === 'notification.alert' && msg.data) {
               dispatch('fetchActiveAlarms');
             } else if (msg.type === 'alarm.created' && msg.data) {

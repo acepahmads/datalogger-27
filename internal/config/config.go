@@ -250,10 +250,10 @@ func Get() *Config {
 	return globalConfig
 }
 
-// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, WQMS, or CUSTOM.
+// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, WQMS, SPARING, or CUSTOM.
 func NormalizeMonitoringDomain(domain string) string {
 	d := strings.ToUpper(strings.TrimSpace(domain))
-	if d == "AQMS" || d == "WQMS" || d == "CUSTOM" {
+	if d == "AQMS" || d == "WQMS" || d == "SPARING" || d == "CUSTOM" {
 		return d
 	}
 	return "AQMS"

@@ -890,7 +890,7 @@
             </div>
           </div>
 
-          <!-- 5. ISPU Settings Popover (Icon Only + Emerald Dot) -->
+          <!-- 5. ISPU / WQMS IP & IKA Settings Popover (Icon Only + Emerald Dot) -->
           <div class="relative toolbar-popover-anchor">
             <button
               type="button"
@@ -898,13 +898,13 @@
               class="op-icon-btn"
               :class="{
                 'is-emerald': activeToolbarPopover === 'ispuSettings',
-                'is-cyan-soft': activeToolbarPopover !== 'ispuSettings' && isAQMSDomain && isIspuBarVisible
+                'is-cyan-soft': activeToolbarPopover !== 'ispuSettings' && (isAQMSDomain || isWQMSDomain) && isIspuBarVisible
               }"
-              :title="$t('operator.toolbarIspuSettingsTooltip') || 'Pengaturan & Status Indikator ISPU'"
+              :title="isWQMSDomain ? 'Pengaturan & Status Indikator IP & IKA (WQMS)' : ($t('operator.toolbarIspuSettingsTooltip') || 'Pengaturan & Status Indikator ISPU')"
               aria-label="ISPU Settings"
             >
               <OperatorDashboardIcon name="ispu" :size="16" />
-              <span v-if="isAQMSDomain && isIspuBarVisible" class="op-corner-dot dot-emerald"></span>
+              <span v-if="(isAQMSDomain || isWQMSDomain) && isIspuBarVisible" class="op-corner-dot dot-emerald"></span>
             </button>
             <div
               v-if="activeToolbarPopover === 'ispuSettings'"
@@ -918,9 +918,12 @@
                   </div>
                   <div class="flex items-center space-x-1.5">
                     <span class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white leading-none">
-                      {{ $t('operator.ispuSettings') || 'ISPU Settings' }}
+                      {{ isWQMSDomain ? 'IP & IKA Settings' : ($t('operator.ispuSettings') || 'ISPU Settings') }}
                     </span>
-                    <span v-if="isAQMSDomain" class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 leading-none">
+                    <span v-if="isWQMSDomain" class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/30 leading-none">
+                      WQMS
+                    </span>
+                    <span v-else-if="isAQMSDomain" class="px-1.5 py-0.2 rounded text-[8px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 leading-none">
                       AQMS
                     </span>
                   </div>
@@ -939,7 +942,7 @@
               <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5 space-y-1 font-mono">
                 <div class="flex items-center justify-between text-[11px]">
                   <span class="font-bold text-slate-900 dark:text-white">
-                    Lingkup Kalkulasi ISPU
+                    {{ isWQMSDomain ? 'Lingkup Kalkulasi IP & IKA' : 'Lingkup Kalkulasi ISPU' }}
                   </span>
                   <span class="text-4xs text-cyan-600 dark:text-cyan-400 font-bold">
                     UNIFIED
@@ -950,11 +953,11 @@
                 </div>
               </div>
 
-              <!-- Toggle Show/Hide ISPU Panel Row -->
+              <!-- Toggle Show/Hide Indicator Panel Row -->
               <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0E1726] border border-slate-200 dark:border-[#20354B] mb-2.5">
                 <div class="flex items-center justify-between">
                   <span class="text-[11px] font-bold text-slate-900 dark:text-white">
-                    {{ $t('operator.showIspuBar') || 'Show ISPU Indicator Bar' }}
+                    {{ isWQMSDomain ? 'Show IP & IKA Indicator Bar' : ($t('operator.showIspuBar') || 'Show ISPU Indicator Bar') }}
                   </span>
                   <button
                     type="button"
@@ -972,12 +975,26 @@
                   </button>
                 </div>
                 <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-                  {{ $t('operator.showIspuBarDesc') || 'Display air quality index bar below parameters' }}
+                  {{ isWQMSDomain ? 'Tampilkan strip Indeks Pencemaran (IP) & Indeks Kualitas Air (IKA) di atas parameter' : ($t('operator.showIspuBarDesc') || 'Display air quality index bar below parameters') }}
                 </div>
               </div>
 
               <!-- Standard Info Card -->
-              <div class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2.5 text-[9.5px] space-y-1.5">
+              <div v-if="isWQMSDomain" class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2.5 text-[9.5px] space-y-1.5">
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span class="text-slate-400">Standar IP:</span>
+                  <span class="font-bold text-teal-600 dark:text-teal-400">Kepmen LH 115/2003 &amp; PP 22/2021</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span class="text-slate-400">Standar IKA:</span>
+                  <span class="font-semibold text-cyan-600 dark:text-cyan-400">Permen LHK No. 27 / 2021</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
+                  <span class="text-slate-400">Parameters:</span>
+                  <span class="font-mono text-[9px] text-slate-700 dark:text-slate-300">pH, DO, COD, BOD, TSS, NO3, NH3, TDS</span>
+                </div>
+              </div>
+              <div v-else class="p-2.5 rounded-lg bg-slate-50/70 dark:bg-[#0A1220] border border-slate-200/80 dark:border-[#1E3048] mb-2.5 text-[9.5px] space-y-1.5">
                 <div class="flex items-center justify-between text-slate-700 dark:text-slate-300">
                   <span class="text-slate-400">Standard:</span>
                   <span class="font-bold text-cyan-600 dark:text-cyan-400">Permen LHK No. 14 / 2020</span>
@@ -992,8 +1009,18 @@
                 </div>
               </div>
 
-              <!-- Navigation to Dedicated ISPU Analysis -->
+              <!-- Navigation to Dedicated ISPU / WQMS Analysis -->
               <button
+                v-if="isWQMSDomain"
+                type="button"
+                @click="navigateToRoute('/monitoring/wqms')"
+                class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-2 bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30 hover:bg-teal-500/20 hover:border-teal-400"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Open WQMS IP &amp; IKA Analysis →</span>
+              </button>
+              <button
+                v-else
                 type="button"
                 @click="navigateToRoute('/monitoring/ispu')"
                 class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-2 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400"
@@ -2325,6 +2352,13 @@
         </div>
       </div>
     </header>
+
+    <!-- WQMS IP & IKA Compact Horizontal Strip (Active only when Monitoring Domain is WQMS) -->
+    <BentoWQMSIndexBar
+      v-if="isWQMSDomain && isIspuBarVisible"
+      :is-dark="isDark"
+      :devices-list="devicesList"
+    />
 
     <!-- =================================================================== -->
     <!-- 2. AUTO-ADAPTIVE MIDDLE BENTO:                                      -->
@@ -6209,6 +6243,7 @@
 <script>
 import OperatorCommandCenterView from './OperatorCommandCenterView.vue';
 import BentoISPUHeroCard from '../components/BentoISPUHeroCard.vue';
+import BentoWQMSIndexBar from '../components/BentoWQMSIndexBar.vue';
 import audioAlert from '../utils/audioAlert';
 import {
   getStoredAlarmPreferences,
@@ -6234,6 +6269,7 @@ export default {
   components: {
     ...OperatorCommandCenterView.components,
     BentoISPUHeroCard,
+    BentoWQMSIndexBar,
   },
   data() {
     let autoGrid = true;
@@ -6283,6 +6319,13 @@ export default {
     };
   },
   computed: {
+    isWQMSDomain() {
+      const dom =
+        (this.systemStatus && this.systemStatus.monitoring_domain) ||
+        (this.$store && this.$store.state && this.$store.state.systemStatus && this.$store.state.systemStatus.monitoring_domain) ||
+        'AQMS';
+      return String(dom).toUpperCase() === 'WQMS';
+    },
     isCompactScreen() {
       return this.bentoViewportWidth < 1280;
     },
@@ -6573,7 +6616,8 @@ export default {
       const isTable = this.viewMode === 'table';
       const minH = isTable ? (this.isCompactScreen ? 325 : 360) : (this.isCompactScreen ? 268 : 332);
       const topIspuOffset = (this.isCompactScreen && this.isAQMSDomain && this.isIspuBarVisible) ? 62 : 0;
-      const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + 230 + topIspuOffset);
+      const topWqmsOffset = (this.isWQMSDomain && this.isIspuBarVisible) ? 62 : 0;
+      const reservedPx = Math.round((Number(this.bentoTrendCanvasHeight) || 205) + 230 + topIspuOffset + topWqmsOffset);
       return {
         maxHeight: 'max(' + minH + 'px, calc(100vh - ' + reservedPx + 'px))',
       };

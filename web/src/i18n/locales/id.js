@@ -33,6 +33,7 @@ export default {
     "operatorConsole": "Konsol Operator",
     "dashboardOperator": "Dashboard Operator",
     "ispuAnalysis": "Analisis ISPU",
+    "wqmsAnalysis": "Analisis WQMS (IP & IKA)",
     "edgeSystem": "Sistem Edge Aktif",
     "sidebarHoverTitle": "Arahkan kursor untuk membuka menu navigasi (Auto-Hide aktif)"
   },

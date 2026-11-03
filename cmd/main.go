@@ -263,6 +263,14 @@ func main() {
 	ispuService.SetHub(hub)
 	ispuService.StartWorker(context.Background())
 	ispuHandler := handler.NewISPUHandler(ispuService)
+
+	//WQMS IP & IKA Module (PP No. 22/2021 · Kepmen LH No. 115/2003 · Permen LHK No. 27/2021)
+	wqmsRepo := repository.NewWQMSRepository(db)
+	wqmsService := service.NewWQMSService(db, wqmsRepo, systemRepo)
+	wqmsService.SetHub(hub)
+	wqmsService.StartWorker(context.Background())
+	wqmsHandler := handler.NewWQMSHandler(wqmsService)
+
 	actuatorHandler := handler.NewActuatorHandler(actuationService)
 
 	// Startup reconciliation for active AQMS stations (catch up any pending aggregation periods cleanly)
@@ -278,6 +286,7 @@ func main() {
 	})
 	aggService.SetOnBucketCompleted(func(ctx context.Context, deviceID uint, bucketEnd time.Time) {
 		ispuService.EnqueueCalculation(deviceID, bucketEnd, "AGGREGATION_COMPLETED")
+		wqmsService.EnqueueCalculation(deviceID, bucketEnd, "AGGREGATION_COMPLETED")
 		_ = outboundService.HandleBucketCompleted(ctx, deviceID, bucketEnd)
 	})
 
@@ -634,6 +643,26 @@ func main() {
 			ispuGroup.GET("/:id", middleware.RequirePermission("ispu.view"), ispuHandler.GetDetail)
 		}
 
+		// WQMS IP & IKA Module (PP No. 22/2021 · Kepmen LH No. 115/2003 · Permen LHK No. 27/2021)
+		wqmsGroup := api.Group("/wqms")
+		wqmsGroup.Use(middleware.JWTAuth(authService))
+		{
+			wqmsGroup.GET("/latest", middleware.RequirePermission("wqms.view"), wqmsHandler.GetLatest)
+			wqmsGroup.GET("/standards", middleware.RequirePermission("wqms.view"), wqmsHandler.GetStandards)
+			wqmsGroup.GET("/config", middleware.RequirePermission("wqms.view"), wqmsHandler.GetConfig)
+			wqmsGroup.PUT("/config", middleware.RequirePermission("wqms.recalculate"), wqmsHandler.UpdateConfig)
+			wqmsGroup.GET("/trend", middleware.RequirePermission("wqms.view"), wqmsHandler.GetTrend)
+			wqmsGroup.GET("/history", middleware.RequirePermission("wqms.view"), wqmsHandler.GetHistory)
+			wqmsGroup.GET("/export/csv", middleware.RequirePermission("wqms.export"), wqmsHandler.ExportCSV)
+			wqmsGroup.GET("/export/excel", middleware.RequirePermission("wqms.export"), wqmsHandler.ExportExcel)
+			wqmsGroup.GET("/mappings", middleware.RequirePermission("wqms.view"), wqmsHandler.GetMappings)
+			wqmsGroup.POST("/mappings", middleware.RequirePermission("wqms.manage_mapping"), wqmsHandler.SaveMapping)
+			wqmsGroup.DELETE("/mappings/:id", middleware.RequirePermission("wqms.manage_mapping"), wqmsHandler.DeleteMapping)
+			wqmsGroup.POST("/recalculate", middleware.RequirePermission("wqms.recalculate"), wqmsHandler.Recalculate)
+			wqmsGroup.POST("/backfill", middleware.RequirePermission("wqms.recalculate"), wqmsHandler.Backfill)
+			wqmsGroup.GET("/:id", middleware.RequirePermission("wqms.view"), wqmsHandler.GetDetail)
+		}
+
 		// Phase 8 — Output & Integration (Authenticated & Authorized)
 		destinationsGroup := api.Group("/destinations")
 		destinationsGroup.Use(middleware.JWTAuth(authService))
@@ -766,6 +795,7 @@ func main() {
 	// 2. Stop aggregation worker safely
 	aggService.StopWorker()
 	ispuService.StopWorker()
+	wqmsService.StopWorker()
 	outboundService.StopWorker()
 
 	// 3. Stop background scheduler, backup scheduler, and housekeeping scheduler

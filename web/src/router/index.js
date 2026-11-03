@@ -22,6 +22,7 @@ import AccessControlView from '../views/AccessControlView.vue';
 import OperatorCommandCenterView from '../views/OperatorCommandCenterView.vue';
 import DashboardOperatorView from '../views/DashboardOperatorView.vue';
 import ISPUAnalysisView from '../views/ISPUAnalysisView.vue';
+import WQMSAnalysisView from '../views/WQMSAnalysisView.vue';
 import IntegrationView from '../views/IntegrationView.vue';
 import AccessDeniedView from '../views/AccessDeniedView.vue';
 import LoginView from '../views/LoginView.vue';
@@ -44,6 +45,8 @@ const routes = [
   { path: '/monitoring/quality', redirect: '/dashboard' },
   { path: '/monitoring/ispu', name: 'ISPUAnalysis', component: ISPUAnalysisView },
   { path: '/ispu', redirect: '/monitoring/ispu' },
+  { path: '/monitoring/wqms', name: 'WQMSAnalysis', component: WQMSAnalysisView },
+  { path: '/wqms', redirect: '/monitoring/wqms' },
 
   // Development Modules — STRICTLY SUPERADMIN ONLY
   {

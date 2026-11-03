@@ -164,7 +164,7 @@
           </router-link>
 
           <!-- ISPU Compliance Module (Permen LHK No. 14 Tahun 2020) -->
-          <router-link to="/monitoring/ispu" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/ispu' }">
+          <router-link v-if="showIspuMenu" to="/monitoring/ispu" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/ispu' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-cyan-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
@@ -172,6 +172,18 @@
             <span class="font-bold text-cyan-600 dark:text-cyan-400">{{ $t('navigation.ispuAnalysis') || 'ISPU Analysis' }}</span>
             <span class="ml-auto text-4xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30">
               P.14
+            </span>
+          </router-link>
+
+          <!-- WQMS IP & IKA Compliance Module (Kepmen LH 115/2003, PP 22/2021 & Permen LHK 27/2021) -->
+          <router-link v-if="showWqmsMenu" to="/monitoring/wqms" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/wqms' }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-teal-500 dark:text-teal-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 2.25c-4.97 6.08-7.5 9.85-7.5 13.125a7.5 7.5 0 0015 0c0-3.275-2.53-7.045-7.5-13.125z" />
+            </svg>
+            <span class="font-bold text-teal-600 dark:text-teal-400">{{ $t('navigation.wqmsAnalysis') || 'WQMS Analysis (IP & IKA)' }}</span>
+            <span class="ml-auto text-4xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/30">
+              PP.22
             </span>
           </router-link>
 
@@ -420,6 +432,15 @@ export default {
     },
     systemStatus() {
       return this.$store.state.systemStatus;
+    },
+    monitoringDomain() {
+      return String((this.systemStatus && this.systemStatus.monitoring_domain) || 'AQMS').toUpperCase();
+    },
+    showIspuMenu() {
+      return this.monitoringDomain === 'AQMS' || this.monitoringDomain === 'CUSTOM';
+    },
+    showWqmsMenu() {
+      return this.monitoringDomain === 'WQMS' || this.monitoringDomain === 'CUSTOM';
     },
   },
   methods: {

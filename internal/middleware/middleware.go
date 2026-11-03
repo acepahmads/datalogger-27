@@ -144,6 +144,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"notification.view": true, "notification.manage": true,
 				"report.view": true, "report.generate": true,
 				"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
+				"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 				"config.view": true,
 			}
 			if engAllowed[permissionCode] {
@@ -162,6 +163,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"notification.view": true,
 				"report.view":       true,
 				"ispu.view":         true, "ispu.export": true,
+				"wqms.view":         true, "wqms.export": true,
 			}
 			if opAllowed[permissionCode] {
 				c.Next()
