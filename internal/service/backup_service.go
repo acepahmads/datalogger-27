@@ -47,8 +47,20 @@ type BackupService struct {
 	isOperationRunning bool
 	activeOpType       string
 
-	jobMu sync.RWMutex
-	jobs  map[string]*model.BackupJob
+	onBeforeRestore func()
+	onAfterRestore  func()
+
+	cacheMu            sync.RWMutex
+	hasCachedStats     bool
+	cachedTotalBackups int64
+	cachedTotalStorage int64
+	cachedLatestRecord *model.BackupRecord
+	cachedListItems    []model.BackupRecord
+	cachedListTotal    int64
+
+	jobMu    sync.RWMutex
+	jobs     map[string]*model.BackupJob
+	jobHooks map[string]func(progress float64, stage string)
 }
 
 func NewBackupService(
@@ -77,7 +89,17 @@ func NewBackupService(
 		telemetryService: telemetryService,
 		systemRepo:       systemRepo,
 		jobs:             make(map[string]*model.BackupJob),
+		jobHooks:         make(map[string]func(progress float64, stage string)),
 	}
+}
+
+// SetRestoreLifecycleHooks registers callbacks invoked around database restore execution
+// (e.g. pausing active device polling workers to avoid MariaDB metadata lock pile-ups, then resuming).
+func (s *BackupService) SetRestoreLifecycleHooks(beforeRestore, afterRestore func()) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	s.onBeforeRestore = beforeRestore
+	s.onAfterRestore = afterRestore
 }
 
 // SetWALAdapter dynamically injects or updates the WAL adapter
@@ -777,11 +799,50 @@ func (s *BackupService) executeRestore(
 
 	// 1. Create pre-restore safety backup if requested
 	if createSafetyBackup {
-		s.updateJob(job, 20.0, "Creating pre-restore safety snapshot of current state")
+		s.updateJob(job, 12.0, "Creating pre-restore safety snapshot of current state")
 		logger.Info("Creating automatic pre-restore safety backup...")
-		_, safetyErr := s.executeBackup(ctx, model.BackupTypeSafety, "system_pre_restore", nil)
+		var safetyJob *model.BackupJob
+		if job != nil {
+			safetyJob = &model.BackupJob{ID: fmt.Sprintf("sub_safety_%d", time.Now().UnixNano())}
+			s.jobMu.Lock()
+			if s.jobHooks == nil {
+				s.jobHooks = make(map[string]func(progress float64, stage string))
+			}
+			s.jobHooks[safetyJob.ID] = func(subPct float64, subStage string) {
+				mapped := 12.0 + ((subPct-10.0)/85.0)*21.0
+				if mapped < 12.0 {
+					mapped = 12.0
+				} else if mapped > 33.0 {
+					mapped = 33.0
+				}
+				job.Progress = mapped
+				job.Stage = "Safety snapshot: " + subStage
+			}
+			s.jobMu.Unlock()
+		}
+		_, safetyErr := s.executeBackup(ctx, model.BackupTypeSafety, "system_pre_restore", safetyJob)
+		if safetyJob != nil {
+			s.jobMu.Lock()
+			delete(s.jobHooks, safetyJob.ID)
+			s.jobMu.Unlock()
+		}
 		if safetyErr != nil {
 			logger.Warn("Failed creating safety backup (%v), continuing with restore cautiously", safetyErr)
+		}
+	}
+
+	// Snapshot local backup catalog entries whose physical archives exist on this server
+	// BEFORE pausing workers & locking/dropping tables during database restore.
+	var localValidRecords []model.BackupRecord
+	if s.backupRepo != nil {
+		if recs, _, listErr := s.backupRepo.List(1, 500, ""); listErr == nil {
+			for _, r := range recs {
+				if r.FilePath != "" {
+					if st, stErr := os.Stat(r.FilePath); stErr == nil && st.Size() > 0 {
+						localValidRecords = append(localValidRecords, r)
+					}
+				}
+			}
 		}
 	}
 
@@ -798,22 +859,33 @@ func (s *BackupService) executeRestore(
 	}
 	defer os.RemoveAll(tempDir)
 
-	if err := s.extractTarGz(record.FilePath, tempDir); err != nil {
+	if err := s.extractTarGzWithProgress(record.FilePath, tempDir, func(readBytes, totalBytes int64) {
+		if totalBytes <= 0 {
+			return
+		}
+		frac := float64(readBytes) / float64(totalBytes)
+		if frac > 1.0 {
+			frac = 1.0
+		}
+		pct := 35.0 + frac*13.0
+		readMB := float64(readBytes) / (1024.0 * 1024.0)
+		totalMB := float64(totalBytes) / (1024.0 * 1024.0)
+		s.updateJob(job, pct, fmt.Sprintf("Extracting backup archive (%.0f%% - %.1f / %.1f MB)", frac*100.0, readMB, totalMB))
+	}); err != nil {
 		return fmt.Errorf("failed extracting backup archive: %w", err)
 	}
 
-	// Snapshot local backup catalog entries whose physical archives exist on this server
-	// so older CLI-generated dumps (which included backup_records) cannot orphan local archives.
-	var localValidRecords []model.BackupRecord
-	if s.backupRepo != nil {
-		if recs, _, listErr := s.backupRepo.List(1, 500, ""); listErr == nil {
-			for _, r := range recs {
-				if r.FilePath != "" {
-					if st, stErr := os.Stat(r.FilePath); stErr == nil && st.Size() > 0 {
-						localValidRecords = append(localValidRecords, r)
-					}
-				}
-			}
+	// Pause background device polling workers during DDL/LOCK TABLES restore window
+	s.opMu.Lock()
+	beforeHook := s.onBeforeRestore
+	afterHook := s.onAfterRestore
+	s.opMu.Unlock()
+
+	if beforeHook != nil {
+		s.updateJob(job, 49.0, "Suspending device polling workers for clean database lock")
+		beforeHook()
+		if afterHook != nil {
+			defer afterHook()
 		}
 	}
 
@@ -821,16 +893,21 @@ func (s *BackupService) executeRestore(
 	s.updateJob(job, 50.0, "Restoring database tables and records")
 	dumpPath := filepath.Join(tempDir, "database", "dump.sql")
 	if err := s.dbAdapter.RestoreWithProgress(ctx, dumpPath, func(frac float64) {
-		pct := 50.0 + frac*22.0
-		if pct > 72.0 {
-			pct = 72.0
+		pct := 50.0 + frac*34.0
+		if pct > 84.0 {
+			pct = 84.0
 		}
-		s.updateJob(job, pct, fmt.Sprintf("Restoring database tables and records (%.0f%%)", frac*100.0))
+		stageText := fmt.Sprintf("Restoring database tables and records (%.0f%%)", frac*100.0)
+		if frac >= 0.88 && frac < 1.0 {
+			stageText = fmt.Sprintf("Finalizing MariaDB indexes & transaction commit (%.0f%%)", frac*100.0)
+		}
+		s.updateJob(job, pct, stageText)
 	}); err != nil {
 		return fmt.Errorf("database restore failed: %w", err)
 	}
 
 	// Reconcile local backup catalog entries if dump overwrote backup_records
+	s.updateJob(job, 86.0, "Reconciling local backup catalog")
 	if s.backupRepo != nil && len(localValidRecords) > 0 {
 		for i := range localValidRecords {
 			rec := localValidRecords[i]
@@ -852,7 +929,7 @@ func (s *BackupService) executeRestore(
 	}
 
 	// 4. Restore WAL Snapshot
-	s.updateJob(job, 75.0, "Restoring persistent WAL telemetry queue")
+	s.updateJob(job, 90.0, "Restoring persistent WAL telemetry queue")
 	walDir := filepath.Join(tempDir, "wal")
 	if fi, err := os.Stat(walDir); err == nil && fi.IsDir() {
 		if s.walAdapter != nil {
@@ -864,7 +941,7 @@ func (s *BackupService) executeRestore(
 	}
 
 	// 5. Trigger Replay of restored uncommitted telemetry
-	s.updateJob(job, 90.0, "Replaying pending telemetry records into database")
+	s.updateJob(job, 94.0, "Replaying pending telemetry records into database")
 	if s.walAdapter != nil {
 		replayed, err := s.walAdapter.ReplayPending(ctx)
 		if err != nil {
@@ -874,7 +951,7 @@ func (s *BackupService) executeRestore(
 		}
 	}
 
-	s.updateJob(job, 98.0, "Finalizing restore verification")
+	s.updateJob(job, 98.0, "Resuming device workers & finalizing restore verification")
 	return nil
 }
 
@@ -890,7 +967,10 @@ func (s *BackupService) GetJob(jobID string) (*model.BackupJob, error) {
 	return job, nil
 }
 
-// GetStatus returns the operational health and storage status of the backup subsystem
+// GetStatus returns the operational health and storage status of the backup subsystem.
+// When a BACKUP or RESTORE operation is actively running, database queries and pings are bypassed
+// using cached catalog metrics so GET /api/backups/status responds instantaneously (<2ms) even while
+// MariaDB holds table/metadata locks during multi-GB restores.
 func (s *BackupService) GetStatus() map[string]interface{} {
 	s.opMu.Lock()
 	isRunning := s.isOperationRunning
@@ -901,47 +981,79 @@ func (s *BackupService) GetStatus() map[string]interface{} {
 	var latestCompleted *model.BackupRecord
 	totalStorage := int64(0)
 
-	if s.backupRepo != nil {
-		totalBackups, _ = s.backupRepo.CountValid()
-		latestCompleted, _ = s.backupRepo.GetLatestCompleted()
-		totalStorage, _ = s.backupRepo.GetTotalStorageBytes()
-	}
-
 	freeBytes, _ := s.checkFreeDiskSpace(s.cfg.BackupDir)
 
 	subsystemStatus := "HEALTHY"
 	var degradationReasons []string
 
-	// 1. Check database connectivity
-	if s.db == nil {
-		subsystemStatus = "DEGRADED"
-		degradationReasons = append(degradationReasons, "Database connection not initialized")
-	} else if sqlDB, err := s.db.DB(); err != nil || sqlDB.Ping() != nil {
-		subsystemStatus = "DEGRADED"
-		degradationReasons = append(degradationReasons, "Database ping failed")
-	}
-
-	// 2. Check disk margin
-	minFreeBytes := int64(s.cfg.BackupMinFreeSpaceMB) * 1024 * 1024
-	if minFreeBytes <= 0 {
-		minFreeBytes = 500 * 1024 * 1024
-	}
-	if freeBytes < minFreeBytes {
-		subsystemStatus = "DEGRADED"
-		degradationReasons = append(degradationReasons, fmt.Sprintf("Free disk space (%d MB) is below minimum threshold (%d MB)", freeBytes/(1024*1024), s.cfg.BackupMinFreeSpaceMB))
-	}
-
-	// 3. Check directory writability
-	if err := os.MkdirAll(s.cfg.BackupDir, 0755); err != nil {
-		subsystemStatus = "DEGRADED"
-		degradationReasons = append(degradationReasons, fmt.Sprintf("Backup directory not writable: %v", err))
+	if isRunning {
+		s.cacheMu.RLock()
+		totalBackups = s.cachedTotalBackups
+		totalStorage = s.cachedTotalStorage
+		latestCompleted = s.cachedLatestRecord
+		s.cacheMu.RUnlock()
 	} else {
-		testFile := filepath.Join(s.cfg.BackupDir, fmt.Sprintf(".health_test_%d", time.Now().UnixNano()))
-		if err := os.WriteFile(testFile, []byte("ok"), 0644); err != nil {
+		// 1. Check database connectivity with a short non-blocking 1.5s timeout
+		dbHealthy := false
+		if s.db == nil {
 			subsystemStatus = "DEGRADED"
-			degradationReasons = append(degradationReasons, fmt.Sprintf("Backup directory write test failed: %v", err))
+			degradationReasons = append(degradationReasons, "Database connection not initialized")
+		} else if sqlDB, err := s.db.DB(); err != nil {
+			subsystemStatus = "DEGRADED"
+			degradationReasons = append(degradationReasons, "Database connection unavailable")
 		} else {
-			_ = os.Remove(testFile)
+			pingCtx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+			pingErr := sqlDB.PingContext(pingCtx)
+			cancel()
+			if pingErr != nil {
+				subsystemStatus = "DEGRADED"
+				degradationReasons = append(degradationReasons, "Database ping timed out or failed")
+			} else {
+				dbHealthy = true
+			}
+		}
+
+		if dbHealthy && s.backupRepo != nil {
+			totalBackups, _ = s.backupRepo.CountValid()
+			latestCompleted, _ = s.backupRepo.GetLatestCompleted()
+			totalStorage, _ = s.backupRepo.GetTotalStorageBytes()
+
+			s.cacheMu.Lock()
+			s.hasCachedStats = true
+			s.cachedTotalBackups = totalBackups
+			s.cachedTotalStorage = totalStorage
+			s.cachedLatestRecord = latestCompleted
+			s.cacheMu.Unlock()
+		} else {
+			s.cacheMu.RLock()
+			totalBackups = s.cachedTotalBackups
+			totalStorage = s.cachedTotalStorage
+			latestCompleted = s.cachedLatestRecord
+			s.cacheMu.RUnlock()
+		}
+
+		// 2. Check disk margin
+		minFreeBytes := int64(s.cfg.BackupMinFreeSpaceMB) * 1024 * 1024
+		if minFreeBytes <= 0 {
+			minFreeBytes = 500 * 1024 * 1024
+		}
+		if freeBytes < minFreeBytes {
+			subsystemStatus = "DEGRADED"
+			degradationReasons = append(degradationReasons, fmt.Sprintf("Free disk space (%d MB) is below minimum threshold (%d MB)", freeBytes/(1024*1024), s.cfg.BackupMinFreeSpaceMB))
+		}
+
+		// 3. Check directory writability
+		if err := os.MkdirAll(s.cfg.BackupDir, 0755); err != nil {
+			subsystemStatus = "DEGRADED"
+			degradationReasons = append(degradationReasons, fmt.Sprintf("Backup directory not writable: %v", err))
+		} else {
+			testFile := filepath.Join(s.cfg.BackupDir, fmt.Sprintf(".health_test_%d", time.Now().UnixNano()))
+			if err := os.WriteFile(testFile, []byte("ok"), 0644); err != nil {
+				subsystemStatus = "DEGRADED"
+				degradationReasons = append(degradationReasons, fmt.Sprintf("Backup directory write test failed: %v", err))
+			} else {
+				_ = os.Remove(testFile)
+			}
 		}
 	}
 
@@ -995,12 +1107,37 @@ func (s *BackupService) GetStatus() map[string]interface{} {
 	return res
 }
 
-// ListBackups returns paginated backups
+// ListBackups returns paginated backups (serving cached entries while RESTORE locks tables)
 func (s *BackupService) ListBackups(page, pageSize int, status string) ([]model.BackupRecord, int64, error) {
 	if s.backupRepo == nil {
 		return []model.BackupRecord{}, 0, nil
 	}
-	return s.backupRepo.List(page, pageSize, status)
+
+	s.opMu.Lock()
+	isRestoring := s.isOperationRunning && s.activeOpType == "RESTORE"
+	s.opMu.Unlock()
+
+	if isRestoring {
+		s.cacheMu.RLock()
+		items := make([]model.BackupRecord, len(s.cachedListItems))
+		copy(items, s.cachedListItems)
+		total := s.cachedListTotal
+		s.cacheMu.RUnlock()
+		if len(items) > 0 {
+			return items, total, nil
+		}
+	}
+
+	items, total, err := s.backupRepo.List(page, pageSize, status)
+	if err == nil && page == 1 && status == "" {
+		s.cacheMu.Lock()
+		copied := make([]model.BackupRecord, len(items))
+		copy(copied, items)
+		s.cachedListItems = copied
+		s.cachedListTotal = total
+		s.cacheMu.Unlock()
+	}
+	return items, total, err
 }
 
 // GetBackupByID returns the database record and parsed manifest
@@ -1087,6 +1224,11 @@ func (s *BackupService) updateJob(job *model.BackupJob, progress float64, stage 
 	defer s.jobMu.Unlock()
 	job.Progress = progress
 	job.Stage = stage
+	if s.jobHooks != nil {
+		if hook, ok := s.jobHooks[job.ID]; ok && hook != nil {
+			hook(progress, stage)
+		}
+	}
 }
 
 func (s *BackupService) markValidation(record *model.BackupRecord, status model.ValidationStatus, details string) {
@@ -1171,14 +1313,51 @@ func (s *BackupService) createTarGz(srcDir, tarGzPath string) error {
 	})
 }
 
+type archiveProgressReader struct {
+	r          io.Reader
+	totalBytes int64
+	readBytes  int64
+	lastReport int64
+	onProgress func(readBytes, totalBytes int64)
+}
+
+func (pr *archiveProgressReader) Read(p []byte) (int, error) {
+	n, err := pr.r.Read(p)
+	if n > 0 {
+		pr.readBytes += int64(n)
+		if pr.onProgress != nil && (pr.readBytes-pr.lastReport >= 1024*1024 || pr.readBytes >= pr.totalBytes) {
+			pr.lastReport = pr.readBytes
+			pr.onProgress(pr.readBytes, pr.totalBytes)
+		}
+	}
+	return n, err
+}
+
 func (s *BackupService) extractTarGz(tarGzPath, destDir string) error {
+	return s.extractTarGzWithProgress(tarGzPath, destDir, nil)
+}
+
+func (s *BackupService) extractTarGzWithProgress(tarGzPath, destDir string, onProgress func(readBytes, totalBytes int64)) error {
+	fi, err := os.Stat(tarGzPath)
+	if err != nil {
+		return err
+	}
 	inFile, err := os.Open(tarGzPath)
 	if err != nil {
 		return err
 	}
 	defer inFile.Close()
 
-	gr, err := gzip.NewReader(inFile)
+	var reader io.Reader = inFile
+	if onProgress != nil {
+		reader = &archiveProgressReader{
+			r:          inFile,
+			totalBytes: fi.Size(),
+			onProgress: onProgress,
+		}
+	}
+
+	gr, err := gzip.NewReader(reader)
 	if err != nil {
 		return err
 	}

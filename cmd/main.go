@@ -210,6 +210,10 @@ func main() {
 	pollingEngine.Start()
 	defer pollingEngine.Stop()
 
+	// Pause background device polling during full database restore to prevent MariaDB Metadata Lock (MDL)
+	// contention & 60s readTimeout pool exhaustion, then automatically reload restored devices afterward.
+	backupService.SetRestoreLifecycleHooks(pollingEngine.PauseAllWorkers, pollingEngine.ResumeAllWorkers)
+
 	// 8d. Initialize Actuator & Control Subsystem
 	actuationService := service.NewActuationService(
 		actuatorRepo,

@@ -157,6 +157,32 @@ func (p *PollingEngine) Stop() {
 	})
 }
 
+// PauseAllWorkers temporarily suspends all active device polling goroutines and closes transports
+// (e.g. during full database restore so background telemetry/device writes do not contend with DDL/LOCK TABLES)
+// without permanently cancelling the engine context.
+func (p *PollingEngine) PauseAllWorkers() {
+	p.workersMu.Lock()
+	paused := len(p.workers)
+	for id, cancelFunc := range p.workers {
+		cancelFunc()
+		delete(p.workers, id)
+	}
+	p.workersMu.Unlock()
+
+	if p.connManager != nil {
+		p.connManager.CloseAll()
+	}
+	logger.Info("PollingEngine paused %d device workers for maintenance/restore", paused)
+}
+
+// ResumeAllWorkers reloads active devices from the database and restarts device polling workers.
+func (p *PollingEngine) ResumeAllWorkers() {
+	if p.ctx.Err() != nil {
+		return
+	}
+	p.Start()
+}
+
 // StartDeviceWorker registers an isolated worker goroutine for a specific device
 func (p *PollingEngine) StartDeviceWorker(device *model.Device) {
 	if device == nil || device.Connection == nil {

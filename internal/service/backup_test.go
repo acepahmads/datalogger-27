@@ -669,3 +669,83 @@ func TestPhase43_MariaDB11RestoreSessionAndLexerRegression(t *testing.T) {
 		t.Fatalf("expected 1 large statement, got %d", largeCount)
 	}
 }
+
+// 11. Regression Test: Non-Blocking Restore Status / Progress Visibility & Polling Worker Lifecycle Hooks
+func TestPhase43_NonBlockingRestoreStatusAndLifecycleHooks(t *testing.T) {
+	db, cfg, backupRepo, systemRepo, walAdapter, _, cleanup := setupTestBackupEnvironment(t)
+	defer cleanup()
+
+	dbAdapter := NewDatabaseBackupAdapter(db, cfg)
+	backupService := NewBackupService(db, cfg, backupRepo, dbAdapter, walAdapter, nil, systemRepo)
+	ctx := context.Background()
+
+	// Create a valid initial backup and populate status/list caches
+	rec, err := backupService.CreateBackup(ctx, model.BackupTypeManual, "admin")
+	if err != nil {
+		t.Fatalf("failed creating initial backup: %v", err)
+	}
+	_, _, _ = backupService.ListBackups(1, 15, "")
+	_ = backupService.GetStatus()
+
+	// Verify lifecycle hooks fire symmetrically around RestoreBackup (including with safety backup enabled)
+	pausedCalls := 0
+	resumedCalls := 0
+	backupService.SetRestoreLifecycleHooks(
+		func() { pausedCalls++ },
+		func() { resumedCalls++ },
+	)
+
+	if err := backupService.RestoreBackup(ctx, rec.ID, "admin", true); err != nil {
+		t.Fatalf("RestoreBackup with safety snapshot failed: %v", err)
+	}
+	if pausedCalls != 1 || resumedCalls != 1 {
+		t.Fatalf("expected pause=1 and resume=1 lifecycle hook calls, got pause=%d resume=%d", pausedCalls, resumedCalls)
+	}
+
+	// Simulate an active running RESTORE job while underlying DB is temporarily unreachable/locked
+	backupService.opMu.Lock()
+	backupService.isOperationRunning = true
+	backupService.activeOpType = "RESTORE"
+	backupService.opMu.Unlock()
+
+	mockJob := &model.BackupJob{
+		ID:        "job_restore_test_nonblocking",
+		Type:      model.JobTypeRestore,
+		BackupID:  rec.ID,
+		Status:    model.JobStatusRunning,
+		Progress:  62.5,
+		Stage:     "Restoring database tables and records (36%)",
+		StartTime: time.Now().UTC(),
+	}
+	backupService.jobMu.Lock()
+	backupService.jobs[mockJob.ID] = mockJob
+	backupService.jobMu.Unlock()
+
+	// Even with s.db set to nil (simulating blocked/unavailable DB pool), GetStatus and ListBackups must return immediately from cache + memory
+	origDB := backupService.db
+	backupService.db = nil
+	defer func() {
+		backupService.db = origDB
+		backupService.opMu.Lock()
+		backupService.isOperationRunning = false
+		backupService.activeOpType = ""
+		backupService.opMu.Unlock()
+	}()
+
+	status := backupService.GetStatus()
+	if status["operation_in_progress"] != true || status["active_operation"] != "RESTORE" {
+		t.Fatalf("expected active RESTORE operation in status, got: %+v", status)
+	}
+	activeJob, ok := status["active_job"].(*model.BackupJob)
+	if !ok || activeJob == nil || activeJob.ID != mockJob.ID || activeJob.Progress != 62.5 {
+		t.Fatalf("expected active_job %s with progress 62.5, got: %+v", mockJob.ID, status["active_job"])
+	}
+	if status["subsystem_healthy"] != true {
+		t.Errorf("expected subsystem_healthy == true during active restore, got %v", status["subsystem_healthy"])
+	}
+
+	items, total, listErr := backupService.ListBackups(1, 15, "")
+	if listErr != nil || total == 0 || len(items) == 0 {
+		t.Fatalf("expected cached ListBackups during active restore, got total=%d len=%d err=%v", total, len(items), listErr)
+	}
+}

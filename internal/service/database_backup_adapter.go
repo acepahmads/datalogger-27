@@ -634,7 +634,9 @@ func (a *DatabaseBackupAdapter) restoreWithCLI(ctx context.Context, tool string,
 	args = append(args, dbName)
 
 	pr, pw := io.Pipe()
+	stdinDone := make(chan struct{})
 	go func() {
+		defer close(stdinDone)
 		defer pw.Close()
 		bw := bufio.NewWriterSize(pw, 256*1024)
 		if _, wErr := bw.WriteString(mysqlRestoreSessionPreamble); wErr != nil {
@@ -650,9 +652,14 @@ func (a *DatabaseBackupAdapter) restoreWithCLI(ctx context.Context, tool string,
 			line, rErr := br.ReadString('\n')
 			if len(line) > 0 {
 				bytesRead += int64(len(line))
-				if onProgress != nil && totalSize > 0 && (bytesRead-lastReport >= 512*1024 || bytesRead == totalSize) {
+				if onProgress != nil && totalSize > 0 && (bytesRead-lastReport >= 256*1024 || bytesRead == totalSize) {
 					lastReport = bytesRead
-					onProgress(float64(bytesRead) / float64(totalSize))
+					// Reserve 88%..100% for MariaDB's final index rebuild & transaction commit after stdin EOF
+					frac := (float64(bytesRead) / float64(totalSize)) * 0.88
+					if frac > 0.88 {
+						frac = 0.88
+					}
+					onProgress(frac)
 				}
 
 				trimmed := strings.TrimSpace(line)
@@ -690,13 +697,89 @@ func (a *DatabaseBackupAdapter) restoreWithCLI(ctx context.Context, tool string,
 	var stderrBuf strings.Builder
 	cmd.Stderr = &stderrBuf
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		_ = pr.Close()
-		errMsg := a.redactSecrets(strings.TrimSpace(stderrBuf.String()))
-		return fmt.Errorf("CLI restore error: %s: %w", errMsg, err)
+		return fmt.Errorf("CLI restore start error: %w", err)
 	}
 
-	return nil
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- cmd.Wait()
+	}()
+
+	// Once stdin streaming finishes, gently advance progress 88% -> 98% while MariaDB commits & rebuilds indexes
+	commitFrac := 0.88
+	commitTicker := time.NewTicker(1200 * time.Millisecond)
+	defer commitTicker.Stop()
+
+	stdinFinished := false
+	for {
+		select {
+		case err := <-waitDone:
+			if err != nil {
+				_ = pr.Close()
+				errMsg := a.redactSecrets(strings.TrimSpace(stderrBuf.String()))
+				return fmt.Errorf("CLI restore error: %s: %w", errMsg, err)
+			}
+			if onProgress != nil {
+				onProgress(1.0)
+			}
+			return nil
+		case <-stdinDone:
+			stdinFinished = true
+			stdinDone = nil
+		case <-commitTicker.C:
+			if stdinFinished && onProgress != nil && commitFrac < 0.985 {
+				commitFrac += (0.99 - commitFrac) * 0.16
+				onProgress(commitFrac)
+			}
+		}
+	}
+}
+
+// openDedicatedMySQLRestoreDB opens an isolated single-connection database handle configured with
+// long 30-minute read/write timeouts so multi-million-row INSERT or ALTER TABLE ENABLE KEYS statements
+// during restore never fail with the normal pool's 60-second readTimeout ("i/o timeout").
+func (a *DatabaseBackupAdapter) openDedicatedMySQLRestoreDB(ctx context.Context) *sql.DB {
+	if a.cfg == nil {
+		return nil
+	}
+	host := a.cfg.DBHost
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := a.cfg.DBPort
+	if port == "" {
+		port = "3306"
+	}
+	user := a.cfg.DBUser
+	if user == "" {
+		user = "root"
+	}
+	dbName := a.cfg.DBName
+	if dbName == "" {
+		dbName = "datalogger"
+	}
+
+	dsn := fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s&readTimeout=30m&writeTimeout=30m",
+		user, a.cfg.DBPassword, host, port, dbName,
+	)
+	dedicatedDB, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil
+	}
+	dedicatedDB.SetMaxOpenConns(1)
+	dedicatedDB.SetMaxIdleConns(1)
+	dedicatedDB.SetConnMaxLifetime(60 * time.Minute)
+
+	pingCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	if pingErr := dedicatedDB.PingContext(pingCtx); pingErr != nil {
+		_ = dedicatedDB.Close()
+		return nil
+	}
+	return dedicatedDB
 }
 
 func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dumpFile string, isSQLite bool, onProgress func(fraction float64)) error {
@@ -712,9 +795,19 @@ func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dum
 	}
 	defer f.Close()
 
-	sqlDB, err := a.db.DB()
-	if err != nil {
-		return fmt.Errorf("failed accessing underlying database: %w", err)
+	var dedicatedDB *sql.DB
+	var sqlDB *sql.DB
+	if !isSQLite {
+		dedicatedDB = a.openDedicatedMySQLRestoreDB(ctx)
+		if dedicatedDB != nil {
+			sqlDB = dedicatedDB
+		}
+	}
+	if sqlDB == nil {
+		sqlDB, err = a.db.DB()
+		if err != nil {
+			return fmt.Errorf("failed accessing underlying database: %w", err)
+		}
 	}
 
 	// Pin a SINGLE dedicated database connection for the entire restore so session variables
@@ -722,10 +815,13 @@ func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dum
 	// and table locks are NEVER split across pooled connections.
 	conn, err := sqlDB.Conn(ctx)
 	if err != nil {
+		if dedicatedDB != nil {
+			_ = dedicatedDB.Close()
+		}
 		return fmt.Errorf("failed acquiring dedicated database connection for restore: %w", err)
 	}
 	defer func() {
-		cleanCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if isSQLite {
 			_, _ = conn.ExecContext(cleanCtx, "PRAGMA foreign_keys = ON;")
@@ -737,6 +833,9 @@ func (a *DatabaseBackupAdapter) restoreWithNativeStream(ctx context.Context, dum
 			_, _ = conn.ExecContext(cleanCtx, "SET UNIQUE_CHECKS = 1")
 		}
 		_ = conn.Close()
+		if dedicatedDB != nil {
+			_ = dedicatedDB.Close()
+		}
 	}()
 
 	if isSQLite {

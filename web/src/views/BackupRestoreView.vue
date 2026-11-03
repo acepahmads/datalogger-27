@@ -51,28 +51,28 @@
     <!-- Active Job Progress Banner (if any running job) -->
     <div v-if="activeJob && (activeJob.status === 'RUNNING' || activeJob.status === 'PENDING')"
          class="saas-card p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/50 border border-blue-200 dark:border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-3 min-w-0">
         <span class="flex h-3 w-3 relative flex-shrink-0">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
         </span>
-        <div>
-          <div class="flex items-center space-x-2">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
             <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               {{ activeJob.type }} SEDANG BERJALAN
             </span>
-            <span class="px-1.5 py-0.2 rounded text-3xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+            <span class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 break-words">
               {{ activeJob.stage || 'Memproses...' }}
             </span>
           </div>
-          <span class="text-2xs text-slate-600 dark:text-slate-300 font-sans block mt-0.5">
+          <span class="text-2xs text-slate-600 dark:text-slate-300 font-sans block mt-0.5 break-all">
             Job ID: <code class="font-mono text-blue-600 dark:text-blue-300">{{ activeJob.id }}</code> • Waktu: {{ jobElapsedSeconds }}s
           </span>
         </div>
       </div>
-      <div class="flex items-center space-x-3 justify-between sm:justify-end">
+      <div class="flex items-center space-x-3 justify-between sm:justify-end flex-shrink-0">
         <div class="text-right">
-          <span class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400">{{ Math.round(activeJob.progress || 0) }}%</span>
+          <span class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400 tabular-nums">{{ Math.round(activeJob.progress || 0) }}%</span>
           <div class="w-32 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
             <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" :style="{ width: Math.max(activeJob.progress || 8, 8) + '%' }"></div>
           </div>
@@ -86,26 +86,26 @@
 
     <!-- Recently Completed Job Banner -->
     <div v-else-if="lastCompletedJob"
-         class="saas-card p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-between shadow-xs">
-      <div class="flex items-center space-x-3">
+         class="saas-card p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-between gap-3 shadow-xs">
+      <div class="flex items-center space-x-3 min-w-0">
         <div class="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <div>
-          <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+        <div class="min-w-0">
+          <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">
             {{ lastCompletedJob.type }} Berhasil Diselesaikan (100%)
           </span>
-          <span class="text-2xs text-emerald-700 dark:text-emerald-300 font-sans block mt-0.5">
+          <span class="text-2xs text-emerald-700 dark:text-emerald-300 font-sans block mt-0.5 break-all">
             Arsip ID: <code class="font-mono font-bold">{{ lastCompletedJob.backup_id || lastCompletedJob.id }}</code> • Selesai dalam {{ lastCompletedJob.duration_sec }}s
           </span>
         </div>
       </div>
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center space-x-2 flex-shrink-0">
         <button v-if="lastCompletedJob.backup_id"
                 @click="openDetails({ id: lastCompletedJob.backup_id })"
-                class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-3xs font-semibold shadow-xs">
+                class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-3xs font-semibold shadow-xs whitespace-nowrap">
           Lihat Manifest
         </button>
         <button @click="lastCompletedJob = null"
@@ -466,10 +466,10 @@
 
     <!-- MODAL 0: Live Backup / Restore Progress Modal -->
     <div v-if="showProgressModal && activeJob" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full space-y-5 shadow-2xl font-sans">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-5 shadow-2xl font-sans">
         <!-- Header -->
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-          <div class="flex items-center space-x-3">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div class="flex items-center space-x-3 min-w-0">
             <span v-if="activeJob.status === 'RUNNING' || activeJob.status === 'PENDING'" class="flex h-3.5 w-3.5 relative flex-shrink-0">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-600"></span>
@@ -480,11 +480,11 @@
             <span v-else class="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
               ✕
             </span>
-            <div>
+            <div class="min-w-0">
               <h3 class="text-sm font-bold text-slate-900 dark:text-white">
                 {{ activeJob.status === 'COMPLETED' ? (activeJob.type + ' Selesai') : activeJob.status === 'FAILED' ? (activeJob.type + ' Gagal') : ('Memproses ' + activeJob.type + '...') }}
               </h3>
-              <p class="text-3xs text-slate-500 dark:text-slate-400">
+              <p class="text-3xs text-slate-500 dark:text-slate-400 break-all">
                 Job ID: <span class="font-mono">{{ activeJob.id }}</span> • <span class="font-mono tabular-nums">{{ jobElapsedSeconds }}s</span> berjalan
               </p>
             </div>
@@ -492,12 +492,12 @@
 
           <button v-if="activeJob.status === 'COMPLETED' || activeJob.status === 'FAILED'"
                   @click="showProgressModal = false"
-                  class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-sm font-bold p-1 rounded-lg">
+                  class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-sm font-bold p-1 rounded-lg flex-shrink-0">
             ✕
           </button>
           <button v-else
                   @click="showProgressModal = false"
-                  class="text-2xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
+                  class="text-2xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline flex-shrink-0"
                   title="Biarkan proses berjalan di latar belakang">
             Minimize
           </button>
@@ -505,11 +505,11 @@
 
         <!-- Big Linear Progress Bar with Pulsing Effect -->
         <div class="space-y-2">
-          <div class="flex justify-between items-baseline text-xs">
-            <span class="font-bold text-slate-800 dark:text-slate-200 text-xs">
+          <div class="flex justify-between items-baseline gap-3 text-xs">
+            <span class="font-bold text-slate-800 dark:text-slate-200 text-xs min-w-0 break-words">
               {{ activeJob.stage || 'Memproses operasi...' }}
             </span>
-            <span class="font-mono font-bold text-base" :class="activeJob.status === 'COMPLETED' ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'">
+            <span class="font-mono font-bold text-base tabular-nums flex-shrink-0" :class="activeJob.status === 'COMPLETED' ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'">
               {{ Math.round(activeJob.progress || 0) }}%
             </span>
           </div>
@@ -577,20 +577,75 @@
           </div>
         </div>
 
+        <!-- Visual Step Milestones (for RESTORE) -->
+        <div v-else-if="activeJob.type === 'RESTORE'" class="space-y-2 text-2xs p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800/80">
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 12)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 12)">
+                {{ activeJob.progress >= 12 ? '✓' : '1' }}
+              </span>
+              <span>1. Validasi Manifest & Safety Snapshot Pra-Restore</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 34 ? 'OK' : (activeJob.progress >= 10 ? 'AKTIF' : '...') }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 35)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 35)">
+                {{ activeJob.progress >= 49 ? '✓' : '2' }}
+              </span>
+              <span>2. Ekstraksi Arsip & Jeda Aman Polling Worker</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 49 ? 'OK' : (activeJob.progress >= 35 ? 'AKTIF' : '...') }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 50)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 50)">
+                {{ activeJob.progress >= 85 ? '✓' : '3' }}
+              </span>
+              <span>3. Pemulihan Skema, Tabel & Indeks MariaDB</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 85 ? 'OK' : (activeJob.progress >= 50 ? 'AKTIF' : '...') }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 90)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 90)">
+                {{ activeJob.progress >= 93 ? '✓' : '4' }}
+              </span>
+              <span>4. Rekonsiliasi Katalog & Pemulihan Antrean WAL</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 93 ? 'OK' : (activeJob.progress >= 86 ? 'AKTIF' : '...') }}</span>
+          </div>
+
+          <div class="flex items-center justify-between" :class="getStepClass(activeJob.progress, 100)">
+            <span class="flex items-center space-x-2">
+              <span class="w-4 h-4 rounded-full flex items-center justify-center text-[10px]" :class="getStepBadge(activeJob.progress, 100)">
+                {{ activeJob.progress >= 100 ? '✓' : '5' }}
+              </span>
+              <span>5. Replay Telemetri WAL & Aktivasi Ulang Polling</span>
+            </span>
+            <span class="font-mono text-3xs">{{ activeJob.progress >= 100 ? 'OK' : (activeJob.progress >= 94 ? 'AKTIF' : '...') }}</span>
+          </div>
+        </div>
+
         <!-- Success Details Card (when completed) -->
         <div v-if="activeJob.status === 'COMPLETED'"
              class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
           <div class="font-bold flex items-center space-x-1.5">
-            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
-            <span>Arsip Backup Berhasil Dibuat!</span>
+            <span>{{ activeJob.type === 'RESTORE' ? 'Pemulihan Database & WAL Berhasil!' : 'Arsip Backup Berhasil Dibuat!' }}</span>
           </div>
-          <p v-if="activeJob.backup_id" class="text-2xs font-mono text-emerald-800 dark:text-emerald-300">
+          <p v-if="activeJob.backup_id" class="text-2xs font-mono text-emerald-800 dark:text-emerald-300 break-all">
             ID: <strong class="select-all">{{ activeJob.backup_id }}</strong>
           </p>
           <p class="text-3xs text-emerald-700 dark:text-emerald-400">
-            Arsip telah tervalidasi konsisten dan siap digunakan untuk pemulihan (disaster recovery).
+            {{ activeJob.type === 'RESTORE'
+              ? 'Seluruh skema, data histori, antrean WAL, dan worker perangkat telah aktif kembali.'
+              : 'Arsip telah tervalidasi konsisten dan siap digunakan untuk pemulihan (disaster recovery).' }}
           </p>
         </div>
 
@@ -598,12 +653,12 @@
         <div v-if="activeJob.status === 'FAILED'"
              class="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-xs text-rose-900 dark:text-rose-200 space-y-1">
           <div class="font-bold flex items-center space-x-1.5">
-            <svg class="w-4 h-4 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
             <span>Operasi Gagal</span>
           </div>
-          <p class="text-2xs font-mono text-rose-800 dark:text-rose-300">
+          <p class="text-2xs font-mono text-rose-800 dark:text-rose-300 break-words max-h-32 overflow-y-auto">
             {{ activeJob.error || 'Terjadi kesalahan sistem yang tidak diketahui' }}
           </p>
         </div>
@@ -666,14 +721,14 @@
     <!-- MODAL 2: Manifest Details -->
     <div v-if="showDetailsModal && selectedBackup" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-5 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center space-x-2">
-            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-start space-x-2 min-w-0">
+            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
-            <span>{{ $t('backup.manifestDetails') }} — {{ selectedBackup.id || selectedBackup.backup_id }}</span>
+            <span class="min-w-0 break-all">{{ $t('backup.manifestDetails') }} — {{ selectedBackup.id || selectedBackup.backup_id }}</span>
           </h3>
-          <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">&times;</button>
+          <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white flex-shrink-0">&times;</button>
         </div>
 
         <!-- Manifest Data Grid -->
@@ -720,12 +775,12 @@
           <div v-if="selectedManifest.database && (selectedManifest.database.artifact || (selectedManifest.artifacts && selectedManifest.artifacts.length))" class="space-y-2">
             <span class="font-semibold text-slate-700 dark:text-slate-300 block">Database Dump Artifact</span>
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono space-y-1">
-              <div class="flex justify-between">
-                <span class="text-slate-500 dark:text-slate-400">File:</span>
-                <span class="text-slate-900 dark:text-white">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.path) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].path) }} ({{ formatBytes((selectedManifest.database.artifact && selectedManifest.database.artifact.size_bytes) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].size_bytes)) }})</span>
+              <div class="flex justify-between gap-3">
+                <span class="text-slate-500 dark:text-slate-400 flex-shrink-0">File:</span>
+                <span class="text-slate-900 dark:text-white break-all text-right">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.path) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].path) }} ({{ formatBytes((selectedManifest.database.artifact && selectedManifest.database.artifact.size_bytes) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].size_bytes)) }})</span>
               </div>
-              <div class="flex justify-between">
-                <span class="text-slate-500 dark:text-slate-400">SHA-256:</span>
+              <div class="flex justify-between gap-3">
+                <span class="text-slate-500 dark:text-slate-400 flex-shrink-0">SHA-256:</span>
                 <span class="text-emerald-600 dark:text-emerald-400 truncate max-w-sm" :title="(selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256)">{{ (selectedManifest.database.artifact && selectedManifest.database.artifact.sha256) || (selectedManifest.artifacts && selectedManifest.artifacts[0] && selectedManifest.artifacts[0].sha256) }}</span>
               </div>
             </div>
@@ -755,15 +810,15 @@
 
     <!-- MODAL 3: Restore Preview & Confirmation -->
     <div v-if="showRestoreModal && restorePreview" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111827] border border-rose-300 dark:border-rose-500/40 rounded-xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 class="text-sm font-bold text-rose-600 dark:text-rose-400 font-sans flex items-center space-x-2">
-            <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+      <div class="bg-white dark:bg-[#111827] border border-rose-300 dark:border-rose-500/40 rounded-xl p-5 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-rose-600 dark:text-rose-400 font-sans flex items-center space-x-2 min-w-0">
+            <svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
-            <span>{{ $t('backup.confirmRestoreTitle') }}</span>
+            <span class="truncate">{{ $t('backup.confirmRestoreTitle') }}</span>
           </h3>
-          <button @click="showRestoreModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white">&times;</button>
+          <button @click="showRestoreModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white flex-shrink-0">&times;</button>
         </div>
 
         <!-- Warning Alert -->
@@ -772,24 +827,34 @@
         </div>
 
         <!-- Impact Preview Comparison -->
-        <div class="space-y-3 text-xs font-sans">
-          <div class="grid grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
-            <div>
-              <span class="text-3xs uppercase tracking-wider text-slate-500 block">Backup Source</span>
-              <span class="font-mono text-slate-900 dark:text-white text-xs font-bold">{{ restorePreview.backup_id }}</span>
-              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono block mt-0.5">Rows: {{ restorePreview.total_rows || 0 }}</span>
+        <div class="space-y-2.5 text-xs font-sans">
+          <!-- Backup Source (Dedicated Full-Width Card to prevent long imported ID collisions) -->
+          <div class="p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold">Backup Source</span>
+              <span class="text-3xs font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 tabular-nums flex-shrink-0">
+                Rows: {{ Number(restorePreview.total_rows || 0).toLocaleString() }}
+              </span>
             </div>
-            <div>
-              <span class="text-3xs uppercase tracking-wider text-slate-500 block">Target Active DB</span>
-              <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs font-bold">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
-              <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono block mt-0.5">WAL Records: {{ restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0) }}</span>
+            <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block break-all leading-snug mt-1">{{ restorePreview.backup_id }}</span>
+          </div>
+
+          <!-- Target Active DB & WAL Replay (Separated 2-Column Bordered Cards) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
+              <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">Target Active DB</span>
+              <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs font-bold block break-all leading-snug mt-0.5">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
+              <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">WAL Records</span>
+              <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block tabular-nums leading-snug mt-0.5">{{ Number(restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0)).toLocaleString() }}</span>
             </div>
           </div>
 
           <!-- Warnings List -->
-          <div v-if="restorePreview.warnings && restorePreview.warnings.length" class="space-y-1">
+          <div v-if="restorePreview.warnings && restorePreview.warnings.length" class="space-y-1 pt-0.5">
             <span class="text-3xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold block">Important Warnings:</span>
-            <ul class="space-y-0.5 text-2xs text-amber-800/90 dark:text-amber-300/90 list-disc list-inside">
+            <ul class="space-y-1 text-2xs text-amber-800/90 dark:text-amber-300/90 list-disc pl-4 break-words">
               <li v-for="(w, idx) in restorePreview.warnings" :key="idx">{{ w }}</li>
             </ul>
           </div>
@@ -975,6 +1040,7 @@ export default {
         next_scheduled_run: null,
       },
       activeJob: null,
+      lastAutoOpenedJobId: null,
       lastCompletedJob: null,
       jobPollInterval: null,
       jobPollTimer: null,
@@ -1110,13 +1176,20 @@ export default {
     },
     async fetchStatus() {
       try {
-        const res = await axios.get('/api/backups/status');
+        const res = await axios.get('/api/backups/status', { timeout: 6000 });
         if (res.data && res.data.data) {
           this.statusData = res.data.data;
           if (res.data.data.active_job) {
-            this.activeJob = res.data.data.active_job;
-            if (!this.jobPollTimer && (this.activeJob.status === 'RUNNING' || this.activeJob.status === 'PENDING')) {
-              this.startFastJobPolling(this.activeJob.id);
+            const job = res.data.data.active_job;
+            this.activeJob = job;
+            if (job.status === 'RUNNING' || job.status === 'PENDING') {
+              if (this.lastAutoOpenedJobId !== job.id) {
+                this.lastAutoOpenedJobId = job.id;
+                this.showProgressModal = true;
+              }
+              if (!this.jobPollTimer) {
+                this.startFastJobPolling(job.id);
+              }
             }
           }
         }
@@ -1143,19 +1216,32 @@ export default {
     },
     startFastJobPolling(jobId) {
       if (this.jobPollTimer) clearInterval(this.jobPollTimer);
-      const startTime = Date.now();
-      this.jobElapsedSeconds = '0.0';
+      const parseJobStartMs = (jobObj) => {
+        if (jobObj && jobObj.start_time) {
+          const parsed = Date.parse(jobObj.start_time);
+          if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+        }
+        return Date.now();
+      };
+      let startTime = parseJobStartMs(this.activeJob);
+      this.jobElapsedSeconds = Math.max(0, (Date.now() - startTime) / 1000).toFixed(1);
 
       if (this.jobElapsedTimer) clearInterval(this.jobElapsedTimer);
       this.jobElapsedTimer = setInterval(() => {
-        this.jobElapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+        this.jobElapsedSeconds = Math.max(0, (Date.now() - startTime) / 1000).toFixed(1);
       }, 100);
 
       const poll = async () => {
         try {
-          const res = await axios.get(`/api/backups/jobs/${jobId}`);
+          const res = await axios.get(`/api/backups/jobs/${jobId}`, { timeout: 6000 });
           if (res.data && res.data.data) {
             const job = res.data.data;
+            if (job.start_time) {
+              const srvStart = Date.parse(job.start_time);
+              if (!Number.isNaN(srvStart) && srvStart > 0) {
+                startTime = srvStart;
+              }
+            }
             this.activeJob = job;
             if (job.status === 'COMPLETED' || job.status === 'FAILED') {
               if (this.jobPollTimer) {
@@ -1182,7 +1268,7 @@ export default {
       };
 
       poll();
-      this.jobPollTimer = setInterval(poll, 350);
+      this.jobPollTimer = setInterval(poll, 400);
     },
     startJobPolling() {
       this.jobPollInterval = setInterval(async () => {
@@ -1225,6 +1311,7 @@ export default {
         });
         if (res.data && res.data.data) {
           const jobId = res.data.data.job_id;
+          this.lastAutoOpenedJobId = jobId;
           this.activeJob = {
             id: jobId,
             type: 'BACKUP',
@@ -1409,6 +1496,7 @@ export default {
         });
         if (res.data && res.data.data) {
           const jobId = res.data.data.job_id;
+          this.lastAutoOpenedJobId = jobId;
           this.activeJob = {
             id: jobId,
             type: 'RESTORE',
