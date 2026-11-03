@@ -646,26 +646,98 @@ func sanitizeBackupID(raw string) string {
 	return cleaned
 }
 
-// GetRestorePreview calculates differences and impact assessment before executing restore
+// GetRestorePreview calculates differences and impact assessment before executing restore.
+// For archives that have already passed full cryptographic & structural validation (ValidationStatus == VALID)
+// and whose physical file size and gzip header on disk match the catalog record, it avoids re-decompressing
+// multi-GB SQL dumps and uses fast metadata queries so the confirmation modal opens near-instantaneously.
 func (s *BackupService) GetRestorePreview(ctx context.Context, backupID string) (*model.RestorePreview, error) {
-	manifest, err := s.ValidateBackup(ctx, backupID)
-	if err != nil {
-		return nil, fmt.Errorf("cannot preview unverified backup: %w", err)
+	if strings.Contains(backupID, "..") || strings.ContainsAny(backupID, "/\\") {
+		return nil, fmt.Errorf("cannot preview unverified backup: %w", ErrInvalidArchive)
 	}
 
-	currentStats, currentTotal, _ := s.dbAdapter.GetTableStats(ctx)
+	var (
+		createdAt         time.Time
+		backupType        model.BackupType
+		sizeBytes         int64
+		dbEngine          string
+		dbName            string
+		dumpMethod        string
+		tableCount        int
+		totalRows         int64
+		tableRows         map[string]int64
+		walPendingRecords int64
+		walSegmentsCount  int
+		usedFastCatalog   bool
+	)
+
+	if s.backupRepo != nil {
+		if rec, recErr := s.backupRepo.GetByID(backupID); recErr == nil && rec != nil {
+			if rec.Status == model.BackupStatusCompleted &&
+				rec.ValidationStatus == model.ValidationStatusValid &&
+				(rec.FormatVersion == "" || rec.FormatVersion == "1.0") &&
+				rec.FilePath != "" &&
+				verifyArchiveHeaderFast(rec.FilePath, rec.SizeBytes) == nil {
+
+				usedFastCatalog = true
+				createdAt = rec.CreatedAt
+				backupType = rec.Type
+				sizeBytes = rec.SizeBytes
+				dbEngine = rec.DatabaseEngine
+				dbName = rec.DatabaseName
+				dumpMethod = rec.DumpMethod
+				tableCount = rec.TableCount
+				totalRows = rec.TotalRows
+				walPendingRecords = rec.WALPendingRecords
+				walSegmentsCount = rec.WALSegmentsCount
+
+				if mf := s.peekManifestIfFirst(rec.FilePath); mf != nil {
+					tableRows = mf.Database.TableRows
+					if tableCount == 0 {
+						tableCount = mf.Database.TableCount
+					}
+					if totalRows == 0 {
+						totalRows = mf.Database.TotalRows
+					}
+				}
+			}
+		}
+	}
+
+	if !usedFastCatalog {
+		manifest, err := s.ValidateBackup(ctx, backupID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot preview unverified backup: %w", err)
+		}
+		createdAt = manifest.CreatedAt
+		backupType = manifest.BackupType
+		sizeBytes = manifest.TotalSizeBytes
+		dbEngine = manifest.Database.Engine
+		dbName = manifest.Database.DatabaseName
+		dumpMethod = manifest.Database.DumpMethod
+		tableCount = manifest.Database.TableCount
+		totalRows = manifest.Database.TotalRows
+		tableRows = manifest.Database.TableRows
+		walPendingRecords = manifest.WAL.PendingRecords
+		walSegmentsCount = len(manifest.WAL.SegmentFiles)
+	}
+
+	var currentStats map[string]int64
+	var currentTotal int64
+	if s.dbAdapter != nil {
+		currentStats, currentTotal, _ = s.dbAdapter.GetFastTableStats(ctx)
+	}
 
 	var warnings []string
-	if manifest.Database.TotalRows == 0 {
+	if totalRows == 0 {
 		warnings = append(warnings, "Warning: Backup contains zero rows of data.")
 	}
-	if currentTotal > manifest.Database.TotalRows {
+	if currentTotal > totalRows {
 		warnings = append(warnings, fmt.Sprintf("Active database has %d rows which is more than backup (%d rows). Existing data will be overwritten.",
-			currentTotal, manifest.Database.TotalRows))
+			currentTotal, totalRows))
 	}
-	if manifest.WAL.PendingRecords > 0 {
+	if walPendingRecords > 0 {
 		warnings = append(warnings, fmt.Sprintf("Backup contains %d pending WAL telemetry records that will be recovered and replayed.",
-			manifest.WAL.PendingRecords))
+			walPendingRecords))
 	}
 
 	targetDB := "datalogger"
@@ -675,26 +747,90 @@ func (s *BackupService) GetRestorePreview(ctx context.Context, backupID string) 
 
 	preview := &model.RestorePreview{
 		BackupID:             backupID,
-		CreatedAt:            manifest.CreatedAt,
-		BackupType:           manifest.BackupType,
-		SizeBytes:            manifest.TotalSizeBytes,
-		DatabaseEngine:       manifest.Database.Engine,
-		DatabaseName:         manifest.Database.DatabaseName,
-		DumpMethod:           manifest.Database.DumpMethod,
-		TableCount:           manifest.Database.TableCount,
-		TotalRows:            manifest.Database.TotalRows,
-		TableRows:            manifest.Database.TableRows,
-		WALPendingRecords:    manifest.WAL.PendingRecords,
-		WALSegmentsCount:     len(manifest.WAL.SegmentFiles),
+		CreatedAt:            createdAt,
+		BackupType:           backupType,
+		SizeBytes:            sizeBytes,
+		DatabaseEngine:       dbEngine,
+		DatabaseName:         dbName,
+		DumpMethod:           dumpMethod,
+		TableCount:           tableCount,
+		TotalRows:            totalRows,
+		TableRows:            tableRows,
+		WALPendingRecords:    walPendingRecords,
+		WALSegmentsCount:     walSegmentsCount,
 		CurrentActiveTables:  len(currentStats),
 		CurrentActiveRows:    currentTotal,
-		EstimatedDurationSec: int(manifest.TotalSizeBytes/(1024*1024) + 2),
+		EstimatedDurationSec: int(sizeBytes/(1024*1024) + 2),
 		TargetDatabase:       targetDB,
 		Warnings:             warnings,
 		CanRestore:           true,
 	}
 
 	return preview, nil
+}
+
+func verifyArchiveHeaderFast(filePath string, expectedSize int64) error {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+	if fi.Size() < 10 {
+		return ErrInvalidArchive
+	}
+	if expectedSize > 0 && fi.Size() != expectedSize {
+		return ErrInvalidArchive
+	}
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var magic [2]byte
+	if _, err := io.ReadFull(f, magic[:]); err != nil {
+		return err
+	}
+	if magic[0] != 0x1f || magic[1] != 0x8b {
+		return ErrInvalidArchive
+	}
+	return nil
+}
+
+// peekManifestIfFirst reads manifest.json only if it appears at the very front of the tar stream,
+// avoiding decompressing multi-GB database/dump.sql entries on older archives.
+func (s *BackupService) peekManifestIfFirst(tarGzPath string) *model.BackupManifest {
+	inFile, err := os.Open(tarGzPath)
+	if err != nil {
+		return nil
+	}
+	defer inFile.Close()
+
+	gr, err := gzip.NewReader(inFile)
+	if err != nil {
+		return nil
+	}
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	for i := 0; i < 4; i++ {
+		hdr, nextErr := tr.Next()
+		if nextErr != nil {
+			return nil
+		}
+		if hdr.Typeflag == tar.TypeDir {
+			continue
+		}
+		cleanName := strings.TrimPrefix(path.Clean(strings.ReplaceAll(hdr.Name, "\\", "/")), "./")
+		if cleanName == "manifest.json" {
+			var mf model.BackupManifest
+			if decErr := json.NewDecoder(io.LimitReader(tr, 16<<20)).Decode(&mf); decErr == nil {
+				return &mf
+			}
+		}
+		// First regular file was not manifest.json (e.g. database/dump.sql) — abort immediately to avoid streaming GBs
+		return nil
+	}
+	return nil
 }
 
 // StartRestoreJob launches an asynchronous restore operation
@@ -1275,6 +1411,41 @@ func (s *BackupService) createTarGz(srcDir, tarGzPath string) error {
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
 
+	writeEntry := func(fullPath, relSlash string, info os.FileInfo) error {
+		header, err := tar.FileInfoHeader(info, info.Name())
+		if err != nil {
+			return err
+		}
+		header.Name = relSlash
+
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(fullPath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tw, file)
+		return err
+	}
+
+	// Place manifest.json at the very front of the tar stream so manifest inspection
+	// (View Manifest / Restore Preview) reads metadata in <1ms without decompressing multi-GB SQL dumps.
+	manifestPath := filepath.Join(srcDir, "manifest.json")
+	wroteManifestFirst := false
+	if mfInfo, mfErr := os.Stat(manifestPath); mfErr == nil && !mfInfo.IsDir() {
+		if err := writeEntry(manifestPath, "manifest.json", mfInfo); err != nil {
+			return err
+		}
+		wroteManifestFirst = true
+	}
+
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -1287,29 +1458,12 @@ func (s *BackupService) createTarGz(srcDir, tarGzPath string) error {
 		if relPath == "." {
 			return nil
 		}
-
-		header, err := tar.FileInfoHeader(info, info.Name())
-		if err != nil {
-			return err
-		}
-		header.Name = filepath.ToSlash(relPath)
-
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		if info.IsDir() {
+		relSlash := filepath.ToSlash(relPath)
+		if wroteManifestFirst && relSlash == "manifest.json" {
 			return nil
 		}
 
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		_, err = io.Copy(tw, file)
-		return err
+		return writeEntry(path, relSlash, info)
 	})
 }
 

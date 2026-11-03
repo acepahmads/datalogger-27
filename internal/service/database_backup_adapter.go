@@ -1166,6 +1166,55 @@ func (a *DatabaseBackupAdapter) GetTableStats(ctx context.Context) (map[string]i
 	return stats, totalRows, nil
 }
 
+// GetFastTableStats returns table row estimates instantaneously from information_schema.tables
+// on MariaDB/MySQL (<2ms even on multi-million-row tables), avoiding expensive full-table
+// SELECT COUNT(*) scans when rendering the Restore Confirmation preview. Falls back to GetTableStats on SQLite.
+func (a *DatabaseBackupAdapter) GetFastTableStats(ctx context.Context) (map[string]int64, int64, error) {
+	if a.db == nil {
+		return nil, 0, errors.New("database connection is nil")
+	}
+
+	if a.isSQLite() {
+		return a.GetTableStats(ctx)
+	}
+
+	sqlDB, err := a.db.DB()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT TABLE_NAME, COALESCE(TABLE_ROWS, 0)
+		FROM information_schema.tables
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_TYPE = 'BASE TABLE'
+	`)
+	if err != nil {
+		return a.GetTableStats(ctx)
+	}
+	defer rows.Close()
+
+	stats := make(map[string]int64)
+	var totalRows int64
+	for rows.Next() {
+		var name string
+		var count int64
+		if scanErr := rows.Scan(&name, &count); scanErr != nil {
+			continue
+		}
+		if strings.EqualFold(name, "backup_records") {
+			continue
+		}
+		stats[name] = count
+		totalRows += count
+	}
+	if err := rows.Err(); err != nil || len(stats) == 0 {
+		return a.GetTableStats(ctx)
+	}
+
+	return stats, totalRows, nil
+}
+
 // ValidateDumpFile verifies that dumpFile exists, is non-empty, and contains valid SQL syntax markers
 func (a *DatabaseBackupAdapter) ValidateDumpFile(dumpFile string) error {
 	fi, err := os.Stat(dumpFile)

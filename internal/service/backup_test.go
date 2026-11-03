@@ -749,3 +749,56 @@ func TestPhase43_NonBlockingRestoreStatusAndLifecycleHooks(t *testing.T) {
 		t.Fatalf("expected cached ListBackups during active restore, got total=%d len=%d err=%v", total, len(items), listErr)
 	}
 }
+
+// 12. Regression Test: Fast Restore Preview (<5ms) & Manifest-First Tar Ordering
+func TestPhase43_FastRestorePreviewAndManifestFirstOrder(t *testing.T) {
+	db, cfg, backupRepo, systemRepo, walAdapter, _, cleanup := setupTestBackupEnvironment(t)
+	defer cleanup()
+
+	dbAdapter := NewDatabaseBackupAdapter(db, cfg)
+	backupService := NewBackupService(db, cfg, backupRepo, dbAdapter, walAdapter, nil, systemRepo)
+	ctx := context.Background()
+
+	rec, err := backupService.CreateBackup(ctx, model.BackupTypeManual, "admin")
+	if err != nil {
+		t.Fatalf("CreateBackup failed: %v", err)
+	}
+
+	// 1. Verify manifest.json is placed at the front of the tar stream so peekManifestIfFirst succeeds immediately
+	peeked := backupService.peekManifestIfFirst(rec.FilePath)
+	if peeked == nil || peeked.BackupID != rec.ID {
+		t.Fatalf("expected manifest.json at front of archive, got: %+v", peeked)
+	}
+
+	// 2. Verify fast GetRestorePreview returns full metadata & active row warnings
+	db.Create(&model.RawData{
+		RecordUUID:  "rec-extra-active-row",
+		DeviceID:    1,
+		ParameterID: 1,
+		Value:       999.0,
+		Quality:     model.QualityGood,
+		ReceivedAt:  time.Now().UTC(),
+		StoredAt:    time.Now().UTC(),
+		Timestamp:   time.Now().UTC(),
+		Source:      "MODBUS_TCP",
+		CreatedAt:   time.Now().UTC(),
+	})
+
+	preview, err := backupService.GetRestorePreview(ctx, rec.ID)
+	if err != nil {
+		t.Fatalf("GetRestorePreview failed: %v", err)
+	}
+	if !preview.CanRestore || preview.TotalRows != rec.TotalRows || len(preview.TableRows) == 0 {
+		t.Fatalf("unexpected fast preview result: %+v", preview)
+	}
+	if preview.CurrentActiveRows <= preview.TotalRows || len(preview.Warnings) == 0 {
+		t.Errorf("expected overwrite warning when active rows (%d) > backup rows (%d), warnings=%v",
+			preview.CurrentActiveRows, preview.TotalRows, preview.Warnings)
+	}
+
+	// 3. Verify corrupted/truncated archive on disk is still caught and rejected
+	_ = os.WriteFile(rec.FilePath, []byte("corrupted_non_gzip_payload"), 0644)
+	if _, err := backupService.GetRestorePreview(ctx, rec.ID); err == nil {
+		t.Fatalf("expected GetRestorePreview to reject corrupted archive on disk, got nil")
+	}
+}

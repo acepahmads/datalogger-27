@@ -334,15 +334,18 @@
 
                     <!-- Restore Action -->
                     <button @click="prepareRestore(b.id || b.backup_id)"
-                            :disabled="!b.is_compatible"
+                            :disabled="!b.is_compatible || (loadingRestorePreview && restoreTargetId === (b.id || b.backup_id))"
                             class="px-2 py-1 rounded text-3xs font-semibold transition-colors flex items-center"
-                            :class="b.is_compatible ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/20 cursor-pointer shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 opacity-60 cursor-not-allowed'"
+                            :class="b.is_compatible ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/20 cursor-pointer shadow-xs disabled:opacity-70' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 opacity-60 cursor-not-allowed'"
                             :title="b.is_compatible ? 'Restore Database' : 'Restore disabled: backup not validated or missing'">
-                       <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                       <svg v-if="!(loadingRestorePreview && restoreTargetId === (b.id || b.backup_id))" class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                          <polyline points="1 4 1 10 7 10"></polyline>
                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
                        </svg>
-                       {{ $t('backup.restore') }}
+                       <svg v-else class="animate-spin w-3 h-3 mr-1 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+                       </svg>
+                       {{ (loadingRestorePreview && restoreTargetId === (b.id || b.backup_id)) ? 'Memuat...' : $t('backup.restore') }}
                     </button>
 
                     <!-- Download Archive -->
@@ -731,8 +734,16 @@
           <button @click="showDetailsModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white flex-shrink-0">&times;</button>
         </div>
 
+        <!-- Manifest Loading State -->
+        <div v-if="loadingManifest && !selectedManifest" class="py-6 flex flex-col items-center justify-center space-y-2.5 text-xs font-sans text-slate-500 dark:text-slate-400">
+          <svg class="animate-spin w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+          </svg>
+          <span>Membaca detail manifest dari arsip backup...</span>
+        </div>
+
         <!-- Manifest Data Grid -->
-        <div v-if="selectedManifest" class="space-y-4 text-xs font-sans">
+        <div v-else-if="selectedManifest" class="space-y-4 text-xs font-sans">
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
               <span class="text-3xs uppercase tracking-wider text-slate-500 block">Backup Version</span>
@@ -809,70 +820,130 @@
     </div>
 
     <!-- MODAL 3: Restore Preview & Confirmation -->
-    <div v-if="showRestoreModal && restorePreview" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white dark:bg-[#111827] border border-rose-300 dark:border-rose-500/40 rounded-xl p-5 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+    <div v-if="showRestoreModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-[#111827] rounded-xl p-5 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl"
+           :class="loadingRestorePreview ? 'border border-blue-300 dark:border-blue-500/40' : 'border border-rose-300 dark:border-rose-500/40'">
         <div class="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-          <h3 class="text-sm font-bold text-rose-600 dark:text-rose-400 font-sans flex items-center space-x-2 min-w-0">
+          <h3 v-if="loadingRestorePreview" class="text-sm font-bold text-blue-600 dark:text-blue-400 font-sans flex items-center space-x-2 min-w-0">
+            <svg class="animate-spin w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
+            </svg>
+            <span class="truncate">Menyiapkan Konfirmasi Restore...</span>
+          </h3>
+          <h3 v-else class="text-sm font-bold text-rose-600 dark:text-rose-400 font-sans flex items-center space-x-2 min-w-0">
             <svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
             </svg>
             <span class="truncate">{{ $t('backup.confirmRestoreTitle') }}</span>
           </h3>
-          <button @click="showRestoreModal = false" class="text-slate-400 hover:text-slate-700 dark:hover:text-white flex-shrink-0">&times;</button>
+          <button @click="closeRestoreModal" :disabled="restoring" class="text-slate-400 hover:text-slate-700 dark:hover:text-white flex-shrink-0 disabled:opacity-40">&times;</button>
         </div>
 
-        <!-- Warning Alert -->
-        <div class="p-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-sans leading-relaxed">
-          {{ $t('backup.confirmRestoreWarning') }}
-        </div>
-
-        <!-- Impact Preview Comparison -->
-        <div class="space-y-2.5 text-xs font-sans">
-          <!-- Backup Source (Dedicated Full-Width Card to prevent long imported ID collisions) -->
+        <!-- STATE A: Loading Restore Preview Progress -->
+        <div v-if="loadingRestorePreview" class="space-y-3.5 text-xs font-sans">
           <div class="p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold">Backup Source</span>
-              <span class="text-3xs font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 tabular-nums flex-shrink-0">
-                Rows: {{ Number(restorePreview.total_rows || 0).toLocaleString() }}
+            <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">Backup Source</span>
+            <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block break-all leading-snug mt-1">{{ restoreTargetId }}</span>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-500/30 space-y-2.5">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="font-semibold text-blue-900 dark:text-blue-200 text-xs min-w-0 break-words">
+                {{ restorePreviewStage || 'Memeriksa metadata arsip & database aktif...' }}
+              </span>
+              <span class="font-mono font-bold text-xs tabular-nums text-blue-700 dark:text-blue-300 flex-shrink-0">
+                {{ Math.round(restorePreviewProgress) }}%
               </span>
             </div>
-            <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block break-all leading-snug mt-1">{{ restorePreview.backup_id }}</span>
-          </div>
-
-          <!-- Target Active DB & WAL Replay (Separated 2-Column Bordered Cards) -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
-              <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">Target Active DB</span>
-              <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs font-bold block break-all leading-snug mt-0.5">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
+            <div class="w-full bg-blue-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div class="bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400 h-2 rounded-full transition-all duration-200 relative overflow-hidden"
+                   :style="{ width: Math.max(restorePreviewProgress, 12) + '%' }">
+                <div class="absolute inset-0 bg-white/25 animate-pulse"></div>
+              </div>
             </div>
-            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
-              <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">WAL Records</span>
-              <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block tabular-nums leading-snug mt-0.5">{{ Number(restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0)).toLocaleString() }}</span>
+            <div class="space-y-1 pt-0.5 text-2xs text-slate-600 dark:text-slate-400">
+              <div class="flex items-center space-x-2" :class="restorePreviewProgress >= 45 ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-blue-700 dark:text-blue-300 font-semibold'">
+                <span>{{ restorePreviewProgress >= 45 ? '✓' : '•' }}</span>
+                <span>1. Verifikasi integritas & metadata arsip cadangan</span>
+              </div>
+              <div class="flex items-center space-x-2" :class="restorePreviewProgress >= 45 ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'opacity-60'">
+                <span>•</span>
+                <span>2. Analisis dampak baris database aktif & antrean WAL</span>
+              </div>
             </div>
           </div>
-
-          <!-- Warnings List -->
-          <div v-if="restorePreview.warnings && restorePreview.warnings.length" class="space-y-1 pt-0.5">
-            <span class="text-3xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold block">Important Warnings:</span>
-            <ul class="space-y-1 text-2xs text-amber-800/90 dark:text-amber-300/90 list-disc pl-4 break-words">
-              <li v-for="(w, idx) in restorePreview.warnings" :key="idx">{{ w }}</li>
-            </ul>
-          </div>
-
-          <!-- Safety Backup Checkbox -->
-          <label class="flex items-center space-x-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer">
-            <input type="checkbox" v-model="restoreSafetyBackup" class="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-0">
-            <span class="text-slate-700 dark:text-slate-300 text-2xs font-medium">{{ $t('backup.createSafetyBackup') }}</span>
-          </label>
         </div>
 
+        <!-- STATE B: Preview Error -->
+        <div v-else-if="restorePreviewError" class="space-y-3 text-xs font-sans">
+          <div class="p-3.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 leading-relaxed break-words">
+            <span class="font-bold block mb-1">Gagal Memuat Pratinjau Restore</span>
+            <span>{{ restorePreviewError }}</span>
+          </div>
+        </div>
+
+        <!-- STATE C: Loaded Restore Preview & Confirmation -->
+        <template v-else-if="restorePreview">
+          <!-- Warning Alert -->
+          <div class="p-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-sans leading-relaxed">
+            {{ $t('backup.confirmRestoreWarning') }}
+          </div>
+
+          <!-- Impact Preview Comparison -->
+          <div class="space-y-2.5 text-xs font-sans">
+            <!-- Backup Source (Dedicated Full-Width Card to prevent long imported ID collisions) -->
+            <div class="p-3 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold">Backup Source</span>
+                <span class="text-3xs font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 tabular-nums flex-shrink-0">
+                  Rows: {{ Number(restorePreview.total_rows || 0).toLocaleString() }}
+                </span>
+              </div>
+              <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block break-all leading-snug mt-1">{{ restorePreview.backup_id }}</span>
+            </div>
+
+            <!-- Target Active DB & WAL Replay (Separated 2-Column Bordered Cards) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
+                <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">Target Active DB</span>
+                <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs font-bold block break-all leading-snug mt-0.5">{{ restorePreview.target_database || restorePreview.database_name || 'datalogger' }}</span>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 min-w-0">
+                <span class="text-3xs uppercase tracking-wider text-slate-500 font-semibold block">WAL Records</span>
+                <span class="font-mono text-slate-900 dark:text-white text-xs font-bold block tabular-nums leading-snug mt-0.5">{{ Number(restorePreview.wal_pending_records !== undefined ? restorePreview.wal_pending_records : (restorePreview.pending_wal_records || 0)).toLocaleString() }}</span>
+              </div>
+            </div>
+
+            <!-- Warnings List -->
+            <div v-if="restorePreview.warnings && restorePreview.warnings.length" class="space-y-1 pt-0.5">
+              <span class="text-3xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold block">Important Warnings:</span>
+              <ul class="space-y-1 text-2xs text-amber-800/90 dark:text-amber-300/90 list-disc pl-4 break-words">
+                <li v-for="(w, idx) in restorePreview.warnings" :key="idx">{{ w }}</li>
+              </ul>
+            </div>
+
+            <!-- Safety Backup Checkbox -->
+            <label class="flex items-center space-x-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer">
+              <input type="checkbox" v-model="restoreSafetyBackup" class="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-0">
+              <span class="text-slate-700 dark:text-slate-300 text-2xs font-medium">{{ $t('backup.createSafetyBackup') }}</span>
+            </label>
+          </div>
+        </template>
+
         <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-          <button @click="showRestoreModal = false"
-                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent text-xs font-medium transition-colors shadow-xs">
+          <button @click="closeRestoreModal" :disabled="restoring"
+                  class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-transparent text-xs font-medium transition-colors shadow-xs disabled:opacity-50">
             {{ $t('backup.cancel') }}
           </button>
-          <button @click="executeRestore" :disabled="restoring"
-                  class="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
+          <button v-if="restorePreviewError && restoreTargetId"
+                  @click="prepareRestore(restoreTargetId)"
+                  class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition-colors">
+            Coba Lagi
+          </button>
+          <button v-else
+                  @click="executeRestore"
+                  :disabled="restoring || loadingRestorePreview || !restorePreview"
+                  class="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition-colors flex items-center">
             <svg v-if="restoring" class="animate-spin w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor" stroke-dasharray="32" stroke-linecap="round"></circle>
             </svg>
@@ -1053,10 +1124,17 @@ export default {
       createNotes: '',
 
       showDetailsModal: false,
+      loadingManifest: false,
       selectedBackup: null,
       selectedManifest: null,
 
       showRestoreModal: false,
+      loadingRestorePreview: false,
+      restorePreviewProgress: 0,
+      restorePreviewStage: '',
+      restorePreviewError: '',
+      restorePreviewTimer: null,
+      restorePreviewReqSeq: 0,
       restoreTargetId: null,
       restorePreview: null,
       restoreSafetyBackup: true,
@@ -1101,6 +1179,7 @@ export default {
     if (this.jobPollInterval) clearInterval(this.jobPollInterval);
     if (this.jobPollTimer) clearInterval(this.jobPollTimer);
     if (this.jobElapsedTimer) clearInterval(this.jobElapsedTimer);
+    if (this.restorePreviewTimer) clearInterval(this.restorePreviewTimer);
   },
   methods: {
     formatBytes(bytes) {
@@ -1445,6 +1524,7 @@ export default {
     async openDetails(backup) {
       this.selectedBackup = backup;
       this.selectedManifest = null;
+      this.loadingManifest = true;
       this.showDetailsModal = true;
       const targetId = backup.id || backup.backup_id;
       try {
@@ -1457,6 +1537,8 @@ export default {
         }
       } catch (err) {
         console.warn('Failed loading manifest details:', err);
+      } finally {
+        this.loadingManifest = false;
       }
     },
     async validateBackup(backupId) {
@@ -1473,17 +1555,59 @@ export default {
         this.validatingId = null;
       }
     },
+    closeRestoreModal() {
+      if (this.restoring) return;
+      this.restorePreviewReqSeq += 1;
+      if (this.restorePreviewTimer) {
+        clearInterval(this.restorePreviewTimer);
+        this.restorePreviewTimer = null;
+      }
+      this.loadingRestorePreview = false;
+      this.restorePreviewError = '';
+      this.showRestoreModal = false;
+    },
     async prepareRestore(backupId) {
+      const reqId = (this.restorePreviewReqSeq += 1);
+      if (this.restorePreviewTimer) {
+        clearInterval(this.restorePreviewTimer);
+        this.restorePreviewTimer = null;
+      }
+
       this.restoreTargetId = backupId;
       this.restorePreview = null;
+      this.restorePreviewError = '';
+      this.restorePreviewProgress = 18;
+      this.restorePreviewStage = 'Memverifikasi metadata & integritas arsip cadangan...';
+      this.loadingRestorePreview = true;
+      this.showRestoreModal = true;
+
+      this.restorePreviewTimer = setInterval(() => {
+        if (this.restorePreviewProgress < 45) {
+          this.restorePreviewProgress = Math.min(45, this.restorePreviewProgress + 9);
+        } else if (this.restorePreviewProgress < 92) {
+          this.restorePreviewStage = 'Menganalisis perbandingan baris database aktif & antrean WAL...';
+          this.restorePreviewProgress = Math.min(92, this.restorePreviewProgress + 4);
+        }
+      }, 150);
+
       try {
         const res = await axios.get(`/api/backups/${backupId}/restore-preview`);
+        if (reqId !== this.restorePreviewReqSeq) return;
         if (res.data && res.data.data) {
+          this.restorePreviewProgress = 100;
           this.restorePreview = res.data.data;
-          this.showRestoreModal = true;
         }
       } catch (err) {
-        alert('Cannot preview restore: ' + (err.response?.data?.error || err.message));
+        if (reqId !== this.restorePreviewReqSeq) return;
+        this.restorePreviewError = err.response?.data?.error || err.message || 'Tidak dapat memuat pratinjau pemulihan.';
+      } finally {
+        if (reqId === this.restorePreviewReqSeq) {
+          if (this.restorePreviewTimer) {
+            clearInterval(this.restorePreviewTimer);
+            this.restorePreviewTimer = null;
+          }
+          this.loadingRestorePreview = false;
+        }
       }
     },
     async executeRestore() {
