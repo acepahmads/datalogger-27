@@ -568,7 +568,14 @@
                 >
                   Hapus Logo (Gunakan Icon)
                 </button>
-               <!-- TAB 1: Database (MariaDB) -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: Database (MariaDB) -->
     <div v-else-if="activeTab === 'database'" class="space-y-5 max-w-4xl font-sans">
       <!-- Live Database Health Monitoring Card -->
       <div class="saas-card p-5 space-y-4 bg-gradient-to-br from-slate-50 to-white dark:from-[#111827] dark:to-[#131E35] border border-slate-200 dark:border-slate-800 shadow-xs">
