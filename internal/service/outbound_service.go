@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -444,9 +445,82 @@ func detectApplicationLevelError(body []byte) (string, bool) {
 		return false
 	}
 
+	parseStatusCodeInt := func(v interface{}) (int, bool) {
+		switch val := v.(type) {
+		case float64:
+			return int(val), true
+		case string:
+			if n, err := strconv.Atoi(strings.TrimSpace(val)); err == nil {
+				return n, true
+			}
+		}
+		return 0, false
+	}
+
+	extractMsgFromMap := func(m map[string]interface{}) string {
+		for _, msgKey := range []string{"statusDesc", "desc", "description", "message", "msg", "error", "detail", "keterangan"} {
+			if mv, ok := lookupCaseInsensitiveKey(m, msgKey); ok {
+				switch typed := mv.(type) {
+				case string:
+					if strings.TrimSpace(typed) != "" {
+						return strings.TrimSpace(typed)
+					}
+				case []interface{}:
+					var parts []string
+					for _, el := range typed {
+						if s, ok := el.(string); ok && strings.TrimSpace(s) != "" {
+							parts = append(parts, strings.TrimSpace(s))
+						}
+					}
+					if len(parts) > 0 {
+						return strings.Join(parts, "; ")
+					}
+				}
+			}
+		}
+		return ""
+	}
+
 	rejected := false
-	if st, ok := lookupCaseInsensitiveKey(obj, "status"); ok && isFalsyFailure(st) {
-		rejected = true
+	var nestedStatusCode int
+	var nestedMsg string
+
+	if st, ok := lookupCaseInsensitiveKey(obj, "status"); ok {
+		if stMap, isMap := st.(map[string]interface{}); isMap {
+			// KLHK ONLIMO envelope: {"status":{"statusCode":403,"statusDesc":"Forbidden"}}
+			for _, ck := range []string{"statusCode", "code", "kode"} {
+				if cv, found := lookupCaseInsensitiveKey(stMap, ck); found {
+					if codeNum, okNum := parseStatusCodeInt(cv); okNum {
+						nestedStatusCode = codeNum
+						if codeNum == 0 || codeNum >= 400 {
+							rejected = true
+						}
+						break
+					} else if isFalsyFailure(cv) {
+						rejected = true
+						break
+					}
+				}
+			}
+			if !rejected {
+				if sc, found := lookupCaseInsensitiveKey(stMap, "success"); found && isFalsyFailure(sc) {
+					rejected = true
+				}
+			}
+			if rejected {
+				nestedMsg = extractMsgFromMap(stMap)
+			}
+		} else if isFalsyFailure(st) {
+			rejected = true
+		}
+	}
+	if !rejected {
+		if sc, ok := lookupCaseInsensitiveKey(obj, "statusCode"); ok {
+			if codeNum, okNum := parseStatusCodeInt(sc); okNum && (codeNum == 0 || codeNum >= 400) {
+				nestedStatusCode = codeNum
+				rejected = true
+			}
+		}
 	}
 	if !rejected {
 		if sc, ok := lookupCaseInsensitiveKey(obj, "success"); ok && isFalsyFailure(sc) {
@@ -457,25 +531,17 @@ func detectApplicationLevelError(body []byte) (string, bool) {
 		return "", false
 	}
 
-	for _, msgKey := range []string{"desc", "description", "message", "msg", "error", "detail", "keterangan"} {
-		if mv, ok := lookupCaseInsensitiveKey(obj, msgKey); ok {
-			switch typed := mv.(type) {
-			case string:
-				if strings.TrimSpace(typed) != "" {
-					return strings.TrimSpace(typed), true
-				}
-			case []interface{}:
-				var parts []string
-				for _, el := range typed {
-					if s, ok := el.(string); ok && strings.TrimSpace(s) != "" {
-						parts = append(parts, strings.TrimSpace(s))
-					}
-				}
-				if len(parts) > 0 {
-					return strings.Join(parts, "; "), true
-				}
-			}
+	if nestedMsg != "" {
+		if nestedStatusCode >= 400 {
+			return fmt.Sprintf("%d %s", nestedStatusCode, nestedMsg), true
 		}
+		return nestedMsg, true
+	}
+	if rootMsg := extractMsgFromMap(obj); rootMsg != "" {
+		if nestedStatusCode >= 400 {
+			return fmt.Sprintf("%d %s", nestedStatusCode, rootMsg), true
+		}
+		return rootMsg, true
 	}
 	return string(trimmed), true
 }
@@ -575,8 +641,11 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 			isAck := strings.Contains(lowerBody, "ack") ||
 				strings.Contains(lowerBody, "success") ||
 				strings.Contains(lowerBody, "received") ||
+				strings.Contains(lowerBody, "berhasil") ||
 				strings.Contains(lowerBody, `"status":true`) ||
-				strings.Contains(lowerBody, `"status": true`)
+				strings.Contains(lowerBody, `"status": true`) ||
+				strings.Contains(lowerBody, `"statuscode":200`) ||
+				strings.Contains(lowerBody, `"statuscode": 200`)
 			return resp.StatusCode, bodyStr, isAck, false, dataLatency, nil
 		}
 
@@ -720,6 +789,13 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 			dataLatencyMs: dataLat,
 			err:           err,
 		}
+	}
+
+	if strings.Contains(payload, `"apikey":"***REDACTED***"`) ||
+		strings.Contains(payload, `"apikey": "***REDACTED***"`) ||
+		strings.Contains(payload, `<UBAH_AUTH_DESTINASI_KE_KLHK_ONLIMO_BODY>`) {
+		err := fmt.Errorf("Mode autentikasi destinasi masih '%s' — ubah Authentication Type di Edit Destinasi menjadi 'API Key + Secret in JSON Body (KLHK WQMS / ONLIMO)' lalu isi apikey & apisecret", dest.AuthType)
+		return restDeliveryOutcome{isPermanent: true, err: err}
 	}
 
 	if dest.AuthType == "SPARING_JWT_STATIC" {
@@ -2506,6 +2582,10 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		}
 		if withCreds, cErr := injectRootJSONCredentialsPretty(previewStr, maskedKey, maskedSecret); cErr == nil {
 			previewStr = withCreds
+		}
+	} else if dest != nil && strings.EqualFold(cfg.Structure, "ONLIMO_DATA_OBJECT") && strings.Contains(previewStr, `"apikey": "***REDACTED***"`) {
+		if withHint, cErr := injectRootJSONCredentialsPretty(previewStr, "<UBAH_AUTH_DESTINASI_KE_KLHK_ONLIMO_BODY>", "<UBAH_AUTH_DESTINASI_KE_KLHK_ONLIMO_BODY>"); cErr == nil {
+			previewStr = withHint
 		}
 	}
 	return previewStr, nil

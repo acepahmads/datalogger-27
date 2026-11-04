@@ -1061,11 +1061,11 @@ func TestOutboundService_KLHKONLIMOBodyDeliveryAndRedaction(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		if body["apikey"] != "klhk-onlimo-apikey-999" || body["apisecret"] != "klhk-onlimo-secret-xyz" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":0,"message":"Invalid apikey or apisecret"}`))
+			_, _ = w.Write([]byte(`{"status":{"statusCode":403,"statusDesc":"Forbidden"}}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":1,"message":"Data WQMS berhasil disimpan"}`))
+		_, _ = w.Write([]byte(`{"status":{"statusCode":200,"statusDesc":"OK"}}`))
 	}))
 	defer ts.Close()
 
@@ -1152,8 +1152,8 @@ func TestOutboundService_KLHKONLIMOBodyDeliveryAndRedaction(t *testing.T) {
 	svc.ProcessPendingQueueOnce()
 
 	qAfter, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
-	if qAfter[0].Status != model.DeliveryDelivered && qAfter[0].Status != model.DeliveryAcknowledged {
-		t.Fatalf("expected DELIVERED/ACKNOWLEDGED for ONLIMO delivery, got status=%s err=%s", qAfter[0].Status, qAfter[0].LastError)
+	if qAfter[0].Status != model.DeliveryAcknowledged {
+		t.Fatalf("expected ACKNOWLEDGED for ONLIMO statusCode=200 delivery, got status=%s err=%s", qAfter[0].Status, qAfter[0].LastError)
 	}
 
 	expectedWireJSON := `{"data":{"IDStasiun":"ONLIMO_ST_01","Tanggal":"2026-11-04","Jam":"13:00:00","Suhu":28.5,"DHL":385.88,"TDS":192.5,"Salinitas":3.88,"DO":4.56,"PH":6.97,"Turbidity":14.2,"Kedalaman":1.85,"Nitrat":74.05,"Amonia":84.03,"COD":68.05,"BOD":56.04,"TSS":24},"apikey":"klhk-onlimo-apikey-999","apisecret":"klhk-onlimo-secret-xyz"}`
@@ -1162,7 +1162,7 @@ func TestOutboundService_KLHKONLIMOBodyDeliveryAndRedaction(t *testing.T) {
 		t.Fatalf("ONLIMO wire HTTP POST body mismatch:\ngot:  %s\nwant: %s", gotWireJSON, expectedWireJSON)
 	}
 
-	// 6. Verify application-level rejection when apisecret is wrong
+	// 6. Verify application-level rejection when apisecret is wrong (HTTP 200 with {"status":{"statusCode":403,"statusDesc":"Forbidden"}})
 	badDest := *redactedDest
 	badDest.AuthToken = "wrong-secret"
 	if err := svc.UpdateDestination(ctx, &badDest); err != nil {
@@ -1172,8 +1172,8 @@ func TestOutboundService_KLHKONLIMOBodyDeliveryAndRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TestPayloadWithConfig bad secret unexpected error: %v", err)
 	}
-	if badTestRes.Success || !strings.Contains(badTestRes.ErrorMessage, "Invalid apikey or apisecret") {
-		t.Fatalf("expected ONLIMO rejection on wrong apisecret, got success=%v err=%q", badTestRes.Success, badTestRes.ErrorMessage)
+	if badTestRes.Success || !strings.Contains(badTestRes.ErrorMessage, "403 Forbidden") {
+		t.Fatalf("expected ONLIMO rejection '403 Forbidden' on wrong apisecret, got success=%v err=%q", badTestRes.Success, badTestRes.ErrorMessage)
 	}
 }
 
