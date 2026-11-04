@@ -697,6 +697,31 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 		return outcome
 	}
 
+	if dest.AuthType == "KLHK_ONLIMO_BODY" {
+		apiKey := strings.TrimSpace(dest.APIKeyValue)
+		apiSecret := strings.TrimSpace(dest.AuthToken)
+		if apiKey == "" || apiSecret == "" {
+			err := fmt.Errorf("KLHK WQMS / ONLIMO apikey atau apisecret belum diisi pada pengaturan destinasi")
+			return restDeliveryOutcome{isPermanent: true, err: err}
+		}
+		signedBody, injErr := injectRootJSONCredentials(payload, apiKey, apiSecret)
+		if injErr != nil {
+			return restDeliveryOutcome{
+				isPermanent: true,
+				err:         fmt.Errorf("failed to inject KLHK ONLIMO credentials into JSON body: %w", injErr),
+			}
+		}
+		code, body, isAck, isPerm, dataLat, err := sendDataPost("", signedBody)
+		return restDeliveryOutcome{
+			httpCode:      code,
+			body:          body,
+			isAck:         isAck,
+			isPermanent:   isPerm,
+			dataLatencyMs: dataLat,
+			err:           err,
+		}
+	}
+
 	if dest.AuthType == "SPARING_JWT_STATIC" {
 		secret := strings.TrimSpace(dest.AuthToken)
 		if secret == "" {
@@ -1289,7 +1314,7 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 					if devCode == "" {
 						devCode = fmt.Sprintf("DEV-%d", item.DeviceID)
 					}
-					if enabled, _ := matcher.Resolve(item.DeviceID, devCode, item.ParameterID, item.Parameter.ParameterCode); !enabled {
+					if enabled, _ := matcher.ResolveWithName(item.DeviceID, devCode, item.ParameterID, item.Parameter.ParameterCode, item.Parameter.ParameterName); !enabled {
 						continue
 					}
 					group = append(group, item)
@@ -1340,7 +1365,7 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 				if devCode == "" {
 					devCode = fmt.Sprintf("DEV-%d", item.DeviceID)
 				}
-				enabled, _ := matcher.Resolve(item.DeviceID, devCode, item.ParameterID, item.Parameter.ParameterCode)
+				enabled, _ := matcher.ResolveWithName(item.DeviceID, devCode, item.ParameterID, item.Parameter.ParameterCode, item.Parameter.ParameterName)
 				if !enabled {
 					continue
 				}
@@ -1581,6 +1606,10 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 	if dest.AuthType == "SPARING_JWT_2STEP" && dest.AuthURL == "" {
 		return fmt.Errorf("auth_url (KLHK Secret Sensor URL) wajib diisi untuk mode SPARING 2-Step JWT (SPARING_JWT_2STEP)")
 	}
+	if dest.AuthType == "KLHK_ONLIMO_BODY" {
+		dest.APIKeyValue = strings.TrimSpace(dest.APIKeyValue)
+		dest.AuthToken = strings.TrimSpace(dest.AuthToken)
+	}
 	if err := validateCustomHeadersJSON(dest.CustomHeaders); err != nil {
 		return err
 	}
@@ -1622,6 +1651,21 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 		cfg.IncludeSensorStatFlags = true
 		cfg.SensorStatMode = "STATIC_1"
 		cfg.ConflictResolution = "PRIORITY_PRIMARY"
+	} else if dest.AuthType == "KLHK_ONLIMO_BODY" {
+		// Initialize with KLHK WQMS / ONLIMO defaults (data{IDStasiun, Tanggal, Jam, Suhu..TSS} + apikey + apisecret)
+		cfg.TemplateType = "KLHK_WQMS_ONLIMO"
+		cfg.StationIDField = "IDStasiun"
+		cfg.TimestampField = "Tanggal,Jam"
+		cfg.TimestampFormat = "CUSTOM"
+		cfg.TimestampSource = "PERIOD_END"
+		cfg.TimestampTimezone = "Asia/Jakarta"
+		cfg.NumericPrecisionMode = "NATURAL_2"
+		cfg.OmitIntervalField = true
+		cfg.IncludeMetadata = false
+		cfg.Structure = "ONLIMO_DATA_OBJECT"
+		cfg.NestedDataKey = "data"
+		cfg.ConflictResolution = "PRIORITY_PRIMARY"
+		cfg.FillMissingPresetFields = true
 	} else if dest.AuthType == "SPARING_JWT_2STEP" || dest.AuthType == "SPARING_JWT_STATIC" {
 		// Initialize with KLHK SPARING Water Quality defaults (Flat 2-min or Hourly 30-row data[] based on DispatchIntervalSeconds)
 		cfg.StationIDField = "uid"
@@ -1675,6 +1719,10 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 	}
 	if dest.Password == "***REDACTED***" {
 		dest.Password = existing.Password
+	}
+	if dest.AuthType == "KLHK_ONLIMO_BODY" {
+		dest.APIKeyValue = strings.TrimSpace(dest.APIKeyValue)
+		dest.AuthToken = strings.TrimSpace(dest.AuthToken)
 	}
 	if dest.CreatedAt.IsZero() {
 		dest.CreatedAt = existing.CreatedAt
@@ -1800,7 +1848,7 @@ func (s *outboundService) rebuildQueueItemPayload(item *model.OutboundDeliveryQu
 		if devCode == "" && src.DeviceID > 0 {
 			devCode = fmt.Sprintf("DEV-%d", src.DeviceID)
 		}
-		enabled, _ := matcher.Resolve(src.DeviceID, devCode, src.ParameterID, src.ParameterCode)
+		enabled, _ := matcher.ResolveWithName(src.DeviceID, devCode, src.ParameterID, src.ParameterCode, src.ParameterName)
 		if enabled {
 			activeItems = append(activeItems, src)
 		}
@@ -1990,7 +2038,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			if devCode == "" {
 				devCode = fmt.Sprintf("DEV-%d", r.DeviceID)
 			}
-			if enabled, _ := matcher.Resolve(r.DeviceID, devCode, r.ParameterID, r.Parameter.ParameterCode); !enabled {
+			if enabled, _ := matcher.ResolveWithName(r.DeviceID, devCode, r.ParameterID, r.Parameter.ParameterCode, r.Parameter.ParameterName); !enabled {
 				continue
 			}
 			filteredReal = append(filteredReal, r)
@@ -2209,6 +2257,136 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			batch.DeviceCode = devicesList[0].DeviceCode
 			batch.DeviceName = devicesList[0].DeviceName
 		}
+	} else if templateUpper == "KLHK_WQMS_ONLIMO" || structureUpper == "ONLIMO_DATA_OBJECT" {
+		// Construct realistic KLHK WQMS / ONLIMO sample batch (13 canonical water quality parameters)
+		srcSec := 3600
+		if dest != nil && dest.IntervalSeconds > 0 {
+			srcSec = dest.IntervalSeconds
+		}
+		alignedEnd := time.Unix((time.Now().Unix()/int64(srcSec))*int64(srcSec), 0).UTC()
+		windowStart := alignedEnd.Add(-time.Duration(srcSec) * time.Second)
+
+		type wqmsSampleSpec struct {
+			deviceID   uint
+			deviceCode string
+			paramID    uint
+			code       string
+			name       string
+			val        float64
+		}
+		defaultValByAlias := map[string]float64{
+			"Suhu":      27.5,
+			"DHL":       385.88,
+			"TDS":       192.4,
+			"Salinitas": 3.88,
+			"DO":        4.56,
+			"PH":        6.97,
+			"Turbidity": 12.3,
+			"Kedalaman": 1.45,
+			"Nitrat":    74.05,
+			"Amonia":    0.12,
+			"COD":       68.05,
+			"BOD":       56.04,
+			"TSS":       24.5,
+		}
+		var specs []wqmsSampleSpec
+		if cfg != nil && strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
+			var mappings []model.ParameterMappingItem
+			_ = json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings)
+			for idx, m := range mappings {
+				if !m.Enabled || strings.TrimSpace(m.ParameterCode) == "" {
+					continue
+				}
+				dID := m.DeviceID
+				if dID == 0 {
+					dID = 1
+				}
+				dCode := strings.TrimSpace(m.DeviceCode)
+				if dCode == "" {
+					dCode = fmt.Sprintf("WQMS-%02d", dID)
+				}
+				alias := strings.TrimSpace(m.ExternalName)
+				if alias == "" {
+					alias = defaultKLHKWQMSAlias(m.ParameterCode, m.ParameterName)
+				}
+				v, hasDefault := defaultValByAlias[alias]
+				if !hasDefault {
+					v = 10.0 + float64(idx)*2.25
+				}
+				specs = append(specs, wqmsSampleSpec{
+					deviceID:   dID,
+					deviceCode: dCode,
+					paramID:    m.ParameterID,
+					code:       m.ParameterCode,
+					name:       m.ParameterName,
+					val:        v,
+				})
+			}
+		}
+		if len(specs) == 0 {
+			specs = []wqmsSampleSpec{
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 1, code: "temperature", name: "Temperature", val: 27.5},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 2, code: "cl", name: "Conductivity / DHL", val: 385.88},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 3, code: "fl", name: "TDS", val: 192.4},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 4, code: "salinity", name: "Salinity", val: 3.88},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 5, code: "do", name: "DO", val: 4.56},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 6, code: "ph", name: "PH", val: 6.97},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 7, code: "turbidity", name: "Turbidity", val: 12.3},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 8, code: "depth", name: "Depth", val: 1.45},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 9, code: "no3", name: "Nitrat", val: 74.05},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 10, code: "nh4", name: "Ammonia (NH3-N)", val: 0.12},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 11, code: "cod", name: "COD", val: 68.05},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 12, code: "bod", name: "BOD", val: 56.04},
+				{deviceID: 1, deviceCode: "WQMS-01", paramID: 13, code: "tss", name: "TSS", val: 24.5},
+			}
+		}
+
+		deviceMap := make(map[string]BatchDeviceSummary)
+		var deviceOrder []string
+		var items []model.SourceAggregationValueItem
+		for idx, sp := range specs {
+			if _, ok := deviceMap[sp.deviceCode]; !ok {
+				deviceMap[sp.deviceCode] = BatchDeviceSummary{
+					DeviceID:   sp.deviceID,
+					DeviceCode: sp.deviceCode,
+					DeviceName: sp.deviceCode,
+				}
+				deviceOrder = append(deviceOrder, sp.deviceCode)
+			}
+			vCopy := sp.val
+			items = append(items, model.SourceAggregationValueItem{
+				DeviceID:            sp.deviceID,
+				DeviceCode:          sp.deviceCode,
+				DeviceName:          sp.deviceCode,
+				ParameterID:         sp.paramID,
+				ParameterCode:       sp.code,
+				ParameterName:       sp.name,
+				Value:               &vCopy,
+				Quality:             "GOOD",
+				AggregationResultID: uint64(300 + idx),
+				PeriodStart:         windowStart,
+				PeriodEnd:           alignedEnd,
+			})
+		}
+
+		var devicesList []BatchDeviceSummary
+		for _, dc := range deviceOrder {
+			devicesList = append(devicesList, deviceMap[dc])
+		}
+		batch = &OutboundBatchData{
+			DeviceCount:     len(devicesList),
+			DevicesSummary:  strings.Join(deviceOrder, ", "),
+			Devices:         devicesList,
+			IntervalSeconds: srcSec,
+			PeriodStart:     windowStart,
+			PeriodEnd:       alignedEnd,
+			Values:          items,
+		}
+		if len(devicesList) == 1 {
+			batch.DeviceID = devicesList[0].DeviceID
+			batch.DeviceCode = devicesList[0].DeviceCode
+			batch.DeviceName = devicesList[0].DeviceName
+		}
 	} else if cfg != nil && strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
 		// Construct sample batch matching the user's configured ParameterMappings checklist
 		now := time.Now()
@@ -2313,7 +2491,24 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		}
 	}
 
-	return s.formatter.GeneratePreview(batch, cfg)
+	previewStr, err := s.formatter.GeneratePreview(batch, cfg)
+	if err != nil {
+		return "", err
+	}
+	if dest != nil && dest.AuthType == "KLHK_ONLIMO_BODY" {
+		maskedKey := "***REDACTED***"
+		if strings.TrimSpace(dest.APIKeyValue) == "" {
+			maskedKey = "<BELUM_DIISI_DI_DESTINASI>"
+		}
+		maskedSecret := "***REDACTED***"
+		if strings.TrimSpace(dest.AuthToken) == "" {
+			maskedSecret = "<BELUM_DIISI_DI_DESTINASI>"
+		}
+		if withCreds, cErr := injectRootJSONCredentialsPretty(previewStr, maskedKey, maskedSecret); cErr == nil {
+			previewStr = withCreds
+		}
+	}
+	return previewStr, nil
 }
 
 // TestPayload generates a preview payload and attempts direct delivery to destination

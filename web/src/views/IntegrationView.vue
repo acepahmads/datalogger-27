@@ -570,7 +570,7 @@
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-slate-400">Auth Mode:</span>
-                <span :class="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC') ? 'text-cyan-600 dark:text-cyan-400 font-semibold' : 'font-medium'">
+                <span :class="(dest.auth_type === 'LOGIN_BEARER' || dest.auth_type === 'SPARING_JWT_2STEP' || dest.auth_type === 'SPARING_JWT_STATIC' || dest.auth_type === 'KLHK_ONLIMO_BODY') ? 'text-cyan-600 dark:text-cyan-400 font-semibold' : 'font-medium'">
                   {{ formatAuthModeLabel(dest.auth_type) }}
                 </span>
               </div>
@@ -787,6 +787,7 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="STANDARD">Standard Datalogger</option>
+                <option value="KLHK_WQMS_ONLIMO">KLHK WQMS / ONLIMO (data{IDStasiun, Tanggal, Jam, 13 Sensor} + apikey)</option>
                 <option value="KLHK_SPARING_HOURLY">KLHK SPARING — Per 1 Jam / 30 Data (uid + data[30])</option>
                 <option value="KLHK_SPARING">KLHK SPARING — Per 2 Menit (Flat: uid + datetime + sensor)</option>
                 <option value="KLHK_ISPU_AQMS">KLHK ISPU AQMS (id_stasiun + waktu + stat_*)</option>
@@ -808,6 +809,7 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-cyan-600 dark:text-cyan-400"
               >
                 <option value="FLAT">FLAT (Root Key-Value)</option>
+                <option value="ONLIMO_DATA_OBJECT">ONLIMO_DATA_OBJECT (Root data{IDStasiun, Tanggal, Jam, ...} + apikey)</option>
                 <option value="SPARING_DATA_ARRAY">SPARING_DATA_ARRAY (Root uid + data[datetime, ...])</option>
                 <option value="MULTI_TICK_ARRAY">MULTI_TICK_ARRAY (Array multi[tick])</option>
                 <option value="NESTED">NESTED (Sub-Object under key)</option>
@@ -869,8 +871,8 @@
             </p>
           </div>
 
-          <!-- Nested Key Name (if NESTED or SPARING_DATA_ARRAY) -->
-          <div v-if="payloadConfig.structure === 'NESTED' || payloadConfig.structure === 'SPARING_DATA_ARRAY'" class="text-2xs">
+          <!-- Nested Key Name (if NESTED, SPARING_DATA_ARRAY, or ONLIMO_DATA_OBJECT) -->
+          <div v-if="payloadConfig.structure === 'NESTED' || payloadConfig.structure === 'SPARING_DATA_ARRAY' || payloadConfig.structure === 'ONLIMO_DATA_OBJECT'" class="text-2xs">
             <label class="block text-slate-500 mb-1">Nested Array / Object Key Name</label>
             <input
               v-model="payloadConfig.nested_data_key"
@@ -890,7 +892,7 @@
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="uid / station_id"
+                placeholder="IDStasiun / uid / station_id"
               />
             </div>
             <div>
@@ -900,7 +902,7 @@
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="e.g. 79456d9c51128700b78b6fd0"
+                placeholder="e.g. STASIUN_WQMS_01 or 79456d9c51128700b78b6fd0"
               />
             </div>
             <div v-if="payloadConfig.structure === 'MULTI_TICK_ARRAY'">
@@ -918,13 +920,15 @@
           <!-- Timestamp Field, Format & Timezone -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-2xs">
             <div>
-              <label class="block text-slate-500 mb-1">Timestamp Field Name</label>
+              <label class="block text-slate-500 mb-1">
+                {{ payloadConfig.structure === 'ONLIMO_DATA_OBJECT' ? 'Date & Time Fields (Split)' : 'Timestamp Field Name' }}
+              </label>
               <input
                 v-model="payloadConfig.timestamp_field"
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="datetime / timestamp"
+                :placeholder="payloadConfig.structure === 'ONLIMO_DATA_OBJECT' ? 'Tanggal,Jam' : 'datetime / timestamp'"
               />
             </div>
             <div>
@@ -1037,6 +1041,31 @@
               />
               <span>Include Metadata Headers</span>
             </label>
+          </div>
+
+          <!-- KLHK WQMS / ONLIMO Canonical 13-Parameter Options -->
+          <div
+            v-if="payloadConfig.template_type === 'KLHK_WQMS_ONLIMO' || payloadConfig.structure === 'ONLIMO_DATA_OBJECT'"
+            class="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/30 space-y-2 text-2xs"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label class="flex items-center space-x-2 cursor-pointer font-semibold text-emerald-600 dark:text-emerald-400">
+                <input
+                  v-model="payloadConfig.fill_missing_preset_fields"
+                  @change="triggerLivePreview"
+                  type="checkbox"
+                  class="rounded border-slate-700 text-emerald-500 focus:ring-0"
+                />
+                <span>Lengkapi Otomatis 13 Parameter Baku KLHK WQMS (Isi 0 jika sensor tidak terpasang / null)</span>
+              </label>
+            </div>
+            <p class="text-4xs text-slate-400 leading-relaxed">
+              Urutan key baku di dalam <span class="font-mono text-emerald-400">data</span>:
+              <span class="font-mono">IDStasiun, Tanggal (%Y-%m-%d), Jam (%H:%M:%S), Suhu, DHL, TDS, Salinitas, DO, PH, Turbidity, Kedalaman, Nitrat, Amonia, COD, BOD, TSS</span>
+            </p>
+            <p v-if="!isActiveDestONLIMOBody" class="text-4xs text-amber-500 dark:text-amber-400">
+              💡 Tip: Pilih Authentication Type <span class="font-bold">"API Key + Secret in JSON Body (KLHK WQMS / ONLIMO)"</span> pada menu Edit Destination untuk menyuntikkan <span class="font-mono">apikey</span> &amp; <span class="font-mono">apisecret</span> secara aman.
+            </p>
           </div>
 
           <!-- KLHK ISPU Sensor Status Flags (stat_pm10 .. stat_hc) -->
@@ -1619,7 +1648,7 @@
 
           <!-- Auth Settings -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div :class="(editingDest.auth_type === 'LOGIN_BEARER' || editingDest.auth_type === 'SPARING_JWT_2STEP') ? 'sm:col-span-2' : ''">
+            <div :class="(editingDest.auth_type === 'LOGIN_BEARER' || editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'KLHK_ONLIMO_BODY') ? 'sm:col-span-2' : ''">
               <label class="block text-slate-500 mb-1">Authentication Type</label>
               <select
                 v-model="editingDest.auth_type"
@@ -1627,6 +1656,7 @@
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-medium"
               >
                 <option value="NONE">None / Open</option>
+                <option value="KLHK_ONLIMO_BODY">API Key + Secret in JSON Body (KLHK WQMS / ONLIMO)</option>
                 <option value="SPARING_JWT_2STEP">2-Step Secret Sensor → JWT HS256 (KLHK SPARING)</option>
                 <option value="SPARING_JWT_STATIC">Static Secret Key → JWT HS256 (KLHK SPARING)</option>
                 <option value="LOGIN_BEARER">2-Step Auth Login → Bearer Token (KLHK / ISPU AQMS)</option>
@@ -1666,6 +1696,41 @@
                 />
               </div>
             </div>
+          </div>
+
+          <!-- KLHK WQMS / ONLIMO Root JSON Body Credentials (apikey + apisecret) -->
+          <div
+            v-if="editingDest.auth_type === 'KLHK_ONLIMO_BODY'"
+            class="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/30 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider text-3xs">
+                KLHK WQMS / ONLIMO — Root JSON Credentials (apikey + apisecret)
+              </span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-500 mb-1">API Key (apikey)</label>
+                <input
+                  v-model="editingDest.api_key_value"
+                  type="password"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="***REDACTED***"
+                />
+              </div>
+              <div>
+                <label class="block text-slate-500 mb-1">API Secret (apisecret)</label>
+                <input
+                  v-model="editingDest.auth_token"
+                  type="password"
+                  class="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                  placeholder="***REDACTED***"
+                />
+              </div>
+            </div>
+            <p class="text-4xs text-slate-400 leading-relaxed">
+              Menyuntikkan <code class="text-emerald-400">{"data": {...}, "apikey": "...", "apisecret": "..."}</code> secara otomatis saat pengiriman HTTP POST. Kredensial tetap di-redact di antrean database &amp; UI.
+            </p>
           </div>
 
           <!-- 2-Step KLHK SPARING Secret Sensor -> JWT HS256 -->
@@ -1785,7 +1850,9 @@
                 ? 'Step 2 — Data Endpoint URL (data_url, Bearer Token otomatis)'
                 : (editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'SPARING_JWT_STATIC'
                   ? 'Step 2 — KLHK Send URL (KLHK_URL_2STEP — POST {"token": "<jwt_hs256>"})'
-                  : 'Endpoint (URL or host:port)') }}
+                  : (editingDest.auth_type === 'KLHK_ONLIMO_BODY'
+                    ? 'KLHK WQMS / ONLIMO Endpoint URL (POST JSON { data, apikey, apisecret })'
+                    : 'Endpoint (URL or host:port)')) }}
             </label>
             <input
               v-model="editingDest.endpoint"
@@ -1795,7 +1862,9 @@
                 ? 'https://ispu.kemenlh.go.id/api/v1/aqmdata'
                 : (editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'SPARING_JWT_STATIC'
                   ? 'https://sparing.kemenlh.go.id/api/send'
-                  : 'https://sparing.kemenlh.go.id/api/send or 192.168.1.50:5000')"
+                  : (editingDest.auth_type === 'KLHK_ONLIMO_BODY'
+                    ? 'https://ppkl.menlhk.go.id/onlimo/api/...'
+                    : 'https://sparing.kemenlh.go.id/api/send or 192.168.1.50:5000'))"
             />
           </div>
 
@@ -1962,6 +2031,7 @@ export default {
         include_metadata: true,
         include_sensor_stat_flags: false,
         sensor_stat_mode: 'STATIC_1',
+        fill_missing_preset_fields: false,
         static_metadata_json: '',
         parameter_mappings_json: '[]',
         required_fields_json: '[]',
@@ -1983,6 +2053,10 @@ export default {
     isActiveDestSparing2Step() {
       const dest = (this.destinations || []).find(d => d.id === this.selectedDestinationId);
       return Boolean(dest && dest.auth_type === 'SPARING_JWT_2STEP');
+    },
+    isActiveDestONLIMOBody() {
+      const dest = (this.destinations || []).find(d => d.id === this.selectedDestinationId);
+      return Boolean(dest && dest.auth_type === 'KLHK_ONLIMO_BODY');
     },
     filteredParameterMappings() {
       if (!this.paramSearch || !this.paramSearch.trim()) {
@@ -2334,6 +2408,7 @@ export default {
             omit_interval_field: false,
             include_sensor_stat_flags: false,
             sensor_stat_mode: 'STATIC_1',
+            fill_missing_preset_fields: false,
             ...res.data.data,
           };
           if (!this.payloadConfig.timestamp_source) {
@@ -2447,6 +2522,114 @@ export default {
         'rain_intensity': 'rain_intensity',
       };
     },
+    resolveKLHKWQMSAlias(code, name) {
+      const normalize = (raw) =>
+        String(raw || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[-/.()[\],\s]+/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_+|_+$/g, '');
+
+      const matchToken = (raw) => {
+        const tok = normalize(raw);
+        if (!tok) return '';
+        const exactMap = {
+          suhu: 'Suhu',
+          temperature: 'Suhu',
+          temp: 'Suhu',
+          suhu_air: 'Suhu',
+          water_temp: 'Suhu',
+          water_temperature: 'Suhu',
+          wtemp: 'Suhu',
+          dhl: 'DHL',
+          cl: 'DHL',
+          conductivity: 'DHL',
+          cond: 'DHL',
+          ec: 'DHL',
+          electrical_conductivity: 'DHL',
+          conductivity_dhl: 'DHL',
+          daya_hantar_listrik: 'DHL',
+          konduktivitas: 'DHL',
+          tds: 'TDS',
+          fl: 'TDS',
+          total_dissolved_solids: 'TDS',
+          padatan_terlarut: 'TDS',
+          salinitas: 'Salinitas',
+          salinity: 'Salinitas',
+          sal: 'Salinitas',
+          do: 'DO',
+          dissolved_oxygen: 'DO',
+          oksigen_terlarut: 'DO',
+          ph: 'PH',
+          p_h: 'PH',
+          derajat_keasaman: 'PH',
+          turbidity: 'Turbidity',
+          turbudity: 'Turbidity',
+          turb: 'Turbidity',
+          ntu: 'Turbidity',
+          kekeruhan: 'Turbidity',
+          turbidity_ntu: 'Turbidity',
+          turbudity_ntu: 'Turbidity',
+          kedalaman: 'Kedalaman',
+          depth: 'Kedalaman',
+          water_depth: 'Kedalaman',
+          water_level: 'Kedalaman',
+          level: 'Kedalaman',
+          tma: 'Kedalaman',
+          tinggi_muka_air: 'Kedalaman',
+          nitrat: 'Nitrat',
+          nitrate: 'Nitrat',
+          no3: 'Nitrat',
+          no3_n: 'Nitrat',
+          no3n: 'Nitrat',
+          amonia: 'Amonia',
+          ammonia: 'Amonia',
+          nh4: 'Amonia',
+          nh4_n: 'Amonia',
+          nh4n: 'Amonia',
+          nh3: 'Amonia',
+          nh3_n: 'Amonia',
+          nh3n: 'Amonia',
+          ammonia_nh3_n: 'Amonia',
+          amonia_nh3_n: 'Amonia',
+          ammonia_nh4: 'Amonia',
+          amonia_nh4: 'Amonia',
+          cod: 'COD',
+          chemical_oxygen_demand: 'COD',
+          bod: 'BOD',
+          bod5: 'BOD',
+          biological_oxygen_demand: 'BOD',
+          biochemical_oxygen_demand: 'BOD',
+          tss: 'TSS',
+          total_suspended_solids: 'TSS',
+          padatan_tersuspensi: 'TSS',
+        };
+        if (exactMap[tok]) return exactMap[tok];
+
+        const parts = tok.split('_').filter(Boolean);
+        const set = new Set(parts);
+        if (set.has('toc') || set.has('no2') || set.has('so2') || set.has('pm10') || set.has('pm25')) {
+          return '';
+        }
+        if (set.has('dhl') || set.has('conductivity') || set.has('konduktivitas')) return 'DHL';
+        if (set.has('tds')) return 'TDS';
+        if (set.has('salinitas') || set.has('salinity')) return 'Salinitas';
+        if (set.has('turbidity') || set.has('turbudity') || set.has('kekeruhan')) return 'Turbidity';
+        if (set.has('kedalaman') || set.has('depth')) return 'Kedalaman';
+        if (set.has('nitrat') || set.has('nitrate') || set.has('no3')) return 'Nitrat';
+        if (set.has('amonia') || set.has('ammonia') || set.has('nh4') || set.has('nh3') || set.has('nh3n')) return 'Amonia';
+        if (set.has('suhu') || set.has('temperature')) return 'Suhu';
+        if (set.has('cod')) return 'COD';
+        if (set.has('bod') || set.has('bod5')) return 'BOD';
+        if (set.has('tss')) return 'TSS';
+        if (set.has('do') && parts.length <= 2) return 'DO';
+        if (set.has('ph') && parts.length <= 2) return 'PH';
+        return '';
+      };
+
+      return matchToken(code) || matchToken(name) || '';
+    },
     async syncDeviceParameters(forceOverwrite = false) {
       try {
         this.loadingParameters = true;
@@ -2509,6 +2692,9 @@ export default {
             seen.add(compositeKey);
 
             const existing = existingByKey[compositeKey] || existingByCode[lowerCode];
+            const pName = param.parameter_name || param.name || existing?.parameter_name || code;
+            const isONLIMO = this.payloadConfig?.template_type === 'KLHK_WQMS_ONLIMO';
+            const wqmsAlias = isONLIMO ? this.resolveKLHKWQMSAlias(code, pName) : '';
 
             if (existing && !forceOverwrite) {
               newMappings.push({
@@ -2516,9 +2702,9 @@ export default {
                 device_code: dev.device_code || dev.code || `DEV-${dev.id}`,
                 parameter_id: param.id,
                 parameter_code: code,
-                parameter_name: param.parameter_name || param.name || existing.parameter_name || code,
-                external_name: existing.external_name || aliasMap[lowerCode] || code,
-                enabled: existing.enabled !== undefined ? Boolean(existing.enabled) : true,
+                parameter_name: pName,
+                external_name: existing.external_name || (isONLIMO ? (wqmsAlias || code) : (aliasMap[lowerCode] || code)),
+                enabled: existing.enabled !== undefined ? Boolean(existing.enabled) : (isONLIMO ? Boolean(wqmsAlias) : true),
               });
             } else {
               newMappings.push({
@@ -2526,9 +2712,9 @@ export default {
                 device_code: dev.device_code || dev.code || `DEV-${dev.id}`,
                 parameter_id: param.id,
                 parameter_code: code,
-                parameter_name: param.parameter_name || param.name || code,
-                external_name: aliasMap[lowerCode] || code,
-                enabled: true,
+                parameter_name: pName,
+                external_name: isONLIMO ? (wqmsAlias || code) : (aliasMap[lowerCode] || code),
+                enabled: isONLIMO ? Boolean(wqmsAlias) : true,
               });
             }
           }
@@ -2681,6 +2867,11 @@ export default {
         if (!this.editingDest.endpoint) {
           this.editingDest.endpoint = 'https://sparing.kemenlh.go.id/api/send';
         }
+      } else if (this.editingDest.auth_type === 'KLHK_ONLIMO_BODY') {
+        if (!this.editingDest.interval_seconds) {
+          this.editingDest.interval_seconds = 3600;
+        }
+        this.editingDest.dispatch_interval_seconds = 0;
       }
     },
     async saveDestination() {
@@ -2733,7 +2924,39 @@ export default {
     },
     applyTemplatePreset() {
       const p = this.payloadConfig.template_type;
-      if (p === 'KLHK_ISPU_AQMS') {
+      if (p !== 'KLHK_WQMS_ONLIMO') {
+        this.payloadConfig.fill_missing_preset_fields = false;
+      }
+      if (p === 'KLHK_WQMS_ONLIMO') {
+        this.payloadConfig.station_id_field = 'IDStasiun';
+        this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || '';
+        this.payloadConfig.timestamp_field = 'Tanggal,Jam';
+        this.payloadConfig.timestamp_format = 'CUSTOM';
+        this.payloadConfig.timestamp_source = 'PERIOD_END';
+        this.payloadConfig.timestamp_timezone = 'Asia/Jakarta';
+        this.payloadConfig.numeric_precision_mode = 'NATURAL_2';
+        this.payloadConfig.omit_interval_field = true;
+        this.payloadConfig.structure = 'ONLIMO_DATA_OBJECT';
+        this.payloadConfig.nested_data_key = 'data';
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_metadata = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
+        this.payloadConfig.fill_missing_preset_fields = true;
+
+        for (const m of this.parameterMappings || []) {
+          const wqmsAlias = this.resolveKLHKWQMSAlias(m.parameter_code, m.parameter_name);
+          if (wqmsAlias) {
+            m.external_name = wqmsAlias;
+            m.enabled = true;
+          } else {
+            m.enabled = false;
+          }
+        }
+      } else if (p === 'KLHK_ISPU_AQMS') {
         this.payloadConfig.station_id_field = 'id_stasiun';
         this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || 'KABUPATEN_JOMBANG';
         this.payloadConfig.timestamp_field = 'waktu';
@@ -2909,6 +3132,7 @@ export default {
       if (authType === 'LOGIN_BEARER') return '2-STEP LOGIN → BEARER';
       if (authType === 'SPARING_JWT_2STEP') return '2-STEP SECRET → JWT HS256';
       if (authType === 'SPARING_JWT_STATIC') return 'STATIC SECRET → JWT HS256';
+      if (authType === 'KLHK_ONLIMO_BODY') return 'BODY APIKEY + SECRET (ONLIMO)';
       return authType || 'NONE';
     },
     formatDate(t) {
@@ -2945,7 +3169,7 @@ export default {
         return str;
       }
 
-      const preserveNaturalNumbers = /"uid"\s*:/.test(str);
+      const preserveNaturalNumbers = /"uid"\s*:|"IDStasiun"\s*:/.test(str);
       let out = '';
       let depth = 0;
       const len = str.length;

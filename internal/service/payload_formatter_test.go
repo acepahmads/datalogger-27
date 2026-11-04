@@ -579,5 +579,129 @@ func TestPayloadFormatter_KLHKSPARING_TwoMinuteAndHourly30Data(t *testing.T) {
 	}
 }
 
+func TestPayloadFormatter_KLHKWQMSONLIMO(t *testing.T) {
+	formatter := NewConfigurablePayloadFormatter()
+
+	// PeriodEnd = 2026-11-03 18:30:00 UTC -> 2026-11-04 01:30:00 WIB (Asia/Jakarta, crosses UTC midnight!)
+	pStart := time.Date(2026, 11, 3, 17, 30, 0, 0, time.UTC)
+	pEnd := time.Date(2026, 11, 3, 18, 30, 0, 0, time.UTC)
+
+	suhu := 28.40
+	dhl := 385.88
+	tds := 192.50
+	sal := 3.88
+	doVal := 4.56
+	ph := 6.97
+	turb := 14.20
+	depth := 1.85
+	no3 := 74.05
+	nh4 := 0.42
+	cod := 68.05
+	bod := 56.04
+	tss := 24.00
+	toc := 3.22 // non-ONLIMO parameter, must be excluded automatically!
+
+	// Deliberately provide values in shuffled order + mix of Python legacy codes (cl, fl, no3, nh4)
+	// and real station channel names ("Turbudity (NTU)", "Conductivity / DHL")
+	batch := &OutboundBatchData{
+		DeviceID:        1,
+		DeviceCode:      "WQMS-01",
+		DeviceCount:     1,
+		IntervalSeconds: 3600,
+		PeriodStart:     pStart,
+		PeriodEnd:       pEnd,
+		Values: []model.SourceAggregationValueItem{
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 14, ParameterCode: "toc", ParameterName: "TOC", Value: &toc, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 13, ParameterCode: "tss", ParameterName: "TSS", Value: &tss, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 6, ParameterCode: "ph", ParameterName: "PH", Value: &ph, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 2, ParameterCode: "cl", ParameterName: "Conductivity / DHL", Value: &dhl, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 3, ParameterCode: "fl", ParameterName: "TDS", Value: &tds, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 7, ParameterCode: "sensor_7", ParameterName: "Turbudity (NTU)", Value: &turb, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 10, ParameterCode: "nh4", ParameterName: "Ammonia (NH3-N)", Value: &nh4, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 9, ParameterCode: "no3", ParameterName: "Nitrat", Value: &no3, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 1, ParameterCode: "temperature", ParameterName: "Temperature", Value: &suhu, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 4, ParameterCode: "salinity", ParameterName: "Salinity", Value: &sal, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 5, ParameterCode: "do", ParameterName: "DO", Value: &doVal, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 8, ParameterCode: "depth", ParameterName: "Depth", Value: &depth, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 11, ParameterCode: "cod", ParameterName: "COD", Value: &cod, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 12, ParameterCode: "bod", ParameterName: "BOD", Value: &bod, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+		},
+	}
+
+	cfg := &model.DestinationPayloadConfig{
+		TemplateType:            "KLHK_WQMS_ONLIMO",
+		StationIDField:          "IDStasiun",
+		StationIDValue:          "CBI_WQMS_01",
+		TimestampField:          "Tanggal,Jam",
+		TimestampFormat:         "CUSTOM",
+		TimestampSource:         "PERIOD_END",
+		TimestampTimezone:       "Asia/Jakarta",
+		NumericPrecisionMode:    "NATURAL_2",
+		OmitIntervalField:       true,
+		Structure:               "ONLIMO_DATA_OBJECT",
+		NestedDataKey:           "data",
+		ConflictResolution:      "PRIORITY_PRIMARY",
+		FillMissingPresetFields: true,
+		RequiredFieldsJSON:      `["IDStasiun","Tanggal","Jam","Suhu","DHL","TDS","Salinitas","DO","PH","Turbidity","Kedalaman","Nitrat","Amonia","COD","BOD","TSS"]`,
+	}
+
+	raw, err := formatter.Format(batch, cfg)
+	if err != nil {
+		t.Fatalf("unexpected Format error for KLHK_WQMS_ONLIMO: %v", err)
+	}
+
+	expectedRedacted := `{"data":{"IDStasiun":"CBI_WQMS_01","Tanggal":"2026-11-04","Jam":"01:30:00","Suhu":28.4,"DHL":385.88,"TDS":192.5,"Salinitas":3.88,"DO":4.56,"PH":6.97,"Turbidity":14.2,"Kedalaman":1.85,"Nitrat":74.05,"Amonia":0.42,"COD":68.05,"BOD":56.04,"TSS":24},"apikey":"***REDACTED***","apisecret":"***REDACTED***"}`
+	if string(raw) != expectedRedacted {
+		t.Fatalf("KLHK_WQMS_ONLIMO JSON mismatch:\ngot:  %s\nwant: %s", string(raw), expectedRedacted)
+	}
+
+	// Verify dispatch-time credential injection preserves exact byte order inside "data"
+	injected, err := injectRootJSONCredentials(string(raw), "live-apikey-123", "live-secret-456")
+	if err != nil {
+		t.Fatalf("injectRootJSONCredentials failed: %v", err)
+	}
+	expectedInjected := `{"data":{"IDStasiun":"CBI_WQMS_01","Tanggal":"2026-11-04","Jam":"01:30:00","Suhu":28.4,"DHL":385.88,"TDS":192.5,"Salinitas":3.88,"DO":4.56,"PH":6.97,"Turbidity":14.2,"Kedalaman":1.85,"Nitrat":74.05,"Amonia":0.42,"COD":68.05,"BOD":56.04,"TSS":24},"apikey":"live-apikey-123","apisecret":"live-secret-456"}`
+	if string(injected) != expectedInjected {
+		t.Fatalf("injected ONLIMO JSON mismatch:\ngot:  %s\nwant: %s", string(injected), expectedInjected)
+	}
+
+	// Verify FillMissingPresetFields=true fills unequipped & nil sensors with 0
+	partialBatch := &OutboundBatchData{
+		DeviceID:        1,
+		DeviceCode:      "WQMS-01",
+		DeviceCount:     1,
+		IntervalSeconds: 3600,
+		PeriodStart:     pStart,
+		PeriodEnd:       pEnd,
+		Values: []model.SourceAggregationValueItem{
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 6, ParameterCode: "ph", ParameterName: "PH", Value: &ph, Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 1, DeviceCode: "WQMS-01", ParameterID: 11, ParameterCode: "cod", ParameterName: "COD", Value: nil, Quality: "BAD", PeriodStart: pStart, PeriodEnd: pEnd},
+		},
+	}
+
+	rawZeroFilled, err := formatter.Format(partialBatch, cfg)
+	if err != nil {
+		t.Fatalf("unexpected Format error on partial ONLIMO batch with FillMissingPresetFields=true: %v", err)
+	}
+	expectedZeroFilled := `{"data":{"IDStasiun":"CBI_WQMS_01","Tanggal":"2026-11-04","Jam":"01:30:00","Suhu":0,"DHL":0,"TDS":0,"Salinitas":0,"DO":0,"PH":6.97,"Turbidity":0,"Kedalaman":0,"Nitrat":0,"Amonia":0,"COD":0,"BOD":0,"TSS":0},"apikey":"***REDACTED***","apisecret":"***REDACTED***"}`
+	if string(rawZeroFilled) != expectedZeroFilled {
+		t.Fatalf("zero-filled ONLIMO JSON mismatch:\ngot:  %s\nwant: %s", string(rawZeroFilled), expectedZeroFilled)
+	}
+
+	// Verify FillMissingPresetFields=false omits unequipped sensors while keeping nil sensor as null
+	cfgNoFill := *cfg
+	cfgNoFill.FillMissingPresetFields = false
+	cfgNoFill.RequiredFieldsJSON = ""
+	rawNoFill, err := formatter.Format(partialBatch, &cfgNoFill)
+	if err != nil {
+		t.Fatalf("unexpected Format error with FillMissingPresetFields=false: %v", err)
+	}
+	expectedNoFill := `{"data":{"IDStasiun":"CBI_WQMS_01","Tanggal":"2026-11-04","Jam":"01:30:00","PH":6.97,"COD":null},"apikey":"***REDACTED***","apisecret":"***REDACTED***"}`
+	if string(rawNoFill) != expectedNoFill {
+		t.Fatalf("non-filled ONLIMO JSON mismatch:\ngot:  %s\nwant: %s", string(rawNoFill), expectedNoFill)
+	}
+}
+
+
 
 

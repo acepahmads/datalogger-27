@@ -47,15 +47,37 @@ func (o orderedJSONObject) MarshalJSON() ([]byte, error) {
 
 var canonicalSparingFieldOrder = []string{"pH", "cod", "tss", "nh3n", "debit"}
 
+var canonicalONLIMOFieldOrder = []string{
+	"Suhu",
+	"DHL",
+	"TDS",
+	"Salinitas",
+	"DO",
+	"PH",
+	"Turbidity",
+	"Kedalaman",
+	"Nitrat",
+	"Amonia",
+	"COD",
+	"BOD",
+	"TSS",
+}
+
 func buildOrderedMeasurementFields(measurements map[string]interface{}, insertionOrder []string, preferSparingOrder bool) []orderedJSONField {
+	var preferred []string
+	if preferSparingOrder {
+		preferred = canonicalSparingFieldOrder
+	}
+	return buildOrderedMeasurementFieldsWithOrder(measurements, insertionOrder, preferred)
+}
+
+func buildOrderedMeasurementFieldsWithOrder(measurements map[string]interface{}, insertionOrder []string, preferredOrder []string) []orderedJSONField {
 	added := make(map[string]bool, len(measurements))
 	fields := make([]orderedJSONField, 0, len(measurements))
-	if preferSparingOrder {
-		for _, k := range canonicalSparingFieldOrder {
-			if v, ok := measurements[k]; ok {
-				fields = append(fields, orderedJSONField{Key: k, Value: v})
-				added[k] = true
-			}
+	for _, k := range preferredOrder {
+		if v, ok := measurements[k]; ok {
+			fields = append(fields, orderedJSONField{Key: k, Value: v})
+			added[k] = true
 		}
 	}
 	for _, k := range insertionOrder {
@@ -80,6 +102,65 @@ func buildOrderedMeasurementFields(measurements map[string]interface{}, insertio
 		}
 	}
 	return fields
+}
+
+// injectRootJSONCredentials injects or replaces root-level "apikey" and "apisecret" fields on a serialized JSON object
+// while preserving the exact byte-for-byte ordering of all existing fields (such as ONLIMO's ordered "data" object).
+func injectRootJSONCredentials(payload string, apiKey string, apiSecret string) (string, error) {
+	dec := json.NewDecoder(strings.NewReader(payload))
+	tok, err := dec.Token()
+	if err != nil {
+		return "", fmt.Errorf("invalid JSON payload: %w", err)
+	}
+	delim, ok := tok.(json.Delim)
+	if !ok || delim != '{' {
+		return "", fmt.Errorf("JSON payload root must be an object")
+	}
+
+	var fields []orderedJSONField
+	for dec.More() {
+		keyTok, kErr := dec.Token()
+		if kErr != nil {
+			return "", fmt.Errorf("failed reading JSON key: %w", kErr)
+		}
+		keyStr, isStr := keyTok.(string)
+		if !isStr {
+			return "", fmt.Errorf("unexpected non-string JSON key")
+		}
+		var rawVal json.RawMessage
+		if vErr := dec.Decode(&rawVal); vErr != nil {
+			return "", fmt.Errorf("failed reading JSON value for %q: %w", keyStr, vErr)
+		}
+		if strings.EqualFold(keyStr, "apikey") || strings.EqualFold(keyStr, "apisecret") {
+			continue
+		}
+		fields = append(fields, orderedJSONField{Key: keyStr, Value: rawVal})
+	}
+	if _, endErr := dec.Token(); endErr != nil {
+		return "", fmt.Errorf("failed reading closing JSON brace: %w", endErr)
+	}
+
+	fields = append(fields,
+		orderedJSONField{Key: "apikey", Value: apiKey},
+		orderedJSONField{Key: "apisecret", Value: apiSecret},
+	)
+	outBytes, mErr := json.Marshal(orderedJSONObject(fields))
+	if mErr != nil {
+		return "", mErr
+	}
+	return string(outBytes), nil
+}
+
+func injectRootJSONCredentialsPretty(payload string, apiKey string, apiSecret string) (string, error) {
+	compact, err := injectRootJSONCredentials(payload, apiKey, apiSecret)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, []byte(compact), "", "  "); err != nil {
+		return compact, nil
+	}
+	return buf.String(), nil
 }
 
 // fixed2Float serializes numeric measurement values with 2 digits after the decimal point (e.g. 23.33, 88.50).
@@ -146,17 +227,32 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 		return fmt.Errorf("payload configuration cannot be nil")
 	}
 
+	isONLIMO := strings.EqualFold(strings.TrimSpace(cfg.TemplateType), "KLHK_WQMS_ONLIMO") ||
+		strings.EqualFold(strings.TrimSpace(cfg.Structure), "ONLIMO_DATA_OBJECT")
+
 	if cfg.StationIDField == "" {
-		cfg.StationIDField = "station_id"
+		if isONLIMO {
+			cfg.StationIDField = "IDStasiun"
+		} else {
+			cfg.StationIDField = "station_id"
+		}
 	}
 	if cfg.TimestampField == "" {
-		cfg.TimestampField = "timestamp"
+		if isONLIMO {
+			cfg.TimestampField = "Tanggal,Jam"
+		} else {
+			cfg.TimestampField = "timestamp"
+		}
 	}
 	if !cfg.OmitIntervalField && cfg.IntervalField == "" {
 		cfg.IntervalField = "interval_minutes"
 	}
 	if cfg.Structure == "" {
-		cfg.Structure = "FLAT"
+		if isONLIMO {
+			cfg.Structure = "ONLIMO_DATA_OBJECT"
+		} else {
+			cfg.Structure = "FLAT"
+		}
 	}
 	if cfg.ConflictResolution == "" {
 		cfg.ConflictResolution = "FAIL_ON_CONFLICT"
@@ -164,7 +260,7 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	if cfg.DeviceIdentityMode == "" {
 		cfg.DeviceIdentityMode = "NONE"
 	}
-	if (cfg.Structure == "NESTED" || cfg.Structure == "NESTED_BY_DEVICE" || cfg.Structure == "ARRAY_BY_DEVICE" || cfg.Structure == "SPARING_DATA_ARRAY") && cfg.NestedDataKey == "" {
+	if (cfg.Structure == "NESTED" || cfg.Structure == "NESTED_BY_DEVICE" || cfg.Structure == "ARRAY_BY_DEVICE" || cfg.Structure == "SPARING_DATA_ARRAY" || cfg.Structure == "ONLIMO_DATA_OBJECT") && cfg.NestedDataKey == "" {
 		cfg.NestedDataKey = "data"
 	}
 
@@ -261,6 +357,147 @@ func defaultKLHKSPARINGAlias(code string) string {
 	}
 }
 
+func normalizeWQMSLookupToken(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if s == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(
+		"/", "_",
+		"-", "_",
+		".", "_",
+		"(", "_",
+		")", "_",
+		"[", "_",
+		"]", "_",
+		",", "_",
+		" ", "_",
+	)
+	s = replacer.Replace(s)
+	for strings.Contains(s, "__") {
+		s = strings.ReplaceAll(s, "__", "_")
+	}
+	return strings.Trim(s, "_")
+}
+
+func matchSingleKLHKWQMSToken(raw string) (string, bool) {
+	tok := normalizeWQMSLookupToken(raw)
+	if tok == "" {
+		return "", false
+	}
+	switch tok {
+	case "suhu", "temperature", "temp", "suhu_air", "water_temp", "water_temperature", "wtemp":
+		return "Suhu", true
+	case "dhl", "cl", "conductivity", "cond", "ec", "electrical_conductivity", "conductivity_dhl", "daya_hantar_listrik", "konduktivitas":
+		return "DHL", true
+	case "tds", "fl", "total_dissolved_solids", "padatan_terlarut":
+		return "TDS", true
+	case "salinitas", "salinity", "sal":
+		return "Salinitas", true
+	case "do", "dissolved_oxygen", "oksigen_terlarut":
+		return "DO", true
+	case "ph", "p_h", "derajat_keasaman":
+		return "PH", true
+	case "turbidity", "turbudity", "turb", "ntu", "kekeruhan", "turbidity_ntu", "turbudity_ntu":
+		return "Turbidity", true
+	case "kedalaman", "depth", "water_depth", "water_level", "level", "tma", "tinggi_muka_air":
+		return "Kedalaman", true
+	case "nitrat", "nitrate", "no3", "no3_n", "no3n":
+		return "Nitrat", true
+	case "amonia", "ammonia", "nh4", "nh4_n", "nh4n", "nh3", "nh3_n", "nh3n", "ammonia_nh3_n", "amonia_nh3_n", "ammonia_nh4", "amonia_nh4":
+		return "Amonia", true
+	case "cod", "chemical_oxygen_demand":
+		return "COD", true
+	case "bod", "bod5", "biological_oxygen_demand", "biochemical_oxygen_demand":
+		return "BOD", true
+	case "tss", "total_suspended_solids", "padatan_tersuspensi":
+		return "TSS", true
+	}
+
+	// Safe multi-word token fallback (e.g. "Conductivity / DHL (uS/cm)" or "Turbudity (NTU)")
+	parts := strings.Split(tok, "_")
+	partSet := make(map[string]bool, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			partSet[p] = true
+		}
+	}
+	if partSet["toc"] || partSet["no2"] || partSet["so2"] || partSet["pm10"] || partSet["pm25"] {
+		return "", false
+	}
+	switch {
+	case partSet["dhl"] || partSet["conductivity"] || partSet["konduktivitas"]:
+		return "DHL", true
+	case partSet["tds"]:
+		return "TDS", true
+	case partSet["salinitas"] || partSet["salinity"]:
+		return "Salinitas", true
+	case partSet["turbidity"] || partSet["turbudity"] || partSet["kekeruhan"]:
+		return "Turbidity", true
+	case partSet["kedalaman"] || partSet["depth"]:
+		return "Kedalaman", true
+	case partSet["nitrat"] || partSet["nitrate"] || partSet["no3"]:
+		return "Nitrat", true
+	case partSet["amonia"] || partSet["ammonia"] || partSet["nh4"] || partSet["nh3"] || partSet["nh3n"]:
+		return "Amonia", true
+	case partSet["suhu"] || partSet["temperature"]:
+		return "Suhu", true
+	case partSet["cod"]:
+		return "COD", true
+	case partSet["bod"] || partSet["bod5"]:
+		return "BOD", true
+	case partSet["tss"]:
+		return "TSS", true
+	case partSet["do"] && len(parts) <= 2:
+		return "DO", true
+	case partSet["ph"] && len(parts) <= 2:
+		return "PH", true
+	}
+	return "", false
+}
+
+// matchKLHKWQMSAlias resolves an internal parameter code/name to one of the 13 canonical KLHK ONLIMO WQMS keys.
+func matchKLHKWQMSAlias(code string, name string) (string, bool) {
+	if alias, ok := matchSingleKLHKWQMSToken(code); ok {
+		return alias, true
+	}
+	if alias, ok := matchSingleKLHKWQMSToken(name); ok {
+		return alias, true
+	}
+	return "", false
+}
+
+func defaultKLHKWQMSAlias(code string, name string) string {
+	if alias, ok := matchKLHKWQMSAlias(code, name); ok {
+		return alias
+	}
+	return strings.TrimSpace(code)
+}
+
+func resolveONLIMODateTimeKeys(timestampField string) (string, string) {
+	raw := strings.TrimSpace(timestampField)
+	if strings.Contains(raw, ",") {
+		parts := strings.SplitN(raw, ",", 2)
+		dKey := strings.TrimSpace(parts[0])
+		tKey := strings.TrimSpace(parts[1])
+		if dKey == "" {
+			dKey = "Tanggal"
+		}
+		if tKey == "" {
+			tKey = "Jam"
+		}
+		return dKey, tKey
+	}
+	if raw == "" ||
+		strings.EqualFold(raw, "timestamp") ||
+		strings.EqualFold(raw, "datetime") ||
+		strings.EqualFold(raw, "waktu") ||
+		strings.EqualFold(raw, "tanggal") {
+		return "Tanggal", "Jam"
+	}
+	return raw, "Jam"
+}
+
 func resolveBucketTimestamp(periodStart, periodEnd time.Time, source string) time.Time {
 	if strings.EqualFold(strings.TrimSpace(source), "PERIOD_START") && !periodStart.IsZero() {
 		return periodStart
@@ -311,6 +548,8 @@ func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *paramete
 				extName = defaultKLHKSPARINGAlias(m.ParameterCode)
 			case "KLHK_ISPU_AQMS":
 				extName = defaultKLHKISPUAlias(m.ParameterCode)
+			case "KLHK_WQMS_ONLIMO":
+				extName = defaultKLHKWQMSAlias(m.ParameterCode, m.ParameterName)
 			default:
 				extName = strings.TrimSpace(m.ParameterCode)
 			}
@@ -344,6 +583,10 @@ func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *paramete
 }
 
 func (m *parameterMappingMatcher) Resolve(deviceID uint, deviceCode string, paramID uint, paramCode string) (bool, string) {
+	return m.ResolveWithName(deviceID, deviceCode, paramID, paramCode, "")
+}
+
+func (m *parameterMappingMatcher) ResolveWithName(deviceID uint, deviceCode string, paramID uint, paramCode string, paramName string) (bool, string) {
 	trimmedCode := strings.TrimSpace(paramCode)
 	if trimmedCode == "" {
 		return false, ""
@@ -355,6 +598,11 @@ func (m *parameterMappingMatcher) Resolve(deviceID uint, deviceCode string, para
 				return true, defaultKLHKISPUAlias(trimmedCode)
 			case "KLHK_SPARING", "KLHK_SPARING_HOURLY":
 				return true, defaultKLHKSPARINGAlias(trimmedCode)
+			case "KLHK_WQMS_ONLIMO":
+				if alias, ok := matchKLHKWQMSAlias(trimmedCode, paramName); ok {
+					return true, alias
+				}
+				return false, trimmedCode
 			}
 		}
 		return true, trimmedCode
@@ -551,7 +799,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		var bucketKeys []int64
 
 		for _, item := range batch.Values {
-			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
 			if !enabled {
 				continue
 			}
@@ -743,7 +991,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		updatedAtTs := tsStr
 
 		for _, item := range batch.Values {
-			enabled, sensorName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			enabled, sensorName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
 			if !enabled {
 				continue
 			}
@@ -787,7 +1035,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		deviceGroups := make(map[string]map[string]interface{})
 
 		for _, item := range batch.Values {
-			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
 			if !enabled {
 				continue
 			}
@@ -815,7 +1063,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		var deviceOrder []string
 
 		for _, item := range batch.Values {
-			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
 			if !enabled {
 				continue
 			}
@@ -855,7 +1103,7 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		validPollutantStat := make(map[string]bool)
 
 		for _, item := range batch.Values {
-			enabled, targetFieldName := matcher.Resolve(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode)
+			enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
 			if !enabled {
 				continue
 			}
@@ -948,7 +1196,119 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 			}
 		}
 
-		if structure == "NESTED" {
+		// Populate missing/null canonical KLHK WQMS ONLIMO 13 parameters with 0 when FillMissingPresetFields is enabled
+		if cfg.FillMissingPresetFields && (structure == "ONLIMO_DATA_OBJECT" || templateUpper == "KLHK_WQMS_ONLIMO") {
+			zeroVal := formatScalarOutboundNumber(0, cfg.NumericPrecisionMode)
+			for _, canonKey := range canonicalONLIMOFieldOrder {
+				existingVal, exists := measurements[canonKey]
+				if !exists || existingVal == nil {
+					measurements[canonKey] = zeroVal
+				} else if detailMap, isMap := existingVal.(map[string]interface{}); isMap && detailMap["value"] == nil {
+					detailMap["value"] = zeroVal
+				}
+			}
+		}
+
+		if structure == "ONLIMO_DATA_OBJECT" {
+			nestedKey := strings.TrimSpace(cfg.NestedDataKey)
+			if nestedKey == "" {
+				nestedKey = "data"
+			}
+			onlimoStationKey := strings.TrimSpace(cfg.StationIDField)
+			if onlimoStationKey == "" || (onlimoStationKey == "station_id" && templateUpper == "KLHK_WQMS_ONLIMO") {
+				onlimoStationKey = "IDStasiun"
+			}
+			dateKey, timeKey := resolveONLIMODateTimeKeys(cfg.TimestampField)
+
+			tLocal := rootBucketTime
+			if loc := resolveTimezoneLocation(cfg.TimestampTimezone); loc != nil {
+				tLocal = tLocal.In(loc)
+			}
+			dateStr := tLocal.Format("2006-01-02")
+			timeStr := tLocal.Format("15:04:05")
+
+			dataFields := make([]orderedJSONField, 0, 3+len(measurements))
+			dataFields = append(dataFields,
+				orderedJSONField{Key: onlimoStationKey, Value: stationID},
+				orderedJSONField{Key: dateKey, Value: dateStr},
+				orderedJSONField{Key: timeKey, Value: timeStr},
+			)
+			dataFields = append(dataFields, buildOrderedMeasurementFieldsWithOrder(measurements, measurementKeyOrder, canonicalONLIMOFieldOrder)...)
+
+			flatDataCheck := make(map[string]interface{}, len(dataFields))
+			for _, df := range dataFields {
+				flatDataCheck[df.Key] = df.Value
+			}
+
+			rootMap = map[string]interface{}{
+				nestedKey: flatDataCheck,
+			}
+			rootFields := []orderedJSONField{
+				{Key: nestedKey, Value: orderedJSONObject(dataFields)},
+			}
+
+			if cfg.IncludeMetadata {
+				pStartStr := batch.PeriodStart.Format(time.RFC3339)
+				pEndStr := batch.PeriodEnd.Format(time.RFC3339)
+				rootMap["period_start"] = pStartStr
+				rootMap["period_end"] = pEndStr
+				rootMap["interval_seconds"] = batch.IntervalSeconds
+				rootMap["device_count"] = batch.DeviceCount
+				rootFields = append(rootFields,
+					orderedJSONField{Key: "period_start", Value: pStartStr},
+					orderedJSONField{Key: "period_end", Value: pEndStr},
+					orderedJSONField{Key: "interval_seconds", Value: batch.IntervalSeconds},
+					orderedJSONField{Key: "device_count", Value: batch.DeviceCount},
+				)
+				if batch.DevicesSummary != "" {
+					rootMap["devices"] = batch.DevicesSummary
+					rootFields = append(rootFields, orderedJSONField{Key: "devices", Value: batch.DevicesSummary})
+				}
+			}
+
+			var staticAPIKey, staticAPISecret interface{}
+			hasStaticAPIKey, hasStaticAPISecret := false, false
+			if strings.TrimSpace(cfg.StaticMetadataJSON) != "" {
+				var staticMap map[string]interface{}
+				if err := json.Unmarshal([]byte(cfg.StaticMetadataJSON), &staticMap); err == nil {
+					var staticKeys []string
+					for k, v := range staticMap {
+						if strings.EqualFold(k, "apikey") {
+							staticAPIKey = v
+							hasStaticAPIKey = true
+							continue
+						}
+						if strings.EqualFold(k, "apisecret") {
+							staticAPISecret = v
+							hasStaticAPISecret = true
+							continue
+						}
+						staticKeys = append(staticKeys, k)
+					}
+					sort.Strings(staticKeys)
+					for _, k := range staticKeys {
+						rootMap[k] = staticMap[k]
+						rootFields = append(rootFields, orderedJSONField{Key: k, Value: staticMap[k]})
+					}
+				}
+			}
+
+			apiKeyVal := interface{}("***REDACTED***")
+			if hasStaticAPIKey {
+				apiKeyVal = staticAPIKey
+			}
+			apiSecretVal := interface{}("***REDACTED***")
+			if hasStaticAPISecret {
+				apiSecretVal = staticAPISecret
+			}
+			rootMap["apikey"] = apiKeyVal
+			rootMap["apisecret"] = apiSecretVal
+			rootFields = append(rootFields,
+				orderedJSONField{Key: "apikey", Value: apiKeyVal},
+				orderedJSONField{Key: "apisecret", Value: apiSecretVal},
+			)
+			orderedRootPayload = orderedJSONObject(rootFields)
+		} else if structure == "NESTED" {
 			nestedKey := cfg.NestedDataKey
 			if nestedKey == "" {
 				nestedKey = "data"

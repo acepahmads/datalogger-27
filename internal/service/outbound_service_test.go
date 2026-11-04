@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -986,4 +987,194 @@ func TestOutboundService_SparingTwoStepJWT_HourlyAndTwoMinute(t *testing.T) {
 		t.Errorf("decoded 2m flat JWT payload mismatch:\ngot:  %s\nwant: %s", decodedFlatStr, expectedFlatDecoded)
 	}
 }
+
+func TestOutboundService_KLHKONLIMOBodyDeliveryAndRedaction(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+
+	ctx := context.Background()
+
+	// Seed WQMS station device with real-world channel names (including "Turbudity (NTU)", "Conductivity / DHL", "TOC")
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "WQMS-ONLIMO-01",
+		DeviceName: "Stasiun WQMS ONLIMO",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	wqmsParams := []model.Parameter{
+		{ID: 1, DeviceID: 1, ParameterCode: "ch_1", ParameterName: "Temperature", Unit: "C", Enabled: true},
+		{ID: 2, DeviceID: 1, ParameterCode: "ch_2", ParameterName: "Conductivity / DHL", Unit: "ms/cm", Enabled: true},
+		{ID: 3, DeviceID: 1, ParameterCode: "ch_3", ParameterName: "TDS", Unit: "mg/L", Enabled: true},
+		{ID: 4, DeviceID: 1, ParameterCode: "ch_4", ParameterName: "Salinity", Unit: "PSU", Enabled: true},
+		{ID: 5, DeviceID: 1, ParameterCode: "ch_5", ParameterName: "DO", Unit: "mg/L", Enabled: true},
+		{ID: 6, DeviceID: 1, ParameterCode: "ch_6", ParameterName: "PH", Unit: "", Enabled: true},
+		{ID: 7, DeviceID: 1, ParameterCode: "ch_7", ParameterName: "Turbudity (NTU)", Unit: "ntu", Enabled: true},
+		{ID: 8, DeviceID: 1, ParameterCode: "ch_8", ParameterName: "Depth", Unit: "m", Enabled: true},
+		{ID: 9, DeviceID: 1, ParameterCode: "ch_9", ParameterName: "Nitrat", Unit: "mg/L", Enabled: true},
+		{ID: 10, DeviceID: 1, ParameterCode: "ch_10", ParameterName: "Ammonia (NH3-N)", Unit: "mg/L", Enabled: true},
+		{ID: 11, DeviceID: 1, ParameterCode: "ch_11", ParameterName: "COD", Unit: "mg/L", Enabled: true},
+		{ID: 12, DeviceID: 1, ParameterCode: "ch_12", ParameterName: "BOD", Unit: "mg/L", Enabled: true},
+		{ID: 13, DeviceID: 1, ParameterCode: "ch_13", ParameterName: "TSS", Unit: "mg/L", Enabled: true},
+		{ID: 14, DeviceID: 1, ParameterCode: "ch_14", ParameterName: "TOC", Unit: "mg/L", Enabled: true},
+	}
+	for _, p := range wqmsParams {
+		pCopy := p
+		db.Create(&pCopy)
+	}
+
+	// PeriodEnd = 2026-11-04 06:00:00 UTC -> 2026-11-04 13:00:00 WIB
+	pStart := time.Date(2026, 11, 4, 5, 0, 0, 0, time.UTC)
+	pEnd := time.Date(2026, 11, 4, 6, 0, 0, 0, time.UTC)
+	sensorVals := []float64{28.5, 385.88, 192.5, 3.88, 4.56, 6.97, 14.2, 1.85, 74.05, 84.03, 68.05, 56.04, 24.0, 3.22}
+	for idx, param := range wqmsParams {
+		v := sensorVals[idx]
+		db.Create(&model.AggregationResult{
+			ID:                      uint64(2000 + idx),
+			AggregationDefinitionID: uint(param.ID),
+			DeviceID:                1,
+			ParameterID:             param.ID,
+			SourceType:              model.SourceCustomerProcessed,
+			PeriodStart:             pStart,
+			PeriodEnd:               pEnd,
+			IntervalSeconds:         3600,
+			Value:                   &v,
+			Quality:                 "GOOD",
+			Identifier:              fmt.Sprintf("%d_%d", param.ID, pEnd.Unix()),
+		})
+	}
+
+	var lastRawHTTPBody atomic.Value
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawBytes, _ := io.ReadAll(r.Body)
+		lastRawHTTPBody.Store(string(rawBytes))
+
+		var body map[string]interface{}
+		if err := json.Unmarshal(rawBytes, &body); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":false,"message":"Invalid JSON"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if body["apikey"] != "klhk-onlimo-apikey-999" || body["apisecret"] != "klhk-onlimo-secret-xyz" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":0,"message":"Invalid apikey or apisecret"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":1,"message":"Data WQMS berhasil disimpan"}`))
+	}))
+	defer ts.Close()
+
+	// 1. Create destination with KLHK_ONLIMO_BODY (with surrounding whitespace to verify trim)
+	dest := &model.OutputDestination{
+		Name:            "KLHK WQMS ONLIMO",
+		Type:            model.DestREST,
+		Endpoint:        ts.URL + "/api/wqms/post",
+		IntervalSeconds: 3600,
+		AuthType:        "KLHK_ONLIMO_BODY",
+		APIKeyValue:     "  klhk-onlimo-apikey-999  ",
+		AuthToken:       "  klhk-onlimo-secret-xyz  ",
+		Enabled:         true,
+		RetryLimit:      5,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	// Verify auto-initialized KLHK_WQMS_ONLIMO payload config
+	cfg, err := svc.GetPayloadConfig(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("GetPayloadConfig failed: %v", err)
+	}
+	if cfg.TemplateType != "KLHK_WQMS_ONLIMO" || cfg.Structure != "ONLIMO_DATA_OBJECT" || !cfg.FillMissingPresetFields {
+		t.Fatalf("expected auto-initialized KLHK_WQMS_ONLIMO + ONLIMO_DATA_OBJECT + FillMissingPresetFields=true, got %+v", cfg)
+	}
+
+	cfg.StationIDValue = "ONLIMO_ST_01"
+	if err := svc.UpdatePayloadConfig(ctx, cfg); err != nil {
+		t.Fatalf("UpdatePayloadConfig failed: %v", err)
+	}
+
+	// 2. Verify API redaction and safe round-trip UpdateDestination with ***REDACTED***
+	redactedDest, err := svc.GetDestinationByID(ctx, dest.ID, true)
+	if err != nil {
+		t.Fatalf("GetDestinationByID failed: %v", err)
+	}
+	if redactedDest.APIKeyValue != "***REDACTED***" || redactedDest.AuthToken != "***REDACTED***" {
+		t.Fatalf("expected both APIKeyValue and AuthToken redacted, got apikey=%q secret=%q",
+			redactedDest.APIKeyValue, redactedDest.AuthToken)
+	}
+	redactedDest.Name = "KLHK WQMS ONLIMO Updated"
+	if err := svc.UpdateDestination(ctx, redactedDest); err != nil {
+		t.Fatalf("UpdateDestination with redacted secrets failed: %v", err)
+	}
+
+	// 3. Verify GeneratePreviewWithConfig masks secrets and never leaks raw credentials
+	previewStr, err := svc.GeneratePreviewWithConfig(ctx, dest.ID, nil, cfg)
+	if err != nil {
+		t.Fatalf("GeneratePreviewWithConfig failed: %v", err)
+	}
+	if strings.Contains(previewStr, "klhk-onlimo-apikey-999") || strings.Contains(previewStr, "klhk-onlimo-secret-xyz") {
+		t.Fatalf("SECURITY LEAK: GeneratePreviewWithConfig exposed raw ONLIMO credentials:\n%s", previewStr)
+	}
+	if !strings.Contains(previewStr, `"apikey": "***REDACTED***"`) || !strings.Contains(previewStr, `"apisecret": "***REDACTED***"`) {
+		t.Errorf("expected masked ***REDACTED*** in preview JSON, got:\n%s", previewStr)
+	}
+
+	// 4. Verify TestPayloadWithConfig injects real credentials on wire while keeping PayloadSent redacted
+	testRes, err := svc.TestPayloadWithConfig(ctx, dest.ID, cfg)
+	if err != nil {
+		t.Fatalf("TestPayloadWithConfig failed: %v", err)
+	}
+	if !testRes.Success {
+		t.Fatalf("expected TestPayloadWithConfig to succeed, got error=%q body=%q", testRes.ErrorMessage, testRes.ResponseText)
+	}
+	if strings.Contains(testRes.PayloadSent, "klhk-onlimo-apikey-999") || strings.Contains(testRes.PayloadSent, "klhk-onlimo-secret-xyz") {
+		t.Fatalf("SECURITY LEAK: TestPayloadResult.PayloadSent exposed raw credentials: %s", testRes.PayloadSent)
+	}
+
+	// 5. Enqueue bucket via HandleBucketCompleted & dispatch via ProcessPendingQueueOnce
+	if err := svc.HandleBucketCompleted(ctx, 1, pEnd); err != nil {
+		t.Fatalf("HandleBucketCompleted failed: %v", err)
+	}
+	qItems, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(qItems) != 1 {
+		t.Fatalf("expected 1 queued ONLIMO item, got %d", len(qItems))
+	}
+	if strings.Contains(qItems[0].PayloadSnapshot, "klhk-onlimo-apikey-999") || strings.Contains(qItems[0].PayloadSnapshot, "klhk-onlimo-secret-xyz") {
+		t.Fatalf("SECURITY LEAK: OutboundDeliveryQueue.PayloadSnapshot exposed raw credentials: %s", qItems[0].PayloadSnapshot)
+	}
+
+	svc.ProcessPendingQueueOnce()
+
+	qAfter, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if qAfter[0].Status != model.DeliveryDelivered && qAfter[0].Status != model.DeliveryAcknowledged {
+		t.Fatalf("expected DELIVERED/ACKNOWLEDGED for ONLIMO delivery, got status=%s err=%s", qAfter[0].Status, qAfter[0].LastError)
+	}
+
+	expectedWireJSON := `{"data":{"IDStasiun":"ONLIMO_ST_01","Tanggal":"2026-11-04","Jam":"13:00:00","Suhu":28.5,"DHL":385.88,"TDS":192.5,"Salinitas":3.88,"DO":4.56,"PH":6.97,"Turbidity":14.2,"Kedalaman":1.85,"Nitrat":74.05,"Amonia":84.03,"COD":68.05,"BOD":56.04,"TSS":24},"apikey":"klhk-onlimo-apikey-999","apisecret":"klhk-onlimo-secret-xyz"}`
+	gotWireJSON, _ := lastRawHTTPBody.Load().(string)
+	if gotWireJSON != expectedWireJSON {
+		t.Fatalf("ONLIMO wire HTTP POST body mismatch:\ngot:  %s\nwant: %s", gotWireJSON, expectedWireJSON)
+	}
+
+	// 6. Verify application-level rejection when apisecret is wrong
+	badDest := *redactedDest
+	badDest.AuthToken = "wrong-secret"
+	if err := svc.UpdateDestination(ctx, &badDest); err != nil {
+		t.Fatalf("UpdateDestination bad secret failed: %v", err)
+	}
+	badTestRes, err := svc.TestPayloadWithConfig(ctx, dest.ID, cfg)
+	if err != nil {
+		t.Fatalf("TestPayloadWithConfig bad secret unexpected error: %v", err)
+	}
+	if badTestRes.Success || !strings.Contains(badTestRes.ErrorMessage, "Invalid apikey or apisecret") {
+		t.Fatalf("expected ONLIMO rejection on wrong apisecret, got success=%v err=%q", badTestRes.Success, badTestRes.ErrorMessage)
+	}
+}
+
 
