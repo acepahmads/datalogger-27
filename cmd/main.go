@@ -257,6 +257,11 @@ func main() {
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
 	aggHandler := handler.NewAggregationHandler(aggService)
+	telemetryInjRepo := repository.NewTelemetryInjectionRepository(db)
+	telemetryInjService := service.NewTelemetryInjectionService(telemetryInjRepo, deviceRepo, aggRepo, aggService, outboundService)
+	telemetryInjHandler := handler.NewTelemetryInjectionHandler(telemetryInjService)
+	telemetryHandler.SetInjectionService(telemetryInjService)
+	aggHandler.SetInjectionService(telemetryInjService)
 	backupHandler := handler.NewBackupHandler(backupService, backupScheduler)
 	retentionHandler := handler.NewRetentionHandler(retentionService, retentionScheduler)
 	notificationHandler := handler.NewNotificationHandler(notificationEngine, notificationRepo)
@@ -520,6 +525,19 @@ func main() {
 			activityGroup.GET("/background-jobs", activityHandler.GetBackgroundJobs)
 			activityGroup.POST("/events/clear", activityHandler.ClearEvents)
 			activityGroup.GET("/export", activityHandler.ExportEvents)
+		}
+
+		// Superadmin Telemetry Injector (Strictly SUPERADMIN Only — Zero Leak to Admin/Engineer/Operator)
+		superadminInjGroup := api.Group("/superadmin/telemetry-inject")
+		superadminInjGroup.Use(middleware.JWTAuth(authService))
+		superadminInjGroup.Use(middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR"))
+		{
+			superadminInjGroup.GET("/devices/:id/hints", telemetryInjHandler.GetDeviceHints)
+			superadminInjGroup.POST("/preview", telemetryInjHandler.Preview)
+			superadminInjGroup.POST("/execute", telemetryInjHandler.Execute)
+			superadminInjGroup.GET("/batches", telemetryInjHandler.ListBatches)
+			superadminInjGroup.POST("/batches/:id/rollback", telemetryInjHandler.Rollback)
+			superadminInjGroup.DELETE("/batches/:id", telemetryInjHandler.Rollback)
 		}
 
 		// Logs

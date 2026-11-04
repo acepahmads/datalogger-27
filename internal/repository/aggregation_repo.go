@@ -113,6 +113,13 @@ func (r *AggregationRepository) SaveResult(ctx context.Context, result *model.Ag
 	}).Create(result).Error
 }
 
+// DeleteResultForBucket deletes an aggregation result row for a specific definition and bucket start (used during injection rollback)
+func (r *AggregationRepository) DeleteResultForBucket(ctx context.Context, defID uint, periodStart time.Time) error {
+	return r.db.WithContext(ctx).
+		Where("aggregation_definition_id = ? AND period_start = ?", defID, periodStart).
+		Delete(&model.AggregationResult{}).Error
+}
+
 // GetResultByID retrieves an aggregation result by primary key ID
 func (r *AggregationRepository) GetResultByID(ctx context.Context, id uint) (*model.AggregationResult, error) {
 	var result model.AggregationResult

@@ -78,6 +78,16 @@
           </svg>
           <span>{{ $t('analysis.breadcrumb') }}</span>
         </router-link>
+
+        <router-link
+          v-if="device && isSuperAdmin"
+          :to="'/monitoring/telemetry-injection?device_id=' + device.id"
+          class="px-3 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 shadow-2xs dark:bg-violet-600/20 dark:hover:bg-violet-600/30 dark:text-violet-300 dark:border-violet-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+          title="Penyuntikan Telemetri & Agregasi Otomatis (Superadmin)"
+        >
+          <span>⚡</span>
+          <span>Suntik Data</span>
+        </router-link>
       </div>
     </div>
 
@@ -1977,6 +1987,12 @@
                 >
                   {{ chartValueMode === 'raw' ? 'RAW' : 'SCALED' }}
                 </span>
+                <span
+                  v-if="isSuperAdmin && hoveredPoint.rawRecord && hoveredPoint.rawRecord.is_injected"
+                  class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded ml-1 uppercase bg-violet-500/20 text-violet-300 border border-violet-500/40"
+                >
+                  INJ
+                </span>
               </div>
               <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-3xs text-slate-400 font-sans">
                 <span>{{ formatTimestamp(hoveredPoint.timestamp) }}</span>
@@ -2050,6 +2066,11 @@
                 </td>
                 <td class="py-2.5 px-4">
                   <span class="text-blue-400 font-semibold">{{ getParamCode(rec.parameter_id) }}</span>
+                  <span
+                    v-if="isSuperAdmin && rec.is_injected"
+                    :title="'Disuntik Superadmin · Batch ' + (rec.injection_batch_id || '')"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                  >INJ</span>
                 </td>
                 <td class="py-2.5 px-4 text-white font-bold">
                   {{ rec.value !== undefined ? rec.value.toFixed(2) : '--' }}
@@ -2159,7 +2180,12 @@
                   {{ formatTimestamp(rec.received_at || rec.timestamp) }}
                 </td>
                 <td class="py-2.5 px-4 text-blue-400 font-bold">
-                  {{ getParamCode(rec.parameter_id) }}
+                  <span>{{ getParamCode(rec.parameter_id) }}</span>
+                  <span
+                    v-if="isSuperAdmin && rec.is_injected"
+                    :title="'Disuntik Superadmin · Batch ' + (rec.injection_batch_id || '')"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                  >INJ</span>
                 </td>
                 <td class="py-2.5 px-4 text-emerald-400 font-bold tracking-widest">
                   {{ rec.raw_hex || '--' }}
@@ -2607,6 +2633,11 @@
                 <td class="px-4 py-3 font-mono font-bold text-sm text-white">
                   {{ res.value !== null ? Number(res.value).toFixed(2) : '--' }}
                   <span class="text-3xs text-slate-400 font-sans font-normal">{{ getParamUnit(res.parameter_id) }}</span>
+                  <span
+                    v-if="isSuperAdmin && res.has_injected_samples"
+                    title="Mengandung sampel suntikan Superadmin (Hanya terlihat oleh Superadmin)"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30 align-middle"
+                  >INJ</span>
                 </td>
                 <!-- Min / Max / Avg -->
                 <td class="px-4 py-3 font-mono text-3xs text-slate-300">
@@ -3015,7 +3046,12 @@
                 <tr v-for="(sample, sIdx) in bucketSamplesData.samples" :key="sample.id || sIdx" class="hover:bg-slate-800/30 transition">
                   <td class="px-3 py-1.5 text-slate-500 text-3xs">{{ sIdx + 1 }}</td>
                   <td class="px-3 py-1.5 text-slate-300">
-                    {{ formatTimestampExact(sample.received_at) }}
+                    <span>{{ formatTimestampExact(sample.received_at) }}</span>
+                    <span
+                      v-if="isSuperAdmin && sample.is_injected"
+                      :title="'Disuntik Superadmin · Batch ' + (sample.injection_batch_id || '')"
+                      class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                    >INJ</span>
                   </td>
                   <td class="px-3 py-1.5 text-emerald-400 text-3xs">
                     {{ sample.raw_hex || '--' }}

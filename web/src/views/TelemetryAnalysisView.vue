@@ -88,6 +88,16 @@
           <span>{{ $t('retention.purgeAllRawBtn') }}</span>
         </button>
 
+        <!-- Superadmin Telemetry Injector Shortcut (visible strictly for SUPERADMIN) -->
+        <router-link
+          v-if="isSuperAdmin"
+          :to="filters.deviceId ? ('/monitoring/telemetry-injection?device_id=' + filters.deviceId) : '/monitoring/telemetry-injection'"
+          class="px-3.5 py-2 rounded-xl bg-violet-600/15 hover:bg-violet-600/25 text-violet-700 dark:text-violet-300 border border-violet-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+        >
+          <span>⚡</span>
+          <span>Suntik Data</span>
+        </router-link>
+
         <!-- Shortcut to Live Telemetry -->
         <router-link
           to="/monitoring/telemetry"
@@ -790,7 +800,14 @@
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
               </td>
-              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
+              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">
+                <span>{{ getParamCode(r.parameter_id) }}</span>
+                <span
+                  v-if="isSuperAdmin && r.is_injected"
+                  :title="'Disuntik Superadmin · Batch ' + (r.injection_batch_id || '')"
+                  class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/30"
+                >INJ</span>
+              </td>
               <td class="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white text-xs">
                 {{ formatVal(r.processed_value !== undefined ? r.processed_value : r.value) }}
               </td>
@@ -845,7 +862,14 @@
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
               </td>
-              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
+              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">
+                <span>{{ getParamCode(r.parameter_id) }}</span>
+                <span
+                  v-if="isSuperAdmin && r.is_injected"
+                  :title="'Disuntik Superadmin · Batch ' + (r.injection_batch_id || '')"
+                  class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/30"
+                >INJ</span>
+              </td>
               <td class="py-2.5 px-4 text-emerald-600 dark:text-emerald-400 font-bold tracking-widest">{{ r.raw_hex || '--' }}</td>
               <td class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{{ formatVal(r.raw_value) }}</td>
               <td class="py-2.5 px-4 text-right text-slate-900 dark:text-white font-bold">{{ formatVal(r.value) }}</td>
@@ -892,7 +916,14 @@
                   {{ getDeviceCode(r.device_id) }}
                 </router-link>
               </td>
-              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">{{ getParamCode(r.parameter_id) }}</td>
+              <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">
+                <span>{{ getParamCode(r.parameter_id) }}</span>
+                <span
+                  v-if="isSuperAdmin && r.has_injected_samples"
+                  title="Mengandung sampel suntikan Superadmin (Hanya terlihat oleh Superadmin)"
+                  class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/30"
+                >INJ</span>
+              </td>
               <td class="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white text-xs">
                 {{ formatVal(r.value) }}
               </td>

@@ -15,12 +15,18 @@ import (
 
 // AggregationHandler exposes REST endpoints for aggregation definitions, rollups, and customer queries
 type AggregationHandler struct {
-	aggService *service.AggregationService
+	aggService       *service.AggregationService
+	injectionService *service.TelemetryInjectionService
 }
 
 // NewAggregationHandler creates a new AggregationHandler
 func NewAggregationHandler(aggService *service.AggregationService) *AggregationHandler {
 	return &AggregationHandler{aggService: aggService}
+}
+
+// SetInjectionService attaches the Superadmin-only telemetry injection service for badge annotation
+func (h *AggregationHandler) SetInjectionService(injService *service.TelemetryInjectionService) {
+	h.injectionService = injService
 }
 
 // ListDefinitions handles GET /api/aggregations/definitions
@@ -274,6 +280,10 @@ func (h *AggregationHandler) GetResults(c *gin.Context) {
 		return
 	}
 
+	if isStrictSuperAdmin(c) && h.injectionService != nil {
+		h.injectionService.AnnotateAggregationsForSuperadmin(c.Request.Context(), results)
+	}
+
 	response.OK(c, response.PaginatedData{
 		Total:    total,
 		Page:     page,
@@ -383,6 +393,9 @@ func (h *AggregationHandler) GetResultSamples(c *gin.Context) {
 	if err != nil {
 		response.InternalError(c, "Failed to fetch bucket samples: "+err.Error())
 		return
+	}
+	if isStrictSuperAdmin(c) && h.injectionService != nil && resp != nil {
+		h.injectionService.AnnotateBucketSamplesForSuperadmin(c.Request.Context(), resp.Samples)
 	}
 	response.OK(c, resp)
 }

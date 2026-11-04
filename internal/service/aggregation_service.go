@@ -991,13 +991,15 @@ func (s *AggregationService) GetDownsampledHistory(
 
 // BucketSampleDTO represents an individual telemetry reading inside an aggregation bucket
 type BucketSampleDTO struct {
-	ID             uint64    `json:"id"`
-	ReceivedAt     time.Time `json:"received_at"`
-	RawValue       float64   `json:"raw_value"`
-	ProcessedValue float64   `json:"processed_value"`
-	RawHex         string    `json:"raw_hex"`
-	Quality        string    `json:"quality"`
-	QualityReason  string    `json:"quality_reason"`
+	ID               uint64    `json:"id"`
+	ReceivedAt       time.Time `json:"received_at"`
+	RawValue         float64   `json:"raw_value"`
+	ProcessedValue   float64   `json:"processed_value"`
+	RawHex           string    `json:"raw_hex"`
+	Quality          string    `json:"quality"`
+	QualityReason    string    `json:"quality_reason"`
+	IsInjected       bool      `json:"is_injected,omitempty"`
+	InjectionBatchID string    `json:"injection_batch_id,omitempty"`
 }
 
 // BucketSamplesResponse contains detailed telemetry points that contributed to an aggregation bucket
@@ -1117,4 +1119,141 @@ func (s *AggregationService) GetResultSamples(ctx context.Context, resultID uint
 
 	return resp, nil
 }
+
+// RecalculateRangeForDevice deterministically recalculates all enabled AggregationDefinitions for a device
+// across [startTime, endTime] regardless of the LastCalculatedAt cursor.
+// Used by Superadmin Telemetry Injection and Rollback so historical/current buckets immediately reflect changes.
+func (s *AggregationService) RecalculateRangeForDevice(
+	ctx context.Context,
+	deviceID uint,
+	parameterIDs []uint,
+	startTime, endTime time.Time,
+	cleanupEmptyBuckets bool,
+) (int, []time.Time, error) {
+	if deviceID == 0 || endTime.Before(startTime) {
+		return 0, nil, nil
+	}
+
+	defs, err := s.repo.ListDefinitions(ctx, deviceID, true)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to list aggregation definitions for device %d: %w", deviceID, err)
+	}
+	if len(defs) == 0 {
+		return 0, nil, nil
+	}
+
+	paramFilter := make(map[uint]bool, len(parameterIDs))
+	for _, pid := range parameterIDs {
+		if pid > 0 {
+			paramFilter[pid] = true
+		}
+	}
+
+	now := time.Now().UTC()
+	startUTC := startTime.UTC()
+	endUTC := endTime.UTC()
+	if startUTC.After(now) {
+		return 0, nil, nil
+	}
+	if endUTC.After(now) {
+		endUTC = now
+	}
+
+	recalculatedCount := 0
+	completedEndsMap := make(map[int64]time.Time)
+
+	for i := range defs {
+		def := defs[i]
+		if len(paramFilter) > 0 && !paramFilter[def.ParameterID] {
+			continue
+		}
+		intervalSec := def.IntervalSeconds
+		if intervalSec <= 0 {
+			intervalSec = 300
+		}
+
+		curr := aggregation.CalculateBucket(startUTC, intervalSec, def.Timezone)
+		maxSteps := 50000
+		steps := 0
+
+		for curr.PeriodStart.Before(endUTC) || (startUTC.Equal(endUTC) && steps == 0) {
+			if ctx.Err() != nil {
+				return recalculatedCount, nil, ctx.Err()
+			}
+			steps++
+			if steps > maxSteps {
+				break
+			}
+
+			queryEnd := curr.PeriodEnd
+			if queryEnd.After(now) {
+				queryEnd = now
+			}
+
+			samples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, curr.PeriodStart, queryEnd)
+			if err != nil {
+				logger.Warn("Failed to query telemetry during range recalculation [%v, %v): %v", curr.PeriodStart, queryEnd, err)
+				curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
+				continue
+			}
+
+			if len(samples) == 0 {
+				if cleanupEmptyBuckets {
+					_ = s.repo.DeleteResultForBucket(ctx, def.ID, curr.PeriodStart)
+				}
+				curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
+				continue
+			}
+
+			defCopy := def
+			result := s.engine.Calculate(&defCopy, curr.PeriodStart, curr.PeriodEnd, samples)
+			result.Identifier = curr.Identifier
+			if err := s.repo.SaveResult(ctx, result); err != nil {
+				logger.Warn("Failed to save recalculated aggregation bucket %s: %v", curr.Identifier, err)
+				curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
+				continue
+			}
+
+			recalculatedCount++
+			if !curr.PeriodEnd.After(now) && def.SourceType == model.SourceCustomerProcessed {
+				completedEndsMap[curr.PeriodEnd.Unix()] = curr.PeriodEnd
+			}
+
+			if s.hub != nil {
+				s.hub.Broadcast(websocket.WSMessage{
+					Type:      "aggregation.result.updated",
+					Timestamp: now,
+					Data:      result,
+				})
+			}
+			if s.onAggregationCompleted != nil && !curr.PeriodEnd.After(now) {
+				event := AggregationCompletedEvent{
+					DeviceID:        def.DeviceID,
+					ParameterID:     def.ParameterID,
+					DefinitionID:    def.ID,
+					IntervalSeconds: def.IntervalSeconds,
+					Function:        string(def.Function),
+					PeriodStart:     curr.PeriodStart,
+					PeriodEnd:       curr.PeriodEnd,
+					Identifier:      result.Identifier,
+					Quality:         string(result.Quality),
+				}
+				go s.onAggregationCompleted(context.Background(), event)
+			}
+
+			curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
+		}
+	}
+
+	completedEnds := make([]time.Time, 0, len(completedEndsMap))
+	for _, pe := range completedEndsMap {
+		completedEnds = append(completedEnds, pe)
+	}
+	sort.Slice(completedEnds, func(i, j int) bool {
+		return completedEnds[i].Before(completedEnds[j])
+	})
+
+	return recalculatedCount, completedEnds, nil
+}
+
 

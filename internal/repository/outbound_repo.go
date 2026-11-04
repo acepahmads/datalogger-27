@@ -40,6 +40,7 @@ type OutboundRepository interface {
 	GetQueueSummary(ctx context.Context) (*model.DeliveryQueueSummary, error)
 	FetchPendingQueueItems(ctx context.Context, limit int) ([]model.OutboundDeliveryQueue, error)
 	GetUndeliveredQueueItemsByDestination(ctx context.Context, destinationID uint) ([]model.OutboundDeliveryQueue, error)
+	GetUndeliveredQueueItemsOverlappingWindow(ctx context.Context, startTime, endTime time.Time) ([]model.OutboundDeliveryQueue, error)
 	UpdateQueueItemPayloadAndRequeue(ctx context.Context, item *model.OutboundDeliveryQueue, requeue bool) error
 	ClaimQueueItemForDelivery(ctx context.Context, id uint64) (bool, error)
 	UpdateDeliveryResult(ctx context.Context, item *model.OutboundDeliveryQueue) error
@@ -623,6 +624,26 @@ func (r *outboundRepository) GetUndeliveredQueueItemsByDestination(ctx context.C
 	return items, err
 }
 
+// GetUndeliveredQueueItemsOverlappingWindow retrieves all PENDING, RETRYING, and FAILED queue items whose [period_start, period_end] overlaps [startTime, endTime]
+func (r *outboundRepository) GetUndeliveredQueueItemsOverlappingWindow(ctx context.Context, startTime, endTime time.Time) ([]model.OutboundDeliveryQueue, error) {
+	var items []model.OutboundDeliveryQueue
+	q := r.db.WithContext(ctx).
+		Preload("Destination").
+		Preload("Destination.PayloadConfig").
+		Where("status IN ?", []string{
+			string(model.DeliveryPending),
+			string(model.DeliveryRetrying),
+			string(model.DeliveryFailed),
+		})
+	if startTime.Equal(endTime) {
+		q = q.Where("period_end >= ? AND period_start <= ?", startTime, endTime)
+	} else {
+		q = q.Where("period_end > ? AND period_start < ?", startTime, endTime)
+	}
+	err := q.Order("id ASC").Find(&items).Error
+	return items, err
+}
+
 // UpdateQueueItemPayloadAndRequeue persists refreshed payload snapshot metadata and optionally resets the item to PENDING (attempts=0)
 func (r *outboundRepository) UpdateQueueItemPayloadAndRequeue(ctx context.Context, item *model.OutboundDeliveryQueue, requeue bool) error {
 	if item == nil || item.ID == 0 {
@@ -635,6 +656,12 @@ func (r *outboundRepository) UpdateQueueItemPayloadAndRequeue(ctx context.Contex
 		"parameter_count":  item.ParameterCount,
 		"device_count":     item.DeviceCount,
 		"devices_summary":  item.DevicesSummary,
+	}
+	if item.SourceValuesJSON != "" {
+		updates["source_values_json"] = item.SourceValuesJSON
+	}
+	if item.SourceAggregationIDs != "" {
+		updates["source_aggregation_ids"] = item.SourceAggregationIDs
 	}
 
 	query := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{}).Where("id = ?", item.ID)

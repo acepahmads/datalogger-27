@@ -32,6 +32,7 @@ type OutboundService interface {
 
 	// Pipeline hook: called when aggregation bucket finishes
 	HandleBucketCompleted(ctx context.Context, deviceID uint, bucketEnd time.Time) error
+	RefreshQueueForWindow(ctx context.Context, deviceID uint, startTime, endTime time.Time, completedBucketEnds []time.Time, enqueueMissing bool) (int, error)
 
 	// Destination Management
 	GetDestinations(ctx context.Context, enabledOnly bool, redactSecrets bool) ([]model.OutputDestination, error)
@@ -2044,6 +2045,219 @@ func (s *outboundService) reprocessUndeliveredItemsForDestination(
 		}
 	}
 	return updatedCount
+}
+
+// RefreshQueueForWindow re-hydrates SourceValuesJSON and PayloadSnapshot on all undelivered queue items
+// overlapping [startTime, endTime] from fresh CUSTOMER_PROCESSED aggregation results, and optionally enqueues missing completed windows.
+func (s *outboundService) RefreshQueueForWindow(
+	ctx context.Context,
+	deviceID uint,
+	startTime, endTime time.Time,
+	completedBucketEnds []time.Time,
+	enqueueMissing bool,
+) (int, error) {
+	startUTC := startTime.UTC()
+	endUTC := endTime.UTC()
+	if endUTC.Before(startUTC) {
+		return 0, nil
+	}
+
+	items, err := s.repo.GetUndeliveredQueueItemsOverlappingWindow(ctx, startUTC, endUTC)
+	if err != nil {
+		return 0, err
+	}
+
+	refreshedCount := 0
+	affectedDests := make(map[uint]bool)
+	anyEnabledRequeued := false
+
+	for i := range items {
+		item := &items[i]
+		dest := item.Destination
+		if dest == nil {
+			dest, _ = s.repo.GetDestinationByID(ctx, item.DestinationID)
+		}
+		if dest == nil {
+			continue
+		}
+		if dest.DeviceID != nil && *dest.DeviceID != deviceID {
+			continue
+		}
+
+		var queryDeviceIDs []uint
+		if dest.DeviceID != nil {
+			queryDeviceIDs = []uint{*dest.DeviceID}
+		}
+
+		cfg := dest.PayloadConfig
+		if cfg == nil {
+			cfg, _ = s.repo.GetPayloadConfigByDestinationID(ctx, dest.ID)
+		}
+		if cfg == nil {
+			cfg = &model.DestinationPayloadConfig{
+				StationIDField:  "station_id",
+				TimestampField:  "timestamp",
+				TimestampFormat: "ISO8601",
+				IntervalField:   "interval_minutes",
+				Structure:       "FLAT",
+				Version:         1,
+			}
+		}
+
+		sourceInterval := item.IntervalSeconds
+		windowSeconds := int(item.PeriodEnd.Sub(item.PeriodStart).Seconds())
+		var aggResults []model.AggregationResult
+		var qErr error
+		if sourceInterval > 0 && windowSeconds > sourceInterval {
+			aggResults, qErr = s.repo.GetCustomerAggregationResultsForRange(ctx, item.PeriodStart, item.PeriodEnd, sourceInterval, queryDeviceIDs)
+		} else {
+			aggResults, qErr = s.repo.GetCustomerAggregationResultsForWindow(ctx, item.PeriodEnd, sourceInterval, queryDeviceIDs)
+		}
+		if qErr != nil {
+			continue
+		}
+
+		matcher := buildParameterMappingMatcher(cfg)
+		var group []model.AggregationResult
+		for _, ar := range aggResults {
+			if !isActiveOutboundAggregationResult(ar) {
+				continue
+			}
+			devCode := ar.Device.DeviceCode
+			if devCode == "" {
+				devCode = fmt.Sprintf("DEV-%d", ar.DeviceID)
+			}
+			if enabled, _ := matcher.ResolveWithName(ar.DeviceID, devCode, ar.ParameterID, ar.Parameter.ParameterCode, ar.Parameter.ParameterName); !enabled {
+				continue
+			}
+			group = append(group, ar)
+		}
+
+		if len(group) == 0 {
+			_ = s.repo.CancelQueueItem(ctx, item.ID)
+			affectedDests[dest.ID] = true
+			continue
+		}
+
+		var sourceIDs []uint64
+		var sourceItems []model.SourceAggregationValueItem
+		for _, ar := range group {
+			sourceIDs = append(sourceIDs, ar.ID)
+			devCode := fmt.Sprintf("DEV-%d", ar.DeviceID)
+			devName := fmt.Sprintf("Device %d", ar.DeviceID)
+			if ar.Device != nil {
+				if ar.Device.DeviceCode != "" {
+					devCode = ar.Device.DeviceCode
+				}
+				if ar.Device.DeviceName != "" {
+					devName = ar.Device.DeviceName
+				}
+			}
+			val := ar.Value
+			qual := string(ar.Quality)
+			if val != nil && (math.IsNaN(*val) || math.IsInf(*val, 0) || math.Abs(*val) > 1e8) {
+				val = nil
+				qual = string(model.QualityBad)
+			} else if val != nil {
+				roundedVal := roundOutboundValue(*val)
+				val = &roundedVal
+			}
+			sourceItems = append(sourceItems, model.SourceAggregationValueItem{
+				DeviceID:            ar.DeviceID,
+				DeviceCode:          devCode,
+				DeviceName:          devName,
+				ParameterID:         ar.ParameterID,
+				ParameterCode:       ar.Parameter.ParameterCode,
+				ParameterName:       ar.Parameter.ParameterName,
+				Value:               val,
+				Unit:                ar.Parameter.Unit,
+				Quality:             qual,
+				AggregationResultID: ar.ID,
+				PeriodStart:         ar.PeriodStart,
+				PeriodEnd:           ar.PeriodEnd,
+			})
+		}
+
+		srcIDsBytes, _ := json.Marshal(sourceIDs)
+		srcValsBytes, _ := json.Marshal(sourceItems)
+		item.SourceAggregationIDs = string(srcIDsBytes)
+		item.SourceValuesJSON = string(srcValsBytes)
+
+		if s.rebuildQueueItemPayload(item, cfg) {
+			if err := s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, dest.Enabled); err == nil {
+				refreshedCount++
+				affectedDests[dest.ID] = true
+				if dest.Enabled {
+					anyEnabledRequeued = true
+				}
+			}
+		}
+	}
+
+	for dID := range affectedDests {
+		idCopy := dID
+		_ = s.repo.SyncDestinationStatsFromQueue(ctx, &idCopy)
+	}
+
+	if enqueueMissing {
+		now := time.Now().UTC()
+		candidateMap := make(map[int64]time.Time, len(completedBucketEnds))
+		for _, pe := range completedBucketEnds {
+			peUTC := pe.UTC()
+			if !peUTC.After(now) {
+				candidateMap[peUTC.Unix()] = peUTC
+			}
+		}
+
+		// Also include completed bundled dispatch boundaries (e.g. 3600s SPARING hourly windows) overlapping [startUTC, endUTC]
+		if dests, dErr := s.repo.GetAllDestinations(ctx, true); dErr == nil {
+			for _, dest := range dests {
+				if dest.DeviceID != nil && *dest.DeviceID != deviceID {
+					continue
+				}
+				srcInt := dest.IntervalSeconds
+				if srcInt <= 0 {
+					srcInt = 120
+				}
+				if dest.DispatchIntervalSeconds > srcInt {
+					disp := int64(dest.DispatchIntervalSeconds)
+					firstBoundary := ((startUTC.Unix() / disp) + 1) * disp
+					for bUnix := firstBoundary; ; bUnix += disp {
+						bEnd := time.Unix(bUnix, 0).UTC()
+						bStart := bEnd.Add(-time.Duration(disp) * time.Second)
+						if !bStart.Before(endUTC) && !startUTC.Equal(endUTC) {
+							break
+						}
+						if bEnd.After(now) {
+							break
+						}
+						candidateMap[bUnix] = bEnd
+						if startUTC.Equal(endUTC) {
+							break
+						}
+					}
+				}
+			}
+		}
+
+		if len(candidateMap) > 0 {
+			beforeSum, _ := s.repo.GetQueueSummary(ctx)
+			for _, pe := range candidateMap {
+				_ = s.HandleBucketCompleted(ctx, deviceID, pe)
+			}
+			afterSum, _ := s.repo.GetQueueSummary(ctx)
+			if beforeSum != nil && afterSum != nil && afterSum.Total > beforeSum.Total {
+				refreshedCount += int(afterSum.Total - beforeSum.Total)
+				anyEnabledRequeued = true
+			}
+		}
+	}
+
+	if anyEnabledRequeued {
+		s.notifyWorker()
+	}
+
+	return refreshedCount, nil
 }
 
 // GeneratePreview builds a real or sample preview payload matching stored config

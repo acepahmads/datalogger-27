@@ -16,11 +16,17 @@ import (
 // TelemetryHandler handles REST endpoints for instantaneous and historical telemetry data
 type TelemetryHandler struct {
 	telemetryService *service.TelemetryService
+	injectionService *service.TelemetryInjectionService
 }
 
 // NewTelemetryHandler constructs a new telemetry handler
 func NewTelemetryHandler(telemetryService *service.TelemetryService) *TelemetryHandler {
 	return &TelemetryHandler{telemetryService: telemetryService}
+}
+
+// SetInjectionService attaches the Superadmin-only telemetry injection service for badge annotation
+func (h *TelemetryHandler) SetInjectionService(injService *service.TelemetryInjectionService) {
+	h.injectionService = injService
 }
 
 func canAccessRawTelemetry(c *gin.Context) bool {
@@ -178,6 +184,9 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 	if !canAccessRawTelemetry(c) {
 		sanitizeRawData(records)
 	}
+	if isStrictSuperAdmin(c) && h.injectionService != nil {
+		h.injectionService.AnnotateRawDataForSuperadmin(c.Request.Context(), records)
+	}
 
 	response.OK(c, response.PaginatedData{
 		Total:    total,
@@ -198,6 +207,9 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 
 	if !canAccessRawTelemetry(c) {
 		sanitizeRawData(records)
+	}
+	if isStrictSuperAdmin(c) && h.injectionService != nil {
+		h.injectionService.AnnotateRawDataForSuperadmin(c.Request.Context(), records)
 	}
 
 	response.OK(c, response.PaginatedData{
@@ -228,6 +240,10 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 		return
 	}
 
+	if isStrictSuperAdmin(c) && h.injectionService != nil {
+		h.injectionService.AnnotateRawDataForSuperadmin(c.Request.Context(), records)
+	}
+
 	response.OK(c, response.PaginatedData{
 		Total:    total,
 		Page:     params.Page,
@@ -248,6 +264,10 @@ func (h *TelemetryHandler) GetAllRawTelemetry(c *gin.Context) {
 	if err != nil {
 		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())
 		return
+	}
+
+	if isStrictSuperAdmin(c) && h.injectionService != nil {
+		h.injectionService.AnnotateRawDataForSuperadmin(c.Request.Context(), records)
 	}
 
 	response.OK(c, response.PaginatedData{

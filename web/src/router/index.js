@@ -84,6 +84,12 @@ const routes = [
   { path: '/monitoring/system', name: 'SystemMonitoring', component: SystemMonitoringView },
   { path: '/monitoring/telemetry', name: 'LiveTelemetry', component: TelemetryMonitorView },
   { path: '/monitoring/analysis', name: 'TelemetryAnalysis', component: TelemetryAnalysisView },
+  {
+    path: '/monitoring/telemetry-injection',
+    name: 'TelemetryInjection',
+    component: () => import('../views/TelemetryInjectionView.vue'),
+    meta: { roles: ['SUPERADMIN'] },
+  },
   { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/devices/:id', redirect: to => `/monitoring/devices/${to.params.id}` },

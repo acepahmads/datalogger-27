@@ -95,6 +95,9 @@ type AggregationResult struct {
 	Quality        TelemetryQuality `gorm:"size:32;not null;default:'GOOD';index" json:"quality"`
 	QualityReason  QualityReason    `gorm:"size:64;not null;default:'NONE'" json:"quality_reason"`
 
+	// Superadmin-only transient marker (never stored in aggregation_results; populated strictly for SUPERADMIN API responses)
+	HasInjectedSamples bool `gorm:"-" json:"has_injected_samples,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

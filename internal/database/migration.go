@@ -67,6 +67,8 @@ func RunMigrations(db *gorm.DB) error {
 		&model.DeviceActuator{},
 		&model.ActuationSchedule{},
 		&model.ActuationLog{},
+		&model.TelemetryInjectionBatch{},
+		&model.TelemetryInjectionRecord{},
 	)
 	if err != nil {
 		return err
