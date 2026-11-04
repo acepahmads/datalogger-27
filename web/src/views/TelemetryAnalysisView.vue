@@ -309,6 +309,7 @@
           <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.startDate') }}:</span>
           <input
             type="datetime-local"
+            step="1"
             v-model="filters.startTime"
             class="px-2.5 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
           />
@@ -317,6 +318,7 @@
           <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.endDate') }}:</span>
           <input
             type="datetime-local"
+            step="1"
             v-model="filters.endTime"
             class="px-2.5 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
           />

@@ -2125,37 +2125,166 @@
 
     <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - ADMIN & SUPERADMIN ONLY) -->
     <div v-if="device && activeTab === 'raw' && canAccessRawMode" class="space-y-4">
-      <div class="saas-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[#0F172A]/90">
-        <div>
-          <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.rawInspectionTitle') }}</h3>
-          <p class="text-2xs text-slate-400 mt-0.5">
-            {{ $t('deviceDetail.rawInspectionSubtitle') }}
-          </p>
+      <div class="saas-card p-4 space-y-3 bg-[#0F172A]/90 border border-slate-800 rounded-2xl">
+        <!-- Top Row: Title & Actions -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.rawInspectionTitle') }}</h3>
+            <p class="text-2xs text-slate-400 mt-0.5">
+              {{ $t('deviceDetail.rawInspectionSubtitle') }}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              @click="fetchRawTelemetry"
+              :disabled="rawLoading"
+              class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 shadow-sm shadow-blue-500/20"
+            >
+              <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': rawLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              <span>{{ $t('common.refresh') }}</span>
+            </button>
+            <router-link
+              :to="'/monitoring/analysis?device_id=' + device.id + '&mode=RAW' + (rawParamId ? '&parameter_id=' + rawParamId : '')"
+              class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
+            >
+              <span>{{ $t('analysis.openInAnalysis') }}</span>
+            </router-link>
+          </div>
         </div>
-        <div class="flex items-center space-x-2">
-          <select
-            v-model="rawParamId"
-            @change="fetchRawTelemetry"
-            class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
-          >
-            <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
-            <option v-for="p in device.parameters" :key="p.id" :value="p.id">
-              {{ p.parameter_code }}
-            </option>
-          </select>
-          <button
-            @click="fetchRawTelemetry"
-            :disabled="rawLoading"
-            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition shadow-2xs"
-          >
-            {{ $t('common.refresh') }}
-          </button>
-          <router-link
-            :to="'/monitoring/analysis?device_id=' + device.id + '&mode=RAW'"
-            class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
-          >
-            <span>{{ $t('analysis.openInAnalysis') }}</span>
-          </router-link>
+
+        <!-- Filter Bar Row: Parameter, Time Range, Quality, Page Size -->
+        <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3">
+          <!-- Parameter Filter -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.paramLabel') }}</label>
+            <select
+              v-model="rawParamId"
+              @change="onRawFilterChange"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            >
+              <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
+              <option v-for="p in device.parameters" :key="p.id" :value="p.id">
+                {{ p.parameter_code }} — {{ p.parameter_name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Time Range Presets + Custom -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.timeRange') || 'Rentang Waktu' }}</label>
+            <div class="flex flex-wrap items-center gap-1">
+              <button
+                v-for="tr in rawTimeRangeOptions"
+                :key="tr.value"
+                type="button"
+                @click="setRawTimeRange(tr.value)"
+                class="px-2.5 py-1.5 rounded-lg text-2xs font-semibold transition"
+                :class="rawTimeRange === tr.value
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 dark:bg-[#0B0F19] dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-700/60'"
+              >
+                {{ tr.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Quality Filter -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.dataQuality') }}</label>
+            <select
+              v-model="rawQuality"
+              @change="onRawFilterChange"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            >
+              <option value="">{{ $t('deviceDetail.allQualitiesOption') }}</option>
+              <option value="GOOD">GOOD (Normal)</option>
+              <option value="BAD">BAD (Error)</option>
+              <option value="UNCERTAIN">UNCERTAIN</option>
+            </select>
+          </div>
+
+          <!-- Page Size -->
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('common.limit') || 'Baris / Hal' }}</label>
+            <select
+              v-model.number="rawPageSize"
+              @change="onRawFilterChange"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            >
+              <option :value="20">20 baris</option>
+              <option :value="50">50 baris</option>
+              <option :value="100">100 baris</option>
+              <option :value="250">250 baris</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Custom Start & End Date-Time Picker Row -->
+        <div
+          v-if="rawTimeRange === 'custom'"
+          class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3 text-xs"
+        >
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Dari Waktu (Mulai)</label>
+            <input
+              type="datetime-local"
+              step="1"
+              v-model="rawStartTime"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Sampai Waktu (Selesai)</label>
+            <input
+              type="datetime-local"
+              step="1"
+              v-model="rawEndTime"
+              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 pb-0.5">
+            <button
+              type="button"
+              @click="applyRawCustomRange"
+              :disabled="rawLoading"
+              class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition shadow-sm"
+            >
+              Terapkan Filter
+            </button>
+            <button
+              type="button"
+              @click="applyRawCustomWindowPreset('prev_hour')"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
+              title="Setel ke 1 jam kalender penuh sebelumnya"
+            >
+              Jam Lalu
+            </button>
+            <button
+              type="button"
+              @click="applyRawCustomWindowPreset('curr_hour')"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
+              title="Setel dari menit :00 jam ini sampai sekarang"
+            >
+              Jam Ini
+            </button>
+            <button
+              type="button"
+              @click="applyRawCustomWindowPreset('today')"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
+              title="Setel dari pukul 00:00 hari ini sampai sekarang"
+            >
+              Hari Ini
+            </button>
+            <button
+              type="button"
+              @click="setRawTimeRange('all')"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 text-3xs font-semibold transition"
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3592,6 +3721,10 @@ export default {
       rawPage: 1,
       rawPageSize: 20,
       rawParamId: '',
+      rawQuality: '',
+      rawTimeRange: 'all',
+      rawStartTime: '',
+      rawEndTime: '',
       rawLoading: false,
 
       // Phase 3.3 Aggregation & Rollups
@@ -3657,6 +3790,17 @@ export default {
         { label: this.$t('deviceDetail.timeRange6h'), value: '6h' },
         { label: this.$t('deviceDetail.timeRange24h'), value: '24h' },
         { label: this.$t('deviceDetail.timeRangeAll'), value: 'all' },
+      ];
+    },
+    rawTimeRangeOptions() {
+      return [
+        { label: '15m', value: '15m' },
+        { label: this.$t('deviceDetail.timeRange1h') || '1h', value: '1h' },
+        { label: this.$t('deviceDetail.timeRange6h') || '6h', value: '6h' },
+        { label: this.$t('deviceDetail.timeRange24h') || '24h', value: '24h' },
+        { label: '7d', value: '7d' },
+        { label: this.$t('deviceDetail.timeRangeAll') || 'All', value: 'all' },
+        { label: this.$t('analysis.custom') || 'Custom', value: 'custom' },
       ];
     },
     displayParameters() {
@@ -4646,8 +4790,14 @@ export default {
 
         this.device.last_data_at = data.received_at;
 
-        // Reactive stream into Raw Telemetry table if on page 1
-        if (this.activeTab === 'raw' && this.rawPage === 1 && (!this.rawParamId || Number(this.rawParamId) === data.parameter_id)) {
+        // Reactive stream into Raw Telemetry table if on page 1 (skip when inspecting custom historical window)
+        if (
+          this.activeTab === 'raw' &&
+          this.rawPage === 1 &&
+          this.rawTimeRange !== 'custom' &&
+          (!this.rawParamId || Number(this.rawParamId) === data.parameter_id) &&
+          (!this.rawQuality || (data.quality || 'GOOD') === this.rawQuality)
+        ) {
           const rawItem = {
             id: Date.now(),
             device_id: data.device_id,
@@ -4753,6 +4903,10 @@ export default {
         this.historyLoading = false;
       }
     },
+    formatLocalDatetimeInput(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    },
     async fetchRawTelemetry() {
       if (!this.device) return;
       this.rawLoading = true;
@@ -4762,6 +4916,26 @@ export default {
           page_size: this.rawPageSize,
         };
         if (this.rawParamId) params.parameter_id = this.rawParamId;
+        if (this.rawQuality) params.quality = this.rawQuality;
+
+        if (this.rawTimeRange === 'custom') {
+          if (this.rawStartTime) {
+            const s = new Date(this.rawStartTime);
+            if (!Number.isNaN(s.getTime())) params.start_time = s.toISOString();
+          }
+          if (this.rawEndTime) {
+            const e = new Date(this.rawEndTime);
+            if (!Number.isNaN(e.getTime())) params.end_time = e.toISOString();
+          }
+        } else if (this.rawTimeRange && this.rawTimeRange !== 'all') {
+          const now = new Date();
+          let ms = 60 * 60 * 1000;
+          if (this.rawTimeRange === '15m') ms = 15 * 60 * 1000;
+          else if (this.rawTimeRange === '6h') ms = 6 * 60 * 60 * 1000;
+          else if (this.rawTimeRange === '24h') ms = 24 * 60 * 60 * 1000;
+          else if (this.rawTimeRange === '7d') ms = 7 * 24 * 60 * 60 * 1000;
+          params.start_time = new Date(now.getTime() - ms).toISOString();
+        }
 
         const res = await axios.get(`/api/devices/${this.device.id}/telemetry/raw`, { params });
         if (res.data && res.data.data) {
@@ -4773,6 +4947,54 @@ export default {
       } finally {
         this.rawLoading = false;
       }
+    },
+    setRawTimeRange(range) {
+      this.rawTimeRange = range;
+      this.rawPage = 1;
+      if (range === 'custom') {
+        if (!this.rawStartTime || !this.rawEndTime) {
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          this.rawStartTime = this.formatLocalDatetimeInput(oneHourAgo);
+          this.rawEndTime = this.formatLocalDatetimeInput(now);
+        }
+      }
+      this.fetchRawTelemetry();
+    },
+    onRawFilterChange() {
+      this.rawPage = 1;
+      this.fetchRawTelemetry();
+    },
+    applyRawCustomRange() {
+      if (this.rawStartTime && this.rawEndTime) {
+        const s = new Date(this.rawStartTime);
+        const e = new Date(this.rawEndTime);
+        if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime()) && e < s) {
+          this.showToast('Waktu Selesai harus lebih besar dari Waktu Mulai', 'error');
+          return;
+        }
+      }
+      this.rawPage = 1;
+      this.fetchRawTelemetry();
+    },
+    applyRawCustomWindowPreset(preset) {
+      const now = new Date();
+      let start = now;
+      let end = now;
+      if (preset === 'prev_hour') {
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
+        start = new Date(end.getTime() - 3600 * 1000);
+      } else if (preset === 'curr_hour') {
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
+        end = now;
+      } else if (preset === 'today') {
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        end = now;
+      }
+      this.rawStartTime = this.formatLocalDatetimeInput(start);
+      this.rawEndTime = this.formatLocalDatetimeInput(end);
+      this.rawPage = 1;
+      this.fetchRawTelemetry();
     },
     setTimeRange(range) {
       this.historyTimeRange = range;
