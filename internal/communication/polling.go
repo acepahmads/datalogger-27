@@ -385,19 +385,34 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 				})
 			}
 
-			if cycleSuccess {
+			hasFormula := deviceHasActiveFormula(cachedDev)
+			if cycleSuccess || hasFormula {
 				now := time.Now().UTC()
 				cachedDev.LastDataAt = &now
 			}
 			if p.alarmEvaluator != nil {
-				var hIn *service.DeviceHealthInput
-				if p.connManager != nil {
-					h := p.connManager.GetDeviceHealth(cachedDev.ID)
-					hIn = toHealthInput(h)
+				if cycleSuccess || hasFormula {
+					p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, cachedDev, nil)
+				} else {
+					var hIn *service.DeviceHealthInput
+					if p.connManager != nil {
+						h := p.connManager.GetDeviceHealth(cachedDev.ID)
+						hIn = toHealthInput(h)
+					}
+					p.alarmEvaluator.EvaluateDeviceOffline(ctx, cachedDev, hIn)
 				}
-				p.alarmEvaluator.EvaluateDeviceOffline(ctx, cachedDev, hIn)
 			}
-			if cycleSuccess {
+			if cycleSuccess || hasFormula {
+				if !cycleSuccess && hasFormula && p.deviceService != nil {
+					_ = p.deviceService.SetOnline(cachedDev.ID)
+				}
+				if p.connManager != nil && p.connManager.GetDeviceHealth(cachedDev.ID).ConsecutiveFailures > 0 {
+					go func(d *model.Device) {
+						reconnCtx, reconnCancel := context.WithTimeout(context.Background(), 45*time.Second)
+						defer reconnCancel()
+						_ = p.connManager.ReconnectDevice(reconnCtx, d)
+					}(cachedDev)
+				}
 				wasFailing := consecutiveFailures > 0
 				consecutiveFailures = 0
 				if wasFailing || currentIntervalMs != baseIntervalMs {
@@ -559,27 +574,30 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 
 		res, err := p.ReadParameter(ctx, device, &param)
 		if err != nil {
-			if p.alarmEvaluator != nil && p.connManager != nil {
-				h := p.connManager.GetDeviceHealth(device.ID)
-				p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
-			}
+			hasFormula := deviceHasActiveFormula(device)
+			if !anySuccess && !hasFormula {
+				if p.alarmEvaluator != nil && p.connManager != nil {
+					h := p.connManager.GetDeviceHealth(device.ID)
+					p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
+				}
 
-			if p.hub != nil {
-				p.hub.Broadcast(websocket.WSMessage{
-					Type:      "device.communication.error",
-					Timestamp: time.Now(),
-					Data: map[string]interface{}{
-						"device_id":      device.ID,
-						"device_code":    device.DeviceCode,
-						"parameter_id":   param.ID,
-						"parameter_code": param.ParameterCode,
-						"error":          err.Error(),
-					},
-				})
+				if p.hub != nil {
+					p.hub.Broadcast(websocket.WSMessage{
+						Type:      "device.communication.error",
+						Timestamp: time.Now(),
+						Data: map[string]interface{}{
+							"device_id":      device.ID,
+							"device_code":    device.DeviceCode,
+							"parameter_id":   param.ID,
+							"parameter_code": param.ParameterCode,
+							"error":          err.Error(),
+						},
+					})
+				}
 			}
 
 			if isFatalCommError(err) {
-				if p.markRemainingParamsBad(device, enabledParams, idx+1, err, source, anySuccess) {
+				if p.markRemainingParamsBad(device, enabledParams, idx+1, err, source, anySuccess || hasFormula) {
 					anySuccess = true
 				}
 				break
@@ -652,26 +670,29 @@ jobLoop:
 			polledIDs[param.ID] = true
 			res, err := p.ReadParameter(ctx, device, param)
 			if err != nil {
-				if p.alarmEvaluator != nil && p.connManager != nil {
-					h := p.connManager.GetDeviceHealth(device.ID)
-					p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
-				}
-				if p.hub != nil {
-					p.hub.Broadcast(websocket.WSMessage{
-						Type:      "device.communication.error",
-						Timestamp: time.Now(),
-						Data: map[string]interface{}{
-							"device_id":      device.ID,
-							"device_code":    device.DeviceCode,
-							"parameter_id":   param.ID,
-							"parameter_code": param.ParameterCode,
-							"error":          err.Error(),
-						},
-					})
+				hasFormula := deviceHasActiveFormula(device)
+				if !anySuccess && !hasFormula {
+					if p.alarmEvaluator != nil && p.connManager != nil {
+						h := p.connManager.GetDeviceHealth(device.ID)
+						p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
+					}
+					if p.hub != nil {
+						p.hub.Broadcast(websocket.WSMessage{
+							Type:      "device.communication.error",
+							Timestamp: time.Now(),
+							Data: map[string]interface{}{
+								"device_id":      device.ID,
+								"device_code":    device.DeviceCode,
+								"parameter_id":   param.ID,
+								"parameter_code": param.ParameterCode,
+								"error":          err.Error(),
+							},
+						})
+					}
 				}
 				if isFatalCommError(err) {
 					rem := filterUnpolledParams(enabledParams, polledIDs)
-					if p.markRemainingParamsBad(device, rem, 0, err, source, anySuccess) {
+					if p.markRemainingParamsBad(device, rem, 0, err, source, anySuccess || hasFormula) {
 						anySuccess = true
 					}
 					break jobLoop
@@ -946,7 +967,13 @@ func (p *PollingEngine) ingestFallbackReading(
 	qFlags := ""
 	if isHeld {
 		qReason = model.ReasonHoldAnomalyGrace
-		qFlags = model.FlagHeldAnomaly
+		if formulaVal != nil {
+			qFlags = model.FlagHeldAnomaly + "," + model.FlagFormulaFallback
+		} else {
+			qFlags = model.FlagHeldAnomaly
+		}
+	} else if formulaVal != nil {
+		qFlags = model.FlagFormulaFallback
 	}
 
 	if p.telemetryService != nil {
@@ -1077,7 +1104,7 @@ func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []mo
 		}
 	}
 
-	if !anyRecovered && !priorSuccess {
+	if !anyRecovered && !priorSuccess && !deviceHasActiveFormula(device) {
 		if p.deviceService != nil {
 			_ = p.deviceService.SetOffline(device.ID)
 		}
@@ -1121,26 +1148,29 @@ func (p *PollingEngine) executeSingleFallback(
 
 	res, err := p.ReadParameter(ctx, device, param)
 	if err != nil {
-		if p.alarmEvaluator != nil && p.connManager != nil {
-			h := p.connManager.GetDeviceHealth(device.ID)
-			p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
-		}
-		if p.hub != nil {
-			p.hub.Broadcast(websocket.WSMessage{
-				Type:      "device.communication.error",
-				Timestamp: time.Now(),
-				Data: map[string]interface{}{
-					"device_id":      device.ID,
-					"device_code":    device.DeviceCode,
-					"parameter_id":   param.ID,
-					"parameter_code": param.ParameterCode,
-					"error":          err.Error(),
-				},
-			})
+		hasFormula := deviceHasActiveFormula(device)
+		if !priorSuccess && !hasFormula {
+			if p.alarmEvaluator != nil && p.connManager != nil {
+				h := p.connManager.GetDeviceHealth(device.ID)
+				p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
+			}
+			if p.hub != nil {
+				p.hub.Broadcast(websocket.WSMessage{
+					Type:      "device.communication.error",
+					Timestamp: time.Now(),
+					Data: map[string]interface{}{
+						"device_id":      device.ID,
+						"device_code":    device.DeviceCode,
+						"parameter_id":   param.ID,
+						"parameter_code": param.ParameterCode,
+						"error":          err.Error(),
+					},
+				})
+			}
 		}
 		if isFatalCommError(err) {
 			rem := filterUnpolledParams(enabledParams, polledIDs)
-			recovered := p.markRemainingParamsBad(device, rem, 0, err, source, priorSuccess)
+			recovered := p.markRemainingParamsBad(device, rem, 0, err, source, priorSuccess || hasFormula)
 			return nil, recovered, true
 		}
 		return nil, false, false

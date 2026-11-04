@@ -473,6 +473,27 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		}
 	}
 
+	// Preserve caller-supplied quality flags (e.g., formula_fallback) alongside QualityProcessor flags
+	if p.QualityFlags != "" {
+		flagSet := make(map[string]bool)
+		mergedFlags := make([]string, 0, 4)
+		for _, part := range strings.Split(valResult.QualityFlags, ",") {
+			f := strings.TrimSpace(part)
+			if f != "" && !flagSet[f] {
+				flagSet[f] = true
+				mergedFlags = append(mergedFlags, f)
+			}
+		}
+		for _, part := range strings.Split(p.QualityFlags, ",") {
+			f := strings.TrimSpace(part)
+			if f != "" && !flagSet[f] {
+				flagSet[f] = true
+				mergedFlags = append(mergedFlags, f)
+			}
+		}
+		valResult.QualityFlags = strings.Join(mergedFlags, ",")
+	}
+
 	val := valResult.ProcessedValue
 	rawVal := p.RawValue
 	if math.IsNaN(rawVal) || math.IsInf(rawVal, 0) {

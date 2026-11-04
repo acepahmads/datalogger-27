@@ -7004,6 +7004,55 @@ export default {
         dotClass: 'dot-amber',
       };
     },
+    allParameters() {
+      const baseList = (OperatorCommandCenterView.computed && OperatorCommandCenterView.computed.allParameters)
+        ? OperatorCommandCenterView.computed.allParameters.call(this)
+        : [];
+      return baseList.map((item) => {
+        const pid = item.id || item.param_id;
+        const live = (pid != null && this.liveMap && this.liveMap[pid]) ? this.liveMap[pid] : {};
+        const rawP = (pid != null && this.bentoRawParamMap && this.bentoRawParamMap[pid]) ? this.bentoRawParamMap[pid] : {};
+        const formulaStr = String(item.formula || rawP.formula || live.formula || '').trim();
+        const hasFormula = formulaStr !== '';
+        const qFlags = String(live.quality_flags || rawP.current_quality_flags || '');
+        const rawQuality = String(live.quality || rawP.current_quality || item.quality || 'UNKNOWN');
+        const rawReason = String(live.quality_reason || rawP.current_quality_reason || item.quality_reason || '');
+
+        let deviceStatus = item.device_status;
+        let quality = item.quality;
+        let qualityReason = item.quality_reason;
+        let receivedAt = item.received_at;
+
+        const hasValidNum = item.value !== null && item.value !== undefined && item.value !== '' && isFinite(Number(item.value));
+        const devWasOffline = deviceStatus === 'OFFLINE' || deviceStatus === 'ERROR' || deviceStatus === 'DISCONNECTED' || deviceStatus === 'FAILED';
+
+        if (hasFormula && hasValidNum && devWasOffline) {
+          deviceStatus = 'ONLINE';
+          quality = (rawQuality && rawQuality !== 'BAD' && rawQuality !== 'UNKNOWN') ? rawQuality : 'GOOD';
+          qualityReason = (rawReason === 'COMMUNICATION_ERROR' || rawReason === 'DEVICE_OFFLINE' || rawReason === 'PORT_DISCONNECTED')
+            ? 'NONE'
+            : rawReason;
+          receivedAt = live.received_at || rawP.current_received_at || receivedAt;
+        }
+
+        const isFormulaFallback = hasFormula && (
+          qFlags.toLowerCase().includes('formula_fallback') ||
+          rawReason === 'FORMULA_FALLBACK' ||
+          devWasOffline
+        );
+
+        return {
+          ...item,
+          formula: formulaStr,
+          device_status: deviceStatus,
+          quality,
+          quality_reason: qualityReason,
+          quality_flags: qFlags,
+          is_formula_fallback: isFormulaFallback,
+          received_at: receivedAt,
+        };
+      });
+    },
     unplottedParameters() {
       const plottedIds = new Set((this.activeTrendSeries || []).map(s => Number(s.parameterId)));
       return (this.allParameters || []).filter(
@@ -7756,7 +7805,36 @@ export default {
       if (tone === 'badge-amber') return 'is-row-warn';
       return '';
     },
+    deviceHasConfiguredFormula(dev) {
+      if (!dev || !Array.isArray(dev.parameters)) return false;
+      return dev.parameters.some(
+        p => p && p.enabled !== false && p.enabled !== 0 && String(p.formula || '').trim() !== ''
+      );
+    },
+    isParamFormulaFallback(param) {
+      if (!param) return false;
+      if (param.is_formula_fallback) return true;
+      const formulaStr = String(param.formula || '').trim();
+      if (!formulaStr) return false;
+      const flags = String(param.quality_flags || '').toLowerCase();
+      return flags.includes('formula_fallback') || param.quality_reason === 'FORMULA_FALLBACK';
+    },
     getBentoStatusBadge(param) {
+      const res = this.resolveCoreBentoStatusBadge(param);
+      if (!param || this.isBentoParamCommOffline(param) || !this.isParamFormulaFallback(param)) {
+        return res;
+      }
+      const baseLabel = String(res.label || 'Baik');
+      const nextLabel = baseLabel.endsWith('*') ? baseLabel : `${baseLabel}*`;
+      const fallbackNote = '(*) Sensor fisik tidak terhubung — nilai dihitung otomatis dari formula';
+      const nextTooltip = res.tooltip ? `${res.tooltip} · ${fallbackNote}` : fallbackNote;
+      return {
+        ...res,
+        label: nextLabel,
+        tooltip: nextTooltip,
+      };
+    },
+    resolveCoreBentoStatusBadge(param) {
       if (!param) return { label: 'Normal', toneClass: 'badge-green', isAlarm: false, alarm: null, tooltip: '' };
       const activeInfo = this.getBentoParamActiveAlarm(param);
 
@@ -7958,6 +8036,56 @@ export default {
         limitTooltip: `Belum ada limit khusus · ${editHint}`,
       };
     },
+    onDeviceCommEvent(e) {
+      const detail = e && e.detail;
+      if (!detail) return;
+      const type = detail.type;
+      const data = detail.data || {};
+      const devId = Number(data.device_id || data.id);
+      const target = devId ? (this.devicesList || []).find(d => Number(d.id) === devId) : null;
+
+      if (target && this.deviceHasConfiguredFormula(target)) {
+        if (type === 'device.communication.error') {
+          return;
+        }
+        if (type === 'device.connection.changed') {
+          const status = data.connection_status || data.status;
+          if (status === 'OFFLINE' || status === 'ERROR' || status === 'DISCONNECTED') {
+            this.$set(target, 'connection_status', 'ONLINE');
+            this.$set(target, 'status', 'ONLINE');
+            this.staleCheckTimeMs = Date.now();
+            (target.parameters || []).forEach((p) => {
+              if (String(p.formula || '').trim() !== '') return;
+              const prev = this.liveMap[p.id] || {};
+              this.$set(this.liveMap, p.id, {
+                ...prev,
+                parameter_id: p.id,
+                quality: 'BAD',
+                quality_reason: data.reason || 'PORT_DISCONNECTED',
+              });
+            });
+            return;
+          }
+        }
+      }
+
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onDeviceCommEvent) {
+        OperatorCommandCenterView.methods.onDeviceCommEvent.call(this, e);
+      }
+    },
+    onTelemetryEvent(e) {
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onTelemetryEvent) {
+        OperatorCommandCenterView.methods.onTelemetryEvent.call(this, e);
+      }
+      const data = e && e.detail;
+      if (data && data.device_id && data.quality === 'BAD') {
+        const target = (this.devicesList || []).find(d => Number(d.id) === Number(data.device_id));
+        if (target && this.deviceHasConfiguredFormula(target)) {
+          this.$set(target, 'connection_status', 'ONLINE');
+          this.$set(target, 'status', 'ONLINE');
+        }
+      }
+    },
     onTestReadCompleted(payload) {
       if (!payload || !payload.result || !payload.parameter) return;
       const hasFormulaVal = payload.result.formula_value !== undefined && payload.result.formula_value !== null;
@@ -7973,6 +8101,7 @@ export default {
               formula_value: hasFormulaVal ? val : payload.result.formula_value,
               quality: 'GOOD',
               quality_reason: payload.result.success ? 'TEST_READ_PASS' : 'FORMULA_FALLBACK',
+              quality_flags: payload.result.success ? '' : 'formula_fallback',
               received_at: new Date().toISOString(),
             });
           }

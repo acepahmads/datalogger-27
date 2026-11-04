@@ -563,11 +563,25 @@ func (m *ConnectionManager) ExecuteWithRetry(
 	}
 
 	if m.deviceService != nil {
-		_ = m.deviceService.SetConnectionError(device.ID, lastErr.Error())
+		if !deviceHasActiveFormula(device) {
+			_ = m.deviceService.SetConnectionError(device.ID, lastErr.Error())
+		}
 		_ = m.deviceService.RecordCommunicationResult(device.ID, false, 0)
 	}
 
 	return nil, fmt.Errorf("device %s communication failed after %d retries: %w", device.DeviceCode, retryLimit, lastErr)
+}
+
+func deviceHasActiveFormula(device *model.Device) bool {
+	if device == nil {
+		return false
+	}
+	for _, p := range device.Parameters {
+		if p.Enabled && strings.TrimSpace(p.Formula) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // DiagnosticTest performs a non-destructive, serialized diagnostic check of the device link.

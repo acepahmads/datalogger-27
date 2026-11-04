@@ -241,6 +241,10 @@ func (h *CommunicationHandler) TestReadParameter(c *gin.Context) {
 			if dev.Connection != nil {
 				source = string(dev.Connection.Protocol)
 			}
+			qFlags := ""
+			if !report.Success {
+				qFlags = model.FlagFormulaFallback
+			}
 			_ = ts.Ingest(&service.TelemetryIngestPayload{
 				DeviceID:      dev.ID,
 				DeviceCode:    dev.DeviceCode,
@@ -255,6 +259,7 @@ func (h *CommunicationHandler) TestReadParameter(c *gin.Context) {
 				FormulaValue:  report.FormulaValue,
 				Formula:       param.Formula,
 				Quality:       model.QualityGood,
+				QualityFlags:  qFlags,
 				Source:        source,
 				ReceivedAt:    time.Now().UTC(),
 				Parameter:     param,

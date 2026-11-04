@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -565,6 +566,9 @@ func TestDiagnosticAndPolling_TimeoutWithFormulaStillProducesValue(t *testing.T)
 	}
 	if res.Quality != model.QualityGood {
 		t.Fatalf("expected QualityGood, got %s", res.Quality)
+	}
+	if !strings.Contains(res.QualityFlags, model.FlagFormulaFallback) {
+		t.Fatalf("expected QualityFlags to contain %q, got %q", model.FlagFormulaFallback, res.QualityFlags)
 	}
 
 	// Batch mode with 1 non-formula parameter + 1 formula parameter on timeout

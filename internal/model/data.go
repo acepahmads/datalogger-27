@@ -48,8 +48,9 @@ const (
 	FlagTimestampWarn  = "timestamp_warning"
 	FlagDuplicate      = "duplicate"
 	FlagDecodeError    = "decode_error"
-	FlagCommError      = "comm_error"
-	FlagHeldAnomaly    = "held_anomaly"
+	FlagCommError       = "comm_error"
+	FlagHeldAnomaly     = "held_anomaly"
+	FlagFormulaFallback = "formula_fallback"
 )
 
 // RawData represents persisted raw and normalized telemetry from industrial sensors (Section 4 & 6)
