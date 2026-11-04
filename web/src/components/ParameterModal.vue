@@ -215,6 +215,7 @@
                   {{ $t('categoryManagement.fields.name') || 'Domain Category' }}
                 </label>
                 <button
+                  v-if="canManageCategories"
                   type="button"
                   @click="$emit('open-category-management')"
                   class="text-3xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline flex items-center space-x-1 font-medium transition"
@@ -1217,6 +1218,15 @@ export default {
     isEditing() {
       return !this.isCopying && !!this.paramToEdit;
     },
+    canManageCategories() {
+      const user = this.$store && this.$store.state ? this.$store.state.user : null;
+      if (!user) return false;
+      const rawRole = typeof user.role === 'string'
+        ? user.role
+        : ((user.role && user.role.name) || user.role_name || (user.Role && user.Role.name) || '');
+      const normalized = String(rawRole).trim().toUpperCase();
+      return Boolean(normalized && normalized !== 'OPERATOR');
+    },
     modalTitle() {
       if (this.isCopying) return this.$t('parameterModal.titleCopy');
       return this.isEditing ? this.$t('parameterModal.titleEdit') : this.$t('parameterModal.titleAdd');
@@ -1593,8 +1603,16 @@ export default {
     categories: {
       immediate: true,
       handler(newCats) {
-        if (Array.isArray(newCats) && newCats.length > 0) {
+        if (Array.isArray(newCats)) {
           this.availableCategories = [...newCats];
+          if (
+            this.form.category_id !== null &&
+            this.form.category_id !== '' &&
+            newCats.length > 0 &&
+            !newCats.some(c => Number(c.id) === Number(this.form.category_id))
+          ) {
+            this.form.category_id = null;
+          }
         }
       },
     },
@@ -1613,12 +1631,29 @@ export default {
     getCategoryTheme(colorKey) {
       return getCategoryColor(colorKey);
     },
+    selectNewlyCreatedCategory(newCat) {
+      if (!newCat || !newCat.id) return;
+      if (!this.availableCategories.some(c => Number(c.id) === Number(newCat.id))) {
+        this.availableCategories = [...this.availableCategories, newCat];
+      }
+      if (!this.form.category_id) {
+        this.form.category_id = newCat.id;
+        this.onCategorySelectionChange();
+      }
+    },
     async fetchCategories() {
       try {
         const res = await apiClient.get('/categories');
-        const cats = (res && res.data && res.data.data) ? res.data.data : (res && res.data ? res.data : []);
-        if (Array.isArray(cats) && cats.length > 0) {
+        const cats = (res && res.data && res.data.data !== undefined) ? res.data.data : (res && res.data ? res.data : []);
+        if (Array.isArray(cats)) {
           this.availableCategories = cats;
+          if (
+            this.form.category_id !== null &&
+            this.form.category_id !== '' &&
+            !cats.some(c => Number(c.id) === Number(this.form.category_id))
+          ) {
+            this.form.category_id = null;
+          }
         }
       } catch (err) {
         // Fallback attempt to /parameter-categories if alias route is used

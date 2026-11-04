@@ -170,6 +170,12 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				c.Next()
 				return
 			}
+		} else if strings.TrimSpace(role) != "" {
+			// All authenticated roles outside OPERATOR can view, manage (CRUD), and assign parameter categories
+			if permissionCode == "category.view" || permissionCode == "category.manage" || permissionCode == "category.assign" {
+				c.Next()
+				return
+			}
 		}
 
 		response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")

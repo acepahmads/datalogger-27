@@ -26,18 +26,20 @@ type ParameterCategory struct {
 
 // Monitoring domain constants
 const (
-	DomainAQMS   = "AQMS"
-	DomainWQMS   = "WQMS"
-	DomainCustom = "CUSTOM"
-	DomainAll    = "ALL"
+	DomainAQMS    = "AQMS"
+	DomainWQMS    = "WQMS"
+	DomainSPARING = "SPARING"
+	DomainCustom  = "CUSTOM"
+	DomainAll     = "ALL"
 )
 
 // ValidCategoryDomains defines permitted domain tags
 var ValidCategoryDomains = map[string]bool{
-	DomainAQMS:   true,
-	DomainWQMS:   true,
-	DomainCustom: true,
-	DomainAll:    true,
+	DomainAQMS:    true,
+	DomainWQMS:    true,
+	DomainSPARING: true,
+	DomainCustom:  true,
+	DomainAll:     true,
 }
 
 // IsValidCategoryDomain checks whether the given domain tag is valid

@@ -37,6 +37,7 @@ type CreateCategoryRequest struct {
 }
 
 type UpdateCategoryRequest struct {
+	Code              *string `json:"code"`
 	Name              *string `json:"name"`
 	Description       *string `json:"description"`
 	IconKey           *string `json:"icon_key"`
@@ -137,6 +138,25 @@ func (s *CategoryService) UpdateCategory(id uint, req *UpdateCategoryRequest, ac
 	cat, err := s.categoryRepo.GetByID(id)
 	if err != nil {
 		return nil, errors.New("category not found")
+	}
+
+	if req.Code != nil {
+		code := strings.TrimSpace(*req.Code)
+		if code == "" {
+			return nil, errors.New("category code cannot be empty")
+		}
+		if !codeRegex.MatchString(code) {
+			return nil, errors.New("category code must contain only letters, numbers, underscores, and hyphens")
+		}
+		if !strings.EqualFold(code, cat.Code) {
+			if existing, _ := s.categoryRepo.GetByCode(code); existing != nil && existing.ID != cat.ID {
+				return nil, fmt.Errorf("category with code '%s' already exists", code)
+			}
+		}
+		if code != cat.Code {
+			s.categoryRepo.PurgeSoftDeletedByCode(code, cat.ID)
+			cat.Code = code
+		}
 	}
 
 	if req.Name != nil {

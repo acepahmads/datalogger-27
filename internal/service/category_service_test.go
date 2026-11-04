@@ -241,3 +241,42 @@ func TestCategoryService_ReorderAndAssignParameters(t *testing.T) {
 		t.Errorf("Expected p1 to be assigned to c1, got %v", p1Check.CategoryID)
 	}
 }
+
+func TestCategoryService_ReuseDeletedCodeAndUpdateCodeAndSparingDomain(t *testing.T) {
+	_, catService, _, _ := setupCategoryTestDB(t)
+
+	// 1. Create SPARING category
+	created, err := catService.CreateCategory(&service.CreateCategoryRequest{
+		Code:   "sparing_effluent",
+		Name:   "SPARING Effluent",
+		Domain: "SPARING",
+	}, "admin", "127.0.0.1", "Test")
+	if err != nil {
+		t.Fatalf("CreateCategory SPARING failed: %v", err)
+	}
+	if created.Domain != model.DomainSPARING {
+		t.Fatalf("expected DomainSPARING, got %s", created.Domain)
+	}
+
+	// 2. Update category code
+	renamedCode := "sparing_outlet"
+	updated, err := catService.UpdateCategory(created.ID, &service.UpdateCategoryRequest{
+		Code: &renamedCode,
+	}, "admin", "127.0.0.1", "Test")
+	if err != nil || updated.Code != "sparing_outlet" {
+		t.Fatalf("UpdateCategory code failed: updated=%+v err=%v", updated, err)
+	}
+
+	// 3. Delete category and re-create with the same code (must not collide with soft-deleted row)
+	if err := catService.DeleteCategory(created.ID, nil, "admin", "127.0.0.1", "Test"); err != nil {
+		t.Fatalf("DeleteCategory failed: %v", err)
+	}
+	recreated, err := catService.CreateCategory(&service.CreateCategoryRequest{
+		Code:   "sparing_outlet",
+		Name:   "SPARING Outlet Reused",
+		Domain: "SPARING",
+	}, "admin", "127.0.0.1", "Test")
+	if err != nil || recreated.ID == 0 {
+		t.Fatalf("expected recreating deleted category code to succeed, got err=%v", err)
+	}
+}

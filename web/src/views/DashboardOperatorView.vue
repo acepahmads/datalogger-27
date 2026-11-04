@@ -469,7 +469,7 @@
                   </div>
 
                   <!-- Footer: Category Management Modal Trigger -->
-                  <div v-if="canManageCategories || canViewCategories" class="pt-2 mt-2 border-t border-slate-100 dark:border-[#1E3048]">
+                  <div v-if="canManageCategories" class="pt-2 mt-2 border-t border-slate-100 dark:border-[#1E3048]">
                     <button
                       type="button"
                       @click="openCategoryManagementModal(); closeToolbarPopover()"
@@ -2438,7 +2438,7 @@
                       Reset
                     </button>
                     <button
-                      v-if="canManageCategories || canViewCategories"
+                      v-if="canManageCategories"
                       type="button"
                       class="mini-icon-btn"
                       title="Kelola Kategori Parameter"
@@ -2734,7 +2734,7 @@
                   >
                     <span>{{ bentoCategoryTableSections.length }} grup kartu kategori aktif</span>
                     <button
-                      v-if="canManageCategories || canViewCategories"
+                      v-if="canManageCategories"
                       type="button"
                       class="bmp-link-btn"
                       @click="openCategoryManagementModal(); bentoActiveMiniPopover = null"
@@ -2750,7 +2750,7 @@
                 >
                   <span>{{ bentoCategoryTableSections.length }} tabel kategori aktif</span>
                   <button
-                    v-if="canManageCategories || canViewCategories"
+                    v-if="canManageCategories"
                     type="button"
                     class="bmp-link-btn"
                     @click="openCategoryManagementModal(); bentoActiveMiniPopover = null"
@@ -6099,8 +6099,11 @@
     <CategoryManagementModal
       :is-open="isCategoryModalOpen"
       :devices="devicesList"
+      :initial-categories="categoriesList"
       @close="isCategoryModalOpen = false"
       @saved="onCategoryConfigSaved"
+      @category-created="handleBentoCategoryCreated"
+      @refresh-devices="onCategoryConfigSaved"
     />
 
     <!-- Custom Floating Context Menu for Parameter Cards (Right-Click) -->
@@ -6241,6 +6244,7 @@
     <!-- 3. Parameter Edit Modal (Admin / Superadmin) -->
     <ParameterModal
       v-if="editParamTarget.device && editParamTarget.parameter"
+      ref="bentoParamModal"
       :is-open="isEditParamModalOpen"
       :device-id="editParamTarget.deviceId"
       :param-to-edit="editParamTarget.parameter"
@@ -6248,7 +6252,7 @@
       :categories="categoriesList"
       @close="isEditParamModalOpen = false"
       @saved="handleParamSaved"
-      @open-category-management="isCategoryModalOpen = true"
+      @open-category-management="openCategoryManagementModal"
     />
 
     <!-- 4. 100 Data Terakhir Modal -->
@@ -6458,6 +6462,15 @@ export default {
     };
   },
   computed: {
+    canManageCategories() {
+      const user = this.$store && this.$store.state ? this.$store.state.user : null;
+      if (!user) return false;
+      const rawRole = typeof user.role === 'string'
+        ? user.role
+        : ((user.role && user.role.name) || user.role_name || (user.Role && user.Role.name) || '');
+      const normalized = String(rawRole).trim().toUpperCase();
+      return Boolean(normalized && normalized !== 'OPERATOR');
+    },
     isWQMSDomain() {
       const dom =
         (this.systemStatus && this.systemStatus.monitoring_domain) ||
@@ -7068,6 +7081,15 @@ export default {
     }
   },
   methods: {
+    openCategoryManagementModal() {
+      if (!this.canManageCategories) return;
+      this.isCategoryModalOpen = true;
+    },
+    handleBentoCategoryCreated(newCat) {
+      if (this.$refs.bentoParamModal && this.$refs.bentoParamModal.selectNewlyCreatedCategory) {
+        this.$refs.bentoParamModal.selectNewlyCreatedCategory(newCat);
+      }
+    },
     initAudioPreferences() {
       const prefs = getStoredAlarmPreferences(this.currentUserIdentifier);
       if (this.perfSettings && this.perfSettings.alarmSoundEnabled === false && prefs.soundEnabled !== false) {

@@ -84,9 +84,32 @@ func (r *CategoryRepository) GetByCode(code string) (*model.ParameterCategory, e
 	return &cat, nil
 }
 
-// Create inserts a new parameter category
+// Create inserts a new parameter category, purging any previously soft-deleted row with the same code
 func (r *CategoryRepository) Create(cat *model.ParameterCategory) error {
-	return r.db.Create(cat).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Remove any soft-deleted category holding the same unique code
+		_ = tx.Unscoped().
+			Where("code = ? AND deleted_at IS NOT NULL", cat.Code).
+			Delete(&model.ParameterCategory{}).Error
+
+		if cat.DisplayOrder <= 0 {
+			var maxOrder int
+			_ = tx.Model(&model.ParameterCategory{}).
+				Where("deleted_at IS NULL").
+				Select("COALESCE(MAX(display_order), 0)").
+				Scan(&maxOrder).Error
+			cat.DisplayOrder = maxOrder + 1
+		}
+
+		return tx.Create(cat).Error
+	})
+}
+
+// PurgeSoftDeletedByCode removes any soft-deleted category row matching code so an active category can reuse it
+func (r *CategoryRepository) PurgeSoftDeletedByCode(code string, excludeID uint) {
+	_ = r.db.Unscoped().
+		Where("code = ? AND id <> ? AND deleted_at IS NOT NULL", code, excludeID).
+		Delete(&model.ParameterCategory{}).Error
 }
 
 // Update saves modifications to a category

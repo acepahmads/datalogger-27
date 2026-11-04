@@ -3082,6 +3082,8 @@
       @close="isCategoryModalOpen = false"
       @saved="handleCategorySaved"
       @categories-updated="handleCategoriesUpdated"
+      @category-created="handleCategoryCreated"
+      @refresh-devices="loadDevice"
     />
 
     <!-- Modbus Parameter Test Read Diagnostic Modal -->
@@ -4203,6 +4205,11 @@ export default {
     handleCategoriesUpdated(updatedCats) {
       if (Array.isArray(updatedCats)) {
         this.categoriesList = updatedCats;
+      }
+    },
+    handleCategoryCreated(newCat) {
+      if (this.$refs.paramModal && this.$refs.paramModal.selectNewlyCreatedCategory) {
+        this.$refs.paramModal.selectNewlyCreatedCategory(newCat);
       }
     },
     openEditModal() {

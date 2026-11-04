@@ -250,3 +250,100 @@ func TestCategoryHandler_AssignParameters(t *testing.T) {
 		t.Errorf("Expected parameter CO to have category_id %d, got: %v", gasCat.ID, rechecked.CategoryID)
 	}
 }
+
+func TestCategoryHandler_AllNonOperatorRolesCanCRUDCategories(t *testing.T) {
+	env := setupCategoryTestRouter(t)
+
+	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	systemRepo := repository.NewSystemRepository(env.DB)
+	authService := service.NewAuthService(systemRepo, config.DefaultConfig())
+
+	// Fetch or create ADMIN, SUPERADMIN, and custom non-Operator ("Supervisor") roles
+	var superRole, adminRole, customRole model.Role
+	if err := env.DB.Where("LOWER(name) = ?", "superadmin").First(&superRole).Error; err != nil {
+		superRole = model.Role{Name: "SUPERADMIN", Description: "Superadmin"}
+		if err := env.DB.Create(&superRole).Error; err != nil {
+			t.Fatalf("failed to create SUPERADMIN role: %v", err)
+		}
+	}
+	if err := env.DB.Where("LOWER(name) = ?", "admin").First(&adminRole).Error; err != nil {
+		adminRole = model.Role{Name: "ADMIN", Description: "Admin"}
+		if err := env.DB.Create(&adminRole).Error; err != nil {
+			t.Fatalf("failed to create ADMIN role: %v", err)
+		}
+	}
+	if err := env.DB.Where("LOWER(name) = ?", "supervisor").First(&customRole).Error; err != nil {
+		customRole = model.Role{Name: "Supervisor", Description: "Custom non-operator role"}
+		if err := env.DB.Create(&customRole).Error; err != nil {
+			t.Fatalf("failed to create Supervisor role: %v", err)
+		}
+	}
+
+	env.DB.Create(&model.User{Username: "u_super", Email: "s@cat.local", Password: string(hash), RoleID: superRole.ID, IsActive: true})
+	env.DB.Create(&model.User{Username: "u_admin", Email: "a@cat.local", Password: string(hash), RoleID: adminRole.ID, IsActive: true})
+	env.DB.Create(&model.User{Username: "u_supv", Email: "supv@cat.local", Password: string(hash), RoleID: customRole.ID, IsActive: true})
+
+	superTok, _, _ := authService.Login("u_super", "password123", "127.0.0.1", "")
+	adminTok, _, _ := authService.Login("u_admin", "password123", "127.0.0.1", "")
+	supvTok, _, _ := authService.Login("u_supv", "password123", "127.0.0.1", "")
+
+	tokens := map[string]string{
+		"SUPERADMIN": superTok,
+		"ADMIN":      adminTok,
+		"ENGINEER":   env.EngToken,
+		"Supervisor": supvTok,
+	}
+
+	idx := 0
+	for roleLabel, tok := range tokens {
+		idx++
+		code := fmt.Sprintf("cat_role_%d", idx)
+		b, _ := json.Marshal(service.CreateCategoryRequest{
+			Code:   code,
+			Name:   "Category " + roleLabel,
+			Domain: "SPARING",
+		})
+		req, _ := http.NewRequest("POST", "/api/categories", bytes.NewBuffer(b))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		env.Router.ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("expected non-Operator role %s to create category (201), got %d: %s", roleLabel, w.Code, w.Body.String())
+		}
+
+		var createdResp struct {
+			Data model.ParameterCategory `json:"data"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &createdResp)
+
+		// Operator must still be blocked from deleting or updating
+		opDelReq, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/categories/%d", createdResp.Data.ID), nil)
+		opDelReq.Header.Set("Authorization", "Bearer "+env.OpToken)
+		opDelW := httptest.NewRecorder()
+		env.Router.ServeHTTP(opDelW, opDelReq)
+		if opDelW.Code != http.StatusForbidden {
+			t.Fatalf("expected OPERATOR to receive 403 Forbidden on DELETE category, got %d", opDelW.Code)
+		}
+
+		// Non-Operator role can update and delete
+		updName := "Updated " + roleLabel
+		ub, _ := json.Marshal(service.UpdateCategoryRequest{Name: &updName})
+		uReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/categories/%d", createdResp.Data.ID), bytes.NewBuffer(ub))
+		uReq.Header.Set("Authorization", "Bearer "+tok)
+		uReq.Header.Set("Content-Type", "application/json")
+		uW := httptest.NewRecorder()
+		env.Router.ServeHTTP(uW, uReq)
+		if uW.Code != http.StatusOK {
+			t.Fatalf("expected non-Operator role %s to update category (200), got %d: %s", roleLabel, uW.Code, uW.Body.String())
+		}
+
+		dReq, _ := http.NewRequest("DELETE", fmt.Sprintf("/api/categories/%d", createdResp.Data.ID), nil)
+		dReq.Header.Set("Authorization", "Bearer "+tok)
+		dW := httptest.NewRecorder()
+		env.Router.ServeHTTP(dW, dReq)
+		if dW.Code != http.StatusOK {
+			t.Fatalf("expected non-Operator role %s to delete category (200), got %d: %s", roleLabel, dW.Code, dW.Body.String())
+		}
+	}
+}
