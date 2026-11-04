@@ -3047,7 +3047,7 @@
           </div>
 
           <div v-else class="bento-empty-cards">
-            {{ $t('operator.noParamsMatch') || 'Tidak ada parameter yang sesuai dengan filter saat ini.' }}
+            {{ ($te && $te('operator.noParamsMatch')) ? $t('operator.noParamsMatch') : 'Tidak ada parameter yang sesuai dengan filter saat ini.' }}
           </div>
         </div>
 
@@ -3304,7 +3304,7 @@
           </div>
 
           <div v-else class="bento-empty-cards">
-            {{ $t('operator.noParamsMatch') || 'Tidak ada parameter yang sesuai dengan filter saat ini.' }}
+            {{ ($te && $te('operator.noParamsMatch')) ? $t('operator.noParamsMatch') : 'Tidak ada parameter yang sesuai dengan filter saat ini.' }}
           </div>
         </div>
       </div>
@@ -8263,54 +8263,23 @@ export default {
         _smooth: smooth,
       };
     },
+    getBentoSparkRenderCache() {
+      if (!Object.prototype.hasOwnProperty.call(this, '_bentoSparkRenderCache') || !this._bentoSparkRenderCache) {
+        Object.defineProperty(this, '_bentoSparkRenderCache', {
+          value: Object.create(null),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+      return this._bentoSparkRenderCache;
+    },
     recomputeSparklineMeta(paramId) {
-      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
-        return;
-      }
+      // Never mutate reactive state here so template render getters stay 100% side-effect-free.
       const pid = Number(paramId);
-      if (!pid || isNaN(pid)) return;
-
-      const param = (this.allParameters || []).find(p => Number(p.param_id || p.id) === pid) || null;
-      if (param && this.shouldFlattenBentoSparkline(param)) {
-        this.$set(this.sparklineMetaCache, pid, {
-          hasHistory: true,
-          isFlat: true,
-          validCount: 2,
-          strokePaths: ['M 0,10 L 100,10'],
-          areaPaths: ['M 0,20 L 0,10 L 100,10 L 100,20 Z'],
-          min: 0,
-          max: 0,
-          _smooth: Boolean(this.trendLineSmooth),
-        });
-        return;
+      if (pid && this._bentoSparkRenderCache) {
+        delete this._bentoSparkRenderCache[pid];
       }
-
-      const rawList = this.sparklinesMap[pid] || [];
-      const cleanPts = [];
-      for (let i = 0; i < rawList.length; i++) {
-        const item = rawList[i];
-        if (!item || item.val === null || item.val === undefined || !isFinite(item.val)) continue;
-        if (item.quality === 'BAD') continue;
-        cleanPts.push({
-          t: Number(item.time || 0),
-          v: Number(item.val),
-        });
-      }
-      cleanPts.sort((a, b) => a.t - b.t);
-      const deduped = [];
-      for (let i = 0; i < cleanPts.length; i++) {
-        if (deduped.length > 0 && cleanPts[i].t > 0 && Math.abs(cleanPts[i].t - deduped[deduped.length - 1].t) < 250) {
-          deduped[deduped.length - 1] = cleanPts[i];
-        } else {
-          deduped.push(cleanPts[i]);
-        }
-      }
-
-      const meta = this.buildBentoSparklineGeometry(deduped, {
-        baseGapMs: 180000,
-        smooth: this.trendLineSmooth,
-      });
-      this.$set(this.sparklineMetaCache, pid, meta);
     },
     getSparkline(paramId) {
       if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
@@ -8342,6 +8311,7 @@ export default {
       }
 
       const smooth = Boolean(this.trendLineSmooth);
+      const renderCache = this.getBentoSparkRenderCache();
 
       // 1. If parameter is actively plotted in Trend Analysis, mirror its visible series & spline 1:1
       const plottedSeries = (this.activeTrendSeries || []).find(
@@ -8352,15 +8322,13 @@ export default {
         const bounds = this.trendTimeBounds || {};
         const tStart = Number(bounds.start || 0);
         const tEnd = Number(bounds.end || 0);
+        const firstPt = sPts[0];
         const lastPt = sPts[sPts.length - 1];
         const pollBucket = Math.max(this.configuredPollingIntervalMs || 5000, 1000);
-        const cacheKey = `${sPts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(tStart / pollBucket)}_${Math.floor(tEnd / pollBucket)}_${smooth ? 1 : 0}`;
-        if (!this._bentoTrendSparkCache) {
-          this._bentoTrendSparkCache = {};
-        }
-        const prevEntry = this._bentoTrendSparkCache[pid];
-        if (prevEntry && prevEntry.key === cacheKey) {
-          return prevEntry.val;
+        const trendKey = `trend:${sPts.length}:${firstPt ? firstPt.x : 0}:${lastPt ? lastPt.x : 0}:${lastPt ? lastPt.y : 0}:${Math.floor(tStart / pollBucket)}:${Math.floor(tEnd / pollBucket)}:${smooth ? 1 : 0}`;
+        const prevHit = renderCache[pid];
+        if (prevHit && prevHit.key === trendKey) {
+          return prevHit.val;
         }
 
         const winPts = [];
@@ -8383,36 +8351,68 @@ export default {
             baseGapMs: this.resolveBentoTrendMaxGapMs(spanMs),
             smooth,
           });
-          this._bentoTrendSparkCache[pid] = { key: cacheKey, val: built };
+          renderCache[pid] = { key: trendKey, val: built };
           return built;
         }
       }
 
-      // 2. Otherwise use non-BAD history sparkline with adaptive gap tolerance & spline interpolation
-      const cached = this.sparklineMetaCache[pid];
-      if (cached && !cached.isFlat && cached._smooth === smooth && cached.hasHistory) {
-        return cached;
+      // 2. Pure read of sparklinesMap[pid] (zero reactive mutations during template render!)
+      const rawList = (this.sparklinesMap && this.sparklinesMap[pid]) || [];
+      const rawLen = rawList.length;
+      const firstRaw = rawLen > 0 ? rawList[0] : null;
+      const lastRaw = rawLen > 0 ? rawList[rawLen - 1] : null;
+      const liveVal = param && param.value !== null && param.value !== undefined && param.value !== '' && isFinite(Number(param.value))
+        ? Number(param.value)
+        : null;
+      const sparkKey = `spark:${rawLen}:${firstRaw ? firstRaw.time : 0}:${lastRaw ? lastRaw.time : 0}:${lastRaw ? lastRaw.val : ''}:${lastRaw ? lastRaw.quality : ''}:${liveVal !== null ? liveVal : ''}:${smooth ? 1 : 0}`;
+      const prevSparkHit = renderCache[pid];
+      if (prevSparkHit && prevSparkHit.key === sparkKey) {
+        return prevSparkHit.val;
       }
 
-      this.recomputeSparklineMeta(pid);
-      const nextCached = this.sparklineMetaCache[pid];
-      if (nextCached && nextCached.hasHistory) {
-        return nextCached;
+      const cleanPts = [];
+      for (let i = 0; i < rawLen; i++) {
+        const item = rawList[i];
+        if (!item || item.val === null || item.val === undefined || !isFinite(item.val)) continue;
+        if (item.quality === 'BAD') continue;
+        cleanPts.push({
+          t: Number(item.time || 0),
+          v: Number(item.val),
+        });
+      }
+      cleanPts.sort((a, b) => a.t - b.t);
+      const deduped = [];
+      for (let i = 0; i < cleanPts.length; i++) {
+        if (deduped.length > 0 && cleanPts[i].t > 0 && Math.abs(cleanPts[i].t - deduped[deduped.length - 1].t) < 250) {
+          deduped[deduped.length - 1] = cleanPts[i];
+        } else {
+          deduped.push(cleanPts[i]);
+        }
       }
 
-      if (param && param.value !== null && param.value !== undefined && param.value !== '' && isFinite(Number(param.value))) {
-        const val = Number(param.value);
-        return {
+      let builtSpark;
+      if (deduped.length > 0) {
+        builtSpark = this.buildBentoSparklineGeometry(deduped, {
+          baseGapMs: 180000,
+          smooth,
+        });
+      } else if (liveVal !== null) {
+        builtSpark = {
           hasHistory: true,
           isFlat: false,
           validCount: 1,
           strokePaths: ['M 0,10 L 100,10'],
           areaPaths: ['M 0,20 L 0,10 L 100,10 L 100,20 Z'],
-          min: Number(val.toFixed(2)),
-          max: Number(val.toFixed(2)),
+          min: Number(liveVal.toFixed(2)),
+          max: Number(liveVal.toFixed(2)),
+          _smooth: smooth,
         };
+      } else {
+        builtSpark = { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
       }
-      return { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
+
+      renderCache[pid] = { key: sparkKey, val: builtSpark };
+      return builtSpark;
     },
     onDeviceCommEvent(e) {
       const detail = e && e.detail;

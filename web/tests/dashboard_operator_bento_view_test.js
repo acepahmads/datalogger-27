@@ -281,6 +281,78 @@ check('15.1: Parameter card & table sparklines align with Trend Analysis (monoto
   assert(viewContent.includes('this.buildSplinePath(seg, smooth)') && viewContent.includes('this.buildSplineArea(seg, H, smooth)'), 'Must render card/table sparklines using the same monotone cubic spline interpolation as Trend Analysis');
   assert(viewContent.includes('medianDt * 3.5'), 'Must scale sparkline gap threshold adaptively by median sampling cadence so 60s-90s samples never fragment into dots');
   assert(viewContent.includes('trendCommDiagnostics()') && viewContent.includes('trendChartOutageMarkers()'), 'Must suppress misleading COMM LOST markers when plotted trend parameters are active via formula fallback');
+  assert(!viewContent.includes('this.$set(this.sparklineMetaCache'), 'getSparkline / recomputeSparklineMeta must NEVER call this.$set(this.sparklineMetaCache) to prevent Vue 2 production infinite render loops');
+});
+
+check('15.2: Runtime verification — getSparkline is 100% pure (zero $set reactive mutations on empty sparklinesMap) and renders continuous spline across 80s cadence', () => {
+  const vm = require('vm');
+  // Extract methods slice from shouldFlattenBentoSparkline through getSparkline
+  const startIdx = viewContent.indexOf('shouldFlattenBentoSparkline(param) {');
+  const endIdx = viewContent.indexOf('onDeviceCommEvent(e) {');
+  assert(startIdx > 0 && endIdx > startIdx, 'Must locate sparkline methods block in DashboardOperatorView.vue');
+  const methodsBlock = viewContent.slice(startIdx, endIdx).trim().replace(/,\s*$/, '');
+
+  const sandbox = {};
+  const methodsObj = vm.runInNewContext(`({ ${methodsBlock} })`, sandbox);
+
+  const mockCtx = {
+    ...methodsObj,
+    perfSettings: { parameterSparklinesEnabled: true },
+    trendLineSmooth: true,
+    configuredPollingIntervalMs: 5000,
+    activeTrendSeries: [],
+    trendTimeBounds: { start: 0, end: 0 },
+    sparklinesMap: {}, // EMPTY right after /api/devices loads!
+    allParameters: [
+      { param_id: 101, param_code: 'ph', value: 6.97, quality: 'GOOD', device_status: 'ONLINE', formula: 'value + random(6.81, 6.99)', is_formula_fallback: true },
+      { param_id: 102, param_code: 'depth', value: 0, quality: 'BAD', device_status: 'ONLINE', formula: '' },
+    ],
+    $set() {
+      throw new Error('FORBIDDEN: reactive $set called during template render getter!');
+    },
+    isBentoParamCommOffline(p) {
+      return p.quality === 'BAD';
+    },
+    getBentoParamActiveAlarm() {
+      return null;
+    },
+    isParamFormulaFallback(p) {
+      return Boolean(p.is_formula_fallback);
+    },
+    buildSplinePath(coords, smooth) {
+      if (coords.length < 2) return '';
+      if (!smooth || coords.length < 3) {
+        return coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+      }
+      return `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)} C ${coords[1].x.toFixed(1)} ${coords[1].y.toFixed(1)}, ${coords[1].x.toFixed(1)} ${coords[1].y.toFixed(1)}, ${coords[coords.length - 1].x.toFixed(1)} ${coords[coords.length - 1].y.toFixed(1)}`;
+    },
+    buildSplineArea(coords, baseY) {
+      return `M ${coords[0].x.toFixed(1)} ${baseY} L ${coords[coords.length - 1].x.toFixed(1)} ${baseY} Z`;
+    },
+  };
+
+  // Case A: Empty sparklinesMap right after /api/devices resolves (previously triggered infinite render loop!)
+  const spInitial = mockCtx.getSparkline(mockCtx.allParameters[0]);
+  const spInitialRepeat = mockCtx.getSparkline(mockCtx.allParameters[0]);
+  assert.strictEqual(spInitial.hasHistory, true, 'Formula param with live value and empty sparklinesMap must return baseline without mutating reactive state');
+  assert.strictEqual(spInitial, spInitialRepeat, 'Repeated calls in same render must hit non-reactive memo cache');
+
+  // Case B: BAD non-formula param returns flatline cleanly
+  const spBad = mockCtx.getSparkline(mockCtx.allParameters[1]);
+  assert.strictEqual(spBad.isFlat, true, 'BAD quality param must return flatline');
+
+  // Case C: 40 samples spaced 80 seconds apart (80,000 ms) must form ONE continuous spline path, NOT 40 dots!
+  const baseT = 1700000000000;
+  mockCtx.sparklinesMap[101] = Array.from({ length: 40 }, (_, i) => ({
+    paramId: 101,
+    val: 6.85 + Math.sin(i * 0.4) * 0.08,
+    time: baseT + i * 80000,
+    quality: 'GOOD',
+  }));
+  mockCtx.recomputeSparklineMeta(101); // must also be 100% free of $set
+  const sp40 = mockCtx.getSparkline(mockCtx.allParameters[0]);
+  assert.strictEqual(sp40.strokePaths.length, 1, `Expected 1 continuous path for 80s cadence, got ${sp40.strokePaths.length} fragmented paths`);
+  assert(sp40.strokePaths[0].includes(' C '), 'Expected monotone cubic spline command "C" when trendLineSmooth=true');
 });
 
 console.log('========================================================================');
