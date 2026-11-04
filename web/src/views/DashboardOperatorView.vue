@@ -7059,6 +7059,57 @@ export default {
         p => !this.isDiscreteStatusParam(p) && !plottedIds.has(Number(p.param_id))
       );
     },
+    trendCommDiagnostics() {
+      const baseDiag = (OperatorCommandCenterView.computed && OperatorCommandCenterView.computed.trendCommDiagnostics)
+        ? OperatorCommandCenterView.computed.trendCommDiagnostics.call(this)
+        : { state: 'ONLINE', badge: 'LIVE NORMAL', hasHistory: true };
+      if (!baseDiag || (baseDiag.state !== 'DEVICE_OFFLINE' && baseDiag.state !== 'PARTIAL_OFFLINE' && baseDiag.state !== 'SENSOR_TIMEOUT')) {
+        return baseDiag;
+      }
+      const plottedParams = (this.activeTrendSeries || [])
+        .map(s => (this.allParameters || []).find(p => Number(p.param_id || p.id) === Number(s.parameterId)))
+        .filter(Boolean);
+      if (plottedParams.length > 0 && plottedParams.every(p => !this.isBentoParamCommOffline(p))) {
+        const anyFormula = plottedParams.some(p => this.isParamFormulaFallback(p));
+        return {
+          ...baseDiag,
+          state: 'ONLINE',
+          badge: anyFormula ? 'LIVE FORMULA*' : 'LIVE NORMAL',
+          badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-medium',
+          dotClass: 'bg-emerald-500',
+          message: anyFormula
+            ? `Nilai aktif via formula (*) · Data terakhir: ${baseDiag.lastTimeFormatted || '-'}`
+            : `Komunikasi normal · Data terakhir: ${baseDiag.lastTimeFormatted || '-'}`,
+        };
+      }
+      return baseDiag;
+    },
+    trendChartOutageMarkers() {
+      const baseMarkers = (OperatorCommandCenterView.computed && OperatorCommandCenterView.computed.trendChartOutageMarkers)
+        ? OperatorCommandCenterView.computed.trendChartOutageMarkers.call(this)
+        : [];
+      if (!baseMarkers.length) return baseMarkers;
+      const plottedParams = (this.activeTrendSeries || [])
+        .map(s => (this.allParameters || []).find(p => Number(p.param_id || p.id) === Number(s.parameterId)))
+        .filter(Boolean);
+      if (plottedParams.length > 0 && plottedParams.every(p => !this.isBentoParamCommOffline(p) && this.isParamFormulaFallback(p))) {
+        return [];
+      }
+      return baseMarkers;
+    },
+    fullscreenOutageMarkers() {
+      const baseMarkers = (OperatorCommandCenterView.computed && OperatorCommandCenterView.computed.fullscreenOutageMarkers)
+        ? OperatorCommandCenterView.computed.fullscreenOutageMarkers.call(this)
+        : [];
+      if (!baseMarkers.length) return baseMarkers;
+      const plottedParams = (this.activeTrendSeries || [])
+        .map(s => (this.allParameters || []).find(p => Number(p.param_id || p.id) === Number(s.parameterId)))
+        .filter(Boolean);
+      if (plottedParams.length > 0 && plottedParams.every(p => !this.isBentoParamCommOffline(p) && this.isParamFormulaFallback(p))) {
+        return [];
+      }
+      return baseMarkers;
+    },
     isAudioMuted() {
       const prefs = this.$store && this.$store.state ? this.$store.state.alarmPreferences : null;
       if (prefs && prefs.isMuted !== undefined) {
@@ -8035,6 +8086,333 @@ export default {
         isConfiguredLimit: false,
         limitTooltip: `Belum ada limit khusus · ${editHint}`,
       };
+    },
+    shouldFlattenBentoSparkline(param) {
+      if (!param) return false;
+      if (this.isBentoParamCommOffline(param)) return true;
+      if (param.quality === 'BAD' && !param.is_held_value) return true;
+      if (param.is_stale || param.quality === 'STALE') return true;
+      if (param.value === null || param.value === undefined || param.value === '' || !isFinite(Number(param.value))) {
+        return true;
+      }
+      const activeInfo = this.getBentoParamActiveAlarm(param);
+      if (activeInfo && !this.isParamFormulaFallback(param)) {
+        const c = String(activeInfo.code || '');
+        if (
+          c.includes('COMM') ||
+          c.includes('OFFLINE') ||
+          c.includes('DISCONNECT') ||
+          c.includes('TIMEOUT') ||
+          c.includes('BAD_QUALITY') ||
+          c.includes('STALE') ||
+          c.includes('STUCK') ||
+          c.includes('ZERO')
+        ) {
+          return true;
+        }
+      }
+      return false;
+    },
+    resolveBentoTrendMaxGapMs(timeSpan) {
+      const pollStep = this.configuredPollingIntervalMs || 5000;
+      if (pollStep <= 2500 && timeSpan <= 90 * 1000) return 6 * 1000;
+      if (pollStep <= 2500 && timeSpan <= 7 * 60 * 1000) return 10 * 1000;
+      if (timeSpan <= 90 * 1000) return 12 * 1000;
+      if (timeSpan <= 7 * 60 * 1000) return 20 * 1000;
+      if (timeSpan <= 20 * 60 * 1000) return 45 * 1000;
+      if (timeSpan <= 2 * 3600 * 1000) return 3 * 60 * 1000;
+      if (timeSpan <= 8 * 3600 * 1000) return 15 * 60 * 1000;
+      if (timeSpan <= 25 * 3600 * 1000) return 60 * 60 * 1000;
+      return 4 * 3600 * 1000;
+    },
+    buildBentoSparklineGeometry(rawPoints, options = {}) {
+      const smooth = options.smooth !== undefined ? Boolean(options.smooth) : Boolean(this.trendLineSmooth);
+      const W = 100;
+      const H = 20;
+      const topPad = 2.6;
+      const bottomPad = 2.6;
+      const plotH = H - topPad - bottomPad;
+
+      if (!rawPoints || rawPoints.length === 0) {
+        return {
+          hasHistory: false,
+          isFlat: false,
+          validCount: 0,
+          strokePaths: [],
+          areaPaths: [],
+          min: 0,
+          max: 0,
+          _smooth: smooth,
+        };
+      }
+
+      if (rawPoints.length === 1) {
+        const val = rawPoints[0].v;
+        return {
+          hasHistory: true,
+          isFlat: false,
+          validCount: 1,
+          strokePaths: ['M 0,10 L 100,10'],
+          areaPaths: ['M 0,20 L 0,10 L 100,10 L 100,20 Z'],
+          min: Number(val.toFixed(2)),
+          max: Number(val.toFixed(2)),
+          _smooth: smooth,
+        };
+      }
+
+      let min = Infinity;
+      let max = -Infinity;
+      const deltas = [];
+      for (let i = 0; i < rawPoints.length; i++) {
+        const pt = rawPoints[i];
+        if (pt.v < min) min = pt.v;
+        if (pt.v > max) max = pt.v;
+        if (i > 0 && pt.t > rawPoints[i - 1].t) {
+          deltas.push(pt.t - rawPoints[i - 1].t);
+        }
+      }
+
+      let span = max - min;
+      const isConstant = span < 1e-9;
+      if (isConstant) {
+        min -= 1;
+        max += 1;
+        span = 2;
+      } else {
+        const pad = Math.max(span * 0.18, 1e-4);
+        min -= pad;
+        max += pad;
+        span = max - min;
+      }
+
+      let xStart = rawPoints[0].t;
+      let xEnd = rawPoints[rawPoints.length - 1].t;
+      if (options.windowStart && options.windowEnd && options.windowEnd > options.windowStart) {
+        const winSpan = options.windowEnd - options.windowStart;
+        const dataSpan = xEnd - xStart;
+        if (dataSpan >= winSpan * 0.25) {
+          xStart = options.windowStart;
+          xEnd = options.windowEnd;
+        }
+      }
+      const xSpan = xEnd - xStart;
+
+      let medianDt = 0;
+      if (deltas.length > 0) {
+        deltas.sort((a, b) => a - b);
+        medianDt = deltas[Math.floor(deltas.length / 2)];
+      }
+      const pollMs = this.configuredPollingIntervalMs || 5000;
+      const baseGapMs = options.baseGapMs || 180000;
+      const maxGapMs = Math.max(baseGapMs, pollMs * 6, medianDt * 3.5);
+
+      const segments = [];
+      let currentSeg = [];
+      let prevT = 0;
+
+      for (let i = 0; i < rawPoints.length; i++) {
+        const pt = rawPoints[i];
+        const x = xSpan > 0
+          ? Math.min(Math.max(((pt.t - xStart) / xSpan) * W, 0), W)
+          : (i / (rawPoints.length - 1)) * W;
+        const norm = isConstant ? 0.5 : (pt.v - min) / span;
+        const y = Math.min(Math.max((H - bottomPad) - norm * plotH, 1.2), H - 1.2);
+
+        if (currentSeg.length > 0 && pt.t > 0 && prevT > 0 && (pt.t - prevT) > maxGapMs) {
+          segments.push(currentSeg);
+          currentSeg = [];
+        }
+
+        if (currentSeg.length > 0 && Math.abs(x - currentSeg[currentSeg.length - 1].x) < 0.22) {
+          currentSeg[currentSeg.length - 1].y = y;
+        } else {
+          currentSeg.push({ x, y });
+        }
+        prevT = pt.t;
+      }
+      if (currentSeg.length > 0) {
+        segments.push(currentSeg);
+      }
+
+      const strokePaths = [];
+      const areaPaths = [];
+      for (const seg of segments) {
+        if (seg.length === 1) {
+          const p = seg[0];
+          const x1 = Math.max(0, Number((p.x - 1.2).toFixed(1)));
+          const x2 = Math.min(W, Number((p.x + 1.2).toFixed(1)));
+          const py = Number(p.y.toFixed(1));
+          strokePaths.push(`M ${x1},${py} L ${x2},${py}`);
+          areaPaths.push(`M ${x1},${H} L ${x1},${py} L ${x2},${py} L ${x2},${H} Z`);
+        } else if (seg.length > 1) {
+          const strokeD = this.buildSplinePath(seg, smooth);
+          const areaD = this.buildSplineArea(seg, H, smooth);
+          if (strokeD) strokePaths.push(strokeD);
+          if (areaD) areaPaths.push(areaD);
+        }
+      }
+
+      return {
+        hasHistory: strokePaths.length > 0,
+        isFlat: false,
+        validCount: rawPoints.length,
+        strokePaths,
+        areaPaths,
+        min: Number(min.toFixed(2)),
+        max: Number(max.toFixed(2)),
+        _smooth: smooth,
+      };
+    },
+    recomputeSparklineMeta(paramId) {
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
+        return;
+      }
+      const pid = Number(paramId);
+      if (!pid || isNaN(pid)) return;
+
+      const param = (this.allParameters || []).find(p => Number(p.param_id || p.id) === pid) || null;
+      if (param && this.shouldFlattenBentoSparkline(param)) {
+        this.$set(this.sparklineMetaCache, pid, {
+          hasHistory: true,
+          isFlat: true,
+          validCount: 2,
+          strokePaths: ['M 0,10 L 100,10'],
+          areaPaths: ['M 0,20 L 0,10 L 100,10 L 100,20 Z'],
+          min: 0,
+          max: 0,
+          _smooth: Boolean(this.trendLineSmooth),
+        });
+        return;
+      }
+
+      const rawList = this.sparklinesMap[pid] || [];
+      const cleanPts = [];
+      for (let i = 0; i < rawList.length; i++) {
+        const item = rawList[i];
+        if (!item || item.val === null || item.val === undefined || !isFinite(item.val)) continue;
+        if (item.quality === 'BAD') continue;
+        cleanPts.push({
+          t: Number(item.time || 0),
+          v: Number(item.val),
+        });
+      }
+      cleanPts.sort((a, b) => a.t - b.t);
+      const deduped = [];
+      for (let i = 0; i < cleanPts.length; i++) {
+        if (deduped.length > 0 && cleanPts[i].t > 0 && Math.abs(cleanPts[i].t - deduped[deduped.length - 1].t) < 250) {
+          deduped[deduped.length - 1] = cleanPts[i];
+        } else {
+          deduped.push(cleanPts[i]);
+        }
+      }
+
+      const meta = this.buildBentoSparklineGeometry(deduped, {
+        baseGapMs: 180000,
+        smooth: this.trendLineSmooth,
+      });
+      this.$set(this.sparklineMetaCache, pid, meta);
+    },
+    getSparkline(paramId) {
+      if (this.perfSettings && !this.perfSettings.parameterSparklinesEnabled) {
+        return { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
+      }
+      let param = null;
+      let pid = null;
+      if (typeof paramId === 'object' && paramId !== null) {
+        param = paramId;
+        pid = Number(param.param_id || param.id);
+      } else if (paramId != null) {
+        pid = Number(paramId);
+        param = (this.allParameters || []).find(p => Number(p.param_id || p.id) === pid) || null;
+      }
+      if (!pid || isNaN(pid)) {
+        return { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
+      }
+
+      if (param && this.shouldFlattenBentoSparkline(param)) {
+        return {
+          hasHistory: true,
+          isFlat: true,
+          validCount: 2,
+          strokePaths: ['M 0,10 L 100,10'],
+          areaPaths: ['M 0,20 L 0,10 L 100,10 L 100,20 Z'],
+          min: 0,
+          max: 0,
+        };
+      }
+
+      const smooth = Boolean(this.trendLineSmooth);
+
+      // 1. If parameter is actively plotted in Trend Analysis, mirror its visible series & spline 1:1
+      const plottedSeries = (this.activeTrendSeries || []).find(
+        s => Number(s.parameterId) === pid && Array.isArray(s.dataPoints) && s.dataPoints.length > 0
+      );
+      if (plottedSeries) {
+        const sPts = plottedSeries.dataPoints;
+        const bounds = this.trendTimeBounds || {};
+        const tStart = Number(bounds.start || 0);
+        const tEnd = Number(bounds.end || 0);
+        const lastPt = sPts[sPts.length - 1];
+        const pollBucket = Math.max(this.configuredPollingIntervalMs || 5000, 1000);
+        const cacheKey = `${sPts.length}_${lastPt ? lastPt.x : 0}_${lastPt ? lastPt.y : 0}_${Math.floor(tStart / pollBucket)}_${Math.floor(tEnd / pollBucket)}_${smooth ? 1 : 0}`;
+        if (!this._bentoTrendSparkCache) {
+          this._bentoTrendSparkCache = {};
+        }
+        const prevEntry = this._bentoTrendSparkCache[pid];
+        if (prevEntry && prevEntry.key === cacheKey) {
+          return prevEntry.val;
+        }
+
+        const winPts = [];
+        const allValidPts = [];
+        for (let i = 0; i < sPts.length; i++) {
+          const p = sPts[i];
+          if (!p || p.y === null || p.y === undefined || !isFinite(p.y) || p.quality === 'BAD') continue;
+          const item = { t: Number(p.x || 0), v: Number(p.y) };
+          allValidPts.push(item);
+          if ((!tStart || item.t >= tStart) && (!tEnd || item.t <= tEnd)) {
+            winPts.push(item);
+          }
+        }
+        const chosenPts = winPts.length >= 2 ? winPts : allValidPts;
+        if (chosenPts.length >= 2) {
+          const spanMs = tEnd > tStart ? (tEnd - tStart) : Math.max(chosenPts[chosenPts.length - 1].t - chosenPts[0].t, 60000);
+          const built = this.buildBentoSparklineGeometry(chosenPts, {
+            windowStart: winPts.length >= 2 ? tStart : 0,
+            windowEnd: winPts.length >= 2 ? tEnd : 0,
+            baseGapMs: this.resolveBentoTrendMaxGapMs(spanMs),
+            smooth,
+          });
+          this._bentoTrendSparkCache[pid] = { key: cacheKey, val: built };
+          return built;
+        }
+      }
+
+      // 2. Otherwise use non-BAD history sparkline with adaptive gap tolerance & spline interpolation
+      const cached = this.sparklineMetaCache[pid];
+      if (cached && !cached.isFlat && cached._smooth === smooth && cached.hasHistory) {
+        return cached;
+      }
+
+      this.recomputeSparklineMeta(pid);
+      const nextCached = this.sparklineMetaCache[pid];
+      if (nextCached && nextCached.hasHistory) {
+        return nextCached;
+      }
+
+      if (param && param.value !== null && param.value !== undefined && param.value !== '' && isFinite(Number(param.value))) {
+        const val = Number(param.value);
+        return {
+          hasHistory: true,
+          isFlat: false,
+          validCount: 1,
+          strokePaths: ['M 0,10 L 100,10'],
+          areaPaths: ['M 0,20 L 0,10 L 100,10 L 100,20 Z'],
+          min: Number(val.toFixed(2)),
+          max: Number(val.toFixed(2)),
+        };
+      }
+      return { hasHistory: false, isFlat: false, strokePaths: [], areaPaths: [] };
     },
     onDeviceCommEvent(e) {
       const detail = e && e.detail;

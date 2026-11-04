@@ -34,6 +34,7 @@ type CommunicationResult struct {
 	ErrorCode       string                 `json:"error_code,omitempty"`
 	ErrorMessage    string                 `json:"error_message,omitempty"`
 	ResponseTimeMs  int64                  `json:"response_time_ms"`
+	TransportErr    error                  `json:"-"`
 }
 
 // NewSuccessResult constructs a successful communication result

@@ -583,6 +583,29 @@ func TestDiagnosticAndPolling_TimeoutWithFormulaStillProducesValue(t *testing.T)
 	if !batchSuccess {
 		t.Fatalf("expected pollDeviceBatch to return true when at least one parameter has formula fallback")
 	}
+
+	// Single-read mode with 10 formula parameters on a dead/timeout bus must short-circuit
+	// remaining physical reads in the same cycle instead of stalling 10x on serial timeouts.
+	dev.Connection.Timeout = 120
+	dev.Connection.RetryCount = 0
+	dev.Connection.BatchReadEnabled = false
+	manyParams := make([]model.Parameter, 0, 10)
+	for idx := 0; idx < 10; idx++ {
+		cp := *param
+		cp.ID = uint(200 + idx)
+		cp.ParameterCode = param.ParameterCode
+		cp.RegisterAddress = idx * 2
+		manyParams = append(manyParams, cp)
+	}
+	startSingle := time.Now()
+	singleSuccess := pe.pollDeviceSingle(ctx, dev, manyParams)
+	singleElapsed := time.Since(startSingle)
+	if !singleSuccess {
+		t.Fatalf("expected pollDeviceSingle to return true via formula fallback")
+	}
+	if singleElapsed > 700*time.Millisecond {
+		t.Fatalf("expected pollDeviceSingle to short-circuit after first fatal timeout (<700ms), took %v", singleElapsed)
+	}
 }
 
 func errorsIsCanceled(err error) bool {

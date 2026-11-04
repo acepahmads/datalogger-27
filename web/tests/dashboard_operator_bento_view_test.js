@@ -273,6 +273,16 @@ check('14.2: Category-Separated Cards use proportional multi-category row packin
   assert(viewContent.includes('.sensors-grid.is-inside-cat-group .s-card') && viewContent.includes('min-height: 56px;'), 'Must apply compact 56px high-density card styling inside category groups');
 });
 
+// 15. Sparkline & Trend Analysis Curve Parity (Adaptive Gap Tolerance + Monotone Cubic Spline)
+check('15.1: Parameter card & table sparklines align with Trend Analysis (monotone cubic spline, non-BAD filtering, adaptive gap tolerance for 60s-90s cadence)', () => {
+  assert(viewContent.includes('buildBentoSparklineGeometry(rawPoints, options = {})'), 'Must define buildBentoSparklineGeometry in DashboardOperatorView');
+  assert(viewContent.includes('recomputeSparklineMeta(paramId)'), 'Must override recomputeSparklineMeta in DashboardOperatorView');
+  assert(viewContent.includes('getSparkline(paramId)'), 'Must override getSparkline in DashboardOperatorView');
+  assert(viewContent.includes('this.buildSplinePath(seg, smooth)') && viewContent.includes('this.buildSplineArea(seg, H, smooth)'), 'Must render card/table sparklines using the same monotone cubic spline interpolation as Trend Analysis');
+  assert(viewContent.includes('medianDt * 3.5'), 'Must scale sparkline gap threshold adaptively by median sampling cadence so 60s-90s samples never fragment into dots');
+  assert(viewContent.includes('trendCommDiagnostics()') && viewContent.includes('trendChartOutageMarkers()'), 'Must suppress misleading COMM LOST markers when plotted trend parameters are active via formula fallback');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

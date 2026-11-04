@@ -618,6 +618,14 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 				Data:      res,
 			})
 		}
+
+		// If physical transport suffered a fatal timeout/disconnect and only succeeded via
+		// formula/hold fallback, evaluate remaining parameters in-memory immediately instead
+		// of stalling on repeated physical serial timeouts for every channel in this cycle.
+		if res != nil && isFatalCommError(res.TransportErr) {
+			p.markRemainingParamsBad(device, enabledParams, idx+1, res.TransportErr, source, true)
+			break
+		}
 	}
 
 	if anySuccess {
@@ -711,6 +719,11 @@ jobLoop:
 					Timestamp: res.Timestamp,
 					Data:      res,
 				})
+			}
+			if res != nil && isFatalCommError(res.TransportErr) {
+				rem := filterUnpolledParams(enabledParams, polledIDs)
+				p.markRemainingParamsBad(device, rem, 0, res.TransportErr, source, true)
+				break jobLoop
 			}
 			continue
 		}
@@ -1187,6 +1200,11 @@ func (p *PollingEngine) executeSingleFallback(
 			Data:      res,
 		})
 	}
+	if res != nil && isFatalCommError(res.TransportErr) {
+		rem := filterUnpolledParams(enabledParams, polledIDs)
+		p.markRemainingParamsBad(device, rem, 0, res.TransportErr, source, true)
+		return res, true, true
+	}
 	return res, true, false
 }
 
@@ -1284,6 +1302,7 @@ func (p *PollingEngine) ReadParameter(
 				pErr,
 				source,
 			)
+			fallbackRes.TransportErr = err
 			return fallbackRes, nil
 		}
 
