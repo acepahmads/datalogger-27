@@ -579,8 +579,10 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 			}
 
 			if isFatalCommError(err) {
-				p.markRemainingParamsBad(device, enabledParams, idx, err, source)
-				return false
+				if p.markRemainingParamsBad(device, enabledParams, idx+1, err, source, anySuccess) {
+					anySuccess = true
+				}
+				break
 			}
 			continue
 		}
@@ -630,11 +632,13 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 	}
 
 	anySuccess := false
+	polledIDs := make(map[uint]bool, len(enabledParams))
 	source := ""
 	if device != nil && device.Connection != nil {
 		source = string(device.Connection.Protocol)
 	}
 
+jobLoop:
 	for _, job := range plan.Jobs {
 		select {
 		case <-ctx.Done():
@@ -645,6 +649,7 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 		// 1. Single-parameter job (either opt-out SINGLE mode or isolated register)
 		if job.IsSingle && len(job.Parameters) == 1 {
 			param := job.Parameters[0].Parameter
+			polledIDs[param.ID] = true
 			res, err := p.ReadParameter(ctx, device, param)
 			if err != nil {
 				if p.alarmEvaluator != nil && p.connManager != nil {
@@ -665,8 +670,11 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 					})
 				}
 				if isFatalCommError(err) {
-					p.markRemainingParamsBad(device, enabledParams, 0, err, source)
-					return false
+					rem := filterUnpolledParams(enabledParams, polledIDs)
+					if p.markRemainingParamsBad(device, rem, 0, err, source, anySuccess) {
+						anySuccess = true
+					}
+					break jobLoop
 				}
 				continue
 			}
@@ -707,12 +715,12 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 				logger.Warn("Batch %s on device %s circuit-broken (%d failures); executing single-read fallback",
 					job.ID, device.DeviceCode, consecBatchFailures)
 				for _, sp := range job.Parameters {
-					_, ok, abort := p.executeSingleFallback(ctx, device, sp.Parameter, enabledParams, source)
-					if abort {
-						return false
-					}
+					_, ok, abort := p.executeSingleFallback(ctx, device, sp.Parameter, enabledParams, polledIDs, anySuccess, source)
 					if ok {
 						anySuccess = true
+					}
+					if abort {
+						break jobLoop
 					}
 				}
 				continue
@@ -760,18 +768,21 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 				job.ID, device.DeviceCode, job.StartingAddress, job.Quantity, err)
 
 			if isFatalCommError(err) {
-				p.markRemainingParamsBad(device, enabledParams, 0, err, source)
-				return false
+				rem := filterUnpolledParams(enabledParams, polledIDs)
+				if p.markRemainingParamsBad(device, rem, 0, err, source, anySuccess) {
+					anySuccess = true
+				}
+				break jobLoop
 			}
 
 			// Controlled fallback: read each parameter in this batch individually
 			for _, sp := range job.Parameters {
-				_, ok, abort := p.executeSingleFallback(ctx, device, sp.Parameter, enabledParams, source)
-				if abort {
-					return false
-				}
+				_, ok, abort := p.executeSingleFallback(ctx, device, sp.Parameter, enabledParams, polledIDs, anySuccess, source)
 				if ok {
 					anySuccess = true
+				}
+				if abort {
+					break jobLoop
 				}
 			}
 			continue
@@ -783,6 +794,9 @@ func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Devic
 		p.batchFailuresMu.Unlock()
 
 		anySuccess = true
+		for _, sp := range job.Parameters {
+			polledIDs[sp.Parameter.ID] = true
+		}
 		if p.alarmEvaluator != nil && p.connManager != nil {
 			h := p.connManager.GetDeviceHealth(device.ID)
 			p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
@@ -891,10 +905,147 @@ func isFatalCommError(err error) bool {
 		strings.Contains(errStr, "busy")
 }
 
-func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []model.Parameter, fromIdx int, err error, source string) {
+func filterUnpolledParams(params []model.Parameter, polledIDs map[uint]bool) []model.Parameter {
+	if len(polledIDs) == 0 {
+		return params
+	}
+	rem := make([]model.Parameter, 0, len(params))
+	for _, p := range params {
+		if !polledIDs[p.ID] {
+			rem = append(rem, p)
+		}
+	}
+	return rem
+}
+
+func (p *PollingEngine) ingestFallbackReading(
+	device *model.Device,
+	param *model.Parameter,
+	fc byte,
+	pdu uint16,
+	qty uint16,
+	elapsed time.Duration,
+	effVal float64,
+	formulaVal *float64,
+	isHeld bool,
+	quality model.TelemetryQuality,
+	pErr error,
+	source string,
+) *CommunicationResult {
+	finalVal := effVal
+	if formulaVal != nil {
+		finalVal = *formulaVal
+	}
+
+	if p.deviceService != nil {
+		_ = p.deviceService.UpdateParameterCurrentValue(param.ID, finalVal, formulaVal, isHeld)
+		_ = p.deviceService.UpdateLastData(device.ID)
+	}
+
+	qReason := model.ReasonNone
+	qFlags := ""
+	if isHeld {
+		qReason = model.ReasonHoldAnomalyGrace
+		qFlags = model.FlagHeldAnomaly
+	}
+
+	if p.telemetryService != nil {
+		_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
+			DeviceID:      device.ID,
+			DeviceCode:    device.DeviceCode,
+			DeviceName:    device.DeviceName,
+			ParameterID:   param.ID,
+			ParameterCode: param.ParameterCode,
+			ParameterName: param.ParameterName,
+			Unit:          param.Unit,
+			DataType:      param.DataType,
+			RawValue:      effVal,
+			Value:         finalVal,
+			FormulaValue:  formulaVal,
+			Formula:       param.Formula,
+			IsHeldValue:   isHeld,
+			Quality:       quality,
+			QualityReason: qReason,
+			QualityFlags:  qFlags,
+			Source:        source,
+			ReceivedAt:    time.Now().UTC(),
+			Parameter:     param,
+			ReadError:     pErr,
+		})
+	}
+
+	connID := uint(0)
+	if device.Connection != nil {
+		connID = device.Connection.ID
+	}
+
+	res := NewSuccessResult(
+		device.ID,
+		connID,
+		param.ID,
+		param.ParameterCode,
+		fc,
+		pdu,
+		qty,
+		nil,
+		effVal,
+		finalVal,
+		elapsed,
+	)
+	res.ScaledValue = effVal
+	res.Formula = param.Formula
+	res.FormulaValue = formulaVal
+	res.IsHeld = isHeld
+	res.Quality = quality
+	res.QualityReason = qReason
+	res.QualityFlags = qFlags
+	res.ProcessedValue = finalVal
+	return res
+}
+
+func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []model.Parameter, fromIdx int, err error, source string, priorSuccess bool) bool {
 	nowErr := time.Now().UTC()
+	anyRecovered := false
 	for j := fromIdx; j < len(params); j++ {
 		remParam := params[j]
+
+		var effVal float64
+		var formulaVal *float64
+		var isHeld bool
+		var quality model.TelemetryQuality = model.QualityBad
+		var pErr error = err
+
+		if p.holdTracker != nil {
+			effVal, formulaVal, isHeld, quality, pErr = p.holdTracker.ProcessReading(&remParam, 0, 0, err)
+		} else if fVal := evalParamFormula(remParam.Formula, 0, 0); fVal != nil {
+			formulaVal = fVal
+			quality = model.QualityGood
+			pErr = nil
+		}
+
+		if isHeld || (formulaVal != nil && pErr == nil) {
+			fc := byte(0x03)
+			pdu := uint16(0)
+			if r, rErr := modbus.ResolveRegisterAddress(remParam.RegisterType, remParam.RegisterAddress); rErr == nil {
+				fc = r.FunctionCode
+				pdu = r.PDUAddress
+			}
+			qty := modbus.RequiredRegisterCount(remParam.DataType)
+			if fc == FunctionReadCoils || fc == FunctionReadDiscreteInputs {
+				qty = 1
+			}
+			res := p.ingestFallbackReading(device, &remParam, fc, pdu, qty, 0, effVal, formulaVal, isHeld, quality, pErr, source)
+			if p.hub != nil {
+				p.hub.Broadcast(websocket.WSMessage{
+					Type:      "device.communication.success",
+					Timestamp: res.Timestamp,
+					Data:      res,
+				})
+			}
+			anyRecovered = true
+			continue
+		}
+
 		lastKnownVal := 0.0
 		if remParam.CurrentProcessedValue != nil {
 			lastKnownVal = *remParam.CurrentProcessedValue
@@ -925,24 +1076,28 @@ func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []mo
 			})
 		}
 	}
-	if p.deviceService != nil {
-		_ = p.deviceService.SetOffline(device.ID)
+
+	if !anyRecovered && !priorSuccess {
+		if p.deviceService != nil {
+			_ = p.deviceService.SetOffline(device.ID)
+		}
+		if p.hub != nil {
+			p.hub.Broadcast(websocket.WSMessage{
+				Type:      "device.connection.changed",
+				Timestamp: nowErr,
+				Data: map[string]interface{}{
+					"device_id":         device.ID,
+					"id":                device.ID,
+					"device_code":       device.DeviceCode,
+					"connection_status": "OFFLINE",
+					"status":            "OFFLINE",
+					"reason":            "PORT_DISCONNECTED",
+					"error":             err.Error(),
+				},
+			})
+		}
 	}
-	if p.hub != nil {
-		p.hub.Broadcast(websocket.WSMessage{
-			Type:      "device.connection.changed",
-			Timestamp: nowErr,
-			Data: map[string]interface{}{
-				"device_id":         device.ID,
-				"id":                device.ID,
-				"device_code":       device.DeviceCode,
-				"connection_status": "OFFLINE",
-				"status":            "OFFLINE",
-				"reason":            "PORT_DISCONNECTED",
-				"error":             err.Error(),
-			},
-		})
-	}
+	return anyRecovered
 }
 
 func (p *PollingEngine) executeSingleFallback(
@@ -950,12 +1105,18 @@ func (p *PollingEngine) executeSingleFallback(
 	device *model.Device,
 	param *model.Parameter,
 	enabledParams []model.Parameter,
+	polledIDs map[uint]bool,
+	priorSuccess bool,
 	source string,
 ) (*CommunicationResult, bool, bool) {
 	select {
 	case <-ctx.Done():
 		return nil, false, true
 	default:
+	}
+
+	if polledIDs != nil {
+		polledIDs[param.ID] = true
 	}
 
 	res, err := p.ReadParameter(ctx, device, param)
@@ -978,8 +1139,9 @@ func (p *PollingEngine) executeSingleFallback(
 			})
 		}
 		if isFatalCommError(err) {
-			p.markRemainingParamsBad(device, enabledParams, 0, err, source)
-			return nil, false, true
+			rem := filterUnpolledParams(enabledParams, polledIDs)
+			recovered := p.markRemainingParamsBad(device, rem, 0, err, source, priorSuccess)
+			return nil, recovered, true
 		}
 		return nil, false, false
 	}
@@ -1062,7 +1224,7 @@ func (p *PollingEngine) ReadParameter(
 			source = string(device.Connection.Protocol)
 		}
 
-		// Evaluate anomaly hold tracker
+		// Evaluate anomaly hold tracker & custom formula fallback
 		var effVal float64
 		var formulaVal *float64
 		var isHeld bool
@@ -1071,66 +1233,28 @@ func (p *PollingEngine) ReadParameter(
 
 		if p.holdTracker != nil {
 			effVal, formulaVal, isHeld, quality, pErr = p.holdTracker.ProcessReading(param, 0, 0, err)
+		} else if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+			formulaVal = fVal
+			quality = model.QualityGood
+			pErr = nil
 		}
 
-		if isHeld {
-			// Sensor anomaly/timeout suppressed by hold-last-good-value grace period!
-			finalHeldVal := effVal
-			if formulaVal != nil {
-				finalHeldVal = *formulaVal
-			}
-
-			if p.deviceService != nil {
-				_ = p.deviceService.UpdateParameterCurrentValue(param.ID, finalHeldVal, formulaVal, isHeld)
-			}
-
-			if p.telemetryService != nil {
-				_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
-					DeviceID:      device.ID,
-					DeviceCode:    device.DeviceCode,
-					DeviceName:    device.DeviceName,
-					ParameterID:   param.ID,
-					ParameterCode: param.ParameterCode,
-					ParameterName: param.ParameterName,
-					Unit:          param.Unit,
-					DataType:      param.DataType,
-					RawValue:      effVal,
-					Value:         finalHeldVal,
-					FormulaValue:  formulaVal,
-					Formula:       param.Formula,
-					IsHeldValue:   true,
-					Quality:       quality,
-					QualityReason: model.ReasonHoldAnomalyGrace,
-					QualityFlags:  model.FlagHeldAnomaly,
-					Source:        source,
-					ReceivedAt:    time.Now().UTC(),
-					Parameter:     param,
-					ReadError:     pErr,
-				})
-			}
-
-			heldRes := NewSuccessResult(
-				device.ID,
-				device.Connection.ID,
-				param.ID,
-				param.ParameterCode,
+		if isHeld || (formulaVal != nil && pErr == nil) {
+			fallbackRes := p.ingestFallbackReading(
+				device,
+				param,
 				res.FunctionCode,
 				res.PDUAddress,
 				qty,
-				nil,
-				effVal,
-				finalHeldVal,
 				elapsed,
+				effVal,
+				formulaVal,
+				isHeld,
+				quality,
+				pErr,
+				source,
 			)
-			heldRes.ScaledValue = effVal
-			heldRes.Formula = param.Formula
-			heldRes.FormulaValue = formulaVal
-			heldRes.IsHeld = true
-			heldRes.Quality = quality
-			heldRes.QualityReason = model.ReasonHoldAnomalyGrace
-			heldRes.QualityFlags = model.FlagHeldAnomaly
-			heldRes.ProcessedValue = finalHeldVal
-			return heldRes, nil
+			return fallbackRes, nil
 		}
 
 		lastKnownVal := 0.0

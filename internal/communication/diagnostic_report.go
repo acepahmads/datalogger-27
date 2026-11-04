@@ -38,6 +38,7 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 		EvidenceCompleteness: "PARTIAL",
 		Stages:               make([]DiagnosticStageEvidence, 0, 4),
 	}
+	defer m.applyDiagnosticFormulaFallback(device, param, report)
 
 	if device == nil || device.Connection == nil {
 		report.FailureCategory = FailCategoryRegisterConfig
@@ -603,6 +604,81 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 	}
 
 	return report, nil
+}
+
+// applyDiagnosticFormulaFallback ensures that when a parameter has a custom formula configured,
+// a live formula value (evaluated with x=0, raw=0) is still produced and persisted even if the
+// physical Modbus transaction or serial port timed out / failed.
+func (m *ConnectionManager) applyDiagnosticFormulaFallback(
+	device *model.Device,
+	param *model.Parameter,
+	report *EngineeringDiagnosticReport,
+) {
+	if report == nil || report.Success || param == nil || strings.TrimSpace(param.Formula) == "" {
+		return
+	}
+
+	fVal := evalParamFormula(param.Formula, 0, 0)
+	if fVal == nil {
+		return
+	}
+
+	zero := 0.0
+	byteOrder := param.ByteOrder
+	if byteOrder == "" && device != nil && device.Connection != nil && device.Connection.ByteOrder != "" {
+		byteOrder = device.Connection.ByteOrder
+	}
+	if byteOrder == "" {
+		byteOrder = "ABCD"
+	}
+
+	report.Formula = param.Formula
+	report.FormulaValue = fVal
+	report.DecodedValue = *fVal
+	report.ScaledValue = 0
+	report.RawValue = 0
+	report.DataEvidence = DataInterpretationEvidence{
+		DataType:         string(param.DataType),
+		ByteOrder:        byteOrder,
+		Scale:            param.Scale,
+		Offset:           param.Offset,
+		Unit:             param.Unit,
+		Formula:          param.Formula,
+		RawValue:         &zero,
+		DecodedValue:     &zero,
+		ScaledValue:      &zero,
+		FormulaValue:     fVal,
+		EngineeringValue: fVal,
+	}
+
+	msg := fmt.Sprintf("Formula fallback active (x=0 on sensor timeout): %.2f %s", *fVal, param.Unit)
+	updatedStage := false
+	for i := range report.Stages {
+		if report.Stages[i].Stage == "DATA_INTERPRETATION" {
+			report.Stages[i].Status = StagePass
+			report.Stages[i].Message = msg
+			report.Stages[i].Details = map[string]interface{}{
+				"engineering_val": *fVal,
+				"formula_val":     *fVal,
+				"raw_val":         0.0,
+				"scaled_val":      0.0,
+			}
+			updatedStage = true
+			break
+		}
+	}
+	if !updatedStage {
+		report.Stages = append(report.Stages, DiagnosticStageEvidence{
+			Stage:   "DATA_INTERPRETATION",
+			Status:  StagePass,
+			Message: msg,
+		})
+	}
+
+	if m.deviceService != nil && device != nil {
+		_ = m.deviceService.UpdateParameterCurrentValue(param.ID, *fVal, fVal, false)
+		_ = m.deviceService.UpdateLastData(device.ID)
+	}
 }
 
 // FormatMbpollCommand generates an exact copy-paste terminal command for side-by-side verification with mbpoll

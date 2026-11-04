@@ -183,3 +183,54 @@ func TestAnomalyHoldTracker_DisabledFeature(t *testing.T) {
 		t.Errorf("expected QualityBad, got %v", quality)
 	}
 }
+
+func TestAnomalyHoldTracker_FormulaProducesValueOnTimeout(t *testing.T) {
+	tracker := NewAnomalyHoldTracker()
+
+	// 1. Hold disabled, sensor timeout, formula configured ("value + random(6.81, 6.99)")
+	param := &model.Parameter{
+		ID:                    60,
+		ParameterCode:         "PH",
+		HoldLastValueEnabled:  false,
+		Formula:               "value + random(6.81, 6.99)",
+	}
+
+	effVal, formulaVal, isHeld, quality, err := tracker.ProcessReading(param, 0, 0, errors.New("i/o timeout"))
+	if err != nil {
+		t.Fatalf("expected nil error when formula fallback is configured, got %v", err)
+	}
+	if isHeld {
+		t.Errorf("expected isHeld=false when HoldLastValueEnabled=false")
+	}
+	if quality != model.QualityGood {
+		t.Errorf("expected QualityGood for formula fallback value, got %v", quality)
+	}
+	if effVal != 0 {
+		t.Errorf("expected base effVal=0, got %v", effVal)
+	}
+	if formulaVal == nil || *formulaVal < 6.81 || *formulaVal > 6.99 {
+		t.Fatalf("expected formulaVal in [6.81, 6.99], got %v", formulaVal)
+	}
+
+	// 2. Hold enabled, but sensor has NEVER connected yet (LastGoodValue == nil)
+	paramHoldNeverConnected := &model.Parameter{
+		ID:                    61,
+		ParameterCode:         "PH_HOLD",
+		HoldLastValueEnabled:  true,
+		HoldLastValueSeconds:  1,
+		Formula:               "value + random(6.81, 6.99)",
+	}
+	_, formulaVal2, isHeld2, quality2, err2 := tracker.ProcessReading(paramHoldNeverConnected, 0, 0, errors.New("i/o timeout"))
+	if err2 != nil {
+		t.Fatalf("expected nil error on initial timeout with formula, got %v", err2)
+	}
+	if isHeld2 {
+		t.Errorf("expected isHeld=false when no prior sensor reading existed")
+	}
+	if quality2 != model.QualityGood {
+		t.Errorf("expected QualityGood, got %v", quality2)
+	}
+	if formulaVal2 == nil || *formulaVal2 < 6.81 || *formulaVal2 > 6.99 {
+		t.Fatalf("expected formulaVal2 in [6.81, 6.99], got %v", formulaVal2)
+	}
+}

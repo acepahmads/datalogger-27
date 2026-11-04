@@ -519,6 +519,68 @@ func TestDiagnosticParameter_MbpollCommandGeneration(t *testing.T) {
 	}
 }
 
+// 13. Timeout with formula still produces FormulaValue & Stage 4 PASS, plus PollingEngine ReadParameter & Batch fallback
+func TestDiagnosticAndPolling_TimeoutWithFormulaStillProducesValue(t *testing.T) {
+	defer modbus.ResetSharedBuses()
+
+	server := modbus.NewMockModbusServer()
+	server.SetMode(modbus.SimModeDrop, 0, 0) // Simulate sensor timeout (no response)
+	mgr := setupMockRTUManager(server)
+
+	dev, param := createTestDeviceAndParam("COM_TEST_FORMULA_TIMEOUT", 1, "ph", "HOLDING", 0, "FLOAT32")
+	param.Formula = "value + random(6.81, 6.99)"
+	param.Unit = "pH"
+
+	ctx := context.Background()
+
+	// Part A: DiagnosticParameterRead on timeout must still evaluate formula!
+	report, err := mgr.DiagnosticParameterRead(ctx, dev, param)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if report.FailureCategory != FailCategoryTimeout {
+		t.Fatalf("expected FailCategoryTimeout, got %s", report.FailureCategory)
+	}
+	if report.Stages[2].Status != StageFail {
+		t.Fatalf("expected MODBUS_TRANSACTION stage FAIL, got %s", report.Stages[2].Status)
+	}
+	if report.Stages[3].Status != StagePass {
+		t.Fatalf("expected DATA_INTERPRETATION stage PASS via formula fallback, got %s", report.Stages[3].Status)
+	}
+	if report.FormulaValue == nil || *report.FormulaValue < 6.81 || *report.FormulaValue > 6.99 {
+		t.Fatalf("expected FormulaValue in [6.81, 6.99], got %v", report.FormulaValue)
+	}
+	if math.Abs(report.DecodedValue-*report.FormulaValue) > 1e-9 {
+		t.Fatalf("expected DecodedValue=%v to match FormulaValue=%v", report.DecodedValue, *report.FormulaValue)
+	}
+
+	// Part B: PollingEngine ReadParameter & pollDeviceBatch on timeout must still produce formula reading!
+	pe := NewPollingEngine(mgr, nil, nil)
+	res, readErr := pe.ReadParameter(ctx, dev, param)
+	if readErr != nil {
+		t.Fatalf("expected ReadParameter to succeed via formula fallback on timeout, got err=%v", readErr)
+	}
+	if res == nil || res.FormulaValue == nil || *res.FormulaValue < 6.81 || *res.FormulaValue > 6.99 {
+		t.Fatalf("expected ReadParameter FormulaValue in [6.81, 6.99], got %+v", res)
+	}
+	if res.Quality != model.QualityGood {
+		t.Fatalf("expected QualityGood, got %s", res.Quality)
+	}
+
+	// Batch mode with 1 non-formula parameter + 1 formula parameter on timeout
+	dev.Connection.BatchReadEnabled = true
+	noFormulaParam := *param
+	noFormulaParam.ID = 102
+	noFormulaParam.ParameterCode = "temp"
+	noFormulaParam.RegisterAddress = 2
+	noFormulaParam.Formula = ""
+
+	batchSuccess := pe.pollDeviceBatch(ctx, dev, []model.Parameter{noFormulaParam, *param})
+	if !batchSuccess {
+		t.Fatalf("expected pollDeviceBatch to return true when at least one parameter has formula fallback")
+	}
+}
+
 func errorsIsCanceled(err error) bool {
 	if err == nil {
 		return false

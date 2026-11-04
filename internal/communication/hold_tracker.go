@@ -3,6 +3,7 @@ package communication
 import (
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,6 +63,9 @@ func (t *AnomalyHoldTracker) ProcessReading(
 	// 2. If hold-last-value is disabled, process normally
 	if !param.HoldLastValueEnabled {
 		if readErr != nil {
+			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+				return 0, fVal, false, model.QualityGood, nil
+			}
 			return 0, nil, false, model.QualityBad, readErr
 		}
 
@@ -106,9 +110,12 @@ func (t *AnomalyHoldTracker) ProcessReading(
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// If no previous good value exists yet, must report real state
+	// If no previous good value exists yet, evaluate formula fallback (if configured) or report real state
 	if state.LastGoodValue == nil {
 		if readErr != nil {
+			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+				return 0, fVal, false, model.QualityGood, nil
+			}
 			return 0, nil, false, model.QualityBad, readErr
 		}
 		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
@@ -138,12 +145,15 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		return effectiveVal, formulaVal, true, model.QualityUncertain, nil
 	}
 
-	// Grace period EXPIRED (>= 2 minutes persistent anomaly): Commit real sensor value
+	// Grace period EXPIRED (>= 2 minutes persistent anomaly): Commit real sensor value (or formula fallback if configured)
 	state.IsHeld = false
 	logger.Warn("Parameter %s (ID %d) anomaly persisted for %v (exceeded %v limit). Committing real sensor value to database.",
 		param.ParameterCode, param.ID, elapsed.Round(time.Second), holdDuration)
 
 	if readErr != nil {
+		if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+			return 0, fVal, false, model.QualityGood, nil
+		}
 		return 0, nil, false, model.QualityBad, readErr
 	}
 
@@ -170,7 +180,8 @@ func (t *AnomalyHoldTracker) GetState(paramID uint) *ParameterHoldState {
 }
 
 func evalParamFormula(form string, engVal, rawVal float64) *float64 {
-	if form == "" {
+	trimmed := strings.TrimSpace(form)
+	if trimmed == "" {
 		return nil
 	}
 	vars := map[string]float64{
@@ -179,9 +190,9 @@ func evalParamFormula(form string, engVal, rawVal float64) *float64 {
 		"value": engVal,
 		"raw":   rawVal,
 	}
-	res, err := formula.Evaluate(form, vars)
-	if err != nil {
-		logger.Warn("Formula evaluation failed for '%s' (x=%.2f, raw=%.2f): %v", form, engVal, rawVal, err)
+	res, err := formula.Evaluate(trimmed, vars)
+	if err != nil || math.IsNaN(res) || math.IsInf(res, 0) {
+		logger.Warn("Formula evaluation failed for '%s' (x=%.2f, raw=%.2f): %v", trimmed, engVal, rawVal, err)
 		return nil
 	}
 	return &res

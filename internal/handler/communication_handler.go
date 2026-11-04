@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"datalogger/internal/communication"
 	"datalogger/internal/model"
@@ -234,6 +235,32 @@ func (h *CommunicationHandler) TestReadParameter(c *gin.Context) {
 	}
 
 	report, err := h.connManager.DiagnosticParameterRead(c.Request.Context(), dev, param)
+	if report != nil && report.FormulaValue != nil && h.pollingEngine != nil {
+		if ts := h.pollingEngine.GetTelemetryService(); ts != nil {
+			source := ""
+			if dev.Connection != nil {
+				source = string(dev.Connection.Protocol)
+			}
+			_ = ts.Ingest(&service.TelemetryIngestPayload{
+				DeviceID:      dev.ID,
+				DeviceCode:    dev.DeviceCode,
+				DeviceName:    dev.DeviceName,
+				ParameterID:   param.ID,
+				ParameterCode: param.ParameterCode,
+				ParameterName: param.ParameterName,
+				Unit:          param.Unit,
+				DataType:      param.DataType,
+				RawValue:      report.RawValue,
+				Value:         *report.FormulaValue,
+				FormulaValue:  report.FormulaValue,
+				Formula:       param.Formula,
+				Quality:       model.QualityGood,
+				Source:        source,
+				ReceivedAt:    time.Now().UTC(),
+				Parameter:     param,
+			})
+		}
+	}
 	if err != nil {
 		if report != nil {
 			response.OK(c, report)

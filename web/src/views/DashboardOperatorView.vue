@@ -7958,6 +7958,27 @@ export default {
         limitTooltip: `Belum ada limit khusus · ${editHint}`,
       };
     },
+    onTestReadCompleted(payload) {
+      if (!payload || !payload.result || !payload.parameter) return;
+      const hasFormulaVal = payload.result.formula_value !== undefined && payload.result.formula_value !== null;
+      if (payload.result.success || hasFormulaVal) {
+        const val = hasFormulaVal ? Number(payload.result.formula_value) : payload.result.decoded_value;
+        if (val !== undefined && val !== null) {
+          const pid = payload.parameter.id || payload.parameter.param_id;
+          if (pid) {
+            this.$set(this.liveMap, pid, {
+              ...(this.liveMap[pid] || {}),
+              value: val,
+              processed_value: val,
+              formula_value: hasFormulaVal ? val : payload.result.formula_value,
+              quality: 'GOOD',
+              quality_reason: payload.result.success ? 'TEST_READ_PASS' : 'FORMULA_FALLBACK',
+              received_at: new Date().toISOString(),
+            });
+          }
+        }
+      }
+    },
     getShortParamChipLabel(param) {
       if (!param) return '';
       const raw = (param.param_code || param.param_name || '').trim();

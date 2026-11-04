@@ -3322,11 +3322,19 @@
               </div>
 
               <!-- Panel 3: Data Interpretation & Values -->
-              <div v-if="testReadResult.success" class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2.5">
-                <span class="text-xs font-bold text-slate-200 uppercase font-sans flex items-center space-x-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                  <span>{{ $t('deviceDetail.decodedValue') }} & Telemetry</span>
-                </span>
+              <div v-if="testReadResult.success || getTestReadFormulaVal() !== null" class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-200 uppercase font-sans flex items-center space-x-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span>{{ $t('deviceDetail.decodedValue') }} & Telemetry</span>
+                  </span>
+                  <span
+                    v-if="!testReadResult.success && getTestReadFormulaVal() !== null"
+                    class="text-3xs font-mono font-bold px-2 py-0.5 rounded border bg-blue-950/50 text-blue-300 border-blue-700/60"
+                  >
+                    FORMULA FALLBACK (x=0)
+                  </span>
+                </div>
 
                 <!-- Prominent Formula Result Card if formula configured -->
                 <div v-if="getTestReadFormulaVal() !== null" class="p-3 bg-blue-950/30 rounded-xl border border-blue-500/30 space-y-1">
@@ -4497,12 +4505,14 @@ export default {
           parameterId: this.testParam.id,
         });
         this.testReadResult = (res && res.data && typeof res.data === 'object' && res.data.success !== undefined) ? res.data : res;
-        if (this.testReadResult && this.testReadResult.success) {
+        if (this.testReadResult) {
           const formulaVal = this.getTestReadFormulaValNum();
           if (formulaVal !== null) {
             this.testParam.current_value = formulaVal;
+            this.testParam.current_processed_value = formulaVal;
             this.testParam.current_formula_value = formulaVal;
-          } else if (this.testReadResult.decoded_value !== undefined) {
+            this.testParam.current_quality = 'GOOD';
+          } else if (this.testReadResult.success && this.testReadResult.decoded_value !== undefined) {
             this.testParam.current_value = this.testReadResult.decoded_value;
           }
         }
@@ -4857,8 +4867,8 @@ export default {
       const formulaStr = (this.testReadResult.formula || (this.testParam && this.testParam.formula) || '').trim();
       if (!formulaStr) return null;
       try {
-        const x = this.getTestReadModbusValNum();
-        const raw = this.testReadResult.raw_value !== undefined ? this.testReadResult.raw_value : x;
+        const x = this.testReadResult.success ? this.getTestReadModbusValNum() : 0;
+        const raw = this.testReadResult.success && this.testReadResult.raw_value !== undefined ? this.testReadResult.raw_value : x;
         const roundFn = (val, prec) => {
           if (prec === undefined) return Math.round(val);
           const factor = Math.pow(10, Math.trunc(prec));
