@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"datalogger/internal/model"
@@ -78,46 +79,101 @@ func (r *AggregationRepository) ListDefinitions(ctx context.Context, deviceID ui
 	return defs, nil
 }
 
-// UpdateDefinitionLastCalculated updates the last calculation timestamp for a definition
-func (r *AggregationRepository) UpdateDefinitionLastCalculated(ctx context.Context, defID uint, t time.Time) error {
-	return r.db.WithContext(ctx).Model(&model.AggregationDefinition{}).Where("id = ?", defID).Update("last_calculated_at", t).Error
+// isTransientAggregationDBError detects transient MariaDB/MySQL/SQLite lock contention,
+// deadlocks (Error 1213), lock wait timeouts (Error 1205), or pooled idle connection resets.
+func isTransientAggregationDBError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "deadlock") ||
+		strings.Contains(msg, "1213") ||
+		strings.Contains(msg, "lock wait timeout") ||
+		strings.Contains(msg, "1205") ||
+		strings.Contains(msg, "try restarting transaction") ||
+		strings.Contains(msg, "database is locked") ||
+		strings.Contains(msg, "database table is locked") ||
+		strings.Contains(msg, "sqlite_busy") ||
+		strings.Contains(msg, "bad connection") ||
+		strings.Contains(msg, "invalid connection")
 }
 
-// SaveResult executes an idempotent UPSERT for an aggregation result
+func withAggregationDBRetry(ctx context.Context, op func() error) error {
+	backoffs := []time.Duration{15 * time.Millisecond, 40 * time.Millisecond, 100 * time.Millisecond, 250 * time.Millisecond}
+	var lastErr error
+	for attempt := 0; attempt <= len(backoffs); attempt++ {
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
+		lastErr = op()
+		if lastErr == nil || !isTransientAggregationDBError(lastErr) || attempt == len(backoffs) {
+			return lastErr
+		}
+		wait := backoffs[attempt]
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(wait):
+			}
+		} else {
+			time.Sleep(wait)
+		}
+	}
+	return lastErr
+}
+
+// UpdateDefinitionLastCalculated updates the last calculation timestamp for a definition
+func (r *AggregationRepository) UpdateDefinitionLastCalculated(ctx context.Context, defID uint, t time.Time) error {
+	return withAggregationDBRetry(ctx, func() error {
+		return r.db.WithContext(ctx).Model(&model.AggregationDefinition{}).Where("id = ?", defID).Update("last_calculated_at", t).Error
+	})
+}
+
+// SaveResult executes an idempotent UPSERT for an aggregation result with automatic transient deadlock/lock retry
 func (r *AggregationRepository) SaveResult(ctx context.Context, result *model.AggregationResult) error {
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "aggregation_definition_id"},
-			{Name: "period_start"},
-		},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"identifier",
-			"period_end",
-			"value",
-			"min_value",
-			"max_value",
-			"avg_value",
-			"sum_value",
-			"first_value",
-			"last_value",
-			"sample_count",
-			"valid_count",
-			"good_count",
-			"uncertain_count",
-			"bad_count",
-			"stale_count",
-			"quality",
-			"quality_reason",
-			"updated_at",
-		}),
-	}).Create(result).Error
+	if result == nil {
+		return nil
+	}
+	origID := result.ID
+	return withAggregationDBRetry(ctx, func() error {
+		result.ID = origID
+		return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "aggregation_definition_id"},
+				{Name: "period_start"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"identifier",
+				"period_end",
+				"value",
+				"min_value",
+				"max_value",
+				"avg_value",
+				"sum_value",
+				"first_value",
+				"last_value",
+				"sample_count",
+				"valid_count",
+				"good_count",
+				"uncertain_count",
+				"bad_count",
+				"stale_count",
+				"quality",
+				"quality_reason",
+				"updated_at",
+			}),
+		}).Create(result).Error
+	})
 }
 
 // DeleteResultForBucket deletes an aggregation result row for a specific definition and bucket start (used during injection rollback)
 func (r *AggregationRepository) DeleteResultForBucket(ctx context.Context, defID uint, periodStart time.Time) error {
-	return r.db.WithContext(ctx).
-		Where("aggregation_definition_id = ? AND period_start = ?", defID, periodStart).
-		Delete(&model.AggregationResult{}).Error
+	return withAggregationDBRetry(ctx, func() error {
+		return r.db.WithContext(ctx).
+			Where("aggregation_definition_id = ? AND period_start = ?", defID, periodStart).
+			Delete(&model.AggregationResult{}).Error
+	})
 }
 
 // GetResultByID retrieves an aggregation result by primary key ID
@@ -204,10 +260,13 @@ func (r *AggregationRepository) GetResultsByFilter(ctx context.Context, filter A
 // GetRawTelemetryForBucket retrieves telemetry samples from raw_data for a specific device, parameter, and time window
 func (r *AggregationRepository) GetRawTelemetryForBucket(ctx context.Context, deviceID, paramID uint, start, end time.Time) ([]model.RawData, error) {
 	var samples []model.RawData
-	err := r.db.WithContext(ctx).
-		Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at < ?", deviceID, paramID, start, end).
-		Order("received_at asc").
-		Find(&samples).Error
+	err := withAggregationDBRetry(ctx, func() error {
+		samples = nil
+		return r.db.WithContext(ctx).
+			Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at < ?", deviceID, paramID, start, end).
+			Order("received_at asc").
+			Find(&samples).Error
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch raw telemetry for bucket [%v, %v): %w", start, end, err)
 	}

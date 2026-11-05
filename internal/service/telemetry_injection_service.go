@@ -930,7 +930,8 @@ func (s *TelemetryInjectionService) ExecuteInjection(
 	aggBuckets := 0
 	var completedEnds []time.Time
 	if s.aggService != nil {
-		aggBuckets, completedEnds, _ = s.aggService.RecalculateRangeForDevice(
+		var rErr error
+		aggBuckets, completedEnds, rErr = s.aggService.RecalculateRangeForDevice(
 			ctx,
 			batch.DeviceID,
 			plan.paramIDs,
@@ -938,6 +939,28 @@ func (s *TelemetryInjectionService) ExecuteInjection(
 			plan.endUTC,
 			false,
 		)
+		if rErr != nil && ctx.Err() == nil {
+			time.Sleep(100 * time.Millisecond)
+			if retryCount, retryEnds, retryErr := s.aggService.RecalculateRangeForDevice(
+				ctx,
+				batch.DeviceID,
+				plan.paramIDs,
+				plan.startUTC,
+				plan.endUTC,
+				false,
+			); retryErr == nil {
+				aggBuckets = retryCount
+				completedEnds = retryEnds
+				rErr = nil
+			} else {
+				rErr = retryErr
+			}
+		}
+		if rErr != nil {
+			batch.AggregatedBuckets = aggBuckets
+			_ = s.repo.UpdateBatchSummary(ctx, batch.ID, aggBuckets, 0)
+			return nil, fmt.Errorf("sampel raw tersimpan pada batch %s, namun sebagian bucket agregasi gagal disimpan (%v) — silakan klik 'Antrekan Outbound' pada riwayat batch untuk melengkapi", batch.BatchCode, rErr)
+		}
 	}
 
 	refreshOutbound := true
@@ -1018,10 +1041,11 @@ func (s *TelemetryInjectionService) SyncBatchOutbound(
 			batch.EndTime,
 			false,
 		)
-		if rErr == nil {
-			aggBuckets = recalc
-			completedEnds = ends
+		if rErr != nil {
+			return nil, fmt.Errorf("gagal menghitung ulang seluruh bucket agregasi batch %s: %w", batch.BatchCode, rErr)
 		}
+		aggBuckets = recalc
+		completedEnds = ends
 	}
 
 	var outboundRes *OutboundWindowRefreshResult

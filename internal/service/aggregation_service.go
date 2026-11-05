@@ -111,6 +111,7 @@ type AggregationService struct {
 	wg                     sync.WaitGroup
 	isWorkerRun            bool
 	workerMu               sync.Mutex
+	calcMu                 sync.Mutex
 	paused                 int32
 	onBucketCompleted      func(ctx context.Context, deviceID uint, bucketEnd time.Time)
 	onAggregationCompleted func(ctx context.Context, event AggregationCompletedEvent)
@@ -197,7 +198,7 @@ func (s *AggregationService) StartWorker() {
 					continue
 				}
 				runCtx, runCancel := context.WithTimeout(context.Background(), 30*time.Second)
-				_, err := s.RunAllActiveDefinitions(runCtx)
+				_, err := s.runBackgroundWorkerCycle(runCtx)
 				if err != nil && !s.IsPaused() {
 					logger.Warn("Aggregation worker cycle error: %v", err)
 				}
@@ -489,20 +490,24 @@ func (s *AggregationService) ListDefinitions(ctx context.Context, deviceID uint,
 
 // CalculateBucket calculates and persists the aggregate for an explicit bucket
 func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bucketStart time.Time) (*model.AggregationResult, error) {
+	s.calcMu.Lock()
 	def, err := s.repo.GetDefinitionByID(ctx, defID)
 	if err != nil {
+		s.calcMu.Unlock()
 		return nil, fmt.Errorf("definition %d not found: %w", defID, err)
 	}
 
 	bucket := aggregation.CalculateBucket(bucketStart, def.IntervalSeconds, def.Timezone)
 	samples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, bucket.PeriodStart, bucket.PeriodEnd)
 	if err != nil {
+		s.calcMu.Unlock()
 		return nil, fmt.Errorf("failed to fetch raw samples for bucket: %w", err)
 	}
 
 	result := s.engine.Calculate(def, bucket.PeriodStart, bucket.PeriodEnd, samples)
 
 	if err := s.repo.SaveResult(ctx, result); err != nil {
+		s.calcMu.Unlock()
 		return nil, fmt.Errorf("failed to save idempotent aggregation result: %w", err)
 	}
 
@@ -515,6 +520,7 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 	}
 
 	_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, time.Now().UTC())
+	s.calcMu.Unlock()
 
 	if s.onAggregationCompleted != nil {
 		event := AggregationCompletedEvent{
@@ -540,13 +546,26 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 
 // ProcessPendingBucketsForDefinition calculates completed missing buckets in real-time
 func (s *AggregationService) ProcessPendingBucketsForDefinition(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration) (int, error) {
-	count, _, err := s.processPendingBucketsInternal(ctx, def, lookback, false)
+	s.calcMu.Lock()
+	count, completedEnds, aggEvents, err := s.processPendingBucketsInternal(ctx, def, lookback)
+	s.calcMu.Unlock()
+
+	s.fireDeferredAggregationCompletedCallbacks(aggEvents)
+	if s.onBucketCompleted != nil && def != nil && len(completedEnds) > 0 {
+		devID := def.DeviceID
+		endsCopy := append([]time.Time(nil), completedEnds...)
+		go func() {
+			for _, pe := range endsCopy {
+				s.onBucketCompleted(context.Background(), devID, pe)
+			}
+		}()
+	}
 	return count, err
 }
 
-func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration, deferBucketCallback bool) (int, []time.Time, error) {
+func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, def *model.AggregationDefinition, lookback time.Duration) (int, []time.Time, []AggregationCompletedEvent, error) {
 	if s.IsPaused() || ctx.Err() != nil {
-		return 0, nil, ctx.Err()
+		return 0, nil, nil, ctx.Err()
 	}
 	now := time.Now().UTC()
 	startWindow := now.Add(-lookback)
@@ -569,6 +588,7 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 	processedCount := 0
 	var lastProcessedEnd time.Time
 	var completedEnds []time.Time
+	var aggEvents []AggregationCompletedEvent
 
 	for _, b := range buckets {
 		if s.IsPaused() || ctx.Err() != nil {
@@ -598,7 +618,7 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 			})
 		}
 		if s.onAggregationCompleted != nil {
-			event := AggregationCompletedEvent{
+			aggEvents = append(aggEvents, AggregationCompletedEvent{
 				DeviceID:        def.DeviceID,
 				ParameterID:     def.ParameterID,
 				DefinitionID:    def.ID,
@@ -608,8 +628,7 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 				PeriodEnd:       b.PeriodEnd,
 				Identifier:      result.Identifier,
 				Quality:         string(result.Quality),
-			}
-			go s.onAggregationCompleted(context.Background(), event)
+			})
 		}
 		processedCount++
 		completedEnds = append(completedEnds, b.PeriodEnd)
@@ -620,15 +639,6 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 
 	if !lastProcessedEnd.IsZero() {
 		_ = s.repo.UpdateDefinitionLastCalculated(ctx, def.ID, lastProcessedEnd)
-		if !deferBucketCallback && s.onBucketCompleted != nil && len(completedEnds) > 0 {
-			devID := def.DeviceID
-			endsCopy := append([]time.Time(nil), completedEnds...)
-			go func() {
-				for _, pe := range endsCopy {
-					s.onBucketCompleted(context.Background(), devID, pe)
-				}
-			}()
-		}
 	}
 
 	// Real-Time Active (In-Progress) Bucket Evaluation:
@@ -652,7 +662,19 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 		}
 	}
 
-	return processedCount, completedEnds, nil
+	return processedCount, completedEnds, aggEvents, nil
+}
+
+func (s *AggregationService) fireDeferredAggregationCompletedCallbacks(events []AggregationCompletedEvent) {
+	if s.onAggregationCompleted == nil || len(events) == 0 {
+		return
+	}
+	eventsCopy := append([]AggregationCompletedEvent(nil), events...)
+	go func() {
+		for _, ev := range eventsCopy {
+			s.onAggregationCompleted(context.Background(), ev)
+		}
+	}()
 }
 
 func (s *AggregationService) fireDeferredBucketCallbacks(completedByDevice map[uint]map[int64]time.Time) {
@@ -682,18 +704,18 @@ func (s *AggregationService) fireDeferredBucketCallbacks(completedByDevice map[u
 	}()
 }
 
-// RunAllActiveDefinitions triggers a calculation cycle for all enabled definitions
-func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, error) {
+func (s *AggregationService) runAllActiveDefinitionsLocked(ctx context.Context) (int, map[uint]map[int64]time.Time, []AggregationCompletedEvent, error) {
 	if s.IsPaused() {
-		return 0, nil
+		return 0, nil, nil, nil
 	}
 	defs, err := s.repo.ListDefinitions(ctx, 0, true)
 	if err != nil {
-		return 0, err
+		return 0, nil, nil, err
 	}
 
 	totalBuckets := 0
 	completedByDevice := make(map[uint]map[int64]time.Time)
+	var allAggEvents []AggregationCompletedEvent
 	for _, def := range defs {
 		if s.IsPaused() || ctx.Err() != nil {
 			break
@@ -702,13 +724,16 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 			continue
 		}
 		// Lookback 2 hours by default during continuous polling
-		count, ends, err := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour, true)
+		count, ends, aggEvents, err := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour)
 		if err != nil {
 			if !s.IsPaused() && ctx.Err() == nil {
 				logger.Warn("Error processing definition %s: %v", def.Name, err)
 			}
 		} else {
 			totalBuckets += count
+			if len(aggEvents) > 0 {
+				allAggEvents = append(allAggEvents, aggEvents...)
+			}
 			if len(ends) > 0 {
 				if completedByDevice[def.DeviceID] == nil {
 					completedByDevice[def.DeviceID] = make(map[int64]time.Time)
@@ -719,29 +744,73 @@ func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, 
 			}
 		}
 	}
+	return totalBuckets, completedByDevice, allAggEvents, nil
+}
+
+func (s *AggregationService) runBackgroundWorkerCycle(ctx context.Context) (int, error) {
+	if s.IsPaused() {
+		return 0, nil
+	}
+	// Non-blocking TryLock: if an explicit range recalculation (e.g. Telemetry Injection / Rollback)
+	// or manual trigger is actively writing buckets, skip this 1-second worker tick cleanly so we
+	// never contend on MariaDB unique-index gap locks.
+	if !s.calcMu.TryLock() {
+		return 0, nil
+	}
+	totalBuckets, completedByDevice, aggEvents, err := s.runAllActiveDefinitionsLocked(ctx)
+	s.calcMu.Unlock()
+	if err != nil {
+		return totalBuckets, err
+	}
+	s.fireDeferredAggregationCompletedCallbacks(aggEvents)
+	s.fireDeferredBucketCallbacks(completedByDevice)
+	return totalBuckets, nil
+}
+
+// RunAllActiveDefinitions triggers a calculation cycle for all enabled definitions
+func (s *AggregationService) RunAllActiveDefinitions(ctx context.Context) (int, error) {
+	if s.IsPaused() {
+		return 0, nil
+	}
+	s.calcMu.Lock()
+	totalBuckets, completedByDevice, aggEvents, err := s.runAllActiveDefinitionsLocked(ctx)
+	s.calcMu.Unlock()
+	if err != nil {
+		return totalBuckets, err
+	}
+	s.fireDeferredAggregationCompletedCallbacks(aggEvents)
 	s.fireDeferredBucketCallbacks(completedByDevice)
 	return totalBuckets, nil
 }
 
 // GetResults retrieves paginated aggregation results with fast on-demand refresh
 func (s *AggregationService) GetResults(ctx context.Context, filter repository.AggregationResultFilter) ([]model.AggregationResult, int64, error) {
-	defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
-	if err == nil {
-		completedByDevice := make(map[uint]map[int64]time.Time)
-		for _, def := range defs {
-			if !isDefinitionActiveTarget(&def) {
-				continue
-			}
-			_, ends, _ := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour, true)
-			if len(ends) > 0 {
-				if completedByDevice[def.DeviceID] == nil {
-					completedByDevice[def.DeviceID] = make(map[int64]time.Time)
+	if !s.IsPaused() && s.calcMu.TryLock() {
+		defs, err := s.repo.ListDefinitions(ctx, filter.DeviceID, true)
+		var completedByDevice map[uint]map[int64]time.Time
+		var allAggEvents []AggregationCompletedEvent
+		if err == nil {
+			completedByDevice = make(map[uint]map[int64]time.Time)
+			for _, def := range defs {
+				if !isDefinitionActiveTarget(&def) {
+					continue
 				}
-				for _, pe := range ends {
-					completedByDevice[def.DeviceID][pe.UnixNano()] = pe
+				_, ends, aggEvents, _ := s.processPendingBucketsInternal(ctx, &def, 2*time.Hour)
+				if len(aggEvents) > 0 {
+					allAggEvents = append(allAggEvents, aggEvents...)
+				}
+				if len(ends) > 0 {
+					if completedByDevice[def.DeviceID] == nil {
+						completedByDevice[def.DeviceID] = make(map[int64]time.Time)
+					}
+					for _, pe := range ends {
+						completedByDevice[def.DeviceID][pe.UnixNano()] = pe
+					}
 				}
 			}
 		}
+		s.calcMu.Unlock()
+		s.fireDeferredAggregationCompletedCallbacks(allAggEvents)
 		s.fireDeferredBucketCallbacks(completedByDevice)
 	}
 	return s.repo.GetResultsByFilter(ctx, filter)
@@ -1134,11 +1203,15 @@ func (s *AggregationService) RecalculateRangeForDevice(
 		return 0, nil, nil
 	}
 
+	s.calcMu.Lock()
+
 	defs, err := s.repo.ListDefinitions(ctx, deviceID, true)
 	if err != nil {
+		s.calcMu.Unlock()
 		return 0, nil, fmt.Errorf("failed to list aggregation definitions for device %d: %w", deviceID, err)
 	}
 	if len(defs) == 0 {
+		s.calcMu.Unlock()
 		return 0, nil, nil
 	}
 
@@ -1153,14 +1226,77 @@ func (s *AggregationService) RecalculateRangeForDevice(
 	startUTC := startTime.UTC()
 	endUTC := endTime.UTC()
 	if startUTC.After(now) {
+		s.calcMu.Unlock()
 		return 0, nil, nil
 	}
 	if endUTC.After(now) {
 		endUTC = now
 	}
 
+	type pendingBucketTask struct {
+		def    model.AggregationDefinition
+		bucket aggregation.TimeBucket
+	}
+
 	recalculatedCount := 0
 	completedEndsMap := make(map[int64]time.Time)
+	var aggEvents []AggregationCompletedEvent
+	var failedTasks []pendingBucketTask
+
+	processOneBucket := func(def model.AggregationDefinition, curr aggregation.TimeBucket) error {
+		queryEnd := curr.PeriodEnd
+		if queryEnd.After(now) {
+			queryEnd = now
+		}
+
+		samples, qErr := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, curr.PeriodStart, queryEnd)
+		if qErr != nil {
+			return fmt.Errorf("query telemetry [%v, %v): %w", curr.PeriodStart, queryEnd, qErr)
+		}
+
+		if len(samples) == 0 {
+			if cleanupEmptyBuckets {
+				if dErr := s.repo.DeleteResultForBucket(ctx, def.ID, curr.PeriodStart); dErr != nil {
+					return fmt.Errorf("delete empty bucket %s: %w", curr.Identifier, dErr)
+				}
+			}
+			return nil
+		}
+
+		defCopy := def
+		result := s.engine.Calculate(&defCopy, curr.PeriodStart, curr.PeriodEnd, samples)
+		result.Identifier = curr.Identifier
+		if sErr := s.repo.SaveResult(ctx, result); sErr != nil {
+			return fmt.Errorf("save bucket %s (def %d): %w", curr.Identifier, def.ID, sErr)
+		}
+
+		recalculatedCount++
+		if !curr.PeriodEnd.After(now) && def.SourceType == model.SourceCustomerProcessed {
+			completedEndsMap[curr.PeriodEnd.Unix()] = curr.PeriodEnd
+		}
+
+		if s.hub != nil {
+			s.hub.Broadcast(websocket.WSMessage{
+				Type:      "aggregation.result.updated",
+				Timestamp: now,
+				Data:      result,
+			})
+		}
+		if s.onAggregationCompleted != nil && !curr.PeriodEnd.After(now) {
+			aggEvents = append(aggEvents, AggregationCompletedEvent{
+				DeviceID:        def.DeviceID,
+				ParameterID:     def.ParameterID,
+				DefinitionID:    def.ID,
+				IntervalSeconds: def.IntervalSeconds,
+				Function:        string(def.Function),
+				PeriodStart:     curr.PeriodStart,
+				PeriodEnd:       curr.PeriodEnd,
+				Identifier:      result.Identifier,
+				Quality:         string(result.Quality),
+			})
+		}
+		return nil
+	}
 
 	for i := range defs {
 		def := defs[i]
@@ -1178,6 +1314,7 @@ func (s *AggregationService) RecalculateRangeForDevice(
 
 		for curr.PeriodStart.Before(endUTC) || (startUTC.Equal(endUTC) && steps == 0) {
 			if ctx.Err() != nil {
+				s.calcMu.Unlock()
 				return recalculatedCount, nil, ctx.Err()
 			}
 			steps++
@@ -1185,65 +1322,43 @@ func (s *AggregationService) RecalculateRangeForDevice(
 				break
 			}
 
-			queryEnd := curr.PeriodEnd
-			if queryEnd.After(now) {
-				queryEnd = now
-			}
-
-			samples, err := s.repo.GetRawTelemetryForBucket(ctx, def.DeviceID, def.ParameterID, curr.PeriodStart, queryEnd)
-			if err != nil {
-				logger.Warn("Failed to query telemetry during range recalculation [%v, %v): %v", curr.PeriodStart, queryEnd, err)
-				curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
-				continue
-			}
-
-			if len(samples) == 0 {
-				if cleanupEmptyBuckets {
-					_ = s.repo.DeleteResultForBucket(ctx, def.ID, curr.PeriodStart)
-				}
-				curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
-				continue
-			}
-
-			defCopy := def
-			result := s.engine.Calculate(&defCopy, curr.PeriodStart, curr.PeriodEnd, samples)
-			result.Identifier = curr.Identifier
-			if err := s.repo.SaveResult(ctx, result); err != nil {
-				logger.Warn("Failed to save recalculated aggregation bucket %s: %v", curr.Identifier, err)
-				curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
-				continue
-			}
-
-			recalculatedCount++
-			if !curr.PeriodEnd.After(now) && def.SourceType == model.SourceCustomerProcessed {
-				completedEndsMap[curr.PeriodEnd.Unix()] = curr.PeriodEnd
-			}
-
-			if s.hub != nil {
-				s.hub.Broadcast(websocket.WSMessage{
-					Type:      "aggregation.result.updated",
-					Timestamp: now,
-					Data:      result,
-				})
-			}
-			if s.onAggregationCompleted != nil && !curr.PeriodEnd.After(now) {
-				event := AggregationCompletedEvent{
-					DeviceID:        def.DeviceID,
-					ParameterID:     def.ParameterID,
-					DefinitionID:    def.ID,
-					IntervalSeconds: def.IntervalSeconds,
-					Function:        string(def.Function),
-					PeriodStart:     curr.PeriodStart,
-					PeriodEnd:       curr.PeriodEnd,
-					Identifier:      result.Identifier,
-					Quality:         string(result.Quality),
-				}
-				go s.onAggregationCompleted(context.Background(), event)
+			if bErr := processOneBucket(def, curr); bErr != nil {
+				logger.Warn("Bucket recalculation pass-1 error (will retry) [%s]: %v", curr.Identifier, bErr)
+				failedTasks = append(failedTasks, pendingBucketTask{def: def, bucket: curr})
 			}
 
 			curr = aggregation.CalculateBucket(curr.PeriodEnd, intervalSec, def.Timezone)
 		}
 	}
+
+	var firstUnresolvedErr error
+	unresolvedCount := 0
+	if len(failedTasks) > 0 && ctx.Err() == nil {
+		select {
+		case <-ctx.Done():
+			s.calcMu.Unlock()
+			return recalculatedCount, nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		for _, task := range failedTasks {
+			if ctx.Err() != nil {
+				s.calcMu.Unlock()
+				return recalculatedCount, nil, ctx.Err()
+			}
+			if bErr := processOneBucket(task.def, task.bucket); bErr != nil {
+				logger.Warn("Failed to save recalculated aggregation bucket %s after retry: %v", task.bucket.Identifier, bErr)
+				unresolvedCount++
+				if firstUnresolvedErr == nil {
+					firstUnresolvedErr = bErr
+				}
+			}
+		}
+	}
+
+	s.calcMu.Unlock()
+
+	s.fireDeferredAggregationCompletedCallbacks(aggEvents)
 
 	completedEnds := make([]time.Time, 0, len(completedEndsMap))
 	for _, pe := range completedEndsMap {
@@ -1252,6 +1367,10 @@ func (s *AggregationService) RecalculateRangeForDevice(
 	sort.Slice(completedEnds, func(i, j int) bool {
 		return completedEnds[i].Before(completedEnds[j])
 	})
+
+	if unresolvedCount > 0 {
+		return recalculatedCount, completedEnds, fmt.Errorf("failed to persist %d aggregation bucket(s): %w", unresolvedCount, firstUnresolvedErr)
+	}
 
 	return recalculatedCount, completedEnds, nil
 }

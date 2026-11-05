@@ -732,3 +732,259 @@ func TestTelemetryInjection_DisabledDestination_CrossIntervalRollup_AndResync(t 
 	}
 }
 
+func TestTelemetryInjection_ConcurrentWorkerContention_Guaranteed150Of150_And149Recovery(t *testing.T) {
+	db := setupTelemetryInjectionTestDB(t)
+	ctx := context.Background()
+
+	devRepo := repository.NewDeviceRepository(db)
+	aggRepo := repository.NewAggregationRepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	outRepo := repository.NewOutboundRepository(db)
+	injRepo := repository.NewTelemetryInjectionRepository(db)
+
+	aggSvc := service.NewAggregationService(aggRepo, devRepo, sysRepo, nil)
+	outSvc := service.NewOutboundService(outRepo, devRepo, service.NewConfigurablePayloadFormatter())
+	injSvc := service.NewTelemetryInjectionService(injRepo, devRepo, aggRepo, aggSvc, outSvc)
+
+	dev := &model.Device{
+		ID:         45,
+		DeviceCode: "com1",
+		DeviceName: "COM 1",
+		DeviceType: "MODBUS_RTU",
+		Timezone:   "Asia/Jakarta",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+	}
+	if err := db.Create(dev).Error; err != nil {
+		t.Fatalf("create device: %v", err)
+	}
+
+	sparingParams := []struct {
+		id   uint
+		code string
+		name string
+		unit string
+		minV float64
+		maxV float64
+	}{
+		{101, "ammonia", "Ammonia (NH3-N)", "mg/L", 6.75, 7.02},
+		{102, "cod", "COD", "mg/L", 107.0, 112.0},
+		{103, "debit", "Debit", "-", 0.83, 0.87},
+		{104, "ph", "PH", "-", 6.76, 7.02},
+		{105, "tss", "TSS", "mg/L", 28.2, 29.0},
+	}
+	for _, sp := range sparingParams {
+		if err := db.Create(&model.Parameter{
+			ID:            sp.id,
+			DeviceID:      dev.ID,
+			ParameterCode: sp.code,
+			ParameterName: sp.name,
+			Unit:          sp.unit,
+			DataType:      model.DataTypeFloat32,
+			Scale:         1.0,
+			Precision:     2,
+			ByteOrder:     "ABCD",
+			Enabled:       true,
+		}).Error; err != nil {
+			t.Fatalf("create param %s: %v", sp.code, err)
+		}
+		if err := db.Create(&model.AggregationDefinition{
+			Name:            sp.code + " 2m",
+			Code:            sp.code + "_2m",
+			SourceType:      model.SourceCustomerProcessed,
+			DeviceID:        dev.ID,
+			ParameterID:     sp.id,
+			Function:        model.FunctionAvg,
+			IntervalSeconds: 120,
+			Timezone:        "Asia/Jakarta",
+			Enabled:         true,
+		}).Error; err != nil {
+			t.Fatalf("create 2m agg def: %v", err)
+		}
+	}
+
+	// Seed recent real-time telemetry so the background worker & GetResults actively upsert into aggregation_results concurrently!
+	recentNow := time.Now().UTC().Truncate(2 * time.Minute)
+	for _, sp := range sparingParams {
+		v := (sp.minV + sp.maxV) / 2
+		_ = db.Create(&model.RawData{
+			DeviceID:       dev.ID,
+			ParameterID:    sp.id,
+			Value:          v,
+			ProcessedValue: v,
+			ValueNumeric:   &v,
+			RawValue:       v,
+			Quality:        model.QualityGood,
+			ReceivedAt:     recentNow.Add(-90 * time.Second),
+			StoredAt:       recentNow.Add(-90 * time.Second),
+			Timestamp:      recentNow.Add(-90 * time.Second),
+		}).Error
+	}
+
+	// Register an onAggregationCompleted hook that queries the DB (simulating ISPU/WQMS listener load)
+	aggSvc.SetOnAggregationCompleted(func(cbCtx context.Context, ev service.AggregationCompletedEvent) {
+		var cnt int64
+		db.WithContext(cbCtx).Model(&model.AggregationResult{}).Where("device_id = ?", ev.DeviceID).Count(&cnt)
+	})
+
+	destSparing := &model.OutputDestination{
+		Name:                    "KLH Sparing",
+		Type:                    model.DestREST,
+		Endpoint:                "https://sparing.example.test/send",
+		AuthType:                "SPARING_JWT_STATIC",
+		AuthToken:               "secret-key",
+		IntervalSeconds:         120,
+		DispatchIntervalSeconds: 3600,
+		Enabled:                 false,
+		RetryLimit:              5,
+	}
+	if err := outSvc.CreateDestination(ctx, destSparing); err != nil {
+		t.Fatalf("create SPARING dest: %v", err)
+	}
+	db.Model(destSparing).Update("enabled", false)
+	sparingCfg, _ := outSvc.GetPayloadConfig(ctx, destSparing.ID)
+	sparingCfg.StationIDField = "uid"
+	sparingCfg.StationIDValue = "65c05cac405f557259fed7cc"
+	sparingCfg.TemplateType = "KLHK_SPARING_HOURLY"
+	sparingCfg.Structure = "SPARING_DATA_ARRAY"
+	sparingCfg.TimestampField = "datetime"
+	sparingCfg.TimestampFormat = "UNIX_SEC"
+	sparingCfg.TimestampSource = "PERIOD_START"
+	if err := outRepo.UpsertPayloadConfig(ctx, sparingCfg); err != nil {
+		t.Fatalf("upsert SPARING payload cfg: %v", err)
+	}
+
+	// Start background worker + concurrent GetResults hammer goroutines to provoke maximum DB contention
+	aggSvc.StartWorker()
+	defer aggSvc.StopWorker()
+
+	stopHammer := make(chan struct{})
+	hammerDone := make(chan struct{}, 2)
+	for g := 0; g < 2; g++ {
+		go func() {
+			defer func() { hammerDone <- struct{}{} }()
+			for {
+				select {
+				case <-stopHammer:
+					return
+				default:
+					_, _, _ = aggSvc.GetResults(ctx, repository.AggregationResultFilter{
+						DeviceID: dev.ID,
+						Page:     1,
+						PageSize: 20,
+					})
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
+		}()
+	}
+
+	wib := time.FixedZone("WIB", 7*3600)
+	winStart := time.Date(2026, 8, 1, 2, 0, 0, 0, wib)
+	winEnd := time.Date(2026, 8, 1, 3, 0, 0, 0, wib)
+	var inputs []service.TelemetryInjectionParamInput
+	for _, sp := range sparingParams {
+		inputs = append(inputs, service.TelemetryInjectionParamInput{
+			ParameterID: sp.id,
+			MinValue:    sp.minV,
+			MaxValue:    sp.maxV,
+		})
+	}
+
+	execRes, err := injSvc.ExecuteInjection(ctx, service.TelemetryInjectionRequest{
+		DeviceID:               dev.ID,
+		StartTime:              winStart,
+		EndTime:                winEnd,
+		SampleStepSeconds:      10,
+		ConflictMode:           service.ConflictFillMissingAndNull,
+		RandomMode:             service.RandomModeSmoothWalk,
+		ValueTarget:            service.ValueTargetProcessed,
+		EnqueueMissingOutbound: true,
+		OutboundDestinationIDs: []uint{destSparing.ID},
+		Seed:                   101,
+		Parameters:             inputs,
+	}, "admin")
+	close(stopHammer)
+	<-hammerDone
+	<-hammerDone
+
+	if err != nil {
+		t.Fatalf("ExecuteInjection under concurrent worker contention failed: %v", err)
+	}
+	if execRes.Batch.InjectedRawCount != 1800 || execRes.Batch.AggregatedBuckets != 150 {
+		t.Fatalf("expected 1800 raw & 150/150 agg buckets, got raw=%d agg=%d", execRes.Batch.InjectedRawCount, execRes.Batch.AggregatedBuckets)
+	}
+
+	qItems, qTotal, err := outSvc.GetQueueItems(ctx, repository.QueueFilter{
+		DestinationID: &destSparing.ID,
+		Page:          1,
+		PageSize:      10,
+	})
+	if err != nil || qTotal != 1 {
+		t.Fatalf("expected 1 SPARING queue item, got total=%d err=%v", qTotal, err)
+	}
+	if qItems[0].ParameterCount != 150 {
+		t.Fatalf("expected full 150/150 persisted source aggregation records in queue item, got %d", qItems[0].ParameterCount)
+	}
+
+	var doc struct {
+		UID  string                   `json:"uid"`
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(qItems[0].PayloadSnapshot), &doc); err != nil {
+		t.Fatalf("unmarshal SPARING payload: %v", err)
+	}
+	if len(doc.Data) != 30 {
+		t.Fatalf("expected 30 SPARING slots, got %d", len(doc.Data))
+	}
+	for idx, slot := range doc.Data {
+		for _, k := range []string{"pH", "cod", "tss", "nh3n", "debit"} {
+			if slot[k] == nil {
+				t.Fatalf("slot #%d (datetime=%v) missing key %q: %v", idx, slot["datetime"], k, slot)
+			}
+		}
+	}
+
+	// Simulate pre-fix 149-record state (missing ammonia bucket #22 at 02:42:00 WIB = unix 1785526920)
+	bucket22Start := winStart.Add(21 * 2 * time.Minute).UTC()
+	if err := db.Where("device_id = ? AND parameter_id = ? AND period_start = ?", dev.ID, 101, bucket22Start).
+		Delete(&model.AggregationResult{}).Error; err != nil {
+		t.Fatalf("delete bucket 22 ammonia: %v", err)
+	}
+	if _, err := outSvc.RefreshQueueForWindowDetailed(ctx, service.OutboundWindowRefreshOptions{
+		DeviceID:                    dev.ID,
+		StartTime:                   winStart.UTC(),
+		EndTime:                     winEnd.UTC(),
+		RefreshExisting:             true,
+		IncludeDisabledDestinations: true,
+		DestinationIDs:              []uint{destSparing.ID},
+	}); err != nil {
+		t.Fatalf("refresh degraded 149 queue: %v", err)
+	}
+	degradedItem, _ := outRepo.GetQueueItemByID(ctx, qItems[0].ID)
+	if degradedItem.ParameterCount != 149 {
+		t.Fatalf("expected simulated pre-fix degraded queue item to have 149 records, got %d", degradedItem.ParameterCount)
+	}
+
+	// Verify SyncBatchOutbound recalculates missing bucket #22 from persisted raw_data and restores 149 -> 150 in-place!
+	syncRes, err := injSvc.SyncBatchOutbound(ctx, execRes.Batch.ID, []uint{destSparing.ID})
+	if err != nil {
+		t.Fatalf("SyncBatchOutbound recovery failed: %v", err)
+	}
+	if syncRes.RecalculatedBuckets != 150 {
+		t.Fatalf("expected SyncBatchOutbound to recalculate all 150 buckets, got %d", syncRes.RecalculatedBuckets)
+	}
+	recoveredItem, _ := outRepo.GetQueueItemByID(ctx, qItems[0].ID)
+	if recoveredItem.ParameterCount != 150 {
+		t.Fatalf("expected SyncBatchOutbound to restore queue item from 149 -> 150 records, got %d", recoveredItem.ParameterCount)
+	}
+	var recoveredDoc struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	_ = json.Unmarshal([]byte(recoveredItem.PayloadSnapshot), &recoveredDoc)
+	if recoveredDoc.Data[21]["nh3n"] == nil {
+		t.Fatalf("expected bucket #22 (datetime=%v) nh3n restored in SPARING payload, got %v", recoveredDoc.Data[21]["datetime"], recoveredDoc.Data[21])
+	}
+}
+
+
