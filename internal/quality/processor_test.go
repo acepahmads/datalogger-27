@@ -408,3 +408,70 @@ func TestQualityProcessor_ZeroValuePolicySuppressThreshold(t *testing.T) {
 	}
 }
 
+func TestQualityProcessor_UncertainReadingRefreshesStaleTimer(t *testing.T) {
+	qp := NewQualityProcessor()
+	warnLow := 1.0
+	param := &model.Parameter{
+		ID:                       21,
+		ParameterCode:            "WANGLE",
+		QualityValidationEnabled: true,
+		WarningLow:               &warnLow,
+	}
+
+	// 1. Initial GOOD packet 150s ago (older than 60s timeout)
+	oldGoodAt := time.Now().UTC().Add(-150 * time.Second)
+	resGood := qp.Validate(param, &ValidationInput{
+		DeviceID:    1,
+		ParameterID: param.ID,
+		Value:       5.0,
+		ReceivedAt:  oldGoodAt,
+	})
+	if resGood.Quality != model.QualityGood {
+		t.Fatalf("expected initial QualityGood, got %v", resGood.Quality)
+	}
+
+	// 2. Fresh UNCERTAIN packet (0.0 < WarningLow=1.0) received 5s ago
+	freshUncertainAt := time.Now().UTC().Add(-5 * time.Second)
+	resUncertain := qp.Validate(param, &ValidationInput{
+		DeviceID:    1,
+		ParameterID: param.ID,
+		Value:       0.0,
+		ReceivedAt:  freshUncertainAt,
+	})
+	if resUncertain.Quality != model.QualityUncertain {
+		t.Fatalf("expected QualityUncertain, got %v", resUncertain.Quality)
+	}
+
+	// Must NOT be falsely marked STALE since fresh sensor telemetry arrived 5s ago
+	isStale, _, _ := qp.CheckStale(param.ID, 60, freshUncertainAt)
+	if isStale {
+		t.Errorf("fresh UNCERTAIN telemetry from 5s ago must not be marked STALE")
+	}
+
+	// 3. Held-value grace packet must NOT advance lastValidTime when sensor stops updating
+	paramHeld := &model.Parameter{
+		ID:                       22,
+		ParameterCode:            "HELD_SENSOR",
+		QualityValidationEnabled: true,
+	}
+	qp.Validate(paramHeld, &ValidationInput{
+		DeviceID:    1,
+		ParameterID: paramHeld.ID,
+		Value:       10.0,
+		ReceivedAt:  oldGoodAt,
+	})
+	freshHeldAt := time.Now().UTC().Add(-5 * time.Second)
+	qp.Validate(paramHeld, &ValidationInput{
+		DeviceID:    1,
+		ParameterID: paramHeld.ID,
+		Value:       10.0,
+		IsHeldValue: true,
+		ReceivedAt:  freshHeldAt,
+	})
+	isHeldStale, _, _ := qp.CheckStale(paramHeld.ID, 60, freshHeldAt)
+	if !isHeldStale {
+		t.Errorf("held value without fresh valid sensor data for 150s should become STALE")
+	}
+}
+
+

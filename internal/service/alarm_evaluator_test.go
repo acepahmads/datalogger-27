@@ -1586,5 +1586,52 @@ func TestAlarmEvaluator_DisabledDeviceClearsAllAlarms(t *testing.T) {
 	}
 }
 
+func TestAlarmEvaluator_DataAbnormalityStaleData_RecoversOnFreshUncertain(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+
+	for i := 0; i < 3; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 0.0,
+			Quality:        model.QualityStale,
+			QualityFlags:   model.FlagStale,
+			ReceivedAt:     time.Now().UTC(),
+		}, param)
+	}
+
+	if evaluator.GetActiveAbnormalityCount() != 1 {
+		t.Fatalf("expected 1 active stale data alarm, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	// Fresh live sample with QualityUncertain (e.g. soft warning range, non-stale, non-held) must clear STALE alarm
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 0.0,
+		Quality:        model.QualityUncertain,
+		QualityReason:  model.ReasonOutOfWarningRange,
+		IsHeldValue:     false,
+		ReceivedAt:     time.Now().UTC(),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Errorf("expected stale data alarm cleared on fresh non-held Uncertain sample, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 0 {
+		t.Errorf("expected 0 active DB alarms after recovery, got %d", len(active))
+	}
+}
+
 
 

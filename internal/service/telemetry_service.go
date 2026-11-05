@@ -160,6 +160,7 @@ type TelemetryService struct {
 	buffer           chan *model.RawData
 	latestMu         sync.RWMutex
 	latestCache      map[uint]*LatestTelemetry // Key: parameter_id
+	staleEvalLastAt  map[uint]time.Time        // Key: parameter_id (tracks last stale alarm evaluation step)
 	ctx              context.Context
 	cancel           context.CancelFunc
 	wg               sync.WaitGroup
@@ -221,6 +222,7 @@ func NewTelemetryService(
 		qualityProcessor:  quality.NewQualityProcessor(),
 		buffer:            make(chan *model.RawData, cfg.BufferSize),
 		latestCache:       make(map[uint]*LatestTelemetry),
+		staleEvalLastAt:   make(map[uint]time.Time),
 		ctx:               ctx,
 		cancel:            cancel,
 		persistenceStatus: "HEALTHY",
@@ -315,6 +317,7 @@ func (s *TelemetryService) ClearDeviceCache(deviceID uint) {
 	for k, item := range s.latestCache {
 		if item != nil && item.DeviceID == deviceID {
 			delete(s.latestCache, k)
+			delete(s.staleEvalLastAt, k)
 		}
 	}
 }
@@ -324,6 +327,7 @@ func (s *TelemetryService) ClearParameterCache(paramID uint) {
 	s.latestMu.Lock()
 	defer s.latestMu.Unlock()
 	delete(s.latestCache, paramID)
+	delete(s.staleEvalLastAt, paramID)
 }
 
 // Ingest receives a telemetry measurement, validates, updates cache, broadcasts, and enqueues
@@ -375,6 +379,8 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 				latest.DeviceTimestamp = prev.DeviceTimestamp
 			}
 		}
+	} else if latest.Quality != model.QualityStale && !latest.IsHeldValue {
+		delete(s.staleEvalLastAt, latest.ParameterID)
 	}
 	s.latestCache[latest.ParameterID] = latest
 	s.latestMu.Unlock()
@@ -608,11 +614,48 @@ func (s *TelemetryService) staleDetectionWorker() {
 	}
 }
 
+// resolveEffectiveStaleTimeout computes the effective stale timeout in seconds for a parameter,
+// honoring per-parameter StaleTimeoutSeconds and ensuring at least ~2.5x the configured polling interval
+// so normal slow polling cadences (e.g. 60s or 120s) or a single transient retry never trigger false STALE states.
+func resolveEffectiveStaleTimeout(dev *model.Device, param *model.Parameter) int {
+	staleTimeout := 120
+	if param != nil && param.StaleTimeoutSeconds > 0 {
+		staleTimeout = param.StaleTimeoutSeconds
+	}
+
+	pollMs := 0
+	if param != nil && param.PollingIntervalMs != nil && *param.PollingIntervalMs > 0 {
+		pollMs = *param.PollingIntervalMs
+	} else if dev != nil && dev.Connection != nil {
+		if dev.Connection.PollingInterval > 0 {
+			pollMs = dev.Connection.PollingInterval
+		} else if dev.Connection.PollIntervalMs > 0 {
+			pollMs = dev.Connection.PollIntervalMs
+		}
+	}
+
+	if pollMs > 0 {
+		pollSec := (pollMs + 999) / 1000
+		minForPoll := pollSec*2 + (pollSec+1)/2 // ~2.5x polling cadence
+		if minForPoll > staleTimeout {
+			staleTimeout = minForPoll
+		}
+	}
+
+	return staleTimeout
+}
+
+type staleEvalCandidate struct {
+	item  *LatestTelemetry
+	param *model.Parameter
+}
+
 func (s *TelemetryService) evaluateStaleParameters() {
 	s.latestMu.Lock()
-	var staleItems []*LatestTelemetry
+	var staleCandidates []staleEvalCandidate
 	devLastData := make(map[uint]time.Time)
 	devCodes := make(map[uint]string)
+	devCache := make(map[uint]*model.Device)
 
 	for _, item := range s.latestCache {
 		if item == nil {
@@ -620,20 +663,27 @@ func (s *TelemetryService) evaluateStaleParameters() {
 		}
 
 		// Skip disabled devices from stale checks
+		var dev *model.Device
 		if s.deviceLookup != nil {
-			if dev, err := s.deviceLookup(item.DeviceID); err == nil && dev != nil {
-				if !dev.Enabled || dev.Status != model.DeviceStatusActive {
-					continue
-				}
+			if cachedDev, ok := devCache[item.DeviceID]; ok {
+				dev = cachedDev
+			} else if d, err := s.deviceLookup(item.DeviceID); err == nil && d != nil {
+				dev = d
+				devCache[item.DeviceID] = d
+			}
+			if dev != nil && (!dev.Enabled || dev.Status != model.DeviceStatusActive) {
+				continue
 			}
 		}
 
 		// Skip disabled parameters from stale checks
+		var param *model.Parameter
 		if s.paramLookup != nil {
-			if param, err := s.paramLookup(item.ParameterID); err == nil && param != nil {
-				if !param.Enabled {
+			if p, err := s.paramLookup(item.ParameterID); err == nil && p != nil {
+				if !p.Enabled {
 					continue
 				}
+				param = p
 			}
 		}
 
@@ -642,14 +692,15 @@ func (s *TelemetryService) evaluateStaleParameters() {
 			devCodes[item.DeviceID] = item.DeviceCode
 		}
 
-		staleTimeout := 120 // Default 2 minutes
+		staleTimeout := resolveEffectiveStaleTimeout(dev, param)
 		isStale, staleQ, staleReason := s.qualityProcessor.CheckStale(item.ParameterID, staleTimeout, item.ReceivedAt)
 		if isStale {
+			now := time.Now().UTC()
 			wasAlreadyStale := (item.Quality == model.QualityStale)
 			item.Quality = staleQ
 			item.QualityReason = staleReason
 			item.QualityFlags = model.FlagStale
-			item.UpdatedAt = time.Now().UTC()
+			item.UpdatedAt = now
 
 			if !wasAlreadyStale && s.hub != nil {
 				s.hub.Broadcast(websocket.WSMessage{
@@ -659,17 +710,33 @@ func (s *TelemetryService) evaluateStaleParameters() {
 				})
 			}
 
-			// Copy item snapshot for evaluation outside mutex lock
-			itemCopy := *item
-			staleItems = append(staleItems, &itemCopy)
+			stepDur := time.Duration(staleTimeout/2) * time.Second
+			if stepDur < 15*time.Second {
+				stepDur = 15 * time.Second
+			}
+			if stepDur > 60*time.Second {
+				stepDur = 60 * time.Second
+			}
+
+			lastEval := s.staleEvalLastAt[item.ParameterID]
+			if !wasAlreadyStale || lastEval.IsZero() || now.Sub(lastEval) >= stepDur {
+				s.staleEvalLastAt[item.ParameterID] = now
+				itemCopy := *item
+				staleCandidates = append(staleCandidates, staleEvalCandidate{
+					item:  &itemCopy,
+					param: param,
+				})
+			}
+		} else {
+			delete(s.staleEvalLastAt, item.ParameterID)
 		}
 	}
 	s.latestMu.Unlock()
 
 	// Evaluate parameter alarms and device offline status outside lock to avoid DB/evaluator lock contention
 	if s.alarmEvaluator != nil {
-		for _, staleItem := range staleItems {
-			s.alarmEvaluator.EvaluateTelemetry(s.ctx, staleItem, nil)
+		for _, cand := range staleCandidates {
+			s.alarmEvaluator.EvaluateTelemetry(s.ctx, cand.item, cand.param)
 		}
 
 		for devID, lastData := range devLastData {
@@ -820,18 +887,24 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 		return nil, err
 	}
 
+	var dev *model.Device
+	if s.deviceLookup != nil {
+		if d, err := s.deviceLookup(deviceID); err == nil {
+			dev = d
+		}
+	}
+
 	s.latestMu.RLock()
 	defer s.latestMu.RUnlock()
 
 	results := make([]LatestTelemetry, len(params))
 	for i, p := range params {
+		paramCopy := p
+		staleTimeout := resolveEffectiveStaleTimeout(dev, &paramCopy)
+
 		// If in-memory cache has newer instantaneous value, use it
 		if cached, ok := s.latestCache[p.ID]; ok && cached.DeviceID == deviceID {
 			item := *cached
-			staleTimeout := p.StaleTimeoutSeconds
-			if staleTimeout <= 0 {
-				staleTimeout = 120
-			}
 			if time.Since(item.ReceivedAt) > time.Duration(staleTimeout)*time.Second && item.Quality != model.QualityBad {
 				item.Quality = model.QualityStale
 			}
@@ -861,10 +934,6 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 			recAt = *p.LastUpdated
 		}
 
-		staleTimeout := p.StaleTimeoutSeconds
-		if staleTimeout <= 0 {
-			staleTimeout = 120
-		}
 		if time.Since(recAt) > time.Duration(staleTimeout)*time.Second && quality != model.QualityBad {
 			quality = model.QualityStale
 		}
@@ -934,10 +1003,13 @@ func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, 
 		quality = model.QualityUnknown
 	}
 
-	staleTimeout := param.StaleTimeoutSeconds
-	if staleTimeout <= 0 {
-		staleTimeout = 120
+	var dev *model.Device
+	if s.deviceLookup != nil {
+		if d, err := s.deviceLookup(deviceID); err == nil {
+			dev = d
+		}
 	}
+	staleTimeout := resolveEffectiveStaleTimeout(dev, param)
 	if time.Since(recAt) > time.Duration(staleTimeout)*time.Second && quality != model.QualityBad {
 		quality = model.QualityStale
 	}

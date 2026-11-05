@@ -263,7 +263,7 @@ func (qp *QualityProcessor) Validate(param *model.Parameter, in *ValidationInput
 		RawValue:  in.RawValue,
 	})
 
-	if res.Quality == model.QualityGood {
+	if res.Quality != model.QualityBad && !in.IsHeldValue {
 		hist.lastValidTime = recAt
 	}
 	hist.lastRecTime = recAt
@@ -285,6 +285,9 @@ func (qp *QualityProcessor) CheckStale(paramID uint, staleTimeoutSec int, lastDa
 	refTime := hist.lastValidTime
 	if refTime.IsZero() {
 		refTime = hist.lastRecTime
+	}
+	if !lastDataTime.IsZero() && lastDataTime.After(hist.lastRecTime) && lastDataTime.After(refTime) {
+		refTime = lastDataTime
 	}
 	hist.mu.RUnlock()
 

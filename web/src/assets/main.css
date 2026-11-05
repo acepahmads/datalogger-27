@@ -438,7 +438,7 @@ html:not(.dark) .bg-\[\#0E1524\] {
   background-color: #F8FAFC !important;
 }
 
-/* Explicit button text preservation */
+/* Explicit button & gradient badge text preservation */
 html:not(.dark) button.bg-blue-600,
 html:not(.dark) button.bg-blue-500,
 html:not(.dark) button.bg-indigo-600,
@@ -450,7 +450,12 @@ html:not(.dark) button.bg-rose-500,
 html:not(.dark) a.bg-blue-600,
 html:not(.dark) a.bg-blue-500,
 html:not(.dark) a.bg-indigo-600,
-html:not(.dark) a.bg-indigo-500 {
+html:not(.dark) a.bg-indigo-500,
+html:not(.dark) .bg-gradient-to-r.text-white,
+html:not(.dark) .bg-gradient-to-tr.text-white,
+html:not(.dark) .bg-gradient-to-br.text-white,
+html:not(.dark) .login-primary-btn,
+html:not(.dark) .login-brand-mark {
   color: #FFFFFF !important;
 }
 html:not(.dark) button.bg-blue-600 *,
@@ -462,7 +467,12 @@ html:not(.dark) button.bg-emerald-500 *,
 html:not(.dark) button.bg-rose-600 *,
 html:not(.dark) button.bg-rose-500 *,
 html:not(.dark) a.bg-blue-600 *,
-html:not(.dark) a.bg-blue-500 * {
+html:not(.dark) a.bg-blue-500 *,
+html:not(.dark) .bg-gradient-to-r.text-white *,
+html:not(.dark) .bg-gradient-to-tr.text-white *,
+html:not(.dark) .bg-gradient-to-br.text-white *,
+html:not(.dark) .login-primary-btn *,
+html:not(.dark) .login-brand-mark * {
   color: #FFFFFF !important;
 }
 

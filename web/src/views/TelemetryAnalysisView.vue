@@ -3,15 +3,15 @@
     <!-- Header & Breadcrumb -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <div class="flex items-center space-x-2 text-xs text-slate-400 mb-1">
-          <router-link to="/monitoring/devices" class="hover:text-blue-400 flex items-center space-x-1">
+        <div class="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
+          <router-link :to="isOperator ? '/monitoring/dashboard-operator' : '/monitoring/devices'" class="hover:text-blue-600 dark:hover:text-blue-400 flex items-center space-x-1">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
             <span>{{ $t('navigation.monitoring') }}</span>
           </router-link>
           <span>/</span>
-          <span class="text-blue-400 font-semibold">{{ $t('analysis.breadcrumb') }}</span>
+          <span class="text-blue-600 dark:text-blue-400 font-semibold">{{ $t('analysis.breadcrumb') }}</span>
         </div>
         <div class="flex items-center space-x-3">
           <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center space-x-2">
@@ -584,8 +584,8 @@
           <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
           </svg>
-          <p class="text-xs text-slate-400 font-medium">{{ $t('analysis.noRecords') }}</p>
-          <p class="text-3xs text-slate-500">{{ $t('analysis.noRecordsSubtitle') }}</p>
+          <p class="text-xs text-slate-600 dark:text-slate-400 font-medium">{{ $t('analysis.noRecords') }}</p>
+          <p class="text-3xs text-slate-500">{{ isOperator ? ($t('analysis.noRecordsSubtitleOperator') || $t('analysis.noRecordsSubtitle')) : $t('analysis.noRecordsSubtitle') }}</p>
         </div>
 
         <!-- SVG Multi-Series Chart -->
@@ -749,10 +749,10 @@
             </span>
           </div>
           <div class="text-3xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-[190px] mt-0.5">
-            {{ activePoint.deviceCode }}: {{ activePoint.paramCode }}
+            <span v-if="!isOperator">{{ activePoint.deviceCode }}: </span>{{ activePoint.paramCode }}
           </div>
           <div class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[190px]">
-            {{ activePoint.paramName }} ({{ activePoint.deviceName }})
+            {{ activePoint.paramName }}<span v-if="!isOperator && activePoint.deviceName"> ({{ activePoint.deviceName }})</span>
           </div>
           <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-600 dark:text-rose-400 font-mono mt-0.5">
             Reason: {{ activePoint.qualityReason }}
@@ -800,7 +800,7 @@
               <th class="py-2.5 px-4">{{ $t('common.unit') }}</th>
               <th class="py-2.5 px-4 text-center">{{ $t('common.quality') }}</th>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.details') || 'Reason / Flags' }}</th>
-              <th class="py-2.5 px-4 text-right">{{ $t('deviceDetail.actions') || 'Actions' }}</th>
+              <th v-if="!isOperator" class="py-2.5 px-4 text-right">{{ $t('deviceDetail.actions') || 'Actions' }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60 text-2xs">
@@ -830,10 +830,10 @@
                 </span>
               </td>
               <td class="py-2.5 px-4 text-3xs text-slate-500 dark:text-slate-400 font-mono">
-                <span v-if="r.is_held_value" class="text-amber-500 dark:text-amber-400 mr-1">[HELD]</span>
+                <span v-if="r.is_held_value" class="text-amber-600 dark:text-amber-400 mr-1">[HELD]</span>
                 <span>{{ r.quality_reason && r.quality_reason !== 'NONE' ? r.quality_reason : '--' }}</span>
               </td>
-              <td class="py-2.5 px-4 text-right font-sans">
+              <td v-if="!isOperator" class="py-2.5 px-4 text-right font-sans">
                 <router-link
                   :to="'/monitoring/devices/' + r.device_id + '?tab=history'"
                   class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-semibold"
@@ -843,7 +843,7 @@
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td :colspan="canAccessRawMode ? (isOperator ? 8 : 9) : (isOperator ? 7 : 8)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="canAccessRawMode ? (isOperator ? 7 : 9) : (isOperator ? 6 : 8)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -1021,7 +1021,7 @@
               <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
               <div class="min-w-0">
                 <div class="text-xs font-bold text-slate-900 dark:text-white truncate font-mono">
-                  {{ s.deviceCode }}: {{ s.paramCode }}
+                  <span v-if="!isOperator">{{ s.deviceCode }}: </span>{{ s.paramCode }}
                 </div>
                 <div class="text-4xs text-slate-500 dark:text-slate-400 truncate">
                   {{ s.paramName }}
@@ -1665,11 +1665,12 @@ export default {
       if (!this.tableSearch.trim()) return this.records;
       const q = this.tableSearch.toLowerCase().trim();
       return this.records.filter((r) => {
-        const dev = (r.device?.device_code || this.getDeviceCode(r.device_id)).toLowerCase();
+        const devMatch = !this.isOperator && (r.device?.device_code || this.getDeviceCode(r.device_id)).toLowerCase().includes(q);
         const param = (r.parameter?.parameter_code || this.getParamCode(r.parameter_id)).toLowerCase();
-        const hex = (r.raw_hex || '').toLowerCase();
+        const paramName = (r.parameter?.parameter_name || this.getParamName(r.parameter_id)).toLowerCase();
+        const hexMatch = !this.isOperator && (r.raw_hex || '').toLowerCase().includes(q);
         const ident = (r.identifier || '').toLowerCase();
-        return dev.includes(q) || param.includes(q) || hex.includes(q) || ident.includes(q);
+        return devMatch || param.includes(q) || paramName.includes(q) || hexMatch || ident.includes(q);
       });
     },
     paginatedRecords() {
@@ -1683,8 +1684,11 @@ export default {
       },
     },
     isOperator(val) {
-      if (val && this.activeMode === 'RAW') {
-        this.setMode('HISTORICAL');
+      if (val) {
+        this.filters.deviceId = '';
+        if (this.activeMode === 'RAW') {
+          this.setMode('HISTORICAL');
+        }
       }
     },
     rawChartMode() {
@@ -1766,7 +1770,9 @@ export default {
       } else if (this.isOperator && this.activeMode === 'RAW') {
         this.activeMode = 'HISTORICAL';
       }
-      if (query.device_id) {
+      if (this.isOperator) {
+        this.filters.deviceId = '';
+      } else if (query.device_id) {
         this.filters.deviceId = Number(query.device_id);
       }
       if (query.parameter_id) {
@@ -2085,15 +2091,15 @@ export default {
     qualityBadgeClass(q) {
       switch ((q || '').toUpperCase()) {
         case 'GOOD':
-          return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+          return 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
         case 'UNCERTAIN':
-          return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+          return 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20';
         case 'BAD':
-          return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+          return 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20';
         case 'STALE':
-          return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
+          return 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20';
         default:
-          return 'bg-slate-800 text-slate-400 border border-slate-700';
+          return 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
       }
     },
     exportCSV() {
@@ -2151,11 +2157,15 @@ export default {
       if (this.records.length === 0) return;
       if (this.activeMode === 'RAW' && !this.canAccessRawMode) return;
 
+      const exportedData = this.isOperator
+        ? this.records.map(({ device_id, device, ...rest }) => rest)
+        : this.records;
+
       const payload = {
         mode: this.activeMode,
         timestamp: new Date().toISOString(),
-        total_records: this.records.length,
-        data: this.records,
+        total_records: exportedData.length,
+        data: exportedData,
       };
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });

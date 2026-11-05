@@ -523,7 +523,8 @@ func (e *AlarmEvaluator) evaluateDataAbnormality(ctx context.Context, latest *La
 	}
 	staleKey := fmt.Sprintf("%s:%s", paramKey, AlarmCodeAbnormalityStale)
 
-	if latest.Quality == model.QualityStale || strings.Contains(latest.QualityFlags, model.FlagStale) {
+	isStaleSample := latest.Quality == model.QualityStale || strings.Contains(latest.QualityFlags, model.FlagStale)
+	if isStaleSample {
 		st.consecutiveStale++
 		if st.consecutiveStale >= staleLimit {
 			if _, ok := e.activeAbnormality[staleKey]; !ok {
@@ -535,7 +536,7 @@ func (e *AlarmEvaluator) evaluateDataAbnormality(ctx context.Context, latest *La
 				}
 			}
 		}
-	} else if latest.Quality == model.QualityGood {
+	} else if latest.Quality != model.QualityBad && latest.Quality != model.QualityUnknown && !latest.IsHeldValue {
 		if st.consecutiveStale > 0 {
 			st.consecutiveStale = 0
 		}

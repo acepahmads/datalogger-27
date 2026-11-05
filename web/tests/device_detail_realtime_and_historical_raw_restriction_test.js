@@ -237,6 +237,32 @@ runTest('6.3: TelemetryAnalysisView hides Raw Telemetry tab & Live Telemetry but
   assert(idHistSem && !/formula/i.test(idHistSem[1]), 'id.js historicalSemantic must not contain Formula');
 });
 
+runTest('6.4: TelemetryAnalysisView hides all device info & device links for OPERATOR on Historical view, Summary Breakdown, tooltip, breadcrumb, and JSON export', () => {
+  const taContent = fs.readFileSync(path.resolve(__dirname, '../src/views/TelemetryAnalysisView.vue'), 'utf8');
+  assert(
+    taContent.includes(':to="isOperator ? \'/monitoring/dashboard-operator\' : \'/monitoring/devices\'"'),
+    'Breadcrumb must route OPERATOR to /monitoring/dashboard-operator instead of /monitoring/devices'
+  );
+  assert(
+    taContent.includes('<th v-if="!isOperator" class="py-2.5 px-4 text-right">{{ $t(\'deviceDetail.actions\') || \'Actions\' }}</th>') &&
+    taContent.includes('<td v-if="!isOperator" class="py-2.5 px-4 text-right font-sans">'),
+    'Historical table must hide Actions / Detail -> device link column for OPERATOR'
+  );
+  assert(
+    taContent.includes('<span v-if="!isOperator">{{ s.deviceCode }}: </span>{{ s.paramCode }}'),
+    'Per-Parameter Summary Breakdown cards and chart legend must hide deviceCode prefix for OPERATOR'
+  );
+  assert(
+    taContent.includes('<span v-if="!isOperator">{{ activePoint.deviceCode }}: </span>{{ activePoint.paramCode }}') &&
+    taContent.includes('<span v-if="!isOperator && activePoint.deviceName"> ({{ activePoint.deviceName }})</span>'),
+    'Chart hover tooltip must hide deviceCode and deviceName for OPERATOR'
+  );
+  assert(
+    taContent.includes('this.records.map(({ device_id, device, ...rest }) => rest)'),
+    'exportJSON must strip device_id and device metadata for OPERATOR'
+  );
+});
+
 runTest('7.1: DeviceDetailView & main.css enforce Light Mode (Mode Siang) contrast across Historical, Raw, Aggregation, Audit, and Diagnostic Report', () => {
   const deviceDetailContent = fs.readFileSync(path.resolve(__dirname, '../src/views/DeviceDetailView.vue'), 'utf8');
   const mainCss = fs.readFileSync(path.resolve(__dirname, '../src/assets/main.css'), 'utf8');
@@ -257,6 +283,22 @@ runTest('7.1: DeviceDetailView & main.css enforce Light Mode (Mode Siang) contra
   );
 });
 
+runTest('7.2: LoginView removes KLHK & SPARING compliance footer texts and enforces crisp Light/Dark Mode contrast on CTA & Brand Mark', () => {
+  const loginContent = fs.readFileSync(path.resolve(__dirname, '../src/views/LoginView.vue'), 'utf8');
+  const mainCss = fs.readFileSync(path.resolve(__dirname, '../src/assets/main.css'), 'utf8');
+  assert(
+    !loginContent.includes('KLHK Permen LHK No. 14/2020 Compliant') &&
+    !loginContent.includes('SPARING Direct Integration Ready'),
+    'LoginView must not display KLHK Permen LHK No. 14/2020 Compliant or SPARING Direct Integration Ready'
+  );
+  assert(
+    loginContent.includes('login-primary-btn') &&
+    loginContent.includes('login-brand-mark') &&
+    mainCss.includes('html:not(.dark) .login-primary-btn'),
+    'LoginView & main.css must preserve crisp white contrast on primary Sign In CTA and brand mark in Light Mode'
+  );
+});
+
 console.log('===============================================================');
-console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (17/17)');
+console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (19/19)');
 console.log('===============================================================');
