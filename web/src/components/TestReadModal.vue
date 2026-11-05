@@ -310,7 +310,7 @@
                   <span>{{ copyStatusText === 'mbpoll' ? ($t('common.copied') || 'Copied!') : ($t('deviceDetail.copyMbpoll') || 'Copy mbpoll') }}</span>
                 </button>
               </div>
-              <div class="p-3 bg-[#0B0F19] dark:bg-black/70 rounded-xl border border-slate-300 dark:border-slate-800 font-mono text-3xs text-amber-400 select-all overflow-x-auto whitespace-pre shadow-xs">
+              <div class="p-3 bg-slate-100 dark:bg-black/70 rounded-xl border border-slate-300 dark:border-slate-800 font-mono text-3xs text-amber-800 dark:text-amber-400 font-semibold select-all overflow-x-auto whitespace-pre shadow-xs">
 {{ testReadResult.mbpoll_command }}
               </div>
               <p class="text-3xs text-slate-500 font-sans italic">

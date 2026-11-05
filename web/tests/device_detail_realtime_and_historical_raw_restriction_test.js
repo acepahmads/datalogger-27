@@ -237,6 +237,26 @@ runTest('6.3: TelemetryAnalysisView hides Raw Telemetry tab & Live Telemetry but
   assert(idHistSem && !/formula/i.test(idHistSem[1]), 'id.js historicalSemantic must not contain Formula');
 });
 
+runTest('7.1: DeviceDetailView & main.css enforce Light Mode (Mode Siang) contrast across Historical, Raw, Aggregation, Audit, and Diagnostic Report', () => {
+  const deviceDetailContent = fs.readFileSync(path.resolve(__dirname, '../src/views/DeviceDetailView.vue'), 'utf8');
+  const mainCss = fs.readFileSync(path.resolve(__dirname, '../src/assets/main.css'), 'utf8');
+  assert(
+    !/(?<!dark:|hover:)bg-slate-800/.test(deviceDetailContent),
+    'DeviceDetailView must not contain unprefixed bg-slate-800 without light-mode background + dark: prefix'
+  );
+  assert(
+    !/(?<!dark:)bg-black/.test(deviceDetailContent),
+    'DeviceDetailView must not contain unprefixed bg-black without light-mode background + dark: prefix'
+  );
+  assert(
+    deviceDetailContent.includes('chart-badge-max') &&
+    deviceDetailContent.includes('chart-badge-min') &&
+    deviceDetailContent.includes('chart-badge-avg') &&
+    mainCss.includes('html:not(.dark) .chart-svg .chart-badge-max rect'),
+    'Historical Trend SVG callout badges (MAX, MIN, AVG) must have dedicated Light Mode contrast overrides'
+  );
+});
+
 console.log('===============================================================');
-console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (16/16)');
+console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (17/17)');
 console.log('===============================================================');

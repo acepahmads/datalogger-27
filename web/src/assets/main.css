@@ -500,5 +500,32 @@ html:not(.dark) .chart-svg .grid-lines line {
 html:not(.dark) .chart-svg .time-ticks line {
   stroke: #CBD5E1 !important;
 }
+html:not(.dark) .chart-svg .chart-badge-avg rect {
+  fill: #FFFBEB !important;
+  stroke: #F59E0B !important;
+}
+html:not(.dark) .chart-svg .chart-badge-avg text {
+  fill: #B45309 !important;
+  font-weight: 600 !important;
+}
+html:not(.dark) .chart-svg .chart-badge-max rect {
+  fill: #FFF1F2 !important;
+  stroke: #F43F5E !important;
+}
+html:not(.dark) .chart-svg .chart-badge-max text {
+  fill: #BE123C !important;
+  font-weight: 600 !important;
+}
+html:not(.dark) .chart-svg .chart-badge-min rect {
+  fill: #ECFDF5 !important;
+  stroke: #10B981 !important;
+}
+html:not(.dark) .chart-svg .chart-badge-min text {
+  fill: #047857 !important;
+  font-weight: 600 !important;
+}
+html:not(.dark) .chart-svg circle.chart-data-dot {
+  stroke: #FFFFFF !important;
+}
 
 

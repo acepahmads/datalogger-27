@@ -1057,11 +1057,11 @@
         <div
           v-for="trail in activities"
           :key="trail.id"
-          class="p-4 bg-[#0B0F19] rounded-xl border transition space-y-2.5 text-xs shadow-sm"
+          class="p-4 rounded-xl border transition space-y-2.5 text-xs shadow-2xs"
           :class="getAuditCardBorder(trail.action)"
         >
           <!-- Top Row: Action Badge, Operator, Timestamp -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800/60 pb-2">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2.5">
               <span
                 class="px-2.5 py-0.5 rounded-lg text-3xs font-mono font-bold flex items-center space-x-1"
@@ -1069,15 +1069,15 @@
               >
                 <span>{{ formatAuditActionName(trail.action) }}</span>
               </span>
-              <span class="text-slate-400 text-2xs">
-                {{ $t('deviceDetail.byOperator') }} <strong class="text-slate-200 font-semibold">{{ trail.username || 'System' }}</strong>
+              <span class="text-slate-500 dark:text-slate-400 text-2xs">
+                {{ $t('deviceDetail.byOperator') }} <strong class="text-slate-900 dark:text-slate-200 font-semibold">{{ trail.username || 'System' }}</strong>
               </span>
               <span v-if="trail.ip_address" class="text-3xs text-slate-500 font-mono">
                 ({{ trail.ip_address }})
               </span>
             </div>
-            <span class="text-slate-400 font-mono text-3xs flex items-center space-x-1.5">
-              <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <span class="text-slate-500 dark:text-slate-400 font-mono text-3xs flex items-center space-x-1.5">
+              <svg class="w-3 h-3 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
               </svg>
               <span>{{ formatTimestamp(trail.created_at) }}</span>
@@ -1086,8 +1086,8 @@
 
           <!-- Human-Readable Summary -->
           <div class="space-y-2">
-            <p class="text-slate-200 font-medium text-xs leading-relaxed flex items-start space-x-2">
-              <span class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" :class="trail.action.includes('ERROR') ? 'bg-rose-400' : (trail.action.includes('RESTORED') ? 'bg-emerald-400' : 'bg-blue-400')"></span>
+            <p class="text-slate-800 dark:text-slate-200 font-medium text-xs leading-relaxed flex items-start space-x-2">
+              <span class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" :class="trail.action.includes('ERROR') ? 'bg-rose-500 dark:bg-rose-400' : (trail.action.includes('RESTORED') ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-blue-500 dark:bg-blue-400')"></span>
               <span>{{ formatAuditDescription(trail) }}</span>
             </p>
 
@@ -1096,10 +1096,13 @@
               <span
                 v-for="(chip, idx) in getAuditChips(trail)"
                 :key="idx"
-                class="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-3xs font-mono text-slate-300 flex items-center space-x-1.5 shadow-sm"
+                class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800/80 border border-slate-300/90 dark:border-slate-700/60 text-3xs font-mono text-slate-700 dark:text-slate-300 flex items-center space-x-1.5 shadow-2xs"
               >
-                <span class="text-slate-400 font-sans font-medium">{{ chip.label }}:</span>
-                <span class="font-bold text-white font-mono">{{ chip.val }}</span>
+                <span class="text-slate-500 dark:text-slate-400 font-sans font-medium">{{ chip.label }}:</span>
+                <span
+                  class="font-bold font-mono"
+                  :class="(String(chip.val).toUpperCase() === 'ACTIVE' || chip.val === $t('deviceDetail.active')) ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'"
+                >{{ chip.val }}</span>
               </span>
             </div>
 
@@ -1108,23 +1111,23 @@
               <button
                 type="button"
                 @click="toggleRawAudit(trail.id)"
-                class="text-3xs font-mono text-blue-400 hover:text-blue-300 flex items-center space-x-1 transition"
+                class="text-3xs font-mono font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center space-x-1 transition"
               >
                 <span>{{ showRawAudit[trail.id] ? $t('deviceDetail.hideJsonDetails') : $t('deviceDetail.showJsonDetails') }}</span>
               </button>
               <pre
                 v-if="showRawAudit[trail.id]"
-                class="mt-2 p-3 rounded-xl bg-[#060910] border border-slate-800 text-3xs font-mono text-slate-400 overflow-x-auto whitespace-pre-wrap break-all"
+                class="mt-2 p-3 rounded-xl bg-white dark:bg-[#060910] border border-slate-200 dark:border-slate-800 text-3xs font-mono text-slate-700 dark:text-slate-400 overflow-x-auto whitespace-pre-wrap break-all shadow-inner"
               >{{ formatRawJson(trail.details) }}</pre>
             </div>
           </div>
         </div>
 
         <div v-if="activities.length === 0" class="text-center py-10 text-xs text-slate-400 saas-card">
-          <svg class="w-8 h-8 text-slate-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
           </svg>
-          <span class="font-medium text-slate-300">{{ $t('deviceDetail.noActivityRecorded') }}</span>
+          <span class="font-medium text-slate-700 dark:text-slate-300">{{ $t('deviceDetail.noActivityRecorded') }}</span>
           <p class="text-3xs text-slate-500 mt-0.5">{{ $t('deviceDetail.noActivitySub') }}</p>
         </div>
       </div>
@@ -1132,45 +1135,45 @@
 
     <!-- TAB 5: HEALTH DIAGNOSTICS -->
     <div v-if="device && activeTab === 'health'" class="saas-card p-6 space-y-6">
-      <div class="border-b border-slate-800 pb-3">
-        <h3 class="text-sm font-bold text-white">{{ $t('deviceDetail.healthFoundation') }}</h3>
-        <p class="text-2xs text-slate-400 mt-0.5">{{ $t('deviceDetail.healthSubtitle') }}</p>
+      <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('deviceDetail.healthFoundation') }}</h3>
+        <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $t('deviceDetail.healthSubtitle') }}</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="p-4 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
-          <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.commStatus') }}</div>
+        <div class="p-4 bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl border border-[#D5E2F0] dark:border-slate-800 space-y-2 shadow-2xs">
+          <div class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.commStatus') }}</div>
           <div class="text-sm font-mono font-bold" :class="commTextClass(device.connection_status)">
             {{ device.connection_status || 'UNKNOWN' }}
           </div>
-          <p class="text-3xs text-slate-400">{{ $t('deviceDetail.trackedBySupervisor') }}</p>
+          <p class="text-3xs text-slate-500 dark:text-slate-400">{{ $t('deviceDetail.trackedBySupervisor') }}</p>
         </div>
 
-        <div class="p-4 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
-          <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.observedLatency') }}</div>
-          <div class="text-sm font-mono font-bold text-emerald-400">
+        <div class="p-4 bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl border border-[#D5E2F0] dark:border-slate-800 space-y-2 shadow-2xs">
+          <div class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.observedLatency') }}</div>
+          <div class="text-sm font-mono font-bold text-emerald-700 dark:text-emerald-400">
             {{ device.latency_ms || 0 }} ms
           </div>
-          <p class="text-3xs text-slate-400">{{ $t('deviceDetail.roundtripDelay') }}</p>
+          <p class="text-3xs text-slate-500 dark:text-slate-400">{{ $t('deviceDetail.roundtripDelay') }}</p>
         </div>
 
-        <div class="p-4 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
-          <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.packetsDelivery') }}</div>
-          <div class="text-sm font-mono font-bold text-slate-200">
+        <div class="p-4 bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl border border-[#D5E2F0] dark:border-slate-800 space-y-2 shadow-2xs">
+          <div class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.packetsDelivery') }}</div>
+          <div class="text-sm font-mono font-bold text-slate-900 dark:text-slate-200">
             {{ device.success_count || 0 }} ok / {{ device.failed_count || 0 }} err
           </div>
-          <p class="text-3xs text-slate-400">{{ $t('deviceDetail.accumulatedPackets') }}</p>
+          <p class="text-3xs text-slate-500 dark:text-slate-400">{{ $t('deviceDetail.accumulatedPackets') }}</p>
         </div>
       </div>
 
-      <div class="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 space-y-1">
+      <div class="p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-xs text-blue-800 dark:text-blue-300 space-y-1">
         <div class="font-bold flex items-center space-x-1.5">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
           <span>{{ $t('deviceDetail.healthArchitectureTitle') }}</span>
         </div>
-        <p class="text-3xs text-blue-200">
+        <p class="text-3xs text-blue-700 dark:text-blue-200">
           {{ $t('deviceDetail.healthArchitectureDesc') }}
         </p>
       </div>
@@ -1479,19 +1482,19 @@
           </div>
 
           <!-- Parameter Switcher Pills (If multiple parameters) -->
-          <div v-if="device.parameters && device.parameters.length > 1" class="flex items-center space-x-1.5 flex-wrap">
-            <span class="text-3xs text-slate-400 uppercase font-semibold mr-1 font-sans">{{ $t('deviceDetail.paramLabel') }}</span>
+          <div v-if="device.parameters && device.parameters.length > 1" class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold mr-1 font-sans">{{ $t('deviceDetail.paramLabel') }}</span>
             <button
               v-for="p in device.parameters"
               :key="p.id"
               @click="selectChartParam(p.id)"
-              class="px-2.5 py-1 rounded-lg text-2xs font-medium transition flex items-center space-x-1 font-sans"
+              class="px-2.5 py-1 rounded-lg text-2xs font-medium transition flex items-center space-x-1 font-sans border"
               :class="activeChartParamId === p.id
-                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40 font-semibold shadow-sm'
-                : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/60'"
+                ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-600/20 dark:text-blue-300 dark:border-blue-500/40 font-semibold shadow-2xs'
+                : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 hover:text-slate-900 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-700/60'"
             >
               <span>{{ p.parameter_code }}</span>
-              <span class="text-3xs text-slate-400">({{ p.unit || '--' }})</span>
+              <span class="text-3xs" :class="activeChartParamId === p.id ? 'text-blue-600/80 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'">({{ p.unit || '--' }})</span>
             </button>
           </div>
 
@@ -1502,7 +1505,7 @@
               <button
                 @click="chartValueMode = 'scaled'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans flex items-center space-x-1"
-                :class="chartValueMode === 'scaled' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                :class="chartValueMode === 'scaled' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
                 :title="$t('deviceDetail.modeScaledTitle')"
               >
                 <span>{{ $t('deviceDetail.modeScaled') }}</span>
@@ -1510,20 +1513,20 @@
               <button
                 @click="chartValueMode = 'raw'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans flex items-center space-x-1"
-                :class="chartValueMode === 'raw' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                :class="chartValueMode === 'raw' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
                 :title="$t('deviceDetail.modeRawTitle')"
               >
-                <span class="w-1.5 h-1.5 rounded-full" :class="chartValueMode === 'raw' ? 'bg-emerald-300' : 'bg-slate-500'"></span>
+                <span class="w-1.5 h-1.5 rounded-full" :class="chartValueMode === 'raw' ? 'bg-emerald-300' : 'bg-slate-400 dark:bg-slate-500'"></span>
                 <span>{{ $t('deviceDetail.modeRaw') }}</span>
               </button>
             </div>
 
             <!-- Curve Type Toggle -->
-            <div class="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex items-center">
+            <div class="bg-slate-100 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center">
               <button
                 @click="chartCurveType = 'smooth'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans"
-                :class="chartCurveType === 'smooth' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                :class="chartCurveType === 'smooth' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
                 :title="$t('deviceDetail.curveSmoothTitle')"
               >
                 {{ $t('deviceDetail.curveSmooth') }}
@@ -1531,7 +1534,7 @@
               <button
                 @click="chartCurveType = 'linear'"
                 class="px-2.5 py-1 rounded-md text-3xs font-semibold transition font-sans"
-                :class="chartCurveType === 'linear' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'"
+                :class="chartCurveType === 'linear' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'"
                 :title="$t('deviceDetail.curveLinearTitle')"
               >
                 {{ $t('deviceDetail.curveLinear') }}
@@ -1543,11 +1546,11 @@
               @click="chartShowPoints = !chartShowPoints"
               class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1.5 font-sans"
               :class="chartShowPoints
-                ? 'bg-blue-600/15 text-blue-400 border-blue-500/30'
-                : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'"
+                ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-600/15 dark:text-blue-400 dark:border-blue-500/30 font-semibold'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-800 dark:hover:text-slate-300'"
               :title="$t('deviceDetail.toggleDotsTitle')"
             >
-              <span class="w-1.5 h-1.5 rounded-full" :class="chartShowPoints ? 'bg-blue-400' : 'bg-slate-600'"></span>
+              <span class="w-1.5 h-1.5 rounded-full" :class="chartShowPoints ? 'bg-blue-500 dark:bg-blue-400' : 'bg-slate-400 dark:bg-slate-600'"></span>
               <span>{{ $t('deviceDetail.toggleDots') }}</span>
             </button>
 
@@ -1556,8 +1559,8 @@
               @click="chartShowAvgLine = !chartShowAvgLine"
               class="px-2.5 py-1 rounded-lg border text-3xs font-medium transition flex items-center space-x-1.5 font-sans"
               :class="chartShowAvgLine
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'"
+                ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 font-semibold'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-800 dark:hover:text-slate-300'"
               :title="$t('deviceDetail.toggleAvgLineTitle')"
             >
               <span>{{ $t('deviceDetail.toggleAvgLine') }}</span>
@@ -1568,94 +1571,94 @@
         <!-- 5 KPI Cards Row -->
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 font-sans">
           <!-- KPI 1: Nilai Terkini -->
-          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
-            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
+          <div class="bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl p-3 border border-[#D5E2F0] dark:border-slate-800 space-y-1 shadow-2xs">
+            <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider font-sans">
               <span>{{ $t('deviceDetail.kpiLatest') }}</span>
               <span class="px-1.5 py-0.2 rounded text-4xs font-sans font-bold" :class="qualityBadgeClass(chartStats.latestQuality)">
                 {{ chartStats.latestQuality }}
               </span>
             </div>
             <div class="flex items-baseline space-x-1">
-              <span class="text-2xl font-sans font-bold text-white tracking-tight tabular-nums">
+              <span class="text-2xl font-sans font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
                 {{ chartStats.latest }}
               </span>
-              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-400 font-sans flex items-center justify-between">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-sans flex items-center justify-between">
               <span>{{ $t('deviceDetail.atHour', { time: chartStats.latestTime }) }}</span>
-              <span class="text-emerald-400 font-medium">{{ $t('deviceDetail.liveTag') }}</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-medium">{{ $t('deviceDetail.liveTag') }}</span>
             </div>
           </div>
 
           <!-- KPI 2: Minimum -->
-          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
-            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
+          <div class="bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl p-3 border border-[#D5E2F0] dark:border-slate-800 space-y-1 shadow-2xs">
+            <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider font-sans">
               <span>{{ $t('deviceDetail.kpiMin') }}</span>
-              <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
               </svg>
             </div>
             <div class="flex items-baseline space-x-1">
-              <span class="text-2xl font-sans font-bold text-emerald-400 tracking-tight tabular-nums">
+              <span class="text-2xl font-sans font-bold text-emerald-700 dark:text-emerald-400 tracking-tight tabular-nums">
                 {{ chartStats.min }}
               </span>
-              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-400 font-sans">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-sans">
               {{ $t('deviceDetail.lowestAt', { time: chartStats.minTime }) }}
             </div>
           </div>
 
           <!-- KPI 3: Maximum -->
-          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
-            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
+          <div class="bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl p-3 border border-[#D5E2F0] dark:border-slate-800 space-y-1 shadow-2xs">
+            <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider font-sans">
               <span>{{ $t('deviceDetail.kpiMax') }}</span>
-              <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
               </svg>
             </div>
             <div class="flex items-baseline space-x-1">
-              <span class="text-2xl font-sans font-bold text-rose-400 tracking-tight tabular-nums">
+              <span class="text-2xl font-sans font-bold text-rose-700 dark:text-rose-400 tracking-tight tabular-nums">
                 {{ chartStats.max }}
               </span>
-              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-400 font-sans">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-sans">
               {{ $t('deviceDetail.peakAt', { time: chartStats.maxTime }) }}
             </div>
           </div>
 
           <!-- KPI 4: Average -->
-          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1">
-            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
+          <div class="bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl p-3 border border-[#D5E2F0] dark:border-slate-800 space-y-1 shadow-2xs">
+            <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider font-sans">
               <span>{{ $t('deviceDetail.kpiAvg') }}</span>
-              <span class="text-3xs text-blue-400 font-semibold font-sans">AVG</span>
+              <span class="text-3xs text-blue-600 dark:text-blue-400 font-semibold font-sans">AVG</span>
             </div>
             <div class="flex items-baseline space-x-1">
-              <span class="text-2xl font-sans font-bold text-blue-400 tracking-tight tabular-nums">
+              <span class="text-2xl font-sans font-bold text-blue-600 dark:text-blue-400 tracking-tight tabular-nums">
                 {{ chartStats.avg }}
               </span>
-              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-400 font-sans">
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-sans">
               {{ $t('deviceDetail.allSamplesMean') }}
             </div>
           </div>
 
           <!-- KPI 5: Samples & Delta -->
-          <div class="bg-[#0B0F19] rounded-xl p-3 border border-slate-800 space-y-1 col-span-2 sm:col-span-1">
-            <div class="flex items-center justify-between text-3xs text-slate-400 font-semibold uppercase tracking-wider font-sans">
+          <div class="bg-slate-50/70 dark:bg-[#0B0F19] rounded-xl p-3 border border-[#D5E2F0] dark:border-slate-800 space-y-1 col-span-2 sm:col-span-1 shadow-2xs">
+            <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider font-sans">
               <span>{{ $t('deviceDetail.kpiDelta') }}</span>
-              <span class="text-3xs text-slate-400 font-semibold font-sans">DELTA</span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 font-semibold font-sans">DELTA</span>
             </div>
             <div class="flex items-baseline space-x-1">
-              <span class="text-2xl font-sans font-bold text-slate-200 tracking-tight tabular-nums">
+              <span class="text-2xl font-sans font-bold text-slate-900 dark:text-slate-200 tracking-tight tabular-nums">
                 {{ chartStats.delta }}
               </span>
-              <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+              <span class="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
             </div>
-            <div class="text-3xs text-slate-400 font-sans">
-              <span v-html="$t('deviceDetail.samplesCount', { count: '<b class=\'text-slate-300 font-medium\'>' + chartStats.count + '</b>' })"></span>
+            <div class="text-3xs text-slate-500 dark:text-slate-400 font-sans">
+              <span v-html="$t('deviceDetail.samplesCount', { count: '<b class=\'text-slate-700 dark:text-slate-300 font-medium\'>' + chartStats.count + '</b>' })"></span>
             </div>
           </div>
         </div>
@@ -1663,7 +1666,7 @@
         <!-- SVG Trend Chart Canvas Area -->
         <div
           ref="chartContainer"
-          class="w-full h-72 sm:h-80 bg-[#0B0F19] rounded-xl border border-slate-800 relative p-1 sm:p-2 select-none overflow-hidden group font-sans"
+          class="w-full h-72 sm:h-80 bg-slate-50/60 dark:bg-[#0B0F19] rounded-xl border border-[#D5E2F0] dark:border-slate-800 relative p-1 sm:p-2 select-none overflow-hidden group font-sans"
         >
           <!-- Top Left Unit Watermark -->
           <div class="absolute top-2.5 left-4 z-10 flex items-center space-x-1.5 text-3xs font-sans text-slate-400 pointer-events-none">
@@ -1775,7 +1778,7 @@
             />
 
             <!-- Average Reference Line -->
-            <g v-if="chartShowAvgLine && chartStats.count > 0">
+            <g v-if="chartShowAvgLine && chartStats.count > 0" class="chart-badge-avg">
               <line
                 :x1="60"
                 :y1="chartAvgY"
@@ -1823,7 +1826,7 @@
             />
 
             <!-- Peak (Max) Annotation Badge -->
-            <g v-if="chartShowMinMax && chartMaxPoint && chartStats.count > 1">
+            <g v-if="chartShowMinMax && chartMaxPoint && chartStats.count > 1" class="chart-badge-max">
               <circle
                 :cx="chartMaxPoint.x"
                 :cy="chartMaxPoint.y"
@@ -1857,7 +1860,7 @@
             </g>
 
             <!-- Valley (Min) Annotation Badge -->
-            <g v-if="chartShowMinMax && chartMinPoint && chartStats.count > 1 && chartMinPoint.y !== chartMaxPoint.y">
+            <g v-if="chartShowMinMax && chartMinPoint && chartStats.count > 1 && chartMinPoint.y !== chartMaxPoint.y" class="chart-badge-min">
               <circle
                 :cx="chartMinPoint.x"
                 :cy="chartMinPoint.y"
@@ -1901,7 +1904,7 @@
                 :fill="chartDotColor(p.quality)"
                 stroke="#0B0F19"
                 stroke-width="1.5"
-                class="hover:opacity-100"
+                class="chart-data-dot hover:opacity-100"
               />
             </g>
 
@@ -1954,9 +1957,9 @@
             class="absolute pointer-events-none z-30 transition-all duration-75 font-sans"
             :style="tooltipStyle"
           >
-            <div class="bg-[#111827]/95 backdrop-blur-md border border-slate-700 shadow-2xl rounded-xl p-3 text-xs w-60 space-y-1.5 font-sans ring-1 ring-white/10">
-              <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                <span class="text-3xs font-sans font-semibold text-blue-400 uppercase tracking-wider">
+            <div class="bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl dark:shadow-2xl rounded-xl p-3 text-xs w-60 space-y-1.5 font-sans ring-1 ring-slate-900/5 dark:ring-white/10">
+              <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
+                <span class="text-3xs font-sans font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                   {{ getParamCode(hoveredPoint.rawRecord.parameter_id) }}
                 </span>
                 <div class="flex flex-col items-end">
@@ -1966,43 +1969,43 @@
                   >
                     {{ hoveredPoint.quality }}
                   </span>
-                  <span v-if="hoveredPoint.rawRecord && hoveredPoint.rawRecord.quality_reason && hoveredPoint.rawRecord.quality_reason !== 'NONE'" class="text-4xs font-mono text-amber-400 mt-0.5">
+                  <span v-if="hoveredPoint.rawRecord && hoveredPoint.rawRecord.quality_reason && hoveredPoint.rawRecord.quality_reason !== 'NONE'" class="text-4xs font-mono text-amber-600 dark:text-amber-400 mt-0.5">
                     {{ hoveredPoint.rawRecord.quality_reason }}
                   </span>
                 </div>
               </div>
-              <div class="text-3xs text-slate-300 font-medium truncate font-sans">
+              <div class="text-3xs text-slate-700 dark:text-slate-300 font-medium truncate font-sans">
                 {{ getParamName(hoveredPoint.rawRecord.parameter_id) }}
               </div>
               <div class="flex items-baseline space-x-1 pt-0.5">
-                <span class="text-2xl font-sans font-bold text-white tracking-tight tabular-nums">
+                <span class="text-2xl font-sans font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
                   {{ hoveredPoint.value !== undefined ? (chartValueMode === 'raw' && Number.isInteger(hoveredPoint.value) ? hoveredPoint.value : hoveredPoint.value.toFixed(2)) : '--' }}
                 </span>
-                <span class="text-xs font-sans text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
+                <span class="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ chartActiveUnit }}</span>
                 <span
                   v-if="canAccessRawMode"
                   class="text-4xs font-sans font-bold px-1.5 py-0.5 rounded ml-1.5 uppercase"
-                  :class="chartValueMode === 'raw' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'"
+                  :class="chartValueMode === 'raw' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30' : 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30'"
                 >
                   {{ chartValueMode === 'raw' ? 'RAW' : 'SCALED' }}
                 </span>
                 <span
                   v-if="isSuperAdmin && hoveredPoint.rawRecord && hoveredPoint.rawRecord.is_injected"
-                  class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded ml-1 uppercase bg-violet-500/20 text-violet-300 border border-violet-500/40"
+                  class="text-4xs font-mono font-bold px-1.5 py-0.5 rounded ml-1 uppercase bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/40"
                 >
                   INJ
                 </span>
               </div>
-              <div class="pt-1.5 border-t border-slate-800 flex items-center justify-between text-3xs text-slate-400 font-sans">
+              <div class="pt-1.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 font-sans">
                 <span>{{ formatTimestamp(hoveredPoint.timestamp) }}</span>
                 <span class="text-slate-500 font-sans">#{{ hoveredPoint.index + 1 }}/{{ chartPoints.length }}</span>
               </div>
               <div v-if="canAccessRawMode" class="text-4xs text-slate-400 font-sans flex items-center justify-between pt-1 border-t border-slate-800/60">
                 <span v-if="chartValueMode === 'raw'">
-                  {{ $t('deviceDetail.modeScaled') }}: <b class="text-blue-300">{{ hoveredPoint.scaledValue !== null ? hoveredPoint.scaledValue.toFixed(2) : '--' }} {{ chartActiveParam ? chartActiveParam.unit : '' }}</b>
+                  {{ $t('deviceDetail.modeScaled') }}: <b class="text-blue-600 dark:text-blue-300">{{ hoveredPoint.scaledValue !== null ? hoveredPoint.scaledValue.toFixed(2) : '--' }} {{ chartActiveParam ? chartActiveParam.unit : '' }}</b>
                 </span>
                 <span v-else>
-                  {{ $t('deviceDetail.modeRaw') }}: <b class="text-emerald-300">{{ hoveredPoint.rawValue !== null ? hoveredPoint.rawValue : '--' }}</b>
+                  {{ $t('deviceDetail.modeRaw') }}: <b class="text-emerald-600 dark:text-emerald-300">{{ hoveredPoint.rawValue !== null ? hoveredPoint.rawValue : '--' }}</b>
                 </span>
                 <span class="text-slate-500">{{ hoveredPoint.rawRecord ? (hoveredPoint.rawRecord.source || 'MODBUS') : 'MODBUS' }}</span>
               </div>
@@ -2058,22 +2061,22 @@
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.protocolSourceCol') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 font-sans text-2xs tabular-nums">
-              <tr v-for="rec in historyRecords" :key="rec.id" class="hover:bg-slate-800/30 transition">
-                <td class="py-2.5 px-4 text-slate-300">
+            <tbody class="divide-y divide-slate-200/80 dark:divide-slate-800/60 font-sans text-2xs tabular-nums">
+              <tr v-for="rec in historyRecords" :key="rec.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                <td class="py-2.5 px-4 text-slate-700 dark:text-slate-300">
                   {{ formatTimestamp(rec.received_at || rec.timestamp) }}
                 </td>
                 <td class="py-2.5 px-4">
-                  <span class="text-blue-400 font-semibold">{{ getParamCode(rec.parameter_id) }}</span>
+                  <span class="text-blue-600 dark:text-blue-400 font-semibold">{{ getParamCode(rec.parameter_id) }}</span>
                   <span
                     v-if="isSuperAdmin && rec.is_injected"
                     :title="'Disuntik Superadmin · Batch ' + (rec.injection_batch_id || '')"
-                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30"
                   >INJ</span>
                 </td>
-                <td class="py-2.5 px-4 text-white font-bold">
+                <td class="py-2.5 px-4 text-slate-900 dark:text-white font-bold">
                   {{ rec.value !== undefined ? rec.value.toFixed(2) : '--' }}
-                  <span class="text-slate-400 font-normal ml-0.5">{{ getParamUnit(rec.parameter_id) }}</span>
+                  <span class="text-slate-500 dark:text-slate-400 font-normal ml-0.5">{{ getParamUnit(rec.parameter_id) }}</span>
                 </td>
                 <td v-if="canAccessRawMode" class="py-2.5 px-4 text-slate-400">
                   {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
@@ -2082,11 +2085,11 @@
                   <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(rec.quality)">
                     {{ rec.quality || 'GOOD' }}
                   </span>
-                  <div v-if="rec.quality_reason && rec.quality_reason !== 'NONE'" class="text-4xs font-mono text-amber-400/90 mt-0.5" :title="rec.quality_reason">
+                  <div v-if="rec.quality_reason && rec.quality_reason !== 'NONE'" class="text-4xs font-mono text-amber-700 dark:text-amber-400/90 mt-0.5" :title="rec.quality_reason">
                     {{ rec.quality_reason }}
                   </div>
                 </td>
-                <td class="py-2.5 px-4 text-slate-400">
+                <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400">
                   {{ rec.source || 'MODBUS_TCP' }}
                 </td>
               </tr>
@@ -2100,7 +2103,7 @@
         </div>
 
         <!-- Pagination Controls -->
-        <div class="p-3 border-t border-slate-800 flex items-center justify-between text-xs">
+        <div class="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
           <button
             @click="prevHistoryPage"
             :disabled="historyPage <= 1 || historyLoading"
@@ -2124,28 +2127,28 @@
 
     <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - Accessible to all roles; Raw Hex & Raw Float restricted to Admin/Superadmin) -->
     <div v-if="device && activeTab === 'raw'" class="space-y-4">
-      <div class="saas-card p-4 space-y-3 bg-[#0F172A]/90 border border-slate-800 rounded-2xl">
+      <div class="saas-card p-4 space-y-3 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl">
         <!-- Top Row: Title, Max Limit Badge & Actions -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-xs font-bold text-white uppercase tracking-wider">
+              <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                 {{ canAccessRawMode ? $t('deviceDetail.rawInspectionTitle') : $t('deviceDetail.rawTelemetry') }}
               </h3>
-              <span class="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-3xs font-mono font-semibold">
+              <span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 dark:bg-cyan-500/10 dark:text-cyan-300 dark:border-cyan-500/30 text-3xs font-mono font-semibold">
                 {{ $t('deviceDetail.rawMaxWindowLabel', { limit: rawMaxRangeLabel }) }}
               </span>
               <router-link
                 v-if="!isOperator"
                 to="/administration/config?tab=general"
-                class="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-3xs font-semibold transition flex items-center space-x-1"
+                class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white dark:border-slate-700 text-3xs font-semibold transition flex items-center space-x-1 shadow-2xs"
                 title="Konfigurasi batas maksimal rentang waktu filter Raw Telemetry"
               >
                 <span>⚙️</span>
                 <span>{{ $t('deviceDetail.rawConfigLimitBtn') }}</span>
               </router-link>
             </div>
-            <p class="text-2xs text-slate-400 mt-0.5">
+            <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
               {{ canAccessRawMode ? $t('deviceDetail.rawInspectionSubtitle') : $t('deviceDetail.rawOperatorSubtitle') }}
             </p>
           </div>
@@ -2170,14 +2173,14 @@
         </div>
 
         <!-- Filter Bar Row 1: Parameter, Quick Time Presets, Quality, Page Size -->
-        <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3">
+        <div class="pt-3 border-t border-slate-200 dark:border-slate-800/80 flex flex-wrap items-end gap-3">
           <!-- Parameter Filter -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.paramLabel') }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ $t('deviceDetail.paramLabel') }}</label>
             <select
               v-model="rawParamId"
               @change="onRawFilterChange"
-              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+              class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500 shadow-2xs"
             >
               <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
               <option v-for="p in device.parameters" :key="p.id" :value="p.id">
@@ -2188,7 +2191,7 @@
 
           <!-- Quick Time Range Presets (Capped dynamically by configured rawMaxRangeHours) -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.timeRange') || 'Rentang Waktu' }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ $t('deviceDetail.timeRange') || 'Rentang Waktu' }}</label>
             <div class="flex flex-wrap items-center gap-1">
               <button
                 v-for="tr in rawTimeRangeOptions"
@@ -2207,11 +2210,11 @@
 
           <!-- Quality Filter -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.dataQuality') }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ $t('deviceDetail.dataQuality') }}</label>
             <select
               v-model="rawQuality"
               @change="onRawFilterChange"
-              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+              class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500 shadow-2xs"
             >
               <option value="">{{ $t('deviceDetail.allQualitiesOption') }}</option>
               <option value="GOOD">GOOD (Normal)</option>
@@ -2222,11 +2225,11 @@
 
           <!-- Page Size -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('common.limit') }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ $t('common.limit') }}</label>
             <select
               v-model.number="rawPageSize"
               @change="onRawFilterChange"
-              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+              class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500 shadow-2xs"
             >
               <option :value="20">20</option>
               <option :value="50">50</option>
@@ -2237,25 +2240,25 @@
         </div>
 
         <!-- Filter Bar Row 2: Always-Accessible Start & End Date-Time Range Filter ("Dari Kapan Sampai Kapan") -->
-        <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3 text-xs">
+        <div class="pt-3 border-t border-slate-200 dark:border-slate-800/80 flex flex-wrap items-end gap-3 text-xs">
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.rawFromTime') }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ $t('deviceDetail.rawFromTime') }}</label>
             <input
               type="datetime-local"
               step="1"
               v-model="rawStartTime"
               @change="onRawDateInputEdited"
-              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+              class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500 shadow-2xs"
             />
           </div>
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.rawToTime') }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-500 dark:text-slate-400 mb-1">{{ $t('deviceDetail.rawToTime') }}</label>
             <input
               type="datetime-local"
               step="1"
               v-model="rawEndTime"
               @change="onRawDateInputEdited"
-              class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+              class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500 shadow-2xs"
             />
           </div>
           <div class="flex flex-wrap items-center gap-1.5 pb-0.5">
@@ -2270,7 +2273,7 @@
             <button
               type="button"
               @click="applyRawCustomWindowPreset('prev_hour')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white dark:border-slate-700 text-3xs font-semibold transition shadow-2xs"
               title="Setel ke 1 jam kalender penuh sebelumnya"
             >
               Jam Lalu
@@ -2278,7 +2281,7 @@
             <button
               type="button"
               @click="applyRawCustomWindowPreset('curr_hour')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white dark:border-slate-700 text-3xs font-semibold transition shadow-2xs"
               title="Setel dari menit :00 jam ini sampai sekarang"
             >
               Jam Ini
@@ -2287,7 +2290,7 @@
               v-if="rawMaxRangeHours >= 24"
               type="button"
               @click="applyRawCustomWindowPreset('today')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
+              class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white dark:border-slate-700 text-3xs font-semibold transition shadow-2xs"
               title="Setel dari pukul 00:00 hari ini sampai sekarang"
             >
               Hari Ini
@@ -2295,7 +2298,7 @@
             <button
               type="button"
               @click="setRawTimeRange('1h')"
-              class="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 text-3xs font-semibold transition"
+              class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-300 dark:bg-slate-900 dark:hover:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-800 text-3xs font-semibold transition shadow-2xs"
             >
               {{ $t('common.reset') }}
             </button>
@@ -2305,14 +2308,14 @@
         <!-- Warning Banner when Custom Range Exceeds Configured Maximum Limit -->
         <div
           v-if="rawRangeValidationError"
-          class="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-2xs flex flex-wrap items-center justify-between gap-2"
+          class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200 text-2xs flex flex-wrap items-center justify-between gap-2"
         >
           <span>⚠️ {{ rawRangeValidationError }}</span>
           <button
             v-if="rawCustomSpanExceedsMax"
             type="button"
             @click="clampRawCustomRangeToMax"
-            class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 text-3xs font-bold transition"
+            class="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:text-amber-200 dark:border-amber-400/40 text-3xs font-bold transition"
           >
             {{ $t('deviceDetail.rawClampToMaxBtn', { limit: rawMaxRangeLabel }) }}
           </button>
@@ -2323,7 +2326,7 @@
       <div class="saas-card overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs font-sans">
-            <thead class="bg-[#0B0F19] text-3xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+            <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
@@ -2334,26 +2337,26 @@
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 text-2xs font-mono tabular-nums">
-              <tr v-for="rec in rawRecords" :key="rec.id" class="hover:bg-slate-800/30 transition">
-                <td class="py-2.5 px-4 text-slate-300">
+            <tbody class="divide-y divide-slate-200/80 dark:divide-slate-800/60 text-2xs font-mono tabular-nums">
+              <tr v-for="rec in rawRecords" :key="rec.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                <td class="py-2.5 px-4 text-slate-700 dark:text-slate-300">
                   {{ formatTimestamp(rec.received_at || rec.timestamp) }}
                 </td>
-                <td class="py-2.5 px-4 text-blue-400 font-bold">
+                <td class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-bold">
                   <span>{{ getParamCode(rec.parameter_id) }}</span>
                   <span
                     v-if="isSuperAdmin && rec.is_injected"
                     :title="'Disuntik Superadmin · Batch ' + (rec.injection_batch_id || '')"
-                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30"
                   >INJ</span>
                 </td>
-                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-emerald-400 font-bold tracking-widest">
+                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-emerald-700 dark:text-emerald-400 font-bold tracking-widest">
                   {{ rec.raw_hex || '--' }}
                 </td>
-                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-slate-400">
+                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-slate-600 dark:text-slate-400">
                   {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
                 </td>
-                <td class="py-2.5 px-4 text-white font-bold">
+                <td class="py-2.5 px-4 text-slate-900 dark:text-white font-bold">
                   {{ rec.value !== undefined && rec.value !== null ? Number(rec.value).toFixed(2) : '--' }}
                 </td>
                 <td class="py-2.5 px-4">
@@ -2361,7 +2364,7 @@
                     {{ rec.quality || 'GOOD' }}
                   </span>
                 </td>
-                <td class="py-2.5 px-4 text-slate-400">
+                <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400">
                   {{ rec.source || 'MODBUS_TCP' }}
                 </td>
               </tr>
@@ -2375,21 +2378,21 @@
         </div>
 
         <!-- Raw Pagination -->
-        <div class="p-3 border-t border-slate-800 flex items-center justify-between text-xs">
+        <div class="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
           <button
             @click="prevRawPage"
             :disabled="rawPage <= 1 || rawLoading"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+            class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 disabled:opacity-40 transition font-semibold shadow-2xs"
           >
             {{ $t('common.previous') }}
           </button>
-          <span class="text-slate-400 text-2xs tabular-nums">
+          <span class="text-slate-500 dark:text-slate-400 text-2xs tabular-nums">
             {{ $t('deviceDetail.pageOfWithRecords', { page: rawPage, totalPages: Math.ceil(rawTotal / rawPageSize) || 1, total: rawTotal }) }}
           </span>
           <button
             @click="nextRawPage"
             :disabled="rawPage * rawPageSize >= rawTotal || rawLoading"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold"
+            class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 disabled:opacity-40 transition font-semibold shadow-2xs"
           >
             {{ $t('common.next') }}
           </button>
@@ -2400,21 +2403,21 @@
     <!-- TAB 9: AGGREGATION & ROLLUPS (PHASE 3.3) -->
     <div v-if="device && activeTab === 'aggregation'" class="space-y-6 animate-fade-in">
       <!-- Header Banner & Control Bar -->
-      <div class="saas-card p-5 bg-[#0F172A]/90 border border-slate-800 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="saas-card p-5 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div class="flex items-center space-x-3.5">
-          <div class="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <div class="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
             </svg>
           </div>
           <div>
             <div class="flex items-center space-x-2">
-              <h2 class="text-base font-bold text-white tracking-wide">{{ $t('aggregation.title') }}</h2>
-              <span class="text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <h2 class="text-base font-bold text-slate-900 dark:text-white tracking-wide">{{ $t('aggregation.title') }}</h2>
+              <span class="text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30">
                 Phase 3.3 Reusable Engine
               </span>
             </div>
-            <p class="text-xs text-slate-400 mt-0.5">{{ $t('aggregation.subtitle') }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $t('aggregation.subtitle') }}</p>
           </div>
         </div>
 
@@ -2478,17 +2481,17 @@
       </div>
 
       <!-- CUSTOMER DATA PREVIEW CARD (When customerViewMode is active) -->
-      <div v-if="customerViewMode" class="saas-card p-5 bg-[#0B132B]/90 border border-emerald-500/30 rounded-2xl space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-500/20 pb-3">
+      <div v-if="customerViewMode" class="saas-card p-5 bg-emerald-50/40 dark:bg-[#0B132B]/90 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-200 dark:border-emerald-500/20 pb-3">
           <div class="flex items-center space-x-2.5">
-            <span class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+            <span class="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
               </svg>
             </span>
             <div>
-              <h3 class="text-sm font-bold text-emerald-300">{{ $t('aggregation.customerPreviewTitle') }}</h3>
-              <p class="text-3xs text-slate-300">{{ $t('aggregation.customerPreviewSubtitle') }}</p>
+              <h3 class="text-sm font-bold text-emerald-800 dark:text-emerald-300">{{ $t('aggregation.customerPreviewTitle') }}</h3>
+              <p class="text-3xs text-slate-600 dark:text-slate-300">{{ $t('aggregation.customerPreviewSubtitle') }}</p>
             </div>
           </div>
           <div class="flex items-center space-x-2">
@@ -2496,7 +2499,7 @@
               type="text"
               v-model="customerPreviewIdentifier"
               :placeholder="$t('aggregation.lookupPlaceholder')"
-              class="px-3 py-1 bg-[#0F172A] border border-slate-700 rounded-lg text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44"
+              class="px-3 py-1 bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white font-mono placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44 shadow-2xs"
             />
             <button
               @click="queryCustomerData(customerPreviewIdentifier)"
@@ -2509,14 +2512,14 @@
         </div>
 
         <div v-if="customerPreviewResult" class="space-y-3">
-          <div v-if="customerPreviewResult.error" class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-mono">
+          <div v-if="customerPreviewResult.error" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400 text-xs font-mono">
             {{ customerPreviewResult.error }}
           </div>
           <div v-else class="space-y-3">
             <div class="flex items-center space-x-4 text-xs font-mono">
-              <span class="text-slate-400">Identifier: <strong class="text-cyan-400">{{ customerPreviewResult.identifier }}</strong></span>
-              <span class="text-slate-400">Window: <strong class="text-slate-200">{{ customerPreviewResult.period_start }} → {{ customerPreviewResult.period_end }}</strong></span>
-              <span class="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-3xs border border-emerald-500/20">
+              <span class="text-slate-500 dark:text-slate-400">Identifier: <strong class="text-sky-700 dark:text-cyan-400">{{ customerPreviewResult.identifier }}</strong></span>
+              <span class="text-slate-500 dark:text-slate-400">Window: <strong class="text-slate-800 dark:text-slate-200">{{ customerPreviewResult.period_start }} → {{ customerPreviewResult.period_end }}</strong></span>
+              <span class="text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 px-2 py-0.5 rounded text-3xs border dark:border-emerald-500/20 font-semibold">
                 ✓ {{ $t('aggregation.safeDeliveryVerified') }}
               </span>
             </div>
@@ -2526,18 +2529,18 @@
               <div
                 v-for="(item, idx) in customerPreviewResult.data"
                 :key="idx"
-                class="p-4 rounded-xl bg-[#0F172A] border border-slate-800 space-y-2"
+                class="p-4 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 space-y-2 shadow-2xs"
               >
                 <div class="flex items-center justify-between">
-                  <span class="text-3xs uppercase font-bold text-slate-400 tracking-wider">{{ item.parameter }}</span>
-                  <span class="px-2 py-0.5 rounded text-3xs font-bold" :class="item.quality === 'GOOD' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
+                  <span class="text-3xs uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">{{ item.parameter }}</span>
+                  <span class="px-2 py-0.5 rounded text-3xs font-bold" :class="item.quality === 'GOOD' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'">
                     {{ item.quality }}
                   </span>
                 </div>
-                <div class="text-2xl font-bold font-mono text-white">
-                  {{ item.value !== null ? item.value : '--' }} <span class="text-sm font-normal text-slate-400 font-sans">{{ item.unit }}</span>
+                <div class="text-2xl font-bold font-mono text-slate-900 dark:text-white">
+                  {{ item.value !== null ? item.value : '--' }} <span class="text-sm font-normal text-slate-500 dark:text-slate-400 font-sans">{{ item.unit }}</span>
                 </div>
-                <div class="text-3xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-1.5 font-mono">
+                <div class="text-3xs text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-200 dark:border-slate-800/80 pt-1.5 font-mono">
                   <span>Samples: {{ item.sample_count }}</span>
                   <span>Formula Processed</span>
                 </div>
@@ -2545,7 +2548,7 @@
             </div>
 
             <!-- JSON Payload Preview -->
-            <div class="p-3 rounded-xl bg-black/60 border border-slate-800 text-3xs font-mono text-slate-300 max-h-40 overflow-y-auto">
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-black/60 border border-slate-200 dark:border-slate-800 text-3xs font-mono text-slate-700 dark:text-slate-300 max-h-40 overflow-y-auto shadow-inner">
               <pre>{{ JSON.stringify(customerPreviewResult, null, 2) }}</pre>
             </div>
           </div>
@@ -2553,15 +2556,15 @@
       </div>
 
       <!-- SECTION 1: AGGREGATION DEFINITIONS -->
-      <div class="saas-card bg-[#0F172A]/90 border border-slate-800 rounded-2xl overflow-hidden">
-        <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+      <div class="saas-card bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('aggregation.definitionsTitle') }}</h3>
-            <span class="text-2xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('aggregation.definitionsTitle') }}</h3>
+            <span class="text-2xs font-mono font-bold text-indigo-700 bg-indigo-50 border-indigo-200 dark:text-indigo-400 dark:bg-indigo-500/10 px-2 py-0.5 rounded-full border dark:border-indigo-500/20">
               {{ aggregationDefinitions.length }}
             </span>
           </div>
-          <button @click="fetchAggregationDefinitions" class="text-slate-400 hover:text-white text-xs transition">
+          <button @click="fetchAggregationDefinitions" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white dark:border-slate-700 text-2xs font-semibold transition shadow-2xs">
             {{ $t('aggregation.refresh') }}
           </button>
         </div>
@@ -2574,7 +2577,7 @@
         </div>
         <div v-else class="overflow-x-auto">
           <table class="w-full text-left text-xs font-sans">
-            <thead class="bg-[#0B0F19]/60 text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-800">
+            <thead class="bg-slate-50 dark:bg-[#0B0F19]/60 text-slate-500 dark:text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th class="px-4 py-3">{{ $t('aggregation.name') }}</th>
                 <th class="px-4 py-3">{{ $t('aggregation.parameter') }}</th>
@@ -2586,54 +2589,54 @@
                 <th class="px-4 py-3 text-right">{{ $t('aggregation.actions') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 text-slate-200">
-              <tr v-for="def in aggregationDefinitions" :key="def.id" class="hover:bg-slate-800/40 transition">
-                <td class="px-4 py-3 font-medium text-white">
+            <tbody class="divide-y divide-slate-200/80 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+              <tr v-for="def in aggregationDefinitions" :key="def.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">
                   <div>{{ def.name }}</div>
-                  <div class="text-3xs font-mono text-slate-400">{{ def.code }}</div>
+                  <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ def.code }}</div>
                 </td>
                 <td class="px-4 py-3">
-                  <div class="font-medium text-slate-200">{{ def.parameter ? def.parameter.parameter_name : getParamName(def.parameter_id) }}</div>
-                  <div class="text-3xs font-mono text-slate-400">{{ def.parameter ? def.parameter.parameter_code : getParamCode(def.parameter_id) }}</div>
+                  <div class="font-medium text-slate-800 dark:text-slate-200">{{ def.parameter ? def.parameter.parameter_name : getParamName(def.parameter_id) }}</div>
+                  <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ def.parameter ? def.parameter.parameter_code : getParamCode(def.parameter_id) }}</div>
                 </td>
                 <td class="px-4 py-3">
                   <span
                     class="px-2 py-0.5 rounded text-3xs font-bold font-mono tracking-wide"
                     :class="def.source_type === 'CUSTOMER_PROCESSED' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                      : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'"
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' 
+                      : 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'"
                   >
                     {{ def.source_type }}
                   </span>
                 </td>
                 <td class="px-4 py-3">
-                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">
                     {{ def.function }}
                   </span>
                 </td>
-                <td class="px-4 py-3 font-mono text-slate-300">
+                <td class="px-4 py-3 font-mono text-slate-700 dark:text-slate-300">
                   {{ def.interval_seconds >= 60 ? (def.interval_seconds / 60) + 'm' : def.interval_seconds + 's' }}
                   <span class="text-3xs text-slate-500 font-sans">({{ def.interval_seconds }}s)</span>
                 </td>
-                <td class="px-4 py-3 font-mono text-3xs text-slate-400">
+                <td class="px-4 py-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                   {{ def.timezone || 'Asia/Jakarta' }}
                 </td>
                 <td class="px-4 py-3">
                   <button
                     @click="toggleAggDefStatus(def)"
                     class="px-2 py-0.5 rounded-full text-3xs font-bold transition flex items-center space-x-1"
-                    :class="def.enabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'"
+                    :class="def.enabled ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
                   >
-                    <span class="w-1.5 h-1.5 rounded-full" :class="def.enabled ? 'bg-emerald-400' : 'bg-slate-500'"></span>
+                    <span class="w-1.5 h-1.5 rounded-full" :class="def.enabled ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-slate-400 dark:bg-slate-500'"></span>
                     <span>{{ def.enabled ? $t('aggregation.statusActive') : $t('aggregation.statusDisabled') }}</span>
                   </button>
                 </td>
                 <td class="px-4 py-3 text-right">
-                  <div class="flex items-center justify-end space-x-2">
+                  <div class="flex items-center justify-end space-x-1.5">
                     <button
                       @click="runAggBucket(def.id)"
                       :title="$t('aggregation.recalculate')"
-                      class="p-1 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 transition"
+                      class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 dark:border-indigo-500/20 transition shadow-2xs"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
@@ -2641,7 +2644,8 @@
                     </button>
                     <button
                       @click="openEditAggDefModal(def)"
-                      class="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition"
+                      :title="$t('common.edit') || 'Edit'"
+                      class="p-1.5 rounded-lg bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50 border border-slate-300 hover:border-blue-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-700 dark:border-slate-700 transition shadow-2xs"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -2649,7 +2653,8 @@
                     </button>
                     <button
                       @click="deleteAggregationDefinition(def)"
-                      class="p-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition"
+                      :title="$t('common.delete') || 'Delete'"
+                      class="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 dark:border-red-500/20 transition shadow-2xs"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -2664,16 +2669,16 @@
       </div>
 
       <!-- SECTION 2: AGGREGATION RESULTS BROWSER -->
-      <div class="saas-card bg-[#0F172A]/90 border border-slate-800 rounded-2xl overflow-hidden space-y-4">
+      <div class="saas-card bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden space-y-4">
         <!-- Filter Bar -->
-        <div class="p-4 border-b border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div class="flex flex-wrap items-center gap-2.5">
             <!-- Filter by Source -->
             <div>
               <select
                 v-model="aggregationFilterSource"
                 @change="fetchAggregationResults"
-                class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-indigo-500 font-mono"
+                class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-indigo-500 font-mono shadow-2xs"
               >
                 <option value="">{{ $t('deviceDetail.allDomains') || 'All Domains' }}</option>
                 <option value="CUSTOMER_PROCESSED">CUSTOMER_PROCESSED</option>
@@ -2686,7 +2691,7 @@
               <select
                 v-model="aggregationFilterParamId"
                 @change="fetchAggregationResults"
-                class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-sans focus:outline-none focus:border-indigo-500"
+                class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-indigo-500 shadow-2xs"
               >
                 <option value="">{{ $t('deviceDetail.allParametersOption') }}</option>
                 <option v-for="p in device.parameters" :key="p.id" :value="p.id">
@@ -2702,20 +2707,20 @@
                 v-model="aggregationIdentifierSearch"
                 @keyup.enter="fetchAggregationResults"
                 :placeholder="$t('aggregation.lookupPlaceholder')"
-                class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-48"
+                class="px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-mono placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-48 shadow-2xs"
               />
             </div>
 
             <button
               @click="fetchAggregationResults"
-              class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition"
+              class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-2xs"
             >
               {{ $t('common.filter') || 'Filter' }}
             </button>
           </div>
 
-          <div class="flex items-center space-x-2 text-xs font-mono text-slate-400">
-            <span>{{ $t('aggregation.resultsTitle') }}: <strong class="text-white">{{ aggregationTotal }}</strong></span>
+          <div class="flex items-center space-x-2 text-xs font-mono text-slate-500 dark:text-slate-400">
+            <span>{{ $t('aggregation.resultsTitle') }}: <strong class="text-slate-900 dark:text-white">{{ aggregationTotal }}</strong></span>
           </div>
         </div>
 
@@ -2728,7 +2733,7 @@
         </div>
         <div v-else class="overflow-x-auto">
           <table class="w-full text-left text-xs font-sans">
-            <thead class="bg-[#0B0F19]/60 text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-800">
+            <thead class="bg-slate-50 dark:bg-[#0B0F19]/60 text-slate-500 dark:text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th class="px-4 py-3">{{ $t('aggregation.identifier') }}</th>
                 <th class="px-4 py-3">{{ $t('aggregation.period') }}</th>
@@ -2741,69 +2746,69 @@
                 <th class="px-4 py-3 text-right">{{ $t('aggregation.actions') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/60 text-slate-200">
-              <tr v-for="res in aggregationResults" :key="res.id" class="hover:bg-slate-800/40 transition">
+            <tbody class="divide-y divide-slate-200/80 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+              <tr v-for="res in aggregationResults" :key="res.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                 <!-- Identifier & Status -->
                 <td class="px-4 py-3 font-mono font-bold tracking-wider">
-                  <div class="text-cyan-400 text-xs">{{ res.identifier }}</div>
+                  <div class="text-sky-700 dark:text-cyan-400 text-xs">{{ res.identifier }}</div>
                   <div class="mt-1">
                     <span
                       v-if="isBucketActive(res)"
-                      class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                      class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40"
                     >
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping"></span>
                       <span>{{ $t('aggregation.liveInProgress') }}</span>
                     </span>
                     <span
                       v-else
-                      class="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700/80"
+                      class="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700/80"
                     >
                       {{ $t('aggregation.finalized') }}
                     </span>
                   </div>
                 </td>
                 <!-- Period -->
-                <td class="px-4 py-3 font-mono text-3xs text-slate-300">
-                  <div class="font-bold text-slate-200">{{ formatPeriodWindow(res.period_start, res.period_end) }}</div>
+                <td class="px-4 py-3 font-mono text-3xs text-slate-600 dark:text-slate-300">
+                  <div class="font-bold text-slate-900 dark:text-slate-200">{{ formatPeriodWindow(res.period_start, res.period_end) }}</div>
                   <div class="text-slate-500">{{ new Date(res.period_start).toLocaleDateString() }}</div>
                 </td>
                 <!-- Parameter -->
                 <td class="px-4 py-3">
-                  <div class="font-medium text-slate-200">{{ res.parameter ? res.parameter.parameter_name : getParamName(res.parameter_id) }}</div>
-                  <div class="text-3xs font-mono text-slate-400">{{ res.parameter ? res.parameter.parameter_code : getParamCode(res.parameter_id) }}</div>
+                  <div class="font-medium text-slate-800 dark:text-slate-200">{{ res.parameter ? res.parameter.parameter_name : getParamName(res.parameter_id) }}</div>
+                  <div class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ res.parameter ? res.parameter.parameter_code : getParamCode(res.parameter_id) }}</div>
                 </td>
                 <!-- Domain Source -->
                 <td class="px-4 py-3">
                   <span
                     class="px-2 py-0.5 rounded text-3xs font-bold font-mono tracking-wide"
                     :class="res.source_type === 'CUSTOMER_PROCESSED' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                      : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'"
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' 
+                      : 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20'"
                   >
                     {{ res.source_type }}
                   </span>
                 </td>
                 <!-- Function -->
                 <td class="px-4 py-3">
-                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">
                     {{ res.aggregation_definition ? res.aggregation_definition.function : 'AVG' }}
                   </span>
                 </td>
                 <!-- Value -->
-                <td class="px-4 py-3 font-mono font-bold text-sm text-white">
+                <td class="px-4 py-3 font-mono font-bold text-sm text-slate-900 dark:text-white">
                   {{ res.value !== null ? Number(res.value).toFixed(2) : '--' }}
-                  <span class="text-3xs text-slate-400 font-sans font-normal">{{ getParamUnit(res.parameter_id) }}</span>
+                  <span class="text-3xs text-slate-500 dark:text-slate-400 font-sans font-normal">{{ getParamUnit(res.parameter_id) }}</span>
                   <span
                     v-if="isSuperAdmin && res.has_injected_samples"
                     title="Mengandung sampel suntikan Superadmin (Hanya terlihat oleh Superadmin)"
-                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30 align-middle"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30 align-middle"
                   >INJ</span>
                 </td>
                 <!-- Min / Max / Avg -->
-                <td class="px-4 py-3 font-mono text-3xs text-slate-300">
-                  <div>Min: <strong class="text-slate-100">{{ res.min_value !== null ? Number(res.min_value).toFixed(2) : '--' }}</strong></div>
-                  <div>Max: <strong class="text-slate-100">{{ res.max_value !== null ? Number(res.max_value).toFixed(2) : '--' }}</strong></div>
-                  <div>Avg: <strong class="text-slate-100">{{ res.avg_value !== null ? Number(res.avg_value).toFixed(2) : '--' }}</strong></div>
+                <td class="px-4 py-3 font-mono text-3xs text-slate-600 dark:text-slate-300">
+                  <div>Min: <strong class="text-slate-900 dark:text-slate-100">{{ res.min_value !== null ? Number(res.min_value).toFixed(2) : '--' }}</strong></div>
+                  <div>Max: <strong class="text-slate-900 dark:text-slate-100">{{ res.max_value !== null ? Number(res.max_value).toFixed(2) : '--' }}</strong></div>
+                  <div>Avg: <strong class="text-slate-900 dark:text-slate-100">{{ res.avg_value !== null ? Number(res.avg_value).toFixed(2) : '--' }}</strong></div>
                 </td>
                 <!-- Samples & Quality -->
                 <td class="px-4 py-3">
@@ -2811,8 +2816,8 @@
                     <span
                       class="px-2 py-0.5 rounded text-3xs font-bold tracking-wide"
                       :class="res.quality === 'GOOD' 
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                        : (res.quality === 'UNCERTAIN' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20')"
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' 
+                        : (res.quality === 'UNCERTAIN' ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20' : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20')"
                       :title="'Overall Quality: ' + res.quality"
                     >
                       {{ res.quality }}
@@ -2820,36 +2825,36 @@
                     <div class="relative group inline-block">
                       <button
                         @click="openBucketSamplesModal(res)"
-                        class="text-3xs font-mono text-cyan-400 hover:text-cyan-300 hover:underline flex items-center space-x-1 cursor-pointer"
+                        class="text-3xs font-mono text-sky-700 hover:text-sky-600 dark:text-cyan-400 dark:hover:text-cyan-300 hover:underline flex items-center space-x-1 cursor-pointer"
                         :title="$t('aggregation.sampleBreakdown') || 'Sample Quality Breakdown'"
                       >
                         <span>N={{ res.sample_count }} (✓{{ res.good_count }} / ?{{ res.uncertain_count }} / ✗{{ res.bad_count }})</span>
                       </button>
 
                       <!-- Interactive Hover Tooltip Popover -->
-                      <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-[#0B0F19] border border-slate-700/80 rounded-xl shadow-2xl text-left pointer-events-none font-sans">
-                        <div class="text-3xs font-bold uppercase text-slate-300 border-b border-slate-800 pb-1.5 mb-2 flex items-center justify-between">
+                      <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block z-50 w-72 p-3 bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-700/80 rounded-xl shadow-xl dark:shadow-2xl text-left pointer-events-none font-sans">
+                        <div class="text-3xs font-bold uppercase text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 pb-1.5 mb-2 flex items-center justify-between">
                           <span class="flex items-center space-x-1">
                             <span>📊</span>
                             <span>{{ $t('aggregation.sampleBreakdown') || 'Sample Quality Breakdown' }}</span>
                           </span>
-                          <span class="text-cyan-400 font-mono font-bold">Total N={{ res.sample_count }}</span>
+                          <span class="text-sky-700 dark:text-cyan-400 font-mono font-bold">Total N={{ res.sample_count }}</span>
                         </div>
                         <div class="space-y-1.5 text-3xs font-sans leading-tight">
                           <div class="flex items-start space-x-2">
-                            <span class="font-bold font-mono text-emerald-400 shrink-0">✓ {{ res.good_count }}</span>
-                            <span class="text-slate-300">{{ $t('aggregation.tooltipGood') }}</span>
+                            <span class="font-bold font-mono text-emerald-700 dark:text-emerald-400 shrink-0">✓ {{ res.good_count }}</span>
+                            <span class="text-slate-600 dark:text-slate-300">{{ $t('aggregation.tooltipGood') }}</span>
                           </div>
                           <div class="flex items-start space-x-2">
-                            <span class="font-bold font-mono text-amber-400 shrink-0">? {{ res.uncertain_count }}</span>
-                            <span class="text-slate-300">{{ $t('aggregation.tooltipUncertain') }}</span>
+                            <span class="font-bold font-mono text-amber-700 dark:text-amber-400 shrink-0">? {{ res.uncertain_count }}</span>
+                            <span class="text-slate-600 dark:text-slate-300">{{ $t('aggregation.tooltipUncertain') }}</span>
                           </div>
                           <div class="flex items-start space-x-2">
-                            <span class="font-bold font-mono text-rose-400 shrink-0">✗ {{ res.bad_count }}</span>
-                            <span class="text-slate-300">{{ $t('aggregation.tooltipBad') }}</span>
+                            <span class="font-bold font-mono text-rose-700 dark:text-rose-400 shrink-0">✗ {{ res.bad_count }}</span>
+                            <span class="text-slate-600 dark:text-slate-300">{{ $t('aggregation.tooltipBad') }}</span>
                           </div>
                         </div>
-                        <div class="mt-2 pt-1 border-t border-slate-800/80 text-[10px] text-slate-400 italic">
+                        <div class="mt-2 pt-1 border-t border-slate-200 dark:border-slate-800/80 text-[10px] text-slate-500 dark:text-slate-400 italic">
                           Click to view individual telemetry values
                         </div>
                       </div>
@@ -2861,7 +2866,7 @@
                   <div class="flex items-center justify-end space-x-1.5">
                     <button
                       @click="openBucketSamplesModal(res)"
-                      class="p-1 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition text-3xs font-mono px-2 py-1 flex items-center space-x-1"
+                      class="p-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:hover:bg-cyan-500/20 dark:border-cyan-500/30 transition text-3xs font-mono font-semibold px-2 py-1 flex items-center space-x-1 shadow-2xs"
                       title="View Raw Telemetry Values & Samples"
                     >
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2872,7 +2877,7 @@
                     </button>
                     <button
                       @click="queryCustomerData(res.identifier)"
-                      class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition text-3xs font-mono px-2 py-1"
+                      class="p-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 dark:border-emerald-500/20 transition text-3xs font-mono font-semibold px-2 py-1 shadow-2xs"
                       title="Query Customer API"
                     >
                       API
@@ -2885,21 +2890,21 @@
         </div>
 
         <!-- Pagination -->
-        <div class="p-4 border-t border-slate-800/80 flex items-center justify-between">
+        <div class="p-4 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
           <button
             @click="prevAggPage"
             :disabled="aggregationPage <= 1 || aggregationResultsLoading"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold text-xs"
+            class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 disabled:opacity-40 transition font-semibold text-xs shadow-2xs"
           >
             {{ $t('common.previous') }}
           </button>
-          <span class="text-slate-400 text-2xs font-mono">
+          <span class="text-slate-500 dark:text-slate-400 text-2xs font-mono">
             {{ $t('deviceDetail.pageOfWithRecords', { page: aggregationPage, totalPages: Math.ceil(aggregationTotal / aggregationPageSize) || 1, total: aggregationTotal }) }}
           </span>
           <button
             @click="nextAggPage"
             :disabled="aggregationPage * aggregationPageSize >= aggregationTotal || aggregationResultsLoading"
-            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 transition font-semibold text-xs"
+            class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 disabled:opacity-40 transition font-semibold text-xs shadow-2xs"
           >
             {{ $t('common.next') }}
           </button>
@@ -2909,24 +2914,24 @@
 
     <!-- Modals -->
     <!-- Aggregation Definition Modal (Phase 3.3) -->
-    <div v-if="isAggDefModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
-      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+    <div v-if="isAggDefModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#0B0F19]/80">
           <div class="flex items-center space-x-2.5">
-            <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <div class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
               </svg>
             </div>
             <div>
-              <h2 class="text-sm font-bold text-white tracking-wide">
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide">
                 {{ isEditingAggDef ? $t('aggregation.modalEditTitle') : $t('aggregation.modalCreateTitle') }}
               </h2>
-              <p class="text-3xs text-slate-400">{{ $t('aggregation.modalDesc') }}</p>
+              <p class="text-3xs text-slate-500 dark:text-slate-400">{{ $t('aggregation.modalDesc') }}</p>
             </div>
           </div>
-          <button @click="isAggDefModalOpen = false" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <button @click="isAggDefModalOpen = false" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white p-1 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-800 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -2938,41 +2943,41 @@
           <!-- Name & Code -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.name') }} *</label>
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.name') }} *</label>
               <input
                 type="text"
                 v-model="aggDefForm.name"
                 placeholder="e.g. Temperature 30m Average"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
               />
             </div>
             <div>
-              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.code') }} *</label>
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.code') }} *</label>
               <input
                 type="text"
                 v-model="aggDefForm.code"
                 placeholder="e.g. temp_avg_30m"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
 
           <!-- Parameter Selection -->
           <div>
-            <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.parameter') }} *</label>
+            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.parameter') }} *</label>
             <select
               v-model="aggDefForm.parameter_id"
-              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="" disabled>{{ $t('aggregation.selectParameter') }}</option>
-              <option v-if="!isEditingAggDef && device && device.parameters && device.parameters.length > 0" value="ALL" class="text-cyan-400 font-bold bg-[#0F172A]">
+              <option v-if="!isEditingAggDef && device && device.parameters && device.parameters.length > 0" value="ALL" class="text-sky-700 dark:text-cyan-400 font-bold bg-white dark:bg-[#0F172A]">
                 {{ $t('aggregation.allParameters') }}
               </option>
               <option v-for="p in device.parameters" :key="p.id" :value="p.id">
                 {{ p.parameter_code }} — {{ p.parameter_name }} ({{ p.unit || 'no unit' }})
               </option>
             </select>
-            <p v-if="aggDefForm.parameter_id === 'ALL'" class="text-3xs text-cyan-400 mt-1 font-sans flex items-center space-x-1">
+            <p v-if="aggDefForm.parameter_id === 'ALL'" class="text-3xs text-sky-700 dark:text-cyan-400 mt-1 font-sans flex items-center space-x-1">
               <span>⚡</span>
               <span>{{ $t('aggregation.allParametersNotice', { count: device.parameters.length }) }}</span>
             </p>
@@ -2980,15 +2985,15 @@
 
           <!-- Source Domain -->
           <div>
-            <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.sourceType') }} *</label>
+            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.sourceType') }} *</label>
             <select
               v-model="aggDefForm.source_type"
-              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="CUSTOMER_PROCESSED">{{ $t('aggregation.sourceCustomerProcessed') }}</option>
               <option value="INTERNAL_RAW">{{ $t('aggregation.sourceInternalRaw') }}</option>
             </select>
-            <p class="text-3xs text-slate-400 mt-1">
+            <p class="text-3xs text-slate-500 dark:text-slate-400 mt-1">
               {{ aggDefForm.source_type === 'CUSTOMER_PROCESSED' ? $t('aggregation.customerProcessedDesc') : $t('aggregation.internalRawDesc') }}
             </p>
           </div>
@@ -2996,10 +3001,10 @@
           <!-- Function & Interval Preset -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.function') }} *</label>
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.function') }} *</label>
               <select
                 v-model="aggDefForm.function"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="AVG">AVG (Average)</option>
                 <option value="MIN">MIN (Minimum)</option>
@@ -3011,11 +3016,11 @@
               </select>
             </div>
             <div>
-              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.interval') }} *</label>
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.interval') }} *</label>
               <select
                 v-model="aggDefForm.interval_preset"
                 @change="onIntervalPresetChange"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="2m">{{ $t('aggregation.interval2m') }}</option>
                 <option value="5m">{{ $t('aggregation.interval5m') }}</option>
@@ -3030,32 +3035,32 @@
 
           <!-- Custom Interval Seconds (if custom) -->
           <div v-if="aggDefForm.interval_preset === 'custom'">
-            <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.customInterval') }}</label>
+            <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.customInterval') }}</label>
             <input
               type="number"
               v-model="aggDefForm.interval_seconds"
               min="10"
               step="10"
-              class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+              class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
             />
           </div>
 
           <!-- Timezone & Quality Policy -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.timezone') }}</label>
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.timezone') }}</label>
               <input
                 type="text"
                 v-model="aggDefForm.timezone"
                 placeholder="Asia/Jakarta"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-indigo-500"
               />
             </div>
             <div>
-              <label class="block text-3xs font-semibold text-slate-400 uppercase mb-1">{{ $t('aggregation.qualityPolicy') }}</label>
+              <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">{{ $t('aggregation.qualityPolicy') }}</label>
               <select
                 v-model="aggDefForm.quality_policy"
-                class="w-full px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="STRICT">STRICT (Requires Good Samples)</option>
                 <option value="BEST_EFFORT">BEST_EFFORT (Include Uncertain)</option>
@@ -3069,19 +3074,19 @@
               type="checkbox"
               id="aggDefEnabled"
               v-model="aggDefForm.enabled"
-              class="rounded bg-[#0B0F19] border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+              class="rounded bg-white dark:bg-[#0B0F19] border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
             />
-            <label for="aggDefEnabled" class="text-xs text-slate-300 cursor-pointer select-none">
+            <label for="aggDefEnabled" class="text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
               {{ $t('aggregation.statusActive') }}
             </label>
           </div>
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-slate-800 flex items-center justify-end space-x-3 bg-[#0B0F19]/50">
+        <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-3 bg-slate-50 dark:bg-[#0B0F19]/50">
           <button
             @click="isAggDefModalOpen = false"
-            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+            class="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 text-xs font-semibold transition shadow-2xs"
           >
             {{ $t('common.cancel') }}
           </button>
@@ -3096,43 +3101,43 @@
     </div>
 
     <!-- Bucket Samples & Data Values Inspection Modal -->
-    <div v-if="isBucketSamplesModalOpen && selectedBucketResult" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
-      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div v-if="isBucketSamplesModalOpen && selectedBucketResult" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-[#0B0F19]/80">
           <div class="flex items-center space-x-3">
-            <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <div class="p-2 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
               </svg>
             </div>
             <div>
               <div class="flex items-center space-x-2">
-                <h2 class="text-sm font-bold text-white tracking-wide">
+                <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide">
                   {{ $t('aggregation.bucketSamplesTitle') || 'Bucket Telemetry Samples & Data Values' }}
                 </h2>
                 <span
                   v-if="isBucketActive(selectedBucketResult)"
-                  class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-3xs font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-3xs font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40"
                 >
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping"></span>
                   <span>{{ $t('aggregation.liveInProgress') }}</span>
                 </span>
                 <span
                   v-else
-                  class="inline-block px-1.5 py-0.5 rounded text-3xs font-mono bg-slate-800 text-slate-400 border border-slate-700/80"
+                  class="inline-block px-1.5 py-0.5 rounded text-3xs font-mono bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700/80"
                 >
                   {{ $t('aggregation.finalized') }}
                 </span>
               </div>
-              <p class="text-3xs text-slate-400 mt-0.5">
-                Window: <strong class="text-slate-200 font-mono tabular-nums">{{ formatPeriodWindow(selectedBucketResult.period_start, selectedBucketResult.period_end) }}</strong>
-                • Target: <strong class="text-cyan-400 font-mono">{{ selectedBucketResult.identifier }}</strong>
-                • Parameter: <strong class="text-indigo-300">{{ selectedBucketResult.parameter ? selectedBucketResult.parameter.parameter_name : getParamName(selectedBucketResult.parameter_id) }}</strong>
+              <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Window: <strong class="text-slate-800 dark:text-slate-200 font-mono tabular-nums">{{ formatPeriodWindow(selectedBucketResult.period_start, selectedBucketResult.period_end) }}</strong>
+                • Target: <strong class="text-sky-700 dark:text-cyan-400 font-mono">{{ selectedBucketResult.identifier }}</strong>
+                • Parameter: <strong class="text-indigo-700 dark:text-indigo-300">{{ selectedBucketResult.parameter ? selectedBucketResult.parameter.parameter_name : getParamName(selectedBucketResult.parameter_id) }}</strong>
               </p>
             </div>
           </div>
-          <button @click="closeBucketSamplesModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <button @click="closeBucketSamplesModal" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white p-1 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-800 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -3140,34 +3145,34 @@
         </div>
 
         <!-- KPI Cards -->
-        <div class="px-6 py-3 bg-[#0B0F19]/40 border-b border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
-            <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Sample Count</span>
-            <span class="text-base font-bold font-mono tabular-nums text-cyan-400">
+        <div class="px-6 py-3 bg-slate-50/70 dark:bg-[#0B0F19]/40 border-b border-slate-200 dark:border-slate-800/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div class="p-2.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wider block">Sample Count</span>
+            <span class="text-base font-bold font-mono tabular-nums text-sky-700 dark:text-cyan-400">
               N={{ bucketSamplesData ? bucketSamplesData.sample_count : (selectedBucketResult.sample_count || 0) }}
             </span>
           </div>
-          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
-            <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Calculated Avg</span>
-            <span class="text-base font-bold font-mono tabular-nums text-white">
+          <div class="p-2.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wider block">Calculated Avg</span>
+            <span class="text-base font-bold font-mono tabular-nums text-slate-900 dark:text-white">
               {{ (bucketSamplesData && bucketSamplesData.avg_value !== null) ? Number(bucketSamplesData.avg_value).toFixed(2) : (selectedBucketResult.value !== null ? Number(selectedBucketResult.value).toFixed(2) : '--') }}
-              <span class="text-3xs font-normal text-slate-400 font-sans">{{ bucketSamplesData ? bucketSamplesData.unit : '' }}</span>
+              <span class="text-3xs font-normal text-slate-500 dark:text-slate-400 font-sans">{{ bucketSamplesData ? bucketSamplesData.unit : '' }}</span>
             </span>
           </div>
-          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800">
-            <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Min / Max</span>
-            <span class="text-xs font-mono tabular-nums text-slate-200">
+          <div class="p-2.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wider block">Min / Max</span>
+            <span class="text-xs font-mono tabular-nums text-slate-800 dark:text-slate-200">
               {{ selectedBucketResult.min_value !== null ? Number(selectedBucketResult.min_value).toFixed(2) : '--' }} / {{ selectedBucketResult.max_value !== null ? Number(selectedBucketResult.max_value).toFixed(2) : '--' }}
             </span>
           </div>
-          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 flex items-center justify-between">
+          <div class="p-2.5 rounded-xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-2xs">
             <div>
-              <span class="text-3xs text-slate-400 uppercase font-semibold tracking-wider block">Quality</span>
+              <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wider block">Quality</span>
               <div class="flex items-center space-x-1.5 mt-0.5">
-                <span class="text-xs font-bold font-mono text-emerald-400">
+                <span class="text-xs font-bold font-mono text-emerald-700 dark:text-emerald-400">
                   {{ selectedBucketResult.quality || 'GOOD' }}
                 </span>
-                <span class="text-3xs font-mono tabular-nums text-slate-400">
+                <span class="text-3xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
                   (✓{{ selectedBucketResult.good_count || 0 }} / ?{{ selectedBucketResult.uncertain_count || 0 }} / ✗{{ selectedBucketResult.bad_count || 0 }})
                 </span>
               </div>
@@ -3175,7 +3180,7 @@
             <button
               @click="fetchBucketSamples"
               :disabled="bucketSamplesLoading"
-              class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-3xs font-semibold border border-slate-700 transition"
+              class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 text-3xs font-semibold transition shadow-2xs"
             >
               Refresh
             </button>
@@ -3192,7 +3197,7 @@
           </div>
           <div v-else class="overflow-x-auto">
             <table class="w-full text-left text-xs font-sans">
-              <thead class="bg-[#0B0F19]/80 text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-800 sticky top-0">
+              <thead class="bg-slate-50 dark:bg-[#0B0F19]/80 text-slate-500 dark:text-slate-400 uppercase text-3xs font-semibold tracking-wider border-b border-slate-200 dark:border-slate-800 sticky top-0">
                 <tr>
                   <th class="px-3 py-2">#</th>
                   <th class="px-3 py-2">Received Time</th>
@@ -3202,31 +3207,31 @@
                   <th class="px-3 py-2 text-right">Quality</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-800/60 text-slate-200 font-mono text-xs">
-                <tr v-for="(sample, sIdx) in bucketSamplesData.samples" :key="sample.id || sIdx" class="hover:bg-slate-800/30 transition">
+              <tbody class="divide-y divide-slate-200/80 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200 font-mono text-xs">
+                <tr v-for="(sample, sIdx) in bucketSamplesData.samples" :key="sample.id || sIdx" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
                   <td class="px-3 py-1.5 text-slate-500 text-3xs">{{ sIdx + 1 }}</td>
-                  <td class="px-3 py-1.5 text-slate-300">
+                  <td class="px-3 py-1.5 text-slate-700 dark:text-slate-300">
                     <span>{{ formatTimestampExact(sample.received_at) }}</span>
                     <span
                       v-if="isSuperAdmin && sample.is_injected"
                       :title="'Disuntik Superadmin · Batch ' + (sample.injection_batch_id || '')"
-                      class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                      class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30"
                     >INJ</span>
                   </td>
-                  <td class="px-3 py-1.5 text-emerald-400 text-3xs">
+                  <td class="px-3 py-1.5 text-emerald-700 dark:text-emerald-400 text-3xs">
                     {{ sample.raw_hex || '--' }}
                   </td>
-                  <td class="px-3 py-1.5 text-slate-300">
+                  <td class="px-3 py-1.5 text-slate-600 dark:text-slate-300">
                     {{ sample.raw_value !== null ? Number(sample.raw_value).toFixed(4) : '--' }}
                   </td>
-                  <td class="px-3 py-1.5 font-bold text-white">
+                  <td class="px-3 py-1.5 font-bold text-slate-900 dark:text-white">
                     {{ sample.processed_value !== null ? Number(sample.processed_value).toFixed(2) : '--' }}
-                    <span class="text-3xs font-normal text-slate-400 font-sans">{{ bucketSamplesData.unit }}</span>
+                    <span class="text-3xs font-normal text-slate-500 dark:text-slate-400 font-sans">{{ bucketSamplesData.unit }}</span>
                   </td>
                   <td class="px-3 py-1.5 text-right">
                     <span
                       class="px-2 py-0.5 rounded text-3xs font-bold"
-                      :class="sample.quality === 'GOOD' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'"
+                      :class="sample.quality === 'GOOD' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'"
                     >
                       {{ sample.quality || 'GOOD' }}
                     </span>
@@ -3238,9 +3243,9 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-3 border-t border-slate-800/80 bg-[#0B0F19]/80 flex items-center justify-between text-xs text-slate-400">
-          <span>Total records: <strong class="text-white font-mono tabular-nums">{{ bucketSamplesData ? bucketSamplesData.samples.length : 0 }}</strong></span>
-          <button @click="closeBucketSamplesModal" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold transition">
+        <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B0F19]/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <span>Total records: <strong class="text-slate-900 dark:text-white font-mono tabular-nums">{{ bucketSamplesData ? bucketSamplesData.samples.length : 0 }}</strong></span>
+          <button @click="closeBucketSamplesModal" class="px-4 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-white dark:border-slate-700 font-semibold transition shadow-2xs">
             Close
           </button>
         </div>
@@ -3283,29 +3288,29 @@
     />
 
     <!-- Modbus Parameter Test Read Diagnostic Modal -->
-    <div v-if="isTestReadModalOpen && testParam" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
-      <div class="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div v-if="isTestReadModalOpen && testParam" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-sm animate-fade-in font-sans">
+      <div class="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/80 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0B0F19]/90">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-[#0B0F19]/90">
           <div class="flex items-center space-x-2.5">
-            <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
               </svg>
             </div>
             <div>
               <div class="flex items-center space-x-2">
-                <h2 class="text-sm font-bold text-white tracking-wide">{{ $t('deviceDetail.diagnosticReportTitle') }}</h2>
-                <span class="text-3xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                <h2 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide">{{ $t('deviceDetail.diagnosticReportTitle') }}</h2>
+                <span class="text-3xs font-mono font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 shadow-2xs">
                   {{ device.device_code }} · {{ testParam.parameter_code }}
                 </span>
               </div>
-              <p class="text-3xs text-slate-400 mt-0.5">
+              <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {{ testParam.parameter_name }} · <span class="font-mono">{{ testParam.data_type }} ({{ testParam.unit || '--' }})</span>
               </p>
             </div>
           </div>
-          <button @click="closeTestReadModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <button @click="closeTestReadModal" class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white p-1 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-800 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -3315,32 +3320,32 @@
         <!-- Body -->
         <div class="p-6 space-y-4 text-xs font-sans overflow-y-auto max-h-[calc(92vh-130px)] custom-scrollbar">
           <!-- Parameter Specs Header Strip -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 bg-[#0B0F19] rounded-xl border border-slate-800 text-3xs font-mono">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 bg-slate-50/80 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 text-3xs font-mono">
             <div>
               <span class="text-slate-500 uppercase block font-sans font-semibold">{{ $t('deviceDetail.registerAndType') }}</span>
-              <span class="text-slate-200 font-bold mt-0.5 block">#{{ testParam.register_address }} ({{ testParam.register_type }})</span>
+              <span class="text-slate-900 dark:text-slate-200 font-bold mt-0.5 block">#{{ testParam.register_address }} ({{ testParam.register_type }})</span>
             </div>
             <div>
               <span class="text-slate-500 uppercase block font-sans font-semibold">{{ $t('deviceDetail.dataType') }}</span>
-              <span class="text-blue-400 font-bold mt-0.5 block">{{ testParam.data_type }} [{{ testParam.byte_order || (device.connection && device.connection.byte_order) || 'ABCD' }}]</span>
+              <span class="text-blue-600 dark:text-blue-400 font-bold mt-0.5 block">{{ testParam.data_type }} [{{ testParam.byte_order || (device.connection && device.connection.byte_order) || 'ABCD' }}]</span>
             </div>
             <div>
               <span class="text-slate-500 uppercase block font-sans font-semibold">{{ $t('deviceDetail.scaleAndOffset') }}</span>
-              <span class="text-slate-200 mt-0.5 block">×{{ testParam.scale || 1 }} + {{ testParam.offset || 0 }}</span>
+              <span class="text-slate-900 dark:text-slate-200 mt-0.5 block">×{{ testParam.scale || 1 }} + {{ testParam.offset || 0 }}</span>
             </div>
             <div>
               <span class="text-slate-500 uppercase block font-sans font-semibold">{{ $t('deviceDetail.configuredPort') }}</span>
-              <span class="text-slate-300 truncate mt-0.5 block" :title="device.connection ? device.connection.serial_port : '--'">
+              <span class="text-slate-700 dark:text-slate-300 truncate mt-0.5 block" :title="device.connection ? device.connection.serial_port : '--'">
                 {{ device.connection ? (device.connection.serial_port || device.connection.host + ':' + device.connection.port) : '--' }}
               </span>
             </div>
           </div>
 
           <!-- Loading State -->
-          <div v-if="testReadLoading" class="py-12 flex flex-col items-center justify-center space-y-3 bg-[#0B0F19]/50 rounded-xl border border-slate-800">
+          <div v-if="testReadLoading" class="py-12 flex flex-col items-center justify-center space-y-3 bg-slate-50/80 dark:bg-[#0B0F19]/50 rounded-xl border border-slate-200 dark:border-slate-800">
             <div class="w-8 h-8 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
             <div class="text-center">
-              <span class="text-xs text-slate-300 font-medium font-sans block">{{ $t('deviceDetail.executingTransaction') }}</span>
+              <span class="text-xs text-slate-700 dark:text-slate-300 font-medium font-sans block">{{ $t('deviceDetail.executingTransaction') }}</span>
               <span class="text-3xs text-slate-500 font-mono mt-0.5 block">Verifying port ➔ Testing serial frame ➔ Validating CRC ➔ Decoding</span>
             </div>
           </div>
@@ -3349,33 +3354,33 @@
           <div v-else-if="testReadResult" class="space-y-4">
             <!-- 1. Overall Status & Category Banner -->
             <div
-              :class="testReadResult.success ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200' : 'bg-rose-950/30 border-rose-500/40 text-rose-200'"
-              class="p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg"
+              :class="testReadResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-500/40 dark:text-emerald-200' : 'bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-500/40 dark:text-rose-200'"
+              class="p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm dark:shadow-lg"
             >
               <div class="flex items-center space-x-3">
                 <span
-                  :class="testReadResult.success ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'"
+                  :class="testReadResult.success ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/40' : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/40'"
                   class="px-2.5 py-1 rounded-lg text-xs font-black tracking-wider uppercase border flex items-center space-x-1.5"
                 >
-                  <span class="w-2 h-2 rounded-full" :class="testReadResult.success ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'"></span>
+                  <span class="w-2 h-2 rounded-full" :class="testReadResult.success ? 'bg-emerald-500 dark:bg-emerald-400 animate-pulse' : 'bg-rose-500 dark:bg-rose-400'"></span>
                   <span>{{ testReadResult.success ? $t('deviceDetail.statusPass') : $t('deviceDetail.statusFail') }}</span>
                 </span>
                 <div>
                   <div class="flex items-center space-x-2">
-                    <span class="text-xs font-bold text-white font-mono uppercase tracking-wide">
+                    <span class="text-xs font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wide">
                       {{ testReadResult.failure_category || (testReadResult.success ? 'NONE' : 'COMMUNICATION_ERROR') }}
                     </span>
-                    <span class="text-3xs font-mono px-2 py-0.5 rounded bg-black/40 border border-slate-700/60 text-slate-300">
+                    <span class="text-3xs font-mono font-semibold px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-300 dark:bg-black/40 dark:border-slate-700/60 dark:text-slate-300 shadow-2xs">
                       {{ testReadResult.response_time_ms || 0 }} ms
                     </span>
                   </div>
-                  <div class="text-3xs text-slate-400 font-mono mt-0.5">
-                    <span v-if="testReadResult.last_successful_stage">Last Confirmed: <strong class="text-emerald-400">{{ testReadResult.last_successful_stage }}</strong></span>
-                    <span v-if="testReadResult.first_failed_stage" class="ml-2">| Failed at: <strong class="text-rose-400">{{ testReadResult.first_failed_stage }}</strong></span>
+                  <div class="text-3xs text-slate-600 dark:text-slate-400 font-mono mt-0.5">
+                    <span v-if="testReadResult.last_successful_stage">Last Confirmed: <strong class="text-emerald-700 dark:text-emerald-400">{{ testReadResult.last_successful_stage }}</strong></span>
+                    <span v-if="testReadResult.first_failed_stage" class="ml-2">| Failed at: <strong class="text-rose-700 dark:text-rose-400">{{ testReadResult.first_failed_stage }}</strong></span>
                   </div>
                 </div>
               </div>
-              <div class="text-3xs text-slate-400 font-mono">
+              <div class="text-3xs text-slate-500 dark:text-slate-400 font-mono">
                 {{ formatTimestamp(testReadResult.timestamp) }}
               </div>
             </div>
@@ -3389,12 +3394,12 @@
                 class="p-2.5 rounded-xl border transition-all text-3xs font-mono"
               >
                 <div class="flex items-center justify-between mb-1">
-                  <span class="text-slate-400 font-sans font-semibold uppercase truncate">{{ st.title }}</span>
+                  <span class="text-slate-600 dark:text-slate-400 font-sans font-semibold uppercase truncate">{{ st.title }}</span>
                   <span :class="getStageBadgeClass(st.status)" class="text-3xs font-bold px-1.5 py-0.2 rounded uppercase">
                     {{ getStageBadgeLabel(st.status) }}
                   </span>
                 </div>
-                <div class="text-slate-300 text-3xs truncate mt-0.5" :title="st.message">
+                <div class="text-slate-700 dark:text-slate-300 text-3xs truncate mt-0.5" :title="st.message">
                   {{ st.message || '--' }}
                 </div>
               </div>
@@ -3403,21 +3408,21 @@
             <!-- 3. Actionable Diagnosis & Suggested Action Alert -->
             <div
               v-if="testReadResult.suggested_action || (!testReadResult.success && (testReadResult.error || testReadResult.error_message))"
-              :class="testReadResult.success ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-rose-950/25 border-rose-500/30'"
+              :class="testReadResult.success ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-500/30' : 'bg-rose-50 border-rose-200 dark:bg-rose-950/25 dark:border-rose-500/30'"
               class="p-3.5 rounded-xl border space-y-1.5"
             >
               <div class="flex items-center space-x-2">
-                <svg v-if="!testReadResult.success" class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="!testReadResult.success" class="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
-                <svg v-else class="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-else class="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-                <h4 class="text-xs font-bold text-white uppercase tracking-wider font-sans">
+                <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-sans">
                   {{ $t('deviceDetail.actionableDiagnosis') }}
                 </h4>
               </div>
-              <p class="text-xs text-slate-200 font-sans leading-relaxed pl-6">
+              <p class="text-xs text-slate-700 dark:text-slate-200 font-sans leading-relaxed pl-6">
                 {{ testReadResult.suggested_action || testReadResult.error || testReadResult.error_message }}
               </p>
             </div>
@@ -3425,41 +3430,41 @@
             <!-- 4. Detailed Evidence Accordions / Panels -->
             <div class="space-y-3">
               <!-- Panel 1: Port & Physical Transport -->
-              <div v-if="testReadResult.port_evidence" class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2.5">
+              <div v-if="testReadResult.port_evidence" class="p-3.5 bg-slate-50/80 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-slate-200 uppercase font-sans flex items-center space-x-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <span class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase font-sans flex items-center space-x-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400"></span>
                     <span>{{ $t('deviceDetail.portEvidence') }}</span>
                   </span>
-                  <span :class="testReadResult.port_evidence.exists ? 'text-emerald-400' : 'text-rose-400'" class="text-3xs font-mono font-bold">
+                  <span :class="testReadResult.port_evidence.exists ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-transparent dark:text-emerald-400 dark:border-transparent' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-transparent dark:text-rose-400 dark:border-transparent'" class="text-3xs font-mono font-bold px-2 py-0.5 rounded border">
                     {{ testReadResult.port_evidence.exists ? 'EXISTS' : 'NOT FOUND' }}
                   </span>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-3xs font-mono">
-                  <div>
+                  <div class="p-2 bg-white dark:bg-black/30 rounded-lg border border-slate-200 dark:border-slate-800/80">
                     <span class="text-slate-500 uppercase block">{{ $t('deviceDetail.configuredPort') }}</span>
-                    <span class="text-slate-300 font-bold truncate block">{{ testReadResult.port_evidence.configured_port || '--' }}</span>
+                    <span class="text-slate-800 dark:text-slate-300 font-bold truncate block mt-0.5" :title="testReadResult.port_evidence.configured_port">{{ testReadResult.port_evidence.configured_port || '--' }}</span>
                   </div>
-                  <div>
+                  <div class="p-2 bg-white dark:bg-black/30 rounded-lg border border-slate-200 dark:border-slate-800/80">
                     <span class="text-slate-500 uppercase block">{{ $t('deviceDetail.resolvedPort') }}</span>
-                    <span class="text-slate-300 font-bold truncate block">{{ testReadResult.port_evidence.resolved_port || '--' }}</span>
+                    <span class="text-slate-800 dark:text-slate-300 font-bold truncate block mt-0.5">{{ testReadResult.port_evidence.resolved_port || '--' }}</span>
                   </div>
-                  <div>
+                  <div class="p-2 bg-white dark:bg-black/30 rounded-lg border border-slate-200 dark:border-slate-800/80">
                     <span class="text-slate-500 uppercase block">{{ $t('deviceDetail.symlinkTarget') }}</span>
-                    <span :class="testReadResult.port_evidence.symlink_target_exists ? 'text-slate-300' : 'text-rose-400'" class="truncate block">
+                    <span :class="testReadResult.port_evidence.symlink_target_exists ? 'text-slate-800 dark:text-slate-300 font-bold' : 'text-rose-600 dark:text-rose-400 font-bold'" class="truncate block mt-0.5">
                       {{ testReadResult.port_evidence.symlink_target || (testReadResult.port_evidence.is_symlink ? 'Broken' : 'Direct Device') }}
                     </span>
                   </div>
                 </div>
 
                 <!-- Available system ports if detected -->
-                <div v-if="testReadResult.port_evidence.system_available_ports && testReadResult.port_evidence.system_available_ports.length" class="pt-1 border-t border-slate-800/80">
-                  <span class="text-3xs text-slate-400 uppercase font-semibold block mb-1">{{ $t('deviceDetail.detectedPorts') }}:</span>
+                <div v-if="testReadResult.port_evidence.system_available_ports && testReadResult.port_evidence.system_available_ports.length" class="pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                  <span class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold block mb-1.5">{{ $t('deviceDetail.detectedPorts') }}:</span>
                   <div class="flex flex-wrap gap-1.5">
                     <span
                       v-for="(pPath, pIdx) in testReadResult.port_evidence.system_available_ports"
                       :key="pIdx"
-                      class="text-3xs font-mono px-2 py-0.5 rounded bg-slate-800/80 text-emerald-300 border border-slate-700"
+                      class="text-3xs font-mono font-medium px-2 py-0.5 rounded bg-white hover:bg-emerald-50/60 text-emerald-800 border border-slate-300 dark:bg-slate-800/80 dark:text-emerald-300 dark:border-slate-700 shadow-2xs"
                     >
                       {{ pPath }}
                     </span>
@@ -3468,14 +3473,14 @@
               </div>
 
               <!-- Panel 2: Modbus Frame & CRC Inspection -->
-              <div v-if="testReadResult.transaction_evidence" class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2.5">
+              <div v-if="testReadResult.transaction_evidence" class="p-3.5 bg-slate-50/80 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-slate-200 uppercase font-sans flex items-center space-x-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase font-sans flex items-center space-x-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
                     <span>{{ $t('deviceDetail.modbusFrames') }}</span>
                   </span>
                   <span
-                    :class="testReadResult.transaction_evidence.crc_validation === 'PASS' ? 'text-emerald-400' : (testReadResult.transaction_evidence.crc_validation === 'FAIL' ? 'text-rose-400' : 'text-slate-500')"
+                    :class="testReadResult.transaction_evidence.crc_validation === 'PASS' ? 'text-emerald-700 dark:text-emerald-400' : (testReadResult.transaction_evidence.crc_validation === 'FAIL' ? 'text-rose-700 dark:text-rose-400' : 'text-slate-500')"
                     class="text-3xs font-mono font-bold"
                   >
                     CRC16: {{ testReadResult.transaction_evidence.crc_validation || 'NOT_CHECKED' }}
@@ -3483,91 +3488,91 @@
                 </div>
 
                 <!-- Request Frame ADU -->
-                <div class="p-2.5 bg-black/40 rounded-lg border border-slate-800 space-y-1">
+                <div class="p-2.5 bg-white dark:bg-black/40 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1 shadow-2xs">
                   <div class="flex items-center justify-between text-3xs font-mono">
-                    <span class="text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.requestFrame') }}</span>
-                    <span :class="testReadResult.transaction_evidence.request_transmitted ? 'text-emerald-400' : 'text-slate-500'">
+                    <span class="text-slate-500 dark:text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.requestFrame') }}</span>
+                    <span :class="testReadResult.transaction_evidence.request_transmitted ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-slate-500'">
                       {{ testReadResult.transaction_evidence.request_transmitted ? $t('deviceDetail.transmitted') : $t('deviceDetail.notTransmitted') }}
                     </span>
                   </div>
-                  <div class="text-xs font-mono font-bold text-blue-300 tracking-wider">
+                  <div class="text-xs font-mono font-bold text-blue-700 dark:text-blue-300 tracking-wider">
                     {{ testReadResult.transaction_evidence.request_frame_hex || '--' }}
                   </div>
                 </div>
 
                 <!-- Response Frame ADU -->
-                <div class="p-2.5 bg-black/40 rounded-lg border border-slate-800 space-y-1">
+                <div class="p-2.5 bg-white dark:bg-black/40 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1 shadow-2xs">
                   <div class="flex items-center justify-between text-3xs font-mono">
-                    <span class="text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.responseFrame') }}</span>
-                    <span :class="testReadResult.transaction_evidence.response_received ? 'text-emerald-400' : 'text-rose-400'">
+                    <span class="text-slate-500 dark:text-slate-400 font-semibold uppercase">{{ $t('deviceDetail.responseFrame') }}</span>
+                    <span :class="testReadResult.transaction_evidence.response_received ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'">
                       {{ testReadResult.transaction_evidence.response_received ? $t('deviceDetail.received') : $t('deviceDetail.noResponse') }}
                     </span>
                   </div>
-                  <div class="text-xs font-mono font-bold text-emerald-300 tracking-wider">
+                  <div class="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 tracking-wider">
                     {{ testReadResult.transaction_evidence.response_frame_hex || (testReadResult.transaction_evidence.response_received ? '--' : $t('deviceDetail.noResponse')) }}
                   </div>
-                  <div v-if="testReadResult.transaction_evidence.crc_expected_hex" class="text-3xs text-slate-400 font-mono pt-0.5">
+                  <div v-if="testReadResult.transaction_evidence.crc_expected_hex" class="text-3xs text-slate-500 dark:text-slate-400 font-mono pt-0.5">
                     {{ $t('deviceDetail.crcExpected') }}: 0x{{ testReadResult.transaction_evidence.crc_expected_hex }} | {{ $t('deviceDetail.crcReceived') }}: 0x{{ testReadResult.transaction_evidence.crc_received_hex }}
                   </div>
                 </div>
 
                 <!-- Modbus Exception Alert if any -->
-                <div v-if="testReadResult.transaction_evidence.modbus_exception_name" class="p-2.5 bg-amber-950/40 rounded-lg border border-amber-500/30 text-amber-200 text-3xs font-mono">
+                <div v-if="testReadResult.transaction_evidence.modbus_exception_name" class="p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 text-3xs font-mono">
                   <strong>Modbus Exception Response:</strong> {{ testReadResult.transaction_evidence.modbus_exception_name }} (Physical communication link is active!)
                 </div>
               </div>
 
               <!-- Panel 3: Data Interpretation & Values -->
-              <div v-if="testReadResult.success || getTestReadFormulaVal() !== null" class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2.5">
+              <div v-if="testReadResult.success || getTestReadFormulaVal() !== null" class="p-3.5 bg-slate-50/80 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-slate-200 uppercase font-sans flex items-center space-x-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase font-sans flex items-center space-x-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 dark:bg-cyan-400"></span>
                     <span>{{ $t('deviceDetail.decodedValue') }} & Telemetry</span>
                   </span>
                   <span
                     v-if="!testReadResult.success && getTestReadFormulaVal() !== null"
-                    class="text-3xs font-mono font-bold px-2 py-0.5 rounded border bg-blue-950/50 text-blue-300 border-blue-700/60"
+                    class="text-3xs font-mono font-bold px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-700/60"
                   >
                     FORMULA FALLBACK (x=0)
                   </span>
                 </div>
 
                 <!-- Prominent Formula Result Card if formula configured -->
-                <div v-if="getTestReadFormulaVal() !== null" class="p-3 bg-blue-950/30 rounded-xl border border-blue-500/30 space-y-1">
+                <div v-if="getTestReadFormulaVal() !== null" class="p-3 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-500/30 space-y-1">
                   <div class="flex items-center justify-between">
-                    <span class="text-3xs text-blue-300 font-semibold uppercase tracking-wider flex items-center space-x-1.5">
-                      <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                    <span class="text-3xs text-blue-700 dark:text-blue-300 font-semibold uppercase tracking-wider flex items-center space-x-1.5">
+                      <span class="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400"></span>
                       <span>{{ $t('parameters.formulaValue') }} (ƒ(x))</span>
                     </span>
-                    <span class="text-3xs font-mono text-blue-300 bg-blue-900/50 px-2 py-0.5 rounded border border-blue-700/50">
+                    <span class="text-3xs font-mono text-blue-700 bg-white border-blue-200 dark:text-blue-300 dark:bg-blue-900/50 px-2 py-0.5 rounded border dark:border-blue-700/50">
                       {{ testReadResult.formula || (testParam && testParam.formula) }}
                     </span>
                   </div>
                   <div class="flex items-baseline space-x-2 pt-1">
-                    <span class="text-2xl font-mono font-extrabold text-blue-400">
+                    <span class="text-2xl font-mono font-extrabold text-blue-700 dark:text-blue-400">
                       {{ getTestReadFormulaVal() }}
                     </span>
-                    <span class="text-xs font-bold text-slate-300 font-mono">{{ testParam.unit }}</span>
+                    <span class="text-xs font-bold text-slate-600 dark:text-slate-300 font-mono">{{ testParam.unit }}</span>
                   </div>
                 </div>
 
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                  <div class="p-2.5 bg-black/40 rounded-lg border border-slate-800">
-                    <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.modbusScaledValue') }}</div>
-                    <div class="text-base font-mono font-bold text-emerald-400 mt-1">
+                  <div class="p-2.5 bg-white dark:bg-black/40 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs">
+                    <div class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.modbusScaledValue') }}</div>
+                    <div class="text-base font-mono font-bold text-emerald-700 dark:text-emerald-400 mt-1">
                       {{ getTestReadModbusVal() }}
-                      <span class="text-xs font-normal text-slate-300 ml-1">{{ testParam.unit }}</span>
+                      <span class="text-xs font-normal text-slate-500 dark:text-slate-300 ml-1">{{ testParam.unit }}</span>
                     </div>
                   </div>
-                  <div class="p-2.5 bg-black/40 rounded-lg border border-slate-800">
-                    <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.rawPduValue') }}</div>
-                    <div class="text-xs font-mono text-slate-200 mt-1">
+                  <div class="p-2.5 bg-white dark:bg-black/40 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs">
+                    <div class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.rawPduValue') }}</div>
+                    <div class="text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 mt-1">
                       {{ testReadResult.raw_value !== undefined ? testReadResult.raw_value : '--' }}
                     </div>
                   </div>
-                  <div class="p-2.5 bg-black/40 rounded-lg border border-slate-800">
-                    <div class="text-3xs text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.rawWords') }}</div>
-                    <div class="text-xs font-mono text-slate-200 mt-1 truncate" :title="testReadResult.data_evidence && testReadResult.data_evidence.raw_register_hex ? testReadResult.data_evidence.raw_register_hex.join(' ') : '--'">
+                  <div class="p-2.5 bg-white dark:bg-black/40 rounded-lg border border-slate-200 dark:border-slate-800 shadow-2xs">
+                    <div class="text-3xs text-slate-500 dark:text-slate-400 uppercase font-semibold">{{ $t('deviceDetail.rawWords') }}</div>
+                    <div class="text-xs font-mono font-semibold text-slate-800 dark:text-slate-200 mt-1 truncate" :title="testReadResult.data_evidence && testReadResult.data_evidence.raw_register_hex ? testReadResult.data_evidence.raw_register_hex.join(' ') : '--'">
                       {{ (testReadResult.data_evidence && testReadResult.data_evidence.raw_register_hex && testReadResult.data_evidence.raw_register_hex.join(' ')) || '--' }}
                     </div>
                   </div>
@@ -3575,10 +3580,10 @@
               </div>
 
               <!-- Panel 4: Terminal mbpoll Command for Side-by-Side Comparison -->
-              <div v-if="testReadResult.mbpoll_command" class="p-3.5 bg-[#0B0F19] rounded-xl border border-slate-800 space-y-2">
+              <div v-if="testReadResult.mbpoll_command" class="p-3.5 bg-slate-50/80 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold text-slate-200 uppercase font-sans flex items-center space-x-1.5">
-                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <span class="text-xs font-bold text-slate-900 dark:text-slate-200 uppercase font-sans flex items-center space-x-1.5">
+                    <svg class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                     </svg>
                     <span>{{ $t('deviceDetail.mbpollCommandTitle') }}</span>
@@ -3586,7 +3591,7 @@
                   <button
                     type="button"
                     @click="copyMbpollCommand"
-                    class="px-2.5 py-1 rounded-lg text-3xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex items-center space-x-1"
+                    class="px-2.5 py-1 rounded-lg text-3xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 dark:text-slate-300 dark:hover:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 transition flex items-center space-x-1 shadow-2xs"
                   >
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
@@ -3594,7 +3599,7 @@
                     <span>{{ $t('deviceDetail.copyMbpoll') }}</span>
                   </button>
                 </div>
-                <div class="p-2.5 bg-black/60 rounded-lg border border-slate-800 font-mono text-3xs text-amber-300 select-all overflow-x-auto whitespace-pre">
+                <div class="p-2.5 bg-slate-100 dark:bg-black/60 rounded-lg border border-slate-300 dark:border-slate-800 font-mono text-3xs text-amber-800 dark:text-amber-300 font-semibold select-all overflow-x-auto whitespace-pre shadow-inner">
 {{ testReadResult.mbpoll_command }}
                 </div>
                 <p class="text-3xs text-slate-500 font-sans italic">
@@ -3606,15 +3611,15 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-3 border-t border-slate-800 flex items-center justify-between bg-[#0B0F19]/80">
+        <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-[#0B0F19]/80">
           <div>
             <button
               v-if="testReadResult"
               type="button"
               @click="copyDiagnosticReport"
-              class="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition flex items-center space-x-1.5"
+              class="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 dark:text-slate-300 dark:hover:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 transition flex items-center space-x-1.5 shadow-2xs"
             >
-              <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
               <span>{{ $t('deviceDetail.copyReport') }}</span>
@@ -3624,7 +3629,7 @@
             <button
               type="button"
               @click="closeTestReadModal"
-              class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition"
             >
               {{ $t('common.close') }}
             </button>
@@ -3632,7 +3637,7 @@
               type="button"
               @click="executeTestRead"
               :disabled="testReadLoading"
-              class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center space-x-1.5 disabled:opacity-50"
+              class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center space-x-1.5 disabled:opacity-50 shadow-sm shadow-emerald-500/20"
             >
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -3647,13 +3652,13 @@
     <!-- Global Floating Toast Notification -->
     <div
       v-if="toastMessage"
-      class="fixed bottom-6 right-6 z-50 flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-semibold backdrop-blur-md transition-all animate-fade-in"
-      :class="toastType === 'error' ? 'bg-rose-950/90 border-rose-500/50 text-rose-200 shadow-rose-950/40' : 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200 shadow-emerald-950/40'"
+      class="fixed bottom-6 right-6 z-50 flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-xl dark:shadow-2xl border text-xs font-semibold backdrop-blur-md transition-all animate-fade-in"
+      :class="toastType === 'error' ? 'bg-rose-50 border-rose-300 text-rose-800 shadow-rose-900/10 dark:bg-rose-950/90 dark:border-rose-500/50 dark:text-rose-200 dark:shadow-rose-950/40' : 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-emerald-900/10 dark:bg-emerald-950/90 dark:border-emerald-500/50 dark:text-emerald-200 dark:shadow-emerald-950/40'"
     >
-      <svg v-if="toastType === 'error'" class="w-5 h-5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg v-if="toastType === 'error'" class="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
       </svg>
-      <svg v-else class="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg v-else class="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
       </svg>
       <span>{{ toastMessage }}</span>
@@ -5409,27 +5414,27 @@ export default {
     getStageCardClass(status) {
       switch (status) {
         case 'PASS':
-          return 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300';
+          return 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-500/30 dark:text-emerald-300';
         case 'FAIL':
-          return 'bg-rose-950/20 border-rose-500/30 text-rose-300';
+          return 'bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-500/30 dark:text-rose-300';
         case 'INSUFFICIENT_EVIDENCE':
-          return 'bg-amber-950/20 border-amber-500/30 text-amber-300';
+          return 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/20 dark:border-amber-500/30 dark:text-amber-300';
         case 'NOT_TESTED':
         default:
-          return 'bg-slate-900/40 border-slate-800 text-slate-500 opacity-60';
+          return 'bg-slate-100/80 border-slate-200 text-slate-600 dark:bg-slate-900/40 dark:border-slate-800 dark:text-slate-500 opacity-75 dark:opacity-60';
       }
     },
     getStageBadgeClass(status) {
       switch (status) {
         case 'PASS':
-          return 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+          return 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/40';
         case 'FAIL':
-          return 'bg-rose-500/20 text-rose-400 border border-rose-500/40';
+          return 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/40';
         case 'INSUFFICIENT_EVIDENCE':
-          return 'bg-amber-500/20 text-amber-400 border border-amber-500/40';
+          return 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/40';
         case 'NOT_TESTED':
         default:
-          return 'bg-slate-800 text-slate-400 border border-slate-700';
+          return 'bg-slate-200/80 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
       }
     },
     getStageBadgeLabel(status) {
@@ -5613,11 +5618,11 @@ export default {
     },
     qualityBadgeClass(quality) {
       switch (quality) {
-        case 'GOOD': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-        case 'BAD': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
-        case 'UNCERTAIN': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
-        case 'STALE': return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
-        default: return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+        case 'GOOD': return 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
+        case 'BAD': return 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20';
+        case 'UNCERTAIN': return 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20';
+        case 'STALE': return 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20';
+        default: return 'bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20';
       }
     },
     chartDotColor(quality) {
@@ -5652,23 +5657,23 @@ export default {
       return action.replace(/_/g, ' ');
     },
     getAuditActionClass(action) {
-      if (!action) return 'bg-slate-500/10 text-slate-300 border border-slate-500/20';
+      if (!action) return 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20';
       if (action.includes('ERROR') || action.includes('DELETE')) {
-        return 'bg-rose-500/15 text-rose-400 border border-rose-500/30';
+        return 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30';
       }
       if (action.includes('RESTORED') || action.includes('CREATE')) {
-        return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30';
       }
       if (action.includes('UPDATE') || action.includes('CONNECT')) {
-        return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+        return 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30';
       }
-      return 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
+      return 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/30';
     },
     getAuditCardBorder(action) {
-      if (!action) return 'border-slate-800/80';
-      if (action.includes('ERROR')) return 'border-rose-900/50 bg-rose-950/10';
-      if (action.includes('RESTORED')) return 'border-emerald-900/50 bg-emerald-950/10';
-      return 'border-slate-800/80';
+      if (!action) return 'bg-slate-50/60 dark:bg-[#0B0F19] border-[#D5E2F0] hover:border-slate-300 dark:border-slate-800/80 dark:hover:border-slate-700/80';
+      if (action.includes('ERROR')) return 'bg-rose-50/60 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/50';
+      if (action.includes('RESTORED')) return 'bg-emerald-50/60 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/50';
+      return 'bg-slate-50/60 dark:bg-[#0B0F19] border-[#D5E2F0] hover:border-slate-300 dark:border-slate-800/80 dark:hover:border-slate-700/80';
     },
     parseSafeJson(val) {
       if (!val) return null;
