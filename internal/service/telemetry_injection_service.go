@@ -51,6 +51,7 @@ type TelemetryInjectionRequest struct {
 	ValueTarget            string                         `json:"value_target"`
 	RefreshOutbound        *bool                          `json:"refresh_outbound,omitempty"`
 	EnqueueMissingOutbound bool                           `json:"enqueue_missing_outbound"`
+	OutboundDestinationIDs []uint                         `json:"outbound_destination_ids,omitempty"`
 	Seed                   int64                          `json:"seed,omitempty"`
 	Note                   string                         `json:"note,omitempty"`
 	Parameters             []TelemetryInjectionParamInput `json:"parameters"`
@@ -107,10 +108,18 @@ type TelemetryInjectionPreviewResponse struct {
 	SamplePreview       []InjectionSamplePreview    `json:"sample_preview"`
 }
 
-// TelemetryInjectionExecuteResponse returns the persisted batch and preview breakdown
+// TelemetryInjectionExecuteResponse returns the persisted batch, preview breakdown, and per-destination outbound diagnostics
 type TelemetryInjectionExecuteResponse struct {
-	Batch   *model.TelemetryInjectionBatch     `json:"batch"`
-	Preview *TelemetryInjectionPreviewResponse `json:"preview"`
+	Batch          *model.TelemetryInjectionBatch     `json:"batch"`
+	Preview        *TelemetryInjectionPreviewResponse `json:"preview"`
+	OutboundResult *OutboundWindowRefreshResult       `json:"outbound_result,omitempty"`
+}
+
+// TelemetryInjectionOutboundSyncResponse returns metrics when re-enqueueing/syncing an existing active injection batch to Outbound
+type TelemetryInjectionOutboundSyncResponse struct {
+	Batch               *model.TelemetryInjectionBatch `json:"batch"`
+	RecalculatedBuckets int                            `json:"recalculated_buckets"`
+	OutboundResult      *OutboundWindowRefreshResult   `json:"outbound_result"`
 }
 
 // TelemetryInjectionRollbackResponse returns rollback metrics
@@ -121,35 +130,55 @@ type TelemetryInjectionRollbackResponse struct {
 	RefreshedOutbound   int                            `json:"refreshed_outbound"`
 }
 
-// DeviceParameterInjectionHint provides parameter scaling metadata and 1-click range hints for the UI
-type DeviceParameterInjectionHint struct {
-	ParameterID           uint       `json:"parameter_id"`
-	ParameterCode         string     `json:"parameter_code"`
-	ParameterName         string     `json:"parameter_name"`
-	Unit                  string     `json:"unit"`
-	DataType              string     `json:"data_type"`
-	Precision             int        `json:"precision"`
-	Scale                 float64    `json:"scale"`
-	Offset                float64    `json:"offset"`
-	Formula               string     `json:"formula,omitempty"`
-	CurrentProcessedValue *float64   `json:"current_processed_value,omitempty"`
-	CurrentRawValue       *float64   `json:"current_raw_value,omitempty"`
-	CurrentQuality        string     `json:"current_quality,omitempty"`
-	CurrentReceivedAt     *time.Time `json:"current_received_at,omitempty"`
-	SuggestedMin          float64    `json:"suggested_min"`
-	SuggestedMax          float64    `json:"suggested_max"`
-	AggregationIntervals  []int      `json:"aggregation_intervals"`
+// OutboundDestinationInjectionHint describes an eligible Outbound destination for the selected device in Telemetry Injector UI
+type OutboundDestinationInjectionHint struct {
+	DestinationID           uint   `json:"destination_id"`
+	Name                    string `json:"name"`
+	Type                    string `json:"type"`
+	Enabled                 bool   `json:"enabled"`
+	IntervalSeconds         int    `json:"interval_seconds"`
+	DispatchIntervalSeconds int    `json:"dispatch_interval_seconds"`
+	TemplateType            string `json:"template_type"`
+	Structure               string `json:"structure"`
+	MatchedParamCount       int    `json:"matched_param_count"`
+	TotalActiveParams       int    `json:"total_active_params"`
+	NeedsIntervalRollup     bool   `json:"needs_interval_rollup"`
+	RecommendedSelected     bool   `json:"recommended_selected"`
+	Note                    string `json:"note,omitempty"`
 }
 
-// DeviceInjectionHintsResponse provides full device & parameter hints for the Superadmin Telemetry Injector UI
+// DeviceParameterInjectionHint provides parameter scaling metadata and 1-click range hints for the UI
+type DeviceParameterInjectionHint struct {
+	ParameterID             uint       `json:"parameter_id"`
+	ParameterCode           string     `json:"parameter_code"`
+	ParameterName           string     `json:"parameter_name"`
+	Unit                    string     `json:"unit"`
+	DataType                string     `json:"data_type"`
+	Precision               int        `json:"precision"`
+	Scale                   float64    `json:"scale"`
+	Offset                  float64    `json:"offset"`
+	Formula                 string     `json:"formula,omitempty"`
+	CurrentProcessedValue   *float64   `json:"current_processed_value,omitempty"`
+	CurrentRawValue         *float64   `json:"current_raw_value,omitempty"`
+	CurrentQuality          string     `json:"current_quality,omitempty"`
+	CurrentReceivedAt       *time.Time `json:"current_received_at,omitempty"`
+	SuggestedMin            float64    `json:"suggested_min"`
+	SuggestedMax            float64    `json:"suggested_max"`
+	AggregationIntervals    []int      `json:"aggregation_intervals"`
+	HasCustomerProcessedAgg bool       `json:"has_customer_agg"`
+}
+
+// DeviceInjectionHintsResponse provides full device, parameter, and destination hints for the Superadmin Telemetry Injector UI
 type DeviceInjectionHintsResponse struct {
-	DeviceID           uint                           `json:"device_id"`
-	DeviceCode         string                         `json:"device_code"`
-	DeviceName         string                         `json:"device_name"`
-	Protocol           string                         `json:"protocol"`
-	Timezone           string                         `json:"timezone"`
-	ActiveAggIntervals []int                          `json:"active_agg_intervals"`
-	Parameters         []DeviceParameterInjectionHint `json:"parameters"`
+	DeviceID                   uint                               `json:"device_id"`
+	DeviceCode                 string                             `json:"device_code"`
+	DeviceName                 string                             `json:"device_name"`
+	Protocol                   string                             `json:"protocol"`
+	Timezone                   string                             `json:"timezone"`
+	ActiveAggIntervals         []int                              `json:"active_agg_intervals"`
+	ActiveCustomerAggIntervals []int                              `json:"active_customer_agg_intervals"`
+	Parameters                 []DeviceParameterInjectionHint     `json:"parameters"`
+	OutboundDestinations       []OutboundDestinationInjectionHint `json:"outbound_destinations"`
 }
 
 // TelemetryInjectionService orchestrates Superadmin-only telemetry generation, aggregation recalculation,
@@ -179,7 +208,8 @@ func NewTelemetryInjectionService(
 	}
 }
 
-// GetDeviceParameterHints returns parameter metadata, active aggregation intervals, and suggested [Min, Max] ranges
+// GetDeviceParameterHints returns parameter metadata, active aggregation intervals, suggested [Min, Max] ranges,
+// and eligible Outbound destinations (including DISABLED ones) for the selected device.
 func (s *TelemetryInjectionService) GetDeviceParameterHints(ctx context.Context, deviceID uint) (*DeviceInjectionHintsResponse, error) {
 	if deviceID == 0 {
 		return nil, fmt.Errorf("device_id wajib dipilih")
@@ -189,20 +219,39 @@ func (s *TelemetryInjectionService) GetDeviceParameterHints(ctx context.Context,
 		return nil, fmt.Errorf("device #%d tidak ditemukan", deviceID)
 	}
 
+	activeParamMap := make(map[uint]model.Parameter)
+	var activeParams []model.Parameter
+	for _, p := range dev.Parameters {
+		if p.Enabled {
+			activeParamMap[p.ID] = p
+			activeParams = append(activeParams, p)
+		}
+	}
+
 	defs, _ := s.aggRepo.ListDefinitions(ctx, deviceID, true)
 	paramIntervalsMap := make(map[uint]map[int]bool)
+	paramHasCustomerAgg := make(map[uint]bool)
 	deviceIntervalsSet := make(map[int]bool)
+	customerIntervalsSet := make(map[int]bool)
 	for _, d := range defs {
 		if d.IntervalSeconds > 0 {
+			if _, isActiveParam := activeParamMap[d.ParameterID]; !isActiveParam {
+				continue
+			}
 			deviceIntervalsSet[d.IntervalSeconds] = true
 			if paramIntervalsMap[d.ParameterID] == nil {
 				paramIntervalsMap[d.ParameterID] = make(map[int]bool)
 			}
 			paramIntervalsMap[d.ParameterID][d.IntervalSeconds] = true
+			if d.SourceType == model.SourceCustomerProcessed {
+				paramHasCustomerAgg[d.ParameterID] = true
+				customerIntervalsSet[d.IntervalSeconds] = true
+			}
 		}
 	}
 
 	devIntervals := sortedIntKeys(deviceIntervalsSet)
+	custIntervals := sortedIntKeys(customerIntervalsSet)
 	protocol := string(dev.DeviceType)
 	if dev.Connection != nil && dev.Connection.Protocol != "" {
 		protocol = string(dev.Connection.Protocol)
@@ -215,11 +264,8 @@ func (s *TelemetryInjectionService) GetDeviceParameterHints(ctx context.Context,
 		tz = "Asia/Jakarta"
 	}
 
-	hints := make([]DeviceParameterInjectionHint, 0, len(dev.Parameters))
-	for _, p := range dev.Parameters {
-		if !p.Enabled {
-			continue
-		}
+	hints := make([]DeviceParameterInjectionHint, 0, len(activeParams))
+	for _, p := range activeParams {
 		scale := effectiveScale(&p)
 		prec := effectivePrecision(&p)
 
@@ -240,34 +286,149 @@ func (s *TelemetryInjectionService) GetDeviceParameterHints(ctx context.Context,
 		sugMin, sugMax := suggestParameterRange(&p, curProc, prec)
 
 		hints = append(hints, DeviceParameterInjectionHint{
-			ParameterID:           p.ID,
-			ParameterCode:         p.ParameterCode,
-			ParameterName:         p.ParameterName,
-			Unit:                  p.Unit,
-			DataType:              string(p.DataType),
-			Precision:             prec,
-			Scale:                 scale,
-			Offset:                p.Offset,
-			Formula:               p.Formula,
-			CurrentProcessedValue: curProc,
-			CurrentRawValue:       curRaw,
-			CurrentQuality:        string(p.CurrentQuality),
-			CurrentReceivedAt:     p.CurrentReceivedAt,
-			SuggestedMin:          sugMin,
-			SuggestedMax:          sugMax,
-			AggregationIntervals:  sortedIntKeys(paramIntervalsMap[p.ID]),
+			ParameterID:             p.ID,
+			ParameterCode:           p.ParameterCode,
+			ParameterName:           p.ParameterName,
+			Unit:                    p.Unit,
+			DataType:                string(p.DataType),
+			Precision:               prec,
+			Scale:                   scale,
+			Offset:                  p.Offset,
+			Formula:                 p.Formula,
+			CurrentProcessedValue:   curProc,
+			CurrentRawValue:         curRaw,
+			CurrentQuality:          string(p.CurrentQuality),
+			CurrentReceivedAt:       p.CurrentReceivedAt,
+			SuggestedMin:            sugMin,
+			SuggestedMax:            sugMax,
+			AggregationIntervals:    sortedIntKeys(paramIntervalsMap[p.ID]),
+			HasCustomerProcessedAgg: paramHasCustomerAgg[p.ID],
 		})
 	}
 
+	destHints := s.buildOutboundDestinationHints(ctx, dev, activeParams, customerIntervalsSet, custIntervals)
+
 	return &DeviceInjectionHintsResponse{
-		DeviceID:           dev.ID,
-		DeviceCode:         dev.DeviceCode,
-		DeviceName:         dev.DeviceName,
-		Protocol:           protocol,
-		Timezone:           tz,
-		ActiveAggIntervals: devIntervals,
-		Parameters:         hints,
+		DeviceID:                   dev.ID,
+		DeviceCode:                 dev.DeviceCode,
+		DeviceName:                 dev.DeviceName,
+		Protocol:                   protocol,
+		Timezone:                   tz,
+		ActiveAggIntervals:         devIntervals,
+		ActiveCustomerAggIntervals: custIntervals,
+		Parameters:                 hints,
+		OutboundDestinations:       destHints,
 	}, nil
+}
+
+func (s *TelemetryInjectionService) buildOutboundDestinationHints(
+	ctx context.Context,
+	dev *model.Device,
+	activeParams []model.Parameter,
+	custIntervalsSet map[int]bool,
+	custIntervals []int,
+) []OutboundDestinationInjectionHint {
+	if s.outboundSvc == nil || dev == nil {
+		return []OutboundDestinationInjectionHint{}
+	}
+	dests, err := s.outboundSvc.GetDestinations(ctx, false, true)
+	if err != nil || len(dests) == 0 {
+		return []OutboundDestinationInjectionHint{}
+	}
+
+	out := make([]OutboundDestinationInjectionHint, 0, len(dests))
+	anyRecommended := false
+
+	for _, d := range dests {
+		if d.DeviceID != nil && *d.DeviceID != dev.ID {
+			continue
+		}
+		cfg := d.PayloadConfig
+		if cfg == nil {
+			cfg, _ = s.outboundSvc.GetPayloadConfig(ctx, d.ID)
+		}
+		tmpl := "STANDARD"
+		struc := "FLAT"
+		if cfg != nil {
+			if strings.TrimSpace(cfg.TemplateType) != "" {
+				tmpl = strings.TrimSpace(cfg.TemplateType)
+			}
+			if strings.TrimSpace(cfg.Structure) != "" {
+				struc = strings.TrimSpace(cfg.Structure)
+			}
+		}
+
+		matcher := buildParameterMappingMatcher(cfg)
+		dedicated := d.DeviceID != nil && *d.DeviceID == dev.ID
+		matched := 0
+		for _, p := range activeParams {
+			if en, _ := matcher.ResolveWithName(dev.ID, dev.DeviceCode, p.ID, p.ParameterCode, p.ParameterName); en {
+				matched++
+				continue
+			}
+			seen, _ := isParamMappedInConfig(cfg, dev.ID, dev.DeviceCode, p.ID, p.ParameterCode)
+			if !seen {
+				_, canonical := resolveTemplateDefaultAlias(cfg, p.ParameterCode, p.ParameterName)
+				if dedicated || canonical {
+					matched++
+				}
+			}
+		}
+
+		reqInt := d.IntervalSeconds
+		if d.DispatchIntervalSeconds > 0 && reqInt <= 0 {
+			reqInt = 120
+		}
+		needsRollup := false
+		if reqInt > 0 && !custIntervalsSet[reqInt] {
+			for _, ci := range custIntervals {
+				if ci > 0 && ci < reqInt {
+					needsRollup = true
+					break
+				}
+			}
+		}
+
+		rec := dedicated || matched > 0
+		if rec {
+			anyRecommended = true
+		}
+
+		var notes []string
+		if !d.Enabled {
+			notes = append(notes, "DISABLED (masuk antrean PENDING aman tanpa auto-kirim)")
+		}
+		if needsRollup && len(custIntervals) > 0 {
+			notes = append(notes, fmt.Sprintf("Rollup otomatis %dm → %dm", custIntervals[0]/60, reqInt/60))
+		}
+		if matched == 0 && len(activeParams) > 0 {
+			notes = append(notes, fmt.Sprintf("0/%d param dipetakan (centang jika ingin disertakan)", len(activeParams)))
+		}
+
+		out = append(out, OutboundDestinationInjectionHint{
+			DestinationID:           d.ID,
+			Name:                    d.Name,
+			Type:                    string(d.Type),
+			Enabled:                 d.Enabled,
+			IntervalSeconds:         d.IntervalSeconds,
+			DispatchIntervalSeconds: d.DispatchIntervalSeconds,
+			TemplateType:            tmpl,
+			Structure:               struc,
+			MatchedParamCount:       matched,
+			TotalActiveParams:       len(activeParams),
+			NeedsIntervalRollup:     needsRollup,
+			RecommendedSelected:     rec,
+			Note:                    strings.Join(notes, " · "),
+		})
+	}
+
+	if !anyRecommended {
+		for i := range out {
+			out[i].RecommendedSelected = true
+		}
+	}
+
+	return out
 }
 
 type injectionPlan struct {
@@ -784,15 +945,25 @@ func (s *TelemetryInjectionService) ExecuteInjection(
 		refreshOutbound = *req.RefreshOutbound
 	}
 	refreshedOutbound := 0
-	if refreshOutbound && s.outboundSvc != nil {
-		refreshedOutbound, _ = s.outboundSvc.RefreshQueueForWindow(
+	var outboundRes *OutboundWindowRefreshResult
+	if (refreshOutbound || req.EnqueueMissingOutbound) && s.outboundSvc != nil {
+		outboundRes, _ = s.outboundSvc.RefreshQueueForWindowDetailed(
 			ctx,
-			batch.DeviceID,
-			plan.startUTC,
-			plan.endUTC,
-			completedEnds,
-			req.EnqueueMissingOutbound,
+			OutboundWindowRefreshOptions{
+				DeviceID:                    batch.DeviceID,
+				StartTime:                   plan.startUTC,
+				EndTime:                     plan.endUTC,
+				CompletedBucketEnds:         completedEnds,
+				RefreshExisting:             refreshOutbound,
+				EnqueueMissing:              req.EnqueueMissingOutbound,
+				IncludeDisabledDestinations: true,
+				DestinationIDs:              req.OutboundDestinationIDs,
+				ForceIncludeParamIDs:        plan.paramIDs,
+			},
 		)
+		if outboundRes != nil {
+			refreshedOutbound = outboundRes.TotalTouched
+		}
 	}
 
 	batch.AggregatedBuckets = aggBuckets
@@ -800,8 +971,91 @@ func (s *TelemetryInjectionService) ExecuteInjection(
 	_ = s.repo.UpdateBatchSummary(ctx, batch.ID, aggBuckets, refreshedOutbound)
 
 	return &TelemetryInjectionExecuteResponse{
-		Batch:   batch,
-		Preview: plan.preview,
+		Batch:          batch,
+		Preview:        plan.preview,
+		OutboundResult: outboundRes,
+	}, nil
+}
+
+// SyncBatchOutbound recalculates aggregations and enqueues/refreshes Outbound Delivery Queue items
+// for an existing ACTIVE injection batch without needing to roll back or re-inject raw samples.
+func (s *TelemetryInjectionService) SyncBatchOutbound(
+	ctx context.Context,
+	batchID uint,
+	destinationIDs []uint,
+) (*TelemetryInjectionOutboundSyncResponse, error) {
+	if batchID == 0 {
+		return nil, fmt.Errorf("batch_id tidak valid")
+	}
+	batch, err := s.repo.GetBatchByID(ctx, batchID)
+	if err != nil || batch == nil {
+		return nil, fmt.Errorf("batch suntikan #%d tidak ditemukan", batchID)
+	}
+	if !strings.EqualFold(batch.Status, "ACTIVE") {
+		return nil, fmt.Errorf("hanya batch berstatus ACTIVE yang dapat diantrekan ke Outbound (status saat ini: %s)", batch.Status)
+	}
+
+	var paramInputs []TelemetryInjectionParamInput
+	var paramIDs []uint
+	if strings.TrimSpace(batch.ParametersConfigJSON) != "" {
+		if err := json.Unmarshal([]byte(batch.ParametersConfigJSON), &paramInputs); err == nil {
+			for _, pi := range paramInputs {
+				if pi.ParameterID > 0 {
+					paramIDs = append(paramIDs, pi.ParameterID)
+				}
+			}
+		}
+	}
+
+	aggBuckets := batch.AggregatedBuckets
+	var completedEnds []time.Time
+	if s.aggService != nil {
+		recalc, ends, rErr := s.aggService.RecalculateRangeForDevice(
+			ctx,
+			batch.DeviceID,
+			paramIDs,
+			batch.StartTime,
+			batch.EndTime,
+			false,
+		)
+		if rErr == nil {
+			aggBuckets = recalc
+			completedEnds = ends
+		}
+	}
+
+	var outboundRes *OutboundWindowRefreshResult
+	if s.outboundSvc != nil {
+		outboundRes, err = s.outboundSvc.RefreshQueueForWindowDetailed(
+			ctx,
+			OutboundWindowRefreshOptions{
+				DeviceID:                    batch.DeviceID,
+				StartTime:                   batch.StartTime,
+				EndTime:                     batch.EndTime,
+				CompletedBucketEnds:         completedEnds,
+				RefreshExisting:             true,
+				EnqueueMissing:              true,
+				IncludeDisabledDestinations: true,
+				DestinationIDs:              destinationIDs,
+				ForceIncludeParamIDs:        paramIDs,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if outboundRes == nil {
+		outboundRes = &OutboundWindowRefreshResult{Destinations: []OutboundDestinationRefreshDetail{}}
+	}
+
+	batch.AggregatedBuckets = aggBuckets
+	batch.RefreshedOutbound = outboundRes.TotalTouched
+	_ = s.repo.UpdateBatchSummary(ctx, batch.ID, aggBuckets, outboundRes.TotalTouched)
+
+	return &TelemetryInjectionOutboundSyncResponse{
+		Batch:               batch,
+		RecalculatedBuckets: aggBuckets,
+		OutboundResult:      outboundRes,
 	}, nil
 }
 

@@ -35,6 +35,7 @@ type OutboundRepository interface {
 
 	// Delivery Queue
 	EnqueueDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) error
+	EnqueueOrRefreshDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) (string, model.OutboundDeliveryStatus, error)
 	GetQueueItemByID(ctx context.Context, id uint64) (*model.OutboundDeliveryQueue, error)
 	GetQueueItems(ctx context.Context, filter QueueFilter) ([]model.OutboundDeliveryQueue, int64, error)
 	GetQueueSummary(ctx context.Context) (*model.DeliveryQueueSummary, error)
@@ -72,6 +73,8 @@ type QueueFilter struct {
 	Search          string
 	StartDate       *time.Time
 	EndDate         *time.Time
+	WindowStart     *time.Time
+	WindowEnd       *time.Time
 	IntervalSeconds *int
 	Page            int
 	PageSize        int
@@ -329,15 +332,24 @@ func (r *outboundRepository) GetRecentAggregationResultsMultiDevice(ctx context.
 
 // EnqueueDelivery persists a new delivery queue entry with idempotency check and pending batch merge
 func (r *outboundRepository) EnqueueDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) error {
+	_, _, err := r.EnqueueOrRefreshDelivery(ctx, item)
+	return err
+}
+
+// EnqueueOrRefreshDelivery persists a delivery queue entry or refreshes an undelivered/cancelled entry with the same idempotency key.
+// Returns action ("CREATED", "UPDATED", or "SKIPPED_DELIVERED") and the prior status when an item already existed.
+func (r *outboundRepository) EnqueueOrRefreshDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) (string, model.OutboundDeliveryStatus, error) {
 	var existing model.OutboundDeliveryQueue
 	err := r.db.WithContext(ctx).Where("idempotency_key = ?", item.IdempotencyKey).First(&existing).Error
 	if err == nil {
-		// Existing item with this idempotency key
 		if item.IsReplay {
-			return r.db.WithContext(ctx).Create(item).Error
+			if cErr := r.db.WithContext(ctx).Create(item).Error; cErr != nil {
+				return "", existing.Status, cErr
+			}
+			return "CREATED", existing.Status, nil
 		}
-		// If still pending, allow updating with additional unified devices / parameters
-		if existing.Status == model.DeliveryPending {
+		prevStatus := existing.Status
+		if existing.Status == model.DeliveryPending || existing.Status == model.DeliveryCancelled {
 			existing.DeviceCount = item.DeviceCount
 			existing.DevicesSummary = item.DevicesSummary
 			existing.ParameterCount = item.ParameterCount
@@ -345,13 +357,25 @@ func (r *outboundRepository) EnqueueDelivery(ctx context.Context, item *model.Ou
 			existing.SourceValuesJSON = item.SourceValuesJSON
 			existing.PayloadSnapshot = item.PayloadSnapshot
 			existing.PayloadVersion = item.PayloadVersion
+			if existing.Status == model.DeliveryCancelled {
+				existing.Status = model.DeliveryPending
+				existing.Attempts = 0
+				existing.LastError = ""
+				existing.NextRetryAt = nil
+			}
 			existing.UpdatedAt = time.Now()
-			return r.db.WithContext(ctx).Save(&existing).Error
+			if sErr := r.db.WithContext(ctx).Save(&existing).Error; sErr != nil {
+				return "", prevStatus, sErr
+			}
+			return "UPDATED", prevStatus, nil
 		}
-		// If already claimed (SENDING) or DELIVERED, do not duplicate
-		return nil
+		// If already claimed (SENDING) or DELIVERED/ACKNOWLEDGED, preserve historical delivery record
+		return "SKIPPED_DELIVERED", prevStatus, nil
 	}
-	return r.db.WithContext(ctx).Create(item).Error
+	if cErr := r.db.WithContext(ctx).Create(item).Error; cErr != nil {
+		return "", "", cErr
+	}
+	return "CREATED", model.DeliveryPending, nil
 }
 
 // GetQueueItemByID retrieves a delivery queue item by its primary key
@@ -400,9 +424,15 @@ func (r *outboundRepository) GetQueueItems(ctx context.Context, filter QueueFilt
 	if filter.EndDate != nil {
 		query = query.Where("created_at <= ?", *filter.EndDate)
 	}
+	if filter.WindowStart != nil {
+		query = query.Where("period_end > ?", *filter.WindowStart)
+	}
+	if filter.WindowEnd != nil {
+		query = query.Where("period_start < ?", *filter.WindowEnd)
+	}
 	if strings.TrimSpace(filter.Search) != "" {
 		s := "%" + strings.TrimSpace(filter.Search) + "%"
-		query = query.Where("batch_id LIKE ? OR idempotency_key LIKE ?", s, s)
+		query = query.Where("batch_id LIKE ? OR idempotency_key LIKE ? OR devices_summary LIKE ?", s, s, s)
 	}
 
 	if err := query.Count(&total).Error; err != nil {

@@ -414,3 +414,304 @@ func TestTelemetryInjection_FillMissingSparingWindow_ZeroLeak_AndRollback(t *tes
 		t.Fatalf("expected injected debit removed from bucket 12 after rollback, got %v", sparingDocRB.Data[0])
 	}
 }
+
+func TestTelemetryInjection_DisabledDestination_CrossIntervalRollup_AndResync(t *testing.T) {
+	db := setupTelemetryInjectionTestDB(t)
+	ctx := context.Background()
+
+	devRepo := repository.NewDeviceRepository(db)
+	aggRepo := repository.NewAggregationRepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	outRepo := repository.NewOutboundRepository(db)
+	injRepo := repository.NewTelemetryInjectionRepository(db)
+
+	aggSvc := service.NewAggregationService(aggRepo, devRepo, sysRepo, nil)
+	outSvc := service.NewOutboundService(outRepo, devRepo, service.NewConfigurablePayloadFormatter())
+	injSvc := service.NewTelemetryInjectionService(injRepo, devRepo, aggRepo, aggSvc, outSvc)
+
+	// 1. Create com1 device with 1 old disabled AQMS param (1h agg) + 5 active SPARING params (2m CUSTOMER_PROCESSED agg only = 150 buckets/hour)
+	dev := &model.Device{
+		ID:         45,
+		DeviceCode: "com1",
+		DeviceName: "COM 1",
+		DeviceType: "MODBUS_RTU",
+		Timezone:   "Asia/Jakarta",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+	}
+	if err := db.Create(dev).Error; err != nil {
+		t.Fatalf("create device: %v", err)
+	}
+
+	oldPM10 := &model.Parameter{
+		ID:            100,
+		DeviceID:      dev.ID,
+		ParameterCode: "pm10",
+		ParameterName: "PM10",
+		Unit:          "ug/m3",
+		DataType:      model.DataTypeFloat32,
+		Scale:         1.0,
+		Precision:     2,
+		Enabled:       false,
+	}
+	if err := db.Create(oldPM10).Error; err != nil {
+		t.Fatalf("create disabled pm10: %v", err)
+	}
+	// Disabled old parameter must explicitly stay disabled in GORM (boolean false)
+	db.Model(oldPM10).Update("enabled", false)
+	_ = db.Create(&model.AggregationDefinition{
+		Name:            "PM10 1h",
+		Code:            "pm10_1h",
+		SourceType:      model.SourceCustomerProcessed,
+		DeviceID:        dev.ID,
+		ParameterID:     oldPM10.ID,
+		Function:        model.FunctionAvg,
+		IntervalSeconds: 3600,
+		Timezone:        "UTC",
+		Enabled:         true,
+	}).Error
+
+	sparingParams := []struct {
+		id   uint
+		code string
+		name string
+		unit string
+		minV float64
+		maxV float64
+	}{
+		{101, "ammonia", "Ammonia (NH3-N)", "mg/L", 6.7, 7.0},
+		{102, "cod", "COD", "mg/L", 106.0, 112.0},
+		{103, "debit", "Debit", "m3/s", 0.82, 0.88},
+		{104, "ph", "PH", "", 6.8, 7.1},
+		{105, "tss", "TSS", "mg/L", 28.0, 29.5},
+	}
+	for _, sp := range sparingParams {
+		p := &model.Parameter{
+			ID:            sp.id,
+			DeviceID:      dev.ID,
+			ParameterCode: sp.code,
+			ParameterName: sp.name,
+			Unit:          sp.unit,
+			DataType:      model.DataTypeFloat32,
+			Scale:         1.0,
+			Precision:     3,
+			ByteOrder:     "ABCD",
+			Enabled:       true,
+		}
+		if err := db.Create(p).Error; err != nil {
+			t.Fatalf("create param %s: %v", sp.code, err)
+		}
+		if err := db.Create(&model.AggregationDefinition{
+			Name:            sp.code + " 2m",
+			Code:            sp.code + "_2m",
+			SourceType:      model.SourceCustomerProcessed,
+			DeviceID:        dev.ID,
+			ParameterID:     sp.id,
+			Function:        model.FunctionAvg,
+			IntervalSeconds: 120,
+			Timezone:        "UTC",
+			Enabled:         true,
+		}).Error; err != nil {
+			t.Fatalf("create 2m agg def: %v", err)
+		}
+	}
+
+	// 2. Destination #1: CBI (30m = 1800s, ENABLED, stale ParameterMappingsJSON referencing only old disabled pm10)
+	destCBI := &model.OutputDestination{
+		Name:            "CBI",
+		Type:            model.DestREST,
+		Endpoint:        "http://127.0.0.1:1/cbi-noop",
+		IntervalSeconds: 1800,
+		Enabled:         false, // keep false so test never dials network, then flip via DB update to simulate active without background worker
+		RetryLimit:      5,
+	}
+	if err := outSvc.CreateDestination(ctx, destCBI); err != nil {
+		t.Fatalf("create CBI dest: %v", err)
+	}
+	db.Model(destCBI).Update("enabled", true)
+	cbiCfg, _ := outSvc.GetPayloadConfig(ctx, destCBI.ID)
+	staleCBIMappings, _ := json.Marshal([]model.ParameterMappingItem{
+		{
+			DeviceID:      dev.ID,
+			DeviceCode:    "com1",
+			ParameterID:   oldPM10.ID,
+			ParameterCode: "pm10",
+			ParameterName: "PM10",
+			ExternalName:  "pm10",
+			Enabled:       true,
+		},
+	})
+	cbiCfg.TemplateType = "MULTI_TICK_SENSOR"
+	cbiCfg.Structure = "MULTI_TICK_ARRAY"
+	cbiCfg.ParameterMappingsJSON = string(staleCBIMappings)
+	if err := outRepo.UpsertPayloadConfig(ctx, cbiCfg); err != nil {
+		t.Fatalf("upsert CBI payload cfg: %v", err)
+	}
+
+	// 3. Destination #2: KLHK SPARING (DISABLED = false, 2m -> 1h bundle, stale ParameterMappingsJSON with only debit)
+	destSparing := &model.OutputDestination{
+		Name:                    "KLHK SPARING",
+		Type:                    model.DestREST,
+		Endpoint:                "https://sparing.example.test/send",
+		AuthType:                "SPARING_JWT_STATIC",
+		AuthToken:               "secret-key",
+		IntervalSeconds:         120,
+		DispatchIntervalSeconds: 3600,
+		Enabled:                 false,
+		RetryLimit:              5,
+	}
+	if err := outSvc.CreateDestination(ctx, destSparing); err != nil {
+		t.Fatalf("create SPARING dest: %v", err)
+	}
+	// Ensure Enabled is false in DB
+	db.Model(destSparing).Update("enabled", false)
+	sparingCfg, _ := outSvc.GetPayloadConfig(ctx, destSparing.ID)
+	staleSparingMappings, _ := json.Marshal([]model.ParameterMappingItem{
+		{
+			DeviceID:      dev.ID,
+			DeviceCode:    "com1",
+			ParameterID:   103,
+			ParameterCode: "debit",
+			ParameterName: "Debit",
+			ExternalName:  "debit",
+			Enabled:       true,
+		},
+	})
+	sparingCfg.StationIDField = "uid"
+	sparingCfg.StationIDValue = "65c05cac405f557259fed7cc"
+	sparingCfg.TemplateType = "KLHK_SPARING_HOURLY"
+	sparingCfg.Structure = "SPARING_DATA_ARRAY"
+	sparingCfg.TimestampField = "datetime"
+	sparingCfg.TimestampFormat = "UNIX_SEC"
+	sparingCfg.TimestampSource = "PERIOD_END"
+	sparingCfg.ParameterMappingsJSON = string(staleSparingMappings)
+	if err := outRepo.UpsertPayloadConfig(ctx, sparingCfg); err != nil {
+		t.Fatalf("upsert SPARING payload cfg: %v", err)
+	}
+
+	// 4. Verify GetDeviceParameterHints detects DISABLED SPARING (recommended=true, 5/5 matched) & CBI (recommended=false, rollup=true)
+	hints, err := injSvc.GetDeviceParameterHints(ctx, dev.ID)
+	if err != nil {
+		t.Fatalf("GetDeviceParameterHints: %v", err)
+	}
+	if len(hints.ActiveAggIntervals) != 1 || hints.ActiveAggIntervals[0] != 120 {
+		t.Fatalf("expected only active parameter agg interval [120], got %v", hints.ActiveAggIntervals)
+	}
+	if len(hints.OutboundDestinations) != 2 {
+		t.Fatalf("expected 2 outbound destination hints (including DISABLED), got %d", len(hints.OutboundDestinations))
+	}
+	var cbiHint, sparingHint *service.OutboundDestinationInjectionHint
+	for i := range hints.OutboundDestinations {
+		h := &hints.OutboundDestinations[i]
+		if h.DestinationID == destCBI.ID {
+			cbiHint = h
+		} else if h.DestinationID == destSparing.ID {
+			sparingHint = h
+		}
+	}
+	if sparingHint == nil || !sparingHint.RecommendedSelected || sparingHint.MatchedParamCount != 5 {
+		t.Fatalf("expected DISABLED SPARING destination to be recommended with 5/5 matched params, got %+v", sparingHint)
+	}
+	if cbiHint == nil || cbiHint.RecommendedSelected || !cbiHint.NeedsIntervalRollup {
+		t.Fatalf("expected CBI destination to have RecommendedSelected=false and NeedsIntervalRollup=true, got %+v", cbiHint)
+	}
+
+	// 5. Inject 1 August 2026 00:00:00 .. 01:00:00 Asia/Jakarta (1800 samples, 10s step) targeting recommended SPARING destination
+	wib := time.FixedZone("WIB", 7*3600)
+	aug1Start := time.Date(2026, 8, 1, 0, 0, 0, 0, wib)
+	aug1End := time.Date(2026, 8, 1, 1, 0, 0, 0, wib)
+	var inputs []service.TelemetryInjectionParamInput
+	for _, sp := range sparingParams {
+		inputs = append(inputs, service.TelemetryInjectionParamInput{
+			ParameterID: sp.id,
+			MinValue:    sp.minV,
+			MaxValue:    sp.maxV,
+		})
+	}
+
+	refreshFalse := false
+	execRes, err := injSvc.ExecuteInjection(ctx, service.TelemetryInjectionRequest{
+		DeviceID:               dev.ID,
+		StartTime:              aug1Start,
+		EndTime:                aug1End,
+		SampleStepSeconds:      10,
+		ConflictMode:           service.ConflictFillMissingAndNull,
+		RandomMode:             service.RandomModeSmoothWalk,
+		ValueTarget:            service.ValueTargetProcessed,
+		RefreshOutbound:        &refreshFalse, // even if refresh_outbound=false, enqueue_missing_outbound=true MUST still enqueue!
+		EnqueueMissingOutbound: true,
+		OutboundDestinationIDs: []uint{destSparing.ID},
+		Seed:                   77,
+		Parameters:             inputs,
+	}, "admin")
+	if err != nil {
+		t.Fatalf("ExecuteInjection failed: %v", err)
+	}
+	if execRes.Batch.InjectedRawCount != 1800 || execRes.Batch.AggregatedBuckets != 150 {
+		t.Fatalf("expected 1800 raw & 150 agg buckets, got raw=%d agg=%d", execRes.Batch.InjectedRawCount, execRes.Batch.AggregatedBuckets)
+	}
+	if execRes.Batch.RefreshedOutbound != 1 {
+		t.Fatalf("expected 1 enqueued SPARING batch even though destination is DISABLED, got %d (%+v)", execRes.Batch.RefreshedOutbound, execRes.OutboundResult)
+	}
+
+	// Worker must NOT dispatch PENDING item while destination is DISABLED
+	outSvc.ProcessPendingQueueOnce()
+
+	dayStartUTC := time.Date(2026, 8, 1, 0, 0, 0, 0, wib).UTC()
+	dayEndUTC := time.Date(2026, 8, 2, 0, 0, 0, 0, wib).UTC()
+	augItems, augTotal, err := outSvc.GetQueueItems(ctx, repository.QueueFilter{
+		WindowStart: &dayStartUTC,
+		WindowEnd:   &dayEndUTC,
+		Page:        1,
+		PageSize:    20,
+	})
+	if err != nil || augTotal != 1 || len(augItems) != 1 {
+		t.Fatalf("expected 1 queue item on 2026-08-01 via WindowStart/WindowEnd filter, got total=%d err=%v", augTotal, err)
+	}
+	if augItems[0].Status != model.DeliveryPending || augItems[0].Attempts != 0 {
+		t.Fatalf("expected DISABLED destination queue item to remain PENDING (attempts=0), got status=%s attempts=%d", augItems[0].Status, augItems[0].Attempts)
+	}
+
+	var sparingPayload struct {
+		UID  string                   `json:"uid"`
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(augItems[0].PayloadSnapshot), &sparingPayload); err != nil {
+		t.Fatalf("unmarshal SPARING payload: %v", err)
+	}
+	if len(sparingPayload.Data) != 30 {
+		t.Fatalf("expected 30 SPARING 2-minute slots on Aug 1, got %d", len(sparingPayload.Data))
+	}
+	for _, key := range []string{"pH", "cod", "tss", "nh3n", "debit"} {
+		if sparingPayload.Data[0][key] == nil {
+			t.Fatalf("expected auto-mapped unseen SPARING key %q to be non-nil in slot 0, got %v", key, sparingPayload.Data[0])
+		}
+	}
+
+	// 6. Now test 1-Click SyncBatchOutbound explicitly including 30m CBI destination (verifies 2m -> 30m cross-interval rollup!)
+	// Keep CBI disabled before syncing so no HTTP attempt alters status during assertion
+	db.Model(destCBI).Update("enabled", false)
+	syncRes, err := injSvc.SyncBatchOutbound(ctx, execRes.Batch.ID, []uint{destCBI.ID, destSparing.ID})
+	if err != nil {
+		t.Fatalf("SyncBatchOutbound failed: %v", err)
+	}
+	// Expect 2 new 30m CBI batches (00:00->00:30 and 00:30->01:00) + 1 updated SPARING batch = 3 total touched!
+	if syncRes.OutboundResult.EnqueuedBatches != 2 || syncRes.OutboundResult.UpdatedBatches != 1 {
+		t.Fatalf("expected 2 new CBI 30m rolled-up batches + 1 updated SPARING batch, got %+v", syncRes.OutboundResult)
+	}
+
+	cbiItems, cbiTotal, _ := outSvc.GetQueueItems(ctx, repository.QueueFilter{
+		DestinationID: &destCBI.ID,
+		WindowStart:   &dayStartUTC,
+		WindowEnd:     &dayEndUTC,
+		Page:          1,
+		PageSize:      20,
+	})
+	if cbiTotal != 2 || len(cbiItems) != 2 {
+		t.Fatalf("expected 2 rolled-up 30m CBI queue batches on 2026-08-01, got %d", cbiTotal)
+	}
+	if cbiItems[0].ParameterCount != 5 || !strings.Contains(cbiItems[0].PayloadSnapshot, "ammonia") {
+		t.Fatalf("expected 5 rolled-up parameters in CBI 30m batch, got count=%d payload=%s", cbiItems[0].ParameterCount, cbiItems[0].PayloadSnapshot)
+	}
+}
+

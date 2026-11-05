@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ type OutboundService interface {
 	// Pipeline hook: called when aggregation bucket finishes
 	HandleBucketCompleted(ctx context.Context, deviceID uint, bucketEnd time.Time) error
 	RefreshQueueForWindow(ctx context.Context, deviceID uint, startTime, endTime time.Time, completedBucketEnds []time.Time, enqueueMissing bool) (int, error)
+	RefreshQueueForWindowDetailed(ctx context.Context, opts OutboundWindowRefreshOptions) (*OutboundWindowRefreshResult, error)
 
 	// Destination Management
 	GetDestinations(ctx context.Context, enabledOnly bool, redactSecrets bool) ([]model.OutputDestination, error)
@@ -61,6 +63,43 @@ type OutboundService interface {
 	StartPurge(ctx context.Context, filter repository.QueuePurgeFilter) (*PurgeProgress, error)
 	GetPurgeStatus() PurgeProgress
 	CancelPurge()
+}
+
+// OutboundWindowRefreshOptions configures selective or full queue re-hydration & enqueueing across a time window
+type OutboundWindowRefreshOptions struct {
+	DeviceID                    uint
+	StartTime                   time.Time
+	EndTime                     time.Time
+	CompletedBucketEnds         []time.Time
+	RefreshExisting             bool
+	EnqueueMissing              bool
+	IncludeDisabledDestinations bool
+	DestinationIDs              []uint
+	ForceIncludeParamIDs        []uint
+}
+
+// OutboundDestinationRefreshDetail reports per-destination queue refresh/enqueue diagnostics
+type OutboundDestinationRefreshDetail struct {
+	DestinationID           uint   `json:"destination_id"`
+	DestinationName         string `json:"destination_name"`
+	Enabled                 bool   `json:"enabled"`
+	IntervalSeconds         int    `json:"interval_seconds"`
+	DispatchIntervalSeconds int    `json:"dispatch_interval_seconds"`
+	TemplateType            string `json:"template_type"`
+	UpdatedBatches          int    `json:"updated_batches"`
+	EnqueuedBatches         int    `json:"enqueued_batches"`
+	SkippedDeliveredBatches int    `json:"skipped_delivered_batches"`
+	RolledUpIntervals       bool   `json:"rolled_up_intervals,omitempty"`
+	AutoMappedParameters    int    `json:"auto_mapped_parameters,omitempty"`
+	SkippedReason           string `json:"skipped_reason,omitempty"`
+}
+
+// OutboundWindowRefreshResult summarizes queue updates/enqueues across all evaluated destinations
+type OutboundWindowRefreshResult struct {
+	TotalTouched    int                                `json:"total_touched"`
+	UpdatedBatches  int                                `json:"updated_batches"`
+	EnqueuedBatches int                                `json:"enqueued_batches"`
+	Destinations    []OutboundDestinationRefreshDetail `json:"destinations"`
 }
 
 // PurgeProgress tracks asynchronous progress for large queue & log deletion jobs
@@ -1482,6 +1521,20 @@ func (s *outboundService) enqueueAggregatedBatchGroup(
 	batchID string,
 	idempotencyKey string,
 ) {
+	_, _ = s.enqueueAggregatedBatchGroupWithAction(ctx, dest, cfg, group, intervalSec, periodStart, periodEnd, batchID, idempotencyKey)
+}
+
+func (s *outboundService) enqueueAggregatedBatchGroupWithAction(
+	ctx context.Context,
+	dest *model.OutputDestination,
+	cfg *model.DestinationPayloadConfig,
+	group []model.AggregationResult,
+	intervalSec int,
+	periodStart time.Time,
+	periodEnd time.Time,
+	batchID string,
+	idempotencyKey string,
+) (string, error) {
 	// Collect unique devices in stable order strictly from checked & active parameters
 	deviceMap := make(map[uint]BatchDeviceSummary)
 	var deviceOrder []uint
@@ -1576,9 +1629,14 @@ func (s *outboundService) enqueueAggregatedBatchGroup(
 	}
 
 	payloadBytes, err := s.formatter.Format(batchData, cfg)
+	if err != nil && cfg != nil && strings.Contains(err.Error(), "parameter key collision") {
+		cfgCopy := *cfg
+		cfgCopy.ConflictResolution = "PREFIX"
+		payloadBytes, err = s.formatter.Format(batchData, &cfgCopy)
+	}
 	if err != nil {
 		logger.Error("[Outbound] Serialization failed for dest %d batch %s: %v", dest.ID, batchID, err)
-		return
+		return "", err
 	}
 
 	var queueDeviceID *uint
@@ -1587,6 +1645,11 @@ func (s *outboundService) enqueueAggregatedBatchGroup(
 		queueDeviceID = &dID
 	} else if dest.DeviceID != nil {
 		queueDeviceID = dest.DeviceID
+	}
+
+	payloadVer := 1
+	if cfg != nil && cfg.Version > 0 {
+		payloadVer = cfg.Version
 	}
 
 	queueItem := &model.OutboundDeliveryQueue{
@@ -1602,7 +1665,7 @@ func (s *outboundService) enqueueAggregatedBatchGroup(
 		SourceAggregationIDs: string(sourceIDsJSON),
 		SourceValuesJSON:     string(sourceValuesJSON),
 		PayloadSnapshot:      string(payloadBytes),
-		PayloadVersion:       cfg.Version,
+		PayloadVersion:       payloadVer,
 		IdempotencyKey:       idempotencyKey,
 		Status:               model.DeliveryPending,
 		Attempts:             0,
@@ -1614,9 +1677,16 @@ func (s *outboundService) enqueueAggregatedBatchGroup(
 		queueItem.MaxRetries = 5
 	}
 
-	if err := s.repo.EnqueueDelivery(ctx, queueItem); err == nil {
+	action, _, err := s.repo.EnqueueOrRefreshDelivery(ctx, queueItem)
+	if err != nil {
+		return "", err
+	}
+	destID := dest.ID
+	_ = s.repo.SyncDestinationStatsFromQueue(ctx, &destID)
+	if dest.Enabled && (action == "CREATED" || action == "UPDATED") {
 		s.notifyWorker()
 	}
+	return action, nil
 }
 
 // GetDestinations returns all destinations, with sensitive credentials redacted when requested
@@ -2056,45 +2126,110 @@ func (s *outboundService) RefreshQueueForWindow(
 	completedBucketEnds []time.Time,
 	enqueueMissing bool,
 ) (int, error) {
-	startUTC := startTime.UTC()
-	endUTC := endTime.UTC()
-	if endUTC.Before(startUTC) {
-		return 0, nil
-	}
-
-	items, err := s.repo.GetUndeliveredQueueItemsOverlappingWindow(ctx, startUTC, endUTC)
-	if err != nil {
+	res, err := s.RefreshQueueForWindowDetailed(ctx, OutboundWindowRefreshOptions{
+		DeviceID:                    deviceID,
+		StartTime:                   startTime,
+		EndTime:                     endTime,
+		CompletedBucketEnds:         completedBucketEnds,
+		RefreshExisting:             true,
+		EnqueueMissing:              enqueueMissing,
+		IncludeDisabledDestinations: true,
+	})
+	if err != nil || res == nil {
 		return 0, err
 	}
+	return res.TotalTouched, nil
+}
 
-	refreshedCount := 0
-	affectedDests := make(map[uint]bool)
-	anyEnabledRequeued := false
+// RefreshQueueForWindowDetailed performs window-scoped queue re-hydration and/or missing-window enqueueing
+// across enabled and (when requested) disabled destinations, supporting cross-interval CUSTOMER_PROCESSED rollups
+// (e.g. 2m -> 30m/1h) and newly-added parameter synchronization.
+func (s *outboundService) RefreshQueueForWindowDetailed(
+	ctx context.Context,
+	opts OutboundWindowRefreshOptions,
+) (*OutboundWindowRefreshResult, error) {
+	res := &OutboundWindowRefreshResult{
+		Destinations: []OutboundDestinationRefreshDetail{},
+	}
+	startUTC := opts.StartTime.UTC()
+	endUTC := opts.EndTime.UTC()
+	if endUTC.Before(startUTC) {
+		return res, nil
+	}
 
-	for i := range items {
-		item := &items[i]
-		dest := item.Destination
-		if dest == nil {
-			dest, _ = s.repo.GetDestinationByID(ctx, item.DestinationID)
+	destFilter := make(map[uint]bool, len(opts.DestinationIDs))
+	for _, id := range opts.DestinationIDs {
+		if id > 0 {
+			destFilter[id] = true
 		}
-		if dest == nil {
+	}
+	explicitDestSelection := len(destFilter) > 0
+
+	forceParamSet := make(map[uint]bool, len(opts.ForceIncludeParamIDs))
+	for _, pid := range opts.ForceIncludeParamIDs {
+		if pid > 0 {
+			forceParamSet[pid] = true
+		}
+	}
+
+	var targetDev *model.Device
+	if s.deviceRepo != nil && opts.DeviceID > 0 {
+		targetDev, _ = s.deviceRepo.GetByID(opts.DeviceID)
+	}
+
+	allDests, _ := s.repo.GetAllDestinations(ctx, !opts.IncludeDisabledDestinations)
+	destByID := make(map[uint]model.OutputDestination, len(allDests))
+	detailByID := make(map[uint]*OutboundDestinationRefreshDetail, len(allDests))
+	var destOrder []uint
+
+	ensureDestDetail := func(d *model.OutputDestination, cfg *model.DestinationPayloadConfig) *OutboundDestinationRefreshDetail {
+		if existing, ok := detailByID[d.ID]; ok {
+			return existing
+		}
+		tmpl := "STANDARD"
+		if cfg != nil && strings.TrimSpace(cfg.TemplateType) != "" {
+			tmpl = strings.TrimSpace(cfg.TemplateType)
+		} else if d.PayloadConfig != nil && strings.TrimSpace(d.PayloadConfig.TemplateType) != "" {
+			tmpl = strings.TrimSpace(d.PayloadConfig.TemplateType)
+		}
+		det := &OutboundDestinationRefreshDetail{
+			DestinationID:           d.ID,
+			DestinationName:         d.Name,
+			Enabled:                 d.Enabled,
+			IntervalSeconds:         d.IntervalSeconds,
+			DispatchIntervalSeconds: d.DispatchIntervalSeconds,
+			TemplateType:            tmpl,
+		}
+		detailByID[d.ID] = det
+		destOrder = append(destOrder, d.ID)
+		return det
+	}
+
+	for i := range allDests {
+		d := allDests[i]
+		destByID[d.ID] = d
+		if explicitDestSelection && !destFilter[d.ID] {
 			continue
 		}
-		if dest.DeviceID != nil && *dest.DeviceID != deviceID {
+		if d.DeviceID != nil && opts.DeviceID > 0 && *d.DeviceID != opts.DeviceID {
 			continue
 		}
+		ensureDestDetail(&d, d.PayloadConfig)
+	}
 
-		var queryDeviceIDs []uint
-		if dest.DeviceID != nil {
-			queryDeviceIDs = []uint{*dest.DeviceID}
+	effectiveCfgCache := make(map[uint]*model.DestinationPayloadConfig)
+	resolveEffectiveCfg := func(dest *model.OutputDestination) *model.DestinationPayloadConfig {
+		if cached, ok := effectiveCfgCache[dest.ID]; ok {
+			return cached
 		}
-
 		cfg := dest.PayloadConfig
 		if cfg == nil {
 			cfg, _ = s.repo.GetPayloadConfigByDestinationID(ctx, dest.ID)
 		}
 		if cfg == nil {
 			cfg = &model.DestinationPayloadConfig{
+				DestinationID:   dest.ID,
+				TemplateType:    "STANDARD",
 				StationIDField:  "station_id",
 				TimestampField:  "timestamp",
 				TimestampFormat: "ISO8601",
@@ -2103,92 +2238,176 @@ func (s *outboundService) RefreshQueueForWindow(
 				Version:         1,
 			}
 		}
-
-		sourceInterval := item.IntervalSeconds
-		windowSeconds := int(item.PeriodEnd.Sub(item.PeriodStart).Seconds())
-		var aggResults []model.AggregationResult
-		var qErr error
-		if sourceInterval > 0 && windowSeconds > sourceInterval {
-			aggResults, qErr = s.repo.GetCustomerAggregationResultsForRange(ctx, item.PeriodStart, item.PeriodEnd, sourceInterval, queryDeviceIDs)
-		} else {
-			aggResults, qErr = s.repo.GetCustomerAggregationResultsForWindow(ctx, item.PeriodEnd, sourceInterval, queryDeviceIDs)
+		effCfg, autoMapped := s.prepareDestinationConfigForWindowRefresh(
+			ctx,
+			dest,
+			cfg,
+			targetDev,
+			forceParamSet,
+			explicitDestSelection && destFilter[dest.ID],
+		)
+		effectiveCfgCache[dest.ID] = effCfg
+		if autoMapped > 0 {
+			det := ensureDestDetail(dest, effCfg)
+			det.AutoMappedParameters += autoMapped
 		}
-		if qErr != nil {
-			continue
+		return effCfg
+	}
+
+	affectedDests := make(map[uint]bool)
+	anyEnabledRequeued := false
+	touchedIdempKeys := make(map[string]bool)
+
+	// Phase 1: Re-hydrate existing undelivered (PENDING, RETRYING, FAILED) queue items overlapping [startUTC, endUTC]
+	if opts.RefreshExisting {
+		items, err := s.repo.GetUndeliveredQueueItemsOverlappingWindow(ctx, startUTC, endUTC)
+		if err != nil {
+			return res, err
 		}
 
-		matcher := buildParameterMappingMatcher(cfg)
-		var group []model.AggregationResult
-		for _, ar := range aggResults {
-			if !isActiveOutboundAggregationResult(ar) {
+		for i := range items {
+			item := &items[i]
+			if explicitDestSelection && !destFilter[item.DestinationID] {
 				continue
 			}
-			devCode := ar.Device.DeviceCode
-			if devCode == "" {
-				devCode = fmt.Sprintf("DEV-%d", ar.DeviceID)
-			}
-			if enabled, _ := matcher.ResolveWithName(ar.DeviceID, devCode, ar.ParameterID, ar.Parameter.ParameterCode, ar.Parameter.ParameterName); !enabled {
+
+			var destObj model.OutputDestination
+			if d, ok := destByID[item.DestinationID]; ok {
+				destObj = d
+			} else if item.Destination != nil {
+				destObj = *item.Destination
+			} else if fetched, fErr := s.repo.GetDestinationByID(ctx, item.DestinationID); fErr == nil && fetched != nil {
+				destObj = *fetched
+			} else {
 				continue
 			}
-			group = append(group, ar)
-		}
 
-		if len(group) == 0 {
-			_ = s.repo.CancelQueueItem(ctx, item.ID)
-			affectedDests[dest.ID] = true
-			continue
-		}
+			if destObj.DeviceID != nil && opts.DeviceID > 0 && *destObj.DeviceID != opts.DeviceID {
+				continue
+			}
 
-		var sourceIDs []uint64
-		var sourceItems []model.SourceAggregationValueItem
-		for _, ar := range group {
-			sourceIDs = append(sourceIDs, ar.ID)
-			devCode := fmt.Sprintf("DEV-%d", ar.DeviceID)
-			devName := fmt.Sprintf("Device %d", ar.DeviceID)
-			if ar.Device != nil {
-				if ar.Device.DeviceCode != "" {
-					devCode = ar.Device.DeviceCode
+			var queryDeviceIDs []uint
+			if destObj.DeviceID != nil {
+				queryDeviceIDs = []uint{*destObj.DeviceID}
+			}
+
+			effCfg := resolveEffectiveCfg(&destObj)
+			det := ensureDestDetail(&destObj, effCfg)
+
+			sourceInterval := item.IntervalSeconds
+			windowSeconds := int(item.PeriodEnd.Sub(item.PeriodStart).Seconds())
+			var aggResults []model.AggregationResult
+			var qErr error
+			if sourceInterval > 0 && windowSeconds > sourceInterval {
+				aggResults, qErr = s.repo.GetCustomerAggregationResultsForRange(ctx, item.PeriodStart, item.PeriodEnd, sourceInterval, queryDeviceIDs)
+				if qErr == nil && opts.DeviceID > 0 && !containsDeviceInAggResults(aggResults, opts.DeviceID) {
+					if finer, fErr := s.repo.GetCustomerAggregationResultsForRange(ctx, item.PeriodStart, item.PeriodEnd, 0, []uint{opts.DeviceID}); fErr == nil && len(finer) > 0 {
+						rolled := rollupCustomerAggregationsBySubWindows(finer, item.PeriodStart, item.PeriodEnd, sourceInterval)
+						if len(rolled) > 0 {
+							aggResults = append(aggResults, rolled...)
+							det.RolledUpIntervals = true
+						}
+					}
 				}
-				if ar.Device.DeviceName != "" {
-					devName = ar.Device.DeviceName
+			} else {
+				aggResults, qErr = s.repo.GetCustomerAggregationResultsForWindow(ctx, item.PeriodEnd, sourceInterval, queryDeviceIDs)
+				if qErr == nil && sourceInterval > 0 && opts.DeviceID > 0 && !containsDeviceInAggResults(aggResults, opts.DeviceID) {
+					if finer, fErr := s.repo.GetCustomerAggregationResultsForRange(ctx, item.PeriodStart, item.PeriodEnd, 0, []uint{opts.DeviceID}); fErr == nil && len(finer) > 0 {
+						var finerOnly []model.AggregationResult
+						for _, fr := range finer {
+							if fr.IntervalSeconds > 0 && fr.IntervalSeconds < sourceInterval {
+								finerOnly = append(finerOnly, fr)
+							}
+						}
+						if len(finerOnly) > 0 {
+							rolled := rollupCustomerAggregationsForSingleWindow(finerOnly, item.PeriodStart, item.PeriodEnd, sourceInterval)
+							if len(rolled) > 0 {
+								aggResults = append(aggResults, rolled...)
+								det.RolledUpIntervals = true
+							}
+						}
+					}
 				}
 			}
-			val := ar.Value
-			qual := string(ar.Quality)
-			if val != nil && (math.IsNaN(*val) || math.IsInf(*val, 0) || math.Abs(*val) > 1e8) {
-				val = nil
-				qual = string(model.QualityBad)
-			} else if val != nil {
-				roundedVal := roundOutboundValue(*val)
-				val = &roundedVal
+			if qErr != nil {
+				continue
 			}
-			sourceItems = append(sourceItems, model.SourceAggregationValueItem{
-				DeviceID:            ar.DeviceID,
-				DeviceCode:          devCode,
-				DeviceName:          devName,
-				ParameterID:         ar.ParameterID,
-				ParameterCode:       ar.Parameter.ParameterCode,
-				ParameterName:       ar.Parameter.ParameterName,
-				Value:               val,
-				Unit:                ar.Parameter.Unit,
-				Quality:             qual,
-				AggregationResultID: ar.ID,
-				PeriodStart:         ar.PeriodStart,
-				PeriodEnd:           ar.PeriodEnd,
-			})
-		}
 
-		srcIDsBytes, _ := json.Marshal(sourceIDs)
-		srcValsBytes, _ := json.Marshal(sourceItems)
-		item.SourceAggregationIDs = string(srcIDsBytes)
-		item.SourceValuesJSON = string(srcValsBytes)
+			matcher := buildParameterMappingMatcher(effCfg)
+			var group []model.AggregationResult
+			for _, ar := range aggResults {
+				if !isActiveOutboundAggregationResult(ar) {
+					continue
+				}
+				devCode := ar.Device.DeviceCode
+				if devCode == "" {
+					devCode = fmt.Sprintf("DEV-%d", ar.DeviceID)
+				}
+				if enabled, _ := matcher.ResolveWithName(ar.DeviceID, devCode, ar.ParameterID, ar.Parameter.ParameterCode, ar.Parameter.ParameterName); !enabled {
+					continue
+				}
+				group = append(group, ar)
+			}
 
-		if s.rebuildQueueItemPayload(item, cfg) {
-			if err := s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, dest.Enabled); err == nil {
-				refreshedCount++
-				affectedDests[dest.ID] = true
-				if dest.Enabled {
-					anyEnabledRequeued = true
+			if len(group) == 0 {
+				_ = s.repo.CancelQueueItem(ctx, item.ID)
+				affectedDests[destObj.ID] = true
+				continue
+			}
+
+			var sourceIDs []uint64
+			var sourceItems []model.SourceAggregationValueItem
+			for _, ar := range group {
+				sourceIDs = append(sourceIDs, ar.ID)
+				devCode := fmt.Sprintf("DEV-%d", ar.DeviceID)
+				devName := fmt.Sprintf("Device %d", ar.DeviceID)
+				if ar.Device != nil {
+					if ar.Device.DeviceCode != "" {
+						devCode = ar.Device.DeviceCode
+					}
+					if ar.Device.DeviceName != "" {
+						devName = ar.Device.DeviceName
+					}
+				}
+				val := ar.Value
+				qual := string(ar.Quality)
+				if val != nil && (math.IsNaN(*val) || math.IsInf(*val, 0) || math.Abs(*val) > 1e8) {
+					val = nil
+					qual = string(model.QualityBad)
+				} else if val != nil {
+					roundedVal := roundOutboundValue(*val)
+					val = &roundedVal
+				}
+				sourceItems = append(sourceItems, model.SourceAggregationValueItem{
+					DeviceID:            ar.DeviceID,
+					DeviceCode:          devCode,
+					DeviceName:          devName,
+					ParameterID:         ar.ParameterID,
+					ParameterCode:       ar.Parameter.ParameterCode,
+					ParameterName:       ar.Parameter.ParameterName,
+					Value:               val,
+					Unit:                ar.Parameter.Unit,
+					Quality:             qual,
+					AggregationResultID: ar.ID,
+					PeriodStart:         ar.PeriodStart,
+					PeriodEnd:           ar.PeriodEnd,
+				})
+			}
+
+			srcIDsBytes, _ := json.Marshal(sourceIDs)
+			srcValsBytes, _ := json.Marshal(sourceItems)
+			item.SourceAggregationIDs = string(srcIDsBytes)
+			item.SourceValuesJSON = string(srcValsBytes)
+
+			if s.rebuildQueueItemPayload(item, effCfg) {
+				if err := s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, destObj.Enabled); err == nil {
+					res.UpdatedBatches++
+					det.UpdatedBatches++
+					touchedIdempKeys[item.IdempotencyKey] = true
+					affectedDests[destObj.ID] = true
+					if destObj.Enabled {
+						anyEnabledRequeued = true
+					}
 				}
 			}
 		}
@@ -2199,56 +2418,304 @@ func (s *outboundService) RefreshQueueForWindow(
 		_ = s.repo.SyncDestinationStatsFromQueue(ctx, &idCopy)
 	}
 
-	if enqueueMissing {
+	// Phase 2: Enqueue missing completed windows (including DISABLED destinations when IncludeDisabledDestinations=true,
+	// cross-interval CUSTOMER_PROCESSED rollups, and revived CANCELLED items)
+	if opts.EnqueueMissing {
 		now := time.Now().UTC()
-		candidateMap := make(map[int64]time.Time, len(completedBucketEnds))
-		for _, pe := range completedBucketEnds {
-			peUTC := pe.UTC()
-			if !peUTC.After(now) {
-				candidateMap[peUTC.Unix()] = peUTC
-			}
-		}
 
-		// Also include completed bundled dispatch boundaries (e.g. 3600s SPARING hourly windows) overlapping [startUTC, endUTC]
-		if dests, dErr := s.repo.GetAllDestinations(ctx, true); dErr == nil {
-			for _, dest := range dests {
-				if dest.DeviceID != nil && *dest.DeviceID != deviceID {
-					continue
-				}
-				srcInt := dest.IntervalSeconds
+		for i := range allDests {
+			dest := allDests[i]
+			if explicitDestSelection && !destFilter[dest.ID] {
+				continue
+			}
+			if dest.DeviceID != nil && opts.DeviceID > 0 && *dest.DeviceID != opts.DeviceID {
+				continue
+			}
+
+			effCfg := resolveEffectiveCfg(&dest)
+			det := ensureDestDetail(&dest, effCfg)
+			matcher := buildParameterMappingMatcher(effCfg)
+
+			var queryDeviceIDs []uint
+			if dest.DeviceID != nil {
+				queryDeviceIDs = []uint{*dest.DeviceID}
+			}
+
+			sawCandidateAggRows := false
+			sawFilteredOutByMapping := false
+
+			srcInt := dest.IntervalSeconds
+			if dest.DispatchIntervalSeconds > 0 {
 				if srcInt <= 0 {
 					srcInt = 120
 				}
-				if dest.DispatchIntervalSeconds > srcInt {
-					disp := int64(dest.DispatchIntervalSeconds)
-					firstBoundary := ((startUTC.Unix() / disp) + 1) * disp
-					for bUnix := firstBoundary; ; bUnix += disp {
-						bEnd := time.Unix(bUnix, 0).UTC()
-						bStart := bEnd.Add(-time.Duration(disp) * time.Second)
-						if !bStart.Before(endUTC) && !startUTC.Equal(endUTC) {
-							break
+			}
+
+			// Mode A: Bundled Multi-Bucket Dispatch Schedule (e.g. SPARING 2m -> 1h = 30 slots)
+			if dest.DispatchIntervalSeconds > 0 && dest.DispatchIntervalSeconds > srcInt {
+				windows := completedAlignedWindowsOverlapping(startUTC, endUTC, now, dest.DispatchIntervalSeconds)
+				if len(windows) == 0 && det.UpdatedBatches == 0 {
+					det.SkippedReason = fmt.Sprintf("Rentang waktu belum melewati batas siklus kirim %d menit yang sudah selesai", dest.DispatchIntervalSeconds/60)
+					continue
+				}
+
+				for _, win := range windows {
+					wStart, wEnd := win[0], win[1]
+					dispMinutes := dest.DispatchIntervalSeconds / 60
+					if dispMinutes <= 0 {
+						dispMinutes = 1
+					}
+					srcMinutes := srcInt / 60
+					if srcMinutes <= 0 {
+						srcMinutes = 1
+					}
+					batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%dM-%s", dest.ID, dispMinutes, srcMinutes, wEnd.Format("20060102150405"))
+					idempotencyKey := fmt.Sprintf("DEST%d_DISP%d_SRC%d_%d", dest.ID, dest.DispatchIntervalSeconds, srcInt, wEnd.Unix())
+					if touchedIdempKeys[idempotencyKey] {
+						continue
+					}
+
+					rangeResults, err := s.repo.GetCustomerAggregationResultsForRange(ctx, wStart, wEnd, srcInt, queryDeviceIDs)
+					if err != nil {
+						continue
+					}
+					if opts.DeviceID > 0 && !containsDeviceInAggResults(rangeResults, opts.DeviceID) {
+						if anyIntResults, fErr := s.repo.GetCustomerAggregationResultsForRange(ctx, wStart, wEnd, 0, []uint{opts.DeviceID}); fErr == nil && len(anyIntResults) > 0 {
+							rolled := rollupCustomerAggregationsBySubWindows(anyIntResults, wStart, wEnd, srcInt)
+							if len(rolled) > 0 {
+								rangeResults = append(rangeResults, rolled...)
+								det.RolledUpIntervals = true
+							} else {
+								rangeResults = append(rangeResults, anyIntResults...)
+							}
 						}
-						if bEnd.After(now) {
-							break
+					}
+					if len(rangeResults) == 0 {
+						continue
+					}
+					sawCandidateAggRows = true
+
+					var group []model.AggregationResult
+					for _, ar := range rangeResults {
+						if !isActiveOutboundAggregationResult(ar) {
+							continue
 						}
-						candidateMap[bUnix] = bEnd
-						if startUTC.Equal(endUTC) {
-							break
+						devCode := ar.Device.DeviceCode
+						if devCode == "" {
+							devCode = fmt.Sprintf("DEV-%d", ar.DeviceID)
+						}
+						if enabled, _ := matcher.ResolveWithName(ar.DeviceID, devCode, ar.ParameterID, ar.Parameter.ParameterCode, ar.Parameter.ParameterName); !enabled {
+							sawFilteredOutByMapping = true
+							continue
+						}
+						group = append(group, ar)
+					}
+					if len(group) == 0 {
+						continue
+					}
+
+					action, enqErr := s.enqueueAggregatedBatchGroupWithAction(ctx, &dest, effCfg, group, srcInt, wStart, wEnd, batchID, idempotencyKey)
+					if enqErr != nil {
+						continue
+					}
+					touchedIdempKeys[idempotencyKey] = true
+					switch action {
+					case "CREATED":
+						res.EnqueuedBatches++
+						det.EnqueuedBatches++
+						if dest.Enabled {
+							anyEnabledRequeued = true
+						}
+					case "UPDATED":
+						res.UpdatedBatches++
+						det.UpdatedBatches++
+						if dest.Enabled {
+							anyEnabledRequeued = true
+						}
+					case "SKIPPED_DELIVERED":
+						det.SkippedDeliveredBatches++
+					}
+				}
+			} else if dest.IntervalSeconds > 0 {
+				// Mode B1: Single-Bucket Dispatch with explicit IntervalSeconds (e.g. 120s, 300s, 1800s CBI, 3600s ISPU)
+				windows := completedAlignedWindowsOverlapping(startUTC, endUTC, now, dest.IntervalSeconds)
+				if len(windows) == 0 && det.UpdatedBatches == 0 {
+					det.SkippedReason = fmt.Sprintf("Rentang waktu belum melewati batas interval %d menit yang sudah selesai", dest.IntervalSeconds/60)
+					continue
+				}
+
+				for _, win := range windows {
+					wStart, wEnd := win[0], win[1]
+					intervalMinutes := dest.IntervalSeconds / 60
+					if intervalMinutes <= 0 {
+						intervalMinutes = 1
+					}
+					batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, wEnd.Format("20060102150405"))
+					idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, dest.IntervalSeconds, wEnd.Unix())
+					if touchedIdempKeys[idempotencyKey] {
+						continue
+					}
+
+					results, err := s.repo.GetCustomerAggregationResultsForWindow(ctx, wEnd, dest.IntervalSeconds, queryDeviceIDs)
+					if err != nil {
+						continue
+					}
+					if opts.DeviceID > 0 && !containsDeviceInAggResults(results, opts.DeviceID) {
+						if finer, fErr := s.repo.GetCustomerAggregationResultsForRange(ctx, wStart, wEnd, 0, []uint{opts.DeviceID}); fErr == nil && len(finer) > 0 {
+							var finerOnly []model.AggregationResult
+							for _, fr := range finer {
+								if fr.IntervalSeconds > 0 && fr.IntervalSeconds < dest.IntervalSeconds {
+									finerOnly = append(finerOnly, fr)
+								}
+							}
+							if len(finerOnly) > 0 {
+								rolled := rollupCustomerAggregationsForSingleWindow(finerOnly, wStart, wEnd, dest.IntervalSeconds)
+								if len(rolled) > 0 {
+									results = append(results, rolled...)
+									det.RolledUpIntervals = true
+								}
+							}
+						}
+					}
+					if len(results) == 0 {
+						continue
+					}
+					sawCandidateAggRows = true
+
+					var group []model.AggregationResult
+					for _, ar := range results {
+						if !isActiveOutboundAggregationResult(ar) {
+							continue
+						}
+						devCode := ar.Device.DeviceCode
+						if devCode == "" {
+							devCode = fmt.Sprintf("DEV-%d", ar.DeviceID)
+						}
+						if enabled, _ := matcher.ResolveWithName(ar.DeviceID, devCode, ar.ParameterID, ar.Parameter.ParameterCode, ar.Parameter.ParameterName); !enabled {
+							sawFilteredOutByMapping = true
+							continue
+						}
+						group = append(group, ar)
+					}
+					if len(group) == 0 {
+						continue
+					}
+
+					action, enqErr := s.enqueueAggregatedBatchGroupWithAction(ctx, &dest, effCfg, group, dest.IntervalSeconds, wStart, wEnd, batchID, idempotencyKey)
+					if enqErr != nil {
+						continue
+					}
+					touchedIdempKeys[idempotencyKey] = true
+					switch action {
+					case "CREATED":
+						res.EnqueuedBatches++
+						det.EnqueuedBatches++
+						if dest.Enabled {
+							anyEnabledRequeued = true
+						}
+					case "UPDATED":
+						res.UpdatedBatches++
+						det.UpdatedBatches++
+						if dest.Enabled {
+							anyEnabledRequeued = true
+						}
+					case "SKIPPED_DELIVERED":
+						det.SkippedDeliveredBatches++
+					}
+				}
+			} else {
+				// Mode B2: IntervalSeconds == 0 (dispatch every configured CUSTOMER_PROCESSED interval)
+				rangeResults, err := s.repo.GetCustomerAggregationResultsForRange(ctx, startUTC, endUTC, 0, queryDeviceIDs)
+				if err == nil && len(rangeResults) > 0 {
+					sawCandidateAggRows = true
+					type bucketGroupKey struct {
+						intervalSec int
+						endUnix     int64
+					}
+					grouped := make(map[bucketGroupKey][]model.AggregationResult)
+					var keys []bucketGroupKey
+					for _, ar := range rangeResults {
+						if ar.PeriodEnd.After(now) {
+							continue
+						}
+						k := bucketGroupKey{intervalSec: ar.IntervalSeconds, endUnix: ar.PeriodEnd.UTC().Unix()}
+						if _, seen := grouped[k]; !seen {
+							keys = append(keys, k)
+						}
+						grouped[k] = append(grouped[k], ar)
+					}
+					sort.Slice(keys, func(a, b int) bool {
+						if keys[a].endUnix != keys[b].endUnix {
+							return keys[a].endUnix < keys[b].endUnix
+						}
+						return keys[a].intervalSec < keys[b].intervalSec
+					})
+					for _, k := range keys {
+						rawGroup := grouped[k]
+						var group []model.AggregationResult
+						for _, ar := range rawGroup {
+							if !isActiveOutboundAggregationResult(ar) {
+								continue
+							}
+							devCode := ar.Device.DeviceCode
+							if devCode == "" {
+								devCode = fmt.Sprintf("DEV-%d", ar.DeviceID)
+							}
+							if enabled, _ := matcher.ResolveWithName(ar.DeviceID, devCode, ar.ParameterID, ar.Parameter.ParameterCode, ar.Parameter.ParameterName); !enabled {
+								sawFilteredOutByMapping = true
+								continue
+							}
+							group = append(group, ar)
+						}
+						if len(group) == 0 {
+							continue
+						}
+						intervalSec := k.intervalSec
+						intervalMinutes := intervalSec / 60
+						if intervalMinutes <= 0 {
+							intervalMinutes = 1
+						}
+						pStart := group[0].PeriodStart
+						pEnd := group[0].PeriodEnd
+						batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, pEnd.Format("20060102150405"))
+						idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, intervalSec, pEnd.Unix())
+						if touchedIdempKeys[idempotencyKey] {
+							continue
+						}
+						action, enqErr := s.enqueueAggregatedBatchGroupWithAction(ctx, &dest, effCfg, group, intervalSec, pStart, pEnd, batchID, idempotencyKey)
+						if enqErr != nil {
+							continue
+						}
+						touchedIdempKeys[idempotencyKey] = true
+						switch action {
+						case "CREATED":
+							res.EnqueuedBatches++
+							det.EnqueuedBatches++
+							if dest.Enabled {
+								anyEnabledRequeued = true
+							}
+						case "UPDATED":
+							res.UpdatedBatches++
+							det.UpdatedBatches++
+							if dest.Enabled {
+								anyEnabledRequeued = true
+							}
+						case "SKIPPED_DELIVERED":
+							det.SkippedDeliveredBatches++
 						}
 					}
 				}
 			}
-		}
 
-		if len(candidateMap) > 0 {
-			beforeSum, _ := s.repo.GetQueueSummary(ctx)
-			for _, pe := range candidateMap {
-				_ = s.HandleBucketCompleted(ctx, deviceID, pe)
-			}
-			afterSum, _ := s.repo.GetQueueSummary(ctx)
-			if beforeSum != nil && afterSum != nil && afterSum.Total > beforeSum.Total {
-				refreshedCount += int(afterSum.Total - beforeSum.Total)
-				anyEnabledRequeued = true
+			if det.EnqueuedBatches == 0 && det.UpdatedBatches == 0 && det.SkippedReason == "" {
+				switch {
+				case det.SkippedDeliveredBatches > 0:
+					det.SkippedReason = fmt.Sprintf("%d batch pada rentang waktu ini sudah berstatus DELIVERED di Delivery Queue", det.SkippedDeliveredBatches)
+				case sawCandidateAggRows && sawFilteredOutByMapping:
+					det.SkippedReason = "Parameter device tidak dicentang pada mapping Configurable JSON destinasi ini"
+				default:
+					det.SkippedReason = "Belum ada bucket agregasi CUSTOMER_PROCESSED yang selesai pada rentang waktu ini"
+				}
 			}
 		}
 	}
@@ -2257,7 +2724,382 @@ func (s *outboundService) RefreshQueueForWindow(
 		s.notifyWorker()
 	}
 
-	return refreshedCount, nil
+	res.TotalTouched = res.UpdatedBatches + res.EnqueuedBatches
+	for _, id := range destOrder {
+		if det, ok := detailByID[id]; ok && det != nil {
+			res.Destinations = append(res.Destinations, *det)
+		}
+	}
+
+	return res, nil
+}
+
+func completedAlignedWindowsOverlapping(startUTC, endUTC, nowUTC time.Time, windowSec int) [][2]time.Time {
+	if windowSec <= 0 || endUTC.Before(startUTC) {
+		return nil
+	}
+	w := int64(windowSec)
+	firstK := startUTC.Unix() / w
+	if startUTC.Unix() < 0 {
+		firstK--
+	}
+
+	var out [][2]time.Time
+	isPoint := startUTC.Equal(endUTC)
+	maxWindows := 20000
+
+	for k := firstK; len(out) < maxWindows; k++ {
+		bStart := time.Unix(k*w, 0).UTC()
+		bEnd := time.Unix((k+1)*w, 0).UTC()
+
+		if isPoint {
+			if bStart.After(endUTC) {
+				break
+			}
+			if bEnd.Before(startUTC) {
+				continue
+			}
+		} else {
+			if !bStart.Before(endUTC) {
+				break
+			}
+			if !bEnd.After(startUTC) {
+				continue
+			}
+		}
+
+		if bEnd.After(nowUTC) {
+			break
+		}
+		out = append(out, [2]time.Time{bStart, bEnd})
+	}
+	return out
+}
+
+func containsDeviceInAggResults(results []model.AggregationResult, deviceID uint) bool {
+	if deviceID == 0 {
+		return len(results) > 0
+	}
+	for i := range results {
+		if results[i].DeviceID == deviceID {
+			return true
+		}
+	}
+	return false
+}
+
+// rollupCustomerAggregationsForSingleWindow aggregates finer CUSTOMER_PROCESSED buckets within [periodStart, periodEnd]
+// into one synthetic CUSTOMER_PROCESSED bucket of targetIntervalSec per (DeviceID, ParameterID).
+// Strictly ignores INTERNAL_RAW rows to uphold Phase 8 Outbound Source Governance.
+func rollupCustomerAggregationsForSingleWindow(
+	source []model.AggregationResult,
+	periodStart, periodEnd time.Time,
+	targetIntervalSec int,
+) []model.AggregationResult {
+	type devParamKey struct {
+		deviceID uint
+		paramID  uint
+	}
+	type accState struct {
+		template   model.AggregationResult
+		sum        float64
+		validCount int
+		samples    int
+	}
+
+	accMap := make(map[devParamKey]*accState)
+	var keys []devParamKey
+
+	for _, ar := range source {
+		if ar.SourceType != model.SourceCustomerProcessed {
+			continue
+		}
+		if !isActiveOutboundAggregationResult(ar) {
+			continue
+		}
+		if ar.PeriodEnd.After(periodEnd) || ar.PeriodStart.Before(periodStart) {
+			continue
+		}
+		k := devParamKey{deviceID: ar.DeviceID, paramID: ar.ParameterID}
+		st, exists := accMap[k]
+		if !exists {
+			st = &accState{template: ar}
+			accMap[k] = st
+			keys = append(keys, k)
+		}
+		st.samples += ar.SampleCount
+		if ar.Value != nil && !math.IsNaN(*ar.Value) && !math.IsInf(*ar.Value, 0) && math.Abs(*ar.Value) <= 1e8 && ar.Quality != model.QualityBad {
+			st.sum += *ar.Value
+			st.validCount++
+		}
+	}
+
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].deviceID != keys[j].deviceID {
+			return keys[i].deviceID < keys[j].deviceID
+		}
+		return keys[i].paramID < keys[j].paramID
+	})
+
+	out := make([]model.AggregationResult, 0, len(keys))
+	for _, k := range keys {
+		st := accMap[k]
+		item := st.template
+		item.PeriodStart = periodStart
+		item.PeriodEnd = periodEnd
+		item.IntervalSeconds = targetIntervalSec
+		item.SourceType = model.SourceCustomerProcessed
+		item.SampleCount = st.samples
+		if st.validCount > 0 {
+			avg := roundOutboundValue(st.sum / float64(st.validCount))
+			item.Value = &avg
+			item.AvgValue = &avg
+			item.Quality = model.QualityGood
+		} else {
+			item.Value = nil
+			item.AvgValue = nil
+			item.Quality = model.QualityBad
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func rollupCustomerAggregationsBySubWindows(
+	source []model.AggregationResult,
+	windowStart, windowEnd time.Time,
+	subIntervalSec int,
+) []model.AggregationResult {
+	if subIntervalSec <= 0 || !windowStart.Before(windowEnd) {
+		return nil
+	}
+	var finerOnly []model.AggregationResult
+	for _, r := range source {
+		if r.SourceType == model.SourceCustomerProcessed && r.IntervalSeconds > 0 && r.IntervalSeconds < subIntervalSec {
+			finerOnly = append(finerOnly, r)
+		}
+	}
+	if len(finerOnly) == 0 {
+		return nil
+	}
+	subWins := completedAlignedWindowsOverlapping(windowStart, windowEnd, windowEnd, subIntervalSec)
+	var out []model.AggregationResult
+	for _, sw := range subWins {
+		rolled := rollupCustomerAggregationsForSingleWindow(finerOnly, sw[0], sw[1], subIntervalSec)
+		out = append(out, rolled...)
+	}
+	return out
+}
+
+func isCanonicalSPARINGParam(code, name string) bool {
+	check := func(raw string) bool {
+		switch strings.ToLower(strings.TrimSpace(raw)) {
+		case "ph", "p_h", "cod", "tss", "nh3n", "nh3-n", "nh3_n", "ammonia", "amonia", "debit", "flow", "flowrate", "flow_rate", "flow-rate":
+			return true
+		}
+		return false
+	}
+	return check(code) || check(name)
+}
+
+func isCanonicalISPUParam(code string) bool {
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "pm10", "pm2.5", "pm25", "pm2_5", "so2", "co", "o3", "no2", "hc", "nmhc",
+		"w-speed", "wspeed", "ws", "wind_speed", "wind-speed",
+		"wind-angle", "wind_angle", "wd", "wind_dir", "wind-dir",
+		"humidity", "hum", "rh", "temperature", "temp",
+		"air-pressure", "air_pressure", "pressure", "press",
+		"solar-radiation", "solar_radiation", "intensity", "sr",
+		"rain-fall", "rain_fall", "rainfall", "tprecipitation", "rain_intensity", "rain-intensity":
+		return true
+	}
+	return false
+}
+
+func resolveTemplateDefaultAlias(cfg *model.DestinationPayloadConfig, code, name string) (string, bool) {
+	trimmed := strings.TrimSpace(code)
+	if cfg == nil {
+		return trimmed, false
+	}
+	tmpl := strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
+	struc := strings.ToUpper(strings.TrimSpace(cfg.Structure))
+	switch {
+	case tmpl == "KLHK_SPARING" || tmpl == "KLHK_SPARING_HOURLY" || struc == "SPARING_DATA_ARRAY":
+		return defaultKLHKSPARINGAlias(trimmed), isCanonicalSPARINGParam(trimmed, name)
+	case tmpl == "KLHK_WQMS_ONLIMO" || struc == "ONLIMO_DATA_OBJECT":
+		if alias, ok := matchKLHKWQMSAlias(trimmed, name); ok {
+			return alias, true
+		}
+		return trimmed, false
+	case tmpl == "KLHK_ISPU_AQMS":
+		return defaultKLHKISPUAlias(trimmed), isCanonicalISPUParam(trimmed)
+	default:
+		return trimmed, false
+	}
+}
+
+func isParamMappedInConfig(cfg *model.DestinationPayloadConfig, deviceID uint, deviceCode string, paramID uint, paramCode string) (bool, bool) {
+	if cfg == nil || strings.TrimSpace(cfg.ParameterMappingsJSON) == "" {
+		return false, true
+	}
+	var mappings []model.ParameterMappingItem
+	if err := json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings); err != nil || len(mappings) == 0 {
+		return false, true
+	}
+	codeUpper := strings.ToUpper(strings.TrimSpace(paramCode))
+	devCodeUpper := strings.ToUpper(strings.TrimSpace(deviceCode))
+
+	for _, m := range mappings {
+		if deviceID > 0 && paramID > 0 && m.DeviceID == deviceID && m.ParameterID == paramID {
+			return true, m.Enabled
+		}
+	}
+	for _, m := range mappings {
+		if deviceID > 0 && m.DeviceID == deviceID && strings.ToUpper(strings.TrimSpace(m.ParameterCode)) == codeUpper {
+			return true, m.Enabled
+		}
+	}
+	for _, m := range mappings {
+		if devCodeUpper != "" && strings.ToUpper(strings.TrimSpace(m.DeviceCode)) == devCodeUpper && strings.ToUpper(strings.TrimSpace(m.ParameterCode)) == codeUpper {
+			return true, m.Enabled
+		}
+	}
+	for _, m := range mappings {
+		if m.DeviceID == 0 && strings.TrimSpace(m.DeviceCode) == "" && strings.ToUpper(strings.TrimSpace(m.ParameterCode)) == codeUpper {
+			return true, m.Enabled
+		}
+	}
+	return false, false
+}
+
+func (s *outboundService) prepareDestinationConfigForWindowRefresh(
+	ctx context.Context,
+	dest *model.OutputDestination,
+	cfg *model.DestinationPayloadConfig,
+	targetDev *model.Device,
+	forceParamSet map[uint]bool,
+	explicitlySelected bool,
+) (*model.DestinationPayloadConfig, int) {
+	if cfg == nil {
+		return nil, 0
+	}
+	eff := *cfg
+	if targetDev == nil || len(targetDev.Parameters) == 0 {
+		return &eff, 0
+	}
+
+	matcher := buildParameterMappingMatcher(&eff)
+	currentlyEnabledCount := 0
+	for _, p := range targetDev.Parameters {
+		if !p.Enabled {
+			continue
+		}
+		if len(forceParamSet) > 0 && !forceParamSet[p.ID] {
+			continue
+		}
+		if en, _ := matcher.ResolveWithName(targetDev.ID, targetDev.DeviceCode, p.ID, p.ParameterCode, p.ParameterName); en {
+			currentlyEnabledCount++
+		}
+	}
+
+	// When ParameterMappingsJSON is empty, only KLHK_WQMS_ONLIMO filters out non-canonical parameters.
+	if strings.TrimSpace(eff.ParameterMappingsJSON) == "" {
+		if explicitlySelected && currentlyEnabledCount == 0 && strings.EqualFold(strings.TrimSpace(eff.TemplateType), "KLHK_WQMS_ONLIMO") {
+			var synth []model.ParameterMappingItem
+			for _, p := range targetDev.Parameters {
+				if !p.Enabled {
+					continue
+				}
+				if len(forceParamSet) > 0 && !forceParamSet[p.ID] {
+					continue
+				}
+				alias, _ := resolveTemplateDefaultAlias(&eff, p.ParameterCode, p.ParameterName)
+				synth = append(synth, model.ParameterMappingItem{
+					DeviceID:      targetDev.ID,
+					DeviceCode:    targetDev.DeviceCode,
+					ParameterID:   p.ID,
+					ParameterCode: p.ParameterCode,
+					ParameterName: p.ParameterName,
+					ExternalName:  alias,
+					Enabled:       true,
+				})
+			}
+			if len(synth) > 0 {
+				if b, err := json.Marshal(synth); err == nil {
+					eff.ParameterMappingsJSON = string(b)
+					return &eff, len(synth)
+				}
+			}
+		}
+		return &eff, 0
+	}
+
+	var mappings []model.ParameterMappingItem
+	if err := json.Unmarshal([]byte(eff.ParameterMappingsJSON), &mappings); err != nil || len(mappings) == 0 {
+		return &eff, 0
+	}
+
+	dedicatedToTargetDev := dest != nil && dest.DeviceID != nil && *dest.DeviceID == targetDev.ID
+	var persistedAdditions []model.ParameterMappingItem
+	effMappings := make([]model.ParameterMappingItem, len(mappings))
+	copy(effMappings, mappings)
+	autoMapped := 0
+
+	for _, p := range targetDev.Parameters {
+		if !p.Enabled {
+			continue
+		}
+		if len(forceParamSet) > 0 && !forceParamSet[p.ID] {
+			continue
+		}
+		seen, en := isParamMappedInConfig(&eff, targetDev.ID, targetDev.DeviceCode, p.ID, p.ParameterCode)
+		if !seen {
+			alias, canonical := resolveTemplateDefaultAlias(&eff, p.ParameterCode, p.ParameterName)
+			if dedicatedToTargetDev || canonical || explicitlySelected {
+				newItem := model.ParameterMappingItem{
+					DeviceID:      targetDev.ID,
+					DeviceCode:    targetDev.DeviceCode,
+					ParameterID:   p.ID,
+					ParameterCode: p.ParameterCode,
+					ParameterName: p.ParameterName,
+					ExternalName:  alias,
+					Enabled:       true,
+				}
+				effMappings = append(effMappings, newItem)
+				autoMapped++
+				if dedicatedToTargetDev || canonical {
+					persistedAdditions = append(persistedAdditions, newItem)
+				}
+			}
+		} else if !en && explicitlySelected && currentlyEnabledCount == 0 {
+			for idx := range effMappings {
+				m := &effMappings[idx]
+				if (m.DeviceID == targetDev.ID && (m.ParameterID == p.ID || strings.EqualFold(strings.TrimSpace(m.ParameterCode), strings.TrimSpace(p.ParameterCode)))) ||
+					(targetDev.DeviceCode != "" && strings.EqualFold(strings.TrimSpace(m.DeviceCode), strings.TrimSpace(targetDev.DeviceCode)) && strings.EqualFold(strings.TrimSpace(m.ParameterCode), strings.TrimSpace(p.ParameterCode))) {
+					m.Enabled = true
+				}
+			}
+			autoMapped++
+		}
+	}
+
+	if autoMapped > 0 {
+		if b, err := json.Marshal(effMappings); err == nil {
+			eff.ParameterMappingsJSON = string(b)
+		}
+	}
+	if len(persistedAdditions) > 0 && cfg.DestinationID > 0 {
+		persistedList := append(mappings, persistedAdditions...)
+		if b, err := json.Marshal(persistedList); err == nil {
+			cfg.ParameterMappingsJSON = string(b)
+			_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+		}
+	}
+
+	return &eff, autoMapped
 }
 
 // GeneratePreview builds a real or sample preview payload matching stored config

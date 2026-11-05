@@ -271,6 +271,18 @@ func (h *OutboundHandler) GetQueueItems(c *gin.Context) {
 		}
 	}
 
+	if winStartStr := c.Query("window_start"); winStartStr != "" {
+		if t, err := time.Parse(time.RFC3339, winStartStr); err == nil {
+			filter.WindowStart = &t
+		}
+	}
+
+	if winEndStr := c.Query("window_end"); winEndStr != "" {
+		if t, err := time.Parse(time.RFC3339, winEndStr); err == nil {
+			filter.WindowEnd = &t
+		}
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	filter.Page = page

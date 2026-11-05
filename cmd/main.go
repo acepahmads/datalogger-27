@@ -536,6 +536,7 @@ func main() {
 			superadminInjGroup.POST("/preview", telemetryInjHandler.Preview)
 			superadminInjGroup.POST("/execute", telemetryInjHandler.Execute)
 			superadminInjGroup.GET("/batches", telemetryInjHandler.ListBatches)
+			superadminInjGroup.POST("/batches/:id/sync-outbound", telemetryInjHandler.SyncOutbound)
 			superadminInjGroup.POST("/batches/:id/rollback", telemetryInjHandler.Rollback)
 			superadminInjGroup.DELETE("/batches/:id", telemetryInjHandler.Rollback)
 		}

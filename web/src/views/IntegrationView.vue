@@ -175,7 +175,7 @@
           <!-- Status Filter -->
           <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <span class="text-3xs text-slate-500">Status:</span>
-            <select v-model="filterStatus" @change="fetchQueue" class="bg-transparent font-bold focus:outline-hidden cursor-pointer">
+            <select v-model="filterStatus" @change="onQueueFilterChange" class="bg-transparent font-bold focus:outline-hidden cursor-pointer">
               <option value="ALL">ALL STATUSES</option>
               <option value="PENDING">PENDING</option>
               <option value="SENDING">SENDING</option>
@@ -190,7 +190,7 @@
           <!-- Destination Filter -->
           <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <span class="text-3xs text-slate-500">Destination:</span>
-            <select v-model="filterDestinationId" @change="fetchQueue" class="bg-transparent font-bold focus:outline-hidden cursor-pointer">
+            <select v-model="filterDestinationId" @change="onQueueFilterChange" class="bg-transparent font-bold focus:outline-hidden cursor-pointer">
               <option :value="null">ALL DESTINATIONS</option>
               <option v-for="d in destinations" :key="d.id" :value="d.id">
                 {{ d.name }} ({{ d.type }})
@@ -198,13 +198,33 @@
             </select>
           </div>
 
+          <!-- Window Date Filter -->
+          <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+            <span class="text-3xs text-slate-500">Tanggal Data:</span>
+            <input
+              type="date"
+              v-model="filterWindowDate"
+              @change="onQueueFilterChange"
+              class="bg-transparent font-mono font-bold text-xs focus:outline-hidden cursor-pointer"
+            />
+            <button
+              v-if="filterWindowDate"
+              type="button"
+              @click="filterWindowDate = ''; onQueueFilterChange()"
+              class="text-slate-400 hover:text-rose-400 font-mono text-3xs px-1"
+              title="Reset filter tanggal data"
+            >
+              ✕
+            </button>
+          </div>
+
           <!-- Search Input -->
           <div class="relative">
             <input
               v-model="searchQuery"
-              @keyup.enter="fetchQueue"
+              @keyup.enter="onQueueFilterChange"
               type="text"
-              placeholder="Search Batch ID / Key..."
+              placeholder="Search Batch ID / Device / Key..."
               class="w-48 sm:w-64 bg-slate-100 dark:bg-slate-800 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:border-cyan-500"
             />
           </div>
@@ -260,7 +280,7 @@
                 <th v-if="!isOperator" class="py-2.5 px-3">Devices</th>
                 <th class="py-2.5 px-3">Destination</th>
                 <th class="py-2.5 px-3">Waktu Pertama Kirim</th>
-                <th class="py-2.5 px-3">Window (UTC)</th>
+                <th class="py-2.5 px-3">Window Data</th>
                 <th class="py-2.5 px-3 text-center">Interval</th>
                 <th class="py-2.5 px-3 text-center">Params</th>
                 <th class="py-2.5 px-3">Status</th>
@@ -331,7 +351,8 @@
                 </td>
 
                 <!-- Window -->
-                <td class="py-2.5 px-3 text-3xs font-mono tabular-nums text-slate-500">
+                <td class="py-2.5 px-3 text-3xs font-mono tabular-nums text-slate-500 whitespace-nowrap">
+                  <div class="font-semibold text-cyan-600 dark:text-cyan-400">{{ formatDate(item.period_start) }}</div>
                   <div>{{ formatTime(item.period_start) }}</div>
                   <div>→ {{ formatTime(item.period_end) }}</div>
                 </td>
@@ -1948,6 +1969,7 @@ export default {
       pageSize: 20,
       filterStatus: 'ALL',
       filterDestinationId: null,
+      filterWindowDate: (this.$route.query && this.$route.query.window_date) || '',
       searchQuery: '',
       summary: {
         pending: 0,
@@ -2119,6 +2141,14 @@ export default {
         }
       }
     },
+    '$route.query.window_date'(newDate) {
+      const normalized = newDate || '';
+      if (this.filterWindowDate !== normalized) {
+        this.filterWindowDate = normalized;
+        this.page = 1;
+        this.fetchQueue();
+      }
+    },
     selectedDestinationId(newId) {
       if (newId && this.activeTab === 'config') {
         this.loadDestinationPayloadConfig();
@@ -2193,6 +2223,10 @@ export default {
         console.error('Failed to load destinations:', err);
       }
     },
+    onQueueFilterChange() {
+      this.page = 1;
+      this.fetchQueue();
+    },
     async fetchQueue() {
       this.loading = true;
       try {
@@ -2209,6 +2243,15 @@ export default {
         }
         if (this.searchQuery) {
           params.search = this.searchQuery;
+        }
+        if (this.filterWindowDate && /^\d{4}-\d{2}-\d{2}$/.test(this.filterWindowDate)) {
+          const [yy, mm, dd] = this.filterWindowDate.split('-').map(Number);
+          const dayStart = new Date(yy, mm - 1, dd, 0, 0, 0, 0);
+          const dayEnd = new Date(yy, mm - 1, dd + 1, 0, 0, 0, 0);
+          if (!isNaN(dayStart.getTime()) && !isNaN(dayEnd.getTime())) {
+            params.window_start = dayStart.toISOString();
+            params.window_end = dayEnd.toISOString();
+          }
         }
 
         const res = await axios.get('/api/integration/queue', { params });

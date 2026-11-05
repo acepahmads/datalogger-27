@@ -141,3 +141,29 @@ func (h *TelemetryInjectionHandler) Rollback(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// SyncOutbound handles POST /api/superadmin/telemetry-inject/batches/:id/sync-outbound
+func (h *TelemetryInjectionHandler) SyncOutbound(c *gin.Context) {
+	if !isStrictSuperAdmin(c) {
+		response.Forbidden(c, "Access denied: Superadmin privileges required")
+		return
+	}
+	idVal, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil || idVal == 0 {
+		response.BadRequest(c, "ID batch tidak valid")
+		return
+	}
+
+	var body struct {
+		OutboundDestinationIDs []uint `json:"outbound_destination_ids"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	res, err := h.injService.SyncBatchOutbound(c.Request.Context(), uint(idVal), body.OutboundDestinationIDs)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, res)
+}
+
+

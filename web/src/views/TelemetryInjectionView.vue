@@ -270,6 +270,60 @@
           />
         </div>
       </div>
+
+      <!-- Target Outbound Destinations Selector -->
+      <div
+        v-if="(form.refreshOutbound || form.enqueueMissingOutbound) && outboundDestinations.length > 0"
+        class="p-3 rounded-xl bg-slate-50/90 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800 space-y-2"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-3xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+            Target Destinasi Outbound ({{ selectedDestinationIds.length }} / {{ outboundDestinations.length }} dipilih)
+          </span>
+          <span class="text-4xs text-slate-500 dark:text-slate-400">
+            Destinasi berstatus <code class="font-mono">DISABLED</code> tetap aman masuk antrean <code class="font-mono">PENDING</code> tanpa terkirim otomatis sebelum diaktifkan.
+          </span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+          <label
+            v-for="dest in outboundDestinations"
+            :key="dest.destination_id"
+            class="p-2.5 rounded-xl border flex items-start space-x-2.5 cursor-pointer transition select-none"
+            :class="selectedDestinationIds.includes(dest.destination_id)
+              ? 'bg-blue-50/70 dark:bg-blue-950/25 border-blue-400/60 dark:border-blue-600/50'
+              : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-75 hover:opacity-100'"
+          >
+            <input
+              type="checkbox"
+              :value="dest.destination_id"
+              v-model="selectedDestinationIds"
+              class="mt-0.5 rounded border-slate-400 text-blue-600 focus:ring-blue-500"
+            />
+            <div class="min-w-0 flex-1 space-y-0.5">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ dest.name }}</span>
+                <span
+                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold"
+                  :class="dest.enabled
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'"
+                >
+                  {{ dest.enabled ? '● ACTIVE' : '○ DISABLED' }}
+                </span>
+                <span class="px-1.5 py-0.2 rounded text-4xs font-mono bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/25">
+                  {{ formatDestinationSchedule(dest) }}
+                </span>
+              </div>
+              <div class="text-4xs font-mono text-slate-500 dark:text-slate-400">
+                {{ dest.template_type }} · {{ dest.matched_param_count }}/{{ dest.total_active_params }} param cocok
+              </div>
+              <div v-if="dest.note" class="text-4xs text-amber-600 dark:text-amber-300 leading-snug">
+                {{ dest.note }}
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
     </div>
 
     <!-- STEP 2: Tabel Parameter & Rentang Nilai -->
@@ -491,9 +545,60 @@
         <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800">
           <div class="text-3xs uppercase font-semibold text-amber-600 dark:text-amber-400">Antrean Outbound Segar</div>
           <div class="text-xl font-mono font-bold text-amber-600 dark:text-amber-400 mt-0.5">
-            {{ lastExecutedBatch ? lastExecutedBatch.refreshed_outbound : (form.refreshOutbound ? 'Auto' : 'Off') }}
+            {{ lastExecutedBatch ? lastExecutedBatch.refreshed_outbound : ((form.refreshOutbound || form.enqueueMissingOutbound) ? 'Auto' : 'Off') }}
           </div>
-          <div class="text-4xs text-slate-400 font-mono">batch queue diperbarui</div>
+          <div class="text-4xs text-slate-400 font-mono">batch queue dibuat / diperbarui</div>
+        </div>
+      </div>
+
+      <!-- Per-Destination Outbound Breakdown -->
+      <div
+        v-if="lastOutboundResult && lastOutboundResult.destinations && lastOutboundResult.destinations.length > 0"
+        class="p-3 rounded-xl bg-slate-50/90 dark:bg-[#0B0F19]/90 border border-slate-200 dark:border-slate-800 space-y-2"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="text-3xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+            Status Antrean Outbound per Destinasi ({{ lastOutboundResult.enqueued_batches || 0 }} baru · {{ lastOutboundResult.updated_batches || 0 }} diperbarui)
+          </div>
+          <router-link
+            :to="queueWindowLink(lastExecutedBatch ? lastExecutedBatch.start_time : form.startTime)"
+            class="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 text-3xs font-bold font-mono transition"
+          >
+            📤 Buka Delivery Queue Tanggal Ini →
+          </router-link>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div
+            v-for="det in lastOutboundResult.destinations"
+            :key="det.destination_id"
+            class="p-2.5 rounded-lg bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-2xs font-mono space-y-0.5"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-1.5">
+              <div class="flex items-center space-x-1.5">
+                <span class="font-bold text-slate-900 dark:text-white">{{ det.destination_name }}</span>
+                <span
+                  class="px-1.5 py-0.2 rounded text-4xs font-bold"
+                  :class="det.enabled
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
+                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'"
+                >
+                  {{ det.enabled ? 'ACTIVE' : 'DISABLED (PENDING)' }}
+                </span>
+              </div>
+              <span
+                class="font-bold"
+                :class="(det.enqueued_batches + det.updated_batches) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'"
+              >
+                +{{ det.enqueued_batches }} baru · ↻ {{ det.updated_batches }} update
+              </span>
+            </div>
+            <div v-if="det.rolled_up_intervals" class="text-4xs text-cyan-600 dark:text-cyan-400">
+              ✓ Rollup lintas interval CUSTOMER_PROCESSED otomatis diterapkan
+            </div>
+            <div v-if="det.skipped_reason" class="text-4xs text-amber-600 dark:text-amber-300">
+              ℹ {{ det.skipped_reason }}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -629,7 +734,16 @@
               </td>
               <td class="py-2.5 px-3 text-right font-mono text-3xs">
                 <div><strong class="text-slate-900 dark:text-white">{{ b.injected_raw_count }}</strong> raw</div>
-                <div class="text-slate-400">{{ b.aggregated_buckets }} agg · {{ b.refreshed_outbound }} out</div>
+                <div class="text-slate-400">
+                  {{ b.aggregated_buckets }} agg ·
+                  <router-link
+                    :to="queueWindowLink(b.start_time)"
+                    class="text-cyan-600 dark:text-cyan-400 hover:underline font-bold"
+                    title="Lihat antrean Outbound pada tanggal batch ini"
+                  >
+                    {{ b.refreshed_outbound }} out
+                  </router-link>
+                </div>
               </td>
               <td class="py-2.5 px-3 text-center font-mono">
                 <span
@@ -642,15 +756,25 @@
                 </span>
               </td>
               <td class="py-2.5 px-4 text-right">
-                <button
-                  v-if="b.status === 'ACTIVE'"
-                  type="button"
-                  @click="openRollbackModal(b)"
-                  :disabled="rollbackLoadingId === b.id"
-                  class="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-600 text-rose-600 dark:text-rose-300 hover:text-white border border-rose-500/30 text-3xs font-bold transition cursor-pointer"
-                >
-                  {{ rollbackLoadingId === b.id ? 'Menghapus...' : '↩ Rollback' }}
-                </button>
+                <div v-if="b.status === 'ACTIVE'" class="inline-flex flex-wrap items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    @click="syncBatchOutbound(b)"
+                    :disabled="syncOutboundLoadingId === b.id || rollbackLoadingId === b.id"
+                    class="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-600 text-cyan-600 dark:text-cyan-300 hover:text-white border border-cyan-500/30 text-3xs font-bold transition cursor-pointer"
+                    title="Hitung ulang agregasi & buat/perbarui antrean Outbound Delivery Queue untuk batch ini"
+                  >
+                    {{ syncOutboundLoadingId === b.id ? 'Mengantrekan...' : '📤 Antrekan Outbound' }}
+                  </button>
+                  <button
+                    type="button"
+                    @click="openRollbackModal(b)"
+                    :disabled="rollbackLoadingId === b.id || syncOutboundLoadingId === b.id"
+                    class="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-600 text-rose-600 dark:text-rose-300 hover:text-white border border-rose-500/30 text-3xs font-bold transition cursor-pointer"
+                  >
+                    {{ rollbackLoadingId === b.id ? 'Menghapus...' : '↩ Rollback' }}
+                  </button>
+                </div>
                 <span v-else class="text-4xs font-mono text-slate-400">
                   Oleh @{{ b.rolled_back_by || 'superadmin' }}
                 </span>
@@ -730,6 +854,8 @@ export default {
       deviceHints: null,
       hintsLoading: false,
       paramRows: [],
+      outboundDestinations: [],
+      selectedDestinationIds: [],
 
       showUnixHelper: false,
       unixHelperInput: '',
@@ -750,6 +876,7 @@ export default {
       executeLoading: false,
       previewResult: null,
       lastExecutedBatch: null,
+      lastOutboundResult: null,
       showSamplePreviewRows: false,
 
       batches: [],
@@ -757,6 +884,7 @@ export default {
       filterBatchesByDevice: false,
       batchToRollback: null,
       rollbackLoadingId: null,
+      syncOutboundLoadingId: null,
 
       feedbackMessage: '',
       feedbackType: 'success',
@@ -792,6 +920,26 @@ export default {
       if (n >= 3600 && n % 3600 === 0) return `${n / 3600}h`;
       if (n >= 60 && n % 60 === 0) return `${n / 60}m`;
       return `${n}s`;
+    },
+    formatDestinationSchedule(dest) {
+      if (!dest) return '';
+      const src = Number(dest.interval_seconds) || 0;
+      const disp = Number(dest.dispatch_interval_seconds) || 0;
+      if (disp > 0 && disp > (src || 120)) {
+        return `${this.formatIntervalLabel(src || 120)} → ${this.formatIntervalLabel(disp)}`;
+      }
+      if (src > 0) {
+        return this.formatIntervalLabel(src);
+      }
+      return 'Semua Interval';
+    },
+    queueWindowLink(isoOrLocal) {
+      if (!isoOrLocal) return '/integration/queue';
+      const d = new Date(isoOrLocal);
+      if (Number.isNaN(d.getTime())) return '/integration/queue';
+      const pad = n => String(n).padStart(2, '0');
+      const yyyyMmDd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      return `/integration/queue?window_date=${yyyyMmDd}`;
     },
     formatDateTime(iso) {
       if (!iso) return '--';
@@ -831,6 +979,7 @@ export default {
       this.hintsLoading = true;
       this.previewResult = null;
       this.lastExecutedBatch = null;
+      this.lastOutboundResult = null;
       try {
         const res = await api.get(`/superadmin/telemetry-inject/devices/${this.selectedDeviceId}/hints`);
         const hints = (res.data && res.data.data) || res.data;
@@ -841,6 +990,11 @@ export default {
           minValue: p.suggested_min,
           maxValue: p.suggested_max,
         }));
+        const dests = Array.isArray(hints.outbound_destinations) ? hints.outbound_destinations : [];
+        this.outboundDestinations = dests;
+        this.selectedDestinationIds = dests
+          .filter(d => d.recommended_selected)
+          .map(d => d.destination_id);
         if (this.filterBatchesByDevice) {
           this.fetchBatches();
         }
@@ -937,6 +1091,10 @@ export default {
       if (selected.length === 0) {
         throw new Error('Pilih minimal 1 parameter terlebih dahulu.');
       }
+      const wantsOutbound = !!(this.form.refreshOutbound || this.form.enqueueMissingOutbound);
+      const hasDestChoices = this.outboundDestinations.length > 0;
+      const chosenDests = hasDestChoices ? this.selectedDestinationIds.slice() : [];
+
       return {
         device_id: Number(this.selectedDeviceId),
         start_time: start.toISOString(),
@@ -945,8 +1103,9 @@ export default {
         conflict_mode: this.form.conflictMode,
         random_mode: this.form.randomMode,
         value_target: this.form.valueTarget,
-        refresh_outbound: !!this.form.refreshOutbound,
-        enqueue_missing_outbound: !!this.form.enqueueMissingOutbound,
+        refresh_outbound: wantsOutbound && (!hasDestChoices || chosenDests.length > 0) ? !!this.form.refreshOutbound : false,
+        enqueue_missing_outbound: wantsOutbound && (!hasDestChoices || chosenDests.length > 0) ? !!this.form.enqueueMissingOutbound : false,
+        outbound_destination_ids: chosenDests,
         note: this.form.note || '',
         parameters: selected,
       };
@@ -966,6 +1125,7 @@ export default {
         const res = await api.post('/superadmin/telemetry-inject/preview', payload);
         this.previewResult = (res.data && res.data.data) || res.data;
         this.lastExecutedBatch = null;
+        this.lastOutboundResult = null;
       } catch (err) {
         this.showFeedback('Simulasi gagal: ' + ((err.response && err.response.data && err.response.data.message) || err.message), 'error');
       } finally {
@@ -993,8 +1153,10 @@ export default {
         const data = (res.data && res.data.data) || res.data;
         this.lastExecutedBatch = data.batch;
         this.previewResult = data.preview;
+        this.lastOutboundResult = data.outbound_result || null;
+        const outDetailMsg = this.summarizeOutboundResult(data.outbound_result, data.batch.refreshed_outbound);
         this.showFeedback(
-          `Berhasil menyuntikkan ${data.batch.injected_raw_count} sampel (${data.batch.batch_code}), menghitung ulang ${data.batch.aggregated_buckets} bucket agregasi, dan menyegarkan ${data.batch.refreshed_outbound} batch Outbound.`,
+          `Berhasil menyuntikkan ${data.batch.injected_raw_count} sampel (${data.batch.batch_code}), menghitung ulang ${data.batch.aggregated_buckets} bucket agregasi, ${outDetailMsg}`,
           'success'
         );
         await this.fetchBatches();
@@ -1002,6 +1164,59 @@ export default {
         this.showFeedback('Eksekusi gagal: ' + ((err.response && err.response.data && err.response.data.message) || err.message), 'error');
       } finally {
         this.executeLoading = false;
+      }
+    },
+    summarizeOutboundResult(outboundRes, fallbackCount = 0) {
+      if (!outboundRes) {
+        return `dan menyegarkan ${fallbackCount || 0} batch Outbound.`;
+      }
+      const created = outboundRes.enqueued_batches || 0;
+      const updated = outboundRes.updated_batches || 0;
+      const total = outboundRes.total_touched || (created + updated);
+      if (total > 0) {
+        return `dan mengantrekan ${created} batch baru + memperbarui ${updated} batch Outbound.`;
+      }
+      const reasons = (outboundRes.destinations || [])
+        .map(d => `${d.destination_name}: ${d.skipped_reason || '0 batch'}`)
+        .filter(Boolean);
+      if (reasons.length > 0) {
+        return `namun 0 batch Outbound terbuat (${reasons.join(' | ')}).`;
+      }
+      return 'dan 0 batch Outbound terbuat.';
+    },
+    async syncBatchOutbound(batch) {
+      if (!batch || !batch.id) return;
+      this.syncOutboundLoadingId = batch.id;
+      this.feedbackMessage = '';
+      try {
+        const body = {};
+        if (
+          Number(batch.device_id) === Number(this.selectedDeviceId) &&
+          this.selectedDestinationIds &&
+          this.selectedDestinationIds.length > 0
+        ) {
+          body.outbound_destination_ids = this.selectedDestinationIds.slice();
+        }
+        const res = await api.post(`/superadmin/telemetry-inject/batches/${batch.id}/sync-outbound`, body);
+        const out = (res.data && res.data.data) || res.data || {};
+        this.lastOutboundResult = out.outbound_result || null;
+        if (out.batch && this.lastExecutedBatch && this.lastExecutedBatch.id === out.batch.id) {
+          this.lastExecutedBatch = out.batch;
+        }
+        const outDetailMsg = this.summarizeOutboundResult(out.outbound_result, out.batch && out.batch.refreshed_outbound);
+        const touched = (out.outbound_result && out.outbound_result.total_touched) || 0;
+        this.showFeedback(
+          `Sinkronisasi Outbound ${batch.batch_code}: ${out.recalculated_buckets || 0} bucket agregasi diverifikasi, ${outDetailMsg}`,
+          touched > 0 ? 'success' : 'error'
+        );
+        await this.fetchBatches();
+      } catch (err) {
+        this.showFeedback(
+          'Gagal mengantrekan Outbound: ' + ((err.response && err.response.data && err.response.data.message) || err.message),
+          'error'
+        );
+      } finally {
+        this.syncOutboundLoadingId = null;
       }
     },
     async fetchBatches() {
