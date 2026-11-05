@@ -1447,7 +1447,8 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 				if srcMinutes <= 0 {
 					srcMinutes = 1
 				}
-				batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%dM-%s", dest.ID, dispMinutes, srcMinutes, windowEnd.Format("20060102150405"))
+				batchLoc := resolveBatchIDLocation(&dest, cfg, group, nil)
+				batchID := formatBundledBatchID(dest.ID, dispMinutes, srcMinutes, windowEnd, batchLoc)
 				idempotencyKey := fmt.Sprintf("DEST%d_DISP%d_SRC%d_%d", dest.ID, dest.DispatchIntervalSeconds, sourceInterval, windowEnd.Unix())
 
 				s.enqueueAggregatedBatchGroup(ctx, &dest, cfg, group, sourceInterval, windowStart, windowEnd, batchID, idempotencyKey)
@@ -1499,8 +1500,9 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 			periodStart := group[0].PeriodStart
 			periodEnd := group[0].PeriodEnd
 
-			// Stable batch identity per destination and window
-			batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, periodEnd.Format("20060102150405"))
+			// Stable batch identity per destination and window (formatted in local/station timezone for readability)
+			batchLoc := resolveBatchIDLocation(&dest, cfg, group, nil)
+			batchID := formatSingleBucketBatchID(dest.ID, intervalMinutes, periodEnd, batchLoc)
 			idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, intervalSec, periodEnd.Unix())
 
 			s.enqueueAggregatedBatchGroup(ctx, &dest, cfg, group, intervalSec, periodStart, periodEnd, batchID, idempotencyKey)
@@ -1508,6 +1510,60 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 	}
 
 	return nil
+}
+
+// resolveBatchIDLocation determines the display timezone used for human-readable BatchID labels
+// (while IdempotencyKey always remains anchored to UTC Unix epoch seconds).
+func resolveBatchIDLocation(dest *model.OutputDestination, cfg *model.DestinationPayloadConfig, group []model.AggregationResult, fallbackDev *model.Device) *time.Location {
+	if cfg != nil && strings.TrimSpace(cfg.TimestampTimezone) != "" {
+		if loc := resolveTimezoneLocation(cfg.TimestampTimezone); loc != nil {
+			return loc
+		}
+	}
+	if dest != nil && dest.Device != nil {
+		tz := strings.TrimSpace(dest.Device.Timezone)
+		if tz != "" && !strings.EqualFold(tz, "UTC") {
+			if loc := resolveTimezoneLocation(tz); loc != nil {
+				return loc
+			}
+		}
+	}
+	for i := range group {
+		if group[i].Device != nil {
+			tz := strings.TrimSpace(group[i].Device.Timezone)
+			if tz != "" && !strings.EqualFold(tz, "UTC") {
+				if loc := resolveTimezoneLocation(tz); loc != nil {
+					return loc
+				}
+			}
+		}
+	}
+	if fallbackDev != nil {
+		tz := strings.TrimSpace(fallbackDev.Timezone)
+		if tz != "" && !strings.EqualFold(tz, "UTC") {
+			if loc := resolveTimezoneLocation(tz); loc != nil {
+				return loc
+			}
+		}
+	}
+	if time.Local != nil {
+		return time.Local
+	}
+	return time.UTC
+}
+
+func formatBundledBatchID(destID uint, dispMinutes, srcMinutes int, windowEnd time.Time, loc *time.Location) string {
+	if loc == nil {
+		loc = time.Local
+	}
+	return fmt.Sprintf("BATCH-DEST%d-%dM-%dM-%s", destID, dispMinutes, srcMinutes, windowEnd.In(loc).Format("20060102150405"))
+}
+
+func formatSingleBucketBatchID(destID uint, intervalMinutes int, periodEnd time.Time, loc *time.Location) string {
+	if loc == nil {
+		loc = time.Local
+	}
+	return fmt.Sprintf("BATCH-DEST%d-%dM-%s", destID, intervalMinutes, periodEnd.In(loc).Format("20060102150405"))
 }
 
 func (s *outboundService) enqueueAggregatedBatchGroup(
@@ -2398,6 +2454,26 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 			srcValsBytes, _ := json.Marshal(sourceItems)
 			item.SourceAggregationIDs = string(srcIDsBytes)
 			item.SourceValuesJSON = string(srcValsBytes)
+			if strings.HasPrefix(item.BatchID, "BATCH-DEST") && !item.PeriodEnd.IsZero() {
+				batchLoc := resolveBatchIDLocation(&destObj, effCfg, group, targetDev)
+				if sourceInterval > 0 && windowSeconds > sourceInterval {
+					dispMin := windowSeconds / 60
+					if dispMin <= 0 {
+						dispMin = 1
+					}
+					srcMin := sourceInterval / 60
+					if srcMin <= 0 {
+						srcMin = 1
+					}
+					item.BatchID = formatBundledBatchID(destObj.ID, dispMin, srcMin, item.PeriodEnd, batchLoc)
+				} else if sourceInterval > 0 {
+					intMin := sourceInterval / 60
+					if intMin <= 0 {
+						intMin = 1
+					}
+					item.BatchID = formatSingleBucketBatchID(destObj.ID, intMin, item.PeriodEnd, batchLoc)
+				}
+			}
 
 			if s.rebuildQueueItemPayload(item, effCfg) {
 				if err := s.repo.UpdateQueueItemPayloadAndRequeue(ctx, item, destObj.Enabled); err == nil {
@@ -2469,7 +2545,6 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 					if srcMinutes <= 0 {
 						srcMinutes = 1
 					}
-					batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%dM-%s", dest.ID, dispMinutes, srcMinutes, wEnd.Format("20060102150405"))
 					idempotencyKey := fmt.Sprintf("DEST%d_DISP%d_SRC%d_%d", dest.ID, dest.DispatchIntervalSeconds, srcInt, wEnd.Unix())
 					if touchedIdempKeys[idempotencyKey] {
 						continue
@@ -2514,6 +2589,9 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 						continue
 					}
 
+					batchLoc := resolveBatchIDLocation(&dest, effCfg, group, targetDev)
+					batchID := formatBundledBatchID(dest.ID, dispMinutes, srcMinutes, wEnd, batchLoc)
+
 					action, enqErr := s.enqueueAggregatedBatchGroupWithAction(ctx, &dest, effCfg, group, srcInt, wStart, wEnd, batchID, idempotencyKey)
 					if enqErr != nil {
 						continue
@@ -2550,7 +2628,6 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 					if intervalMinutes <= 0 {
 						intervalMinutes = 1
 					}
-					batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, wEnd.Format("20060102150405"))
 					idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, dest.IntervalSeconds, wEnd.Unix())
 					if touchedIdempKeys[idempotencyKey] {
 						continue
@@ -2600,6 +2677,9 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 					if len(group) == 0 {
 						continue
 					}
+
+					batchLoc := resolveBatchIDLocation(&dest, effCfg, group, targetDev)
+					batchID := formatSingleBucketBatchID(dest.ID, intervalMinutes, wEnd, batchLoc)
 
 					action, enqErr := s.enqueueAggregatedBatchGroupWithAction(ctx, &dest, effCfg, group, dest.IntervalSeconds, wStart, wEnd, batchID, idempotencyKey)
 					if enqErr != nil {
@@ -2677,7 +2757,8 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 						}
 						pStart := group[0].PeriodStart
 						pEnd := group[0].PeriodEnd
-						batchID := fmt.Sprintf("BATCH-DEST%d-%dM-%s", dest.ID, intervalMinutes, pEnd.Format("20060102150405"))
+						batchLoc := resolveBatchIDLocation(&dest, effCfg, group, targetDev)
+						batchID := formatSingleBucketBatchID(dest.ID, intervalMinutes, pEnd, batchLoc)
 						idempotencyKey := fmt.Sprintf("DEST%d_INT%d_%d", dest.ID, intervalSec, pEnd.Unix())
 						if touchedIdempKeys[idempotencyKey] {
 							continue

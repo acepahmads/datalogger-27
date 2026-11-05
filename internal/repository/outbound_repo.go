@@ -350,6 +350,9 @@ func (r *outboundRepository) EnqueueOrRefreshDelivery(ctx context.Context, item 
 		}
 		prevStatus := existing.Status
 		if existing.Status == model.DeliveryPending || existing.Status == model.DeliveryCancelled {
+			if strings.TrimSpace(item.BatchID) != "" {
+				existing.BatchID = item.BatchID
+			}
 			existing.DeviceCount = item.DeviceCount
 			existing.DevicesSummary = item.DevicesSummary
 			existing.ParameterCount = item.ParameterCount
@@ -686,6 +689,9 @@ func (r *outboundRepository) UpdateQueueItemPayloadAndRequeue(ctx context.Contex
 		"parameter_count":  item.ParameterCount,
 		"device_count":     item.DeviceCount,
 		"devices_summary":  item.DevicesSummary,
+	}
+	if strings.TrimSpace(item.BatchID) != "" {
+		updates["batch_id"] = item.BatchID
 	}
 	if item.SourceValuesJSON != "" {
 		updates["source_values_json"] = item.SourceValuesJSON

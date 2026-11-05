@@ -671,6 +671,14 @@ func TestTelemetryInjection_DisabledDestination_CrossIntervalRollup_AndResync(t 
 	if augItems[0].Status != model.DeliveryPending || augItems[0].Attempts != 0 {
 		t.Fatalf("expected DISABLED destination queue item to remain PENDING (attempts=0), got status=%s attempts=%d", augItems[0].Status, augItems[0].Attempts)
 	}
+	expectedLocalBatchID := fmt.Sprintf("BATCH-DEST%d-60M-2M-20260801010000", destSparing.ID)
+	if augItems[0].BatchID != expectedLocalBatchID {
+		t.Fatalf("expected BatchID in Asia/Jakarta local time %q (not UTC 20260731180000), got %q", expectedLocalBatchID, augItems[0].BatchID)
+	}
+	expectedIdempKey := fmt.Sprintf("DEST%d_DISP3600_SRC120_%d", destSparing.ID, aug1End.Unix())
+	if augItems[0].IdempotencyKey != expectedIdempKey {
+		t.Fatalf("expected UTC epoch IdempotencyKey %q, got %q", expectedIdempKey, augItems[0].IdempotencyKey)
+	}
 
 	var sparingPayload struct {
 		UID  string                   `json:"uid"`
@@ -688,6 +696,10 @@ func TestTelemetryInjection_DisabledDestination_CrossIntervalRollup_AndResync(t 
 		}
 	}
 
+	// Simulate legacy UTC-formatted BatchID on existing PENDING row and verify SyncBatchOutbound repairs it in-place
+	legacyUTCBatchID := fmt.Sprintf("BATCH-DEST%d-60M-2M-20260731180000", destSparing.ID)
+	db.Model(&model.OutboundDeliveryQueue{}).Where("id = ?", augItems[0].ID).Update("batch_id", legacyUTCBatchID)
+
 	// 6. Now test 1-Click SyncBatchOutbound explicitly including 30m CBI destination (verifies 2m -> 30m cross-interval rollup!)
 	// Keep CBI disabled before syncing so no HTTP attempt alters status during assertion
 	db.Model(destCBI).Update("enabled", false)
@@ -698,6 +710,11 @@ func TestTelemetryInjection_DisabledDestination_CrossIntervalRollup_AndResync(t 
 	// Expect 2 new 30m CBI batches (00:00->00:30 and 00:30->01:00) + 1 updated SPARING batch = 3 total touched!
 	if syncRes.OutboundResult.EnqueuedBatches != 2 || syncRes.OutboundResult.UpdatedBatches != 1 {
 		t.Fatalf("expected 2 new CBI 30m rolled-up batches + 1 updated SPARING batch, got %+v", syncRes.OutboundResult)
+	}
+
+	repairedSparing, err := outRepo.GetQueueItemByID(ctx, augItems[0].ID)
+	if err != nil || repairedSparing.BatchID != expectedLocalBatchID {
+		t.Fatalf("expected SyncBatchOutbound to repair legacy UTC BatchID to %q, got %+v (err=%v)", expectedLocalBatchID, repairedSparing, err)
 	}
 
 	cbiItems, cbiTotal, _ := outSvc.GetQueueItems(ctx, repository.QueueFilter{

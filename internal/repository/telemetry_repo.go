@@ -21,6 +21,7 @@ type TelemetryFilterParams struct {
 	EndTime      *time.Time
 	Page         int
 	PageSize     int
+	SkipCount    bool
 }
 
 // TelemetryRepository handles telemetry persistence and fast retrieval
@@ -154,8 +155,9 @@ func (r *TelemetryRepository) GetHistorical(ctx context.Context, filter Telemetr
 		baseQuery = baseQuery.Where("received_at <= ?", filter.EndTime)
 	}
 
-	// Only compute total count on the first page to eliminate heavy table scans during pagination loops
-	if filter.Page <= 1 {
+	// Compute total count on every interactive UI page (pageSize < 500) as well as page 1 of bulk export loops,
+	// skipping redundant COUNT(*) scans only on subsequent bulk export pages (page > 1 && pageSize >= 500) or explicit skip_count.
+	if !filter.SkipCount && (filter.Page <= 1 || filter.PageSize < 500) {
 		if err := baseQuery.Count(&total).Error; err != nil {
 			return nil, 0, err
 		}

@@ -404,3 +404,89 @@ func TestRawTelemetryOperatorSanitizationAndMaxRangeEnforcement(t *testing.T) {
 		t.Fatalf("Expected 400 BadRequest when Admin exceeds max range (72h > 48h), got %d", wAdminTooWide.Code)
 	}
 }
+
+func TestRawAndHistoricalTelemetryMultiPagePaginationPreservesTotal(t *testing.T) {
+	env := setupTelemetryTestRouter(t)
+	defer env.TelemetryService.Stop()
+
+	dev := model.Device{ID: 45, DeviceCode: "com1", DeviceName: "COM 1"}
+	_ = env.DB.Create(&dev).Error
+	param := model.Parameter{
+		ID:            4501,
+		DeviceID:      45,
+		ParameterCode: "debit",
+		ParameterName: "Debit",
+		Unit:          "m3/s",
+		DataType:      model.DataTypeFloat32,
+		Enabled:       true,
+	}
+	_ = env.DB.Create(&param).Error
+
+	baseNow := time.Now().UTC().Add(-30 * time.Minute).Truncate(time.Second)
+	for i := 0; i < 45; i++ {
+		ts := baseNow.Add(time.Duration(i*10) * time.Second)
+		_ = env.DB.Create(&model.RawData{
+			DeviceID:       45,
+			ParameterID:    4501,
+			Value:          0.85,
+			ProcessedValue: 0.85,
+			RawValue:       0.85,
+			RawHex:         "3F 59 99 9A",
+			Quality:        model.QualityGood,
+			Timestamp:      ts,
+			ReceivedAt:     ts,
+			StoredAt:       ts,
+		}).Error
+	}
+
+	startISO := baseNow.Add(-1 * time.Minute).Format(time.RFC3339)
+	endISO := baseNow.Add(15 * time.Minute).Format(time.RFC3339)
+
+	for _, endpoint := range []string{"/api/devices/45/telemetry/raw", "/api/devices/45/telemetry/history"} {
+		expectedCounts := map[int]int{1: 20, 2: 20, 3: 5}
+		for page := 1; page <= 3; page++ {
+			u := fmt.Sprintf("%s?page=%d&page_size=20&raw_window=1&start_time=%s&end_time=%s", endpoint, page, startISO, endISO)
+			req, _ := http.NewRequest("GET", u, nil)
+			req.Header.Set("Authorization", "Bearer "+env.AdminToken)
+			w := httptest.NewRecorder()
+			env.Router.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("Expected 200 OK for %s page %d, got %d: %s", endpoint, page, w.Code, w.Body.String())
+			}
+
+			var resp struct {
+				Data struct {
+					Total int             `json:"total"`
+					Page  int             `json:"page"`
+					Items []model.RawData `json:"items"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("Failed to decode %s page %d: %v", endpoint, page, err)
+			}
+			if resp.Data.Total != 45 {
+				t.Fatalf("%s page %d: expected total=45 (must not collapse to 0 on page > 1), got %d", endpoint, page, resp.Data.Total)
+			}
+			if len(resp.Data.Items) != expectedCounts[page] {
+				t.Fatalf("%s page %d: expected %d items, got %d", endpoint, page, expectedCounts[page], len(resp.Data.Items))
+			}
+		}
+	}
+
+	// Bulk export loop optimization check: explicit skip_count=1 skips COUNT(*) on page > 1
+	uSkip := fmt.Sprintf("/api/devices/45/telemetry/history?page=2&page_size=20&skip_count=1&start_time=%s&end_time=%s", startISO, endISO)
+	reqSkip, _ := http.NewRequest("GET", uSkip, nil)
+	reqSkip.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wSkip := httptest.NewRecorder()
+	env.Router.ServeHTTP(wSkip, reqSkip)
+	var skipResp struct {
+		Data struct {
+			Total int             `json:"total"`
+			Items []model.RawData `json:"items"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wSkip.Body.Bytes(), &skipResp)
+	if skipResp.Data.Total != 0 || len(skipResp.Data.Items) != 20 {
+		t.Fatalf("expected skip_count=1 on page 2 to return total=0 and 20 items, got total=%d items=%d", skipResp.Data.Total, len(skipResp.Data.Items))
+	}
+}

@@ -1197,6 +1197,7 @@ export default {
       records: [],
       totalRecords: 0,
       currentPage: 1,
+      anchoredTimeBounds: null,
       tableSearch: '',
       filters: {
         deviceId: '',
@@ -1866,10 +1867,18 @@ export default {
         endTime: now.toISOString(),
       };
     },
-    async fetchData() {
+    async fetchData(opts) {
       this.loading = true;
       try {
-        const { startTime, endTime } = this.calculateTimeBounds();
+        const keepWindow = Boolean(opts && opts.keepWindow === true);
+        let bounds;
+        if (keepWindow && this.filters.timePreset !== 'custom' && this.anchoredTimeBounds) {
+          bounds = this.anchoredTimeBounds;
+        } else {
+          bounds = this.calculateTimeBounds();
+          this.anchoredTimeBounds = bounds;
+        }
+        const { startTime, endTime } = bounds;
         const baseParams = {
           page: this.currentPage,
           page_size: this.filters.pageSize,
@@ -1913,7 +1922,15 @@ export default {
         const res = await axios.get(endpoint, { params: baseParams });
         if (res.data && res.data.data) {
           this.records = res.data.data.items || [];
-          this.totalRecords = res.data.data.total || this.records.length;
+          const apiTotal = Number(res.data.data.total || 0);
+          if (apiTotal > 0 || this.currentPage <= 1) {
+            this.totalRecords = apiTotal || this.records.length;
+          } else if (this.records.length > 0) {
+            this.totalRecords = Math.max(
+              this.totalRecords,
+              (this.currentPage - 1) * this.filters.pageSize + this.records.length,
+            );
+          }
         } else {
           this.records = [];
           this.totalRecords = 0;
@@ -1929,13 +1946,13 @@ export default {
     prevPage() {
       if (this.currentPage > 1) {
         this.currentPage--;
-        this.fetchData();
+        this.fetchData({ keepWindow: true });
       }
     },
     nextPage() {
       if (this.currentPage * this.filters.pageSize < this.totalRecords) {
         this.currentPage++;
-        this.fetchData();
+        this.fetchData({ keepWindow: true });
       }
     },
     onChartMouseMove(e) {

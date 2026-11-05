@@ -2151,7 +2151,7 @@
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <button
-              @click="fetchRawTelemetry"
+              @click="refreshRawTelemetry"
               :disabled="rawLoading"
               class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50 shadow-sm shadow-blue-500/20"
             >
@@ -3731,6 +3731,8 @@ export default {
       historyParamId: '',
       historyQuality: '',
       historyTimeRange: '1h',
+      historyWindowStartISO: '',
+      historyWindowEndISO: '',
       historyLoading: false,
 
       // Historical Chart Enhancements
@@ -3756,6 +3758,8 @@ export default {
       rawTimeRange: '1h',
       rawStartTime: '',
       rawEndTime: '',
+      rawWindowStartISO: '',
+      rawWindowEndISO: '',
       rawLoading: false,
 
       // Phase 3.3 Aggregation & Rollups
@@ -4937,19 +4941,35 @@ export default {
         }
       }
     },
-    async fetchHistory() {
+    async fetchHistory(opts) {
       if (!this.device) return;
+      const keepWindow = Boolean(opts && opts.keepWindow === true);
       this.historyLoading = true;
       try {
         let startTimeStr = '';
+        let endTimeStr = '';
         if (this.historyTimeRange !== 'all') {
-          const now = new Date();
-          let ms = 60 * 60 * 1000;
-          if (this.historyTimeRange === '15m') ms = 15 * 60 * 1000;
-          if (this.historyTimeRange === '6h') ms = 6 * 60 * 60 * 1000;
-          if (this.historyTimeRange === '24h') ms = 24 * 60 * 60 * 1000;
-          const start = new Date(now.getTime() - ms);
-          startTimeStr = start.toISOString();
+          if (keepWindow && this.historyWindowStartISO && this.historyWindowEndISO) {
+            startTimeStr = this.historyWindowStartISO;
+            endTimeStr = this.historyWindowEndISO;
+          } else {
+            const now = new Date();
+            let ms = 60 * 60 * 1000;
+            if (this.historyTimeRange === '15m') ms = 15 * 60 * 1000;
+            if (this.historyTimeRange === '6h') ms = 6 * 60 * 60 * 1000;
+            if (this.historyTimeRange === '24h') ms = 24 * 60 * 60 * 1000;
+            const start = new Date(now.getTime() - ms);
+            startTimeStr = start.toISOString();
+            endTimeStr = now.toISOString();
+            this.historyWindowStartISO = startTimeStr;
+            this.historyWindowEndISO = endTimeStr;
+          }
+        } else if (keepWindow && this.historyWindowEndISO) {
+          endTimeStr = this.historyWindowEndISO;
+        } else {
+          this.historyWindowStartISO = '';
+          this.historyWindowEndISO = new Date().toISOString();
+          endTimeStr = this.historyWindowEndISO;
         }
 
         const params = {
@@ -4959,6 +4979,7 @@ export default {
         if (this.historyParamId) params.parameter_id = this.historyParamId;
         if (this.historyQuality) params.quality = this.historyQuality;
         if (startTimeStr) params.start_time = startTimeStr;
+        if (endTimeStr) params.end_time = endTimeStr;
 
         let url = `/api/devices/${this.device.id}/telemetry/history`;
         let isDownsampling = false;
@@ -4989,7 +5010,15 @@ export default {
             this.historyTotal = res.data.data.count || this.historyRecords.length;
           } else {
             this.historyRecords = res.data.data.items || [];
-            this.historyTotal = res.data.data.total || 0;
+            const apiTotal = Number(res.data.data.total || 0);
+            if (apiTotal > 0 || this.historyPage <= 1) {
+              this.historyTotal = apiTotal;
+            } else if (this.historyRecords.length > 0) {
+              this.historyTotal = Math.max(
+                this.historyTotal,
+                (this.historyPage - 1) * this.historyPageSize + this.historyRecords.length,
+              );
+            }
           }
         }
       } catch (err) {
@@ -5040,12 +5069,19 @@ export default {
         }
       }
     },
-    async fetchRawTelemetry() {
+    refreshRawTelemetry() {
+      if (this.rawTimeRange !== 'custom') {
+        this.rawPage = 1;
+      }
+      this.fetchRawTelemetry();
+    },
+    async fetchRawTelemetry(opts) {
       if (!this.device) return;
       if (this.rawTimeRange === 'custom' && this.rawRangeValidationError) {
         this.showToast(this.rawRangeValidationError, 'error');
         return;
       }
+      const keepWindow = Boolean(opts && opts.keepWindow === true);
       this.rawLoading = true;
       try {
         const params = {
@@ -5065,12 +5101,17 @@ export default {
             const e = new Date(this.rawEndTime);
             if (!Number.isNaN(e.getTime())) params.end_time = e.toISOString();
           }
+        } else if (keepWindow && this.rawWindowStartISO && this.rawWindowEndISO) {
+          params.start_time = this.rawWindowStartISO;
+          params.end_time = this.rawWindowEndISO;
         } else {
           const now = new Date();
           const ms = this.getPresetDurationMs(this.rawTimeRange || '1h');
           const start = new Date(now.getTime() - ms);
           params.start_time = start.toISOString();
           params.end_time = now.toISOString();
+          this.rawWindowStartISO = params.start_time;
+          this.rawWindowEndISO = params.end_time;
           this.rawStartTime = this.formatLocalDatetimeInput(start);
           this.rawEndTime = this.formatLocalDatetimeInput(now);
         }
@@ -5082,7 +5123,15 @@ export default {
         const res = await axios.get(endpoint, { params });
         if (res.data && res.data.data) {
           this.rawRecords = res.data.data.items || [];
-          this.rawTotal = res.data.data.total || 0;
+          const apiTotal = Number(res.data.data.total || 0);
+          if (apiTotal > 0 || this.rawPage <= 1) {
+            this.rawTotal = apiTotal;
+          } else if (this.rawRecords.length > 0) {
+            this.rawTotal = Math.max(
+              this.rawTotal,
+              (this.rawPage - 1) * this.rawPageSize + this.rawRecords.length,
+            );
+          }
         }
       } catch (err) {
         console.error('Failed to query raw telemetry:', err);
@@ -5219,25 +5268,25 @@ export default {
     prevHistoryPage() {
       if (this.historyPage > 1) {
         this.historyPage--;
-        this.fetchHistory();
+        this.fetchHistory({ keepWindow: true });
       }
     },
     nextHistoryPage() {
       if (this.historyPage * this.historyPageSize < this.historyTotal) {
         this.historyPage++;
-        this.fetchHistory();
+        this.fetchHistory({ keepWindow: true });
       }
     },
     prevRawPage() {
       if (this.rawPage > 1) {
         this.rawPage--;
-        this.fetchRawTelemetry();
+        this.fetchRawTelemetry({ keepWindow: true });
       }
     },
     nextRawPage() {
       if (this.rawPage * this.rawPageSize < this.rawTotal) {
         this.rawPage++;
-        this.fetchRawTelemetry();
+        this.fetchRawTelemetry({ keepWindow: true });
       }
     },
     getParamCode(paramId) {

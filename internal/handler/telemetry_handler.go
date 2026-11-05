@@ -113,10 +113,12 @@ func (h *TelemetryHandler) parseTelemetryFilterParams(c *gin.Context, defaultDev
 		}
 	}
 
+	skipCountRaw := strings.TrimSpace(strings.ToLower(c.Query("skip_count")))
 	filter := repository.TelemetryFilterParams{
-		Page:     page,
-		PageSize: pageSize,
-		Quality:  strings.TrimSpace(c.Query("quality")),
+		Page:      page,
+		PageSize:  pageSize,
+		Quality:   strings.TrimSpace(c.Query("quality")),
+		SkipCount: skipCountRaw == "1" || skipCountRaw == "true",
 	}
 
 	// Device ID & Device IDs
