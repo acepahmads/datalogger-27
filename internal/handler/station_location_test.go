@@ -224,6 +224,14 @@ func TestStationLocation_CoordinateValidation(t *testing.T) {
 			acc:       ptrFloat(12.5),
 			expectErr: false,
 		},
+		{
+			name:      "Valid MODBUS_RTU coordinates",
+			lat:       ptrFloat(-6.950872),
+			lng:       ptrFloat(107.533430),
+			source:    "MODBUS_RTU",
+			acc:       ptrFloat(3.5),
+			expectErr: false,
+		},
 	}
 
 	for _, tc := range testCases {

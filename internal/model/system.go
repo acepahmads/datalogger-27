@@ -132,6 +132,7 @@ const (
 	LocationSourceManual        = "MANUAL"
 	LocationSourceGPS           = "GPS"
 	LocationSourceIPGeolocation = "IP_GEOLOCATION"
+	LocationSourceModbusRTU     = "MODBUS_RTU"
 	LocationSourceUnconfigured  = "UNCONFIGURED"
 )
 

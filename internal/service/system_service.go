@@ -970,8 +970,8 @@ func (s *SystemService) SaveStationLocation(req UpdateStationLocationRequest, ac
 		if source == "" || source == model.LocationSourceUnconfigured {
 			source = model.LocationSourceManual
 		}
-		if source != model.LocationSourceManual && source != model.LocationSourceGPS && source != model.LocationSourceIPGeolocation {
-			return nil, fmt.Errorf("invalid location source '%s' (allowed: %s, %s, %s)", source, model.LocationSourceManual, model.LocationSourceGPS, model.LocationSourceIPGeolocation)
+		if source != model.LocationSourceManual && source != model.LocationSourceGPS && source != model.LocationSourceIPGeolocation && source != model.LocationSourceModbusRTU {
+			return nil, fmt.Errorf("invalid location source '%s' (allowed: %s, %s, %s, %s)", source, model.LocationSourceManual, model.LocationSourceGPS, model.LocationSourceIPGeolocation, model.LocationSourceModbusRTU)
 		}
 
 		if req.AccuracyMeters != nil && *req.AccuracyMeters < 0 {

@@ -309,6 +309,51 @@ runTest('8.1: ParameterModal exposes Stale Data Timeout (Seconds) input, quick p
   );
 });
 
+runTest('9.1: AlarmsView hides Device filter, Device table columns, and modal Device metadata for OPERATOR and strips device mentions from alarm messages', () => {
+  const alarmsContent = fs.readFileSync(path.resolve(__dirname, '../src/views/AlarmsView.vue'), 'utf8');
+
+  assert(
+    alarmsContent.includes('isOperator()') && alarmsContent.includes("return this.userRole === 'OPERATOR';"),
+    'AlarmsView must define isOperator computed property'
+  );
+  assert(
+    alarmsContent.includes('<select v-if="!isOperator" v-model="historyDeviceID"'),
+    'Alarm History device filter dropdown must be guarded by v-if="!isOperator"'
+  );
+  assert(
+    alarmsContent.includes('if (!this.isOperator && this.historyDeviceID) url += `&device_id=${encodeURIComponent(this.historyDeviceID)}`;'),
+    'fetchAlarmHistory must omit device_id query parameter for OPERATOR'
+  );
+
+  const deviceThMatches = alarmsContent.match(/<th v-if="!isOperator" class="py-3 px-4 w-28">\{\{ \$t\('alarms\.device'\) \}\}<\/th>/g) || [];
+  assert.strictEqual(
+    deviceThMatches.length,
+    2,
+    'Both Active Incidents and Alarm History tables must guard DEVICE header with v-if="!isOperator"'
+  );
+
+  const deviceTdMatches = alarmsContent.match(/<td v-if="!isOperator" class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">/g) || [];
+  assert.strictEqual(
+    deviceTdMatches.length,
+    2,
+    'Both Active Incidents and Alarm History tables must guard DEVICE cells with v-if="!isOperator"'
+  );
+
+  assert(
+    alarmsContent.includes(':colspan="isOperator ? 7 : 8"') &&
+    alarmsContent.includes(':colspan="isOperator ? 9 : 10"'),
+    'Active Incidents and Alarm History empty/loading rows must dynamically adjust colspan for OPERATOR'
+  );
+
+  assert(
+    alarmsContent.includes('formatAlarmMessage(alarm.message, alarm)') &&
+    alarmsContent.includes('formatAlarmMessage(item.message, item)') &&
+    alarmsContent.includes('formatAlarmMessage(selectedAckAlarm.message, selectedAckAlarm)') &&
+    alarmsContent.includes('formatAlarmMessage(selectedIncident.message, selectedIncident)'),
+    'AlarmsView tables and modals must sanitize alarm messages via formatAlarmMessage for OPERATOR'
+  );
+});
+
 console.log('===============================================================');
-console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (20/20)');
+console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (21/21)');
 console.log('===============================================================');

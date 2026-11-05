@@ -86,7 +86,7 @@
                 <th class="py-3 px-4 w-28">{{ $t('alarms.severity') }}</th>
                 <th class="py-3 px-4 w-32">{{ $t('alarms.alarmCode') }}</th>
                 <th class="py-3 px-4">{{ $t('alarms.message') }}</th>
-                <th class="py-3 px-4 w-28">{{ $t('alarms.device') }}</th>
+                <th v-if="!isOperator" class="py-3 px-4 w-28">{{ $t('alarms.device') }}</th>
                 <th class="py-3 px-4 w-32">{{ $t('alarms.triggerValue') || 'Trigger / Limit' }}</th>
                 <th class="py-3 px-4 w-40">{{ $t('alarms.triggeredAt') }}</th>
                 <th class="py-3 px-4 w-28">{{ $t('alarms.status') }}</th>
@@ -95,7 +95,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
               <tr v-if="activeAlarmsList.length === 0">
-                <td colspan="8" class="py-12 text-center text-slate-500 font-sans">
+                <td :colspan="isOperator ? 7 : 8" class="py-12 text-center text-slate-500 font-sans">
                   <div class="flex flex-col items-center justify-center space-y-2">
                     <svg class="w-8 h-8 text-emerald-500/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     <span class="text-xs font-medium">{{ $t('alarms.noActiveAlarms') }}</span>
@@ -111,12 +111,12 @@
                 </td>
                 <td class="py-3 px-4 text-slate-900 dark:text-slate-200 font-semibold font-mono text-2xs">{{ alarm.alarm_code }}</td>
                 <td class="py-3 px-4 text-xs text-slate-700 dark:text-slate-100 font-sans">
-                  <div class="line-clamp-2">{{ alarm.message }}</div>
+                  <div class="line-clamp-2">{{ formatAlarmMessage(alarm.message, alarm) }}</div>
                   <div v-if="alarm.notes" class="text-3xs text-indigo-500 dark:text-indigo-400 mt-0.5 italic">
                     Note: {{ alarm.notes }}
                   </div>
                 </td>
-                <td class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">
+                <td v-if="!isOperator" class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">
                   {{ alarm.device ? (alarm.device.device_code || alarm.device.code || alarm.device.name) : 'System' }}
                 </td>
                 <td class="py-3 px-4 font-mono text-2xs text-slate-600 dark:text-slate-400">
@@ -182,7 +182,7 @@
             </select>
 
             <!-- Device Filter -->
-            <select v-model="historyDeviceID" @change="fetchAlarmHistory"
+            <select v-if="!isOperator" v-model="historyDeviceID" @change="fetchAlarmHistory"
                     class="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs">
               <option value="">{{ $t('alarms.filterDevice') || 'All Devices' }}</option>
               <option v-for="d in devices" :key="d.id" :value="d.id">
@@ -254,7 +254,7 @@
                 <th class="py-3 px-4 w-28">{{ $t('alarms.status') }}</th>
                 <th class="py-3 px-4 w-32">{{ $t('alarms.alarmCode') }}</th>
                 <th class="py-3 px-4">{{ $t('alarms.message') }}</th>
-                <th class="py-3 px-4 w-28">{{ $t('alarms.device') }}</th>
+                <th v-if="!isOperator" class="py-3 px-4 w-28">{{ $t('alarms.device') }}</th>
                 <th class="py-3 px-4 w-28">{{ $t('alarms.duration') || 'Duration' }}</th>
                 <th class="py-3 px-4 w-36">{{ $t('alarms.triggeredAt') }}</th>
                 <th class="py-3 px-4 w-36">{{ $t('alarms.ackedBy') || 'Acknowledged' }}</th>
@@ -264,7 +264,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300">
               <tr v-if="historyLoading">
-                <td colspan="10" class="py-12 text-center text-slate-500 font-sans">
+                <td :colspan="isOperator ? 9 : 10" class="py-12 text-center text-slate-500 font-sans">
                   <div class="flex items-center justify-center space-x-2">
                     <span class="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></span>
                     <span>Loading history records...</span>
@@ -272,7 +272,7 @@
                 </td>
               </tr>
               <tr v-else-if="historyItems.length === 0">
-                <td colspan="10" class="py-12 text-center text-slate-500 font-sans">
+                <td :colspan="isOperator ? 9 : 10" class="py-12 text-center text-slate-500 font-sans">
                   {{ $t('alarms.noNotifications') || 'No alarm history records matching current criteria.' }}
                 </td>
               </tr>
@@ -291,12 +291,12 @@
                 </td>
                 <td class="py-3 px-4 text-slate-900 dark:text-slate-200 font-semibold font-mono text-2xs">{{ item.alarm_code }}</td>
                 <td class="py-3 px-4 text-xs text-slate-700 dark:text-slate-100 font-sans">
-                  <div class="line-clamp-1">{{ item.message }}</div>
+                  <div class="line-clamp-1">{{ formatAlarmMessage(item.message, item) }}</div>
                   <div v-if="item.notes" class="text-3xs text-indigo-500 dark:text-indigo-400 italic">
                     Note: {{ item.notes }}
                   </div>
                 </td>
-                <td class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">
+                <td v-if="!isOperator" class="py-3 px-4 text-indigo-600 dark:text-blue-400 font-mono text-2xs">
                   {{ item.device_code || item.device_name || (item.device ? (item.device.code || item.device.name) : 'System') }}
                 </td>
                 <td class="py-3 px-4 font-mono text-2xs font-semibold"
@@ -674,9 +674,9 @@
               {{ selectedAckAlarm.severity }}
             </span>
           </div>
-          <p class="text-slate-700 dark:text-slate-300 text-2xs">{{ selectedAckAlarm.message }}</p>
+          <p class="text-slate-700 dark:text-slate-300 text-2xs">{{ formatAlarmMessage(selectedAckAlarm.message, selectedAckAlarm) }}</p>
           <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800 text-3xs text-slate-500 dark:text-slate-400">
-            <div>
+            <div v-if="!isOperator">
               <span>Device: </span>
               <strong class="font-mono text-slate-700 dark:text-slate-300">
                 {{ selectedAckAlarm.device ? (selectedAckAlarm.device.code || selectedAckAlarm.device.name) : 'System' }}
@@ -764,12 +764,12 @@
         <!-- Alarm Summary Header -->
         <div class="space-y-1">
           <div class="text-base font-bold font-mono text-slate-900 dark:text-white">{{ selectedIncident.alarm_code }}</div>
-          <div class="text-xs text-slate-700 dark:text-slate-300">{{ selectedIncident.message }}</div>
+          <div class="text-xs text-slate-700 dark:text-slate-300">{{ formatAlarmMessage(selectedIncident.message, selectedIncident) }}</div>
         </div>
 
         <!-- Device & Metric Context -->
         <div class="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs">
-          <div>
+          <div v-if="!isOperator">
             <span class="text-3xs text-slate-400 block">{{ $t('alarms.device') }}</span>
             <strong class="font-mono text-slate-800 dark:text-slate-200">
               {{ selectedIncident.device_code || selectedIncident.device_name || (selectedIncident.device ? (selectedIncident.device.code || selectedIncident.device.name) : 'System') }}
@@ -1415,23 +1415,33 @@ export default {
       if (user && user.username) return user.username;
       return 'Lead Operator';
     },
+    userRole() {
+      const u = (this.$store && this.$store.state && this.$store.state.user) || {};
+      const rawRole = typeof u.role === 'string'
+        ? u.role
+        : ((u.role && u.role.name) || (u.Role && u.Role.name) || '');
+      return String(rawRole).toUpperCase();
+    },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
+    },
     canManageChannels() {
-      const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      const role = this.userRole;
       return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ENGINEER';
     },
     canDeleteNotifications() {
-      const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      const role = this.userRole;
       return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ADMINISTRATOR';
     },
     canDeleteAlarmHistory() {
-      const role = ((this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+      const role = this.userRole;
       return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ADMINISTRATOR';
     },
     hasActiveHistoryFilter() {
       return Boolean(
         this.historyStatus ||
         this.historySeverity ||
-        this.historyDeviceID ||
+        (!this.isOperator && this.historyDeviceID) ||
         this.historyStartDate ||
         this.historyEndDate ||
         (this.historySearch && this.historySearch.trim())
@@ -1442,6 +1452,14 @@ export default {
     },
   },
   watch: {
+    isOperator(val) {
+      if (val && this.historyDeviceID) {
+        this.historyDeviceID = '';
+        if (this.activeTab === 'history') {
+          this.fetchAlarmHistory();
+        }
+      }
+    },
     activeTab(newTab) {
       if (newTab === 'history') {
         this.fetchAlarmHistory();
@@ -1504,6 +1522,30 @@ export default {
         }
       }, 5000);
     },
+    formatAlarmMessage(msg, alarm = null) {
+      if (!msg || typeof msg !== 'string') return msg || '';
+      if (!this.isOperator) return msg;
+      let cleaned = msg;
+      const devCode = alarm && (
+        alarm.device_code ||
+        (alarm.device && (alarm.device.device_code || alarm.device.code)) ||
+        ''
+      );
+      if (devCode) {
+        const escaped = String(devCode).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        cleaned = cleaned
+          .replace(new RegExp(`\\(${escaped}:([^)]+)\\)`, 'gi'), '($1)')
+          .replace(new RegExp(`\\s+on\\s+device\\s+${escaped}\\b`, 'gi'), '')
+          .replace(new RegExp(`^Device\\s+${escaped}\\s+is\\s+OFFLINE:`, 'i'), 'Sensor link is OFFLINE:')
+          .replace(new RegExp(`^Device\\s+${escaped}\\s+communication\\s+error`, 'i'), 'Sensor communication error');
+      }
+      return cleaned
+        .replace(/\s+on\s+device\s+[^\s,;:)]+/gi, '')
+        .replace(/\s+pada\s+(?:perangkat|device)\s+[^\s,;:)]+/gi, '')
+        .replace(/\(([A-Za-z][A-Za-z0-9_.-]*):([A-Za-z][A-Za-z0-9_.-]*)\)/g, '($2)')
+        .replace(/^Device\s+[^\s:]+\s+is\s+OFFLINE:/i, 'Sensor link is OFFLINE:')
+        .replace(/^Device\s+[^\s:]+\s+communication\s+error/i, 'Sensor communication error');
+    },
     refreshAlarms() {
       this.$store.dispatch('fetchAlarms');
     },
@@ -1542,12 +1584,15 @@ export default {
     // Task #66: Alarm History
     // ------------------------------------------
     async fetchAlarmHistory() {
+      if (this.isOperator && this.historyDeviceID) {
+        this.historyDeviceID = '';
+      }
       this.historyLoading = true;
       try {
         let url = `/api/alarms/history?page=${this.historyPage}&page_size=${this.historyPageSize}`;
         if (this.historyStatus) url += `&status=${encodeURIComponent(this.historyStatus)}`;
         if (this.historySeverity) url += `&severity=${encodeURIComponent(this.historySeverity)}`;
-        if (this.historyDeviceID) url += `&device_id=${encodeURIComponent(this.historyDeviceID)}`;
+        if (!this.isOperator && this.historyDeviceID) url += `&device_id=${encodeURIComponent(this.historyDeviceID)}`;
         if (this.historyStartDate) url += `&start_time=${encodeURIComponent(this.historyStartDate + 'T00:00:00Z')}`;
         if (this.historyEndDate) url += `&end_time=${encodeURIComponent(this.historyEndDate + 'T23:59:59Z')}`;
         if (this.historySearch) url += `&search=${encodeURIComponent(this.historySearch)}`;

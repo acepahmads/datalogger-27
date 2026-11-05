@@ -1,6 +1,6 @@
 <template>
   <div
-    class="station-map-viewer-wrapper relative w-full h-full overflow-hidden rounded-md border border-slate-200 dark:border-[#1E3048] bg-slate-100 dark:bg-[#070E1A] flex flex-col select-none"
+    class="station-map-viewer-wrapper relative w-full h-full overflow-hidden rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100 dark:bg-[#0B0F19] flex flex-col select-none font-sans"
     :class="{ 'is-editable': editable }"
     :style="{ minHeight: height || '180px' }"
   >
@@ -8,36 +8,36 @@
     <div
       ref="mapContainer"
       class="map-container flex-1 w-full h-full z-10"
-      :class="{ 'opacity-90': isTilesOnline, 'opacity-40 pointer-events-none': !isTilesOnline && hasCoordinates }"
+      :class="{ 'opacity-95': isTilesOnline, 'opacity-40 pointer-events-none': !isTilesOnline && hasCoordinates }"
     ></div>
 
     <!-- Offline / Tile Load Failure Fallback Overlay -->
     <div
       v-if="!isTilesOnline && hasCoordinates"
-      class="absolute inset-0 z-20 flex flex-col items-center justify-center p-3 text-center pointer-events-auto bg-slate-900/60 backdrop-blur-xs font-mono"
+      class="absolute inset-0 z-20 flex flex-col items-center justify-center p-3 text-center pointer-events-auto bg-slate-900/65 backdrop-blur-xs font-sans"
     >
       <!-- SCADA Crosshair Radar Grid Schematic -->
-      <div class="relative w-28 h-28 mb-2 rounded-full border border-cyan-500/40 flex items-center justify-center bg-cyan-950/20 shadow-inner">
-        <div class="absolute inset-0 rounded-full border border-cyan-500/20 scale-75"></div>
-        <div class="absolute inset-0 rounded-full border border-cyan-500/10 scale-50"></div>
-        <div class="absolute w-full h-px bg-cyan-500/30"></div>
-        <div class="absolute h-full w-px bg-cyan-500/30"></div>
+      <div class="relative w-24 h-24 mb-2 rounded-full border border-blue-400/40 flex items-center justify-center bg-blue-950/25 shadow-inner">
+        <div class="absolute inset-0 rounded-full border border-blue-400/20 scale-75"></div>
+        <div class="absolute inset-0 rounded-full border border-blue-400/10 scale-50"></div>
+        <div class="absolute w-full h-px bg-blue-400/30"></div>
+        <div class="absolute h-full w-px bg-blue-400/30"></div>
         <!-- Pulsing Station Marker Icon in Center -->
-        <div class="relative z-10 flex flex-col items-center text-cyan-400 animate-bounce">
-          <svg class="w-7 h-7 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]" viewBox="0 0 24 24" fill="currentColor">
+        <div class="relative z-10 flex flex-col items-center text-blue-400 animate-bounce">
+          <svg class="w-6 h-6 drop-shadow-[0_0_8px_rgba(22,133,229,0.8)]" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
           </svg>
         </div>
       </div>
 
-      <div class="text-[11px] font-bold text-white flex items-center space-x-1.5 mb-0.5">
+      <div class="text-xs font-bold text-white badge-text flex items-center space-x-1.5 mb-0.5">
         <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
         <span>Local Schematic Fallback</span>
       </div>
-      <div class="text-[9.5px] text-slate-300 max-w-xs leading-tight mb-2">
-        Online map tiles unreachable (offline edge mode). Station coordinates remain verified & active.
+      <div class="text-3xs text-slate-300 max-w-xs leading-snug mb-2">
+        Online map tiles unreachable (offline edge mode). Station coordinates remain verified &amp; active.
       </div>
-      <div class="px-2 py-1 rounded bg-black/50 border border-cyan-500/30 text-[10px] text-cyan-300 font-bold tabular-nums">
+      <div class="px-2.5 py-1 rounded-lg bg-slate-950/70 border border-blue-400/30 text-2xs text-blue-300 font-semibold tabular-nums">
         Lat: {{ formattedLat }}, Lng: {{ formattedLng }}
       </div>
     </div>
@@ -45,22 +45,22 @@
     <!-- Floating Location Search Bar (Top Left, Press Enter to Execute) -->
     <div
       v-if="editable"
-      class="absolute top-2 left-2 z-30 flex flex-col w-72 sm:w-80 md:w-96 max-w-[calc(100%-60px)] font-mono"
+      class="absolute top-2.5 left-2.5 z-30 flex flex-col w-72 sm:w-80 md:w-96 max-w-[calc(100%-56px)] font-sans"
     >
-      <div class="relative flex items-center shadow-lg rounded-md bg-white/95 dark:bg-[#0E1726]/95 border border-slate-300 dark:border-[#20354B] focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/40 transition">
+      <div class="relative flex items-center shadow-md rounded-xl bg-white/95 dark:bg-[#0B0F19]/95 border border-slate-200/90 dark:border-slate-700/80 focus-within:border-[#1685E5] focus-within:ring-2 focus-within:ring-[#1685E5]/20 transition">
         <span class="pl-2.5 text-slate-400 dark:text-slate-500 text-xs flex items-center justify-center">
           <svg v-if="!isSearching" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <span v-else class="animate-spin inline-block text-cyan-500 text-xs">⏳</span>
+          <span v-else class="animate-spin inline-block w-3.5 h-3.5 border-2 border-[#1685E5] border-t-transparent rounded-full"></span>
         </span>
         <input
           ref="locationSearchInput"
           v-model="searchQuery"
           type="text"
-          :placeholder="$t('operator.searchLocationPlaceholder') || 'Cari lokasi atau koordinat... (Tekan Enter)'"
-          class="w-full py-1.5 pl-2 pr-7 text-xs bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
+          :placeholder="$t('operator.searchLocationPlaceholder') || 'Search city, address, or lat, lng... (Enter)'"
+          class="w-full py-1.5 pl-2 pr-7 text-xs font-sans bg-transparent text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
           @keydown.enter.prevent="executeSearch"
           @keydown.esc="clearSearch"
         />
@@ -78,19 +78,22 @@
       <!-- Dropdown Results List -->
       <div
         v-if="searchResults && searchResults.length > 0"
-        class="mt-1 bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] rounded-md shadow-2xl overflow-hidden max-h-52 overflow-y-auto text-xs divide-y divide-slate-100 dark:divide-[#1E3048]"
+        class="mt-1.5 bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-700/80 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto text-xs font-sans divide-y divide-slate-100 dark:divide-slate-800"
       >
         <div
           v-for="(res, idx) in searchResults"
           :key="idx"
           @click="selectSearchResult(res)"
-          class="p-2 hover:bg-cyan-500/10 dark:hover:bg-cyan-950/40 cursor-pointer transition flex items-start space-x-2"
+          class="p-2.5 hover:bg-[#EAF5FF]/70 dark:hover:bg-blue-600/15 cursor-pointer transition flex items-start space-x-2"
         >
-          <span class="text-cyan-500 mt-0.5">📍</span>
+          <svg class="w-3.5 h-3.5 text-[#1685E5] dark:text-blue-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
           <div class="flex-1 min-w-0">
-            <div class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ res.name || res.display_name }}</div>
-            <div class="text-[9.5px] text-slate-400 dark:text-slate-500 truncate">{{ res.display_name }}</div>
-            <div class="text-[9px] text-cyan-600 dark:text-cyan-400 font-mono mt-0.5">
+            <div class="font-semibold text-slate-900 dark:text-slate-100 truncate">{{ res.name || res.display_name }}</div>
+            <div class="text-3xs text-slate-500 dark:text-slate-400 truncate">{{ res.display_name }}</div>
+            <div class="text-3xs text-[#1685E5] dark:text-blue-400 font-semibold tabular-nums mt-0.5">
               Lat: {{ Number(res.lat).toFixed(6) }}, Lng: {{ Number(res.lon).toFixed(6) }}
             </div>
           </div>
@@ -100,9 +103,9 @@
       <!-- Search Notice (e.g. Not Found) -->
       <div
         v-if="searchNotice"
-        class="mt-1 p-1.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-[9.5px] flex items-center justify-between"
+        class="mt-1.5 p-2 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 text-3xs font-medium flex items-center justify-between"
       >
-        <span>⚠️ {{ searchNotice }}</span>
+        <span>{{ searchNotice }}</span>
         <button @click="searchNotice = ''" class="ml-1 opacity-70 hover:opacity-100 font-bold">✕</button>
       </div>
     </div>
@@ -110,26 +113,33 @@
     <!-- Non-blocking Map Pinning Mode Hint Pill -->
     <div
       v-if="!hasCoordinates && !searchResults.length && !searchNotice"
-      class="absolute top-11 left-2 z-20 pointer-events-none max-w-max flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-900/85 text-amber-300 border border-amber-500/40 text-[9.5px] font-mono shadow-md backdrop-blur-xs"
+      class="absolute top-12 left-2.5 z-20 pointer-events-none max-w-max flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-900/85 text-amber-300 border border-amber-500/40 text-3xs font-sans font-medium shadow-md backdrop-blur-xs"
     >
-      <span class="animate-pulse">📍</span>
+      <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
       <span>{{ $t('operator.clickMapToPick') || 'Klik pada peta untuk menentukan koordinat stasiun' }}</span>
     </div>
 
     <!-- Quick Floating Map Controls -->
-    <div v-if="hasCoordinates" class="absolute top-2 right-2 z-30 flex flex-col space-y-1">
+    <div v-if="hasCoordinates" class="absolute top-2.5 right-2.5 z-30 flex flex-col space-y-1">
       <button
         type="button"
         @click="recenterMap"
-        class="w-6 h-6 flex items-center justify-center rounded bg-white/90 dark:bg-[#101B2B]/90 hover:bg-cyan-500 hover:text-black text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] shadow-xs text-xs transition"
+        class="w-7 h-7 flex items-center justify-center rounded-lg bg-white/95 dark:bg-[#0B0F19]/95 hover:bg-[#EAF5FF] hover:text-[#1685E5] dark:hover:bg-blue-600/20 dark:hover:text-blue-400 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700/80 shadow-sm transition-colors"
         title="Recenter Map to Station"
       >
-        🎯
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="7" />
+          <circle cx="12" cy="12" r="2" />
+          <line x1="12" y1="2" x2="12" y2="5" />
+          <line x1="12" y1="19" x2="12" y2="22" />
+          <line x1="2" y1="12" x2="5" y2="12" />
+          <line x1="19" y1="12" x2="22" y2="12" />
+        </svg>
       </button>
       <button
         type="button"
         @click="zoomIn"
-        class="w-6 h-6 flex items-center justify-center rounded bg-white/90 dark:bg-[#101B2B]/90 hover:bg-cyan-500 hover:text-black text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] shadow-xs text-xs font-bold transition"
+        class="w-7 h-7 flex items-center justify-center rounded-lg bg-white/95 dark:bg-[#0B0F19]/95 hover:bg-[#EAF5FF] hover:text-[#1685E5] dark:hover:bg-blue-600/20 dark:hover:text-blue-400 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700/80 shadow-sm text-sm font-semibold transition-colors leading-none"
         title="Zoom In"
       >
         +
@@ -137,21 +147,21 @@
       <button
         type="button"
         @click="zoomOut"
-        class="w-6 h-6 flex items-center justify-center rounded bg-white/90 dark:bg-[#101B2B]/90 hover:bg-cyan-500 hover:text-black text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] shadow-xs text-xs font-bold transition"
+        class="w-7 h-7 flex items-center justify-center rounded-lg bg-white/95 dark:bg-[#0B0F19]/95 hover:bg-[#EAF5FF] hover:text-[#1685E5] dark:hover:bg-blue-600/20 dark:hover:text-blue-400 text-slate-700 dark:text-slate-200 border border-slate-200/90 dark:border-slate-700/80 shadow-sm text-sm font-semibold transition-colors leading-none"
         title="Zoom Out"
       >
-        -
+        −
       </button>
     </div>
 
     <!-- Tile Status Pill (Bottom Left) -->
-    <div class="absolute bottom-1.5 left-2 z-30 flex items-center space-x-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs border border-white/10 text-[8.5px] font-mono text-slate-300 pointer-events-none">
+    <div class="absolute bottom-2 left-2.5 z-30 flex items-center space-x-1.5 px-2 py-0.5 rounded-lg bg-slate-900/75 backdrop-blur-xs border border-white/15 text-3xs font-sans font-medium text-white badge-text pointer-events-none shadow-sm">
       <span
         class="w-1.5 h-1.5 rounded-full"
         :class="isTilesOnline ? 'bg-emerald-400' : 'bg-amber-400'"
       ></span>
       <span>{{ isTilesOnline ? 'OSM Online Tiles' : 'Offline Mode' }}</span>
-      <span v-if="accuracyMeters" class="text-cyan-400 ml-1">±{{ accuracyMeters }}m</span>
+      <span v-if="accuracyMeters" class="text-sky-300 ml-1 tabular-nums">±{{ accuracyMeters }}m</span>
     </div>
   </div>
 </template>
@@ -322,9 +332,9 @@ export default {
 
       const markerHtml = `
         <div class="relative flex items-center justify-center w-8 h-8 select-none">
-          <div class="absolute bottom-0 w-3 h-1.5 bg-black/40 rounded-full blur-[1px]"></div>
+          <div class="absolute bottom-0 w-3 h-1.5 bg-black/35 rounded-full blur-[1px]"></div>
           <div class="relative z-10 flex flex-col items-center">
-            <svg viewBox="0 0 24 24" width="32" height="32" fill="#06b6d4" stroke="#083344" stroke-width="1.2" class="drop-shadow-md">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="#1685E5" stroke="#ffffff" stroke-width="1.5" class="drop-shadow-md">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
             </svg>
           </div>

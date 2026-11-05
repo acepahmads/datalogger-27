@@ -404,6 +404,87 @@ check('16.2: ISPU toolbar control is strictly rendered only in AQMS mode (hidden
   assert.strictEqual(evalIsAQMS('AQMS', 'Sparing'), false, 'Branding subtitle Sparing without AQMS must hide ISPU control');
 });
 
+check('16.3: Station Location Monitor (GPS control) uses Sidebar font-sans, restricts setup to Manual / Internet IP / Modbus RTU, guards (0, 0) Null-Island, and hides device codes for Operator', () => {
+  const mapCompContent = fs.readFileSync(path.join(__dirname, '../src/components/StationMapViewer.vue'), 'utf8');
+
+  // 1. Popover & Map font/design alignment
+  const locIdx = viewContent.indexOf(`v-if="activeToolbarPopover === 'stationLocation'"`);
+  const fullMapIdx = viewContent.indexOf('v-if="showFullScreenStationMap"');
+  assert(locIdx > 0 && fullMapIdx > locIdx, 'Must locate stationLocation popover and full-screen map modal');
+
+  const locTagSlice = viewContent.slice(locIdx, locIdx + 380);
+  assert(locTagSlice.includes('font-sans') && locTagSlice.includes('rounded-2xl'), 'stationLocation popover must use font-sans and rounded-2xl');
+  assert(!locTagSlice.includes('font-mono'), 'stationLocation popover root must not use font-mono');
+  assert(mapCompContent.includes('font-sans') && !mapCompContent.includes('font-mono'), 'StationMapViewer.vue must use font-sans (tabular-nums for coordinates) instead of font-mono');
+
+  // 2. Exactly 3 setup sources: Manual, Internet IP, Modbus RTU (no Browser GPS tab)
+  const locSection = viewContent.slice(locIdx, viewContent.indexOf('</header>', locIdx));
+  assert(locSection.includes("locationActiveTab = 'manual'"), 'Must include Manual tab');
+  assert(locSection.includes("locationActiveTab = 'ip'"), 'Must include Internet IP tab');
+  assert(locSection.includes("locationActiveTab = 'modbus_rtu'"), 'Must include Modbus RTU tab');
+  assert(!locSection.includes("locationActiveTab = 'gps'") && !locSection.includes('GPS (Browser)') && !locSection.includes('detectBrowserGPS'), 'Must remove Browser GPS tab from DashboardOperatorView');
+
+  // 3. Runtime verification of modbusRtuGpsStatus (LOCKED, Null-Island NO_FIX, OFFLINE, UNMAPPED) & Operator device-code hiding
+  const vm = require('vm');
+  const gpsCompStart = viewContent.indexOf('modbusRtuCandidateParams() {');
+  const gpsCompEnd = viewContent.indexOf('activeBentoCategoryName() {');
+  assert(gpsCompStart > 0 && gpsCompEnd > gpsCompStart, 'Must locate Modbus RTU GPS computed block');
+  const gpsCompObj = vm.runInNewContext(`({ ${viewContent.slice(gpsCompStart, gpsCompEnd).trim().replace(/,\s*$/, '')} })`, {});
+
+  const fmtStart = viewContent.indexOf('formatLocationSourceLabel(src) {');
+  const fmtEnd = viewContent.indexOf('saveModbusGpsMapping() {');
+  assert(fmtStart > 0 && fmtEnd > fmtStart, 'Must locate formatLocationSourceLabel & formatModbusGpsParamOption');
+  const gpsFmtObj = vm.runInNewContext(`({ ${viewContent.slice(fmtStart, fmtEnd).trim().replace(/,\s*$/, '')} })`, {});
+
+  const evalGpsStatus = (allParameters, gpsModbusMapping = { latParamId: '', lngParamId: '', satParamId: '' }) => {
+    const ctx = {
+      allParameters,
+      devicesList: [{ id: 1, device_code: 'com1', protocol: 'MODBUS_RTU' }],
+      gpsModbusMapping,
+      isBentoParamCommOffline: (p) => p.device_status === 'OFFLINE' || p.quality === 'BAD',
+    };
+    Object.defineProperty(ctx, 'effectiveModbusGpsMapping', {
+      get: () => gpsCompObj.effectiveModbusGpsMapping.call(ctx),
+    });
+    return gpsCompObj.modbusRtuGpsStatus.call(ctx);
+  };
+
+  // Case A: Unmapped
+  assert.strictEqual(evalGpsStatus([]).state, 'UNMAPPED');
+
+  // Case B: Cold-start (0.000000, 0.000000) Null-Island MUST be rejected as NO_FIX
+  const noFixZero = evalGpsStatus([
+    { param_id: 11, device_id: 1, param_code: 'gps_lat', param_name: 'Latitude', value: 0, quality: 'GOOD', device_status: 'ONLINE' },
+    { param_id: 12, device_id: 1, param_code: 'gps_lng', param_name: 'Longitude', value: 0, quality: 'GOOD', device_status: 'ONLINE' },
+  ]);
+  assert.strictEqual(noFixZero.state, 'NO_FIX', '0,0 coordinates from cold-start GPS must be treated as NO_FIX');
+
+  // Case C: Comm lost / stale MUST report OFFLINE
+  const commLost = evalGpsStatus([
+    { param_id: 11, device_id: 1, param_code: 'gps_lat', param_name: 'Latitude', value: -6.950872, quality: 'STALE', device_status: 'ONLINE' },
+    { param_id: 12, device_id: 1, param_code: 'gps_lng', param_name: 'Longitude', value: 107.53343, quality: 'GOOD', device_status: 'ONLINE' },
+  ]);
+  assert.strictEqual(commLost.state, 'OFFLINE', 'STALE/BAD Modbus RTU parameter must report OFFLINE');
+
+  // Case D: Valid 3D fix MUST report LOCKED
+  const locked = evalGpsStatus([
+    { param_id: 11, device_id: 1, param_code: 'gps_lat', param_name: 'Latitude', value: -6.950872, quality: 'GOOD', device_status: 'ONLINE' },
+    { param_id: 12, device_id: 1, param_code: 'gps_lng', param_name: 'Longitude', value: 107.53343, quality: 'GOOD', device_status: 'ONLINE' },
+    { param_id: 13, device_id: 1, param_code: 'gps_sat', param_name: 'Satellites', value: 9, quality: 'GOOD', device_status: 'ONLINE' },
+  ]);
+  assert.strictEqual(locked.state, 'LOCKED');
+  assert.strictEqual(locked.lat, -6.950872);
+  assert.strictEqual(locked.lng, 107.53343);
+  assert.strictEqual(locked.satellites, 9);
+
+  // Case E: Operator must NEVER see raw device code/name (e.g. com1) in parameter option label
+  const sampleParam = { param_id: 11, device_code: 'com1', device_name: 'com1', param_code: 'lat', param_name: 'Latitude' };
+  const operatorLabel = gpsFmtObj.formatModbusGpsParamOption.call({ canManageCategories: false }, sampleParam);
+  const adminLabel = gpsFmtObj.formatModbusGpsParamOption.call({ canManageCategories: true }, sampleParam);
+  assert(!operatorLabel.includes('com1'), `Operator label must not leak device code com1: got "${operatorLabel}"`);
+  assert(adminLabel.includes('com1'), `Admin/Engineer label should include device context: got "${adminLabel}"`);
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');
