@@ -696,6 +696,9 @@ export default {
       }
 
       const isOp = currentRole === 'OPERATOR';
+      if (isOp && this.$route.path === '/integration' && this.$route.query && this.$route.query.tab === 'queue') {
+        allowed = true;
+      }
       const onOperatorConsole = this.$route.path === '/monitoring/operator' || this.$route.path === '/operator';
 
       if (!allowed || (isOp && onOperatorConsole)) {

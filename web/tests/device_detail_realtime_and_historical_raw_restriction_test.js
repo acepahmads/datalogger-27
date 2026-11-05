@@ -198,18 +198,22 @@ runTest('5.1: Telemetry Parameters table hides SCALE / OFFSET column for non-adm
 });
 
 // OPERATOR NAVIGATION, LANDING & TELEMETRY ANALYSIS RESTRICTIONS
-runTest('6.1: Sidebar hides Operator Console, Live Telemetry, Live Sensor Comm, and Outbound & Integration for OPERATOR', () => {
+runTest('6.1: Sidebar hides Operator Console, Live Telemetry, Live Sensor Comm, and Outbound & Integration for OPERATOR while keeping Delivery Queue', () => {
   const sidebarContent = fs.readFileSync(path.resolve(__dirname, '../src/components/Sidebar.vue'), 'utf8');
   assert(sidebarContent.includes('v-if="!isOperator" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for OPERATOR');
   assert(sidebarContent.includes('v-if="!isOperator" to="/monitoring/telemetry"'), 'Sidebar must hide Live Telemetry for OPERATOR');
   assert(sidebarContent.includes('v-if="!isOperator" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for OPERATOR');
   assert(sidebarContent.includes('v-if="!isOperator" to="/integration"'), 'Sidebar must hide Outbound & Integration for OPERATOR');
+  assert(sidebarContent.includes('<router-link to="/integration/queue"'), 'Sidebar must keep Delivery Queue visible for OPERATOR');
 });
 
-runTest('6.2: Router & Login default OPERATOR landing to /monitoring/dashboard-operator and restrict hidden routes', () => {
+runTest('6.2: Router, Header & Login default OPERATOR landing to /monitoring/dashboard-operator and preserve Delivery Queue (/integration/queue & /integration?tab=queue)', () => {
   const routerContent = fs.readFileSync(path.resolve(__dirname, '../src/router/index.js'), 'utf8');
+  const headerContent = fs.readFileSync(path.resolve(__dirname, '../src/components/Header.vue'), 'utf8');
   const loginContent = fs.readFileSync(path.resolve(__dirname, '../src/views/LoginView.vue'), 'utf8');
   assert(routerContent.includes("return next({ path: '/monitoring/dashboard-operator', replace: true });"), 'Router beforeEach must redirect OPERATOR default/console routes to /monitoring/dashboard-operator');
+  assert(routerContent.includes("if (to.query && to.query.tab === 'queue')"), 'Router beforeEach must allow OPERATOR on /integration?tab=queue');
+  assert(headerContent.includes("if (isOp && this.$route.path === '/integration' && this.$route.query && this.$route.query.tab === 'queue')"), 'Header switch-account must keep OPERATOR on /integration?tab=queue');
   assert(loginContent.includes("isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator'"), 'LoginView must land OPERATOR on /monitoring/dashboard-operator');
 });
 

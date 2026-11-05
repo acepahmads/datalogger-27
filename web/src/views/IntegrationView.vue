@@ -1949,12 +1949,16 @@ import axios from 'axios';
 export default {
   name: 'IntegrationView',
   data() {
-    let initialTab = 'destinations';
-    if (this.$route.query && this.$route.query.tab) {
+    const storeUser = (this.$store && this.$store.state && (this.$store.state.user || (this.$store.state.auth && this.$store.state.auth.user))) || null;
+    const initRole = String((storeUser && storeUser.role) || '').toUpperCase();
+    const initIsOperator = initRole === 'OPERATOR';
+
+    let initialTab = initIsOperator ? 'queue' : 'destinations';
+    if (!initIsOperator && this.$route.query && this.$route.query.tab) {
       initialTab = this.$route.query.tab;
     } else if (this.$route.path && this.$route.path.endsWith('/queue')) {
       initialTab = 'queue';
-    } else if (this.$route.path && this.$route.path.endsWith('/config')) {
+    } else if (!initIsOperator && this.$route.path && this.$route.path.endsWith('/config')) {
       initialTab = 'config';
     }
 
