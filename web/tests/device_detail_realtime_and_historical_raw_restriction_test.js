@@ -299,6 +299,16 @@ runTest('7.2: LoginView removes KLHK & SPARING compliance footer texts and enfor
   );
 });
 
+runTest('8.1: ParameterModal exposes Stale Data Timeout (Seconds) input, quick presets, and effective polling guard', () => {
+  const paramModalContent = fs.readFileSync(path.resolve(__dirname, '../src/components/ParameterModal.vue'), 'utf8');
+  assert(
+    paramModalContent.includes('v-model.number="form.stale_timeout_seconds"') &&
+    paramModalContent.includes("$t('parameterModal.staleTimeoutSeconds')") &&
+    paramModalContent.includes('effectiveStaleTimeoutSeconds'),
+    'ParameterModal must expose editable Stale Data Timeout (Seconds) input and effective timeout indicator'
+  );
+});
+
 console.log('===============================================================');
-console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (19/19)');
+console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (20/20)');
 console.log('===============================================================');

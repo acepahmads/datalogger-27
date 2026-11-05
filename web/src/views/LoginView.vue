@@ -78,15 +78,15 @@
 
         <div class="p-6 sm:p-8">
           <!-- Header in Card -->
-          <div class="text-center mb-6">
-            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-3xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/12 dark:text-sky-300 dark:border-blue-500/25 mb-3.5">
+          <div class="text-center mb-5">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-4xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/12 dark:text-sky-300 dark:border-blue-500/25 mb-2.5">
               <span class="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-sky-400 animate-pulse"></span>
               <span>{{ $t('auth.systemAccess') || 'SYSTEM ACCESS CONTROL' }}</span>
             </div>
-            <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <h1 class="text-base sm:text-[17px] font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
               {{ $t('auth.signInTitle') || 'Sign In to Datalogger' }}
             </h1>
-            <p class="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed max-w-xs mx-auto">
+            <p class="text-2xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed max-w-[290px] mx-auto">
               {{ $t('auth.signInSubtitle') || 'Enter your operational credentials to access telemetry and monitoring systems' }}
             </p>
           </div>

@@ -729,6 +729,30 @@ func (s *TelemetryService) evaluateStaleParameters() {
 			}
 		} else {
 			delete(s.staleEvalLastAt, item.ParameterID)
+			if item.Quality == model.QualityStale && item.QualityReason == model.ReasonStaleData {
+				restoredQ := model.QualityGood
+				restoredReason := model.ReasonNone
+				if param != nil && param.CurrentQuality != "" && param.CurrentQuality != model.QualityStale {
+					restoredQ = param.CurrentQuality
+					restoredReason = param.CurrentQualityReason
+				}
+				item.Quality = restoredQ
+				item.QualityReason = restoredReason
+				item.QualityFlags = ""
+				item.UpdatedAt = time.Now().UTC()
+				if s.hub != nil {
+					s.hub.Broadcast(websocket.WSMessage{
+						Type:      "device.telemetry.received",
+						Timestamp: item.UpdatedAt,
+						Data:      item,
+					})
+				}
+				itemCopy := *item
+				staleCandidates = append(staleCandidates, staleEvalCandidate{
+					item:  &itemCopy,
+					param: param,
+				})
+			}
 		}
 	}
 	s.latestMu.Unlock()

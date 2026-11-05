@@ -355,6 +355,55 @@ check('15.2: Runtime verification — getSparkline is 100% pure (zero $set react
   assert(sp40.strokePaths[0].includes(' C '), 'Expected monotone cubic spline command "C" when trendLineSmooth=true');
 });
 
+// 16. Sidebar-Aligned Font & Design on Toolbar Controls + Strict AQMS-Only ISPU Control
+check('16.1: All 5 toolbar control popovers (viewOptions, performanceSettings, ispuSettings, systemMonitor, networkMonitor) use Sidebar-matched font-sans and rounded-2xl cards', () => {
+  assert(sidebarContent.includes('font-sans'), 'Sidebar.vue uses font-sans');
+  for (const popName of ['viewOptions', 'performanceSettings', 'ispuSettings', 'systemMonitor', 'networkMonitor']) {
+    const marker = `v-if="activeToolbarPopover === '${popName}'"`;
+    const idx = viewContent.indexOf(marker);
+    assert(idx > 0, `Must locate popover container for ${popName}`);
+    const tagSlice = viewContent.slice(idx, idx + 360);
+    assert(tagSlice.includes('font-sans'), `${popName} popover container must use font-sans matching Sidebar.vue`);
+    assert(tagSlice.includes('rounded-2xl'), `${popName} popover container must use clean rounded-2xl surface`);
+    assert(!tagSlice.includes('font-mono'), `${popName} popover root container must not use boxy font-mono`);
+  }
+});
+
+check('16.2: ISPU toolbar control is strictly rendered only in AQMS mode (hidden in WQMS and SPARING)', () => {
+  assert(
+    viewContent.includes('<div v-if="isAQMSDomain" class="relative toolbar-popover-anchor">') &&
+    viewContent.indexOf('<div v-if="isAQMSDomain" class="relative toolbar-popover-anchor">') < viewContent.indexOf("toggleToolbarPopover('ispuSettings')"),
+    'ISPU toolbar anchor must be strictly guarded by v-if="isAQMSDomain"'
+  );
+
+  const vm = require('vm');
+  const domStart = viewContent.indexOf('activeMonitoringDomain() {');
+  const domEnd = viewContent.indexOf('isCompactScreen() {');
+  assert(domStart > 0 && domEnd > domStart, 'Must define activeMonitoringDomain() and isAQMSDomain() in DashboardOperatorView.vue');
+  const domBlock = viewContent.slice(domStart, domEnd).trim().replace(/,\s*$/, '');
+  const domMethods = vm.runInNewContext(`({ ${domBlock} })`, {});
+
+  const evalIsAQMS = (monitoring_domain, customerSubtitle = '') => {
+    const ctx = {
+      systemStatus: { monitoring_domain },
+      $store: { state: { systemStatus: { monitoring_domain } } },
+      customerSubtitle,
+    };
+    Object.defineProperty(ctx, 'activeMonitoringDomain', {
+      get: () => domMethods.activeMonitoringDomain.call(ctx),
+    });
+    return domMethods.isAQMSDomain.call(ctx);
+  };
+
+  assert.strictEqual(evalIsAQMS('AQMS', ''), true, 'AQMS mode must show ISPU control');
+  assert.strictEqual(evalIsAQMS('AQMS', 'AQMS Ambient Station'), true, 'AQMS mode with AQMS subtitle must show ISPU control');
+  assert.strictEqual(evalIsAQMS('WQMS', ''), false, 'WQMS mode must hide ISPU control');
+  assert.strictEqual(evalIsAQMS('SPARING', ''), false, 'SPARING mode must hide ISPU control');
+  assert.strictEqual(evalIsAQMS('CUSTOM', ''), false, 'CUSTOM mode must hide ISPU control');
+  assert.strictEqual(evalIsAQMS('AQMS', 'WQMS'), false, 'Branding subtitle WQMS without AQMS must hide ISPU control');
+  assert.strictEqual(evalIsAQMS('AQMS', 'Sparing'), false, 'Branding subtitle Sparing without AQMS must hide ISPU control');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

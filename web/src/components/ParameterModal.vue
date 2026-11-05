@@ -892,16 +892,19 @@
               <span class="text-indigo-600 dark:text-indigo-400 text-xs font-mono font-bold">ƒ(x)</span>
               <div>
                 <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  Advanced: Formulas, Hold Protection & Spike Filter
+                  Advanced: Formulas, Hold Protection, Stale & Spike Filter
                 </h3>
-                <span class="text-3xs text-slate-400 dark:text-slate-500 block">
-                  Optional signal conditioning, Python-style math evaluation, anomaly suppression, and spike window filter.
+                <span class="text-3xs text-slate-500 dark:text-slate-400 block">
+                  Optional signal conditioning, Python-style math evaluation, stale data timeout, and spike window filter.
                 </span>
               </div>
             </div>
-            <div class="flex items-center space-x-2">
-              <span v-if="form.formula" class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300">FORMULA</span>
-              <span v-if="form.hold_last_value_enabled" class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">HOLD</span>
+            <div class="flex items-center space-x-1.5 flex-shrink-0">
+              <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-500/30">
+                STALE {{ form.stale_timeout_seconds || 120 }}s
+              </span>
+              <span v-if="form.formula" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300">FORMULA</span>
+              <span v-if="form.hold_last_value_enabled" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">HOLD</span>
               <span class="text-slate-400 text-xs transform transition" :class="showAdvancedSettings ? 'rotate-180' : ''">▼</span>
             </div>
           </button>
@@ -1016,13 +1019,70 @@
               </div>
             </div>
 
-            <!-- Quality & Spike Detection Settings (Phase 3.2) -->
+            <!-- Quality, Stale Timeout & Spike Detection Settings (Phase 3.2) -->
             <div class="pt-3 border-t border-slate-200/60 dark:border-slate-800/50 space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-2xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   {{ $t('parameterModal.qualitySettingsTitle') }}
                 </span>
                 <span class="text-3xs text-blue-600 dark:text-cyan-400 font-mono font-bold">Phase 3.2</span>
+              </div>
+
+              <!-- Stale Data Timeout Configuration -->
+              <div class="p-3 bg-white dark:bg-[#0B0F19] rounded-lg border border-slate-200 dark:border-slate-800 space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    {{ $t('parameterModal.staleTimeoutSeconds') }}
+                  </label>
+                  <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30">
+                    EFFECTIVE: {{ effectiveStaleTimeoutSeconds }}s
+                  </span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                  <div class="flex items-center space-x-2">
+                    <input
+                      id="param-stale-timeout-seconds"
+                      v-model.number="form.stale_timeout_seconds"
+                      type="number"
+                      min="5"
+                      max="86400"
+                      step="5"
+                      placeholder="120"
+                      class="w-28 px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:border-blue-500 transition"
+                    />
+                    <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
+                      ({{ Math.round(((form.stale_timeout_seconds || 120) / 60) * 10) / 10 }} min)
+                    </span>
+                  </div>
+
+                  <div class="flex items-center flex-wrap gap-1 ml-auto">
+                    <button
+                      v-for="sec in [30, 60, 120, 300, 600]"
+                      :key="'stale-preset-' + sec"
+                      type="button"
+                      @click="form.stale_timeout_seconds = sec"
+                      class="px-2 py-0.5 rounded-md text-3xs font-mono font-semibold transition border"
+                      :class="Number(form.stale_timeout_seconds || 120) === sec
+                        ? 'bg-purple-600 text-white border-purple-600 btn-text dark:bg-purple-500 dark:border-purple-400'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700'"
+                    >
+                      {{ sec >= 60 && sec % 60 === 0 ? `${sec}s (${sec / 60}m)` : `${sec}s` }}
+                    </button>
+                  </div>
+                </div>
+
+                <p class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {{ $t('parameterModal.staleTimeoutHelp') }}
+                </p>
+                <p
+                  v-if="minPollingStaleSeconds > (Number(form.stale_timeout_seconds) || 120)"
+                  class="text-3xs text-purple-700 dark:text-purple-300 font-medium leading-relaxed"
+                >
+                  ℹ️ {{ ($i18n && $i18n.locale === 'id')
+                    ? `Batas aktif otomatis disesuaikan ke ${minPollingStaleSeconds}s (~2.5x dari polling interval ${Math.ceil(effectivePollingInterval / 1000)}s) agar pembacaan normal tidak dianggap STALE.`
+                    : `Effective timeout auto-adjusts to ${minPollingStaleSeconds}s (~2.5x of ${Math.ceil(effectivePollingInterval / 1000)}s polling interval) to prevent false STALE states.` }}
+                </p>
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1269,6 +1329,16 @@ export default {
         return Number(this.form.polling_interval_ms);
       }
       return this.devicePollingInterval;
+    },
+    minPollingStaleSeconds() {
+      const pollMs = Number(this.effectivePollingInterval) || 0;
+      if (pollMs <= 0) return 0;
+      const pollSec = Math.floor((pollMs + 999) / 1000);
+      return pollSec * 2 + Math.floor((pollSec + 1) / 2);
+    },
+    effectiveStaleTimeoutSeconds() {
+      const configured = Number(this.form.stale_timeout_seconds) > 0 ? Math.round(Number(this.form.stale_timeout_seconds)) : 120;
+      return Math.max(configured, this.minPollingStaleSeconds);
     },
     srcProtocolName() {
       const dev = this.currentDevice;
@@ -1810,7 +1880,7 @@ export default {
         zero_value_alarm_policy: param.zero_value_alarm_policy || 'NORMAL',
         batch_mode: param.batch_mode || 'AUTO',
       };
-      this.showAdvancedSettings = !!(param.formula || param.hold_last_value_enabled || param.spike_detection_enabled);
+      this.showAdvancedSettings = !!(param.formula || param.hold_last_value_enabled || param.spike_detection_enabled || (param.stale_timeout_seconds && Number(param.stale_timeout_seconds) !== 120));
       this.initByteOrderFromParam(param.byte_order, dt);
     },
     populateFromSource(source) {
@@ -1853,7 +1923,7 @@ export default {
         zero_value_alarm_policy: source.zero_value_alarm_policy || 'NORMAL',
         batch_mode: source.batch_mode || 'AUTO',
       };
-      this.showAdvancedSettings = !!(source.formula || source.hold_last_value_enabled || source.spike_detection_enabled);
+      this.showAdvancedSettings = !!(source.formula || source.hold_last_value_enabled || source.spike_detection_enabled || (source.stale_timeout_seconds && Number(source.stale_timeout_seconds) !== 120));
       this.initByteOrderFromParam(source.byte_order, dt);
     },
     onByteOrderSelectionChange(val) {
@@ -2058,7 +2128,10 @@ export default {
         clear_polling_interval_ms: clearPollInt,
         quality_validation_enabled: !!this.form.quality_validation_enabled,
         processing_enabled: !!this.form.processing_enabled,
-        stale_timeout_seconds: this.cleanNum(this.form.stale_timeout_seconds) || 120,
+        stale_timeout_seconds: (() => {
+          const rawStale = this.cleanNum(this.form.stale_timeout_seconds);
+          return (rawStale !== null && rawStale > 0) ? Math.max(5, Math.round(rawStale)) : 120;
+        })(),
         spike_detection_enabled: !!this.form.spike_detection_enabled,
         spike_threshold: this.cleanNum(this.form.spike_threshold) || 0.0,
         spike_window_size: this.cleanNum(this.form.spike_window_size) || 3,
