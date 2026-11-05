@@ -4,9 +4,9 @@
     <div class="sticky top-0 z-30 bg-slate-50/95 dark:bg-[#0B0F19]/95 backdrop-blur-md pt-2 pb-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
       <div class="flex items-center space-x-3">
         <router-link
-          :to="isSuperAdmin ? '/dashboard' : '/monitoring/operator'"
+          :to="isSuperAdmin ? '/dashboard' : (isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator')"
           class="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition"
-          :title="isSuperAdmin ? 'Back to Dashboard' : 'Back to Operator Console'"
+          :title="isSuperAdmin ? 'Back to Dashboard' : (isOperator ? 'Back to Dashboard Operator' : 'Back to Operator Console')"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -32,6 +32,7 @@
       <div class="flex items-center bg-slate-200/80 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-300 dark:border-slate-700/80 text-xs shadow-inner">
         <!-- TAB 1: DESTINATIONS SETUP -->
         <button
+          v-if="!isOperator"
           @click="selectTab('destinations')"
           class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
           :class="activeTab === 'destinations'
@@ -47,6 +48,7 @@
 
         <!-- TAB 2: CONFIGURABLE JSON -->
         <button
+          v-if="!isOperator"
           @click="selectTab('config')"
           class="px-3 py-1.5 rounded-lg transition font-semibold flex items-center space-x-2"
           :class="activeTab === 'config'
@@ -2127,13 +2129,17 @@ export default {
   },
   watch: {
     '$route.path'(newPath) {
-      if (newPath.endsWith('/queue')) {
+      if (this.isOperator || newPath.endsWith('/queue')) {
         this.activeTab = 'queue';
       } else if (newPath === '/integration' && this.activeTab === 'queue') {
         this.activeTab = 'destinations';
       }
     },
     '$route.query.tab'(newTab) {
+      if (this.isOperator) {
+        this.activeTab = 'queue';
+        return;
+      }
       if (newTab && ['destinations', 'config', 'queue'].includes(newTab)) {
         this.activeTab = newTab;
         if (newTab === 'config') {
@@ -2162,11 +2168,15 @@ export default {
       window.scrollTo(0, 0);
     });
 
+    if (this.isOperator) {
+      this.activeTab = 'queue';
+    }
+
     this.fetchSummary();
     this.fetchDestinations();
     this.fetchQueue();
 
-    if (this.activeTab === 'config') {
+    if (!this.isOperator && this.activeTab === 'config') {
       this.loadDestinationPayloadConfig();
     }
 
@@ -2187,6 +2197,9 @@ export default {
   },
   methods: {
     selectTab(tab) {
+      if (this.isOperator && tab !== 'queue') {
+        tab = 'queue';
+      }
       this.activeTab = tab;
       if (this.$route.query.tab !== tab) {
         this.$router.replace({ query: { ...this.$route.query, tab } }).catch(() => {});

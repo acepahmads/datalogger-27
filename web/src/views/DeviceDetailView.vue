@@ -2161,7 +2161,7 @@
               <span>{{ $t('common.refresh') }}</span>
             </button>
             <router-link
-              :to="'/monitoring/analysis?device_id=' + device.id + '&mode=RAW' + (rawParamId ? '&parameter_id=' + rawParamId : '')"
+              :to="'/monitoring/analysis?device_id=' + device.id + '&mode=' + (isOperator ? 'HISTORICAL' : 'RAW') + (rawParamId ? '&parameter_id=' + rawParamId : '')"
               class="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 shadow-2xs"
             >
               <span>{{ $t('analysis.openInAnalysis') }}</span>

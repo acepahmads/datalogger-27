@@ -60,13 +60,13 @@
       <!-- Navigation Actions -->
       <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
         <router-link
-          to="/monitoring/operator"
+          :to="isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator'"
           class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-2"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5" />
           </svg>
-          <span>{{ $t('navigation.operatorConsole') || 'Operator Console' }}</span>
+          <span>{{ isOperator ? ($t('navigation.dashboardOperator') || 'Dashboard Operator') : ($t('navigation.operatorConsole') || 'Operator Console') }}</span>
         </router-link>
 
         <router-link
@@ -94,6 +94,10 @@ export default {
     isSuperAdmin() {
       const r = (this.currentUser.role || '').toUpperCase();
       return r === 'SUPERADMIN' || r === 'ADMINISTRATOR';
+    },
+    isOperator() {
+      const r = (this.currentUser.role || '').toUpperCase();
+      return r === 'OPERATOR';
     },
     attemptedUrl() {
       return this.$route.query.from || '';

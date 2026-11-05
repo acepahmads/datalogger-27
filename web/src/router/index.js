@@ -82,7 +82,12 @@ const routes = [
 
   // Operational & Monitoring Modules
   { path: '/monitoring/system', name: 'SystemMonitoring', component: SystemMonitoringView },
-  { path: '/monitoring/telemetry', name: 'LiveTelemetry', component: TelemetryMonitorView },
+  {
+    path: '/monitoring/telemetry',
+    name: 'LiveTelemetry',
+    component: TelemetryMonitorView,
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+  },
   { path: '/monitoring/analysis', name: 'TelemetryAnalysis', component: TelemetryAnalysisView },
   {
     path: '/monitoring/telemetry-injection',
@@ -108,7 +113,12 @@ const routes = [
   { path: '/alarm/queue', name: 'DeliveryQueue', component: AlarmsView },
   { path: '/alarm/delivery', redirect: '/alarm/queue' },
   { path: '/monitoring/delivery', redirect: '/alarm/queue' },
-  { path: '/alarm/live-comm', name: 'LiveComm', component: () => import('../views/LiveCommView.vue') },
+  {
+    path: '/alarm/live-comm',
+    name: 'LiveComm',
+    component: () => import('../views/LiveCommView.vue'),
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+  },
   {
     path: '/alarm/activity-monitor',
     name: 'SystemActivityMonitor',
@@ -160,13 +170,13 @@ const routes = [
     path: '/integration',
     name: 'Integration',
     component: IntegrationView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER', 'OPERATOR'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
   },
   {
     path: '/integration/queue',
     name: 'OutboundDeliveryQueue',
     component: IntegrationView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER', 'OPERATOR'] },
+    meta: { roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER', 'OPERATOR'] },
   },
   { path: '/integration/destinations', redirect: '/integration' },
   { path: '/destinations', redirect: '/integration' },
@@ -208,15 +218,25 @@ router.beforeEach(async (to, from, next) => {
     });
   }
 
-  // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to operator dashboard
-  if (isAuth && isLoginPage && !to.query.switch) {
-    return next({ path: '/monitoring/operator' });
-  }
-
-  // 3. RBAC validation
   const user = store.state.user || {};
   const rawRole = (user.role || '').toUpperCase();
   const isSuper = rawRole === 'SUPERADMIN' || rawRole === 'ADMINISTRATOR';
+  const isOperator = rawRole === 'OPERATOR';
+
+  // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to role default landing
+  if (isAuth && isLoginPage && !to.query.switch) {
+    return next({
+      path: isSuper ? '/dashboard' : (isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
+      replace: true,
+    });
+  }
+
+  // 2b. Role OPERATOR default landing & Operator Console hiding -> redirect straight to Dashboard Operator
+  if (isAuth && isOperator && (to.path === '/' || to.path === '/operator' || to.path === '/monitoring/operator')) {
+    return next({ path: '/monitoring/dashboard-operator', replace: true });
+  }
+
+  // 3. RBAC validation
 
   if (to.meta && Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
     const allowed = to.meta.roles.some(r => {

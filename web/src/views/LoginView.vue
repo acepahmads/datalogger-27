@@ -289,39 +289,53 @@ export default {
         const role = (user.role || '').toUpperCase();
 
         const isSuper = role === 'SUPERADMIN' || role === 'ADMINISTRATOR';
+        const isOperator = role === 'OPERATOR';
+        const defaultLanding = isSuper
+          ? '/dashboard'
+          : (isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator');
 
         if (redirect && redirect !== '/login') {
-          // Check if destination is restricted for non-superadmin
+          // Check if destination is restricted for the logged-in role
           const isDevRoute = redirect.startsWith('/development');
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
           const isQualityRoute = redirect === '/dashboard' || redirect.startsWith('/dashboard') || redirect === '/quality' || redirect.startsWith('/monitoring/quality');
+          const isOperatorRestrictedRoute =
+            redirect === '/' ||
+            redirect === '/operator' ||
+            redirect.startsWith('/monitoring/operator') ||
+            redirect.startsWith('/monitoring/telemetry') ||
+            redirect.startsWith('/monitoring/reports') ||
+            redirect.startsWith('/alarm/live-comm') ||
+            redirect.startsWith('/administration') ||
+            redirect === '/integration' ||
+            redirect.startsWith('/integration/destinations') ||
+            redirect === '/destinations';
 
+          if (isOperator && isOperatorRestrictedRoute) {
+            this.$router.push('/monitoring/dashboard-operator');
+            return;
+          }
           if (isQualityRoute && !isSuper) {
-            this.$router.push('/monitoring/operator');
+            this.$router.push(defaultLanding);
             return;
           }
           if (isDevRoute && !isSuper) {
-            this.$router.push('/monitoring/operator');
+            this.$router.push(defaultLanding);
             return;
           }
           if (isUsersRoute && !isSuper && role !== 'ADMIN') {
-            this.$router.push('/monitoring/operator');
+            this.$router.push(defaultLanding);
             return;
           }
           if (isRolesRoute && !isSuper) {
-            this.$router.push('/monitoring/operator');
+            this.$router.push(defaultLanding);
             return;
           }
 
           this.$router.push(redirect);
         } else {
-          // If superadmin, default to overview/quality dashboard; otherwise default to operator console
-          if (isSuper) {
-            this.$router.push('/dashboard');
-          } else {
-            this.$router.push('/monitoring/operator');
-          }
+          this.$router.push(defaultLanding);
         }
       } catch (err) {
         console.error('Login error:', err);

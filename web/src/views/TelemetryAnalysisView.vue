@@ -22,7 +22,7 @@
           </span>
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          {{ $t('analysis.subtitle') }}
+          {{ isOperator ? ($t('analysis.subtitleOperator') || $t('analysis.subtitle')) : $t('analysis.subtitle') }}
         </p>
       </div>
 
@@ -98,8 +98,9 @@
           <span>Suntik Data</span>
         </router-link>
 
-        <!-- Shortcut to Live Telemetry -->
+        <!-- Shortcut to Live Telemetry (Hidden for Operator role) -->
         <router-link
+          v-if="!isOperator"
           to="/monitoring/telemetry"
           class="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 dark:border-emerald-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
         >
@@ -127,7 +128,7 @@
 
     <!-- Data Source / Semantic Mode Selector Bar -->
     <div class="saas-card p-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-      <div class="grid gap-1.5 w-full md:w-auto grid-cols-3">
+      <div class="grid gap-1.5 w-full md:w-auto" :class="isOperator ? 'grid-cols-2' : 'grid-cols-3'">
         <!-- MODE 1: HISTORICAL / PROCESSED -->
         <button
           @click="setMode('HISTORICAL')"
@@ -145,8 +146,9 @@
           </div>
         </button>
 
-        <!-- MODE 2: RAW TELEMETRY (Accessible to all roles; Raw Hex & Raw Float restricted to Admin/Superadmin) -->
+        <!-- MODE 2: RAW TELEMETRY (Hidden for Operator role) -->
         <button
+          v-if="!isOperator"
           @click="setMode('RAW')"
           class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
           :class="activeMode === 'RAW'
@@ -1680,6 +1682,11 @@ export default {
         this.applyUrlParams(newQuery);
       },
     },
+    isOperator(val) {
+      if (val && this.activeMode === 'RAW') {
+        this.setMode('HISTORICAL');
+      }
+    },
     rawChartMode() {
       // Re-trigger layout/statistics updates
     },
@@ -1752,10 +1759,12 @@ export default {
     applyUrlParams(query) {
       if (query.mode && ['HISTORICAL', 'RAW', 'AGGREGATED'].includes(query.mode.toUpperCase())) {
         const targetMode = query.mode.toUpperCase();
-        this.activeMode = targetMode;
+        this.activeMode = (this.isOperator && targetMode === 'RAW') ? 'HISTORICAL' : targetMode;
         if (!this.canAccessRawMode) {
           this.rawChartMode = 'scaled';
         }
+      } else if (this.isOperator && this.activeMode === 'RAW') {
+        this.activeMode = 'HISTORICAL';
       }
       if (query.device_id) {
         this.filters.deviceId = Number(query.device_id);
@@ -1789,6 +1798,9 @@ export default {
       }
     },
     setMode(mode) {
+      if (this.isOperator && mode === 'RAW') {
+        mode = 'HISTORICAL';
+      }
       if (!this.canAccessRawMode) {
         this.rawChartMode = 'scaled';
       }

@@ -197,6 +197,42 @@ runTest('5.1: Telemetry Parameters table hides SCALE / OFFSET column for non-adm
   );
 });
 
+// OPERATOR NAVIGATION, LANDING & TELEMETRY ANALYSIS RESTRICTIONS
+runTest('6.1: Sidebar hides Operator Console, Live Telemetry, Live Sensor Comm, and Outbound & Integration for OPERATOR', () => {
+  const sidebarContent = fs.readFileSync(path.resolve(__dirname, '../src/components/Sidebar.vue'), 'utf8');
+  assert(sidebarContent.includes('v-if="!isOperator" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for OPERATOR');
+  assert(sidebarContent.includes('v-if="!isOperator" to="/monitoring/telemetry"'), 'Sidebar must hide Live Telemetry for OPERATOR');
+  assert(sidebarContent.includes('v-if="!isOperator" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for OPERATOR');
+  assert(sidebarContent.includes('v-if="!isOperator" to="/integration"'), 'Sidebar must hide Outbound & Integration for OPERATOR');
+});
+
+runTest('6.2: Router & Login default OPERATOR landing to /monitoring/dashboard-operator and restrict hidden routes', () => {
+  const routerContent = fs.readFileSync(path.resolve(__dirname, '../src/router/index.js'), 'utf8');
+  const loginContent = fs.readFileSync(path.resolve(__dirname, '../src/views/LoginView.vue'), 'utf8');
+  assert(routerContent.includes("return next({ path: '/monitoring/dashboard-operator', replace: true });"), 'Router beforeEach must redirect OPERATOR default/console routes to /monitoring/dashboard-operator');
+  assert(loginContent.includes("isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator'"), 'LoginView must land OPERATOR on /monitoring/dashboard-operator');
+});
+
+runTest('6.3: TelemetryAnalysisView hides Raw Telemetry tab & Live Telemetry button for OPERATOR and removes Formula text on Historical tab', () => {
+  const taContent = fs.readFileSync(path.resolve(__dirname, '../src/views/TelemetryAnalysisView.vue'), 'utf8');
+  const enContent = fs.readFileSync(path.resolve(__dirname, '../src/i18n/locales/en.js'), 'utf8');
+  const idContent = fs.readFileSync(path.resolve(__dirname, '../src/i18n/locales/id.js'), 'utf8');
+
+  assert(/v-if="!isOperator"\s+@click="setMode\('RAW'\)"/.test(taContent), 'TelemetryAnalysisView must hide Raw Telemetry tab for OPERATOR');
+  assert(/v-if="!isOperator"\s+to="\/monitoring\/telemetry"/.test(taContent), 'TelemetryAnalysisView must hide Live Telemetry button for OPERATOR');
+  assert(taContent.includes("(this.isOperator && targetMode === 'RAW') ? 'HISTORICAL' : targetMode"), 'TelemetryAnalysisView must redirect ?mode=RAW to HISTORICAL for OPERATOR');
+
+  const enHistDesc = enContent.match(/"modeHistoricalDesc":\s*"([^"]*)"/);
+  const idHistDesc = idContent.match(/"modeHistoricalDesc":\s*"([^"]*)"/);
+  const enHistSem = enContent.match(/"historicalSemantic":\s*"([^"]*)"/);
+  const idHistSem = idContent.match(/"historicalSemantic":\s*"([^"]*)"/);
+
+  assert(enHistDesc && !/formula/i.test(enHistDesc[1]), 'en.js modeHistoricalDesc must not contain Formula');
+  assert(idHistDesc && !/formula/i.test(idHistDesc[1]), 'id.js modeHistoricalDesc must not contain Formula');
+  assert(enHistSem && !/formula/i.test(enHistSem[1]), 'en.js historicalSemantic must not contain Formula');
+  assert(idHistSem && !/formula/i.test(idHistSem[1]), 'id.js historicalSemantic must not contain Formula');
+});
+
 console.log('===============================================================');
-console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (13/13)');
+console.log('TEST SUMMARY: ALL RESTRICTION TESTS PASSED (16/16)');
 console.log('===============================================================');

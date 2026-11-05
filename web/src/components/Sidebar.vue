@@ -93,8 +93,8 @@
           <span>{{ $t('navigation.monitoring') }}</span>
         </div>
         <div class="space-y-1">
-          <!-- Operator Command Center / SCADA Console -->
-          <router-link to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
+          <!-- Operator Command Center / SCADA Console (Hidden for Operator role) -->
+          <router-link v-if="!isOperator" to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-cyan-500 dark:text-cyan-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
@@ -143,7 +143,7 @@
             <span>{{ $t('navigation.devicesSensors') }}</span>
           </router-link>
 
-          <router-link to="/monitoring/telemetry" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/telemetry' }">
+          <router-link v-if="!isOperator" to="/monitoring/telemetry" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/telemetry' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-emerald-500 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -257,7 +257,7 @@
             <span>{{ $t('navigation.deliveryStatus') || 'Delivery Status' }}</span>
           </router-link>
 
-          <router-link to="/alarm/live-comm" class="nav-item" :class="{ 'nav-active': $route.path === '/alarm/live-comm' }">
+          <router-link v-if="!isOperator" to="/alarm/live-comm" class="nav-item" :class="{ 'nav-active': $route.path === '/alarm/live-comm' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
@@ -339,7 +339,7 @@
             <span>{{ $t('navigation.usersRoles') || 'Users & RBAC' }}</span>
           </router-link>
 
-          <router-link to="/integration" class="nav-item" :class="{ 'nav-active': $route.path === '/integration' }">
+          <router-link v-if="!isOperator" to="/integration" class="nav-item" :class="{ 'nav-active': $route.path === '/integration' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <circle cx="18" cy="5" r="3"></circle>

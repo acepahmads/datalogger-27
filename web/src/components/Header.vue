@@ -39,11 +39,12 @@
         </svg>
       </button>
 
-      <!-- 1. Operator Console Quick Icon Button -->
+      <!-- 1. Operator Console / Dashboard Operator Quick Icon Button -->
       <router-link
+        v-if="!isOperator"
         to="/monitoring/operator"
         class="relative w-7 h-7 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
-        :class="$route.path.includes('/operator')
+        :class="$route.path === '/monitoring/operator' || $route.path === '/operator'
           ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 ring-1 ring-cyan-500/30'
           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 border-slate-200 dark:border-slate-700/60'"
         :title="$t('navigation.operatorConsole') || 'Operator Console'"
@@ -56,6 +57,27 @@
         <span class="absolute top-0.5 right-0.5 flex h-1.5 w-1.5">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-500"></span>
+        </span>
+      </router-link>
+      <router-link
+        v-else
+        to="/monitoring/dashboard-operator"
+        class="relative w-7 h-7 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
+        :class="$route.path === '/monitoring/dashboard-operator'
+          ? 'bg-sky-500/20 text-sky-400 border-sky-500/50 ring-1 ring-sky-500/30'
+          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 border-slate-200 dark:border-slate-700/60'"
+        :title="$t('navigation.dashboardOperator') || 'Dashboard Operator'"
+        aria-label="Dashboard Operator"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <rect x="3" y="3" width="7" height="9" rx="1.5" />
+          <rect x="14" y="3" width="7" height="5" rx="1.5" />
+          <rect x="14" y="12" width="7" height="9" rx="1.5" />
+          <rect x="3" y="16" width="7" height="5" rx="1.5" />
+        </svg>
+        <span class="absolute top-0.5 right-0.5 flex h-1.5 w-1.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-500"></span>
         </span>
       </router-link>
 
@@ -490,6 +512,9 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
+    },
     roleBadgeClass() {
       if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') {
         return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30';
@@ -670,9 +695,14 @@ export default {
         });
       }
 
-      if (!allowed) {
+      const isOp = currentRole === 'OPERATOR';
+      const onOperatorConsole = this.$route.path === '/monitoring/operator' || this.$route.path === '/operator';
+
+      if (!allowed || (isOp && onOperatorConsole)) {
         if (isSuper) {
           this.$router.push('/dashboard');
+        } else if (isOp) {
+          this.$router.push('/monitoring/dashboard-operator');
         } else {
           this.$router.push('/monitoring/operator');
         }

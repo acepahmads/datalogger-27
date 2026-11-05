@@ -1993,14 +1993,14 @@
                   </div>
                 </div>
 
-                <!-- Action Button: Open Outbound Integration -->
+                <!-- Action Button: Open Outbound Integration / Delivery Queue -->
                 <button
                   type="button"
-                  @click="navigateToRoute('/integration')"
+                  @click="navigateToRoute(canAccessOperationalReport ? '/integration' : '/integration/queue')"
                   class="w-full py-1.5 px-2 rounded text-3xs font-semibold transition border flex items-center justify-center space-x-1.5 bg-slate-50 dark:bg-[#0E1726] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:border-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
                 >
                   <span>🔗</span>
-                  <span>Open Outbound Integration & Delivery (/integration) →</span>
+                  <span>{{ canAccessOperationalReport ? 'Open Outbound Integration & Delivery (/integration) →' : 'Open Delivery Queue (/integration/queue) →' }}</span>
                 </button>
               </div>
           </div>
