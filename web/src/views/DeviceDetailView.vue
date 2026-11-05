@@ -191,7 +191,6 @@
         <span>{{ $t('deviceDetail.historical') }}</span>
       </button>
       <button
-        v-if="canAccessRawMode"
         @click="switchTab('raw')"
         :class="activeTab === 'raw' ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 pb-2.5 font-bold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 pb-2.5'"
         class="transition-colors flex items-center space-x-1.5"
@@ -2123,15 +2122,31 @@
       </div>
     </div>
 
-    <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - ADMIN & SUPERADMIN ONLY) -->
-    <div v-if="device && activeTab === 'raw' && canAccessRawMode" class="space-y-4">
+    <!-- TAB 8: RAW TELEMETRY (Phase 3.1 - Accessible to all roles; Raw Hex & Raw Float restricted to Admin/Superadmin) -->
+    <div v-if="device && activeTab === 'raw'" class="space-y-4">
       <div class="saas-card p-4 space-y-3 bg-[#0F172A]/90 border border-slate-800 rounded-2xl">
-        <!-- Top Row: Title & Actions -->
+        <!-- Top Row: Title, Max Limit Badge & Actions -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <h3 class="text-xs font-bold text-white uppercase tracking-wider">{{ $t('deviceDetail.rawInspectionTitle') }}</h3>
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="text-xs font-bold text-white uppercase tracking-wider">
+                {{ canAccessRawMode ? $t('deviceDetail.rawInspectionTitle') : $t('deviceDetail.rawTelemetry') }}
+              </h3>
+              <span class="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-3xs font-mono font-semibold">
+                {{ $t('deviceDetail.rawMaxWindowLabel', { limit: rawMaxRangeLabel }) }}
+              </span>
+              <router-link
+                v-if="!isOperator"
+                to="/administration/config?tab=general"
+                class="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-3xs font-semibold transition flex items-center space-x-1"
+                title="Konfigurasi batas maksimal rentang waktu filter Raw Telemetry"
+              >
+                <span>⚙️</span>
+                <span>{{ $t('deviceDetail.rawConfigLimitBtn') }}</span>
+              </router-link>
+            </div>
             <p class="text-2xs text-slate-400 mt-0.5">
-              {{ $t('deviceDetail.rawInspectionSubtitle') }}
+              {{ canAccessRawMode ? $t('deviceDetail.rawInspectionSubtitle') : $t('deviceDetail.rawOperatorSubtitle') }}
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -2154,7 +2169,7 @@
           </div>
         </div>
 
-        <!-- Filter Bar Row: Parameter, Time Range, Quality, Page Size -->
+        <!-- Filter Bar Row 1: Parameter, Quick Time Presets, Quality, Page Size -->
         <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3">
           <!-- Parameter Filter -->
           <div>
@@ -2171,7 +2186,7 @@
             </select>
           </div>
 
-          <!-- Time Range Presets + Custom -->
+          <!-- Quick Time Range Presets (Capped dynamically by configured rawMaxRangeHours) -->
           <div>
             <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.timeRange') || 'Rentang Waktu' }}</label>
             <div class="flex flex-wrap items-center gap-1">
@@ -2207,40 +2222,39 @@
 
           <!-- Page Size -->
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('common.limit') || 'Baris / Hal' }}</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('common.limit') }}</label>
             <select
               v-model.number="rawPageSize"
               @change="onRawFilterChange"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
             >
-              <option :value="20">20 baris</option>
-              <option :value="50">50 baris</option>
-              <option :value="100">100 baris</option>
-              <option :value="250">250 baris</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+              <option :value="250">250</option>
             </select>
           </div>
         </div>
 
-        <!-- Custom Start & End Date-Time Picker Row -->
-        <div
-          v-if="rawTimeRange === 'custom'"
-          class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3 text-xs"
-        >
+        <!-- Filter Bar Row 2: Always-Accessible Start & End Date-Time Range Filter ("Dari Kapan Sampai Kapan") -->
+        <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-end gap-3 text-xs">
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Dari Waktu (Mulai)</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.rawFromTime') }}</label>
             <input
               type="datetime-local"
               step="1"
               v-model="rawStartTime"
+              @change="onRawDateInputEdited"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
             />
           </div>
           <div>
-            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">Sampai Waktu (Selesai)</label>
+            <label class="block text-3xs uppercase font-semibold text-slate-400 mb-1">{{ $t('deviceDetail.rawToTime') }}</label>
             <input
               type="datetime-local"
               step="1"
               v-model="rawEndTime"
+              @change="onRawDateInputEdited"
               class="px-3 py-1.5 bg-[#0B0F19] border border-slate-700 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -2248,10 +2262,10 @@
             <button
               type="button"
               @click="applyRawCustomRange"
-              :disabled="rawLoading"
-              class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition shadow-sm"
+              :disabled="rawLoading || !!rawCustomSpanExceedsMax"
+              class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-semibold transition shadow-sm"
             >
-              Terapkan Filter
+              {{ $t('common.apply') }}
             </button>
             <button
               type="button"
@@ -2270,6 +2284,7 @@
               Jam Ini
             </button>
             <button
+              v-if="rawMaxRangeHours >= 24"
               type="button"
               @click="applyRawCustomWindowPreset('today')"
               class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-3xs font-semibold transition"
@@ -2279,12 +2294,28 @@
             </button>
             <button
               type="button"
-              @click="setRawTimeRange('all')"
+              @click="setRawTimeRange('1h')"
               class="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 text-3xs font-semibold transition"
             >
-              Reset
+              {{ $t('common.reset') }}
             </button>
           </div>
+        </div>
+
+        <!-- Warning Banner when Custom Range Exceeds Configured Maximum Limit -->
+        <div
+          v-if="rawRangeValidationError"
+          class="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-2xs flex flex-wrap items-center justify-between gap-2"
+        >
+          <span>⚠️ {{ rawRangeValidationError }}</span>
+          <button
+            v-if="rawCustomSpanExceedsMax"
+            type="button"
+            @click="clampRawCustomRangeToMax"
+            class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 text-3xs font-bold transition"
+          >
+            {{ $t('deviceDetail.rawClampToMaxBtn', { limit: rawMaxRangeLabel }) }}
+          </button>
         </div>
       </div>
 
@@ -2296,9 +2327,9 @@
               <tr>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
-                <th class="py-2.5 px-4">{{ $t('deviceDetail.rawHexStream') }}</th>
-                <th class="py-2.5 px-4">{{ $t('deviceDetail.rawFloat') }}</th>
-                <th class="py-2.5 px-4">{{ $t('deviceDetail.scaledValue') }}</th>
+                <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('deviceDetail.rawHexStream') }}</th>
+                <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('deviceDetail.rawFloat') }}</th>
+                <th class="py-2.5 px-4">{{ canAccessRawMode ? $t('deviceDetail.scaledValue') : $t('deviceDetail.rawOperatorValue') }}</th>
                 <th class="py-2.5 px-4">{{ $t('telemetry.quality') }}</th>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               </tr>
@@ -2316,14 +2347,14 @@
                     class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
                   >INJ</span>
                 </td>
-                <td class="py-2.5 px-4 text-emerald-400 font-bold tracking-widest">
+                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-emerald-400 font-bold tracking-widest">
                   {{ rec.raw_hex || '--' }}
                 </td>
-                <td class="py-2.5 px-4 text-slate-400">
+                <td v-if="canAccessRawMode" class="py-2.5 px-4 text-slate-400">
                   {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
                 </td>
                 <td class="py-2.5 px-4 text-white font-bold">
-                  {{ rec.value !== undefined ? rec.value.toFixed(2) : '--' }}
+                  {{ rec.value !== undefined && rec.value !== null ? Number(rec.value).toFixed(2) : '--' }}
                 </td>
                 <td class="py-2.5 px-4">
                   <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(rec.quality)">
@@ -2335,7 +2366,7 @@
                 </td>
               </tr>
               <tr v-if="rawRecords.length === 0">
-                <td colspan="7" class="py-8 text-center text-xs text-slate-400 font-sans">
+                <td :colspan="canAccessRawMode ? 7 : 5" class="py-8 text-center text-xs text-slate-400 font-sans">
                   {{ rawLoading ? $t('deviceDetail.loadingRaw') : $t('deviceDetail.noRawCaptured') }}
                 </td>
               </tr>
@@ -3722,7 +3753,7 @@ export default {
       rawPageSize: 20,
       rawParamId: '',
       rawQuality: '',
-      rawTimeRange: 'all',
+      rawTimeRange: '1h',
       rawStartTime: '',
       rawEndTime: '',
       rawLoading: false,
@@ -3777,11 +3808,64 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
+    },
     canAccessRawMode() {
       if (this.$store && this.$store.getters && this.$store.getters.canAccessRawTrendMode !== undefined) {
         return !!this.$store.getters.canAccessRawTrendMode;
       }
       return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN'].includes(this.userRole);
+    },
+    rawMaxRangeHours() {
+      if (this.$store && this.$store.getters && this.$store.getters.rawTelemetryMaxRangeHours) {
+        return Number(this.$store.getters.rawTelemetryMaxRangeHours) || 168;
+      }
+      const st = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Number(st.raw_telemetry_max_range_hours) > 0 ? Number(st.raw_telemetry_max_range_hours) : 168;
+    },
+    rawMaxRangeLabel() {
+      const h = this.rawMaxRangeHours;
+      const isId = this.$i18n && this.$i18n.locale === 'id';
+      if (h < 24) {
+        return isId ? `${h} Jam` : `${h}h`;
+      }
+      const d = h / 24;
+      if (Number.isInteger(d)) {
+        return isId ? `${d} Hari (${h} Jam)` : `${d}d (${h}h)`;
+      }
+      return isId ? `${d.toFixed(1)} Hari (${h} Jam)` : `${d.toFixed(1)}d (${h}h)`;
+    },
+    rawCustomSpanMs() {
+      if (!this.rawStartTime || !this.rawEndTime) return 0;
+      const s = new Date(this.rawStartTime);
+      const e = new Date(this.rawEndTime);
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 0;
+      return e.getTime() - s.getTime();
+    },
+    rawCustomSpanExceedsMax() {
+      const maxMs = this.rawMaxRangeHours * 3600 * 1000;
+      return this.rawCustomSpanMs > (maxMs + 60 * 1000);
+    },
+    rawRangeValidationError() {
+      if (!this.rawStartTime || !this.rawEndTime) return '';
+      const s = new Date(this.rawStartTime);
+      const e = new Date(this.rawEndTime);
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return '';
+      if (e.getTime() < s.getTime()) {
+        return this.$i18n && this.$i18n.locale === 'id'
+          ? 'Waktu Selesai harus lebih besar atau sama dengan Waktu Mulai.'
+          : 'End Time must be greater than or equal to Start Time.';
+      }
+      if (this.rawCustomSpanExceedsMax) {
+        const hrs = (this.rawCustomSpanMs / (3600 * 1000)).toFixed(1);
+        const selLabel = this.$i18n && this.$i18n.locale === 'id' ? `${hrs} Jam` : `${hrs}h`;
+        return this.$t('deviceDetail.rawRangeExceedsMax', {
+          selected: selLabel,
+          limit: this.rawMaxRangeLabel,
+        });
+      }
+      return '';
     },
     timeRangeOptions() {
       return [
@@ -3793,15 +3877,25 @@ export default {
       ];
     },
     rawTimeRangeOptions() {
-      return [
-        { label: '15m', value: '15m' },
-        { label: this.$t('deviceDetail.timeRange1h') || '1h', value: '1h' },
-        { label: this.$t('deviceDetail.timeRange6h') || '6h', value: '6h' },
-        { label: this.$t('deviceDetail.timeRange24h') || '24h', value: '24h' },
-        { label: '7d', value: '7d' },
-        { label: this.$t('deviceDetail.timeRangeAll') || 'All', value: 'all' },
-        { label: this.$t('analysis.custom') || 'Custom', value: 'custom' },
+      const maxH = this.rawMaxRangeHours;
+      const candidates = [
+        { label: '15m', value: '15m', hours: 0.25 },
+        { label: this.$t('deviceDetail.timeRange1h') || '1h', value: '1h', hours: 1 },
+        { label: this.$t('deviceDetail.timeRange6h') || '6h', value: '6h', hours: 6 },
+        { label: this.$t('deviceDetail.timeRange24h') || '24h', value: '24h', hours: 24 },
+        { label: '3d', value: '3d', hours: 72 },
+        { label: '7d', value: '7d', hours: 168 },
+        { label: '14d', value: '14d', hours: 336 },
+        { label: '30d', value: '30d', hours: 720 },
       ];
+      const allowed = candidates.filter(c => c.hours <= maxH);
+      const exactMatch = allowed.some(c => c.hours === maxH);
+      if (!exactMatch && maxH > 0) {
+        const shortMax = maxH >= 24 && Number.isInteger(maxH / 24) ? `${maxH / 24}d` : `${maxH}h`;
+        allowed.push({ label: `Max (${shortMax})`, value: 'max', hours: maxH });
+      }
+      allowed.push({ label: this.$t('analysis.custom') || 'Custom', value: 'custom', hours: 0 });
+      return allowed;
     },
     displayParameters() {
       return this.sortedParameters;
@@ -4166,22 +4260,26 @@ export default {
     canAccessRawMode: {
       handler(newVal) {
         if (!newVal) {
-          if (this.activeTab === 'raw') this.switchTab('telemetry');
           if (this.chartValueMode === 'raw') {
             this.chartValueMode = 'scaled';
             this.fetchHistory();
           }
+        }
+        if (this.activeTab === 'raw') {
+          this.fetchRawTelemetry();
         }
       },
     },
     userRole: {
       handler() {
         if (!this.canAccessRawMode) {
-          if (this.activeTab === 'raw') this.switchTab('telemetry');
           if (this.chartValueMode === 'raw') {
             this.chartValueMode = 'scaled';
             this.fetchHistory();
           }
+        }
+        if (this.activeTab === 'raw') {
+          this.fetchRawTelemetry();
         }
       },
     },
@@ -4197,8 +4295,9 @@ export default {
     },
   },
   mounted() {
+    this.syncRawDateInputsFromPreset(this.rawTimeRange || '1h');
     if (this.$route.query.tab) {
-      this.activeTab = (this.$route.query.tab === 'raw' && !this.canAccessRawMode) ? 'telemetry' : this.$route.query.tab;
+      this.activeTab = this.$route.query.tab;
     }
     if (!this.canAccessRawMode) {
       this.chartValueMode = 'scaled';
@@ -4728,10 +4827,6 @@ export default {
       }
     },
     switchTab(tab) {
-      if (tab === 'raw' && !this.canAccessRawMode) {
-        this.activeTab = 'telemetry';
-        return;
-      }
       this.activeTab = tab;
       if (tab === 'activity') {
         this.loadActivity();
@@ -4803,8 +4898,8 @@ export default {
             device_id: data.device_id,
             parameter_id: data.parameter_id,
             value: data.value,
-            raw_value: data.raw_value,
-            raw_hex: data.raw_hex,
+            raw_value: this.canAccessRawMode ? data.raw_value : undefined,
+            raw_hex: this.canAccessRawMode ? data.raw_hex : '',
             quality: data.quality || 'GOOD',
             quality_reason: data.quality_reason,
             quality_flags: data.quality_flags,
@@ -4907,13 +5002,56 @@ export default {
       const pad = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     },
+    getPresetDurationMs(range) {
+      const maxMs = this.rawMaxRangeHours * 3600 * 1000;
+      let ms = 60 * 60 * 1000;
+      if (range === '15m') ms = 15 * 60 * 1000;
+      else if (range === '1h') ms = 60 * 60 * 1000;
+      else if (range === '6h') ms = 6 * 3600 * 1000;
+      else if (range === '24h') ms = 24 * 3600 * 1000;
+      else if (range === '3d') ms = 3 * 24 * 3600 * 1000;
+      else if (range === '7d') ms = 7 * 24 * 3600 * 1000;
+      else if (range === '14d') ms = 14 * 24 * 3600 * 1000;
+      else if (range === '30d') ms = 30 * 24 * 3600 * 1000;
+      else if (range === 'max' || range === 'all') ms = maxMs;
+      return Math.min(ms, maxMs);
+    },
+    syncRawDateInputsFromPreset(range) {
+      if (!range || range === 'custom') return;
+      const now = new Date();
+      const ms = this.getPresetDurationMs(range);
+      const start = new Date(now.getTime() - ms);
+      this.rawStartTime = this.formatLocalDatetimeInput(start);
+      this.rawEndTime = this.formatLocalDatetimeInput(now);
+    },
+    onRawDateInputEdited() {
+      this.rawTimeRange = 'custom';
+    },
+    clampRawCustomRangeToMax() {
+      const maxMs = this.rawMaxRangeHours * 3600 * 1000;
+      if (this.rawEndTime) {
+        const e = new Date(this.rawEndTime);
+        if (!Number.isNaN(e.getTime())) {
+          const clampedStart = new Date(e.getTime() - maxMs);
+          this.rawStartTime = this.formatLocalDatetimeInput(clampedStart);
+          this.rawTimeRange = 'custom';
+          this.rawPage = 1;
+          this.fetchRawTelemetry();
+        }
+      }
+    },
     async fetchRawTelemetry() {
       if (!this.device) return;
+      if (this.rawTimeRange === 'custom' && this.rawRangeValidationError) {
+        this.showToast(this.rawRangeValidationError, 'error');
+        return;
+      }
       this.rawLoading = true;
       try {
         const params = {
           page: this.rawPage,
           page_size: this.rawPageSize,
+          raw_window: 1,
         };
         if (this.rawParamId) params.parameter_id = this.rawParamId;
         if (this.rawQuality) params.quality = this.rawQuality;
@@ -4927,23 +5065,31 @@ export default {
             const e = new Date(this.rawEndTime);
             if (!Number.isNaN(e.getTime())) params.end_time = e.toISOString();
           }
-        } else if (this.rawTimeRange && this.rawTimeRange !== 'all') {
+        } else {
           const now = new Date();
-          let ms = 60 * 60 * 1000;
-          if (this.rawTimeRange === '15m') ms = 15 * 60 * 1000;
-          else if (this.rawTimeRange === '6h') ms = 6 * 60 * 60 * 1000;
-          else if (this.rawTimeRange === '24h') ms = 24 * 60 * 60 * 1000;
-          else if (this.rawTimeRange === '7d') ms = 7 * 24 * 60 * 60 * 1000;
-          params.start_time = new Date(now.getTime() - ms).toISOString();
+          const ms = this.getPresetDurationMs(this.rawTimeRange || '1h');
+          const start = new Date(now.getTime() - ms);
+          params.start_time = start.toISOString();
+          params.end_time = now.toISOString();
+          this.rawStartTime = this.formatLocalDatetimeInput(start);
+          this.rawEndTime = this.formatLocalDatetimeInput(now);
         }
 
-        const res = await axios.get(`/api/devices/${this.device.id}/telemetry/raw`, { params });
+        const endpoint = this.canAccessRawMode
+          ? `/api/devices/${this.device.id}/telemetry/raw`
+          : `/api/devices/${this.device.id}/telemetry/history`;
+
+        const res = await axios.get(endpoint, { params });
         if (res.data && res.data.data) {
           this.rawRecords = res.data.data.items || [];
           this.rawTotal = res.data.data.total || 0;
         }
       } catch (err) {
         console.error('Failed to query raw telemetry:', err);
+        const msg = err.response && err.response.data && (err.response.data.error || err.response.data.message);
+        if (msg) {
+          this.showToast(msg, 'error');
+        }
       } finally {
         this.rawLoading = false;
       }
@@ -4954,11 +5100,14 @@ export default {
       if (range === 'custom') {
         if (!this.rawStartTime || !this.rawEndTime) {
           const now = new Date();
-          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-          this.rawStartTime = this.formatLocalDatetimeInput(oneHourAgo);
+          const ms = this.getPresetDurationMs('1h');
+          const start = new Date(now.getTime() - ms);
+          this.rawStartTime = this.formatLocalDatetimeInput(start);
           this.rawEndTime = this.formatLocalDatetimeInput(now);
         }
+        return;
       }
+      this.syncRawDateInputsFromPreset(range);
       this.fetchRawTelemetry();
     },
     onRawFilterChange() {
@@ -4966,31 +5115,33 @@ export default {
       this.fetchRawTelemetry();
     },
     applyRawCustomRange() {
-      if (this.rawStartTime && this.rawEndTime) {
-        const s = new Date(this.rawStartTime);
-        const e = new Date(this.rawEndTime);
-        if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime()) && e < s) {
-          this.showToast('Waktu Selesai harus lebih besar dari Waktu Mulai', 'error');
-          return;
-        }
+      this.rawTimeRange = 'custom';
+      if (this.rawRangeValidationError) {
+        this.showToast(this.rawRangeValidationError, 'error');
+        return;
       }
       this.rawPage = 1;
       this.fetchRawTelemetry();
     },
     applyRawCustomWindowPreset(preset) {
       const now = new Date();
+      const maxMs = this.rawMaxRangeHours * 3600 * 1000;
       let start = now;
       let end = now;
       if (preset === 'prev_hour') {
         end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
-        start = new Date(end.getTime() - 3600 * 1000);
+        start = new Date(end.getTime() - Math.min(3600 * 1000, maxMs));
       } else if (preset === 'curr_hour') {
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
         end = now;
       } else if (preset === 'today') {
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        if (now.getTime() - start.getTime() > maxMs) {
+          start = new Date(now.getTime() - maxMs);
+        }
         end = now;
       }
+      this.rawTimeRange = 'custom';
       this.rawStartTime = this.formatLocalDatetimeInput(start);
       this.rawEndTime = this.formatLocalDatetimeInput(end);
       this.rawPage = 1;

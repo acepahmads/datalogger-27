@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"datalogger/internal/config"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -166,6 +168,39 @@ func (h *TelemetryHandler) parseTelemetryFilterParams(c *gin.Context, defaultDev
 	return filter
 }
 
+// enforceRawWindowLimit validates and bounds the query window against the configured RawTelemetryMaxRangeHours.
+func (h *TelemetryHandler) enforceRawWindowLimit(params *repository.TelemetryFilterParams) error {
+	maxHours := config.Get().EffectiveRawTelemetryMaxRangeHours()
+	maxDur := time.Duration(maxHours) * time.Hour
+	grace := 5 * time.Minute
+
+	if params.StartTime != nil && params.EndTime != nil {
+		if params.EndTime.Before(*params.StartTime) {
+			return fmt.Errorf("end_time must be greater than or equal to start_time")
+		}
+		if params.EndTime.Sub(*params.StartTime) > maxDur+grace {
+			return fmt.Errorf("Requested time range exceeds maximum configured limit of %d hours", maxHours)
+		}
+		return nil
+	}
+
+	if params.StartTime != nil && params.EndTime == nil {
+		if time.Now().UTC().Sub(*params.StartTime) > maxDur+grace {
+			return fmt.Errorf("Requested time range exceeds maximum configured limit of %d hours", maxHours)
+		}
+		return nil
+	}
+
+	// Unbounded start_time: clamp to configured max window relative to end_time (or now)
+	refEnd := time.Now().UTC()
+	if params.EndTime != nil {
+		refEnd = *params.EndTime
+	}
+	boundedStart := refEnd.Add(-maxDur)
+	params.StartTime = &boundedStart
+	return nil
+}
+
 // GetHistorical handles GET /api/devices/:id/telemetry/history
 func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 	devID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -175,6 +210,12 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 	}
 
 	params := h.parseTelemetryFilterParams(c, uint(devID))
+	if c.Query("raw_window") == "1" {
+		if err := h.enforceRawWindowLimit(&params); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "Failed to retrieve historical telemetry: "+err.Error())
@@ -199,6 +240,12 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 // GetAllHistorical handles GET /api/telemetry/history for unified multi-device analysis
 func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 	params := h.parseTelemetryFilterParams(c, 0)
+	if c.Query("raw_window") == "1" {
+		if err := h.enforceRawWindowLimit(&params); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "Failed to retrieve historical telemetry: "+err.Error())
@@ -234,6 +281,10 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 	}
 
 	params := h.parseTelemetryFilterParams(c, uint(devID))
+	if err := h.enforceRawWindowLimit(&params); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())
@@ -260,6 +311,10 @@ func (h *TelemetryHandler) GetAllRawTelemetry(c *gin.Context) {
 	}
 
 	params := h.parseTelemetryFilterParams(c, 0)
+	if err := h.enforceRawWindowLimit(&params); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())

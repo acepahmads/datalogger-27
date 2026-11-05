@@ -127,7 +127,7 @@
 
     <!-- Data Source / Semantic Mode Selector Bar -->
     <div class="saas-card p-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-      <div class="grid gap-1.5 w-full md:w-auto" :class="canAccessRawMode ? 'grid-cols-3' : 'grid-cols-2'">
+      <div class="grid gap-1.5 w-full md:w-auto grid-cols-3">
         <!-- MODE 1: HISTORICAL / PROCESSED -->
         <button
           @click="setMode('HISTORICAL')"
@@ -145,9 +145,8 @@
           </div>
         </button>
 
-        <!-- MODE 2: RAW TELEMETRY (ADMIN & SUPERADMIN ONLY) -->
+        <!-- MODE 2: RAW TELEMETRY (Accessible to all roles; Raw Hex & Raw Float restricted to Admin/Superadmin) -->
         <button
-          v-if="canAccessRawMode"
           @click="setMode('RAW')"
           class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
           :class="activeMode === 'RAW'
@@ -159,7 +158,7 @@
           </svg>
           <div class="text-left">
             <div class="font-bold leading-tight">{{ $t('analysis.modeRaw') }}</div>
-            <div class="text-4xs text-slate-400 hidden sm:block">{{ $t('analysis.modeRawDesc') }}</div>
+            <div class="text-4xs text-slate-400 hidden sm:block">{{ canAccessRawMode ? $t('analysis.modeRawDesc') : $t('deviceDetail.rawOperatorSubtitle') }}</div>
           </div>
         </button>
 
@@ -225,7 +224,12 @@
 
         <!-- 3. Time Preset Filter -->
         <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.timeRange') }}</label>
+          <div class="flex items-center justify-between">
+            <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.timeRange') }}</label>
+            <span v-if="activeMode === 'RAW'" class="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
+              {{ $t('deviceDetail.rawMaxWindowLabel', { limit: rawMaxRangeShort }) }}
+            </span>
+          </div>
           <select
             v-model="filters.timePreset"
             @change="onTimePresetChange"
@@ -233,10 +237,10 @@
           >
             <option value="15m">{{ $t('analysis.last15m') }}</option>
             <option value="1h">{{ $t('analysis.last1h') }}</option>
-            <option value="6h">{{ $t('analysis.last6h') }}</option>
-            <option value="24h">{{ $t('analysis.last24h') }}</option>
-            <option value="7d">{{ $t('analysis.last7d') }}</option>
-            <option value="30d">{{ $t('analysis.last30d') }}</option>
+            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 6" value="6h">{{ $t('analysis.last6h') }}</option>
+            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 24" value="24h">{{ $t('analysis.last24h') }}</option>
+            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 168" value="7d">{{ $t('analysis.last7d') }}</option>
+            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 720" value="30d">{{ $t('analysis.last30d') }}</option>
             <option value="custom">{{ $t('analysis.custom') }}</option>
           </select>
         </div>
@@ -276,7 +280,7 @@
           </select>
         </div>
 
-        <div v-else-if="activeMode === 'RAW'" class="space-y-1">
+        <div v-else-if="activeMode === 'RAW' && canAccessRawMode" class="space-y-1">
           <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.trendChart') }}</label>
           <select
             v-model="rawChartMode"
@@ -329,6 +333,9 @@
         >
           {{ $t('common.apply') || 'Apply' }}
         </button>
+        <span v-if="activeMode === 'RAW'" class="text-3xs font-mono text-cyan-600 dark:text-cyan-400">
+          * {{ $t('deviceDetail.rawMaxWindowLabel', { limit: rawMaxRangeShort }) }}
+        </span>
       </div>
     </div>
 
@@ -848,9 +855,9 @@
               <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
               <th v-if="!isOperator" class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
-              <th class="py-2.5 px-4">{{ $t('analysis.rawHex') }}</th>
-              <th class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
-              <th class="py-2.5 px-4 text-right">{{ $t('analysis.scaledVal') }}</th>
+              <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('analysis.rawHex') }}</th>
+              <th v-if="canAccessRawMode" class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
+              <th class="py-2.5 px-4 text-right">{{ canAccessRawMode ? $t('analysis.scaledVal') : $t('deviceDetail.rawOperatorValue') }}</th>
               <th class="py-2.5 px-4 text-center">{{ $t('common.quality') }}</th>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               <th class="py-2.5 px-4 text-right">UUID</th>
@@ -872,8 +879,8 @@
                   class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/30"
                 >INJ</span>
               </td>
-              <td class="py-2.5 px-4 text-emerald-600 dark:text-emerald-400 font-bold tracking-widest">{{ r.raw_hex || '--' }}</td>
-              <td class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{{ formatVal(r.raw_value) }}</td>
+              <td v-if="canAccessRawMode" class="py-2.5 px-4 text-emerald-600 dark:text-emerald-400 font-bold tracking-widest">{{ r.raw_hex || '--' }}</td>
+              <td v-if="canAccessRawMode" class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{{ formatVal(r.raw_value) }}</td>
               <td class="py-2.5 px-4 text-right text-slate-900 dark:text-white font-bold">{{ formatVal(r.value) }}</td>
               <td class="py-2.5 px-4 text-center">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
@@ -884,7 +891,7 @@
               <td class="py-2.5 px-4 text-right text-3xs text-slate-400 dark:text-slate-500 truncate max-w-[100px]">{{ r.record_uuid || r.id }}</td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td :colspan="isOperator ? 8 : 9" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="(isOperator ? 8 : 9) - (canAccessRawMode ? 0 : 2)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -1241,6 +1248,18 @@ export default {
         return !!this.$store.getters.canAccessRawTrendMode;
       }
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR' || this.userRole === 'ADMIN';
+    },
+    rawMaxRangeHours() {
+      if (this.$store && this.$store.getters && this.$store.getters.rawTelemetryMaxRangeHours) {
+        return Number(this.$store.getters.rawTelemetryMaxRangeHours) || 168;
+      }
+      const st = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Number(st.raw_telemetry_max_range_hours) > 0 ? Number(st.raw_telemetry_max_range_hours) : 168;
+    },
+    rawMaxRangeShort() {
+      const h = this.rawMaxRangeHours;
+      if (h >= 24 && Number.isInteger(h / 24)) return `${h / 24}d`;
+      return `${h}h`;
     },
     availableParameters() {
       if (!this.filters.deviceId) {
@@ -1684,7 +1703,7 @@ export default {
           : (r.value !== undefined && r.value !== null ? r.value : null);
       }
       if (this.activeMode === 'RAW') {
-        return this.rawChartMode === 'raw'
+        return (this.canAccessRawMode && this.rawChartMode === 'raw')
           ? (r.raw_value !== undefined && r.raw_value !== null ? r.raw_value : null)
           : (r.value !== undefined && r.value !== null ? r.value : null);
       }
@@ -1732,7 +1751,10 @@ export default {
     applyUrlParams(query) {
       if (query.mode && ['HISTORICAL', 'RAW', 'AGGREGATED'].includes(query.mode.toUpperCase())) {
         const targetMode = query.mode.toUpperCase();
-        this.activeMode = (targetMode === 'RAW' && !this.canAccessRawMode) ? 'HISTORICAL' : targetMode;
+        this.activeMode = targetMode;
+        if (!this.canAccessRawMode) {
+          this.rawChartMode = 'scaled';
+        }
       }
       if (query.device_id) {
         this.filters.deviceId = Number(query.device_id);
@@ -1766,12 +1788,18 @@ export default {
       }
     },
     setMode(mode) {
-      if (mode === 'RAW' && !this.canAccessRawMode) {
-        this.activeMode = 'HISTORICAL';
-        return;
+      if (!this.canAccessRawMode) {
+        this.rawChartMode = 'scaled';
       }
       if (this.activeMode === mode) return;
       this.activeMode = mode;
+      if (mode === 'RAW') {
+        const maxH = this.rawMaxRangeHours;
+        const presetHours = { '15m': 0.25, '1h': 1, '6h': 6, '24h': 24, '7d': 168, '30d': 720 };
+        if (presetHours[this.filters.timePreset] && presetHours[this.filters.timePreset] > maxH) {
+          this.filters.timePreset = maxH >= 24 ? '24h' : '1h';
+        }
+      }
       this.currentPage = 1;
       this.focusedSeriesId = null;
       this.hiddenSeriesIds = [];
@@ -1826,6 +1854,13 @@ export default {
           break;
       }
 
+      if (this.activeMode === 'RAW') {
+        const maxMs = this.rawMaxRangeHours * 3600 * 1000;
+        if (now.getTime() - start.getTime() > maxMs) {
+          start = new Date(now.getTime() - maxMs);
+        }
+      }
+
       return {
         startTime: start.toISOString(),
         endTime: now.toISOString(),
@@ -1858,9 +1893,16 @@ export default {
             ? `/api/devices/${this.filters.deviceId}/telemetry/history`
             : '/api/telemetry/history';
         } else if (this.activeMode === 'RAW') {
-          endpoint = this.filters.deviceId
-            ? `/api/devices/${this.filters.deviceId}/telemetry/raw`
-            : '/api/telemetry/raw';
+          baseParams.raw_window = 1;
+          if (this.canAccessRawMode) {
+            endpoint = this.filters.deviceId
+              ? `/api/devices/${this.filters.deviceId}/telemetry/raw`
+              : '/api/telemetry/raw';
+          } else {
+            endpoint = this.filters.deviceId
+              ? `/api/devices/${this.filters.deviceId}/telemetry/history`
+              : '/api/telemetry/history';
+          }
         } else if (this.activeMode === 'AGGREGATED') {
           endpoint = '/api/aggregations/results';
           if (this.filters.aggFunction) {

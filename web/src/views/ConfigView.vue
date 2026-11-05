@@ -731,6 +731,65 @@
             </div>
           </div>
 
+          <!-- Raw Telemetry Time Range Limit Governance -->
+          <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Raw Telemetry Max Time Range Limit
+                </h3>
+                <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Batas maksimal rentang waktu filter (dari kapan sampai kapan) pada halaman Raw Telemetry. Berlaku otomatis di server &amp; UI untuk seluruh role termasuk Operator.
+                </p>
+              </div>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                Server Enforced
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+              <div>
+                <label class="block text-3xs text-slate-700 dark:text-slate-400 uppercase tracking-wider mb-1.5 font-semibold">
+                  Preset Rentang Maksimal Cepat
+                </label>
+                <select
+                  :value="rawMaxRangePresetValue"
+                  @change="onRawMaxRangePresetSelect($event.target.value)"
+                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white text-xs"
+                >
+                  <option :value="1">1 Jam (1h)</option>
+                  <option :value="6">6 Jam (6h)</option>
+                  <option :value="12">12 Jam (12h)</option>
+                  <option :value="24">1 Hari (24 Jam)</option>
+                  <option :value="72">3 Hari (72 Jam)</option>
+                  <option :value="168">7 Hari (168 Jam — Standar)</option>
+                  <option :value="336">14 Hari (336 Jam)</option>
+                  <option :value="720">30 Hari (720 Jam)</option>
+                  <option :value="2160">90 Hari (2.160 Jam)</option>
+                  <option :value="8760">365 Hari / 1 Tahun (8.760 Jam)</option>
+                  <option value="custom">Kustom ({{ form.raw_telemetry_max_range_hours }} Jam)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-3xs text-slate-700 dark:text-slate-400 uppercase tracking-wider mb-1.5 font-semibold">
+                  Durasi Maksimal Kustom (Dalam Jam: 1 – 8760)
+                </label>
+                <div class="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    v-model.number="form.raw_telemetry_max_range_hours"
+                    min="1"
+                    max="8760"
+                    class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white text-xs"
+                  />
+                  <span class="text-2xs font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {{ formatHoursSummary(form.raw_telemetry_max_range_hours) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Telemetry Export Governance -->
           <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4">
             <div class="flex items-center justify-between mb-2">
@@ -1126,6 +1185,7 @@ export default {
         environment: 'production',
         log_level: 'info',
         jwt_expiration_hours: 24,
+        raw_telemetry_max_range_hours: 168,
         serial_port: 'COM1',
         serial_baud_rate: 9600,
         serial_data_bits: 8,
@@ -1136,6 +1196,11 @@ export default {
     };
   },
   computed: {
+    rawMaxRangePresetValue() {
+      const presets = [1, 6, 12, 24, 72, 168, 336, 720, 2160, 8760];
+      const v = Number(this.form.raw_telemetry_max_range_hours) || 168;
+      return presets.includes(v) ? v : 'custom';
+    },
     currentDomainBadgeClass() {
       const d = (this.form.monitoring_domain || 'AQMS').toUpperCase();
       if (d === 'AQMS') return 'bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/30';
@@ -1343,6 +1408,7 @@ export default {
             environment: cfg.environment || 'production',
             log_level: cfg.log_level || 'info',
             jwt_expiration_hours: cfg.jwt_expiration_hours || 24,
+            raw_telemetry_max_range_hours: cfg.raw_telemetry_max_range_hours || 168,
             serial_port: cfg.serial_port || 'COM1',
             serial_baud_rate: cfg.serial_baud_rate || 9600,
             serial_data_bits: cfg.serial_data_bits || 8,
@@ -1390,6 +1456,21 @@ export default {
         this.testing = false;
       }
     },
+    onRawMaxRangePresetSelect(val) {
+      if (val !== 'custom') {
+        const num = Number(val);
+        if (num > 0) {
+          this.form.raw_telemetry_max_range_hours = num;
+        }
+      }
+    },
+    formatHoursSummary(hours) {
+      const h = Number(hours) || 0;
+      if (h <= 0) return '--';
+      if (h < 24) return `= ${h} jam`;
+      const days = h / 24;
+      return Number.isInteger(days) ? `= ${days} hari` : `≈ ${days.toFixed(1)} hari`;
+    },
     async submitConfig() {
       this.saving = true;
       this.saveResult = null;
@@ -1397,6 +1478,9 @@ export default {
         const res = await axios.post('/api/system/config', this.form);
         if (res.data && res.data.success) {
           this.saveResult = res.data.data;
+          this.$store.commit('SET_SYSTEM_STATUS', {
+            raw_telemetry_max_range_hours: Number(this.form.raw_telemetry_max_range_hours) || 168,
+          });
           this.fetchDbStatus();
         }
         this.saveExportLimitFromConfig();

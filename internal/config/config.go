@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -50,6 +51,9 @@ type Config struct {
 
 	// Primary Monitoring Domain: "AQMS", "WQMS", "CUSTOM"
 	MonitoringDomain string `json:"monitoring_domain"`
+
+	// Raw Telemetry Query Governance: Maximum allowed time span in hours (default 168 = 7 days)
+	RawTelemetryMaxRangeHours int `json:"raw_telemetry_max_range_hours"`
 
 	// Communication / Serial Bus Defaults (Phase 7 #83)
 	SerialPort      string `json:"serial_port"`
@@ -102,6 +106,7 @@ func DefaultConfig() *Config {
 		BackupMinFreeSpaceMB:        500,
 		BackupMaxKeepCount:          10,
 		MonitoringDomain:            "AQMS",
+		RawTelemetryMaxRangeHours:   168,
 		SerialPort:                  "COM1",
 		SerialBaudRate:              9600,
 		SerialDataBits:              8,
@@ -207,6 +212,15 @@ func Load(configPath string) (*Config, error) {
 	}
 	cfg.MonitoringDomain = NormalizeMonitoringDomain(cfg.MonitoringDomain)
 
+	if maxRangeStr := os.Getenv("DATALOGGER_RAW_MAX_RANGE_HOURS"); maxRangeStr != "" {
+		if v, err := strconv.Atoi(strings.TrimSpace(maxRangeStr)); err == nil && v > 0 {
+			cfg.RawTelemetryMaxRangeHours = v
+		}
+	}
+	if cfg.RawTelemetryMaxRangeHours <= 0 {
+		cfg.RawTelemetryMaxRangeHours = 168
+	}
+
 	// Ensure data, log, queue, and backup directories exist
 	_ = os.MkdirAll(cfg.DataDir, 0755)
 	_ = os.MkdirAll(cfg.LogDir, 0755)
@@ -257,4 +271,15 @@ func NormalizeMonitoringDomain(domain string) string {
 		return d
 	}
 	return "AQMS"
+}
+
+// EffectiveRawTelemetryMaxRangeHours returns the configured max query window in hours (defaulting to 168h / 7d).
+func (c *Config) EffectiveRawTelemetryMaxRangeHours() int {
+	if c == nil || c.RawTelemetryMaxRangeHours <= 0 {
+		return 168
+	}
+	if c.RawTelemetryMaxRangeHours > 8760 {
+		return 8760
+	}
+	return c.RawTelemetryMaxRangeHours
 }

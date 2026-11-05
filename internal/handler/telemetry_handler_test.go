@@ -56,12 +56,13 @@ func setupTelemetryTestRouter(t *testing.T) *TelemetryTestEnv {
 	// Seed roles & users
 	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	adminRole := model.Role{Name: "Administrator", Description: "Full access"}
-	opRole := model.Role{Name: "Operator", Description: "Read access"}
+	opRole := model.Role{Name: "OPERATOR", Description: "Read access"}
 	db.Create(&adminRole)
 	db.Create(&opRole)
 
 	adminUser := model.User{
 		Username: "admin_telem",
+		Email:    "admin_telem@test.local",
 		Password: string(hash),
 		RoleID:   adminRole.ID,
 		IsActive: true,
@@ -70,6 +71,7 @@ func setupTelemetryTestRouter(t *testing.T) *TelemetryTestEnv {
 
 	opUser := model.User{
 		Username: "op_telem",
+		Email:    "op_telem@test.local",
 		Password: string(hash),
 		RoleID:   opRole.ID,
 		IsActive: true,
@@ -299,5 +301,106 @@ func TestTelemetryAPIEndpoints(t *testing.T) {
 	env.Router.ServeHTTP(wUnauth, reqUnauth)
 	if wUnauth.Code != http.StatusUnauthorized {
 		t.Errorf("Expected 401 Unauthorized, got %d", wUnauth.Code)
+	}
+}
+
+func TestRawTelemetryOperatorSanitizationAndMaxRangeEnforcement(t *testing.T) {
+	env := setupTelemetryTestRouter(t)
+	defer env.TelemetryService.Stop()
+
+	cfg := config.Get()
+	origMax := cfg.RawTelemetryMaxRangeHours
+	cfg.RawTelemetryMaxRangeHours = 48 // 2 days max window for test
+	defer func() {
+		cfg.RawTelemetryMaxRangeHours = origMax
+	}()
+
+	dev := model.Device{ID: 10, DeviceCode: "DEV-OP-RAW", DeviceName: "WQMS Station"}
+	_ = env.DB.Create(&dev).Error
+	param := model.Parameter{
+		ID:            201,
+		DeviceID:      10,
+		ParameterCode: "PH",
+		ParameterName: "Acidity pH",
+		Unit:          "pH",
+		DataType:      model.DataTypeFloat32,
+		Enabled:       true,
+	}
+	_ = env.DB.Create(&param).Error
+
+	// Seed a record 10 days ago (to verify historical window inspection works when span <= 48h)
+	histTime := time.Now().UTC().Add(-10 * 24 * time.Hour).Truncate(time.Second)
+	_ = env.DB.Create(&model.RawData{
+		DeviceID:       10,
+		ParameterID:    201,
+		Value:          6.92,
+		ProcessedValue: 6.92,
+		RawValue:       692,
+		RawHex:         "02 B4",
+		Quality:        model.QualityGood,
+		Timestamp:      histTime,
+		ReceivedAt:     histTime,
+		StoredAt:       histTime,
+	}).Error
+
+	// 1. Operator CANNOT hit /telemetry/raw directly (403 Forbidden)
+	reqRawForbidden, _ := http.NewRequest("GET", "/api/devices/10/telemetry/raw?page=1&page_size=20", nil)
+	reqRawForbidden.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wRawForbidden := httptest.NewRecorder()
+	env.Router.ServeHTTP(wRawForbidden, reqRawForbidden)
+	if wRawForbidden.Code != http.StatusForbidden {
+		t.Fatalf("Expected 403 Forbidden for Operator on /telemetry/raw, got %d", wRawForbidden.Code)
+	}
+
+	// 2. Operator CAN query /telemetry/history?raw_window=1 within max range (24h span <= 48h max, 10 days ago)
+	//    and receives Value while RawHex and RawValue are sanitized
+	startValid := histTime.Add(-1 * time.Hour).Format(time.RFC3339)
+	endValid := histTime.Add(23 * time.Hour).Format(time.RFC3339)
+	urlValid := fmt.Sprintf("/api/devices/10/telemetry/history?raw_window=1&start_time=%s&end_time=%s", startValid, endValid)
+	reqOpValid, _ := http.NewRequest("GET", urlValid, nil)
+	reqOpValid.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wOpValid := httptest.NewRecorder()
+	env.Router.ServeHTTP(wOpValid, reqOpValid)
+	if wOpValid.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for Operator valid 24h window, got %d: %s", wOpValid.Code, wOpValid.Body.String())
+	}
+
+	var opResp struct {
+		Data struct {
+			Total int             `json:"total"`
+			Items []model.RawData `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(wOpValid.Body.Bytes(), &opResp); err != nil {
+		t.Fatalf("Failed to parse operator response: %v", err)
+	}
+	if len(opResp.Data.Items) != 1 {
+		t.Fatalf("Expected 1 record in historical 24h window, got %d", len(opResp.Data.Items))
+	}
+	if opResp.Data.Items[0].Value != 6.92 {
+		t.Errorf("Expected scaled Value 6.92 for Operator, got %v", opResp.Data.Items[0].Value)
+	}
+	if opResp.Data.Items[0].RawHex != "" || opResp.Data.Items[0].RawValue != 0 {
+		t.Errorf("Expected RawHex and RawValue to be sanitized for Operator, got hex=%q raw=%v", opResp.Data.Items[0].RawHex, opResp.Data.Items[0].RawValue)
+	}
+
+	// 3. Span exceeding configured max range (72h > 48h max) is rejected with 400 Bad Request for both Operator and Admin
+	endTooWide := histTime.Add(72 * time.Hour).Format(time.RFC3339)
+	urlTooWideOp := fmt.Sprintf("/api/devices/10/telemetry/history?raw_window=1&start_time=%s&end_time=%s", startValid, endTooWide)
+	reqOpTooWide, _ := http.NewRequest("GET", urlTooWideOp, nil)
+	reqOpTooWide.Header.Set("Authorization", "Bearer "+env.OperatorToken)
+	wOpTooWide := httptest.NewRecorder()
+	env.Router.ServeHTTP(wOpTooWide, reqOpTooWide)
+	if wOpTooWide.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 BadRequest when Operator exceeds max range (72h > 48h), got %d", wOpTooWide.Code)
+	}
+
+	urlTooWideAdmin := fmt.Sprintf("/api/devices/10/telemetry/raw?start_time=%s&end_time=%s", startValid, endTooWide)
+	reqAdminTooWide, _ := http.NewRequest("GET", urlTooWideAdmin, nil)
+	reqAdminTooWide.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	wAdminTooWide := httptest.NewRecorder()
+	env.Router.ServeHTTP(wAdminTooWide, reqAdminTooWide)
+	if wAdminTooWide.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 BadRequest when Admin exceeds max range (72h > 48h), got %d", wAdminTooWide.Code)
 	}
 }

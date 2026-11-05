@@ -157,7 +157,8 @@ export default {
     "activity": "Aktivitas",
     "saveChanges": "Simpan Perubahan",
     "user": "Pengguna",
-    "action": "Aksi"
+    "action": "Aksi",
+    "limit": "Baris / Hal"
   },
   "status": {
     "online": "ONLINE",
@@ -437,9 +438,17 @@ export default {
     "showingRange": "Menampilkan {start} hingga {end} dari {total}",
     "rawInspectionTitle": "Telemetri Mentah & Inspeksi Frame",
     "rawInspectionSubtitle": "Inspeksi hex kawat diagnostik untuk verifikasi register Modbus dan penanganan masalah lapangan.",
+    "rawOperatorSubtitle": "Inspeksi rekaman paket telemetri sensor per waktu penerimaan beserta kualitas sinyal.",
     "rawHexStream": "Stream Hex Mentah",
     "rawFloat": "Float Mentah",
     "scaledValue": "Nilai Terkalibrasi",
+    "rawOperatorValue": "Value",
+    "rawFromTime": "Dari Waktu (Mulai)",
+    "rawToTime": "Sampai Waktu (Selesai)",
+    "rawMaxWindowLabel": "Maks Rentang: {limit}",
+    "rawConfigLimitBtn": "Atur Batas",
+    "rawRangeExceedsMax": "Rentang waktu yang dipilih ({selected}) melebihi batas maksimal ({limit}).",
+    "rawClampToMaxBtn": "Sesuaikan ke Maks ({limit})",
     "loadingRaw": "Memuat telemetri mentah...",
     "noRawCaptured": "Belum ada rekaman telemetri mentah yang ditangkap.",
     "testReadTitle": "Uji Baca Parameter Diagnostik Modbus",

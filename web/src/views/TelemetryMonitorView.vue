@@ -342,7 +342,6 @@
                   {{ $t('telemetry.chart') }}
                 </router-link>
               <router-link
-                v-if="canAccessRawMode"
                 :to="'/monitoring/devices/' + item.device_id + '?tab=raw'"
                 class="text-3xs text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 font-medium px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-700 dark:border-transparent transition"
               >
@@ -476,6 +475,12 @@
                   class="inline-block text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-3xs font-semibold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 transition"
                 >
                   {{ $t('deviceDetail.history') }}
+                </router-link>
+                <router-link
+                  :to="'/monitoring/devices/' + item.device_id + '?tab=raw'"
+                  class="inline-block text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white text-3xs font-semibold px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 dark:bg-slate-800/70 dark:hover:bg-slate-700 dark:border-slate-700 transition"
+                >
+                  {{ $t('telemetry.raw') }}
                 </router-link>
                 <router-link
                   :to="'/monitoring/analysis?device_id=' + item.device_id + '&parameter_id=' + item.param_id"

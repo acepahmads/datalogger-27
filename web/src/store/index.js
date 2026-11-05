@@ -105,6 +105,7 @@ export default new Vuex.Store({
       critical_alarms: 0,
       acknowledged_alarms: 0,
       monitoring_domain: 'AQMS',
+      raw_telemetry_max_range_hours: 168,
     },
     progress: {
       overall_percentage: 94.5,
@@ -140,6 +141,10 @@ export default new Vuex.Store({
     canAccessDev: (state, getters) => getters.isSuperAdmin,
     canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
     canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
+    rawTelemetryMaxRangeHours: state => {
+      const val = Number(state.systemStatus && state.systemStatus.raw_telemetry_max_range_hours);
+      return val > 0 ? val : 168;
+    },
     operationalActiveAlarms: state => filterOperationalActiveAlarms(state.activeAlarms, state.devices),
     unacknowledgedActiveAlarms: (_, getters) => getters.operationalActiveAlarms.filter(a => !a.status || a.status === 'ACTIVE'),
   },

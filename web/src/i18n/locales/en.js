@@ -157,7 +157,8 @@ export default {
     "activity": "Activity",
     "saveChanges": "Save Changes",
     "user": "User",
-    "action": "Action"
+    "action": "Action",
+    "limit": "Rows / Page"
   },
   "status": {
     "online": "ONLINE",
@@ -437,9 +438,17 @@ export default {
     "showingRange": "Showing {start} to {end} of {total}",
     "rawInspectionTitle": "Raw Telemetry & Frame Inspection",
     "rawInspectionSubtitle": "Diagnostic wire hex inspection for Modbus register verification and field troubleshooting.",
+    "rawOperatorSubtitle": "Chronological per-packet sensor telemetry inspection with reception timestamp and signal quality.",
     "rawHexStream": "Raw Hex Stream",
     "rawFloat": "Raw Float",
     "scaledValue": "Scaled Value",
+    "rawOperatorValue": "Value",
+    "rawFromTime": "From Time (Start)",
+    "rawToTime": "To Time (End)",
+    "rawMaxWindowLabel": "Max Window: {limit}",
+    "rawConfigLimitBtn": "Configure Limit",
+    "rawRangeExceedsMax": "Selected time range ({selected}) exceeds maximum allowed limit ({limit}).",
+    "rawClampToMaxBtn": "Clamp to Max ({limit})",
     "loadingRaw": "Loading raw telemetry...",
     "noRawCaptured": "No raw telemetry records captured yet.",
     "testReadTitle": "Modbus Diagnostic Parameter Read",

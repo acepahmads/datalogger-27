@@ -133,14 +133,28 @@ runTest('3.1: canAccessRawMode computed property permits only SUPERADMIN, ADMINI
   assert.strictEqual(checkRole('ENGINEER'), false);
 });
 
-runTest('3.2: switchTab and mounted redirect tab=raw to telemetry for non-admin/superadmin', () => {
+runTest('3.2: Raw Telemetry tab allows Operator access while hiding Raw Hex & Raw Float and renaming Scaled Value to Value', () => {
   assert(
-    ddContent.includes("if (tab === 'raw' && !this.canAccessRawMode) {\n        this.activeTab = 'telemetry';\n        return;\n      }"),
-    'switchTab must redirect raw tab to telemetry for non-admin'
+    ddContent.includes('v-if="device && activeTab === \'raw\'"'),
+    'Raw Telemetry tab container must be accessible to Operator as well as Admin/Superadmin'
   );
   assert(
-    ddContent.includes("this.activeTab = (this.$route.query.tab === 'raw' && !this.canAccessRawMode) ? 'telemetry' : this.$route.query.tab;"),
-    'mounted must sanitize tab=raw for non-admin'
+    ddContent.includes('<th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t(\'deviceDetail.rawHexStream\') }}</th>') &&
+    ddContent.includes('<th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t(\'deviceDetail.rawFloat\') }}</th>'),
+    'Raw Hex Stream and Raw Float headers must be guarded by v-if="canAccessRawMode"'
+  );
+  assert(
+    ddContent.includes("{{ canAccessRawMode ? $t('deviceDetail.scaledValue') : $t('deviceDetail.rawOperatorValue') }}"),
+    'Scaled Value column header must switch to Value (rawOperatorValue) when !canAccessRawMode'
+  );
+  assert(
+    ddContent.includes('? `/api/devices/${this.device.id}/telemetry/raw`') &&
+    ddContent.includes(': `/api/devices/${this.device.id}/telemetry/history`'),
+    'fetchRawTelemetry must use sanitized /telemetry/history endpoint when !canAccessRawMode'
+  );
+  assert(
+    ddContent.includes('rawMaxRangeHours()') && ddContent.includes('rawCustomSpanExceedsMax()'),
+    'Raw Telemetry tab must enforce configurable rawMaxRangeHours window limit'
   );
 });
 
@@ -152,14 +166,14 @@ runTest('3.3: Watchers reset chartValueMode to scaled when raw mode is unauthori
 });
 
 // TELEMETRY MONITOR VIEW
-runTest('4.1: TelemetryMonitorView guards formula value display and raw device links', () => {
+runTest('4.1: TelemetryMonitorView guards formula value display while allowing Raw Telemetry tab navigation', () => {
   assert(
     tmContent.includes('v-if="canAccessRawMode && item.formula_value !== undefined && item.formula_value !== null"'),
     'TelemetryMonitorView card formula must be guarded by canAccessRawMode'
   );
   assert(
-    tmContent.includes('<router-link\n                v-if="canAccessRawMode"\n                :to="\'/monitoring/devices/\' + item.device_id + \'?tab=raw\'"'),
-    'TelemetryMonitorView raw tab link must be guarded by canAccessRawMode'
+    tmContent.includes(':to="\'/monitoring/devices/\' + item.device_id + \'?tab=raw\'"'),
+    'TelemetryMonitorView must provide navigation link to ?tab=raw'
   );
   assert(
     tmContent.includes("<th v-if=\"canAccessRawMode\" class=\"py-3 px-4 text-right\">{{ $t('parameters.formula') }}</th>"),

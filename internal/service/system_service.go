@@ -153,8 +153,9 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		Hostname:          info.Hostname,
 		NumCPU:            info.NumCPU,
 		Goroutines:        info.Goroutines,
-		AppVersion:        s.cfg.Version,
-		MonitoringDomain:  s.cfg.MonitoringDomain,
+		AppVersion:                s.cfg.Version,
+		MonitoringDomain:          config.Get().MonitoringDomain,
+		RawTelemetryMaxRangeHours: config.Get().EffectiveRawTelemetryMaxRangeHours(),
 
 		ServiceStatus:   "RUNNING",
 		WorkerStatus:    "READY",
@@ -410,6 +411,7 @@ type SystemConfigDTO struct {
 	BackupScheduleTime          string `json:"backup_schedule_time"`
 	BackupCompression           string `json:"backup_compression"`
 	MonitoringDomain            string `json:"monitoring_domain"`
+	RawTelemetryMaxRangeHours   int    `json:"raw_telemetry_max_range_hours"`
 }
 
 type ReassignParameterCategoryItem struct {
@@ -418,24 +420,25 @@ type ReassignParameterCategoryItem struct {
 }
 
 type SaveSystemConfigRequest struct {
-	Environment        string                          `json:"environment"`
-	Port               string                          `json:"port"`
-	Host               string                          `json:"host"`
-	DBHost             string                          `json:"db_host"`
-	DBPort             string                          `json:"db_port"`
-	DBUser             string                          `json:"db_user"`
-	DBPassword         string                          `json:"db_password"`
-	DBName             string                          `json:"db_name"`
-	LogLevel           string                          `json:"log_level"`
-	JWTExpirationHours int                             `json:"jwt_expiration_hours"`
-	SerialPort         string                          `json:"serial_port"`
-	SerialBaudRate     int                             `json:"serial_baud_rate"`
-	SerialDataBits     int                             `json:"serial_data_bits"`
-	SerialStopBits     int                             `json:"serial_stop_bits"`
-	SerialParity       string                          `json:"serial_parity"`
-	SerialTimeoutMs    int                             `json:"serial_timeout_ms"`
-	MonitoringDomain   string                          `json:"monitoring_domain"`
-	Reassignments      []ReassignParameterCategoryItem `json:"reassignments,omitempty"`
+	Environment               string                          `json:"environment"`
+	Port                      string                          `json:"port"`
+	Host                      string                          `json:"host"`
+	DBHost                    string                          `json:"db_host"`
+	DBPort                    string                          `json:"db_port"`
+	DBUser                    string                          `json:"db_user"`
+	DBPassword                string                          `json:"db_password"`
+	DBName                    string                          `json:"db_name"`
+	LogLevel                  string                          `json:"log_level"`
+	JWTExpirationHours        int                             `json:"jwt_expiration_hours"`
+	SerialPort                string                          `json:"serial_port"`
+	SerialBaudRate            int                             `json:"serial_baud_rate"`
+	SerialDataBits            int                             `json:"serial_data_bits"`
+	SerialStopBits            int                             `json:"serial_stop_bits"`
+	SerialParity              string                          `json:"serial_parity"`
+	SerialTimeoutMs           int                             `json:"serial_timeout_ms"`
+	MonitoringDomain          string                          `json:"monitoring_domain"`
+	RawTelemetryMaxRangeHours int                             `json:"raw_telemetry_max_range_hours"`
+	Reassignments             []ReassignParameterCategoryItem `json:"reassignments,omitempty"`
 }
 
 type ConfigSaveResult struct {
@@ -477,6 +480,7 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		BackupScheduleTime:          cfg.BackupScheduleTime,
 		BackupCompression:           cfg.BackupCompression,
 		MonitoringDomain:            cfg.MonitoringDomain,
+		RawTelemetryMaxRangeHours:   cfg.EffectiveRawTelemetryMaxRangeHours(),
 	}
 }
 
@@ -519,6 +523,9 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		if p != "N" && p != "E" && p != "O" && p != "NONE" && p != "EVEN" && p != "ODD" {
 			return nil, errors.New("serial parity must be 'N' (None), 'E' (Even), or 'O' (Odd)")
 		}
+	}
+	if req.RawTelemetryMaxRangeHours < 0 || req.RawTelemetryMaxRangeHours > 8760 {
+		return nil, errors.New("raw telemetry max range hours must be between 1 and 8760 (365 days)")
 	}
 
 	var restartFields []string
@@ -571,6 +578,10 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 	if req.JWTExpirationHours > 0 && req.JWTExpirationHours != cfg.JWTExpirationHours {
 		changedNotes = append(changedNotes, fmt.Sprintf("jwt_expiration_hours: %d -> %d", cfg.JWTExpirationHours, req.JWTExpirationHours))
 		cfg.JWTExpirationHours = req.JWTExpirationHours
+	}
+	if req.RawTelemetryMaxRangeHours > 0 && req.RawTelemetryMaxRangeHours != cfg.EffectiveRawTelemetryMaxRangeHours() {
+		changedNotes = append(changedNotes, fmt.Sprintf("raw_telemetry_max_range_hours: %d -> %d", cfg.EffectiveRawTelemetryMaxRangeHours(), req.RawTelemetryMaxRangeHours))
+		cfg.RawTelemetryMaxRangeHours = req.RawTelemetryMaxRangeHours
 	}
 
 	// Serial communication settings
