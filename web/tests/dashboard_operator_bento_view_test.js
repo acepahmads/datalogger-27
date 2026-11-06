@@ -412,16 +412,19 @@ check('16.3: Station Location Monitor (GPS control) uses Sidebar font-sans, rest
   const fullMapIdx = viewContent.indexOf('v-if="showFullScreenStationMap"');
   assert(locIdx > 0 && fullMapIdx > locIdx, 'Must locate stationLocation popover and full-screen map modal');
 
-  const locTagSlice = viewContent.slice(locIdx, locIdx + 380);
+  const locTagSlice = viewContent.slice(locIdx, viewContent.indexOf('>', locIdx) + 1);
   assert(locTagSlice.includes('font-sans') && locTagSlice.includes('rounded-2xl'), 'stationLocation popover must use font-sans and rounded-2xl');
+  assert(locTagSlice.includes('flex flex-col overflow-hidden') && locTagSlice.includes('bentoToolbarPopoverMaxHeight'), 'stationLocation popover must use viewport-clamped flex-col layout so bottom buttons are never clipped');
   assert(!locTagSlice.includes('font-mono'), 'stationLocation popover root must not use font-mono');
   assert(mapCompContent.includes('font-sans') && !mapCompContent.includes('font-mono'), 'StationMapViewer.vue must use font-sans (tabular-nums for coordinates) instead of font-mono');
 
-  // 2. Exactly 3 setup sources: Manual, Internet IP, Modbus RTU (no Browser GPS tab)
+  // 2. Exactly 3 setup sources: Manual, Internet IP, Modbus RTU + Single-Module Selector + Direct Parameter Setup
   const locSection = viewContent.slice(locIdx, viewContent.indexOf('</header>', locIdx));
   assert(locSection.includes("locationActiveTab = 'manual'"), 'Must include Manual tab');
   assert(locSection.includes("locationActiveTab = 'ip'"), 'Must include Internet IP tab');
   assert(locSection.includes("locationActiveTab = 'modbus_rtu'"), 'Must include Modbus RTU tab');
+  assert(locSection.includes('gpsModbusMapping.deviceId'), 'Must provide single-source GPS device selector that auto-pairs Lat & Lng');
+  assert(locSection.includes('openAddGpsParamModal') && locSection.includes('openDevicesPageForGps'), 'Must provide direct GPS parameter setup shortcuts right inside the Modbus RTU tab');
   assert(!locSection.includes("locationActiveTab = 'gps'") && !locSection.includes('GPS (Browser)') && !locSection.includes('detectBrowserGPS'), 'Must remove Browser GPS tab from DashboardOperatorView');
 
   // 3. Runtime verification of modbusRtuGpsStatus (LOCKED, Null-Island NO_FIX, OFFLINE, UNMAPPED) & Operator device-code hiding

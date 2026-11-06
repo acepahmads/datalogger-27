@@ -513,7 +513,8 @@
             </button>
             <div
               v-if="activeToolbarPopover === 'performanceSettings'"
-              class="absolute left-0 top-full mt-2 z-50 w-[420px] sm:w-[452px] max-w-[calc(100vw-24px)] rounded-2xl shadow-xl p-4 text-left border border-slate-200/90 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-sans max-h-[88vh] overflow-y-auto custom-scroller"
+              class="absolute left-0 top-full mt-2 z-50 w-[420px] sm:w-[452px] max-w-[calc(100vw-24px)] rounded-2xl shadow-xl p-4 text-left border border-slate-200/90 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-sans max-h-[calc(100vh-160px)] overflow-y-auto custom-scroller"
+              :style="{ maxHeight: bentoToolbarPopoverMaxHeight }"
               @click.stop
             >
               <!-- Panel Header -->
@@ -1771,7 +1772,8 @@
             </button>
               <div
                 v-if="activeToolbarPopover === 'networkMonitor'"
-                class="absolute right-0 top-full mt-2 z-50 w-[400px] sm:w-[424px] max-w-[calc(100vw-24px)] rounded-2xl shadow-xl p-4 text-left border border-slate-200/90 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-sans text-xs max-h-[85vh] overflow-y-auto custom-scroller"
+                class="absolute right-0 top-full mt-2 z-50 w-[400px] sm:w-[424px] max-w-[calc(100vw-24px)] rounded-2xl shadow-xl p-4 text-left border border-slate-200/90 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-sans text-xs max-h-[calc(100vh-160px)] overflow-y-auto custom-scroller"
+                :style="{ maxHeight: bentoToolbarPopoverMaxHeight }"
                 @click.stop
               >
                 <!-- Popover Header -->
@@ -2013,11 +2015,12 @@
             </button>
               <div
                 v-if="activeToolbarPopover === 'stationLocation'"
-                class="absolute right-0 top-full mt-2 z-50 w-[420px] sm:w-[436px] max-w-[calc(100vw-24px)] rounded-2xl shadow-xl p-4 text-left border border-slate-200/90 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-sans text-xs max-h-[88vh] overflow-y-auto custom-scroller"
+                class="absolute right-0 top-full mt-2 z-50 w-[420px] sm:w-[440px] max-w-[calc(100vw-24px)] rounded-2xl shadow-2xl text-left border border-slate-200/90 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] text-slate-800 dark:text-slate-100 select-none animate-fadeIn font-sans text-xs max-h-[calc(100vh-160px)] flex flex-col overflow-hidden"
+                :style="{ maxHeight: bentoToolbarPopoverMaxHeight }"
                 @click.stop
               >
-                <!-- Popover Header -->
-                <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800/80">
+                <!-- Pinned Popover Header (Never Clipped on Scroll) -->
+                <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#0B0F19] shrink-0">
                   <div class="flex items-center space-x-2.5">
                     <div class="w-8 h-8 rounded-xl flex items-center justify-center bg-[#EAF5FF] dark:bg-blue-600/15 border border-[#B8D4EA]/80 dark:border-blue-500/30 text-[#1685E5] dark:text-blue-400 flex-shrink-0">
                       <OperatorDashboardIcon name="map-pin" :size="16" />
@@ -2067,427 +2070,499 @@
                   </div>
                 </div>
 
-                <!-- Feedback Banner -->
-                <div
-                  v-if="stationLocationFeedback.message"
-                  class="p-2.5 mb-3 rounded-xl text-2xs font-medium border flex items-center justify-between"
-                  :class="stationLocationFeedback.type === 'error' ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30' : 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'"
-                >
-                  <span class="leading-snug pr-2">{{ stationLocationFeedback.message }}</span>
-                  <button @click="stationLocationFeedback.message = ''" class="ml-1 opacity-70 hover:opacity-100 font-bold shrink-0">✕</button>
-                </div>
+                <!-- Scrollable Popover Content Area -->
+                <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 custom-scroller space-y-2.5">
+                  <!-- Feedback Banner -->
+                  <div
+                    v-if="stationLocationFeedback.message"
+                    class="p-2.5 rounded-xl text-2xs font-medium border flex items-center justify-between"
+                    :class="stationLocationFeedback.type === 'error' ? 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30' : 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'"
+                  >
+                    <span class="leading-snug pr-2">{{ stationLocationFeedback.message }}</span>
+                    <button @click="stationLocationFeedback.message = ''" class="ml-1 opacity-70 hover:opacity-100 font-bold shrink-0">✕</button>
+                  </div>
 
-                <!-- Station Summary Status Card -->
-                <div class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 mb-3">
-                  <div class="flex items-center justify-between gap-2 mb-2">
-                    <span class="text-2xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 truncate">
-                      {{ stationLocation.station_name || systemStatus.hostname || 'Edge Station Node' }}
-                    </span>
-                    <div class="flex items-center space-x-1.5 shrink-0">
-                      <span
-                        v-if="stationLocation.location_source === 'MODBUS_RTU'"
-                        class="text-3xs font-semibold px-2 py-0.5 rounded-md border leading-none flex items-center space-x-1"
-                        :class="modbusRtuGpsStatus.badgeClass"
-                      >
-                        <span class="w-1.5 h-1.5 rounded-full" :class="modbusRtuGpsStatus.dotClass"></span>
-                        <span>{{ modbusRtuGpsStatus.badgeLabel }}</span>
+                  <!-- Station Summary Status Card -->
+                  <div class="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                      <span class="text-2xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 truncate">
+                        {{ stationLocation.station_name || systemStatus.hostname || 'Edge Station Node' }}
                       </span>
-                      <span
-                        class="text-3xs font-semibold px-2 py-0.5 rounded-md border leading-none"
-                        :class="stationLocation.is_configured ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30' : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'"
-                      >
-                        {{ stationLocation.is_configured ? 'CONFIGURED' : 'UNCONFIGURED' }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-2.5 text-2xs">
-                    <div>
-                      <span class="text-slate-500 dark:text-slate-400 block text-3xs font-medium mb-0.5">Coordinates (Lat, Lng)</span>
-                      <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                        {{ stationLocation.is_configured && stationLocation.latitude !== null ? `${Number(stationLocation.latitude).toFixed(6)}, ${Number(stationLocation.longitude).toFixed(6)}` : 'Not Configured' }}
-                      </span>
-                    </div>
-                    <div>
-                      <span class="text-slate-500 dark:text-slate-400 block text-3xs font-medium mb-0.5">Location Source</span>
-                      <span class="text-xs font-semibold text-[#1685E5] dark:text-blue-400">
-                        {{ formatLocationSourceLabel(stationLocation.location_source) }}
-                        <span v-if="stationLocation.accuracy_meters" class="text-slate-500 dark:text-slate-400 text-3xs font-normal tabular-nums">
-                          (±{{ stationLocation.accuracy_meters }}m)
-                        </span>
-                      </span>
-                    </div>
-                    <div v-if="stationLocation.address" class="col-span-2">
-                      <span class="text-slate-500 dark:text-slate-400 block text-3xs font-medium mb-0.5">Installation Site / Address</span>
-                      <span class="text-2xs text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">
-                        {{ stationLocation.address }}
-                      </span>
-                    </div>
-                    <div class="col-span-2 flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200/60 dark:border-slate-800 tabular-nums">
-                      <span>Updated: {{ formatLocationDate(stationLocation.updated_at) }}</span>
-                      <span>By: <strong class="text-slate-700 dark:text-slate-300 font-semibold">{{ stationLocation.updated_by || 'system' }}</strong></span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Mini Map Section -->
-                <div class="mb-3">
-                  <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-3xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Interactive Station Map
-                    </span>
-                    <button
-                      type="button"
-                      @click="openFullScreenMap"
-                      class="text-3xs font-semibold text-[#1685E5] dark:text-blue-400 hover:underline flex items-center space-x-1"
-                    >
-                      <span>Full Screen</span>
-                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="15 3 21 3 21 9" />
-                        <polyline points="9 21 3 21 3 15" />
-                        <line x1="21" y1="3" x2="14" y2="10" />
-                        <line x1="3" y1="21" x2="10" y2="14" />
-                      </svg>
-                    </button>
-                  </div>
-                  <StationMapViewer
-                    ref="miniMapViewer"
-                    :latitude="candidateLocation.latitude !== null ? Number(candidateLocation.latitude) : (stationLocation.latitude !== null ? Number(stationLocation.latitude) : null)"
-                    :longitude="candidateLocation.longitude !== null ? Number(candidateLocation.longitude) : (stationLocation.longitude !== null ? Number(stationLocation.longitude) : null)"
-                    :accuracy-meters="candidateLocation.accuracy_meters !== null ? Number(candidateLocation.accuracy_meters) : (stationLocation.accuracy_meters !== null ? Number(stationLocation.accuracy_meters) : null)"
-                    :editable="true"
-                    :source="candidateLocation.location_source || stationLocation.location_source"
-                    height="176px"
-                    @coordinate-change="onMapCoordinatePicked"
-                    @location-selected="onLocationSelected"
-                  />
-                  <div class="text-3xs text-slate-500 dark:text-slate-400 mt-1.5 flex items-center space-x-1.5 leading-snug">
-                    <svg class="w-3.5 h-3.5 text-[#1685E5] dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="16" x2="12" y2="12" />
-                      <line x1="12" y1="8" x2="12.01" y2="8" />
-                    </svg>
-                    <span>Click on the map, use search box, or drag the marker to pinpoint exact station coordinates.</span>
-                  </div>
-                </div>
-
-                <!-- Three Location Sources Tabs: Manual, Internet IP, Modbus RTU -->
-                <div class="border-t border-slate-100 dark:border-slate-800/80 pt-3">
-                  <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 mb-3 text-2xs font-semibold">
-                    <button
-                      type="button"
-                      @click="locationActiveTab = 'manual'"
-                      class="py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                      :class="locationActiveTab === 'manual' ? 'bg-[#1685E5] text-white btn-text shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'"
-                    >
-                      <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 20h9" />
-                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                      </svg>
-                      <span>Manual</span>
-                    </button>
-                    <button
-                      type="button"
-                      @click="locationActiveTab = 'ip'"
-                      class="py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                      :class="locationActiveTab === 'ip' ? 'bg-[#1685E5] text-white btn-text shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'"
-                    >
-                      <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="2" y1="12" x2="22" y2="12" />
-                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                      </svg>
-                      <span>Internet IP</span>
-                    </button>
-                    <button
-                      type="button"
-                      @click="locationActiveTab = 'modbus_rtu'"
-                      class="py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                      :class="locationActiveTab === 'modbus_rtu' ? 'bg-[#1685E5] text-white btn-text shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'"
-                    >
-                      <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
-                        <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
-                        <circle cx="12" cy="12" r="2" />
-                        <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
-                        <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
-                      </svg>
-                      <span>Modbus RTU</span>
-                    </button>
-                  </div>
-
-                  <!-- Tab 1: Manual Input & Map Pin -->
-                  <div v-if="locationActiveTab === 'manual'" class="space-y-2.5">
-                    <!-- Quick Location Search Bar in Tab -->
-                    <div class="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
-                      <label class="text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center space-x-1.5">
-                        <svg class="w-3.5 h-3.5 text-[#1685E5] dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="11" cy="11" r="8" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                        <span>{{ $t('operator.quickLocationSearch') || 'Search Location (City, Address, or Coordinates)' }}</span>
-                      </label>
-                      <div class="flex items-center space-x-1.5">
-                        <input
-                          v-model="tabLocationSearchQuery"
-                          type="text"
-                          :placeholder="$t('operator.searchLocationPlaceholder') || 'Search city, address, or lat, lng... (Enter)'"
-                          @keydown.enter.prevent="executeTabLocationSearch"
-                          class="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-xs font-sans placeholder:text-slate-400 focus:outline-none focus:border-[#1685E5]"
-                        />
-                        <button
-                          type="button"
-                          @click="executeTabLocationSearch"
-                          :disabled="isTabSearching"
-                          class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1685E5] hover:bg-[#1273C9] text-white btn-text transition-colors flex items-center space-x-1 disabled:opacity-50 shrink-0"
-                        >
-                          <span v-if="isTabSearching" class="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
-                          <span v-else>Cari</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Latitude (-90 to 90)</label>
-                        <input
-                          v-model.number="candidateLocation.latitude"
-                          type="number"
-                          step="0.000001"
-                          min="-90"
-                          max="90"
-                          placeholder="-6.208800"
-                          class="w-full px-3 py-1.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans font-medium tabular-nums focus:outline-none focus:border-[#1685E5]"
-                        />
-                      </div>
-                      <div>
-                        <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Longitude (-180 to 180)</label>
-                        <input
-                          v-model.number="candidateLocation.longitude"
-                          type="number"
-                          step="0.000001"
-                          min="-180"
-                          max="180"
-                          placeholder="106.845600"
-                          class="w-full px-3 py-1.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans font-medium tabular-nums focus:outline-none focus:border-[#1685E5]"
-                        />
-                      </div>
-                      <div class="col-span-2">
-                        <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Site Name / Description (Optional)</label>
-                        <input
-                          v-model="candidateLocation.station_name"
-                          type="text"
-                          placeholder="Ambient Monitoring Station"
-                          class="w-full px-3 py-1.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans focus:outline-none focus:border-[#1685E5]"
-                        />
-                      </div>
-                    </div>
-
-                    <!-- Action Buttons: Save, Cancel, Reset -->
-                    <div class="flex items-center space-x-2 pt-1">
-                      <button
-                        type="button"
-                        @click="saveStationLocation"
-                        :disabled="isSavingStationLocation || candidateLocation.latitude == null || candidateLocation.longitude == null"
-                        class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center space-x-1.5 bg-[#1685E5] hover:bg-[#1273C9] text-white btn-text border-[#1685E5] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span v-if="isSavingStationLocation" class="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span>
-                        <svg v-else class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                          <polyline points="17 21 17 13 7 13 7 21" />
-                          <polyline points="7 3 7 8 15 8" />
-                        </svg>
-                        <span>Save Location</span>
-                      </button>
-                      <button
-                        type="button"
-                        @click="cancelLocationEdit"
-                        class="py-2 px-3 rounded-xl text-xs font-semibold transition-colors border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
-                        title="Revert to saved location"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        @click="resetStationLocation"
-                        class="py-2 px-3 rounded-xl text-xs font-semibold transition-colors border bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30"
-                        title="Reset station coordinates to unconfigured state"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Tab 2: Internet Geolocation (IP-based) -->
-                  <div v-else-if="locationActiveTab === 'ip'" class="space-y-2.5 text-2xs">
-                    <div class="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/25 space-y-1">
-                      <div class="font-semibold text-amber-700 dark:text-amber-400 flex items-center space-x-1.5 text-xs">
-                        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="8" x2="12" y2="12" />
-                          <line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
-                        <span>Internet IP Geolocation (Estimasi Area)</span>
-                      </div>
-                      <p class="text-3xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                        Lokasi berbasis IP publik merupakan estimasi level kota/ISP dan tidak seakurat modul GPS fisik. Sesuai kebijakan privasi edge, IP stasiun tidak dikirim ke pihak ketiga tanpa konfigurasi provider terverifikasi.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      @click="checkIPGeolocationProvider"
-                      :disabled="ipGeoState.isDetecting"
-                      class="w-full py-2 px-3 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center space-x-1.5 bg-[#EAF5FF] dark:bg-blue-600/15 hover:bg-[#dceeff] dark:hover:bg-blue-600/25 text-[#1685E5] dark:text-blue-400 border-[#B8D4EA]/80 dark:border-blue-500/30"
-                    >
-                      <span v-if="ipGeoState.isDetecting" class="animate-spin inline-block w-3.5 h-3.5 border-2 border-[#1685E5] border-t-transparent rounded-full"></span>
-                      <svg v-else class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="2" y1="12" x2="22" y2="12" />
-                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                      </svg>
-                      <span>Periksa Provider IP Geolocation</span>
-                    </button>
-
-                    <div v-if="ipGeoState.status !== 'IDLE'" class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-1">
-                      <div class="flex items-center justify-between text-2xs">
-                        <span class="text-slate-500 dark:text-slate-400 font-medium">Status Provider:</span>
-                        <span class="font-bold text-amber-600 dark:text-amber-400">{{ ipGeoState.status }}</span>
-                      </div>
-                      <div class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                        {{ ipGeoState.message || 'Provider IP Geolocation belum dikonfigurasi. Gunakan tab Manual atau GPS Modbus RTU.' }}
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Tab 3: GPS Data via Modbus RTU -->
-                  <div v-else-if="locationActiveTab === 'modbus_rtu'" class="space-y-2.5 text-2xs">
-                    <!-- Live Modbus RTU Telemetry Status Card -->
-                    <div class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2">
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-1.5">
-                          <svg class="w-4 h-4 text-[#1685E5] dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
-                            <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
-                            <circle cx="12" cy="12" r="2" />
-                            <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
-                            <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
-                          </svg>
-                          <span class="text-xs font-bold text-slate-900 dark:text-white">GPS via Modbus RTU</span>
-                        </div>
+                      <div class="flex items-center space-x-1.5 shrink-0">
                         <span
+                          v-if="stationLocation.location_source === 'MODBUS_RTU'"
                           class="text-3xs font-semibold px-2 py-0.5 rounded-md border leading-none flex items-center space-x-1"
                           :class="modbusRtuGpsStatus.badgeClass"
                         >
                           <span class="w-1.5 h-1.5 rounded-full" :class="modbusRtuGpsStatus.dotClass"></span>
                           <span>{{ modbusRtuGpsStatus.badgeLabel }}</span>
                         </span>
-                      </div>
-
-                      <div class="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
-                        <div class="p-2 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800">
-                          <span class="block text-3xs font-medium text-slate-500 dark:text-slate-400">Live Latitude</span>
-                          <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {{ modbusRtuGpsStatus.lat !== null ? modbusRtuGpsStatus.lat.toFixed(6) : '—' }}
-                          </span>
-                        </div>
-                        <div class="p-2 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800">
-                          <span class="block text-3xs font-medium text-slate-500 dark:text-slate-400">Live Longitude</span>
-                          <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {{ modbusRtuGpsStatus.lng !== null ? modbusRtuGpsStatus.lng.toFixed(6) : '—' }}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 pt-0.5">
-                        <span>{{ modbusRtuGpsStatus.reason }}</span>
-                        <span v-if="modbusRtuGpsStatus.satellites !== null" class="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                          Satelit / Fix: {{ modbusRtuGpsStatus.satellites }}
+                        <span
+                          class="text-3xs font-semibold px-2 py-0.5 rounded-md border leading-none"
+                          :class="stationLocation.is_configured ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30' : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'"
+                        >
+                          {{ stationLocation.is_configured ? 'CONFIGURED' : 'UNCONFIGURED' }}
                         </span>
                       </div>
                     </div>
 
-                    <!-- Modbus RTU Coordinate Parameter Mapping (device codes hidden for Operator) -->
-                    <div class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2">
-                      <div class="flex items-center justify-between">
-                        <span class="text-3xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          Sumber Parameter Koordinat GPS
+                    <div class="grid grid-cols-2 gap-2 text-2xs">
+                      <div>
+                        <span class="text-slate-500 dark:text-slate-400 block text-3xs font-medium mb-0.5">Coordinates (Lat, Lng)</span>
+                        <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                          {{ stationLocation.is_configured && stationLocation.latitude !== null ? `${Number(stationLocation.latitude).toFixed(6)}, ${Number(stationLocation.longitude).toFixed(6)}` : 'Not Configured' }}
                         </span>
-                        <span v-if="effectiveModbusGpsMapping.isAutoDetected" class="text-4xs font-semibold px-1.5 py-0.5 rounded bg-[#EAF5FF] dark:bg-blue-600/15 text-[#1685E5] dark:text-blue-400">
-                          Auto-Detected
+                      </div>
+                      <div>
+                        <span class="text-slate-500 dark:text-slate-400 block text-3xs font-medium mb-0.5">Location Source</span>
+                        <span class="text-xs font-semibold text-[#1685E5] dark:text-blue-400">
+                          {{ formatLocationSourceLabel(stationLocation.location_source) }}
+                          <span v-if="stationLocation.accuracy_meters" class="text-slate-500 dark:text-slate-400 text-3xs font-normal tabular-nums">
+                            (±{{ stationLocation.accuracy_meters }}m)
+                          </span>
                         </span>
+                      </div>
+                      <div v-if="stationLocation.address" class="col-span-2">
+                        <span class="text-slate-500 dark:text-slate-400 block text-3xs font-medium mb-0.5">Installation Site / Address</span>
+                        <span class="text-2xs text-slate-700 dark:text-slate-300 leading-snug line-clamp-1">
+                          {{ stationLocation.address }}
+                        </span>
+                      </div>
+                      <div class="col-span-2 flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-200/60 dark:border-slate-800 tabular-nums">
+                        <span>Updated: {{ formatLocationDate(stationLocation.updated_at) }}</span>
+                        <span>By: <strong class="text-slate-700 dark:text-slate-300 font-semibold">{{ stationLocation.updated_by || 'system' }}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Mini Map Section -->
+                  <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                      <span class="text-3xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Interactive Station Map
+                      </span>
+                      <button
+                        type="button"
+                        @click="openFullScreenMap"
+                        class="text-3xs font-semibold text-[#1685E5] dark:text-blue-400 hover:underline flex items-center space-x-1"
+                      >
+                        <span>Full Screen</span>
+                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="15 3 21 3 21 9" />
+                          <polyline points="9 21 3 21 3 15" />
+                          <line x1="21" y1="3" x2="14" y2="10" />
+                          <line x1="3" y1="21" x2="10" y2="14" />
+                        </svg>
+                      </button>
+                    </div>
+                    <StationMapViewer
+                      ref="miniMapViewer"
+                      :latitude="candidateLocation.latitude !== null ? Number(candidateLocation.latitude) : (stationLocation.latitude !== null ? Number(stationLocation.latitude) : null)"
+                      :longitude="candidateLocation.longitude !== null ? Number(candidateLocation.longitude) : (stationLocation.longitude !== null ? Number(stationLocation.longitude) : null)"
+                      :accuracy-meters="candidateLocation.accuracy_meters !== null ? Number(candidateLocation.accuracy_meters) : (stationLocation.accuracy_meters !== null ? Number(stationLocation.accuracy_meters) : null)"
+                      :editable="true"
+                      :source="candidateLocation.location_source || stationLocation.location_source"
+                      height="148px"
+                      @coordinate-change="onMapCoordinatePicked"
+                      @location-selected="onLocationSelected"
+                    />
+                    <div class="text-3xs text-slate-500 dark:text-slate-400 mt-1 flex items-center space-x-1.5 leading-snug">
+                      <svg class="w-3.5 h-3.5 text-[#1685E5] dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                      <span>Click on the map, use search box, or drag the marker to pinpoint exact station coordinates.</span>
+                    </div>
+                  </div>
+
+                  <!-- Three Location Sources Tabs: Manual, Internet IP, Modbus RTU -->
+                  <div class="border-t border-slate-100 dark:border-slate-800/80 pt-2.5">
+                    <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 mb-2.5 text-2xs font-semibold">
+                      <button
+                        type="button"
+                        @click="locationActiveTab = 'manual'"
+                        class="py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                        :class="locationActiveTab === 'manual' ? 'bg-[#1685E5] text-white btn-text shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'"
+                      >
+                        <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        </svg>
+                        <span>Manual</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="locationActiveTab = 'ip'"
+                        class="py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                        :class="locationActiveTab === 'ip' ? 'bg-[#1685E5] text-white btn-text shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'"
+                      >
+                        <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="2" y1="12" x2="22" y2="12" />
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                        </svg>
+                        <span>Internet IP</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="locationActiveTab = 'modbus_rtu'"
+                        class="py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                        :class="locationActiveTab === 'modbus_rtu' ? 'bg-[#1685E5] text-white btn-text shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'"
+                      >
+                        <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+                          <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+                          <circle cx="12" cy="12" r="2" />
+                          <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+                          <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+                        </svg>
+                        <span>Modbus RTU</span>
+                      </button>
+                    </div>
+
+                    <!-- Tab 1: Manual Input & Map Pin -->
+                    <div v-if="locationActiveTab === 'manual'" class="space-y-2">
+                      <!-- Quick Location Search Bar in Tab -->
+                      <div class="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
+                        <label class="text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center space-x-1.5">
+                          <svg class="w-3.5 h-3.5 text-[#1685E5] dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          </svg>
+                          <span>{{ $t('operator.quickLocationSearch') || 'Search Location (City, Address, or Coordinates)' }}</span>
+                        </label>
+                        <div class="flex items-center space-x-1.5">
+                          <input
+                            v-model="tabLocationSearchQuery"
+                            type="text"
+                            :placeholder="$t('operator.searchLocationPlaceholder') || 'Search city, address, or lat, lng... (Enter)'"
+                            @keydown.enter.prevent="executeTabLocationSearch"
+                            class="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-xs font-sans placeholder:text-slate-400 focus:outline-none focus:border-[#1685E5]"
+                          />
+                          <button
+                            type="button"
+                            @click="executeTabLocationSearch"
+                            :disabled="isTabSearching"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1685E5] hover:bg-[#1273C9] text-white btn-text transition-colors flex items-center space-x-1 disabled:opacity-50 shrink-0"
+                          >
+                            <span v-if="isTabSearching" class="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                            <span v-else>Cari</span>
+                          </button>
+                        </div>
                       </div>
 
                       <div class="grid grid-cols-2 gap-2">
                         <div>
-                          <label class="block text-3xs font-medium text-slate-600 dark:text-slate-400 mb-1">Parameter Latitude</label>
-                          <select
-                            v-model="gpsModbusMapping.latParamId"
-                            @change="saveModbusGpsMapping"
-                            class="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-2xs font-sans focus:outline-none focus:border-[#1685E5]"
-                          >
-                            <option value="">{{ effectiveModbusGpsMapping.latParam ? `Auto (${effectiveModbusGpsMapping.latParam.param_name})` : 'Pilih Parameter...' }}</option>
-                            <option v-for="p in modbusRtuCandidateParams" :key="'gps-lat-' + p.param_id" :value="String(p.param_id)">
-                              {{ formatModbusGpsParamOption(p) }}
-                            </option>
-                          </select>
+                          <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Latitude (-90 to 90)</label>
+                          <input
+                            v-model.number="candidateLocation.latitude"
+                            type="number"
+                            step="0.000001"
+                            min="-90"
+                            max="90"
+                            placeholder="-6.208800"
+                            class="w-full px-3 py-1.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans font-medium tabular-nums focus:outline-none focus:border-[#1685E5]"
+                          />
                         </div>
                         <div>
-                          <label class="block text-3xs font-medium text-slate-600 dark:text-slate-400 mb-1">Parameter Longitude</label>
+                          <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Longitude (-180 to 180)</label>
+                          <input
+                            v-model.number="candidateLocation.longitude"
+                            type="number"
+                            step="0.000001"
+                            min="-180"
+                            max="180"
+                            placeholder="106.845600"
+                            class="w-full px-3 py-1.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans font-medium tabular-nums focus:outline-none focus:border-[#1685E5]"
+                          />
+                        </div>
+                        <div class="col-span-2">
+                          <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Site Name / Description (Optional)</label>
+                          <input
+                            v-model="candidateLocation.station_name"
+                            type="text"
+                            placeholder="Ambient Monitoring Station"
+                            class="w-full px-3 py-1.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-sans focus:outline-none focus:border-[#1685E5]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Tab 2: Internet Geolocation (IP-based) -->
+                    <div v-else-if="locationActiveTab === 'ip'" class="space-y-2.5 text-2xs">
+                      <div class="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/25 space-y-1">
+                        <div class="font-semibold text-amber-700 dark:text-amber-400 flex items-center space-x-1.5 text-xs">
+                          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                          </svg>
+                          <span>Internet IP Geolocation (Estimasi Area)</span>
+                        </div>
+                        <p class="text-3xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                          Lokasi berbasis IP publik merupakan estimasi level kota/ISP dan tidak seakurat modul GPS fisik. Sesuai kebijakan privasi edge, IP stasiun tidak dikirim ke pihak ketiga tanpa konfigurasi provider terverifikasi.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        @click="checkIPGeolocationProvider"
+                        :disabled="ipGeoState.isDetecting"
+                        class="w-full py-2 px-3 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center space-x-1.5 bg-[#EAF5FF] dark:bg-blue-600/15 hover:bg-[#dceeff] dark:hover:bg-blue-600/25 text-[#1685E5] dark:text-blue-400 border-[#B8D4EA]/80 dark:border-blue-500/30"
+                      >
+                        <span v-if="ipGeoState.isDetecting" class="animate-spin inline-block w-3.5 h-3.5 border-2 border-[#1685E5] border-t-transparent rounded-full"></span>
+                        <svg v-else class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="2" y1="12" x2="22" y2="12" />
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                        </svg>
+                        <span>Periksa Provider IP Geolocation</span>
+                      </button>
+
+                      <div v-if="ipGeoState.status !== 'IDLE'" class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-1">
+                        <div class="flex items-center justify-between text-2xs">
+                          <span class="text-slate-500 dark:text-slate-400 font-medium">Status Provider:</span>
+                          <span class="font-bold text-amber-600 dark:text-amber-400">{{ ipGeoState.status }}</span>
+                        </div>
+                        <div class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                          {{ ipGeoState.message || 'Provider IP Geolocation belum dikonfigurasi. Gunakan tab Manual atau GPS Modbus RTU.' }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Tab 3: GPS Data via Modbus RTU -->
+                    <div v-else-if="locationActiveTab === 'modbus_rtu'" class="space-y-2 text-2xs">
+                      <!-- Live Modbus RTU Telemetry Status Card -->
+                      <div class="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center space-x-1.5">
+                            <svg class="w-4 h-4 text-[#1685E5] dark:text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+                              <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+                              <circle cx="12" cy="12" r="2" />
+                              <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+                              <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+                            </svg>
+                            <span class="text-xs font-bold text-slate-900 dark:text-white">GPS via Modbus RTU</span>
+                          </div>
+                          <span
+                            class="text-3xs font-semibold px-2 py-0.5 rounded-md border leading-none flex items-center space-x-1"
+                            :class="modbusRtuGpsStatus.badgeClass"
+                          >
+                            <span class="w-1.5 h-1.5 rounded-full" :class="modbusRtuGpsStatus.dotClass"></span>
+                            <span>{{ modbusRtuGpsStatus.badgeLabel }}</span>
+                          </span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                          <div class="p-2 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800">
+                            <span class="block text-3xs font-medium text-slate-500 dark:text-slate-400">Live Latitude</span>
+                            <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                              {{ modbusRtuGpsStatus.lat !== null ? modbusRtuGpsStatus.lat.toFixed(6) : '—' }}
+                            </span>
+                          </div>
+                          <div class="p-2 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800">
+                            <span class="block text-3xs font-medium text-slate-500 dark:text-slate-400">Live Longitude</span>
+                            <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                              {{ modbusRtuGpsStatus.lng !== null ? modbusRtuGpsStatus.lng.toFixed(6) : '—' }}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div class="flex items-center justify-between text-3xs text-slate-500 dark:text-slate-400 pt-0.5">
+                          <span>{{ modbusRtuGpsStatus.reason }}</span>
+                          <span v-if="modbusRtuGpsStatus.satellites !== null" class="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                            Satelit / Fix: {{ modbusRtuGpsStatus.satellites }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Single-Source GPS Module Card + Direct Parameter Setup -->
+                      <div class="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-3xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Sumber Modul GPS
+                          </span>
+                          <div class="flex items-center space-x-1.5">
+                            <span v-if="effectiveModbusGpsMapping.isAutoDetected" class="text-4xs font-semibold px-1.5 py-0.5 rounded bg-[#EAF5FF] dark:bg-blue-600/15 text-[#1685E5] dark:text-blue-400">
+                              Auto-Paired
+                            </span>
+                            <button
+                              type="button"
+                              @click="showAdvancedGpsRegisterMap = !showAdvancedGpsRegisterMap"
+                              class="text-3xs font-semibold text-[#1685E5] dark:text-blue-400 hover:underline"
+                            >
+                              {{ showAdvancedGpsRegisterMap ? 'Tutup Detail' : 'Detail Register' }}
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Single Source Selector (1 Modul GPS) for Admin / Engineer -->
+                        <div v-if="canManageCategories">
                           <select
-                            v-model="gpsModbusMapping.lngParamId"
-                            @change="saveModbusGpsMapping"
+                            v-model="gpsModbusMapping.deviceId"
+                            @change="onModbusGpsDeviceChange"
                             class="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-2xs font-sans focus:outline-none focus:border-[#1685E5]"
                           >
-                            <option value="">{{ effectiveModbusGpsMapping.lngParam ? `Auto (${effectiveModbusGpsMapping.lngParam.param_name})` : 'Pilih Parameter...' }}</option>
-                            <option v-for="p in modbusRtuCandidateParams" :key="'gps-lng-' + p.param_id" :value="String(p.param_id)">
-                              {{ formatModbusGpsParamOption(p) }}
+                            <option value="">Otomatis Deteksi Modul GPS (Semua Port RTU)</option>
+                            <option v-for="dev in modbusRtuDevicesList" :key="'gps-dev-' + dev.id" :value="String(dev.id)">
+                              {{ formatModbusGpsDeviceOption(dev) }}
                             </option>
                           </select>
                         </div>
-                      </div>
 
-                      <div class="flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
-                        <div class="pr-2">
-                          <span class="block text-2xs font-semibold text-slate-800 dark:text-slate-200">Auto-Sync Stasiun Bergerak</span>
-                          <span class="block text-3xs text-slate-500 dark:text-slate-400">Perbarui otomatis jika bergeser &gt;25m &amp; sinyal GPS Locked</span>
+                        <!-- Paired Register Readout / Empty-State Setup Helper -->
+                        <div class="p-2 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/80 dark:border-slate-800 space-y-1.5">
+                          <div v-if="effectiveModbusGpsMapping.latParam && effectiveModbusGpsMapping.lngParam" class="flex items-center justify-between gap-2 text-3xs">
+                            <div class="min-w-0 truncate text-slate-600 dark:text-slate-300">
+                              <span class="text-slate-400">Register: </span>
+                              <strong class="font-semibold text-slate-800 dark:text-slate-100">{{ effectiveModbusGpsMapping.latParam.param_name }}</strong>
+                              <span class="text-slate-400"> &amp; </span>
+                              <strong class="font-semibold text-slate-800 dark:text-slate-100">{{ effectiveModbusGpsMapping.lngParam.param_name }}</strong>
+                            </div>
+                            <button
+                              v-if="canManageCategories"
+                              type="button"
+                              @click="openEditGpsParamModal(effectiveModbusGpsMapping.latParam)"
+                              class="text-3xs font-semibold text-[#1685E5] dark:text-blue-400 hover:underline shrink-0"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                          <div v-else class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Modul GPS Modbus RTU mengirim angka Latitude &amp; Longitude pada 2 register berbeda dalam 1 perangkat. Tambahkan parameter <strong class="text-slate-700 dark:text-slate-300">gps_lat</strong> &amp; <strong class="text-slate-700 dark:text-slate-300">gps_lng</strong> untuk mulai membaca koordinat.
+                          </div>
+
+                          <!-- Direct Parameter Setup Shortcut Buttons (Admin / Engineer) -->
+                          <div v-if="canManageCategories" class="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                            <button
+                              type="button"
+                              @click="openAddGpsParamModal"
+                              class="flex-1 py-1.5 px-2.5 rounded-lg text-3xs font-semibold bg-[#EAF5FF] dark:bg-blue-600/15 hover:bg-[#dceeff] dark:hover:bg-blue-600/25 text-[#1685E5] dark:text-blue-400 border border-[#B8D4EA]/80 dark:border-blue-500/30 transition-colors flex items-center justify-center space-x-1"
+                            >
+                              <span>+ Tambah Parameter GPS</span>
+                            </button>
+                            <button
+                              type="button"
+                              @click="openDevicesPageForGps"
+                              class="py-1.5 px-2.5 rounded-lg text-3xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors shrink-0"
+                            >
+                              Perangkat &amp; Sensor →
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          :aria-checked="gpsModbusMapping.autoSync ? 'true' : 'false'"
-                          @click="toggleModbusGpsAutoSync"
-                          class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                          :class="gpsModbusMapping.autoSync ? 'bg-[#1685E5] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'"
-                        >
-                          <span
-                            class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                            :class="gpsModbusMapping.autoSync ? 'translate-x-4' : 'translate-x-0'"
-                          ></span>
-                        </button>
+
+                        <!-- Collapsible Manual Register Override (Only when custom parameter names are used) -->
+                        <div v-if="showAdvancedGpsRegisterMap" class="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <label class="block text-3xs font-medium text-slate-600 dark:text-slate-400 mb-1">Register Latitude</label>
+                            <select
+                              v-model="gpsModbusMapping.latParamId"
+                              @change="saveModbusGpsMapping"
+                              class="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-2xs font-sans focus:outline-none focus:border-[#1685E5]"
+                            >
+                              <option value="">{{ effectiveModbusGpsMapping.latParam ? `Auto (${effectiveModbusGpsMapping.latParam.param_name})` : 'Otomatis...' }}</option>
+                              <option v-for="p in modbusRtuCandidateParams" :key="'gps-lat-' + p.param_id" :value="String(p.param_id)">
+                                {{ formatModbusGpsParamOption(p) }}
+                              </option>
+                            </select>
+                          </div>
+                          <div>
+                            <label class="block text-3xs font-medium text-slate-600 dark:text-slate-400 mb-1">Register Longitude</label>
+                            <select
+                              v-model="gpsModbusMapping.lngParamId"
+                              @change="saveModbusGpsMapping"
+                              class="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-2xs font-sans focus:outline-none focus:border-[#1685E5]"
+                            >
+                              <option value="">{{ effectiveModbusGpsMapping.lngParam ? `Auto (${effectiveModbusGpsMapping.lngParam.param_name})` : 'Otomatis...' }}</option>
+                              <option v-for="p in modbusRtuCandidateParams" :key="'gps-lng-' + p.param_id" :value="String(p.param_id)">
+                                {{ formatModbusGpsParamOption(p) }}
+                              </option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                          <div class="pr-2">
+                            <span class="block text-2xs font-semibold text-slate-800 dark:text-slate-200">Auto-Sync Stasiun Bergerak</span>
+                            <span class="block text-3xs text-slate-500 dark:text-slate-400">Perbarui otomatis jika bergeser &gt;25m &amp; sinyal GPS Locked</span>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            :aria-checked="gpsModbusMapping.autoSync ? 'true' : 'false'"
+                            @click="toggleModbusGpsAutoSync"
+                            class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                            :class="gpsModbusMapping.autoSync ? 'bg-[#1685E5] dark:bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'"
+                          >
+                            <span
+                              class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                              :class="gpsModbusMapping.autoSync ? 'translate-x-4' : 'translate-x-0'"
+                            ></span>
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  </div>
+                </div>
 
-                    <!-- Action Buttons for Modbus RTU Coordinates -->
-                    <div class="flex items-center space-x-2 pt-0.5">
-                      <button
-                        type="button"
-                        @click="applyModbusGpsToCandidate(false)"
-                        :disabled="modbusRtuGpsStatus.state !== 'LOCKED'"
-                        class="py-2 px-3 rounded-xl text-xs font-semibold transition-colors border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-45 disabled:cursor-not-allowed"
-                      >
-                        Pratinjau Peta
-                      </button>
-                      <button
-                        type="button"
-                        @click="applyModbusGpsToCandidate(true)"
-                        :disabled="isSavingStationLocation || modbusRtuGpsStatus.state !== 'LOCKED'"
-                        class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center space-x-1.5 bg-[#1685E5] hover:bg-[#1273C9] text-white btn-text border-[#1685E5] shadow-sm disabled:opacity-45 disabled:cursor-not-allowed"
-                      >
-                        <span v-if="isSavingStationLocation" class="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span>
-                        <span>Simpan Lokasi Modbus</span>
-                      </button>
-                    </div>
+                <!-- Pinned Bottom Action Bar (Always Framed, Never Clipped at Bottom) -->
+                <div
+                  v-if="locationActiveTab === 'manual' || locationActiveTab === 'modbus_rtu'"
+                  class="px-4 py-2.5 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/90 shrink-0"
+                >
+                  <div v-if="locationActiveTab === 'manual'" class="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      @click="saveStationLocation"
+                      :disabled="isSavingStationLocation || candidateLocation.latitude == null || candidateLocation.longitude == null"
+                      class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center space-x-1.5 bg-[#1685E5] hover:bg-[#1273C9] text-white btn-text border-[#1685E5] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span v-if="isSavingStationLocation" class="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span>
+                      <svg v-else class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                      </svg>
+                      <span>Save Location</span>
+                    </button>
+                    <button
+                      type="button"
+                      @click="cancelLocationEdit"
+                      class="py-2 px-3 rounded-xl text-xs font-semibold transition-colors border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      title="Revert to saved location"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      @click="resetStationLocation"
+                      class="py-2 px-3 rounded-xl text-xs font-semibold transition-colors border bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30"
+                      title="Reset station coordinates to unconfigured state"
+                    >
+                      Reset
+                    </button>
+                  </div>
+
+                  <div v-else-if="locationActiveTab === 'modbus_rtu'" class="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      @click="applyModbusGpsToCandidate(false)"
+                      :disabled="modbusRtuGpsStatus.state !== 'LOCKED'"
+                      class="py-2 px-3 rounded-xl text-xs font-semibold transition-colors border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-45 disabled:cursor-not-allowed"
+                    >
+                      Pratinjau Peta
+                    </button>
+                    <button
+                      type="button"
+                      @click="applyModbusGpsToCandidate(true)"
+                      :disabled="isSavingStationLocation || modbusRtuGpsStatus.state !== 'LOCKED'"
+                      class="flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-colors border flex items-center justify-center space-x-1.5 bg-[#1685E5] hover:bg-[#1273C9] text-white btn-text border-[#1685E5] shadow-sm disabled:opacity-45 disabled:cursor-not-allowed"
+                    >
+                      <span v-if="isSavingStationLocation" class="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span>
+                      <span>Simpan Lokasi Modbus</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -6371,13 +6446,14 @@
       @edit="switchToEditModal"
     />
 
-    <!-- 3. Parameter Edit Modal (Admin / Superadmin) -->
+    <!-- 3. Parameter Add / Edit Modal (Admin / Superadmin / Engineer) -->
     <ParameterModal
-      v-if="editParamTarget.device && editParamTarget.parameter"
+      v-if="editParamTarget.device && editParamTarget.deviceId"
       ref="bentoParamModal"
       :is-open="isEditParamModalOpen"
       :device-id="editParamTarget.deviceId"
       :param-to-edit="editParamTarget.parameter"
+      :device="editParamTarget.device"
       :source-device="editParamTarget.device"
       :categories="categoriesList"
       @close="isEditParamModalOpen = false"
@@ -6549,6 +6625,7 @@ export default {
     let savedMakerName = '';
     let savedMakerSub = '';
     let savedGpsModbus = {
+      deviceId: '',
       latParamId: '',
       lngParamId: '',
       satParamId: '',
@@ -6582,6 +6659,7 @@ export default {
         const parsedGpsModbus = JSON.parse(rawGpsModbus);
         if (parsedGpsModbus && typeof parsedGpsModbus === 'object') {
           savedGpsModbus = {
+            deviceId: parsedGpsModbus.deviceId ? String(parsedGpsModbus.deviceId) : '',
             latParamId: parsedGpsModbus.latParamId ? String(parsedGpsModbus.latParamId) : '',
             lngParamId: parsedGpsModbus.lngParamId ? String(parsedGpsModbus.lngParamId) : '',
             satParamId: parsedGpsModbus.satParamId ? String(parsedGpsModbus.satParamId) : '',
@@ -6592,6 +6670,8 @@ export default {
     } catch (e) {}
     return {
       bentoViewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1600,
+      bentoViewportHeight: typeof window !== 'undefined' ? window.innerHeight : 900,
+      bentoPopoverAnchorBottomPx: 140,
       bentoParamsWrapWidth: 0,
       bentoAutoGrid: autoGrid,
       bentoCardGroupByCategory: cardGroupByCat,
@@ -6608,6 +6688,7 @@ export default {
       bentoAudioEngineMuted: audioAlert.checkMuteActive(),
       bentoAudioEngineSoundEnabled: audioAlert.soundEnabled !== false,
       gpsModbusMapping: savedGpsModbus,
+      showAdvancedGpsRegisterMap: false,
       lastModbusAutoSyncMs: 0,
     };
   },
@@ -6644,8 +6725,36 @@ export default {
     isCompactScreen() {
       return this.bentoViewportWidth < 1280;
     },
+    bentoToolbarPopoverMaxHeight() {
+      const vh = this.bentoViewportHeight || 900;
+      const anchorBottom = this.bentoPopoverAnchorBottomPx || 140;
+      const avail = Math.max(320, vh - anchorBottom - 20);
+      return `${avail}px`;
+    },
+    modbusRtuDevicesList() {
+      const devs = (this.devicesList || []).filter((d) => {
+        if (d.enabled === false || d.enabled === 0) return false;
+        const st = String(d.status || d.administrative_status || '').toUpperCase();
+        return st !== 'DISABLED' && st !== 'INACTIVE';
+      });
+      const isRtu = (d) => {
+        const proto = String(d.protocol || d.driver_type || d.connection_type || '').toUpperCase();
+        const code = String(d.device_code || d.code || '').toUpperCase();
+        return proto.includes('RTU') || proto.includes('RS485') || proto.includes('SERIAL') || code.startsWith('COM');
+      };
+      return devs.slice().sort((a, b) => {
+        const aR = isRtu(a) ? 1 : 0;
+        const bR = isRtu(b) ? 1 : 0;
+        if (aR !== bR) return bR - aR;
+        return String(a.device_name || a.name || a.device_code || '').localeCompare(String(b.device_name || b.name || b.device_code || ''));
+      });
+    },
     modbusRtuCandidateParams() {
-      const list = (this.allParameters || []).slice();
+      const mapping = this.gpsModbusMapping || {};
+      let list = (this.allParameters || []).slice();
+      if (mapping.deviceId) {
+        list = list.filter(p => String(p.device_id) === String(mapping.deviceId));
+      }
       const devProtoMap = {};
       for (const d of (this.devicesList || [])) {
         const proto = String(d.protocol || d.driver_type || d.connection_type || '').toUpperCase();
@@ -6667,25 +6776,39 @@ export default {
       });
     },
     effectiveModbusGpsMapping() {
-      const params = this.allParameters || [];
+      const allParams = this.allParameters || [];
       const mapping = this.gpsModbusMapping || {};
+      const scopedParams = mapping.deviceId
+        ? allParams.filter(p => String(p.device_id) === String(mapping.deviceId))
+        : allParams;
+
       const explicitLat = mapping.latParamId
-        ? params.find(p => String(p.param_id) === String(mapping.latParamId)) || null
+        ? allParams.find(p => String(p.param_id) === String(mapping.latParamId)) || null
         : null;
       const explicitLng = mapping.lngParamId
-        ? params.find(p => String(p.param_id) === String(mapping.lngParamId)) || null
+        ? allParams.find(p => String(p.param_id) === String(mapping.lngParamId)) || null
         : null;
       const explicitSat = mapping.satParamId
-        ? params.find(p => String(p.param_id) === String(mapping.satParamId)) || null
+        ? allParams.find(p => String(p.param_id) === String(mapping.satParamId)) || null
         : null;
 
       const latRegex = /(^|[_\-\s])(gps[_\-\s]?lat|latitude|lat|lintang)($|[_\-\s])/i;
       const lngRegex = /(^|[_\-\s])(gps[_\-\s]?(lng|lon|long)|longitude|lng|lon|bujur)($|[_\-\s])/i;
       const satRegex = /(^|[_\-\s])(gps[_\-\s]?(sat|fix)|satellites?|sats|gps_status|gnss_fix)($|[_\-\s])/i;
 
-      const autoLat = explicitLat || params.find(p => latRegex.test(`${p.param_code || ''} ${p.param_name || ''}`)) || null;
-      const autoLng = explicitLng || params.find(p => p !== autoLat && lngRegex.test(`${p.param_code || ''} ${p.param_name || ''}`)) || null;
-      const autoSat = explicitSat || params.find(p => p !== autoLat && p !== autoLng && satRegex.test(`${p.param_code || ''} ${p.param_name || ''}`)) || null;
+      const autoLat = explicitLat || scopedParams.find(p => latRegex.test(`${p.param_code || ''} ${p.param_name || ''}`)) || null;
+      // Prefer pairing Longitude from the exact same GPS device as Latitude first
+      const sameDevicePool = autoLat
+        ? scopedParams.filter(p => p !== autoLat && String(p.device_id) === String(autoLat.device_id))
+        : [];
+      const autoLng = explicitLng
+        || sameDevicePool.find(p => lngRegex.test(`${p.param_code || ''} ${p.param_name || ''}`))
+        || scopedParams.find(p => p !== autoLat && lngRegex.test(`${p.param_code || ''} ${p.param_name || ''}`))
+        || null;
+      const autoSat = explicitSat
+        || sameDevicePool.find(p => p !== autoLng && satRegex.test(`${p.param_code || ''} ${p.param_name || ''}`))
+        || scopedParams.find(p => p !== autoLat && p !== autoLng && satRegex.test(`${p.param_code || ''} ${p.param_name || ''}`))
+        || null;
 
       const isAutoDetected = Boolean(!explicitLat && !explicitLng && autoLat && autoLng);
       return {
@@ -7466,11 +7589,14 @@ export default {
     this.trendChartHeight = this.bentoTrendCanvasHeight;
     if (typeof window !== 'undefined') {
       this.bentoViewportWidth = window.innerWidth;
+      this.bentoViewportHeight = window.innerHeight;
       window.addEventListener('resize', this.onBentoViewportResize, { passive: true });
     }
     this.measureBentoParamsWrap();
+    this.measureBentoPopoverBounds();
     this.$nextTick(() => {
       this.measureBentoParamsWrap();
+      this.measureBentoPopoverBounds();
       if (typeof ResizeObserver !== 'undefined' && this.$refs && this.$refs.bentoParamsWrap) {
         this._bentoParamsRO = new ResizeObserver(() => {
           this.measureBentoParamsWrap();
@@ -7614,10 +7740,25 @@ export default {
         this.bentoParamsWrapWidth = el.clientWidth;
       }
     },
+    measureBentoPopoverBounds() {
+      if (typeof window === 'undefined') return;
+      this.bentoViewportHeight = window.innerHeight;
+      if (this.$el && this.$el.querySelector) {
+        const headerEl = this.$el.querySelector('.header-shell');
+        if (headerEl) {
+          const rect = headerEl.getBoundingClientRect();
+          if (rect && rect.bottom > 0) {
+            this.bentoPopoverAnchorBottomPx = Math.round(rect.bottom);
+          }
+        }
+      }
+    },
     onBentoViewportResize() {
       if (typeof window === 'undefined') return;
       this.bentoViewportWidth = window.innerWidth;
+      this.bentoViewportHeight = window.innerHeight;
       this.measureBentoParamsWrap();
+      this.measureBentoPopoverBounds();
     },
     onDocumentClick(e) {
       if (this.bentoActiveMiniPopover && e && e.target && !e.target.closest('.bento-mini-popover-anchor')) {
@@ -7730,6 +7871,7 @@ export default {
     },
     toggleToolbarPopover(popoverName) {
       this.bentoActiveMiniPopover = null;
+      this.measureBentoPopoverBounds();
       if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.toggleToolbarPopover) {
         OperatorCommandCenterView.methods.toggleToolbarPopover.call(this, popoverName);
       }
@@ -7741,6 +7883,12 @@ export default {
         } else if (this.stationLocation && this.stationLocation.location_source === 'IP_GEOLOCATION') {
           this.locationActiveTab = 'ip';
         }
+        this.$nextTick(() => {
+          this.measureBentoPopoverBounds();
+          if (this.$refs.miniMapViewer && this.$refs.miniMapViewer.invalidateSize) {
+            this.$refs.miniMapViewer.invalidateSize();
+          }
+        });
       }
     },
     toggleTrendDownloadMenu() {
@@ -8831,6 +8979,53 @@ export default {
         return `${devLabel} · ${namePart}`;
       }
       return namePart;
+    },
+    formatModbusGpsDeviceOption(dev) {
+      if (!dev) return '';
+      const code = dev.device_code || dev.code || '';
+      const name = dev.device_name || dev.name || '';
+      const proto = dev.protocol || dev.communication_protocol || 'MODBUS_RTU';
+      if (name && code && name !== code) {
+        return `${name} (${code} · ${proto})`;
+      }
+      return `${name || code || 'Device'} (${proto})`;
+    },
+    onModbusGpsDeviceChange() {
+      this.gpsModbusMapping = {
+        ...this.gpsModbusMapping,
+        latParamId: '',
+        lngParamId: '',
+        satParamId: '',
+      };
+      this.saveModbusGpsMapping();
+    },
+    openDevicesPageForGps() {
+      this.closeToolbarPopover();
+      this.navigateToRoute('/monitoring/devices');
+    },
+    openAddGpsParamModal() {
+      if (!this.canManageCategories) return;
+      const selectedDevId = this.gpsModbusMapping && this.gpsModbusMapping.deviceId;
+      const targetDev = (selectedDevId && (this.devicesList || []).find(d => String(d.id) === String(selectedDevId)))
+        || (this.modbusRtuDevicesList && this.modbusRtuDevicesList[0])
+        || (this.devicesList && this.devicesList[0])
+        || null;
+      if (!targetDev) {
+        this.openDevicesPageForGps();
+        return;
+      }
+      this.closeToolbarPopover();
+      this.editParamTarget = {
+        deviceId: targetDev.id,
+        device: targetDev,
+        parameter: null,
+      };
+      this.isEditParamModalOpen = true;
+    },
+    openEditGpsParamModal(param) {
+      if (!param || !this.canManageCategories) return;
+      this.closeToolbarPopover();
+      this.openBentoQuickLimitEdit(param);
     },
     saveModbusGpsMapping() {
       try {
