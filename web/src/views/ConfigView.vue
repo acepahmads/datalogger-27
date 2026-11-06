@@ -442,7 +442,7 @@
           </div>
 
           <!-- Customer Subtitle / Station Type -->
-          <div class="space-y-1">
+          <div class="space-y-2">
             <div class="flex items-center justify-between">
               <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Jenis Stasiun / Domain Pemantauan
@@ -452,22 +452,68 @@
                   type="button"
                   v-for="st in ['AQMS', 'WQMS', 'Sparing']"
                   :key="st"
-                  @click="branding.customer.subtitle = st"
-                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold transition border cursor-pointer"
-                  :class="branding.customer.subtitle === st
-                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs'
-                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:text-cyan-600 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-cyan-400'"
+                  @click="selectConfigDomainPrefix(st)"
+                  class="px-2 py-0.5 rounded-md text-[11px] font-semibold transition border cursor-pointer"
+                  :class="isConfigDomainChipActive(st)
+                    ? 'bg-[#1685E5] text-white btn-text border-[#1685E5] shadow-xs'
+                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:text-[#1685E5] dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-blue-400'"
                 >
                   {{ st }}
                 </button>
               </div>
             </div>
+
+            <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-lg border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                @click="setConfigStationTypeMode('MANUAL')"
+                class="py-1.5 px-2.5 rounded-md text-xs font-semibold transition flex items-center justify-center space-x-1.5"
+                :class="branding.customer.stationTypeMode !== 'AUTO_GPS'
+                  ? 'bg-white dark:bg-slate-900 text-[#1685E5] dark:text-blue-400 shadow-xs border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+              >
+                <span>Isi Manual</span>
+              </button>
+              <button
+                type="button"
+                @click="setConfigStationTypeMode('AUTO_GPS')"
+                class="py-1.5 px-2.5 rounded-md text-xs font-semibold transition flex items-center justify-center space-x-1.5"
+                :class="branding.customer.stationTypeMode === 'AUTO_GPS'
+                  ? 'bg-white dark:bg-slate-900 text-[#1685E5] dark:text-blue-400 shadow-xs border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+              >
+                <span>Otomatis Lokasi GPS</span>
+              </button>
+            </div>
+
             <input
+              v-if="branding.customer.stationTypeMode !== 'AUTO_GPS'"
               v-model="branding.customer.subtitle"
               type="text"
               class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
-              placeholder="e.g. AQMS, WQMS, Sparing"
+              placeholder="Contoh: AQMS Kutawaringin Industrial Park"
             />
+            <div
+              v-else
+              class="p-3 rounded-lg bg-blue-50/60 dark:bg-slate-800/70 border border-blue-200 dark:border-blue-800/50 space-y-1.5"
+            >
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-semibold text-slate-800 dark:text-slate-100">
+                  Stasiun <span class="text-[#1685E5] dark:text-blue-400">{{ configAutoStationTypePreview }}</span>
+                </span>
+                <button
+                  type="button"
+                  @click="resolveConfigGpsPlaceName"
+                  :disabled="resolvingConfigPlace"
+                  class="text-[11px] font-semibold text-[#1685E5] dark:text-blue-400 hover:underline disabled:opacity-50"
+                >
+                  {{ resolvingConfigPlace ? 'Mencari...' : 'Perbarui' }}
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                Menggunakan nama wilayah/tempat dari lokasi GPS stasiun (bukan koordinat Lat/Long).
+              </p>
+            </div>
           </div>
 
           <!-- Customer Logo Upload & Preview -->
@@ -1119,7 +1165,11 @@ import {
   removeCustomerLogo,
   saveMakerBranding,
   removeMakerLogo,
-  resetOrganizationBranding
+  resetOrganizationBranding,
+  extractConcisePlaceName,
+  composeAutoGpsStationType,
+  reverseGeocodePlaceName,
+  inferStationDomainPrefix,
 } from '../utils/companyBranding';
 import {
   getExportSettings,
@@ -1133,9 +1183,11 @@ export default {
     return {
       activeTab: 'domain',
       branding: {
-        customer: { name: '', subtitle: '', logoUrl: null },
+        customer: { name: '', subtitle: '', stationTypeMode: 'MANUAL', domainPrefix: 'AQMS', logoUrl: null },
         maker: { name: '', subtitle: '', logoUrl: null }
       },
+      configResolvedPlaceName: '',
+      resolvingConfigPlace: false,
       customerLogoFile: null,
       customerLogoPreview: null,
       makerLogoFile: null,
@@ -1208,6 +1260,10 @@ export default {
       if (d === 'SPARING') return 'bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30';
       return 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/30';
     },
+    configAutoStationTypePreview() {
+      const prefix = (this.branding.customer && this.branding.customer.domainPrefix) || 'AQMS';
+      return composeAutoGpsStationType(prefix, this.configResolvedPlaceName);
+    },
   },
   mounted() {
     if (this.$route.query && this.$route.query.tab && this.$route.query.tab !== 'serial') {
@@ -1223,11 +1279,77 @@ export default {
     async loadBrandingConfig() {
       try {
         const data = await loadOrganizationBranding();
-        this.branding = data;
+        this.branding = {
+          customer: {
+            stationTypeMode: 'MANUAL',
+            domainPrefix: 'AQMS',
+            ...data.customer,
+          },
+          maker: { ...data.maker },
+        };
         this.customerLogoPreview = data.customer.logoUrl;
         this.makerLogoPreview = data.maker.logoUrl;
+        await this.resolveConfigGpsPlaceName();
       } catch (e) {
         console.warn('Could not load branding:', e);
+      }
+    },
+    isConfigDomainChipActive(st) {
+      if (this.branding.customer.stationTypeMode === 'AUTO_GPS') {
+        return String(this.branding.customer.domainPrefix || '').toLowerCase() === String(st).toLowerCase();
+      }
+      const sub = String(this.branding.customer.subtitle || '').trim();
+      return sub.toLowerCase() === String(st).toLowerCase() || new RegExp(`^${st}\\b`, 'i').test(sub);
+    },
+    selectConfigDomainPrefix(st) {
+      this.$set(this.branding.customer, 'domainPrefix', st);
+      if (this.branding.customer.stationTypeMode === 'AUTO_GPS') {
+        this.branding.customer.subtitle = this.configAutoStationTypePreview;
+      } else {
+        const cur = String(this.branding.customer.subtitle || '').trim();
+        if (!cur || /^(AQMS|WQMS|Sparing)$/i.test(cur)) {
+          this.branding.customer.subtitle = st;
+        } else if (/^(AQMS|WQMS|Sparing)\b\s+/i.test(cur)) {
+          this.branding.customer.subtitle = cur.replace(/^(AQMS|WQMS|Sparing)\b\s+/i, `${st} `);
+        } else {
+          this.branding.customer.subtitle = `${st} ${cur}`;
+        }
+      }
+    },
+    setConfigStationTypeMode(mode) {
+      const next = mode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+      this.$set(this.branding.customer, 'stationTypeMode', next);
+      if (next === 'AUTO_GPS') {
+        if (!this.branding.customer.domainPrefix) {
+          this.$set(this.branding.customer, 'domainPrefix', inferStationDomainPrefix(this.branding.customer.subtitle, 'AQMS'));
+        }
+        this.branding.customer.subtitle = this.configAutoStationTypePreview;
+        this.resolveConfigGpsPlaceName();
+      }
+    },
+    async resolveConfigGpsPlaceName() {
+      this.resolvingConfigPlace = true;
+      try {
+        const res = await axios.get('/api/system/location');
+        const loc = res && res.data && res.data.data ? res.data.data : null;
+        let place = '';
+        if (loc && loc.is_configured && loc.latitude !== null && loc.longitude !== null) {
+          const geo = await reverseGeocodePlaceName(loc.latitude, loc.longitude);
+          place = extractConcisePlaceName(geo && geo.placeName);
+        }
+        if (!place && loc) {
+          place = extractConcisePlaceName(loc.address, loc.station_name);
+        }
+        if (place) {
+          this.configResolvedPlaceName = place;
+          if (this.branding.customer.stationTypeMode === 'AUTO_GPS') {
+            this.branding.customer.subtitle = this.configAutoStationTypePreview;
+          }
+        }
+      } catch (e) {
+        // ignore offline error
+      } finally {
+        this.resolvingConfigPlace = false;
       }
     },
     handleCustomerLogoUpload(e) {
@@ -1261,10 +1383,17 @@ export default {
       this.brandingSuccessMsg = '';
       this.brandingErrorMsg = '';
       try {
+        const nextMode = this.branding.customer.stationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+        const nextPrefix = this.branding.customer.domainPrefix || inferStationDomainPrefix(this.branding.customer.subtitle, 'AQMS');
+        const subtitleToSave = nextMode === 'AUTO_GPS'
+          ? composeAutoGpsStationType(nextPrefix, this.configResolvedPlaceName)
+          : this.branding.customer.subtitle;
         await saveCustomerBranding({
           file: this.customerLogoFile,
           name: this.branding.customer.name,
-          subtitle: this.branding.customer.subtitle
+          subtitle: subtitleToSave,
+          stationTypeMode: nextMode,
+          domainPrefix: nextPrefix,
         });
         await saveMakerBranding({
           file: this.makerLogoFile,

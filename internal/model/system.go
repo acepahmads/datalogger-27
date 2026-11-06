@@ -110,17 +110,19 @@ type SystemStatusOverview struct {
 
 // SystemBranding stores persistent customer and maker/provider organization branding in the database
 type SystemBranding struct {
-	ID               uint      `gorm:"primaryKey" json:"id"`
-	CustomerName     string    `gorm:"size:255" json:"customer_name"`
-	CustomerSubtitle string    `gorm:"size:255" json:"customer_subtitle"`
-	CustomerLogo     string    `gorm:"type:longtext" json:"customer_logo,omitempty"`
-	CustomerHasLogo  bool      `gorm:"default:false" json:"customer_has_logo"`
-	MakerName        string    `gorm:"size:255" json:"maker_name"`
-	MakerSubtitle    string    `gorm:"size:255" json:"maker_subtitle"`
-	MakerLogo        string    `gorm:"type:longtext" json:"maker_logo,omitempty"`
-	MakerHasLogo     bool      `gorm:"default:false" json:"maker_has_logo"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	CreatedAt        time.Time `json:"created_at"`
+	ID                  uint      `gorm:"primaryKey" json:"id"`
+	CustomerName        string    `gorm:"size:255" json:"customer_name"`
+	CustomerSubtitle    string    `gorm:"size:255" json:"customer_subtitle"`
+	StationTypeMode     string    `gorm:"size:32;default:'MANUAL'" json:"station_type_mode"`
+	StationDomainPrefix string    `gorm:"size:32;default:'AQMS'" json:"station_domain_prefix"`
+	CustomerLogo        string    `gorm:"type:longtext" json:"customer_logo,omitempty"`
+	CustomerHasLogo     bool      `gorm:"default:false" json:"customer_has_logo"`
+	MakerName           string    `gorm:"size:255" json:"maker_name"`
+	MakerSubtitle       string    `gorm:"size:255" json:"maker_subtitle"`
+	MakerLogo           string    `gorm:"type:longtext" json:"maker_logo,omitempty"`
+	MakerHasLogo        bool      `gorm:"default:false" json:"maker_has_logo"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 func (SystemBranding) TableName() string {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"datalogger/internal/model"
@@ -1428,6 +1430,190 @@ func (h *SystemHandler) SearchLocation(c *gin.Context) {
 	}
 
 	response.OK(c, results)
+}
+
+type reverseGeoCacheEntry struct {
+	PlaceName   string
+	DisplayName string
+}
+
+var (
+	reverseGeoCache       sync.Map
+	numericPostalPattern  = regexp.MustCompile(`^\d{4,6}$`)
+	inlineCoordSubPattern = regexp.MustCompile(`[-+]?\d{1,2}\.\d+\s*[,;\s]\s*[-+]?\d{1,3}\.\d+`)
+)
+
+func isCleanPlaceSegment(seg string) bool {
+	s := strings.TrimSpace(seg)
+	if s == "" {
+		return false
+	}
+	if numericPostalPattern.MatchString(s) {
+		return false
+	}
+	if inlineCoordSubPattern.MatchString(s) {
+		return false
+	}
+	lower := strings.ToLower(s)
+	if strings.HasPrefix(lower, "coordinates") || strings.HasPrefix(lower, "latitude") || strings.HasPrefix(lower, "longitude") {
+		return false
+	}
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return false
+	}
+	return true
+}
+
+// ExtractConcisePlaceName derives a human-readable place name (never raw lat/lng coordinates)
+// from reverse-geocoded address components or a full display_name string.
+func ExtractConcisePlaceName(addr map[string]string, displayName string) string {
+	var parts []string
+
+	if len(addr) > 0 {
+		primaryKeys := []string{
+			"industrial", "commercial", "amenity", "neighbourhood", "quarter",
+			"suburb", "village", "hamlet", "town", "city_district", "municipality", "district",
+		}
+		for _, k := range primaryKeys {
+			if val := strings.TrimSpace(addr[k]); isCleanPlaceSegment(val) {
+				parts = append(parts, val)
+				break
+			}
+		}
+
+		secondaryKeys := []string{"city", "county", "state_district", "region", "state"}
+		for _, k := range secondaryKeys {
+			val := strings.TrimSpace(addr[k])
+			if !isCleanPlaceSegment(val) {
+				continue
+			}
+			if len(parts) > 0 && strings.EqualFold(parts[0], val) {
+				continue
+			}
+			parts = append(parts, val)
+			break
+		}
+	}
+
+	if len(parts) > 0 {
+		return strings.Join(parts, ", ")
+	}
+
+	if strings.TrimSpace(displayName) != "" {
+		rawSegments := strings.Split(displayName, ",")
+		for _, seg := range rawSegments {
+			trimmed := strings.TrimSpace(seg)
+			if !isCleanPlaceSegment(trimmed) {
+				continue
+			}
+			if strings.EqualFold(trimmed, "indonesia") {
+				continue
+			}
+			dup := false
+			for _, existing := range parts {
+				if strings.EqualFold(existing, trimmed) {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				parts = append(parts, trimmed)
+			}
+			if len(parts) >= 2 {
+				break
+			}
+		}
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+// ReverseGeocodeLocation resolves GPS coordinates into a human-readable place name (GET /api/system/location/reverse?lat=...&lng=...)
+func (h *SystemHandler) ReverseGeocodeLocation(c *gin.Context) {
+	latStr := strings.TrimSpace(c.Query("lat"))
+	lngStr := strings.TrimSpace(c.Query("lng"))
+	if lngStr == "" {
+		lngStr = strings.TrimSpace(c.Query("lon"))
+	}
+
+	lat, err1 := strconv.ParseFloat(latStr, 64)
+	lng, err2 := strconv.ParseFloat(lngStr, 64)
+	if err1 != nil || err2 != nil || math.IsNaN(lat) || math.IsNaN(lng) || lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0 {
+		response.BadRequest(c, "invalid lat/lng coordinates")
+		return
+	}
+
+	// Null-Island (0, 0) guard: GPS module without satellite fix outputs (0, 0)
+	if math.Abs(lat) < 0.0001 && math.Abs(lng) < 0.0001 {
+		response.OK(c, gin.H{
+			"place_name":   "",
+			"display_name": "",
+			"lat":          lat,
+			"lon":          lng,
+		})
+		return
+	}
+
+	cacheKey := fmt.Sprintf("%.3f,%.3f", lat, lng)
+	if cached, ok := reverseGeoCache.Load(cacheKey); ok {
+		entry := cached.(reverseGeoCacheEntry)
+		response.OK(c, gin.H{
+			"place_name":   entry.PlaceName,
+			"display_name": entry.DisplayName,
+			"lat":          lat,
+			"lon":          lng,
+			"cached":       true,
+		})
+		return
+	}
+
+	nominatimURL := fmt.Sprintf("https://nominatim.openstreetmap.org/reverse?format=json&lat=%.6f&lon=%.6f&zoom=14&addressdetails=1", lat, lng)
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, nominatimURL, nil)
+	if err != nil {
+		response.OK(c, gin.H{"place_name": "", "display_name": "", "lat": lat, "lon": lng})
+		return
+	}
+	req.Header.Set("User-Agent", "Datalogger-CBI/1.0 (StationLocationReverse; contact: admin@datalogger.local)")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "id,en")
+
+	client := &http.Client{Timeout: 4 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		response.OK(c, gin.H{"place_name": "", "display_name": "", "lat": lat, "lon": lng})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		response.OK(c, gin.H{"place_name": "", "display_name": "", "lat": lat, "lon": lng})
+		return
+	}
+
+	var raw struct {
+		Name        string            `json:"name"`
+		DisplayName string            `json:"display_name"`
+		Address     map[string]string `json:"address"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		response.OK(c, gin.H{"place_name": "", "display_name": "", "lat": lat, "lon": lng})
+		return
+	}
+
+	placeName := ExtractConcisePlaceName(raw.Address, raw.DisplayName)
+	if placeName != "" {
+		reverseGeoCache.Store(cacheKey, reverseGeoCacheEntry{
+			PlaceName:   placeName,
+			DisplayName: raw.DisplayName,
+		})
+	}
+
+	response.OK(c, gin.H{
+		"place_name":   placeName,
+		"display_name": raw.DisplayName,
+		"lat":          lat,
+		"lon":          lng,
+	})
 }
 
 

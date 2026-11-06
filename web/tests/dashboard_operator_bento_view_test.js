@@ -488,6 +488,88 @@ check('16.3: Station Location Monitor (GPS control) uses Sidebar font-sans, rest
   assert(adminLabel.includes('com1'), `Admin/Engineer label should include device context: got "${adminLabel}"`);
 });
 
+check('16.4: Station Type supports Isi Manual vs Otomatis Lokasi GPS using Place Name (never Lat/Long)', () => {
+  const vm = require('vm');
+  const brandingUtilPath = path.join(__dirname, '..', 'src', 'utils', 'companyBranding.js');
+  const brandingUtilRaw = fs.readFileSync(brandingUtilPath, 'utf8');
+  const configViewPath = path.join(__dirname, '..', 'src', 'views', 'ConfigView.vue');
+  const configViewContent = fs.readFileSync(configViewPath, 'utf8');
+
+  // 1. UI controls exist in both DashboardOperatorView branding modal and ConfigView
+  assert(viewContent.includes("setModalStationTypeMode('MANUAL')") && viewContent.includes('Isi Manual'), 'Branding modal must offer Isi Manual option');
+  assert(viewContent.includes("setModalStationTypeMode('AUTO_GPS')") && viewContent.includes('Otomatis Lokasi GPS'), 'Branding modal must offer Otomatis Lokasi GPS option');
+  assert(configViewContent.includes("setConfigStationTypeMode('MANUAL')") && configViewContent.includes("setConfigStationTypeMode('AUTO_GPS')"), 'ConfigView must offer Isi Manual & Otomatis Lokasi GPS options');
+
+  // 2. Evaluate companyBranding place-name helpers directly
+  const cjsBrandingCode = brandingUtilRaw.replace(/export\s+(const|async\s+function|function)\s+/g, '$1 ') +
+    '\nmodule.exports = { extractConcisePlaceName, composeAutoGpsStationType, inferStationDomainPrefix };';
+  const mod = { exports: {} };
+  vm.runInNewContext(cjsBrandingCode, { module: mod, exports: mod.exports, console });
+  const { extractConcisePlaceName, composeAutoGpsStationType } = mod.exports;
+
+  // Full address -> concise 2-part locality + regency/city (no postal code, no country)
+  assert.strictEqual(
+    extractConcisePlaceName('Kutawaringin, Kabupaten Bandung, Jawa Barat, 40319, Indonesia'),
+    'Kutawaringin, Kabupaten Bandung'
+  );
+
+  // Raw coordinates MUST NEVER be returned as place name
+  assert.strictEqual(extractConcisePlaceName('-6.950872, 107.533430'), '');
+  assert.strictEqual(extractConcisePlaceName('Coordinates (-6.950872, 107.533430)'), '');
+  assert.strictEqual(extractConcisePlaceName('Latitude: -6.950872, Longitude: 107.533430'), '');
+
+  // Generic default placeholder ignored, custom non-coordinate fallback used
+  assert.strictEqual(extractConcisePlaceName('', 'Ambient Monitoring Station'), '');
+  assert.strictEqual(extractConcisePlaceName('', 'Kawasan Industri Kutawaringin'), 'Kawasan Industri Kutawaringin');
+
+  // Compose Station Type with domain prefix + place name (never coordinates)
+  assert.strictEqual(
+    composeAutoGpsStationType('AQMS', 'Kutawaringin, Kabupaten Bandung, Jawa Barat, 40319, Indonesia'),
+    'AQMS Kutawaringin, Kabupaten Bandung'
+  );
+  assert.strictEqual(
+    composeAutoGpsStationType('WQMS', '-6.950872, 107.533430'),
+    'WQMS'
+  );
+
+  // 3. Verify DashboardOperatorView stationTypeLabel, headerSecondaryLocationLabel, and isAQMSDomain in AUTO_GPS vs MANUAL
+  const stStart = viewContent.indexOf('isAQMSDomain() {');
+  const stEnd = viewContent.indexOf('isWQMSDomain() {');
+  assert(stStart > 0 && stEnd > stStart, 'Must locate stationTypeLabel & AUTO_GPS computed block');
+  const stCompObj = vm.runInNewContext(
+    `({ ${viewContent.slice(stStart, stEnd).trim().replace(/,\s*$/, '')} })`,
+    { extractConcisePlaceName, composeAutoGpsStationType }
+  );
+
+  const autoCtx = {
+    activeMonitoringDomain: 'AQMS',
+    stationTypeMode: 'AUTO_GPS',
+    stationDomainPrefix: 'AQMS',
+    customerSubtitle: 'Manual Ignored Text',
+    resolvedGpsPlaceName: '',
+    stationLocation: {
+      is_configured: true,
+      latitude: -6.950872,
+      longitude: 107.53343,
+      location_source: 'MODBUS_RTU',
+      station_name: 'Ambient Monitoring Station',
+      address: 'Kutawaringin, Kabupaten Bandung, Jawa Barat, 40319, Indonesia',
+    },
+  };
+  Object.defineProperty(autoCtx, 'fallbackSavedPlaceName', { get: () => stCompObj.fallbackSavedPlaceName.call(autoCtx) });
+  Object.defineProperty(autoCtx, 'effectiveAutoPlaceName', { get: () => stCompObj.effectiveAutoPlaceName.call(autoCtx) });
+  Object.defineProperty(autoCtx, 'stationTypeLabel', { get: () => stCompObj.stationTypeLabel.call(autoCtx) });
+
+  assert.strictEqual(autoCtx.stationTypeLabel, 'AQMS Kutawaringin, Kabupaten Bandung');
+  assert(!/\d+\.\d+/.test(autoCtx.stationTypeLabel), 'stationTypeLabel must never contain coordinate numbers');
+  assert.strictEqual(stCompObj.headerSecondaryLocationLabel.call(autoCtx), '', 'Header must not duplicate address when AUTO_GPS already shows place name');
+  assert.strictEqual(stCompObj.isAQMSDomain.call(autoCtx), true);
+
+  autoCtx.stationDomainPrefix = 'WQMS';
+  assert.strictEqual(autoCtx.stationTypeLabel, 'WQMS Kutawaringin, Kabupaten Bandung');
+  assert.strictEqual(stCompObj.isAQMSDomain.call(autoCtx), false, 'WQMS prefix in AUTO_GPS mode must hide ISPU controls');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');

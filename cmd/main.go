@@ -355,6 +355,7 @@ func main() {
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.GET("/system/location/ip-estimate", systemHandler.GetIPGeolocationEstimate)
 		api.GET("/system/location/search", systemHandler.SearchLocation)
+		api.GET("/system/location/reverse", systemHandler.ReverseGeocodeLocation)
 		api.PUT("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 		api.POST("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 

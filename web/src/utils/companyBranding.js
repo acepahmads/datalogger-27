@@ -25,6 +25,8 @@ export const DEFAULT_BRANDING = {
   customer: {
     name: 'PT. Mitra Industri Enviro',
     subtitle: 'AQMS',
+    stationTypeMode: 'MANUAL',
+    domainPrefix: 'AQMS',
     hasLogo: false
   },
   maker: {
@@ -33,6 +35,132 @@ export const DEFAULT_BRANDING = {
     hasLogo: false
   }
 };
+
+const GENERIC_PLACEHOLDERS = new Set([
+  'ambient monitoring station',
+  'edge station node',
+  'local autonomous edge',
+  'unconfigured',
+  'not set',
+  '-',
+  '—'
+]);
+
+const INLINE_COORD_REGEX = /[-+]?\d{1,2}\.\d+\s*[,;\s]\s*[-+]?\d{1,3}\.\d+/;
+const PURE_NUMERIC_REGEX = /^[-+]?\d+(?:\.\d+)?$/;
+const reversePlaceMemoryCache = new Map();
+
+export function inferStationDomainPrefix(subtitle, fallback = 'AQMS') {
+  const s = String(subtitle || '').trim();
+  if (/^WQMS\b/i.test(s)) return 'WQMS';
+  if (/^SPARING\b/i.test(s)) return 'Sparing';
+  if (/^AQMS\b/i.test(s)) return 'AQMS';
+  return fallback;
+}
+
+function isCleanPlacePart(part) {
+  const s = String(part || '').trim();
+  if (!s) return false;
+  if (PURE_NUMERIC_REGEX.test(s)) return false;
+  if (INLINE_COORD_REGEX.test(s)) return false;
+  const lower = s.toLowerCase();
+  if (GENERIC_PLACEHOLDERS.has(lower)) return false;
+  if (lower.startsWith('coordinates') || lower.startsWith('latitude') || lower.startsWith('longitude') || lower.startsWith('lat:') || lower.startsWith('lng:')) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Extracts a concise, human-readable place name (up to 2 locality/city segments)
+ * while strictly stripping raw Lat/Long coordinates, postal codes, and generic placeholders.
+ */
+export function extractConcisePlaceName(rawText, fallbackName = '') {
+  const parseCandidate = (input) => {
+    const str = String(input || '').trim();
+    if (!str || INLINE_COORD_REGEX.test(str)) return '';
+    if (GENERIC_PLACEHOLDERS.has(str.toLowerCase())) return '';
+
+    const segments = str.split(',');
+    const picked = [];
+    for (const seg of segments) {
+      const clean = seg.trim();
+      if (!isCleanPlacePart(clean)) continue;
+      if (clean.toLowerCase() === 'indonesia') continue;
+      if (!picked.some((existing) => existing.toLowerCase() === clean.toLowerCase())) {
+        picked.push(clean);
+      }
+      if (picked.length >= 2) break;
+    }
+    return picked.join(', ');
+  };
+
+  const primary = parseCandidate(rawText);
+  if (primary) return primary;
+  return parseCandidate(fallbackName);
+}
+
+/**
+ * Composes the Station Type label in AUTO_GPS mode using domain prefix + human-readable place name.
+ * Strictly guarantees raw coordinates never appear in the composed label.
+ */
+export function composeAutoGpsStationType(domainPrefix = 'AQMS', placeName = '') {
+  const prefix = String(domainPrefix || '').trim();
+  const cleanPlace = extractConcisePlaceName(placeName);
+  if (prefix && cleanPlace) {
+    if (cleanPlace.toLowerCase().startsWith(prefix.toLowerCase() + ' ')) {
+      return cleanPlace;
+    }
+    return `${prefix} ${cleanPlace}`;
+  }
+  if (cleanPlace) return cleanPlace;
+  return prefix || 'AQMS';
+}
+
+/**
+ * Resolves GPS coordinates (lat, lng) into a human-readable place name via backend reverse geocoding
+ * with in-memory caching and Null-Island (0, 0) protection.
+ */
+export async function reverseGeocodePlaceName(lat, lng) {
+  const numLat = Number(lat);
+  const numLng = Number(lng);
+  if (
+    lat === null || lat === undefined || lng === null || lng === undefined ||
+    Number.isNaN(numLat) || Number.isNaN(numLng) ||
+    numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180 ||
+    (Math.abs(numLat) < 0.0001 && Math.abs(numLng) < 0.0001)
+  ) {
+    return { placeName: '', displayName: '' };
+  }
+
+  const cacheKey = `${numLat.toFixed(3)},${numLng.toFixed(3)}`;
+  if (reversePlaceMemoryCache.has(cacheKey)) {
+    return reversePlaceMemoryCache.get(cacheKey);
+  }
+
+  if (typeof fetch !== 'function') {
+    return { placeName: '', displayName: '' };
+  }
+
+  try {
+    const res = await fetch(`/api/system/location/reverse?lat=${encodeURIComponent(numLat)}&lng=${encodeURIComponent(numLng)}`);
+    if (res && res.ok) {
+      const json = await res.json();
+      const data = (json && json.data) ? json.data : json;
+      const placeName = extractConcisePlaceName(data && (data.place_name || data.display_name));
+      const displayName = (data && data.display_name) ? String(data.display_name).trim() : placeName;
+      if (placeName) {
+        const entry = { placeName, displayName };
+        reversePlaceMemoryCache.set(cacheKey, entry);
+        return entry;
+      }
+    }
+  } catch (e) {
+    // Graceful fallback
+  }
+
+  return { placeName: '', displayName: '' };
+}
 
 /**
  * Open or initialize the IndexedDB database
@@ -231,10 +359,19 @@ export function getOrganizationBrandingMeta() {
       return JSON.parse(JSON.stringify(DEFAULT_BRANDING));
     }
     const parsed = JSON.parse(raw);
+    const customerSubtitle = (parsed.customer && parsed.customer.subtitle !== undefined)
+      ? (parsed.customer.subtitle === 'Local Autonomous Edge' ? '' : parsed.customer.subtitle)
+      : DEFAULT_BRANDING.customer.subtitle;
+    const customerMode = (parsed.customer && parsed.customer.stationTypeMode === 'AUTO_GPS') ? 'AUTO_GPS' : 'MANUAL';
+    const customerDomainPrefix = (parsed.customer && parsed.customer.domainPrefix !== undefined)
+      ? parsed.customer.domainPrefix
+      : inferStationDomainPrefix(customerSubtitle, DEFAULT_BRANDING.customer.domainPrefix);
     return {
       customer: {
         name: (parsed.customer && parsed.customer.name !== undefined) ? parsed.customer.name : DEFAULT_BRANDING.customer.name,
-        subtitle: (parsed.customer && parsed.customer.subtitle !== undefined) ? (parsed.customer.subtitle === 'Local Autonomous Edge' ? '' : parsed.customer.subtitle) : DEFAULT_BRANDING.customer.subtitle,
+        subtitle: customerSubtitle,
+        stationTypeMode: customerMode,
+        domainPrefix: customerDomainPrefix,
         hasLogo: !!(parsed.customer && parsed.customer.hasLogo)
       },
       maker: {
@@ -294,6 +431,19 @@ export async function loadOrganizationBranding() {
         meta.customer.subtitle = remote.customer_subtitle === 'Local Autonomous Edge' ? '' : remote.customer_subtitle;
         changed = true;
       }
+      if (remote.station_type_mode !== undefined) {
+        const normalizedMode = remote.station_type_mode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+        if (normalizedMode !== meta.customer.stationTypeMode) {
+          meta.customer.stationTypeMode = normalizedMode;
+          changed = true;
+        }
+      }
+      if (remote.station_domain_prefix !== undefined && remote.station_domain_prefix !== '') {
+        if (remote.station_domain_prefix !== meta.customer.domainPrefix) {
+          meta.customer.domainPrefix = remote.station_domain_prefix;
+          changed = true;
+        }
+      }
       if (remote.customer_has_logo !== undefined && remote.customer_has_logo !== meta.customer.hasLogo) {
         meta.customer.hasLogo = !!remote.customer_has_logo;
         changed = true;
@@ -335,6 +485,8 @@ export async function loadOrganizationBranding() {
     customer: {
       name: meta.customer.name,
       subtitle: meta.customer.subtitle,
+      stationTypeMode: meta.customer.stationTypeMode || 'MANUAL',
+      domainPrefix: meta.customer.domainPrefix || inferStationDomainPrefix(meta.customer.subtitle, 'AQMS'),
       hasLogo: !!customerLogoUrl,
       logoUrl: customerLogoUrl
     },
@@ -350,7 +502,7 @@ export async function loadOrganizationBranding() {
 /**
  * Save Customer Logo & Name (persists locally and to database)
  */
-export async function saveCustomerBranding({ file = null, name = '', subtitle = '' }) {
+export async function saveCustomerBranding({ file = null, name = '', subtitle = '', stationTypeMode = undefined, domainPrefix = undefined }) {
   const meta = getOrganizationBrandingMeta();
   let logoUrl = null;
 
@@ -370,6 +522,14 @@ export async function saveCustomerBranding({ file = null, name = '', subtitle = 
 
   if (name !== undefined) meta.customer.name = (name || '').trim();
   if (subtitle !== undefined) meta.customer.subtitle = (subtitle || '').trim();
+  if (stationTypeMode !== undefined) {
+    meta.customer.stationTypeMode = stationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+  }
+  if (domainPrefix !== undefined) {
+    meta.customer.domainPrefix = (domainPrefix || '').trim();
+  } else if (subtitle !== undefined) {
+    meta.customer.domainPrefix = inferStationDomainPrefix(meta.customer.subtitle, meta.customer.domainPrefix || 'AQMS');
+  }
   meta.customer.updatedAt = new Date().toISOString();
 
   try {
@@ -382,6 +542,8 @@ export async function saveCustomerBranding({ file = null, name = '', subtitle = 
   const dbPayload = {
     customer_name: meta.customer.name,
     customer_subtitle: meta.customer.subtitle,
+    station_type_mode: meta.customer.stationTypeMode || 'MANUAL',
+    station_domain_prefix: meta.customer.domainPrefix || 'AQMS',
     customer_has_logo: meta.customer.hasLogo
   };
   if (logoUrl) {
@@ -494,10 +656,16 @@ export async function removeMakerLogo() {
 /**
  * Save All Organization Text Branding (Both Customer & Maker)
  */
-export async function saveOrganizationTextBranding({ customerName, customerSubtitle, makerName, makerSubtitle }) {
+export async function saveOrganizationTextBranding({ customerName, customerSubtitle, stationTypeMode, domainPrefix, makerName, makerSubtitle }) {
   const meta = getOrganizationBrandingMeta();
   if (customerName !== undefined) meta.customer.name = (customerName || '').trim();
   if (customerSubtitle !== undefined) meta.customer.subtitle = (customerSubtitle || '').trim();
+  if (stationTypeMode !== undefined) {
+    meta.customer.stationTypeMode = stationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+  }
+  if (domainPrefix !== undefined) {
+    meta.customer.domainPrefix = (domainPrefix || '').trim();
+  }
   if (makerName !== undefined) meta.maker.name = (makerName || '').trim();
   if (makerSubtitle !== undefined) meta.maker.subtitle = (makerSubtitle || '').trim();
   meta.updatedAt = new Date().toISOString();
@@ -516,6 +684,8 @@ export async function saveOrganizationTextBranding({ customerName, customerSubti
   await syncBrandingToDatabase({
     customer_name: meta.customer.name,
     customer_subtitle: meta.customer.subtitle,
+    station_type_mode: meta.customer.stationTypeMode || 'MANUAL',
+    station_domain_prefix: meta.customer.domainPrefix || 'AQMS',
     maker_name: meta.maker.name,
     maker_subtitle: meta.maker.subtitle
   });

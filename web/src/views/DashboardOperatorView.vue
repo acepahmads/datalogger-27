@@ -36,19 +36,19 @@
           </div>
 
           <div
-            v-if="customerCompanyName || stationTypeLabel || (stationLocation && (stationLocation.station_name || stationLocation.address))"
+            v-if="customerCompanyName || stationTypeLabel || headerSecondaryLocationLabel"
             class="min-w-0 flex-1"
           >
             <div v-if="customerCompanyName" class="station-name">
               <span class="truncate">{{ customerCompanyName }}</span>
             </div>
             <div
-              v-if="stationTypeLabel || (stationLocation && (stationLocation.station_name || stationLocation.address))"
+              v-if="stationTypeLabel || headerSecondaryLocationLabel"
               class="station-loc truncate"
             >
               <span v-if="stationTypeLabel">Stasiun <strong>{{ stationTypeLabel }}</strong></span>
-              <span v-if="stationLocation && (stationLocation.station_name || stationLocation.address)">
-                <template v-if="stationTypeLabel"> · </template>{{ stationLocation.station_name || stationLocation.address }}
+              <span v-if="headerSecondaryLocationLabel">
+                <template v-if="stationTypeLabel"> · </template>{{ headerSecondaryLocationLabel }}
               </span>
             </div>
           </div>
@@ -4701,258 +4701,372 @@
     <!-- MODAL: DUAL ORGANIZATION BRANDING SETUP (CUSTOMER & MAKER) -->
     <div
       v-if="showBrandingModal || showLogoModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm font-sans"
       @click.self="closeBrandingModal"
     >
-      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-[#0B1422] border border-slate-200 dark:border-[#20354B] p-5 shadow-2xl text-slate-900 dark:text-slate-100 space-y-4 font-mono text-xs">
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#20354B] pb-3">
-          <div class="flex items-center space-x-2">
-            <span class="text-cyan-500 text-sm">🏢</span>
-            <h3 class="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs">
-              {{ $t('branding.title') || 'Organization & Company Branding' }}
-            </h3>
-          </div>
-          <button @click="closeBrandingModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition">✕</button>
-        </div>
-
-        <!-- Error Message Banner -->
-        <div v-if="brandingErrorMsg || logoErrorMsg" class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-3xs font-semibold flex items-center space-x-1.5">
-          <span>⚠️</span>
-          <span>{{ brandingErrorMsg || logoErrorMsg }}</span>
-        </div>
-
-        <!-- Tab Selection (Customer Left Header vs Maker Right Header) -->
-        <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-[#101B2B] rounded-lg border border-slate-200 dark:border-[#20354B]">
-          <button
-            type="button"
-            @click="activeBrandingTab = 'customer'"
-            class="py-1.5 px-3 rounded text-3xs font-bold transition flex items-center justify-center space-x-1.5"
-            :class="activeBrandingTab === 'customer'
-              ? 'bg-cyan-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-          >
-            <span>🏢</span>
-            <span>{{ $t('branding.customerTab') || 'Customer (Left Header)' }}</span>
-          </button>
-          <button
-            type="button"
-            @click="activeBrandingTab = 'maker'"
-            class="py-1.5 px-3 rounded text-3xs font-bold transition flex items-center justify-center space-x-1.5"
-            :class="activeBrandingTab === 'maker'
-              ? 'bg-cyan-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-          >
-            <span>⚙️</span>
-            <span>{{ $t('branding.makerTab') || 'Maker / Provider (Right Header)' }}</span>
-          </button>
-        </div>
-
-        <!-- TAB 1: CUSTOMER COMPANY SETUP -->
-        <div v-if="activeBrandingTab === 'customer'" class="space-y-3">
-          <div class="space-y-1">
-            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              {{ $t('branding.customerName') || 'Customer Company Name (Appears Top-Left)' }}
-            </label>
-            <input
-              v-model="modalCustomerName"
-              type="text"
-              maxlength="50"
-              placeholder="e.g. PT. Mitra Industri Enviro"
-              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
-            />
-          </div>
-
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
-              <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-                {{ $t('branding.stationDomain') || 'Jenis Stasiun / Domain Pemantauan' }}
-              </label>
-              <div class="flex items-center space-x-1">
-                <button
-                  type="button"
-                  v-for="st in ['AQMS', 'WQMS', 'Sparing']"
-                  :key="st"
-                  @click="modalCustomerSubtitle = st"
-                  class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold transition border cursor-pointer"
-                  :class="modalCustomerSubtitle === st
-                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs'
-                    : 'bg-slate-100 dark:bg-[#101B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#20354B] hover:text-cyan-500'"
-                >
-                  {{ st }}
-                </button>
-              </div>
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-[0_20px_50px_-12px_rgba(15,23,42,0.28)] dark:shadow-[0_24px_56px_-12px_rgba(0,0,0,0.75)] text-slate-800 dark:text-slate-100 overflow-hidden flex flex-col max-h-[92vh]">
+        <!-- Modal Header -->
+        <div class="px-5 py-3.5 bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200/70 dark:border-blue-800/60 flex items-center justify-center text-[#1685E5] dark:text-blue-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
             </div>
-            <input
-              v-model="modalCustomerSubtitle"
-              type="text"
-              maxlength="50"
-              placeholder="e.g. AQMS, WQMS, Sparing"
-              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none font-mono"
-            />
-          </div>
-
-          <!-- Customer Logo Live Preview (Dark & Light) -->
-          <div class="space-y-1.5">
-            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              Customer Logo Preview (Header Scale)
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <div class="p-3 rounded-lg bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[64px]">
-                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Dark Header</span>
-                <img
-                  v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
-                  :src="modalCustomerLogoPreviewUrl || customerLogoUrl"
-                  alt="Customer Logo preview"
-                  class="max-h-7 max-w-[120px] object-contain"
-                />
-                <span v-else class="text-[9px] text-slate-500 italic">Default CBI Icon</span>
-              </div>
-              <div class="p-3 rounded-lg bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[64px]">
-                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Light Header</span>
-                <img
-                  v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
-                  :src="modalCustomerLogoPreviewUrl || customerLogoUrl"
-                  alt="Customer Logo preview"
-                  class="max-h-7 max-w-[120px] object-contain"
-                />
-                <span v-else class="text-[9px] text-slate-400 italic">Default CBI Icon</span>
-              </div>
+            <div>
+              <h3 class="text-[13.5px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
+                {{ $t('branding.title') || 'Organization & Company Branding' }}
+              </h3>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">Identitas instansi & tipe lokasi stasiun</p>
             </div>
           </div>
-
-          <!-- Customer File Upload Actions -->
-          <input
-            ref="customerLogoFileInput"
-            type="file"
-            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
-            class="hidden"
-            @change="onCustomerFileSelected"
-          />
-          <div class="flex items-center space-x-2 pt-1">
-            <button
-              type="button"
-              @click="triggerCustomerFileInput"
-              class="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] font-bold text-3xs flex items-center justify-center space-x-1.5 transition"
-            >
-              <span>📁</span>
-              <span>{{ (modalCustomerLogoPreviewUrl || customerLogoUrl) ? 'Change Customer Logo...' : 'Upload Customer Logo...' }}</span>
-            </button>
-            <button
-              v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
-              type="button"
-              @click="handleRemoveCustomerLogo"
-              class="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-3xs flex items-center justify-center space-x-1 transition"
-            >
-              <span>🗑️</span>
-              <span>Remove</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- TAB 2: MAKER COMPANY SETUP -->
-        <div v-else-if="activeBrandingTab === 'maker'" class="space-y-3">
-          <div class="space-y-1">
-            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              {{ $t('branding.makerName') || 'Maker / Provider Company Name (Appears Top-Right)' }}
-            </label>
-            <input
-              v-model="modalMakerName"
-              type="text"
-              maxlength="50"
-              placeholder="e.g. PT. Centra Biotech Indonesia"
-              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
-            />
-          </div>
-
-          <div class="space-y-1">
-            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              {{ $t('branding.makerSubtitle') || 'Maker Tagline / Subtitle' }}
-            </label>
-            <input
-              v-model="modalMakerSubtitle"
-              type="text"
-              maxlength="50"
-              placeholder="e.g. CBI Industrial IoT"
-              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] bg-slate-50 dark:bg-[#101B2B] text-slate-900 dark:text-slate-100 text-xs focus:ring-1 focus:ring-cyan-500 focus:outline-none"
-            />
-          </div>
-
-          <!-- Maker Logo Live Preview (Dark & Light) -->
-          <div class="space-y-1.5">
-            <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
-              {{ $t('branding.makerLogoPreview') || 'Maker Logo Preview (Header Scale)' }}
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <div class="p-3 rounded-lg bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[64px]">
-                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Dark Header</span>
-                <img
-                  v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
-                  :src="modalMakerLogoPreviewUrl || makerLogoUrl"
-                  alt="Maker Logo preview"
-                  class="max-h-7 max-w-[120px] object-contain"
-                />
-                <span v-else class="text-[9px] text-slate-500 italic">No logo configured</span>
-              </div>
-              <div class="p-3 rounded-lg bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[64px]">
-                <span class="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Light Header</span>
-                <img
-                  v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
-                  :src="modalMakerLogoPreviewUrl || makerLogoUrl"
-                  alt="Maker Logo preview"
-                  class="max-h-7 max-w-[120px] object-contain"
-                />
-                <span v-else class="text-[9px] text-slate-400 italic">No logo configured</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Maker File Upload Actions -->
-          <input
-            ref="makerLogoFileInput"
-            type="file"
-            accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
-            class="hidden"
-            @change="onMakerFileSelected"
-          />
-          <div class="flex items-center space-x-2 pt-1">
-            <button
-              type="button"
-              @click="triggerMakerFileInput"
-              class="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#101B2B] dark:hover:bg-[#18283E] text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-[#20354B] font-bold text-3xs flex items-center justify-center space-x-1.5 transition"
-            >
-              <span>📁</span>
-              <span>{{ (modalMakerLogoPreviewUrl || makerLogoUrl) ? ($t('branding.changeMakerLogo') || 'Change Maker Logo...') : ($t('branding.uploadMakerLogo') || 'Upload Maker Logo...') }}</span>
-            </button>
-            <button
-              v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
-              type="button"
-              @click="handleRemoveMakerLogo"
-              class="py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 font-bold text-3xs flex items-center justify-center space-x-1 transition"
-            >
-              <span>🗑️</span>
-              <span>{{ $t('branding.remove') || 'Remove' }}</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- System Admin Configuration Deep Link -->
-        <div class="p-2 rounded bg-slate-50 dark:bg-[#101B2B] border border-slate-200 dark:border-[#20354B] flex items-center justify-between text-3xs">
-          <span class="text-slate-500 dark:text-slate-400">Advanced settings available in System Admin:</span>
-          <router-link
-            to="/administration/config?tab=branding"
-            @click.native="closeBrandingModal"
-            class="text-cyan-600 dark:text-cyan-400 font-bold hover:underline flex items-center space-x-1"
-          >
-            <span>⚙️ System Admin Setup →</span>
-          </router-link>
-        </div>
-
-        <!-- Footer Actions -->
-        <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200 dark:border-[#20354B]">
           <button
             type="button"
             @click="closeBrandingModal"
-            class="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+            class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <div class="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+          <!-- Error Message Banner -->
+          <div v-if="brandingErrorMsg || logoErrorMsg" class="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 text-xs font-medium flex items-center space-x-2">
+            <svg class="w-4 h-4 shrink-0 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>{{ brandingErrorMsg || logoErrorMsg }}</span>
+          </div>
+
+          <!-- Tab Selection (Customer Left Header vs Maker Right Header) -->
+          <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
+            <button
+              type="button"
+              @click="activeBrandingTab = 'customer'"
+              class="py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
+              :class="activeBrandingTab === 'customer'
+                ? 'bg-[#1685E5] text-white btn-text shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'"
+            >
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+              </svg>
+              <span>{{ $t('branding.customerTab') || 'Customer (Left Header)' }}</span>
+            </button>
+            <button
+              type="button"
+              @click="activeBrandingTab = 'maker'"
+              class="py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
+              :class="activeBrandingTab === 'maker'
+                ? 'bg-[#1685E5] text-white btn-text shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'"
+            >
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <span>{{ $t('branding.makerTab') || 'Maker / Provider (Right Header)' }}</span>
+            </button>
+          </div>
+
+          <!-- TAB 1: CUSTOMER COMPANY SETUP -->
+          <div v-if="activeBrandingTab === 'customer'" class="space-y-3.5">
+            <div class="space-y-1">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {{ $t('branding.customerName') || 'Customer Company Name (Appears Top-Left)' }}
+              </label>
+              <input
+                v-model="modalCustomerName"
+                type="text"
+                maxlength="60"
+                placeholder="e.g. Kementerian Lingkungan Hidup"
+                class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-[13px] font-medium focus:ring-2 focus:ring-[#1685E5]/30 focus:border-[#1685E5] focus:outline-none transition"
+              />
+            </div>
+
+            <!-- Station Type / Monitoring Domain: Manual vs Auto GPS Place Name -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {{ $t('branding.stationDomain') || 'Station Type / Monitoring Domain' }}
+                </label>
+                <div class="flex items-center space-x-1">
+                  <button
+                    type="button"
+                    v-for="st in ['AQMS', 'WQMS', 'Sparing']"
+                    :key="st"
+                    @click="selectModalDomainPrefix(st)"
+                    class="px-2 py-0.5 rounded-md text-[11px] font-semibold transition border cursor-pointer"
+                    :class="isModalDomainChipActive(st)
+                      ? 'bg-[#1685E5] text-white btn-text border-[#1685E5] shadow-2xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#1685E5]/50 hover:text-[#1685E5] dark:hover:text-blue-400'"
+                  >
+                    {{ st }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 2-Mode Selector: Isi Manual vs Otomatis Lokasi GPS -->
+              <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
+                <button
+                  type="button"
+                  @click="setModalStationTypeMode('MANUAL')"
+                  class="py-1.5 px-2.5 rounded-lg text-[11.5px] font-semibold transition-all flex items-center justify-center space-x-1.5"
+                  :class="modalStationTypeMode !== 'AUTO_GPS'
+                    ? 'bg-white dark:bg-slate-900 text-[#1685E5] dark:text-blue-400 shadow-xs border border-slate-200/80 dark:border-slate-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'"
+                >
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  <span>Isi Manual</span>
+                </button>
+                <button
+                  type="button"
+                  @click="setModalStationTypeMode('AUTO_GPS')"
+                  class="py-1.5 px-2.5 rounded-lg text-[11.5px] font-semibold transition-all flex items-center justify-center space-x-1.5"
+                  :class="modalStationTypeMode === 'AUTO_GPS'
+                    ? 'bg-white dark:bg-slate-900 text-[#1685E5] dark:text-blue-400 shadow-xs border border-slate-200/80 dark:border-slate-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'"
+                >
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Otomatis Lokasi GPS</span>
+                </button>
+              </div>
+
+              <!-- Mode 1: Manual Input -->
+              <div v-if="modalStationTypeMode !== 'AUTO_GPS'">
+                <input
+                  v-model="modalCustomerSubtitle"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Contoh: AQMS Kutawaringin Industrial Park"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-[13px] font-medium focus:ring-2 focus:ring-[#1685E5]/30 focus:border-[#1685E5] focus:outline-none transition"
+                />
+              </div>
+
+              <!-- Mode 2: Automatic Place Name from GPS (Nama Tempat, NOT Lat/Long) -->
+              <div
+                v-else
+                class="p-3 rounded-xl border border-blue-200/80 dark:border-blue-800/50 bg-blue-50/50 dark:bg-slate-800/70 space-y-2"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center space-x-1.5 min-w-0">
+                    <span class="w-2 h-2 rounded-full shrink-0" :class="effectiveModalPlaceName ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                    <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">
+                      Sumber: {{ activeAutoGpsSourceBadge }}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    @click="refreshAutoGpsPlaceName(true)"
+                    :disabled="isResolvingAutoPlace"
+                    class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[#1685E5] dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 disabled:opacity-50 transition flex items-center space-x-1 shrink-0"
+                  >
+                    <svg class="w-3 h-3" :class="{ 'animate-spin': isResolvingAutoPlace }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>{{ isResolvingAutoPlace ? 'Mencari...' : 'Perbarui Lokasi' }}</span>
+                  </button>
+                </div>
+
+                <div class="px-3 py-2 rounded-lg bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="text-[10.5px] font-medium text-slate-400 dark:text-slate-500">Pratinjau Tampilan Header</div>
+                    <div class="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">
+                      Stasiun <span class="text-[#1685E5] dark:text-blue-400">{{ modalAutoStationTypePreview }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                  <template v-if="effectiveModalPlaceName">
+                    Menampilkan <strong>nama tempat/wilayah</strong> otomatis dari titik GPS (bukan angka koordinat Lat/Long).
+                  </template>
+                  <template v-else>
+                    Nama wilayah belum tersedia. Pastikan lokasi stasiun atau GPS Modbus RTU sudah aktif pada kontrol GPS.
+                  </template>
+                </p>
+              </div>
+            </div>
+
+            <!-- Customer Logo Live Preview (Dark & Light) -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Customer Logo Preview (Header Scale)
+              </label>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="p-3 rounded-xl bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[68px]">
+                  <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Dark Header</span>
+                  <img
+                    v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                    :src="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                    alt="Customer Logo preview"
+                    class="max-h-7 max-w-[120px] object-contain"
+                  />
+                  <span v-else class="text-[11px] text-slate-500">Default CBI Icon</span>
+                </div>
+                <div class="p-3 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[68px]">
+                  <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Light Header</span>
+                  <img
+                    v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                    :src="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                    alt="Customer Logo preview"
+                    class="max-h-7 max-w-[120px] object-contain"
+                  />
+                  <span v-else class="text-[11px] text-slate-400">Default CBI Icon</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Customer File Upload Actions -->
+            <input
+              ref="customerLogoFileInput"
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+              class="hidden"
+              @change="onCustomerFileSelected"
+            />
+            <div class="flex items-center space-x-2 pt-0.5">
+              <button
+                type="button"
+                @click="triggerCustomerFileInput"
+                class="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs flex items-center justify-center space-x-1.5 transition"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>{{ (modalCustomerLogoPreviewUrl || customerLogoUrl) ? 'Change Customer Logo...' : 'Upload Customer Logo...' }}</span>
+              </button>
+              <button
+                v-if="modalCustomerLogoPreviewUrl || customerLogoUrl"
+                type="button"
+                @click="handleRemoveCustomerLogo"
+                class="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-semibold text-xs flex items-center justify-center space-x-1 transition"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Remove</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 2: MAKER COMPANY SETUP -->
+          <div v-else-if="activeBrandingTab === 'maker'" class="space-y-3.5">
+            <div class="space-y-1">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {{ $t('branding.makerName') || 'Maker / Provider Company Name (Appears Top-Right)' }}
+              </label>
+              <input
+                v-model="modalMakerName"
+                type="text"
+                maxlength="60"
+                placeholder="e.g. PT. Centra Biotech Indonesia"
+                class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-[13px] font-medium focus:ring-2 focus:ring-[#1685E5]/30 focus:border-[#1685E5] focus:outline-none transition"
+              />
+            </div>
+
+            <div class="space-y-1">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {{ $t('branding.makerSubtitle') || 'Maker Tagline / Subtitle' }}
+              </label>
+              <input
+                v-model="modalMakerSubtitle"
+                type="text"
+                maxlength="60"
+                placeholder="e.g. CBI Industrial IoT"
+                class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 text-[13px] font-medium focus:ring-2 focus:ring-[#1685E5]/30 focus:border-[#1685E5] focus:outline-none transition"
+              />
+            </div>
+
+            <!-- Maker Logo Live Preview (Dark & Light) -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {{ $t('branding.makerLogoPreview') || 'Maker Logo Preview (Header Scale)' }}
+              </label>
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="p-3 rounded-xl bg-[#0B1422] border border-[#20354B] flex flex-col items-center justify-center min-h-[68px]">
+                  <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Dark Header</span>
+                  <img
+                    v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
+                    :src="modalMakerLogoPreviewUrl || makerLogoUrl"
+                    alt="Maker Logo preview"
+                    class="max-h-7 max-w-[120px] object-contain"
+                  />
+                  <span v-else class="text-[11px] text-slate-500">No logo configured</span>
+                </div>
+                <div class="p-3 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center min-h-[68px]">
+                  <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Light Header</span>
+                  <img
+                    v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
+                    :src="modalMakerLogoPreviewUrl || makerLogoUrl"
+                    alt="Maker Logo preview"
+                    class="max-h-7 max-w-[120px] object-contain"
+                  />
+                  <span v-else class="text-[11px] text-slate-400">No logo configured</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Maker File Upload Actions -->
+            <input
+              ref="makerLogoFileInput"
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+              class="hidden"
+              @change="onMakerFileSelected"
+            />
+            <div class="flex items-center space-x-2 pt-0.5">
+              <button
+                type="button"
+                @click="triggerMakerFileInput"
+                class="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs flex items-center justify-center space-x-1.5 transition"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>{{ (modalMakerLogoPreviewUrl || makerLogoUrl) ? ($t('branding.changeMakerLogo') || 'Change Maker Logo...') : ($t('branding.uploadMakerLogo') || 'Upload Maker Logo...') }}</span>
+              </button>
+              <button
+                v-if="modalMakerLogoPreviewUrl || makerLogoUrl"
+                type="button"
+                @click="handleRemoveMakerLogo"
+                class="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-semibold text-xs flex items-center justify-center space-x-1 transition"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>{{ $t('branding.remove') || 'Remove' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- System Admin Configuration Deep Link -->
+          <div v-if="canManageCategories" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex items-center justify-between text-xs">
+            <span class="text-slate-500 dark:text-slate-400">Advanced settings available in System Admin:</span>
+            <router-link
+              to="/administration/config?tab=branding"
+              @click.native="closeBrandingModal"
+              class="text-[#1685E5] dark:text-blue-400 font-semibold hover:underline flex items-center space-x-1"
+            >
+              <span>System Admin Setup →</span>
+            </router-link>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="px-5 py-3.5 bg-slate-50/90 dark:bg-slate-800/80 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-end space-x-2 shrink-0">
+          <button
+            type="button"
+            @click="closeBrandingModal"
+            class="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
           >
             {{ $t('common.cancel') || 'Cancel' }}
           </button>
@@ -4960,7 +5074,7 @@
             type="button"
             @click="saveBrandingFromModal"
             :disabled="brandingSaving || logoSaving"
-            class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-xs transition"
+            class="px-4 py-2 rounded-xl bg-[#1685E5] hover:bg-[#1273C9] disabled:opacity-50 text-white btn-text font-semibold text-xs shadow-xs transition"
           >
             <span v-if="brandingSaving || logoSaving">Saving...</span>
             <span v-else>{{ $t('branding.saveConfig') || 'Save Configuration' }}</span>
@@ -6594,6 +6708,14 @@ import {
   saveAlarmPreferences,
   applyAlarmPreferences,
 } from '../utils/alarmPreferences';
+import {
+  saveCustomerBranding,
+  saveMakerBranding,
+  extractConcisePlaceName,
+  composeAutoGpsStationType,
+  reverseGeocodePlaceName,
+  inferStationDomainPrefix,
+} from '../utils/companyBranding';
 
 const REGULATORY_REF_LIMITS = {
   PM10: 150,
@@ -6622,6 +6744,9 @@ export default {
     let savedTrendHeight = 205;
     let savedCustName = '';
     let savedCustSub = '';
+    let savedStationTypeMode = 'MANUAL';
+    let savedDomainPrefix = 'AQMS';
+    let savedCachedPlaceName = '';
     let savedMakerName = '';
     let savedMakerSub = '';
     let savedGpsModbus = {
@@ -6648,12 +6773,15 @@ export default {
         if (parsedBrand && parsedBrand.customer) {
           savedCustName = parsedBrand.customer.name || '';
           savedCustSub = parsedBrand.customer.subtitle === 'Local Autonomous Edge' ? '' : (parsedBrand.customer.subtitle || '');
+          savedStationTypeMode = parsedBrand.customer.stationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+          savedDomainPrefix = parsedBrand.customer.domainPrefix || inferStationDomainPrefix(savedCustSub, 'AQMS');
         }
         if (parsedBrand && parsedBrand.maker) {
           savedMakerName = parsedBrand.maker.name || '';
           savedMakerSub = parsedBrand.maker.subtitle || '';
         }
       }
+      savedCachedPlaceName = extractConcisePlaceName(localStorage.getItem('datalogger_cached_gps_place_name') || '');
       const rawGpsModbus = localStorage.getItem('datalogger_gps_modbus_rtu_mapping');
       if (rawGpsModbus) {
         const parsedGpsModbus = JSON.parse(rawGpsModbus);
@@ -6683,6 +6811,14 @@ export default {
       isResizingBentoTrend: false,
       customerCompanyName: savedCustName,
       customerSubtitle: savedCustSub,
+      stationTypeMode: savedStationTypeMode,
+      stationDomainPrefix: savedDomainPrefix,
+      resolvedGpsPlaceName: savedCachedPlaceName,
+      modalStationTypeMode: savedStationTypeMode,
+      modalStationDomainPrefix: savedDomainPrefix,
+      modalResolvedPlaceName: savedCachedPlaceName,
+      isResolvingAutoPlace: false,
+      lastResolvedGpsKey: '',
       makerCompanyName: savedMakerName,
       makerSubtitle: savedMakerSub,
       bentoAudioEngineMuted: audioAlert.checkMuteActive(),
@@ -6713,11 +6849,88 @@ export default {
       if (this.activeMonitoringDomain !== 'AQMS') {
         return false;
       }
-      const sub = String(this.customerSubtitle || '').trim().toUpperCase();
-      if ((sub.includes('WQMS') || sub.includes('SPARING')) && !sub.includes('AQMS')) {
+      const checkStr = this.stationTypeMode === 'AUTO_GPS'
+        ? String(this.stationDomainPrefix || 'AQMS').trim().toUpperCase()
+        : String(this.customerSubtitle || '').trim().toUpperCase();
+      if ((checkStr.includes('WQMS') || checkStr.includes('SPARING')) && !checkStr.includes('AQMS')) {
         return false;
       }
       return true;
+    },
+    activeAutoGpsCoords() {
+      if (this.modbusRtuGpsStatus && this.modbusRtuGpsStatus.state === 'LOCKED') {
+        return {
+          lat: Number(this.modbusRtuGpsStatus.lat),
+          lng: Number(this.modbusRtuGpsStatus.lng),
+          source: 'MODBUS_RTU',
+        };
+      }
+      if (
+        this.stationLocation &&
+        this.stationLocation.is_configured &&
+        this.stationLocation.latitude !== null &&
+        this.stationLocation.latitude !== undefined &&
+        this.stationLocation.longitude !== null &&
+        this.stationLocation.longitude !== undefined
+      ) {
+        const lat = Number(this.stationLocation.latitude);
+        const lng = Number(this.stationLocation.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && !(Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001)) {
+          return {
+            lat,
+            lng,
+            source: this.stationLocation.location_source || 'MANUAL',
+          };
+        }
+      }
+      return null;
+    },
+    activeAutoGpsSourceBadge() {
+      if (!this.activeAutoGpsCoords) {
+        return this.fallbackSavedPlaceName ? 'Alamat Stasiun Tersimpan' : 'Belum Dikonfigurasi';
+      }
+      if (this.activeAutoGpsCoords.source === 'MODBUS_RTU') {
+        return 'GPS Modbus RTU';
+      }
+      return this.formatLocationSourceLabel(this.activeAutoGpsCoords.source);
+    },
+    fallbackSavedPlaceName() {
+      const addr = this.stationLocation && this.stationLocation.address ? this.stationLocation.address : '';
+      const stName = this.stationLocation && this.stationLocation.station_name ? this.stationLocation.station_name : '';
+      return extractConcisePlaceName(addr, stName);
+    },
+    effectiveAutoPlaceName() {
+      return extractConcisePlaceName(this.resolvedGpsPlaceName) || this.fallbackSavedPlaceName || '';
+    },
+    effectiveModalPlaceName() {
+      return extractConcisePlaceName(this.modalResolvedPlaceName) || this.effectiveAutoPlaceName || '';
+    },
+    modalAutoStationTypePreview() {
+      return composeAutoGpsStationType(this.modalStationDomainPrefix || 'AQMS', this.effectiveModalPlaceName);
+    },
+    stationTypeLabel() {
+      if (this.stationTypeMode === 'AUTO_GPS') {
+        return composeAutoGpsStationType(this.stationDomainPrefix || 'AQMS', this.effectiveAutoPlaceName);
+      }
+      if (this.customerSubtitle !== undefined && this.customerSubtitle !== null) {
+        const trimmed = String(this.customerSubtitle).trim();
+        if (trimmed !== '' && trimmed !== 'Local Autonomous Edge') {
+          return trimmed;
+        }
+      }
+      return '';
+    },
+    headerSecondaryLocationLabel() {
+      if (!this.stationLocation) return '';
+      if (this.stationTypeMode === 'AUTO_GPS') {
+        const stName = String(this.stationLocation.station_name || '').trim();
+        const cleanStName = extractConcisePlaceName(stName);
+        if (!cleanStName) return '';
+        const mainLower = String(this.stationTypeLabel || '').toLowerCase();
+        if (mainLower.includes(cleanStName.toLowerCase())) return '';
+        return cleanStName;
+      }
+      return this.stationLocation.station_name || this.stationLocation.address || '';
     },
     isWQMSDomain() {
       return this.activeMonitoringDomain === 'WQMS';
@@ -7571,9 +7784,32 @@ export default {
         this.activeToolbarPopover = null;
       }
     },
+    stationLocation: {
+      deep: true,
+      handler() {
+        if (this.stationTypeMode === 'AUTO_GPS' || this.showBrandingModal) {
+          this.refreshAutoGpsPlaceName(false);
+        }
+      },
+    },
+    modbusRtuGpsStatus(nextStatus) {
+      if (
+        nextStatus &&
+        nextStatus.state === 'LOCKED' &&
+        (this.stationTypeMode === 'AUTO_GPS' || (this.showBrandingModal && this.modalStationTypeMode === 'AUTO_GPS'))
+      ) {
+        const key = `${Number(nextStatus.lat).toFixed(3)},${Number(nextStatus.lng).toFixed(3)}`;
+        if (key !== this.lastResolvedGpsKey) {
+          this.refreshAutoGpsPlaceName(false);
+        }
+      }
+    },
   },
   mounted() {
     this.initAudioPreferences();
+    if (this.stationTypeMode === 'AUTO_GPS') {
+      this.refreshAutoGpsPlaceName(false);
+    }
     this._unsubBentoAudioState = audioAlert.onStateChange((state) => {
       if (!state) return;
       this.bentoAudioEngineMuted = !!state.isMuted;
@@ -7784,9 +8020,14 @@ export default {
           if (remote) {
             this.customerCompanyName = remote.customer_name || '';
             this.customerSubtitle = remote.customer_subtitle === 'Local Autonomous Edge' ? '' : (remote.customer_subtitle || '');
+            this.stationTypeMode = remote.station_type_mode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+            this.stationDomainPrefix = remote.station_domain_prefix || inferStationDomainPrefix(this.customerSubtitle, 'AQMS');
             this.makerCompanyName = remote.maker_name || '';
             this.makerSubtitle = remote.maker_subtitle || '';
             this.companyName = this.makerCompanyName;
+            if (this.stationTypeMode === 'AUTO_GPS') {
+              this.refreshAutoGpsPlaceName(false);
+            }
           }
         } else if (!hadSavedLocal) {
           this.customerCompanyName = '';
@@ -7803,6 +8044,136 @@ export default {
           this.makerSubtitle = '';
           this.companyName = '';
         }
+      }
+    },
+    onOrganizationBrandingUpdated(e) {
+      if (e && e.detail && e.detail.customer) {
+        if (e.detail.customer.stationTypeMode !== undefined) {
+          this.stationTypeMode = e.detail.customer.stationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+        }
+        if (e.detail.customer.domainPrefix !== undefined) {
+          this.stationDomainPrefix = e.detail.customer.domainPrefix || 'AQMS';
+        }
+      }
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onOrganizationBrandingUpdated) {
+        OperatorCommandCenterView.methods.onOrganizationBrandingUpdated.call(this, e);
+      }
+    },
+    openBrandingModal(tab = 'customer') {
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.openBrandingModal) {
+        OperatorCommandCenterView.methods.openBrandingModal.call(this, tab);
+      }
+      this.modalStationTypeMode = this.stationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+      this.modalStationDomainPrefix = this.stationDomainPrefix || inferStationDomainPrefix(this.customerSubtitle, 'AQMS');
+      this.modalResolvedPlaceName = this.resolvedGpsPlaceName || '';
+      if (this.modalStationTypeMode === 'AUTO_GPS' || this.activeAutoGpsCoords) {
+        this.refreshAutoGpsPlaceName(false);
+      }
+    },
+    isModalDomainChipActive(st) {
+      if (this.modalStationTypeMode === 'AUTO_GPS') {
+        return String(this.modalStationDomainPrefix || '').toLowerCase() === String(st).toLowerCase();
+      }
+      const sub = String(this.modalCustomerSubtitle || '').trim();
+      if (sub.toLowerCase() === String(st).toLowerCase()) return true;
+      return new RegExp(`^${st}\\b`, 'i').test(sub);
+    },
+    selectModalDomainPrefix(st) {
+      this.modalStationDomainPrefix = st;
+      if (this.modalStationTypeMode !== 'AUTO_GPS') {
+        const cur = String(this.modalCustomerSubtitle || '').trim();
+        if (!cur || /^(AQMS|WQMS|Sparing)$/i.test(cur)) {
+          this.modalCustomerSubtitle = st;
+        } else if (/^(AQMS|WQMS|Sparing)\b\s+/i.test(cur)) {
+          this.modalCustomerSubtitle = cur.replace(/^(AQMS|WQMS|Sparing)\b\s+/i, `${st} `);
+        } else {
+          this.modalCustomerSubtitle = `${st} ${cur}`;
+        }
+      }
+    },
+    setModalStationTypeMode(mode) {
+      this.modalStationTypeMode = mode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+      if (this.modalStationTypeMode === 'AUTO_GPS') {
+        if (!this.modalStationDomainPrefix) {
+          this.modalStationDomainPrefix = inferStationDomainPrefix(this.modalCustomerSubtitle, 'AQMS');
+        }
+        this.refreshAutoGpsPlaceName(false);
+      }
+    },
+    async refreshAutoGpsPlaceName(force = false) {
+      const coords = this.activeAutoGpsCoords;
+      if (!coords) {
+        const saved = this.fallbackSavedPlaceName;
+        if (saved) {
+          this.resolvedGpsPlaceName = saved;
+          this.modalResolvedPlaceName = saved;
+        }
+        return;
+      }
+
+      const key = `${coords.lat.toFixed(3)},${coords.lng.toFixed(3)}`;
+      if (!force && key === this.lastResolvedGpsKey && this.resolvedGpsPlaceName) {
+        this.modalResolvedPlaceName = this.resolvedGpsPlaceName;
+        return;
+      }
+
+      this.isResolvingAutoPlace = true;
+      try {
+        const res = await reverseGeocodePlaceName(coords.lat, coords.lng);
+        const cleanPlace = extractConcisePlaceName(res && res.placeName) || this.fallbackSavedPlaceName;
+        if (cleanPlace) {
+          this.resolvedGpsPlaceName = cleanPlace;
+          this.modalResolvedPlaceName = cleanPlace;
+          this.lastResolvedGpsKey = key;
+          try {
+            localStorage.setItem('datalogger_cached_gps_place_name', cleanPlace);
+          } catch (e) {}
+        }
+      } catch (e) {
+        const fallback = this.fallbackSavedPlaceName;
+        if (fallback) {
+          this.resolvedGpsPlaceName = fallback;
+          this.modalResolvedPlaceName = fallback;
+        }
+      } finally {
+        this.isResolvingAutoPlace = false;
+      }
+    },
+    async saveBrandingFromModal() {
+      this.brandingSaving = true;
+      this.logoSaving = true;
+      this.brandingErrorMsg = '';
+      try {
+        const nextMode = this.modalStationTypeMode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+        const nextPrefix = this.modalStationDomainPrefix || inferStationDomainPrefix(this.modalCustomerSubtitle, 'AQMS');
+        const subtitleToSave = nextMode === 'AUTO_GPS'
+          ? composeAutoGpsStationType(nextPrefix, this.effectiveModalPlaceName)
+          : this.modalCustomerSubtitle;
+
+        await saveCustomerBranding({
+          file: this.modalCustomerLogoFile,
+          name: this.modalCustomerName,
+          subtitle: subtitleToSave,
+          stationTypeMode: nextMode,
+          domainPrefix: nextPrefix,
+        });
+
+        await saveMakerBranding({
+          file: this.modalMakerLogoFile,
+          name: this.modalMakerName,
+          subtitle: this.modalMakerSubtitle,
+        });
+
+        this.stationTypeMode = nextMode;
+        this.stationDomainPrefix = nextPrefix;
+        await this.initCompanyBranding();
+        this.closeBrandingModal();
+      } catch (err) {
+        this.brandingErrorMsg = err.message || 'Failed to save organization branding.';
+        this.logoErrorMsg = this.brandingErrorMsg;
+      } finally {
+        this.brandingSaving = false;
+        this.logoSaving = false;
       }
     },
     onDocumentContextMenu(e) {
@@ -9054,6 +9425,21 @@ export default {
       this.candidateLocation.location_source = 'MODBUS_RTU';
       this.candidateLocation.accuracy_meters = null;
 
+      try {
+        const geo = await reverseGeocodePlaceName(lat, lng);
+        if (geo && (geo.displayName || geo.placeName)) {
+          this.candidateLocation.address = geo.displayName || geo.placeName;
+          const cleanPlace = extractConcisePlaceName(geo.placeName || geo.displayName);
+          if (cleanPlace) {
+            this.resolvedGpsPlaceName = cleanPlace;
+            this.modalResolvedPlaceName = cleanPlace;
+            try {
+              localStorage.setItem('datalogger_cached_gps_place_name', cleanPlace);
+            } catch (e) {}
+          }
+        }
+      } catch (e) {}
+
       this.$nextTick(() => {
         if (this.$refs.miniMapViewer) {
           this.$refs.miniMapViewer.setMarkerPosition(lat, lng);
@@ -9073,6 +9459,17 @@ export default {
           message: `Pratinjau koordinat GPS Modbus RTU (${lat.toFixed(6)}, ${lng.toFixed(6)}) diterapkan pada peta.`,
         };
       }
+    },
+    async onMapCoordinatePicked({ lat, lng }) {
+      if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.onMapCoordinatePicked) {
+        OperatorCommandCenterView.methods.onMapCoordinatePicked.call(this, { lat, lng });
+      }
+      try {
+        const geo = await reverseGeocodePlaceName(lat, lng);
+        if (geo && (geo.displayName || geo.placeName)) {
+          this.candidateLocation.address = geo.displayName || geo.placeName;
+        }
+      } catch (e) {}
     },
     onTestReadCompleted(payload) {
       if (!payload || !payload.result || !payload.parameter) return;

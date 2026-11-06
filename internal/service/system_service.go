@@ -848,15 +848,17 @@ func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCo
 
 // UpdateSystemBrandingRequest DTO for updating branding
 type UpdateSystemBrandingRequest struct {
-	CustomerName     *string `json:"customer_name"`
-	CustomerSubtitle *string `json:"customer_subtitle"`
-	CustomerLogo     *string `json:"customer_logo"`
-	CustomerHasLogo  *bool   `json:"customer_has_logo"`
-	MakerName        *string `json:"maker_name"`
-	MakerSubtitle    *string `json:"maker_subtitle"`
-	MakerLogo        *string `json:"maker_logo"`
-	MakerHasLogo     *bool   `json:"maker_has_logo"`
-	Reset            bool    `json:"reset"`
+	CustomerName        *string `json:"customer_name"`
+	CustomerSubtitle    *string `json:"customer_subtitle"`
+	StationTypeMode     *string `json:"station_type_mode"`
+	StationDomainPrefix *string `json:"station_domain_prefix"`
+	CustomerLogo        *string `json:"customer_logo"`
+	CustomerHasLogo     *bool   `json:"customer_has_logo"`
+	MakerName           *string `json:"maker_name"`
+	MakerSubtitle       *string `json:"maker_subtitle"`
+	MakerLogo           *string `json:"maker_logo"`
+	MakerHasLogo        *bool   `json:"maker_has_logo"`
+	Reset               bool    `json:"reset"`
 }
 
 func (s *SystemService) GetBranding() (*model.SystemBranding, error) {
@@ -872,6 +874,8 @@ func (s *SystemService) SaveBranding(req UpdateSystemBrandingRequest) (*model.Sy
 	if req.Reset {
 		current.CustomerName = "PT. Mitra Industri Enviro"
 		current.CustomerSubtitle = "AQMS"
+		current.StationTypeMode = "MANUAL"
+		current.StationDomainPrefix = "AQMS"
 		current.CustomerLogo = ""
 		current.CustomerHasLogo = false
 		current.MakerName = "PT. Centra Biotech Indonesia"
@@ -889,6 +893,17 @@ func (s *SystemService) SaveBranding(req UpdateSystemBrandingRequest) (*model.Sy
 	}
 	if req.CustomerSubtitle != nil {
 		current.CustomerSubtitle = strings.TrimSpace(*req.CustomerSubtitle)
+	}
+	if req.StationTypeMode != nil {
+		mode := strings.ToUpper(strings.TrimSpace(*req.StationTypeMode))
+		if mode == "AUTO_GPS" {
+			current.StationTypeMode = "AUTO_GPS"
+		} else {
+			current.StationTypeMode = "MANUAL"
+		}
+	}
+	if req.StationDomainPrefix != nil {
+		current.StationDomainPrefix = strings.TrimSpace(*req.StationDomainPrefix)
 	}
 	if req.CustomerLogo != nil {
 		current.CustomerLogo = *req.CustomerLogo

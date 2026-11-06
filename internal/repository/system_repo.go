@@ -573,19 +573,24 @@ func (r *SystemRepository) GetBranding() (*model.SystemBranding, error) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			defaultBranding := model.SystemBranding{
-				CustomerName:     "PT. Mitra Industri Enviro",
-				CustomerSubtitle: "AQMS",
-				CustomerHasLogo:  false,
-				MakerName:        "PT. Centra Biotech Indonesia",
-				MakerSubtitle:    "CBI Industrial IoT",
-				MakerHasLogo:     false,
-				CreatedAt:        time.Now(),
-				UpdatedAt:        time.Now(),
+				CustomerName:        "PT. Mitra Industri Enviro",
+				CustomerSubtitle:    "AQMS",
+				StationTypeMode:     "MANUAL",
+				StationDomainPrefix: "AQMS",
+				CustomerHasLogo:     false,
+				MakerName:           "PT. Centra Biotech Indonesia",
+				MakerSubtitle:       "CBI Industrial IoT",
+				MakerHasLogo:        false,
+				CreatedAt:           time.Now(),
+				UpdatedAt:           time.Now(),
 			}
 			_ = r.db.Create(&defaultBranding)
 			return &defaultBranding, nil
 		}
 		return nil, err
+	}
+	if strings.TrimSpace(branding.StationTypeMode) == "" {
+		branding.StationTypeMode = "MANUAL"
 	}
 	return &branding, nil
 }

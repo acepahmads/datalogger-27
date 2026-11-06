@@ -35,6 +35,7 @@ func setupStationLocationTestRouter(t *testing.T) (*gin.Engine, *gorm.DB, *servi
 
 	_ = db.AutoMigrate(
 		&model.StationLocation{},
+		&model.SystemBranding{},
 		&model.AuditTrail{},
 		&model.SystemLog{},
 		&model.User{},
@@ -53,6 +54,9 @@ func setupStationLocationTestRouter(t *testing.T) (*gin.Engine, *gorm.DB, *servi
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.GET("/system/location/ip-estimate", systemHandler.GetIPGeolocationEstimate)
 		api.GET("/system/location/search", systemHandler.SearchLocation)
+		api.GET("/system/location/reverse", systemHandler.ReverseGeocodeLocation)
+		api.GET("/system/branding", systemHandler.GetBranding)
+		api.POST("/system/branding", systemHandler.SaveBranding)
 
 		// Simulated authenticated endpoint with context
 		api.PUT("/system/location/direct", func(c *gin.Context) {
@@ -390,6 +394,98 @@ func TestStationLocation_SearchLocation(t *testing.T) {
 		lat := first["lat"].(float64)
 		if lat < -6.93 || lat > -6.91 {
 			t.Errorf("Expected lat around -6.9218, got %f", lat)
+		}
+	}
+}
+
+func TestStationLocation_ReverseGeocodeAndBrandingAutoGps(t *testing.T) {
+	router, _, _ := setupStationLocationTestRouter(t)
+
+	// 1. Place name extraction strips coordinates, postal codes, and country
+	{
+		addr := map[string]string{
+			"village":  "Kutawaringin",
+			"county":   "Kabupaten Bandung",
+			"state":    "Jawa Barat",
+			"postcode": "40911",
+			"country":  "Indonesia",
+		}
+		got := handler.ExtractConcisePlaceName(addr, "Kutawaringin, Kabupaten Bandung, Jawa Barat, 40911, Indonesia")
+		if got != "Kutawaringin, Kabupaten Bandung" {
+			t.Errorf("Expected 'Kutawaringin, Kabupaten Bandung', got '%s'", got)
+		}
+
+		// Fallback to display_name without addr map
+		gotFallback := handler.ExtractConcisePlaceName(nil, "Cikarang Selatan, Kabupaten Bekasi, Jawa Barat, 17530, Indonesia")
+		if gotFallback != "Cikarang Selatan, Kabupaten Bekasi" {
+			t.Errorf("Expected 'Cikarang Selatan, Kabupaten Bekasi', got '%s'", gotFallback)
+		}
+
+		// Raw coordinates must NEVER be returned as place name
+		gotCoords := handler.ExtractConcisePlaceName(nil, "-6.950872, 107.533430")
+		if gotCoords != "" {
+			t.Errorf("Expected empty string for raw coordinates, got '%s'", gotCoords)
+		}
+	}
+
+	// 2. Null-Island (0, 0) guard returns empty place_name without querying Nominatim
+	{
+		req := httptest.NewRequest(http.MethodGet, "/api/system/location/reverse?lat=0&lng=0", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("Expected 200 OK for (0,0) guard, got %d", w.Code)
+		}
+		var resp struct {
+			Data map[string]interface{} `json:"data"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp.Data["place_name"] != "" {
+			t.Errorf("Expected empty place_name for Null-Island (0,0), got %v", resp.Data["place_name"])
+		}
+	}
+
+	// 3. Invalid coordinates return 400 Bad Request
+	{
+		req := httptest.NewRequest(http.MethodGet, "/api/system/location/reverse?lat=999&lng=107", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected 400 Bad Request for out-of-range lat, got %d", w.Code)
+		}
+	}
+
+	// 4. Branding persistence supports station_type_mode = AUTO_GPS & station_domain_prefix
+	{
+		mode := "AUTO_GPS"
+		prefix := "AQMS"
+		sub := "AQMS Kutawaringin, Kabupaten Bandung"
+		payload := service.UpdateSystemBrandingRequest{
+			CustomerSubtitle:    &sub,
+			StationTypeMode:     &mode,
+			StationDomainPrefix: &prefix,
+		}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/system/branding", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("Expected 200 OK saving branding, got %d: %s", w.Code, w.Body.String())
+		}
+
+		reqGet := httptest.NewRequest(http.MethodGet, "/api/system/branding", nil)
+		wGet := httptest.NewRecorder()
+		router.ServeHTTP(wGet, reqGet)
+		var getResp struct {
+			Data model.SystemBranding `json:"data"`
+		}
+		_ = json.Unmarshal(wGet.Body.Bytes(), &getResp)
+		if getResp.Data.StationTypeMode != "AUTO_GPS" {
+			t.Errorf("Expected StationTypeMode=AUTO_GPS, got %s", getResp.Data.StationTypeMode)
+		}
+		if getResp.Data.StationDomainPrefix != "AQMS" {
+			t.Errorf("Expected StationDomainPrefix=AQMS, got %s", getResp.Data.StationDomainPrefix)
 		}
 	}
 }
