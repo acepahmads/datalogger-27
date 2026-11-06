@@ -889,6 +889,20 @@
                   >
                     {{ $t('operator.uncategorized') || 'Uncategorized' }}
                   </span>
+                  <span
+                    v-if="param.calibration_session_active"
+                    class="px-1.5 py-0.2 rounded text-4xs font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40 ml-1 font-mono animate-pulse"
+                    title="Mode Sesi Kalibrasi Aktif (Alarm & pelaporan ISPU/SPARING/ONLIMO terlindungi)"
+                  >
+                    MODE KALIBRASI
+                  </span>
+                  <span
+                    v-else-if="param.calibration_enabled"
+                    class="px-1.5 py-0.2 rounded text-4xs font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30 ml-1 font-mono"
+                    :title="param.cal_r2 !== null && param.cal_r2 !== undefined ? ('Kurva Kalibrasi Aktif · R² = ' + Number(param.cal_r2).toFixed(4)) : 'Kurva Kalibrasi 1-Titik Aktif'"
+                  >
+                    CAL{{ param.cal_r2 !== null && param.cal_r2 !== undefined ? ' R²=' + Number(param.cal_r2).toFixed(3) : '' }}
+                  </span>
                 </div>
               </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-700 dark:text-slate-300">{{ param.data_type }}</td>
@@ -969,6 +983,18 @@
                 </button>
               </td>
               <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                <router-link
+                  v-if="!isOperator && !['BOOL', 'COIL', 'DISCRETE', 'STRING'].includes(String(param.data_type || '').toUpperCase())"
+                  :to="{ path: '/monitoring/calibration', query: { device_id: device.id, parameter_id: param.id } }"
+                  class="text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/30 transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"
+                  title="Kalibrasi Sensor & Regresi Multi-Titik (1-10 Titik)"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <circle cx="12" cy="12" r="8" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <span>Kalibrasi</span>
+                </router-link>
                 <button
                   @click="openTestReadModal(param)"
                   class="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"

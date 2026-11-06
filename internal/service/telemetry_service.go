@@ -30,11 +30,12 @@ type TelemetryIngestPayload struct {
 	ParameterName   string
 	Unit            string
 	DataType        model.ParameterDataType
-	RawBytes        []byte
-	RawHex          string
-	RawValue        float64
-	Value           float64
-	FormulaValue    *float64
+	RawBytes          []byte
+	RawHex            string
+	RawValue          float64
+	UncalibratedValue *float64
+	Value             float64
+	FormulaValue      *float64
 	Formula         string
 	IsHeldValue     bool
 	Quality         model.TelemetryQuality
@@ -60,9 +61,12 @@ type LatestTelemetry struct {
 	ParameterName   string                  `json:"parameter_name"`
 	Unit            string                  `json:"unit"`
 	DataType        model.ParameterDataType `json:"data_type"`
-	Value           float64                 `json:"value"`
-	ProcessedValue  float64                 `json:"processed_value"`
-	ValueNumeric    *float64                `json:"value_numeric,omitempty"`
+	Value                    float64                 `json:"value"`
+	ProcessedValue           float64                 `json:"processed_value"`
+	UncalibratedValue        *float64                `json:"uncalibrated_value,omitempty"`
+	CalibrationEnabled       bool                    `json:"calibration_enabled,omitempty"`
+	CalibrationSessionActive bool                    `json:"calibration_session_active,omitempty"`
+	ValueNumeric             *float64                `json:"value_numeric,omitempty"`
 	FormulaValue    *float64                `json:"formula_value,omitempty"`
 	Formula         string                  `json:"formula,omitempty"`
 	IsHeldValue     bool                    `json:"is_held_value"`
@@ -330,6 +334,48 @@ func (s *TelemetryService) ClearParameterCache(paramID uint) {
 	delete(s.staleEvalLastAt, paramID)
 }
 
+// SyncParameterCalibrationCache immediately updates cached instantaneous telemetry when a parameter's calibration curve or session state changes
+func (s *TelemetryService) SyncParameterCalibrationCache(param *model.Parameter) {
+	if param == nil {
+		return
+	}
+	s.latestMu.Lock()
+	cached, ok := s.latestCache[param.ID]
+	var broadcastCopy *LatestTelemetry
+	if ok && cached != nil {
+		cached.CalibrationEnabled = param.CalibrationEnabled
+		cached.CalibrationSessionActive = param.CalibrationSessionActive
+		if cached.UncalibratedValue != nil {
+			newCal := param.ApplyCalibration(*cached.UncalibratedValue)
+			cached.Value = newCal
+			cached.ProcessedValue = newCal
+			vNum := newCal
+			cached.ValueNumeric = &vNum
+			cached.ValueText = strconv.FormatFloat(newCal, 'f', 2, 64)
+		}
+		if param.CalibrationSessionActive {
+			if cached.Quality != model.QualityBad {
+				cached.Quality = model.QualityUncertain
+			}
+			cached.QualityReason = model.ReasonCalibrationMode
+		} else if cached.QualityReason == model.ReasonCalibrationMode {
+			cached.Quality = model.QualityGood
+			cached.QualityReason = model.ReasonNone
+		}
+		cp := *cached
+		broadcastCopy = &cp
+	}
+	s.latestMu.Unlock()
+
+	if broadcastCopy != nil && s.hub != nil {
+		s.hub.Broadcast(websocket.WSMessage{
+			Type:      "device.telemetry.received",
+			Timestamp: time.Now().UTC(),
+			Data:      broadcastCopy,
+		})
+	}
+}
+
 // Ingest receives a telemetry measurement, validates, updates cache, broadcasts, and enqueues
 func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 	if payload == nil {
@@ -366,6 +412,7 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 		if prev, ok := s.latestCache[latest.ParameterID]; ok {
 			latest.Value = prev.Value
 			latest.ProcessedValue = prev.ProcessedValue
+			latest.UncalibratedValue = prev.UncalibratedValue
 			latest.ValueNumeric = prev.ValueNumeric
 			latest.FormulaValue = prev.FormulaValue
 			latest.ValueText = prev.ValueText
@@ -479,7 +526,32 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		}
 	}
 
-	// Preserve caller-supplied quality flags (e.g., formula_fallback) alongside QualityProcessor flags
+	// Active Calibration Session Guard: tag readings with calibration_session so alarms & regulatory AQMS/SPARING/ONLIMO buckets are protected
+	calEnabled := false
+	calSessionActive := false
+	resolvedParam := p.Parameter
+	if resolvedParam == nil && s.paramLookup != nil {
+		if lookedUp, err := s.paramLookup(p.ParameterID); err == nil && lookedUp != nil {
+			resolvedParam = lookedUp
+		}
+	}
+	if resolvedParam != nil {
+		calEnabled = resolvedParam.CalibrationEnabled
+		calSessionActive = resolvedParam.CalibrationSessionActive
+		if calSessionActive {
+			if valResult.Quality != model.QualityBad {
+				valResult.Quality = model.QualityUncertain
+			}
+			valResult.QualityReason = model.ReasonCalibrationMode
+			if p.QualityFlags == "" {
+				p.QualityFlags = model.FlagCalibrationSession
+			} else if !strings.Contains(p.QualityFlags, model.FlagCalibrationSession) {
+				p.QualityFlags = p.QualityFlags + "," + model.FlagCalibrationSession
+			}
+		}
+	}
+
+	// Preserve caller-supplied quality flags (e.g., formula_fallback, calibration_session) alongside QualityProcessor flags
 	if p.QualityFlags != "" {
 		flagSet := make(map[string]bool)
 		mergedFlags := make([]string, 0, 4)
@@ -562,18 +634,30 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		Timestamp:       recAt,
 	}
 
+	var uncalPtr *float64
+	if p.UncalibratedValue != nil && !math.IsNaN(*p.UncalibratedValue) && !math.IsInf(*p.UncalibratedValue, 0) {
+		u := *p.UncalibratedValue
+		uncalPtr = &u
+	} else if !calEnabled {
+		u := val
+		uncalPtr = &u
+	}
+
 	latest := &LatestTelemetry{
-		DeviceID:        p.DeviceID,
-		DeviceCode:      p.DeviceCode,
-		DeviceName:      p.DeviceName,
-		ParameterID:     p.ParameterID,
-		ParameterCode:   p.ParameterCode,
-		ParameterName:   p.ParameterName,
-		Unit:            p.Unit,
-		DataType:        p.DataType,
-		Value:           val,
-		ProcessedValue:  val,
-		ValueNumeric:    &valNum,
+		DeviceID:                 p.DeviceID,
+		DeviceCode:               p.DeviceCode,
+		DeviceName:               p.DeviceName,
+		ParameterID:              p.ParameterID,
+		ParameterCode:            p.ParameterCode,
+		ParameterName:            p.ParameterName,
+		Unit:                     p.Unit,
+		DataType:                 p.DataType,
+		Value:                    val,
+		ProcessedValue:           val,
+		UncalibratedValue:        uncalPtr,
+		CalibrationEnabled:       calEnabled,
+		CalibrationSessionActive: calSessionActive,
+		ValueNumeric:             &valNum,
 		FormulaValue:    p.FormulaValue,
 		Formula:         p.Formula,
 		IsHeldValue:     p.IsHeldValue,
@@ -1038,16 +1122,25 @@ func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, 
 		quality = model.QualityStale
 	}
 
+	uncal := param.CurrentUncalibratedValue
+	if uncal == nil && !param.CalibrationEnabled && param.CurrentValue != nil {
+		u := *param.CurrentValue
+		uncal = &u
+	}
+
 	return &LatestTelemetry{
-		DeviceID:        deviceID,
-		ParameterID:     param.ID,
-		ParameterCode:   param.ParameterCode,
-		ParameterName:   param.ParameterName,
-		Unit:            param.Unit,
-		DataType:        param.DataType,
-		Value:           val,
-		ProcessedValue:  procVal,
-		ValueNumeric:    param.CurrentValueNumeric,
+		DeviceID:                 deviceID,
+		ParameterID:              param.ID,
+		ParameterCode:            param.ParameterCode,
+		ParameterName:            param.ParameterName,
+		Unit:                     param.Unit,
+		DataType:                 param.DataType,
+		Value:                    val,
+		ProcessedValue:           procVal,
+		UncalibratedValue:        uncal,
+		CalibrationEnabled:       param.CalibrationEnabled,
+		CalibrationSessionActive: param.CalibrationSessionActive,
+		ValueNumeric:             param.CurrentValueNumeric,
 		FormulaValue:    param.CurrentFormulaValue,
 		Formula:         param.Formula,
 		IsHeldValue:     param.IsCurrentHeld,

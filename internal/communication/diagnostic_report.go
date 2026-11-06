@@ -548,10 +548,11 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 		return report, nil
 	}
 
-	engVal := modbus.ApplyScaleAndOffset(decoded.RawValue, param.Scale, param.Offset, param.Precision)
+	uncalVal := modbus.ApplyScaleAndOffset(decoded.RawValue, param.Scale, param.Offset, param.Precision)
+	engVal := param.ApplyCalibration(uncalVal)
 	report.DataEvidence.RawValue = &decoded.RawValue
 	report.DataEvidence.DecodedValue = &decoded.RawValue
-	report.DataEvidence.ScaledValue = &engVal
+	report.DataEvidence.ScaledValue = &uncalVal
 
 	finalVal := engVal
 	if param.Formula != "" {
@@ -597,7 +598,7 @@ func (m *ConnectionManager) DiagnosticParameterRead(
 
 	// Update cached parameter state for UI responsiveness
 	if m.deviceService != nil {
-		_ = m.deviceService.UpdateParameterCurrentValue(param.ID, finalVal, report.DataEvidence.FormulaValue, false)
+		_ = m.deviceService.UpdateParameterCurrentReadings(param.ID, &uncalVal, finalVal, report.DataEvidence.FormulaValue, false)
 		_ = m.deviceService.UpdateLastData(device.ID)
 		_ = m.deviceService.SetOnline(device.ID)
 		_ = m.deviceService.UpdateLastSeen(device.ID)

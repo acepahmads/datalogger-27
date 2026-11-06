@@ -106,6 +106,13 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
+		// Sensor Calibration restriction: strictly blocked for OPERATOR; accessible to all non-OPERATOR roles
+		if strings.HasPrefix(permissionCode, "calibration.") && strings.EqualFold(role, "OPERATOR") {
+			response.Forbidden(c, "Access denied: role OPERATOR cannot access sensor calibration")
+			c.Abort()
+			return
+		}
+
 		// Mode raw value / telemetry.raw restriction: only ADMIN and SUPERADMIN/Administrator
 		if permissionCode == "telemetry.raw" {
 			if !strings.EqualFold(role, "ADMIN") {
@@ -146,6 +153,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"report.view": true, "report.generate": true,
 				"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
 				"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
+				"calibration.view": true, "calibration.manage": true,
 				"config.view": true,
 			}
 			if engAllowed[permissionCode] {
@@ -171,8 +179,9 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				return
 			}
 		} else if strings.TrimSpace(role) != "" {
-			// All authenticated roles outside OPERATOR can view, manage (CRUD), and assign parameter categories
-			if permissionCode == "category.view" || permissionCode == "category.manage" || permissionCode == "category.assign" {
+			// All authenticated roles outside OPERATOR can view, manage (CRUD), and assign parameter categories and sensor calibrations
+			if permissionCode == "category.view" || permissionCode == "category.manage" || permissionCode == "category.assign" ||
+				permissionCode == "calibration.view" || permissionCode == "calibration.manage" {
 				c.Next()
 				return
 			}

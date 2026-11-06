@@ -10,6 +10,7 @@ export default {
     "liveTelemetry": "Telemetri Langsung",
     "telemetryAnalysis": "Analisis Telemetri",
     "devicesSensors": "Perangkat & Sensor",
+    "sensorCalibration": "Kalibrasi Sensor",
     "parameters": "Parameter",
     "alarmsEvents": "Alarm & Kejadian",
     "activeAlarms": "Alarm Aktif",

@@ -143,6 +143,24 @@
             <span>{{ $t('navigation.devicesSensors') }}</span>
           </router-link>
 
+          <router-link
+            v-if="!isOperator"
+            to="/monitoring/calibration"
+            class="nav-item"
+            :class="{ 'nav-active': $route.path.startsWith('/monitoring/calibration') }"
+          >
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-sky-500 dark:text-sky-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.85">
+              <circle cx="12" cy="12" r="8"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+              <line x1="12" y1="2" x2="12" y2="4"></line>
+              <line x1="12" y1="20" x2="12" y2="22"></line>
+              <line x1="2" y1="12" x2="4" y2="12"></line>
+              <line x1="20" y1="12" x2="22" y2="12"></line>
+            </svg>
+            <span class="font-semibold text-sky-600 dark:text-sky-300">{{ $t('navigation.sensorCalibration') || 'Kalibrasi Sensor' }}</span>
+          </router-link>
+
           <router-link v-if="!isOperator" to="/monitoring/telemetry" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/telemetry' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-emerald-500 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">

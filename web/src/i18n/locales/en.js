@@ -10,6 +10,7 @@ export default {
     "liveTelemetry": "Live Telemetry",
     "telemetryAnalysis": "Telemetry Analysis",
     "devicesSensors": "Devices & Sensors",
+    "sensorCalibration": "Sensor Calibration",
     "parameters": "Parameters",
     "alarmsEvents": "Alarms & Events",
     "activeAlarms": "Active Alarms",

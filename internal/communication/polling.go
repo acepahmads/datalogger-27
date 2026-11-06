@@ -1394,8 +1394,10 @@ func (p *PollingEngine) processDecodedParameter(
 		return nil, fmt.Errorf("register decode failed: %w", err)
 	}
 
-	// Apply Scale & Offset
-	engVal := modbus.ApplyScaleAndOffset(decoded.RawValue, param.Scale, param.Offset, param.Precision)
+	// Apply Base Register Scale & Offset (Pre-Calibration Sensor Value x)
+	uncalVal := modbus.ApplyScaleAndOffset(decoded.RawValue, param.Scale, param.Offset, param.Precision)
+	// Apply Multi-Point Sensor Calibration Curve (y = f(x)) when enabled
+	engVal := param.ApplyCalibration(uncalVal)
 
 	// Evaluate Anomaly Hold Tracker & Custom Formula
 	effVal := engVal
@@ -1414,7 +1416,7 @@ func (p *PollingEngine) processDecodedParameter(
 	}
 
 	if p.deviceService != nil {
-		_ = p.deviceService.UpdateParameterCurrentValue(param.ID, finalVal, formulaVal, isHeld)
+		_ = p.deviceService.UpdateParameterCurrentReadings(param.ID, &uncalVal, finalVal, formulaVal, isHeld)
 		_ = p.deviceService.UpdateLastData(device.ID)
 	}
 
@@ -1431,7 +1433,7 @@ func (p *PollingEngine) processDecodedParameter(
 		finalVal,
 		responseTime,
 	)
-	result.ScaledValue = engVal
+	result.ScaledValue = uncalVal
 	result.Formula = param.Formula
 	result.FormulaValue = formulaVal
 	result.IsHeld = isHeld
@@ -1445,26 +1447,27 @@ func (p *PollingEngine) processDecodedParameter(
 			source = string(device.Connection.Protocol)
 		}
 		_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
-			DeviceID:      device.ID,
-			DeviceCode:    device.DeviceCode,
-			DeviceName:    device.DeviceName,
-			ParameterID:   param.ID,
-			ParameterCode: param.ParameterCode,
-			ParameterName: param.ParameterName,
-			Unit:          param.Unit,
-			DataType:      param.DataType,
-			RawBytes:      rawBytes,
-			RawHex:        result.RawHex,
-			RawValue:      decoded.RawValue,
-			Value:         finalVal,
-			FormulaValue:  formulaVal,
-			Formula:       param.Formula,
-			IsHeldValue:   isHeld,
-			Quality:       quality,
-			Source:        source,
-			ReceivedAt:    result.Timestamp,
-			Parameter:     param,
-			ReadError:     nil,
+			DeviceID:          device.ID,
+			DeviceCode:        device.DeviceCode,
+			DeviceName:        device.DeviceName,
+			ParameterID:       param.ID,
+			ParameterCode:     param.ParameterCode,
+			ParameterName:     param.ParameterName,
+			Unit:              param.Unit,
+			DataType:          param.DataType,
+			RawBytes:          rawBytes,
+			RawHex:            result.RawHex,
+			RawValue:          decoded.RawValue,
+			UncalibratedValue: &uncalVal,
+			Value:             finalVal,
+			FormulaValue:      formulaVal,
+			Formula:           param.Formula,
+			IsHeldValue:       isHeld,
+			Quality:           quality,
+			Source:            source,
+			ReceivedAt:        result.Timestamp,
+			Parameter:         param,
+			ReadError:         nil,
 		})
 	}
 

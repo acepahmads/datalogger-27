@@ -3,6 +3,7 @@ package aggregation
 import (
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"datalogger/internal/model"
@@ -10,11 +11,12 @@ import (
 
 // CalculationSample represents an extracted, validated data point for aggregation
 type CalculationSample struct {
-	Timestamp time.Time
-	Value     float64
-	Quality   model.TelemetryQuality
-	Reason    model.QualityReason
-	IsValid   bool
+	Timestamp     time.Time
+	Value         float64
+	Quality       model.TelemetryQuality
+	Reason        model.QualityReason
+	IsCalibration bool
+	IsValid       bool
 }
 
 // Engine performs deterministic statistical and quality rollups over raw telemetry collections
@@ -105,12 +107,15 @@ const MaxPlausibleEnvironmentalValue = 1e8
 			ts = *s.DeviceTimestamp
 		}
 
+		isCalSession := s.QualityReason == model.ReasonCalibrationMode || strings.Contains(s.QualityFlags, model.FlagCalibrationSession)
+
 		validSamples = append(validSamples, CalculationSample{
-			Timestamp: ts,
-			Value:     val,
-			Quality:   s.Quality,
-			Reason:    s.QualityReason,
-			IsValid:   true,
+			Timestamp:     ts,
+			Value:         val,
+			Quality:       s.Quality,
+			Reason:        s.QualityReason,
+			IsCalibration: isCalSession,
+			IsValid:       true,
 		})
 	}
 
@@ -131,10 +136,32 @@ const MaxPlausibleEnvironmentalValue = 1e8
 	// POS 2: Smart Aggregation Sample Sanitization
 	// If healthy (GOOD / UNCERTAIN) samples exist, exclude QualityBad samples from mathematical calculation
 	// so faulty registers or sensor read errors do not corrupt the bucket value or average.
+	// Additionally, for CUSTOMER_PROCESSED compliance rollups (AQMS ISPU, SPARING KLHK, WQMS ONLIMO),
+	// exclude samples recorded during an active Calibration Session whenever normal operational samples exist!
 	var calcSamples []CalculationSample
-	for _, s := range validSamples {
-		if s.Quality != model.QualityBad {
-			calcSamples = append(calcSamples, s)
+	allCalibrationSession := false
+	if !isRaw {
+		for _, s := range validSamples {
+			if s.Quality != model.QualityBad && !s.IsCalibration {
+				calcSamples = append(calcSamples, s)
+			}
+		}
+	}
+	if len(calcSamples) == 0 {
+		for _, s := range validSamples {
+			if s.Quality != model.QualityBad {
+				calcSamples = append(calcSamples, s)
+			}
+		}
+		if !isRaw && len(calcSamples) > 0 {
+			allCal := true
+			for _, s := range calcSamples {
+				if !s.IsCalibration {
+					allCal = false
+					break
+				}
+			}
+			allCalibrationSession = allCal
 		}
 	}
 	if len(calcSamples) == 0 {
@@ -210,7 +237,11 @@ const MaxPlausibleEnvironmentalValue = 1e8
 		}
 	} else if res.UncertainCount > 0 {
 		res.Quality = model.QualityUncertain
-		res.QualityReason = model.ReasonOutOfWarningRange
+		if allCalibrationSession {
+			res.QualityReason = model.ReasonCalibrationMode
+		} else {
+			res.QualityReason = model.ReasonOutOfWarningRange
+		}
 	} else if res.StaleCount > 0 {
 		res.Quality = model.QualityStale
 		res.QualityReason = model.ReasonStaleData

@@ -9,6 +9,7 @@ import ActivityView from '../views/ActivityView.vue';
 import SystemMonitoringView from '../views/SystemMonitoringView.vue';
 import DevicesView from '../views/DevicesView.vue';
 import DeviceDetailView from '../views/DeviceDetailView.vue';
+import SensorCalibrationView from '../views/SensorCalibrationView.vue';
 import TelemetryMonitorView from '../views/TelemetryMonitorView.vue';
 import TelemetryAnalysisView from '../views/TelemetryAnalysisView.vue';
 import AlarmsView from '../views/AlarmsView.vue';
@@ -98,6 +99,13 @@ const routes = [
   { path: '/monitoring/devices', name: 'Devices', component: DevicesView },
   { path: '/monitoring/devices/:id', name: 'DeviceDetail', component: DeviceDetailView },
   { path: '/devices/:id', redirect: to => `/monitoring/devices/${to.params.id}` },
+  {
+    path: '/monitoring/calibration',
+    name: 'SensorCalibration',
+    component: SensorCalibrationView,
+    meta: { disallowOperator: true },
+  },
+  { path: '/calibration', redirect: '/monitoring/calibration' },
   {
     path: '/monitoring/reports',
     name: 'Reports',
@@ -245,6 +253,12 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 3. RBAC validation
+  if (to.meta && to.meta.disallowOperator && isOperator) {
+    return next({
+      path: '/access-denied',
+      query: { from: to.fullPath },
+    });
+  }
 
   if (to.meta && Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
     const allowed = to.meta.roles.some(r => {

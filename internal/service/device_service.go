@@ -1113,6 +1113,10 @@ func (s *DeviceService) UpdateParameterCurrentValue(paramID uint, value float64,
 	return s.repo.UpdateParameterCurrentValue(paramID, value, formulaVal, isHeld, time.Now())
 }
 
+func (s *DeviceService) UpdateParameterCurrentReadings(paramID uint, uncalibratedVal *float64, value float64, formulaVal *float64, isHeld bool) error {
+	return s.repo.UpdateParameterCurrentReadings(paramID, uncalibratedVal, value, formulaVal, isHeld, time.Now())
+}
+
 // Parameters Management (Section 8 & 16)
 func (s *DeviceService) ListParameters(deviceID uint) ([]model.Parameter, error) {
 	if _, err := s.repo.GetByID(deviceID); err != nil {

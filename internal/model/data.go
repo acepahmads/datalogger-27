@@ -37,20 +37,22 @@ const (
 	ReasonDecodingError         QualityReason = "DECODING_ERROR"
 	ReasonCommunicationError    QualityReason = "COMMUNICATION_ERROR"
 	ReasonHoldAnomalyGrace      QualityReason = "HOLD_ANOMALY_GRACE"
+	ReasonCalibrationMode       QualityReason = "CALIBRATION_MODE"
 )
 
 // QualityFlag constants for multi-flag tagging
 const (
-	FlagRangeViolation = "range_violation"
-	FlagRangeWarning   = "range_warning"
-	FlagSpike          = "spike"
-	FlagStale          = "stale"
-	FlagTimestampWarn  = "timestamp_warning"
-	FlagDuplicate      = "duplicate"
-	FlagDecodeError    = "decode_error"
-	FlagCommError       = "comm_error"
-	FlagHeldAnomaly     = "held_anomaly"
-	FlagFormulaFallback = "formula_fallback"
+	FlagRangeViolation     = "range_violation"
+	FlagRangeWarning       = "range_warning"
+	FlagSpike              = "spike"
+	FlagStale              = "stale"
+	FlagTimestampWarn      = "timestamp_warning"
+	FlagDuplicate          = "duplicate"
+	FlagDecodeError        = "decode_error"
+	FlagCommError          = "comm_error"
+	FlagHeldAnomaly        = "held_anomaly"
+	FlagFormulaFallback    = "formula_fallback"
+	FlagCalibrationSession = "calibration_session"
 )
 
 // RawData represents persisted raw and normalized telemetry from industrial sensors (Section 4 & 6)

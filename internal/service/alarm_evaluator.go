@@ -374,6 +374,26 @@ func (e *AlarmEvaluator) EvaluateTelemetry(ctx context.Context, latest *LatestTe
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	// Active Calibration Session Guard: suppress threshold & spike/stuck/zero alarms while sensor is immersed in standard solution / span gas
+	if param.CalibrationSessionActive || latest.QualityReason == model.ReasonCalibrationMode || strings.Contains(latest.QualityFlags, model.FlagCalibrationSession) {
+		for _, abCode := range []string{AlarmCodeAbnormalityStuck, AlarmCodeAbnormalitySpike, AlarmCodeAbnormalityZeroInvalid} {
+			abKey := fmt.Sprintf("%s:%s", key, abCode)
+			if existing, ok := e.activeAbnormality[abKey]; ok {
+				e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+				delete(e.activeAbnormality, abKey)
+			}
+		}
+		if existing, ok := e.activeLow[key]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeLow, key)
+		}
+		if existing, ok := e.activeHigh[key]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeHigh, key)
+		}
+		return
+	}
+
 	// Wave 2: Evaluate Data Abnormality (bad quality & stale remain active; stuck & spike skipped for discrete Status)
 	e.evaluateDataAbnormality(ctx, latest, param)
 

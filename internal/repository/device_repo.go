@@ -346,10 +346,18 @@ func (r *DeviceRepository) RecordCommunicationResult(deviceID uint, success bool
 
 // UpdateParameterCurrentValue persists the latest decoded parameter engineering value
 func (r *DeviceRepository) UpdateParameterCurrentValue(paramID uint, value float64, formulaVal *float64, isHeld bool, t time.Time) error {
+	return r.UpdateParameterCurrentReadings(paramID, nil, value, formulaVal, isHeld, t)
+}
+
+// UpdateParameterCurrentReadings persists both pre-calibration sensor value (x) and final calibrated/processed value
+func (r *DeviceRepository) UpdateParameterCurrentReadings(paramID uint, uncalibratedVal *float64, value float64, formulaVal *float64, isHeld bool, t time.Time) error {
 	updates := map[string]interface{}{
 		"current_value":   &value,
 		"is_current_held": isHeld,
 		"last_updated":    &t,
+	}
+	if uncalibratedVal != nil {
+		updates["current_uncalibrated_value"] = uncalibratedVal
 	}
 	if formulaVal != nil {
 		updates["current_formula_value"] = formulaVal

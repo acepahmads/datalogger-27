@@ -291,6 +291,35 @@ func main() {
 
 	actuatorHandler := handler.NewActuatorHandler(actuationService)
 
+	// Sensor Calibration & Multi-Point Regression Module (1–10 Points: AQMS, SPARING, WQMS ONLIMO)
+	calibrationRepo := repository.NewCalibrationRepository(db)
+	calibrationService := service.NewCalibrationService(calibrationRepo, deviceRepo, systemRepo, telemetryService)
+	calibrationService.SetOnDeviceReload(func(deviceID uint) {
+		if pollingEngine != nil {
+			if dev, err := deviceService.GetDeviceByID(deviceID); err == nil && dev != nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+				pollingEngine.StartDeviceWorker(dev)
+			}
+		}
+	})
+	calibrationService.SetOnDemandPoll(func(ctx context.Context, deviceID, paramID uint) (float64, float64, float64, error) {
+		if pollingEngine == nil {
+			return 0, 0, 0, fmt.Errorf("polling engine unavailable")
+		}
+		res, err := pollingEngine.ReadParameterOnDemand(ctx, deviceID, paramID)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		return res.ScaledValue, res.ProcessedValue, res.RawValue, nil
+	})
+	calibrationService.SetOnClearParamAlarms(func(ctx context.Context, deviceID, paramID uint) {
+		if pollingEngine != nil {
+			if ae := pollingEngine.GetAlarmEvaluator(); ae != nil {
+				ae.ClearParameterAlarms(ctx, deviceID, paramID)
+			}
+		}
+	})
+	calibrationHandler := handler.NewCalibrationHandler(calibrationService)
+
 	// Startup reconciliation for active AQMS stations (catch up any pending aggregation periods cleanly)
 	go func() {
 		time.Sleep(2 * time.Second) // wait for DB & devices to stabilize
@@ -540,6 +569,21 @@ func main() {
 			superadminInjGroup.POST("/batches/:id/sync-outbound", telemetryInjHandler.SyncOutbound)
 			superadminInjGroup.POST("/batches/:id/rollback", telemetryInjHandler.Rollback)
 			superadminInjGroup.DELETE("/batches/:id", telemetryInjHandler.Rollback)
+		}
+
+		// Sensor Calibration & Multi-Point Regression (Accessible to all non-OPERATOR roles)
+		calibrationsGroup := api.Group("/calibrations")
+		calibrationsGroup.Use(middleware.JWTAuth(authService))
+		{
+			calibrationsGroup.GET("/parameters", middleware.RequirePermission("calibration.view"), calibrationHandler.ListParameters)
+			calibrationsGroup.GET("/parameters/:paramId/live", middleware.RequirePermission("calibration.view"), calibrationHandler.GetLiveReading)
+			calibrationsGroup.POST("/calculate", middleware.RequirePermission("calibration.view"), calibrationHandler.CalculatePreview)
+			calibrationsGroup.PUT("/parameters/:paramId/config", middleware.RequirePermission("calibration.manage"), calibrationHandler.UpdateConfig)
+			calibrationsGroup.PUT("/parameters/:paramId/session", middleware.RequirePermission("calibration.manage"), calibrationHandler.ToggleSession)
+			calibrationsGroup.POST("/parameters/:paramId/apply", middleware.RequirePermission("calibration.manage"), calibrationHandler.ApplyCalibration)
+			calibrationsGroup.POST("/parameters/:paramId/reset", middleware.RequirePermission("calibration.manage"), calibrationHandler.ResetCalibration)
+			calibrationsGroup.GET("/logs", middleware.RequirePermission("calibration.view"), calibrationHandler.ListLogs)
+			calibrationsGroup.POST("/logs/:logId/rollback", middleware.RequirePermission("calibration.manage"), calibrationHandler.RollbackLog)
 		}
 
 		// Logs

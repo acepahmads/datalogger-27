@@ -1,8 +1,11 @@
 package model
 
 import (
+	"math"
 	"strings"
 	"time"
+
+	"datalogger/internal/calibration"
 
 	"gorm.io/gorm"
 )
@@ -337,6 +340,25 @@ type Parameter struct {
 	CurrentFormulaValue  *float64 `gorm:"type:double" json:"current_formula_value,omitempty"`
 	IsCurrentHeld        bool     `gorm:"default:false" json:"is_current_held"`
 
+	// Multi-Point Sensor Calibration & Regression (1–10 Points: AQMS, SPARING, WQMS ONLIMO)
+	CalibrationEnabled          bool       `gorm:"column:calibration_enabled;default:false" json:"calibration_enabled"`
+	CalibrationModel            string     `gorm:"column:calibration_model;size:32;default:'LINEAR'" json:"calibration_model"`
+	CalibrationDomain           string     `gorm:"column:calibration_domain;size:32;default:''" json:"calibration_domain"`
+	CalC2                       float64    `gorm:"column:cal_c2;type:double;default:0" json:"cal_c2"`
+	CalC1                       float64    `gorm:"column:cal_c1;type:double;default:1" json:"cal_c1"`
+	CalC0                       float64    `gorm:"column:cal_c0;type:double;default:0" json:"cal_c0"`
+	CalMinR2                    float64    `gorm:"column:cal_min_r2;type:double;default:0.995" json:"cal_min_r2"`
+	CalR2                       *float64   `gorm:"column:cal_r2;type:double" json:"cal_r2,omitempty"`
+	CalRMSE                     *float64   `gorm:"column:cal_rmse;type:double" json:"cal_rmse,omitempty"`
+	CalPointCount               int        `gorm:"column:cal_point_count;default:0" json:"cal_point_count"`
+	CalPointsJSON               string     `gorm:"column:cal_points_json;type:text" json:"cal_points_json,omitempty"`
+	CalStandardNote             string     `gorm:"column:cal_standard_note;size:255;default:''" json:"cal_standard_note,omitempty"`
+	CalUpdatedAt                *time.Time `gorm:"column:cal_updated_at" json:"cal_updated_at,omitempty"`
+	CalUpdatedBy                string     `gorm:"column:cal_updated_by;size:64;default:''" json:"cal_updated_by,omitempty"`
+	CalibrationSessionActive    bool       `gorm:"column:calibration_session_active;default:false" json:"calibration_session_active"`
+	CalibrationSessionStartedAt *time.Time `gorm:"column:calibration_session_started_at" json:"calibration_session_started_at,omitempty"`
+	CurrentUncalibratedValue    *float64   `gorm:"column:current_uncalibrated_value;type:double" json:"current_uncalibrated_value,omitempty"`
+
 	// Phase 1 Compatibility
 	Code            string     `gorm:"size:64" json:"code,omitempty"`
 	Name            string     `gorm:"size:128" json:"name,omitempty"`
@@ -455,6 +477,13 @@ func (p *Parameter) BeforeSave(tx *gorm.DB) error {
 	if p.DataType == "" {
 		p.DataType = DataTypeFloat32
 	}
+	p.CalMinR2 = calibration.NormalizeMinR2(p.CalMinR2)
+	if strings.TrimSpace(p.CalibrationModel) == "" {
+		p.CalibrationModel = calibration.ModelLinear
+	}
+	if !p.CalibrationEnabled && p.CalC1 == 0 && p.CalC2 == 0 && p.CalC0 == 0 {
+		p.CalC1 = 1.0
+	}
 	return nil
 }
 
@@ -498,7 +527,36 @@ func (p *Parameter) AfterFind(tx *gorm.DB) error {
 	if p.HighLimit == nil && p.MaxValue != nil {
 		p.HighLimit = p.MaxValue
 	}
+	p.CalMinR2 = calibration.NormalizeMinR2(p.CalMinR2)
+	if strings.TrimSpace(p.CalibrationModel) == "" {
+		p.CalibrationModel = calibration.ModelLinear
+	}
+	if !p.CalibrationEnabled && p.CalC1 == 0 && p.CalC2 == 0 && p.CalC0 == 0 {
+		p.CalC1 = 1.0
+	}
 	return nil
+}
+
+// ApplyCalibration evaluates the parameter's active calibration curve against the base engineering value x
+func (p *Parameter) ApplyCalibration(uncalibratedVal float64) float64 {
+	if p == nil || !p.CalibrationEnabled || p.IsDiscreteStatus() {
+		return uncalibratedVal
+	}
+	res := calibration.EvaluateCurve(true, p.CalibrationModel, p.CalC2, p.CalC1, p.CalC0, uncalibratedVal)
+	prec := 4
+	if p.Precision > 0 && p.Precision <= 10 {
+		prec = p.Precision
+	}
+	pow := math.Pow10(prec)
+	return math.Round(res*pow) / pow
+}
+
+// CalibrationEquation returns the formatted active calibration curve string
+func (p *Parameter) CalibrationEquation() string {
+	if p == nil {
+		return "y = x (Default)"
+	}
+	return calibration.FormatEquation(p.CalibrationEnabled, p.CalibrationModel, p.CalC2, p.CalC1, p.CalC0)
 }
 
 type Sensor struct {

@@ -69,12 +69,13 @@ func RunMigrations(db *gorm.DB) error {
 		&model.ActuationLog{},
 		&model.TelemetryInjectionBatch{},
 		&model.TelemetryInjectionRecord{},
+		&model.SensorCalibrationLog{},
 	)
 	if err != nil {
 		return err
 	}
 
-	// 1b. Ensure zero_value_alarm_policy column is initialized and backfilled
+	// 1b. Ensure zero_value_alarm_policy and sensor calibration columns are initialized and backfilled
 	if db.Migrator().HasTable(&model.Parameter{}) {
 		if !db.Migrator().HasColumn(&model.Parameter{}, "zero_value_alarm_policy") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "zero_value_alarm_policy")
@@ -103,6 +104,24 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.Parameter{}, "status_off_label") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_off_label")
 		}
+
+		// Sensor Calibration (1–10 Points: AQMS, SPARING, WQMS ONLIMO) non-destructive column sync
+		calCols := []string{
+			"calibration_enabled", "calibration_model", "calibration_domain",
+			"cal_c2", "cal_c1", "cal_c0", "cal_min_r2", "cal_r2", "cal_rmse",
+			"cal_point_count", "cal_points_json", "cal_standard_note",
+			"cal_updated_at", "cal_updated_by",
+			"calibration_session_active", "calibration_session_started_at",
+			"current_uncalibrated_value",
+		}
+		for _, col := range calCols {
+			if !db.Migrator().HasColumn(&model.Parameter{}, col) {
+				_ = db.Migrator().AddColumn(&model.Parameter{}, col)
+			}
+		}
+		_ = db.Model(&model.Parameter{}).Where("calibration_model IS NULL OR calibration_model = ''").Update("calibration_model", "LINEAR").Error
+		_ = db.Model(&model.Parameter{}).Where("cal_min_r2 IS NULL OR cal_min_r2 <= 0 OR cal_min_r2 > 1").Update("cal_min_r2", 0.995).Error
+		_ = db.Model(&model.Parameter{}).Where("(calibration_enabled IS NULL OR calibration_enabled = ?) AND (cal_c1 IS NULL OR cal_c1 = 0) AND (cal_c2 IS NULL OR cal_c2 = 0) AND (cal_c0 IS NULL OR cal_c0 = 0)", false).Update("cal_c1", 1.0).Error
 	}
 
 	// 1b2. Ensure batch read configuration columns exist on device_connections
@@ -3523,6 +3542,9 @@ func ensurePhase7RBAC(db *gorm.DB) {
 		{Code: "integration.manage", Name: "Manage Outbound Destinations", Category: "INTEGRATION", Description: "Create, configure, update, and enable/disable outbound destinations and payload schemas"},
 		{Code: "integration.queue.manage", Name: "Manage Delivery Queue", Category: "INTEGRATION", Description: "Retry, replay, or cancel queued telemetry delivery items"},
 		{Code: "integration.test", Name: "Test Payload & Connection", Category: "INTEGRATION", Description: "Trigger live preview and test transmission to configured destinations"},
+		// Sensor Calibration (1–10 Point Regression: AQMS, SPARING, WQMS ONLIMO)
+		{Code: "calibration.view", Name: "View Sensor Calibration", Category: "CALIBRATION", Description: "View sensor calibration curves, live readings, and calibration audit logs"},
+		{Code: "calibration.manage", Name: "Manage Sensor Calibration", Category: "CALIBRATION", Description: "Execute 1–10 point sensor calibration, per-parameter R2 configuration, session lock, reset, and rollback"},
 	}
 
 	for _, p := range allPerms {
@@ -3612,6 +3634,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"report.view": true, "report.generate": true,
 			"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
 			"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
+			"calibration.view": true, "calibration.manage": true,
 			"config.view": true,
 			"integration.view": true, "integration.test": true,
 		}
