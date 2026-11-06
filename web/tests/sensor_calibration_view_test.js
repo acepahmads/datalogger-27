@@ -104,4 +104,25 @@ const routerCode = fs.readFileSync(routerPath, 'utf8');
 assert(routerCode.includes("path: '/monitoring/calibration'"), 'Router must register /monitoring/calibration');
 assert(routerCode.includes('disallowOperator: true'), 'Router must enforce disallowOperator: true for /monitoring/calibration');
 
-console.log('PASS: All Sensor Calibration (1-10 Points, AQMS/SPARING/WQMS ONLIMO, Per-Parameter Min R2, RBAC & Light Mode) checks succeeded.');
+// 7. Verify Formula Auto-Clear, Double-Formula Prevention Lock, Reset Controls & Raw Telemetry Comparison
+assert(viewCode.includes('clearExistingCustomFormula') && viewCode.includes('clear_formula: true'), 'SensorCalibrationView must provide 1-click custom formula clear');
+assert(viewCode.includes('btn-quick-reset-calibration'), 'SensorCalibrationView Card 3 must provide quick calibration reset button');
+
+const paramModalCode = fs.readFileSync(path.join(__dirname, '../src/components/ParameterModal.vue'), 'utf8');
+assert(paramModalCode.includes('Formula Hasil Kalibrasi Sensor Aktif'), 'ParameterModal must display active sensor calibration formula banner');
+assert(paramModalCode.includes(':disabled="isParamCalibrated || isParamInCalSession"'), 'ParameterModal must lock manual formula input while calibration is active');
+assert(paramModalCode.includes('resetCalibrationFromModal'), 'ParameterModal must provide 1-click reset back to y = x');
+
+const deviceDetailCode = fs.readFileSync(path.join(__dirname, '../src/views/DeviceDetailView.vue'), 'utf8');
+assert(deviceDetailCode.includes('<th v-if="!isOperator" class="py-2.5 px-4">Sebelum Kalibrasi (x)</th>'), 'DeviceDetailView Raw Telemetry must show Sebelum Kalibrasi (x) for non-Operator');
+assert(deviceDetailCode.includes('<th v-if="!isOperator" class="py-2.5 px-4">Selisih Kalibrasi (Δ)</th>'), 'DeviceDetailView Raw Telemetry must show Selisih Kalibrasi (Δ) for non-Operator');
+assert(deviceDetailCode.includes('resetParamCalibration'), 'DeviceDetailView Parameters tab must allow resetting active calibration to y = x');
+
+const analysisCode = fs.readFileSync(path.join(__dirname, '../src/views/TelemetryAnalysisView.vue'), 'utf8');
+assert(analysisCode.includes('<th v-if="!isOperator" class="py-2.5 px-4 text-right">Sebelum Kalibrasi (x)</th>'), 'TelemetryAnalysisView RAW mode must show Sebelum Kalibrasi (x) for non-Operator');
+assert(analysisCode.includes('<th v-if="!isOperator" class="py-2.5 px-4 text-right">Selisih Kalibrasi (Δ)</th>'), 'TelemetryAnalysisView RAW mode must show Selisih Kalibrasi (Δ) for non-Operator');
+
+const monitorCode = fs.readFileSync(path.join(__dirname, '../src/views/TelemetryMonitorView.vue'), 'utf8');
+assert(monitorCode.includes('formatUncalibrated(item)'), 'TelemetryMonitorView must show uncalibrated comparison alongside active calibration equation for non-Operator');
+
+console.log('PASS: All Sensor Calibration (1-10 Points, Formula Auto-Clear/Lock, Reset y=x, Raw Telemetry Uncalibrated vs Calibrated & RBAC) checks succeeded.');

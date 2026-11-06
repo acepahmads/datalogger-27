@@ -859,7 +859,9 @@
               <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
               <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('analysis.rawHex') }}</th>
               <th v-if="canAccessRawMode" class="py-2.5 px-4 text-right">{{ $t('analysis.rawVal') }}</th>
+              <th v-if="!isOperator" class="py-2.5 px-4 text-right">Sebelum Kalibrasi (x)</th>
               <th class="py-2.5 px-4 text-right">{{ canAccessRawMode ? $t('analysis.scaledVal') : $t('deviceDetail.rawOperatorValue') }}</th>
+              <th v-if="!isOperator" class="py-2.5 px-4 text-right">Selisih Kalibrasi (Δ)</th>
               <th class="py-2.5 px-4 text-center">{{ $t('common.quality') }}</th>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               <th class="py-2.5 px-4 text-right">UUID</th>
@@ -876,6 +878,11 @@
               <td class="py-2.5 px-4 text-slate-800 dark:text-slate-200">
                 <span>{{ getParamCode(r.parameter_id) }}</span>
                 <span
+                  v-if="!isOperator && isRecordCalibrated(r)"
+                  :title="'Kurva Kalibrasi: ' + getParamCalEquation(r.parameter_id)"
+                  class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30"
+                >CAL</span>
+                <span
                   v-if="isSuperAdmin && r.is_injected"
                   :title="'Disuntik Superadmin · Batch ' + (r.injection_batch_id || '')"
                   class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/30"
@@ -883,7 +890,16 @@
               </td>
               <td v-if="canAccessRawMode" class="py-2.5 px-4 text-emerald-600 dark:text-emerald-400 font-bold tracking-widest">{{ r.raw_hex || '--' }}</td>
               <td v-if="canAccessRawMode" class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{{ formatVal(r.raw_value) }}</td>
+              <td v-if="!isOperator" class="py-2.5 px-4 text-right text-slate-600 dark:text-slate-300">{{ formatUncalibratedVal(r) }}</td>
               <td class="py-2.5 px-4 text-right text-slate-900 dark:text-white font-bold">{{ formatVal(r.value) }}</td>
+              <td v-if="!isOperator" class="py-2.5 px-4 text-right">
+                <span
+                  v-if="isRecordCalibrated(r)"
+                  class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30"
+                  :title="'Rumus: ' + getParamCalEquation(r.parameter_id)"
+                >{{ formatCalibrationDelta(r) }}</span>
+                <span v-else class="text-slate-400 dark:text-slate-500 text-3xs">{{ formatCalibrationDelta(r) }}</span>
+              </td>
               <td class="py-2.5 px-4 text-center">
                 <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
                   {{ r.quality || 'GOOD' }}
@@ -893,7 +909,7 @@
               <td class="py-2.5 px-4 text-right text-3xs text-slate-400 dark:text-slate-500 truncate max-w-[100px]">{{ r.record_uuid || r.id }}</td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td :colspan="(isOperator ? 8 : 9) - (canAccessRawMode ? 0 : 2)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="(isOperator ? 8 : 11) - (canAccessRawMode ? 0 : 2)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -1173,6 +1189,7 @@
 <script>
 import axios from 'axios';
 import { getParamSeriesColor } from '../utils/trendPalette';
+import { formatCalibrationEquation } from '../utils/calibrationMath';
 
 const SERIES_PALETTE = [
   '#00E5FF', // Cyan
@@ -2053,6 +2070,63 @@ export default {
       }
       return '';
     },
+    getParamObj(paramId) {
+      for (const d of this.devicesList) {
+        if (d.parameters) {
+          const match = d.parameters.find((p) => p.id === Number(paramId));
+          if (match) return match;
+        }
+      }
+      return null;
+    },
+    getParamCalEquation(paramId) {
+      const p = this.getParamObj(paramId);
+      if (!p) return 'y = x (Default)';
+      return formatCalibrationEquation(
+        !!p.calibration_enabled,
+        p.calibration_model,
+        p.cal_coeff_c2,
+        p.cal_coeff_c1,
+        p.cal_coeff_c0,
+      );
+    },
+    isRecordCalibrated(r) {
+      if (!r) return false;
+      if (r.uncalibrated_value !== undefined && r.uncalibrated_value !== null && r.value !== undefined && r.value !== null) {
+        if (Math.abs(Number(r.value) - Number(r.uncalibrated_value)) > 1e-7) return true;
+      }
+      const p = this.getParamObj(r.parameter_id);
+      return !!(p && p.calibration_enabled);
+    },
+    formatUncalibratedVal(r) {
+      if (this.isOperator || !r) return '--';
+      const p = this.getParamObj(r.parameter_id);
+      const prec = p && p.precision !== undefined ? p.precision : 2;
+      if (r.uncalibrated_value !== undefined && r.uncalibrated_value !== null && !isNaN(r.uncalibrated_value)) {
+        return Number(r.uncalibrated_value).toFixed(prec);
+      }
+      if ((!p || !p.calibration_enabled) && r.value !== undefined && r.value !== null && !isNaN(r.value)) {
+        return Number(r.value).toFixed(prec);
+      }
+      return '--';
+    },
+    formatCalibrationDelta(r) {
+      if (this.isOperator || !r) return '--';
+      const p = this.getParamObj(r.parameter_id);
+      const prec = p && p.precision !== undefined ? p.precision : 2;
+      if (r.uncalibrated_value !== undefined && r.uncalibrated_value !== null && r.value !== undefined && r.value !== null) {
+        const delta = Number(r.value) - Number(r.uncalibrated_value);
+        if (isNaN(delta)) return '--';
+        if (!this.isRecordCalibrated(r) && Math.abs(delta) < 1e-7) {
+          return '0.00 (y = x)';
+        }
+        return `${delta >= 0 ? '+' : ''}${delta.toFixed(prec)}`;
+      }
+      if (!p || !p.calibration_enabled) {
+        return '0.00 (y = x)';
+      }
+      return '--';
+    },
     formatVal(v, decimals = 2) {
       if (v === null || v === undefined || isNaN(v)) return '--';
       return Number(v).toFixed(decimals);
@@ -2129,10 +2203,11 @@ export default {
       } else if (this.activeMode === 'RAW' && this.canAccessRawMode) {
         csv = this.isOperator
           ? 'ReceivedAt,Parameter,RawHex,RawValue,ScaledValue,Quality,Source,RecordUUID\n'
-          : 'ReceivedAt,Device,Parameter,RawHex,RawValue,ScaledValue,Quality,Source,RecordUUID\n';
+          : 'ReceivedAt,Device,Parameter,RawHex,RawValue,UncalibratedValue,ScaledValue,Quality,Source,RecordUUID\n';
         this.records.forEach((r) => {
           const devPart = this.isOperator ? '' : `"${this.getDeviceCode(r.device_id)}",`;
-          csv += `"${r.received_at || r.timestamp}",${devPart}"${this.getParamCode(r.parameter_id)}","${r.raw_hex || ''}",${r.raw_value},${r.value},"${r.quality}","${r.source || ''}","${r.record_uuid || ''}"\n`;
+          const uncalPart = this.isOperator ? '' : `${r.uncalibrated_value !== undefined && r.uncalibrated_value !== null ? r.uncalibrated_value : r.value},`;
+          csv += `"${r.received_at || r.timestamp}",${devPart}"${this.getParamCode(r.parameter_id)}","${r.raw_hex || ''}",${r.raw_value},${uncalPart}${r.value},"${r.quality}","${r.source || ''}","${r.record_uuid || ''}"\n`;
         });
       } else {
         csv = this.isOperator

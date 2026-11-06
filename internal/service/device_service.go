@@ -1439,6 +1439,12 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	if req.Formula != nil {
 		cleanFormula := strings.TrimSpace(*req.Formula)
 		if cleanFormula != "" {
+			if param.CalibrationEnabled {
+				return nil, fmt.Errorf("parameter sedang menggunakan Formula Hasil Kalibrasi (%s). Reset kalibrasi ke default (y = x) terlebih dahulu jika ingin menggunakan formula manual", param.CalibrationEquation())
+			}
+			if param.CalibrationSessionActive {
+				return nil, errors.New("parameter sedang dalam Mode Sesi Kalibrasi aktif. Selesaikan atau nonaktifkan sesi kalibrasi terlebih dahulu")
+			}
 			if err := formula.Validate(cleanFormula); err != nil {
 				return nil, fmt.Errorf("invalid formula syntax: %w", err)
 			}

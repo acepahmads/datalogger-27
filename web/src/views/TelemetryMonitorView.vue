@@ -294,6 +294,13 @@
               <span v-if="item.data_type" class="text-3xs font-mono text-slate-500 font-medium">
                 {{ item.data_type }}
               </span>
+              <span
+                v-if="!isOperator && item.calibration_enabled"
+                class="px-1.5 py-0.2 rounded text-4xs font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30"
+                :title="'Rumus Kalibrasi: ' + item.cal_equation"
+              >
+                CAL
+              </span>
             </div>
 
             <!-- Primary Metric Value -->
@@ -315,6 +322,13 @@
                 <div class="font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-500/20 whitespace-nowrap">
                   {{ formatFormula(item) }} {{ item.unit || '' }}
                 </div>
+              </div>
+              <!-- Active Sensor Calibration Formula & Uncalibrated Value (Non-Operator roles) -->
+              <div v-if="!isOperator && item.calibration_enabled" class="pt-1.5 border-t border-slate-200 dark:border-slate-800/70 flex items-center justify-between text-3xs font-mono">
+                <span class="text-sky-700 dark:text-sky-300 truncate mr-2" :title="item.cal_equation">🎯 {{ item.cal_equation }}</span>
+                <span v-if="formatUncalibrated(item) !== null" class="font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                  Awal (x): {{ formatUncalibrated(item) }}
+                </span>
               </div>
             </div>
           </div>
@@ -399,8 +413,17 @@
               </td>
 
               <!-- Parameter Name -->
-              <td class="py-1.5 px-3 font-medium text-slate-900 dark:text-white truncate max-w-[180px]" :title="item.param_name">
-                {{ item.param_name }}
+              <td class="py-1.5 px-3 font-medium text-slate-900 dark:text-white max-w-[200px]" :title="item.param_name">
+                <div class="flex items-center space-x-1.5 truncate">
+                  <span class="truncate">{{ item.param_name }}</span>
+                  <span
+                    v-if="!isOperator && item.calibration_enabled"
+                    class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30 flex-shrink-0"
+                    :title="'Rumus Kalibrasi: ' + item.cal_equation"
+                  >
+                    CAL
+                  </span>
+                </div>
               </td>
 
               <!-- Code -->
@@ -421,6 +444,13 @@
                     {{ $t('parameters.heldBadge') }}
                   </span>
                   <span>{{ formatValue(item) }}</span>
+                </div>
+                <div
+                  v-if="!isOperator && item.calibration_enabled && formatUncalibrated(item) !== null"
+                  class="text-4xs font-normal text-sky-700 dark:text-sky-300 mt-0.5"
+                  :title="'Rumus: ' + item.cal_equation"
+                >
+                  Awal (x): {{ formatUncalibrated(item) }}
                 </div>
               </td>
 
@@ -465,6 +495,14 @@
               <!-- Actions -->
               <td class="py-1.5 px-3 text-right whitespace-nowrap space-x-1">
                 <router-link
+                  v-if="!isOperator && !['BOOL', 'COIL', 'DISCRETE', 'STRING'].includes(String(item.data_type || '').toUpperCase())"
+                  :to="'/monitoring/calibration?parameter_id=' + item.param_id"
+                  class="inline-block text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 text-3xs font-semibold px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/40 transition"
+                  :title="item.calibration_enabled ? ('Kalibrasi Aktif: ' + item.cal_equation) : 'Buka Kalibrasi Sensor'"
+                >
+                  🎯 Kal
+                </router-link>
+                <router-link
                   :to="'/monitoring/devices/' + item.device_id + '?tab=telemetry'"
                   class="inline-block text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 text-3xs font-semibold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 transition"
                 >
@@ -500,6 +538,7 @@
 
 <script>
 import axios from 'axios';
+import { formatCalibrationEquation } from '../utils/calibrationMath';
 
 export default {
   name: 'TelemetryMonitorView',
@@ -535,6 +574,15 @@ export default {
           const live = this.liveMap[p.id] || {};
           const isHeld = live.is_held_value !== undefined ? live.is_held_value : !!p.is_current_held;
           const formulaVal = live.formula_value !== undefined && live.formula_value !== null ? live.formula_value : p.current_formula_value;
+          const calEnabled = live.calibration_enabled !== undefined ? !!live.calibration_enabled : !!p.calibration_enabled;
+          const uncalVal = live.uncalibrated_value !== undefined && live.uncalibrated_value !== null ? live.uncalibrated_value : p.current_uncalibrated_value;
+          const calEq = live.cal_equation || formatCalibrationEquation(
+            calEnabled,
+            p.calibration_model,
+            p.cal_coeff_c2,
+            p.cal_coeff_c1,
+            p.cal_coeff_c0
+          );
           list.push({
             device_id: dev.id,
             device_code: dev.device_code || dev.code,
@@ -547,6 +595,9 @@ export default {
             data_type: p.data_type,
             precision: p.precision !== undefined ? p.precision : 2,
             value: live.value !== undefined ? live.value : p.current_value,
+            uncalibrated_value: uncalVal,
+            calibration_enabled: calEnabled,
+            cal_equation: calEq,
             value_text: live.value_text,
             formula: p.formula || live.formula || '',
             formula_value: formulaVal,
@@ -701,6 +752,13 @@ export default {
         return Number(item.formula_value).toFixed(item.precision || 2);
       }
       return '--';
+    },
+    formatUncalibrated(item) {
+      if (this.isOperator || !item) return null;
+      if (item.uncalibrated_value !== null && item.uncalibrated_value !== undefined && Number.isFinite(Number(item.uncalibrated_value))) {
+        return Number(item.uncalibrated_value).toFixed(item.precision !== undefined ? item.precision : 2);
+      }
+      return null;
     },
     valueColorClass(item) {
       if (item.quality === 'BAD') return 'text-rose-600 dark:text-rose-400';

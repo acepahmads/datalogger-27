@@ -82,6 +82,29 @@
                 {{ formatParameterOptionLabel(p) }}
               </option>
             </select>
+
+            <!-- Pre-existing Custom Formula Notice & Auto-Clear Action -->
+            <div
+              v-if="currentParam && currentParam.formula"
+              class="mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-700/50 flex flex-wrap items-center justify-between gap-2 text-2xs"
+            >
+              <div class="text-amber-800 dark:text-amber-200 leading-snug">
+                <span class="font-bold">⚠️ Formula Parameter Aktif:</span>
+                <code class="mx-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 font-mono font-bold">{{ currentParam.formula }}</code>
+                <span class="block text-3xs text-amber-700 dark:text-amber-300/90 mt-0.5">
+                  Otomatis di-clear saat Sesi Kalibrasi diaktifkan atau Kalibrasi disimpan agar tidak bertumpuk.
+                </span>
+              </div>
+              <button
+                type="button"
+                id="btn-clear-param-formula"
+                :disabled="savingConfig"
+                @click="clearExistingCustomFormula"
+                class="px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white btn-text font-semibold text-3xs transition cursor-pointer disabled:opacity-50"
+              >
+                Bersihkan Formula Sekarang
+              </button>
+            </div>
           </div>
 
           <!-- Calibration Session Toggle -->
@@ -174,20 +197,33 @@
 
         <!-- Card 3: Simulated & Active Calibrated Output (ŷ) -->
         <div class="saas-card p-3.5 lg:col-span-3 flex flex-col justify-between">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-1.5">
             <span class="text-xs font-semibold text-slate-600 dark:text-slate-300">Hasil Terkalibrasi (ŷ)</span>
-            <span
-              v-if="currentParam && currentParam.calibration_enabled"
-              class="px-2 py-0.5 rounded text-3xs font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30"
-            >
-              KURVA AKTIF
-            </span>
-            <span
-              v-else
-              class="px-2 py-0.5 rounded text-3xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
-            >
-              DEFAULT (y = x)
-            </span>
+            <div class="flex items-center gap-1">
+              <span
+                v-if="currentParam && currentParam.calibration_enabled"
+                class="px-2 py-0.5 rounded text-3xs font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30"
+              >
+                KURVA AKTIF
+              </span>
+              <button
+                v-if="currentParam && currentParam.calibration_enabled"
+                type="button"
+                id="btn-quick-reset-calibration"
+                :disabled="applyingCalibration"
+                @click="resetToDefaultCurve"
+                class="px-1.5 py-0.5 rounded text-3xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-700/50 transition cursor-pointer disabled:opacity-50"
+                title="Reset kembali ke nilai murni tanpa kalibrasi (y = x)"
+              >
+                ↺ Reset
+              </button>
+              <span
+                v-else
+                class="px-2 py-0.5 rounded text-3xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+              >
+                DEFAULT (y = x)
+              </span>
+            </div>
           </div>
 
           <div class="my-1.5 flex items-baseline gap-2">
@@ -1372,6 +1408,7 @@ export default {
     },
     async toggleCalibrationSession() {
       if (!this.currentParam) return;
+      const hadFormula = Boolean(this.currentParam.formula);
       this.togglingSession = true;
       const desired = !this.currentParam.calibration_session_active;
       try {
@@ -1382,7 +1419,7 @@ export default {
         this.replaceUpdatedParameterInList(dto);
         this.showBanner(
           desired
-            ? `Mode Sesi Kalibrasi AKTIF untuk ${this.currentParam.parameter_name}. Alarm & agregasi kepatuhan ditahan sementara.`
+            ? `Mode Sesi Kalibrasi AKTIF untuk ${this.currentParam.parameter_name}.${hadFormula ? ' Formula kustom sebelumnya otomatis di-clear.' : ' Alarm & agregasi kepatuhan ditahan sementara.'}`
             : `Mode Sesi Kalibrasi NONAKTIF untuk ${this.currentParam.parameter_name}. Pemantauan normal dilanjutkan.`
         );
       } catch (err) {
@@ -1390,6 +1427,23 @@ export default {
         this.showBanner(msg, 'error');
       } finally {
         this.togglingSession = false;
+      }
+    },
+    async clearExistingCustomFormula() {
+      if (!this.currentParam || !this.currentParam.formula) return;
+      this.savingConfig = true;
+      try {
+        const res = await api.put(`/calibrations/parameters/${this.currentParam.parameter_id}/config`, {
+          clear_formula: true,
+        });
+        this.replaceUpdatedParameterInList(res.data && res.data.data);
+        await this.pollLiveSensor(false);
+        this.showBanner(`Formula kustom pada ${this.currentParam.parameter_name} berhasil di-clear. Pembacaan kini murni dari sensor (x).`);
+      } catch (err) {
+        const msg = (err.response && err.response.data && err.response.data.message) || 'Gagal membersihkan formula parameter.';
+        this.showBanner(msg, 'error');
+      } finally {
+        this.savingConfig = false;
       }
     },
     async saveParameterMinR2() {

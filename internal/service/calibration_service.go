@@ -30,6 +30,7 @@ type CalibratableParameterDTO struct {
 	RegisterType     string  `json:"register_type"`
 	RegisterScale    float64 `json:"register_scale"`
 	RegisterOffset   float64 `json:"register_offset"`
+	Formula          string  `json:"formula,omitempty"`
 	Enabled          bool    `json:"enabled"`
 	EffectiveDomain  string  `json:"effective_domain"`
 	ExplicitDomain   string  `json:"explicit_domain"`
@@ -76,8 +77,9 @@ type ApplyCalibrationRequest struct {
 }
 
 type UpdateCalibrationConfigRequest struct {
-	CalMinR2 *float64 `json:"cal_min_r2"`
-	Domain   *string  `json:"domain"`
+	CalMinR2     *float64 `json:"cal_min_r2"`
+	Domain       *string  `json:"domain"`
+	ClearFormula bool     `json:"clear_formula"`
 }
 
 type ToggleCalibrationSessionRequest struct {
@@ -223,6 +225,7 @@ func (s *CalibrationService) buildParameterDTO(ctx context.Context, p *model.Par
 		RegisterType:                p.RegisterType,
 		RegisterScale:               p.Scale,
 		RegisterOffset:              p.Offset,
+		Formula:                     p.Formula,
 		Enabled:                     p.Enabled,
 		EffectiveDomain:             effDomain,
 		ExplicitDomain:              p.CalibrationDomain,
@@ -397,17 +400,34 @@ func (s *CalibrationService) UpdateParameterConfig(
 		updates["calibration_domain"] = normDom
 		param.CalibrationDomain = normDom
 	}
+	prevFormula := strings.TrimSpace(param.Formula)
+	if req.ClearFormula && prevFormula != "" {
+		updates["formula"] = ""
+		updates["current_formula_value"] = nil
+		param.Formula = ""
+		param.CurrentFormulaValue = nil
+		if param.CurrentUncalibratedValue != nil {
+			cleanCur := param.ApplyCalibration(*param.CurrentUncalibratedValue)
+			updates["current_value"] = &cleanCur
+			param.CurrentValue = &cleanCur
+		}
+	}
 
 	if len(updates) > 0 {
 		if err := s.repo.UpdateParameterCalibrationFields(ctx, param.ID, updates); err != nil {
 			return nil, fmt.Errorf("gagal menyimpan pengaturan parameter kalibrasi: %w", err)
 		}
 		s.recordAudit(username, "UPDATE_CALIBRATION_CONFIG", fmt.Sprintf("parameter:%d", param.ID), map[string]interface{}{
-			"parameter_code": param.ParameterCode,
-			"device_id":      param.DeviceID,
-			"updates":        updates,
-			"role":           role,
+			"parameter_code":           param.ParameterCode,
+			"device_id":                param.DeviceID,
+			"updates":                  updates,
+			"cleared_previous_formula": prevFormula,
+			"role":                     role,
 		}, ip, ua)
+	}
+
+	if s.telemetryService != nil {
+		s.telemetryService.SyncParameterCalibrationCache(param)
 	}
 
 	if s.onDeviceReload != nil {
@@ -440,6 +460,19 @@ func (s *CalibrationService) ToggleCalibrationSession(
 		"calibration_session_active":     active,
 		"calibration_session_started_at": startedAt,
 	}
+	clearedFormula := ""
+	if active && strings.TrimSpace(param.Formula) != "" {
+		clearedFormula = strings.TrimSpace(param.Formula)
+		updates["formula"] = ""
+		updates["current_formula_value"] = nil
+		param.Formula = ""
+		param.CurrentFormulaValue = nil
+		if param.CurrentUncalibratedValue != nil {
+			cleanCur := param.ApplyCalibration(*param.CurrentUncalibratedValue)
+			updates["current_value"] = &cleanCur
+			param.CurrentValue = &cleanCur
+		}
+	}
 	if err := s.repo.UpdateParameterCalibrationFields(ctx, param.ID, updates); err != nil {
 		return nil, fmt.Errorf("gagal mengubah status sesi kalibrasi: %w", err)
 	}
@@ -468,11 +501,12 @@ func (s *CalibrationService) ToggleCalibrationSession(
 		action = "START_CALIBRATION_SESSION"
 	}
 	s.recordAudit(username, action, fmt.Sprintf("parameter:%d", param.ID), map[string]interface{}{
-		"parameter_code": param.ParameterCode,
-		"parameter_name": param.ParameterName,
-		"device_id":      param.DeviceID,
-		"active":         active,
-		"role":           role,
+		"parameter_code":           param.ParameterCode,
+		"parameter_name":           param.ParameterName,
+		"device_id":                param.DeviceID,
+		"active":                   active,
+		"cleared_previous_formula": clearedFormula,
+		"role":                     role,
 	}, ip, ua)
 
 	dto := s.buildParameterDTO(ctx, param, dev, s.resolveStationDomain())
@@ -541,21 +575,24 @@ func (s *CalibrationService) ApplyCalibration(
 	prevEq := param.CalibrationEquation()
 	prevPts := param.CalPointsJSON
 	prevNote := param.CalStandardNote
+	clearedFormula := strings.TrimSpace(param.Formula)
 
 	updates := map[string]interface{}{
-		"calibration_enabled": true,
-		"calibration_model":   regResult.Model,
-		"cal_c2":              regResult.C2,
-		"cal_c1":              regResult.C1,
-		"cal_c0":              regResult.C0,
-		"cal_min_r2":          effMinR2,
-		"cal_r2":              regResult.R2,
-		"cal_rmse":            &rmseVal,
-		"cal_point_count":     regResult.ActiveCount,
-		"cal_points_json":     ptsJSON,
-		"cal_standard_note":   note,
-		"cal_updated_at":      &now,
-		"cal_updated_by":      username,
+		"calibration_enabled":   true,
+		"calibration_model":     regResult.Model,
+		"cal_c2":                regResult.C2,
+		"cal_c1":                regResult.C1,
+		"cal_c0":                regResult.C0,
+		"cal_min_r2":            effMinR2,
+		"cal_r2":                regResult.R2,
+		"cal_rmse":              &rmseVal,
+		"cal_point_count":       regResult.ActiveCount,
+		"cal_points_json":       ptsJSON,
+		"cal_standard_note":     note,
+		"cal_updated_at":        &now,
+		"cal_updated_by":        username,
+		"formula":               "",
+		"current_formula_value": nil,
 	}
 	if normDom := model.NormalizeCalibrationDomain(req.Domain); normDom != "" {
 		updates["calibration_domain"] = normDom
@@ -597,6 +634,8 @@ func (s *CalibrationService) ApplyCalibration(
 	param.CalStandardNote = note
 	param.CalUpdatedAt = &now
 	param.CalUpdatedBy = username
+	param.Formula = ""
+	param.CurrentFormulaValue = nil
 
 	logEntry := &model.SensorCalibrationLog{
 		DeviceID:               param.DeviceID,
@@ -637,15 +676,16 @@ func (s *CalibrationService) ApplyCalibration(
 	_ = s.repo.CreateCalibrationLog(ctx, logEntry)
 
 	s.recordAudit(username, "APPLY_SENSOR_CALIBRATION", fmt.Sprintf("parameter:%d", param.ID), map[string]interface{}{
-		"parameter_code": param.ParameterCode,
-		"domain":         effDomain,
-		"model":          regResult.Model,
-		"points":         regResult.ActiveCount,
-		"equation":       regResult.Equation,
-		"prev_equation":  prevEq,
-		"r2":             regResult.R2,
-		"min_r2":         effMinR2,
-		"standard_note":  note,
+		"parameter_code":           param.ParameterCode,
+		"domain":                   effDomain,
+		"model":                    regResult.Model,
+		"points":                   regResult.ActiveCount,
+		"equation":                 regResult.Equation,
+		"prev_equation":            prevEq,
+		"r2":                       regResult.R2,
+		"min_r2":                   effMinR2,
+		"standard_note":            note,
+		"cleared_previous_formula": clearedFormula,
 	}, ip, ua)
 
 	if s.telemetryService != nil {
@@ -863,6 +903,13 @@ func (s *CalibrationService) RollbackCalibration(
 		"cal_standard_note":   restoreNote,
 		"cal_updated_at":      &now,
 		"cal_updated_by":      username,
+	}
+
+	if restoreEnabled {
+		updates["formula"] = ""
+		updates["current_formula_value"] = nil
+		param.Formula = ""
+		param.CurrentFormulaValue = nil
 	}
 
 	param.CalibrationEnabled = restoreEnabled

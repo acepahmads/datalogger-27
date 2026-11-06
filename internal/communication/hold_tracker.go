@@ -45,6 +45,13 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		return engVal, nil, false, model.QualityBad, fmt.Errorf("parameter cannot be nil")
 	}
 
+	// Never evaluate custom parameter formula when Sensor Calibration curve or Calibration Session is active
+	// so two formulas can never stack on top of each other.
+	effectiveFormula := param.Formula
+	if param.CalibrationEnabled || param.CalibrationSessionActive {
+		effectiveFormula = ""
+	}
+
 	t.mu.Lock()
 	state, exists := t.states[param.ID]
 	if !exists {
@@ -63,7 +70,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 	// 2. If hold-last-value is disabled, process normally
 	if !param.HoldLastValueEnabled {
 		if readErr != nil {
-			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+			if fVal := evalParamFormula(effectiveFormula, 0, 0); fVal != nil {
 				return 0, fVal, false, model.QualityGood, nil
 			}
 			return 0, nil, false, model.QualityBad, readErr
@@ -74,7 +81,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 			quality = model.QualityUncertain
 		}
 
-		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+		formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 		return engVal, formulaVal, false, quality, nil
 	}
 
@@ -102,7 +109,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		state.LastGoodTimestamp = now
 		t.mu.Unlock()
 
-		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+		formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 		return engVal, formulaVal, false, model.QualityGood, nil
 	}
 
@@ -113,12 +120,12 @@ func (t *AnomalyHoldTracker) ProcessReading(
 	// If no previous good value exists yet, evaluate formula fallback (if configured) or report real state
 	if state.LastGoodValue == nil {
 		if readErr != nil {
-			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+			if fVal := evalParamFormula(effectiveFormula, 0, 0); fVal != nil {
 				return 0, fVal, false, model.QualityGood, nil
 			}
 			return 0, nil, false, model.QualityBad, readErr
 		}
-		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+		formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 		return engVal, formulaVal, false, model.QualityBad, nil
 	}
 
@@ -139,7 +146,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 			effectiveRaw = *state.LastGoodRaw
 		}
 		state.IsHeld = true
-		formulaVal = evalParamFormula(param.Formula, effectiveVal, effectiveRaw)
+		formulaVal = evalParamFormula(effectiveFormula, effectiveVal, effectiveRaw)
 
 		// Return last good value with UNCERTAIN quality and isHeld=true
 		return effectiveVal, formulaVal, true, model.QualityUncertain, nil
@@ -151,13 +158,13 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		param.ParameterCode, param.ID, elapsed.Round(time.Second), holdDuration)
 
 	if readErr != nil {
-		if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+		if fVal := evalParamFormula(effectiveFormula, 0, 0); fVal != nil {
 			return 0, fVal, false, model.QualityGood, nil
 		}
 		return 0, nil, false, model.QualityBad, readErr
 	}
 
-	formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+	formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 	return engVal, formulaVal, false, model.QualityBad, nil
 }
 

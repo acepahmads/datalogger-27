@@ -462,3 +462,131 @@ func TestCalibrationHandler_RBAC_Domains_PerParamR2_ApplyResetRollback_SessionGu
 		t.Fatalf("expected CalibrationEnabled=true & 5 points restored after rollback, got %+v", afterRollback)
 	}
 }
+
+func TestCalibration_ClearsCustomFormula_PreventsDoubleFormula_AndPersistsUncalibratedRawData(t *testing.T) {
+	router, db, telService, _ := setupCalibrationTestSuite(t)
+
+	dev := model.Device{
+		DeviceCode: "DEV-FORMULA-01",
+		DeviceName: "Water Analyzer",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+	}
+	if err := db.Create(&dev).Error; err != nil {
+		t.Fatalf("create device failed: %v", err)
+	}
+
+	fVal := 8.25
+	phParam := model.Parameter{
+		DeviceID:                 dev.ID,
+		ParameterCode:            "PH",
+		ParameterName:            "pH Air",
+		DataType:                 model.DataTypeFloat32,
+		Unit:                     "-",
+		Scale:                    1.0,
+		Enabled:                  true,
+		Formula:                  "x * 1.15 + 0.5",
+		CurrentFormulaValue:      &fVal,
+		CalMinR2:                 0.995,
+		CalibrationDomain:        model.CalibrationDomainSparing,
+	}
+	if err := db.Create(&phParam).Error; err != nil {
+		t.Fatalf("create pH param: %v", err)
+	}
+
+	// 1. Starting calibration session MUST automatically clear pre-existing param.Formula
+	wSess := performJSONReq(
+		router,
+		http.MethodPut,
+		fmt.Sprintf("/api/calibrations/parameters/%d/session", phParam.ID),
+		"ENGINEER",
+		"eng_rina",
+		map[string]bool{"active": true},
+	)
+	if wSess.Code != http.StatusOK {
+		t.Fatalf("toggle session failed: %d %s", wSess.Code, wSess.Body.String())
+	}
+
+	var afterSess model.Parameter
+	_ = db.First(&afterSess, phParam.ID).Error
+	if afterSess.Formula != "" || afterSess.CurrentFormulaValue != nil {
+		t.Fatalf("expected Formula & CurrentFormulaValue to be cleared when calibration session starts, got formula=%q", afterSess.Formula)
+	}
+
+	// 2. Apply calibration also guarantees Formula is cleared even if set right before apply
+	_ = db.Model(&model.Parameter{}).Where("id = ?", phParam.ID).Update("formula", "x + 0.25").Error
+	applyBody := service.ApplyCalibrationRequest{
+		Model: calibration.ModelLinear,
+		Points: []calibration.CalibrationPoint{
+			{Index: 1, Active: true, Label: "Buffer 4", RawX: 3.90, RefY: 4.01},
+			{Index: 2, Active: true, Label: "Buffer 7", RawX: 6.88, RefY: 7.00},
+			{Index: 3, Active: true, Label: "Buffer 10", RawX: 9.85, RefY: 10.01},
+		},
+		EndSession: true,
+	}
+	wApply := performJSONReq(
+		router,
+		http.MethodPost,
+		fmt.Sprintf("/api/calibrations/parameters/%d/apply", phParam.ID),
+		"ENGINEER",
+		"eng_rina",
+		applyBody,
+	)
+	if wApply.Code != http.StatusOK {
+		t.Fatalf("apply calibration failed: %d %s", wApply.Code, wApply.Body.String())
+	}
+
+	var afterApply model.Parameter
+	_ = db.First(&afterApply, phParam.ID).Error
+	if !afterApply.CalibrationEnabled || afterApply.Formula != "" {
+		t.Fatalf("expected CalibrationEnabled=true and Formula=\"\", got enabled=%v formula=%q", afterApply.CalibrationEnabled, afterApply.Formula)
+	}
+
+	// 3. DeviceService.UpdateParameter MUST reject non-empty custom Formula while CalibrationEnabled=true
+	devRepo := repository.NewDeviceRepository(db)
+	sysRepo := repository.NewSystemRepository(db)
+	devSvc := service.NewDeviceService(devRepo, sysRepo)
+	customFormula := "x * 2"
+	_, updErr := devSvc.UpdateParameter(dev.ID, phParam.ID, &service.UpdateParameterRequest{
+		Formula: &customFormula,
+	}, "admin", "127.0.0.1", "test")
+	if updErr == nil {
+		t.Fatalf("expected UpdateParameter to reject non-empty Formula when CalibrationEnabled is true")
+	}
+
+	// 4. TelemetryService.Ingest MUST persist UncalibratedValue alongside calibrated Value in raw_data
+	uncalReading := 6.88
+	calReading := afterApply.ApplyCalibration(uncalReading)
+	if err := telService.Ingest(&service.TelemetryIngestPayload{
+		DeviceID:          dev.ID,
+		DeviceCode:        dev.DeviceCode,
+		DeviceName:        dev.DeviceName,
+		ParameterID:       afterApply.ID,
+		ParameterCode:     afterApply.ParameterCode,
+		ParameterName:     afterApply.ParameterName,
+		Unit:              afterApply.Unit,
+		DataType:          afterApply.DataType,
+		RawValue:          688,
+		UncalibratedValue: &uncalReading,
+		Value:             calReading,
+		Quality:           model.QualityGood,
+		Source:            "MODBUS_RTU",
+		ReceivedAt:        time.Now().UTC(),
+		Parameter:         &afterApply,
+	}); err != nil {
+		t.Fatalf("ingest failed: %v", err)
+	}
+
+	time.Sleep(80 * time.Millisecond)
+
+	var rawRec model.RawData
+	if err := db.Where("parameter_id = ?", afterApply.ID).Order("id desc").First(&rawRec).Error; err != nil {
+		t.Fatalf("expected persisted raw_data row: %v", err)
+	}
+	if rawRec.UncalibratedValue == nil || *rawRec.UncalibratedValue != uncalReading {
+		t.Fatalf("expected raw_data.uncalibrated_value=%.4f, got %v", uncalReading, rawRec.UncalibratedValue)
+	}
+	if rawRec.Value == uncalReading {
+		t.Fatalf("expected raw_data.value (%.4f) to differ from uncalibrated_value (%.4f)", rawRec.Value, uncalReading)
+	}
+}

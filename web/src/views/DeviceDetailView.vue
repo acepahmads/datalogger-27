@@ -904,6 +904,13 @@
                     CAL{{ param.cal_r2 !== null && param.cal_r2 !== undefined ? ' R²=' + Number(param.cal_r2).toFixed(3) : '' }}
                   </span>
                 </div>
+                <div
+                  v-if="!isOperator && param.calibration_enabled"
+                  class="mt-1 text-4xs font-mono text-sky-700 dark:text-sky-300 bg-sky-50/80 dark:bg-sky-500/10 border border-sky-200/80 dark:border-sky-500/25 px-1.5 py-0.5 rounded inline-flex items-center space-x-1"
+                >
+                  <span class="font-semibold">Rumus Kalibrasi:</span>
+                  <span class="font-bold">{{ getParamCalEquation(param) }}</span>
+                </div>
               </td>
               <td class="py-2.5 px-3 font-mono text-3xs text-slate-700 dark:text-slate-300">{{ param.data_type }}</td>
               <td class="py-2.5 px-3 font-medium text-slate-600 dark:text-slate-400">{{ param.unit || '--' }}</td>
@@ -937,7 +944,10 @@
               </td>
               <td v-if="canAccessRawMode" class="py-2.5 px-3 font-mono text-3xs text-slate-600 dark:text-slate-400">
                 <div>×{{ param.scale || param.scale_factor || 1.0 }} + {{ param.offset || 0 }}</div>
-                <div v-if="param.formula" class="text-blue-600 dark:text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
+                <div v-if="param.calibration_enabled" class="text-sky-700 dark:text-sky-300 font-mono text-3xs truncate max-w-[140px]" :title="'Kalibrasi Sensor: ' + getParamCalEquation(param)">
+                  🎯 {{ getParamCalEquation(param) }}
+                </div>
+                <div v-else-if="param.formula" class="text-blue-600 dark:text-blue-400 font-mono text-3xs truncate max-w-[120px]" :title="'Formula: ' + param.formula">
                   ƒ: {{ param.formula }}
                 </div>
                 <div v-if="param.hold_last_value_enabled" class="text-amber-600 dark:text-amber-400/90 text-3xs flex items-center space-x-1" :title="$t('parameters.heldTooltip')">
@@ -970,6 +980,13 @@
                 <div v-if="canAccessRawMode && getParamFormulaValue(param) !== null" class="text-3xs text-blue-600 dark:text-blue-400 font-mono font-medium">
                   ƒ(x): {{ getParamFormulaValue(param) }}
                 </div>
+                <div
+                  v-if="!isOperator && param.calibration_enabled && getParamUncalibratedValue(param) !== null"
+                  class="text-4xs text-sky-700 dark:text-sky-300 font-mono mt-0.5"
+                  :title="'Nilai sebelum kalibrasi (x) vs nilai sesudah kalibrasi (ŷ) · ' + getParamCalEquation(param)"
+                >
+                  Awal (x): {{ getParamUncalibratedValue(param) }} · Δ {{ formatParamCalDelta(param) }}
+                </div>
               </td>
               <td class="py-2.5 px-3">
                 <button
@@ -995,6 +1012,14 @@
                   </svg>
                   <span>Kalibrasi</span>
                 </router-link>
+                <button
+                  v-if="!isOperator && param.calibration_enabled"
+                  @click="resetParamCalibration(param)"
+                  class="text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30 transition text-2xs font-semibold px-2 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"
+                  title="Reset Kalibrasi ke Nilai Tanpa Kalibrasi (y = x)"
+                >
+                  <span>↺ Reset Kal</span>
+                </button>
                 <button
                   @click="openTestReadModal(param)"
                   class="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"
@@ -1335,6 +1360,15 @@
                 {{ getParamFormulaValue(param) }} {{ param.unit }}
               </span>
               <span v-if="param.formula" class="text-3xs text-slate-400 truncate max-w-[150px]">({{ param.formula }})</span>
+            </div>
+            <!-- Active Sensor Calibration Formula & Uncalibrated Comparison (Non-Operator roles) -->
+            <div v-if="!isOperator && param.calibration_enabled" class="pt-1 space-y-0.5 text-3xs font-mono">
+              <div class="flex items-center justify-between text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-500/10 px-2 py-1 rounded border border-sky-200 dark:border-sky-500/25">
+                <span class="truncate mr-2" :title="getParamCalEquation(param)">🎯 {{ getParamCalEquation(param) }}</span>
+                <span v-if="getParamUncalibratedValue(param) !== null" class="whitespace-nowrap font-bold">
+                  Awal (x): {{ getParamUncalibratedValue(param) }}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -2358,7 +2392,9 @@
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.paramLabel') }}</th>
                 <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('deviceDetail.rawHexStream') }}</th>
                 <th v-if="canAccessRawMode" class="py-2.5 px-4">{{ $t('deviceDetail.rawFloat') }}</th>
+                <th v-if="!isOperator" class="py-2.5 px-4">Sebelum Kalibrasi (x)</th>
                 <th class="py-2.5 px-4">{{ canAccessRawMode ? $t('deviceDetail.scaledValue') : $t('deviceDetail.rawOperatorValue') }}</th>
+                <th v-if="!isOperator" class="py-2.5 px-4">Selisih Kalibrasi (Δ)</th>
                 <th class="py-2.5 px-4">{{ $t('telemetry.quality') }}</th>
                 <th class="py-2.5 px-4">{{ $t('deviceDetail.protocol') }}</th>
               </tr>
@@ -2371,6 +2407,11 @@
                 <td class="py-2.5 px-4 text-blue-600 dark:text-blue-400 font-bold">
                   <span>{{ getParamCode(rec.parameter_id) }}</span>
                   <span
+                    v-if="!isOperator && isRawRecordCalibrated(rec)"
+                    :title="'Kurva Kalibrasi: ' + getParamCalEquationById(rec.parameter_id)"
+                    class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30"
+                  >CAL</span>
+                  <span
                     v-if="isSuperAdmin && rec.is_injected"
                     :title="'Disuntik Superadmin · Batch ' + (rec.injection_batch_id || '')"
                     class="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-50 text-violet-700 border border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30"
@@ -2382,8 +2423,23 @@
                 <td v-if="canAccessRawMode" class="py-2.5 px-4 text-slate-600 dark:text-slate-400">
                   {{ rec.raw_value !== undefined ? rec.raw_value : '--' }}
                 </td>
+                <td v-if="!isOperator" class="py-2.5 px-4 text-slate-600 dark:text-slate-300">
+                  {{ formatRawRecordUncalibrated(rec) }}
+                </td>
                 <td class="py-2.5 px-4 text-slate-900 dark:text-white font-bold">
-                  {{ rec.value !== undefined && rec.value !== null ? Number(rec.value).toFixed(2) : '--' }}
+                  {{ formatRawRecordCalibrated(rec) }}
+                </td>
+                <td v-if="!isOperator" class="py-2.5 px-4">
+                  <span
+                    v-if="isRawRecordCalibrated(rec)"
+                    class="px-1.5 py-0.5 rounded text-3xs font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-500/30"
+                    :title="'Rumus: ' + getParamCalEquationById(rec.parameter_id)"
+                  >
+                    {{ formatRawRecordCalDelta(rec) }}
+                  </span>
+                  <span v-else class="text-slate-400 dark:text-slate-500 text-3xs">
+                    {{ formatRawRecordCalDelta(rec) }}
+                  </span>
                 </td>
                 <td class="py-2.5 px-4">
                   <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(rec.quality)">
@@ -2395,7 +2451,7 @@
                 </td>
               </tr>
               <tr v-if="rawRecords.length === 0">
-                <td :colspan="canAccessRawMode ? 7 : 5" class="py-8 text-center text-xs text-slate-400 font-sans">
+                <td :colspan="canAccessRawMode ? 9 : (!isOperator ? 7 : 5)" class="py-8 text-center text-xs text-slate-400 font-sans">
                   {{ rawLoading ? $t('deviceDetail.loadingRaw') : $t('deviceDetail.noRawCaptured') }}
                 </td>
               </tr>
@@ -3298,6 +3354,7 @@
       :categories="categoriesList"
       @close="closeParamModal"
       @saved="handleParamSaved"
+      @calibration-reset="handleCalibrationResetFromModal"
       @open-category-management="isCategoryModalOpen = true"
     />
 
@@ -3702,6 +3759,7 @@ import ParameterIcon from '../components/ParameterIcon.vue';
 import ActuatorTab from '../components/actuators/ActuatorTab.vue';
 import CategoryManagementModal from '../components/CategoryManagementModal.vue';
 import { getCategoryColor } from '../utils/categoryTheme.js';
+import { formatCalibrationEquation } from '../utils/calibrationMath.js';
 
 export default {
   name: 'DeviceDetailView',
@@ -4425,7 +4483,7 @@ export default {
         if (this.isModbusDevice) {
           this.fetchPollingPlan();
         }
-        if (this.activeTab === 'telemetry') {
+        if (this.activeTab === 'telemetry' || this.activeTab === 'parameters') {
           this.fetchLatestTelemetry();
         } else if (this.activeTab === 'history') {
           this.fetchHistory();
@@ -4871,7 +4929,7 @@ export default {
       }
       if (tab === 'connection') {
         this.fetchCommStatus();
-      } else if (tab === 'telemetry') {
+      } else if (tab === 'telemetry' || tab === 'parameters') {
         this.fetchLatestTelemetry();
       } else if (tab === 'history') {
         this.fetchHistory();
@@ -4933,6 +4991,7 @@ export default {
             device_id: data.device_id,
             parameter_id: data.parameter_id,
             value: data.value,
+            uncalibrated_value: !this.isOperator ? data.uncalibrated_value : undefined,
             raw_value: this.canAccessRawMode ? data.raw_value : undefined,
             raw_hex: this.canAccessRawMode ? data.raw_hex : '',
             quality: data.quality || 'GOOD',
@@ -5347,6 +5406,122 @@ export default {
         return Number(param.current_formula_value).toFixed(param.precision || 2);
       }
       return null;
+    },
+    getParamById(paramId) {
+      if (!this.device || !this.device.parameters) return null;
+      return this.device.parameters.find(x => x.id === Number(paramId)) || null;
+    },
+    getParamCalEquation(param) {
+      if (!param) return 'y = x (Default)';
+      const live = this.liveTelemetry[param.id];
+      if (live && live.cal_equation) return live.cal_equation;
+      return formatCalibrationEquation(
+        !!param.calibration_enabled,
+        param.calibration_model,
+        param.cal_coeff_c2,
+        param.cal_coeff_c1,
+        param.cal_coeff_c0
+      );
+    },
+    getParamCalEquationById(paramId) {
+      const p = this.getParamById(paramId);
+      return p ? this.getParamCalEquation(p) : 'y = x (Default)';
+    },
+    getParamUncalibratedValueNum(param) {
+      if (this.isOperator || !param) return null;
+      const live = this.liveTelemetry[param.id];
+      if (live && live.uncalibrated_value !== undefined && live.uncalibrated_value !== null) {
+        return Number(live.uncalibrated_value);
+      }
+      if (param.current_uncalibrated_value !== undefined && param.current_uncalibrated_value !== null) {
+        return Number(param.current_uncalibrated_value);
+      }
+      return null;
+    },
+    getParamUncalibratedValue(param) {
+      const num = this.getParamUncalibratedValueNum(param);
+      if (num === null || !Number.isFinite(num)) return null;
+      const prec = param && param.precision !== undefined ? param.precision : 2;
+      return num.toFixed(prec);
+    },
+    formatParamCalDelta(param) {
+      const uncal = this.getParamUncalibratedValueNum(param);
+      if (uncal === null || !Number.isFinite(uncal)) return '--';
+      const live = this.liveTelemetry[param.id];
+      const calVal = live && live.value !== undefined && live.value !== null ? Number(live.value) : Number(param.current_value);
+      if (!Number.isFinite(calVal)) return '--';
+      const delta = calVal - uncal;
+      const prec = param && param.precision !== undefined ? param.precision : 2;
+      return `${delta >= 0 ? '+' : ''}${delta.toFixed(prec)}`;
+    },
+    isRawRecordCalibrated(rec) {
+      if (!rec) return false;
+      const p = this.getParamById(rec.parameter_id);
+      if (rec.uncalibrated_value !== undefined && rec.uncalibrated_value !== null && rec.value !== undefined && rec.value !== null) {
+        if (Math.abs(Number(rec.value) - Number(rec.uncalibrated_value)) > 1e-7) return true;
+      }
+      return !!(p && p.calibration_enabled);
+    },
+    formatRawRecordUncalibrated(rec) {
+      if (this.isOperator || !rec) return '--';
+      const p = this.getParamById(rec.parameter_id);
+      const prec = p && p.precision !== undefined ? p.precision : 2;
+      if (rec.uncalibrated_value !== undefined && rec.uncalibrated_value !== null && Number.isFinite(Number(rec.uncalibrated_value))) {
+        return Number(rec.uncalibrated_value).toFixed(prec);
+      }
+      if ((!p || !p.calibration_enabled) && rec.value !== undefined && rec.value !== null && Number.isFinite(Number(rec.value))) {
+        return Number(rec.value).toFixed(prec);
+      }
+      return '--';
+    },
+    formatRawRecordCalibrated(rec) {
+      if (!rec || rec.value === undefined || rec.value === null || !Number.isFinite(Number(rec.value))) return '--';
+      const p = this.getParamById(rec.parameter_id);
+      const prec = p && p.precision !== undefined ? p.precision : 2;
+      return Number(rec.value).toFixed(prec);
+    },
+    formatRawRecordCalDelta(rec) {
+      if (this.isOperator || !rec) return '--';
+      const p = this.getParamById(rec.parameter_id);
+      const prec = p && p.precision !== undefined ? p.precision : 2;
+      if (rec.uncalibrated_value !== undefined && rec.uncalibrated_value !== null && rec.value !== undefined && rec.value !== null) {
+        const delta = Number(rec.value) - Number(rec.uncalibrated_value);
+        if (!Number.isFinite(delta)) return '--';
+        if (!this.isRawRecordCalibrated(rec) && Math.abs(delta) < 1e-7) {
+          return '0.00 (y = x)';
+        }
+        return `${delta >= 0 ? '+' : ''}${delta.toFixed(prec)}`;
+      }
+      if (!p || !p.calibration_enabled) {
+        return '0.00 (y = x)';
+      }
+      return '--';
+    },
+    handleCalibrationResetFromModal() {
+      this.showToast('Kalibrasi sensor berhasil di-reset ke nilai tanpa kalibrasi (y = x).', 'success');
+      this.loadDevice();
+      this.fetchLatestTelemetry();
+      this.$store.dispatch('fetchDevices');
+    },
+    async resetParamCalibration(param) {
+      if (!param || this.isOperator) return;
+      const eq = this.getParamCalEquation(param);
+      const ok = window.confirm(
+        `Reset kalibrasi parameter "${param.parameter_name || param.parameter_code}" (${eq}) kembali ke nilai tanpa kalibrasi (y = x)?\n\nScale (${param.scale || 1}) & Offset (${param.offset || 0}) bawaan Modbus tetap dipertahankan.`
+      );
+      if (!ok) return;
+      try {
+        await apiClient.post(`/calibrations/parameters/${param.id}/reset`, {
+          reason_note: 'Reset ke default (y = x) dari tabel parameter Detail Perangkat',
+        });
+        this.showToast(`Kalibrasi ${param.parameter_code} di-reset ke y = x (tanpa kalibrasi).`, 'success');
+        await this.loadDevice();
+        await this.fetchLatestTelemetry();
+        this.$store.dispatch('fetchDevices');
+      } catch (err) {
+        const msg = (err.response && err.response.data && (err.response.data.error || err.response.data.message)) || err.message || 'Gagal mereset kalibrasi';
+        this.showToast(msg, 'error');
+      }
     },
     getTestReadFormulaValNum() {
       if (!this.testReadResult) return null;

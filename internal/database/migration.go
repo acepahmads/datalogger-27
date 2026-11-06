@@ -122,6 +122,17 @@ func RunMigrations(db *gorm.DB) error {
 		_ = db.Model(&model.Parameter{}).Where("calibration_model IS NULL OR calibration_model = ''").Update("calibration_model", "LINEAR").Error
 		_ = db.Model(&model.Parameter{}).Where("cal_min_r2 IS NULL OR cal_min_r2 <= 0 OR cal_min_r2 > 1").Update("cal_min_r2", 0.995).Error
 		_ = db.Model(&model.Parameter{}).Where("(calibration_enabled IS NULL OR calibration_enabled = ?) AND (cal_c1 IS NULL OR cal_c1 = 0) AND (cal_c2 IS NULL OR cal_c2 = 0) AND (cal_c0 IS NULL OR cal_c0 = 0)", false).Update("cal_c1", 1.0).Error
+		// Prevent double-formula conflict on already-calibrated parameters
+		_ = db.Model(&model.Parameter{}).Where("calibration_enabled = ? AND formula IS NOT NULL AND formula <> ''", true).Updates(map[string]interface{}{
+			"formula":               "",
+			"current_formula_value": nil,
+		}).Error
+	}
+
+	if db.Migrator().HasTable(&model.RawData{}) {
+		if !db.Migrator().HasColumn(&model.RawData{}, "uncalibrated_value") {
+			_ = db.Migrator().AddColumn(&model.RawData{}, "uncalibrated_value")
+		}
 	}
 
 	// 1b2. Ensure batch read configuration columns exist on device_connections

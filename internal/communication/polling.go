@@ -1281,10 +1281,12 @@ func (p *PollingEngine) ReadParameter(
 
 		if p.holdTracker != nil {
 			effVal, formulaVal, isHeld, quality, pErr = p.holdTracker.ProcessReading(param, 0, 0, err)
-		} else if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
-			formulaVal = fVal
-			quality = model.QualityGood
-			pErr = nil
+		} else if !param.CalibrationEnabled && !param.CalibrationSessionActive {
+			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+				formulaVal = fVal
+				quality = model.QualityGood
+				pErr = nil
+			}
 		}
 
 		if isHeld || (formulaVal != nil && pErr == nil) {
