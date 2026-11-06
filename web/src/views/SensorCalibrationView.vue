@@ -13,31 +13,12 @@
           </span>
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Kalibrasi presisi regresi linier, polinomial kuadratik orde-2, &amp; 1-titik untuk kepatuhan
-          <strong class="text-slate-700 dark:text-slate-200">AQMS</strong>,
-          <strong class="text-slate-700 dark:text-slate-200">SPARING</strong>, dan
-          <strong class="text-slate-700 dark:text-slate-200">WQMS ONLIMO</strong>.
+          Kalibrasi presisi regresi linier, polinomial kuadratik orde-2, &amp; 1-titik untuk seluruh parameter sensor aktif.
         </p>
       </div>
 
-      <!-- Right Controls: Domain Filter & View Tabs -->
+      <!-- Right Controls: View Tabs -->
       <div class="flex flex-wrap items-center gap-2">
-        <!-- Domain Filter Pills -->
-        <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-2xs">
-          <button
-            v-for="dom in domainOptions"
-            :key="dom.value"
-            type="button"
-            @click="onSelectDomainFilter(dom.value)"
-            class="px-2.5 py-1 rounded-md font-semibold transition cursor-pointer"
-            :class="selectedDomainFilter === dom.value
-              ? 'bg-sky-600 text-white btn-text shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
-          >
-            {{ dom.badge === 'ALL' ? 'Semua' : dom.badge }}
-          </button>
-        </div>
-
         <!-- Workspace vs Full History Tab -->
         <div class="flex items-center bg-slate-100 dark:bg-[#101B2B] p-0.5 rounded-lg border border-slate-200 dark:border-[#20354B] text-xs">
           <button
@@ -84,42 +65,27 @@
     <div v-if="activeTab === 'workspace'" class="space-y-4">
       <!-- Top 3-Card Control & Live Readout Strip -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        <!-- Card 1: Device, Parameter & Session Guard -->
+        <!-- Card 1: Active Sensor Parameter & Calibration Session Guard -->
         <div class="saas-card p-3.5 lg:col-span-5 flex flex-col justify-between space-y-2.5">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
-              <label class="block text-2xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Perangkat Sensor</label>
-              <select
-                id="select-calibration-device"
-                v-model="selectedDeviceId"
-                @change="onDeviceChange"
-                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#244356] bg-white dark:bg-[#0D2232] text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
-              >
-                <option :value="0">Semua Perangkat ({{ deviceOptions.length }})</option>
-                <option v-for="dev in deviceOptions" :key="dev.device_id" :value="dev.device_id">
-                  {{ dev.device_name }} ({{ dev.device_code }} · {{ dev.protocol }})
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-2xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Parameter Kalibrasi</label>
-              <select
-                id="select-calibration-parameter"
-                v-model="selectedParameterId"
-                @change="onParameterChange"
-                class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#244356] bg-white dark:bg-[#0D2232] text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
-              >
-                <option v-if="filteredParameters.length === 0" :value="0">-- Tidak ada parameter analog --</option>
-                <option v-for="p in filteredParameters" :key="p.parameter_id" :value="p.parameter_id">
-                  [{{ domainShortBadge(p.effective_domain) }}] {{ p.parameter_name }} ({{ p.unit || '-' }}) {{ p.calibration_enabled ? '✓' : '' }}
-                </option>
-              </select>
-            </div>
+          <div>
+            <label class="block text-2xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+              Parameter Kalibrasi ({{ filteredParameters.length }} Parameter Aktif)
+            </label>
+            <select
+              id="select-calibration-parameter"
+              v-model="selectedParameterId"
+              @change="onParameterChange"
+              class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#244356] bg-white dark:bg-[#0D2232] text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
+            >
+              <option v-if="filteredParameters.length === 0" :value="0">-- Tidak ada parameter aktif pada perangkat aktif --</option>
+              <option v-for="p in filteredParameters" :key="p.parameter_id" :value="p.parameter_id">
+                {{ formatParameterOptionLabel(p) }}
+              </option>
+            </select>
           </div>
 
-          <!-- Domain Tag Assignment & Calibration Session Toggle -->
-          <div class="pt-2 border-t border-slate-100 dark:border-[#1E3648] flex flex-wrap items-center justify-between gap-2">
+          <!-- Calibration Session Toggle -->
+          <div class="pt-2 border-t border-slate-100 dark:border-[#1E3648] flex items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <button
                 type="button"
@@ -147,23 +113,9 @@
                   </span>
                 </div>
                 <div class="text-2xs text-slate-500 dark:text-slate-400">
-                  Alarm &amp; agregasi kepatuhan AQMS / SPARING / ONLIMO ditahan sementara
+                  Alarm &amp; agregasi pelaporan ditahan sementara selama sesi aktif
                 </div>
               </div>
-            </div>
-
-            <!-- Parameter Compliance Domain Selector -->
-            <div v-if="currentParam" class="flex items-center gap-1.5 text-2xs">
-              <span class="text-slate-500 dark:text-slate-400">Domain:</span>
-              <select
-                v-model="draftDomain"
-                @change="saveParameterDomainOnly"
-                class="px-2 py-1 rounded-md border border-slate-200 dark:border-[#244356] bg-slate-50 dark:bg-[#0D2232] font-bold text-slate-700 dark:text-slate-200 text-2xs focus:outline-none"
-              >
-                <option value="AQMS">AQMS</option>
-                <option value="SPARING">SPARING</option>
-                <option value="WQMS_ONLIMO">WQMS ONLIMO</option>
-              </select>
             </div>
           </div>
         </div>
@@ -715,7 +667,6 @@
             <thead>
               <tr class="bg-slate-100 dark:bg-[#102436] text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-[#244356] text-2xs uppercase tracking-wider">
                 <th class="py-2 px-3">Waktu</th>
-                <th class="py-2 px-2.5">Domain</th>
                 <th class="py-2 px-3">Parameter</th>
                 <th class="py-2 px-2.5">Metode &amp; Titik</th>
                 <th class="py-2 px-3">Persamaan Baru</th>
@@ -727,17 +678,12 @@
             </thead>
             <tbody class="divide-y divide-slate-200 dark:divide-[#1E3648]">
               <tr v-if="auditLogs.length === 0">
-                <td colspan="9" class="py-6 text-center text-xs text-slate-400">
+                <td colspan="8" class="py-6 text-center text-xs text-slate-400">
                   Belum ada riwayat kalibrasi tercatat.
                 </td>
               </tr>
               <tr v-for="log in auditLogs.slice(0, 6)" :key="log.id" class="bg-white dark:bg-[#0B1C2B]">
                 <td class="py-2 px-3 whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300">{{ formatTimestamp(log.created_at) }}</td>
-                <td class="py-2 px-2.5">
-                  <span class="px-2 py-0.5 rounded text-3xs font-bold border" :class="domainBadgeClass(log.domain)">
-                    {{ domainShortBadge(log.domain) }}
-                  </span>
-                </td>
                 <td class="py-2 px-3 font-semibold text-slate-800 dark:text-slate-100">
                   {{ log.parameter_name }} <span v-if="log.unit" class="text-slate-400 font-normal">({{ log.unit }})</span>
                 </td>
@@ -826,8 +772,7 @@
           <thead>
             <tr class="bg-slate-100 dark:bg-[#102436] text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-[#244356] text-2xs uppercase tracking-wider">
               <th class="py-2.5 px-3">Waktu</th>
-              <th class="py-2.5 px-2.5">Domain</th>
-              <th class="py-2.5 px-3">Perangkat &amp; Parameter</th>
+              <th class="py-2.5 px-3">Parameter</th>
               <th class="py-2.5 px-2.5">Aksi / Metode</th>
               <th class="py-2.5 px-3">Persamaan Baru (vs Lama)</th>
               <th class="py-2.5 px-2.5 text-center">R² (Min)</th>
@@ -838,20 +783,15 @@
           </thead>
           <tbody class="divide-y divide-slate-200 dark:divide-[#1E3648]">
             <tr v-if="auditLogs.length === 0">
-              <td colspan="9" class="py-8 text-center text-xs text-slate-400">
+              <td colspan="8" class="py-8 text-center text-xs text-slate-400">
                 Tidak ada log kalibrasi untuk filter yang dipilih.
               </td>
             </tr>
             <tr v-for="log in auditLogs" :key="'full-' + log.id" class="bg-white dark:bg-[#0B1C2B]">
               <td class="py-2.5 px-3 whitespace-nowrap tabular-nums">{{ formatTimestamp(log.created_at) }}</td>
-              <td class="py-2.5 px-2.5">
-                <span class="px-2 py-0.5 rounded text-3xs font-bold border" :class="domainBadgeClass(log.domain)">
-                  {{ domainShortBadge(log.domain) }}
-                </span>
-              </td>
               <td class="py-2.5 px-3">
                 <div class="font-bold text-slate-800 dark:text-slate-100">{{ log.parameter_name }} ({{ log.unit || '-' }})</div>
-                <div class="text-2xs text-slate-400">{{ log.device_name }} · {{ log.parameter_code }}</div>
+                <div class="text-2xs text-slate-400">{{ log.parameter_code }}</div>
               </td>
               <td class="py-2.5 px-2.5 whitespace-nowrap">
                 <div class="font-semibold">{{ formatLogMethod(log) }}</div>
@@ -908,7 +848,6 @@
 import api from '../services/api';
 import {
   CALIBRATION_MODELS,
-  CALIBRATION_DOMAINS,
   calculateRegressionJS,
   evaluateCalibrationCurve,
   evaluateReadingStability,
@@ -921,18 +860,14 @@ export default {
   data() {
     return {
       activeTab: 'workspace',
-      domainOptions: CALIBRATION_DOMAINS,
       modelOptions: CALIBRATION_MODELS,
-      selectedDomainFilter: 'ALL',
       allParameters: [],
-      stationDomain: 'SPARING',
+      stationDomain: 'AQMS',
 
-      selectedDeviceId: 0,
       selectedParameterId: 0,
       activeCaptureRow: 0,
 
       draftModel: 'LINEAR',
-      draftDomain: 'SPARING',
       draftMinR2: 0.995,
       draftStandardNote: '',
       selectedStandardPresetId: '',
@@ -968,27 +903,23 @@ export default {
     };
   },
   computed: {
-    deviceOptions() {
-      const map = new Map();
+    globalMonitoringDomain() {
+      const st = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      const gd = String(st.monitoring_domain || this.stationDomain || 'AQMS').toUpperCase();
+      if (gd === 'WQMS' || gd === 'ONLIMO' || gd === 'WQMS_ONLIMO') return 'WQMS_ONLIMO';
+      if (gd === 'SPARING') return 'SPARING';
+      return 'AQMS';
+    },
+    duplicateParameterNames() {
+      const counts = {};
       for (const p of this.allParameters) {
-        if (!map.has(p.device_id)) {
-          map.set(p.device_id, {
-            device_id: p.device_id,
-            device_code: p.device_code,
-            device_name: p.device_name,
-            protocol: p.protocol,
-          });
-        }
+        const key = String(p.parameter_name || '').trim().toUpperCase();
+        counts[key] = (counts[key] || 0) + 1;
       }
-      return Array.from(map.values());
+      return counts;
     },
     filteredParameters() {
-      return this.allParameters.filter(p => {
-        if (this.selectedDeviceId > 0 && Number(p.device_id) !== Number(this.selectedDeviceId)) {
-          return false;
-        }
-        return true;
-      });
+      return this.allParameters;
     },
     currentParam() {
       return this.allParameters.find(p => Number(p.parameter_id) === Number(this.selectedParameterId)) || null;
@@ -1227,33 +1158,25 @@ export default {
       }
       return 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30';
     },
-    async initializePage() {
-      const qDev = Number(this.$route.query.device_id || 0);
-      const qParam = Number(this.$route.query.parameter_id || 0);
-      if (qDev > 0) this.selectedDeviceId = qDev;
-      await this.fetchParameters(qParam);
-      await this.fetchAuditLogs();
+    formatParameterOptionLabel(p) {
+      if (!p) return '';
+      const base = `${p.parameter_name} (${p.unit || '-'})`;
+      const key = String(p.parameter_name || '').trim().toUpperCase();
+      const suffix = this.duplicateParameterNames[key] > 1 && p.device_name ? ` — ${p.device_name}` : '';
+      return `${base}${suffix}${p.calibration_enabled ? ' ✓' : ''}`;
     },
-    async onSelectDomainFilter(domainVal) {
-      this.selectedDomainFilter = domainVal;
-      await this.fetchParameters(this.selectedParameterId);
+    async initializePage() {
+      const qParam = Number(this.$route.query.parameter_id || 0);
+      await this.fetchParameters(qParam);
       await this.fetchAuditLogs();
     },
     async fetchParameters(preferredParamId = 0) {
       try {
-        const params = {};
-        if (this.selectedDomainFilter && this.selectedDomainFilter !== 'ALL') {
-          params.domain = this.selectedDomainFilter;
-        }
-        const res = await api.get('/calibrations/parameters', { params });
+        const res = await api.get('/calibrations/parameters');
         const payload = (res.data && res.data.data) || {};
         this.allParameters = Array.isArray(payload.items) ? payload.items : [];
         if (payload.station_domain) {
           this.stationDomain = payload.station_domain;
-        }
-
-        if (this.selectedDeviceId > 0 && !this.allParameters.some(p => Number(p.device_id) === Number(this.selectedDeviceId))) {
-          this.selectedDeviceId = 0;
         }
 
         const list = this.filteredParameters;
@@ -1272,11 +1195,6 @@ export default {
         this.showBanner(msg, 'error');
       }
     },
-    onDeviceChange() {
-      const list = this.filteredParameters;
-      this.selectedParameterId = list.length > 0 ? list[0].parameter_id : 0;
-      this.hydrateWorkspaceFromCurrentParam();
-    },
     onParameterChange() {
       this.hydrateWorkspaceFromCurrentParam();
       if (this.historyOnlySelectedParam) {
@@ -1294,7 +1212,6 @@ export default {
         return;
       }
 
-      this.draftDomain = p.effective_domain || 'SPARING';
       this.draftMinR2 = normalizeMinR2(p.cal_min_r2);
       this.draftStandardNote = p.cal_standard_note || '';
 
@@ -1486,7 +1403,6 @@ export default {
       try {
         const res = await api.put(`/calibrations/parameters/${this.currentParam.parameter_id}/config`, {
           cal_min_r2: v,
-          domain: this.draftDomain,
         });
         this.replaceUpdatedParameterInList(res.data && res.data.data);
         this.showBanner(`Batas lulus R² untuk ${this.currentParam.parameter_name} disimpan (≥ ${v.toFixed(4)}).`);
@@ -1495,17 +1411,6 @@ export default {
         this.showBanner(msg, 'error');
       } finally {
         this.savingConfig = false;
-      }
-    },
-    async saveParameterDomainOnly() {
-      if (!this.currentParam) return;
-      try {
-        const res = await api.put(`/calibrations/parameters/${this.currentParam.parameter_id}/config`, {
-          domain: this.draftDomain,
-        });
-        this.replaceUpdatedParameterInList(res.data && res.data.data);
-      } catch (e) {
-        // ignore
       }
     },
     async applyCalibration() {
@@ -1518,7 +1423,7 @@ export default {
       try {
         const res = await api.post(`/calibrations/parameters/${this.currentParam.parameter_id}/apply`, {
           model: this.draftModel,
-          domain: this.draftDomain,
+          domain: this.globalMonitoringDomain,
           points: this.points,
           min_r2: Number(this.draftMinR2),
           standard_note: this.draftStandardNote,
@@ -1565,9 +1470,6 @@ export default {
     async fetchAuditLogs() {
       try {
         const params = { page: 1, page_size: 100 };
-        if (this.selectedDomainFilter && this.selectedDomainFilter !== 'ALL') {
-          params.domain = this.selectedDomainFilter;
-        }
         if (this.historyOnlySelectedParam && this.selectedParameterId > 0) {
           params.parameter_id = this.selectedParameterId;
         }

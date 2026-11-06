@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"datalogger/internal/calibration"
+	"datalogger/internal/config"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 )
@@ -143,6 +144,12 @@ func (s *CalibrationService) SetOnClearParamAlarms(fn func(ctx context.Context, 
 }
 
 func (s *CalibrationService) resolveStationDomain() string {
+	if globalCfg := config.Get(); globalCfg != nil {
+		gd := strings.TrimSpace(globalCfg.MonitoringDomain)
+		if gd != "" && !strings.EqualFold(gd, "CUSTOM") {
+			return gd
+		}
+	}
 	if s.systemRepo == nil {
 		return ""
 	}

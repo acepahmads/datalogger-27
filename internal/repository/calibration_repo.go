@@ -26,10 +26,12 @@ func NewCalibrationRepository(db *gorm.DB) *CalibrationRepository {
 	return &CalibrationRepository{db: db}
 }
 
-// ListCalibratableParameters returns active analog/numeric parameters and their parent active devices
+// ListCalibratableParameters returns enabled analog/numeric parameters belonging to active/enabled devices
 func (r *CalibrationRepository) ListCalibratableParameters(ctx context.Context, deviceID uint) ([]model.Parameter, map[uint]model.Device, error) {
 	var devices []model.Device
-	devQuery := r.db.WithContext(ctx).Preload("Connection").Where("deleted_at IS NULL")
+	devQuery := r.db.WithContext(ctx).
+		Preload("Connection").
+		Where("deleted_at IS NULL AND (enabled = 1 OR enabled = true) AND (status IS NULL OR status = '' OR status NOT IN ('DISABLED', 'INACTIVE'))")
 	if deviceID > 0 {
 		devQuery = devQuery.Where("id = ?", deviceID)
 	}
@@ -50,8 +52,8 @@ func (r *CalibrationRepository) ListCalibratableParameters(ctx context.Context, 
 	var params []model.Parameter
 	if err := r.db.WithContext(ctx).
 		Preload("Category").
-		Where("device_id IN (?) AND deleted_at IS NULL", devIDs).
-		Order("device_id ASC, id ASC").
+		Where("device_id IN (?) AND deleted_at IS NULL AND (enabled = 1 OR enabled = true)", devIDs).
+		Order("parameter_name ASC, id ASC").
 		Find(&params).Error; err != nil {
 		return nil, nil, err
 	}

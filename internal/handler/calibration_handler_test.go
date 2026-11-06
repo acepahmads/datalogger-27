@@ -196,6 +196,50 @@ func TestCalibrationHandler_RBAC_Domains_PerParamR2_ApplyResetRollback_SessionGu
 		t.Fatalf("create DO param: %v", err)
 	}
 
+	// Seed a disabled device + disabled parameter to ensure they are excluded from /api/calibrations/parameters
+	disabledDev := model.Device{
+		DeviceCode: "DEV-DISABLED-99",
+		DeviceName: "QA CEK Disabled",
+		Status:     model.DeviceStatusDisabled,
+		Enabled:    false,
+	}
+	_ = db.Create(&disabledDev).Error
+	_ = db.Model(&disabledDev).Update("enabled", false).Error
+	_ = db.Create(&model.Parameter{
+		DeviceID:      disabledDev.ID,
+		ParameterCode: "HIDDEN_DEV_PARAM",
+		ParameterName: "Hidden Disabled Device Param",
+		DataType:      model.DataTypeFloat32,
+		Enabled:       true,
+	}).Error
+
+	disabledParam := model.Parameter{
+		DeviceID:      dev.ID,
+		ParameterCode: "HIDDEN_PARAM",
+		ParameterName: "Hidden Disabled Param",
+		DataType:      model.DataTypeFloat32,
+		Enabled:       false,
+	}
+	_ = db.Create(&disabledParam).Error
+	_ = db.Model(&disabledParam).Update("enabled", false).Error
+
+	// Verify disabled device parameters and disabled parameters never appear in ListParameters
+	wActiveOnly := performJSONReq(router, http.MethodGet, "/api/calibrations/parameters", "ENGINEER", "eng_budi", nil)
+	if wActiveOnly.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", wActiveOnly.Code)
+	}
+	var activeOnlyResp struct {
+		Data struct {
+			Items []service.CalibratableParameterDTO `json:"items"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(wActiveOnly.Body.Bytes(), &activeOnlyResp)
+	for _, it := range activeOnlyResp.Data.Items {
+		if it.ParameterCode == "HIDDEN_DEV_PARAM" || it.ParameterCode == "HIDDEN_PARAM" {
+			t.Fatalf("disabled device/parameter leaked into calibration parameters list: %+v", it)
+		}
+	}
+
 	// 1. RBAC Verification: OPERATOR is strictly forbidden (403), while ENGINEER, ADMIN, SUPERADMIN, and custom non-Operator role succeed (200)
 	wOp := performJSONReq(router, http.MethodGet, "/api/calibrations/parameters", "OPERATOR", "op_shift1", nil)
 	if wOp.Code != http.StatusForbidden {

@@ -985,7 +985,7 @@
               <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
                 <router-link
                   v-if="!isOperator && !['BOOL', 'COIL', 'DISCRETE', 'STRING'].includes(String(param.data_type || '').toUpperCase())"
-                  :to="{ path: '/monitoring/calibration', query: { device_id: device.id, parameter_id: param.id } }"
+                  :to="{ path: '/monitoring/calibration', query: { parameter_id: param.id } }"
                   class="text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/30 transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1"
                   title="Kalibrasi Sensor & Regresi Multi-Titik (1-10 Titik)"
                 >

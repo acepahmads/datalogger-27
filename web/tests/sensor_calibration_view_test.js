@@ -73,12 +73,13 @@ assert(presetAQMS.length >= 2 && presetAQMS[0].refs.length === 5, 'AQMS SO2 pres
 assert(presetSPARING.length >= 2 && presetSPARING[0].refs.length === 5, 'SPARING COD preset should include 5-point KHP CRM');
 assert(presetONLIMO.length >= 1 && presetONLIMO[0].refs.length === 2, 'WQMS ONLIMO DO preset should include Zero & Air-Saturated points');
 
-// 5. Verify SensorCalibrationView.vue Light-Mode `text-white` compliance & per-parameter R2 controls
+// 5. Verify SensorCalibrationView.vue Light-Mode `text-white` compliance, global domain inheritance, & no device/domain selector clutter
 const viewCode = fs.readFileSync(viewSrcPath, 'utf8');
 assert(viewCode.includes('draftMinR2'), 'SensorCalibrationView must include per-parameter draftMinR2 state');
-assert(viewCode.includes('WQMS_ONLIMO'), 'SensorCalibrationView must support WQMS_ONLIMO domain');
-assert(viewCode.includes('SPARING'), 'SensorCalibrationView must support SPARING domain');
-assert(viewCode.includes('AQMS'), 'SensorCalibrationView must support AQMS domain');
+assert(viewCode.includes('globalMonitoringDomain'), 'SensorCalibrationView must inherit globalMonitoringDomain from global config');
+assert(!viewCode.includes('select-calibration-device'), 'SensorCalibrationView must NOT show a device selector dropdown');
+assert(!viewCode.includes('onSelectDomainFilter'), 'SensorCalibrationView must NOT show local domain filter pills');
+assert(!viewCode.includes('saveParameterDomainOnly'), 'SensorCalibrationView must NOT show a per-parameter domain selector');
 
 // Check every class attribute containing `text-white` (without `dark:text-white`) has `btn-text` or `badge-text`
 const classRegex = /class="([^"]*)"/g;
