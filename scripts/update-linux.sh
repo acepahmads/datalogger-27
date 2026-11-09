@@ -15,11 +15,29 @@ SERVICE_NAME="datalogger.service"
 ARCH=$(uname -m)
 echo "Detected CPU Architecture: $ARCH"
 
-# 1. Check if git repo needs pulling or if already pulled
+# 1. Check if git repo needs pulling or if already pulled (auto-detect active branch safely even under sudo)
 if [ -d ".git" ]; then
-  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-  echo "[1/4] Pulling latest commits from GitHub (branch: $CURRENT_BRANCH)..."
-  git pull origin "$CURRENT_BRANCH" || true
+  REPO_DIR=$(pwd -P 2>/dev/null || pwd)
+  run_git() {
+    if [ -n "$SUDO_USER" ] && [ "$EUID" -eq 0 ]; then
+      sudo -u "$SUDO_USER" git -c safe.directory="$REPO_DIR" "$@"
+    else
+      git -c safe.directory="$REPO_DIR" "$@"
+    fi
+  }
+
+  if [ -n "$1" ]; then
+    CURRENT_BRANCH="$1"
+  else
+    CURRENT_BRANCH=$(run_git symbolic-ref --short HEAD 2>/dev/null || run_git rev-parse --abbrev-ref HEAD 2>/dev/null || sed -n 's|^ref: refs/heads/||p' .git/HEAD 2>/dev/null)
+  fi
+
+  if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "HEAD" ]; then
+    echo "[1/4] Pulling latest commits from GitHub (active branch: $CURRENT_BRANCH)..."
+    run_git pull origin "$CURRENT_BRANCH" || true
+  else
+    echo "[1/4] Detached HEAD detected; skipping automatic git pull."
+  fi
 fi
 
 # 2. Stop systemd service if active
