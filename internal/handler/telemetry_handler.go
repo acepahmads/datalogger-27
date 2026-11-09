@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"datalogger/internal/config"
+	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -65,6 +66,10 @@ func (h *TelemetryHandler) GetLatestForDevice(c *gin.Context) {
 
 	results, err := h.telemetryService.GetLatestForDevice(c.Request.Context(), uint(idVal))
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to retrieve latest telemetry: "+err.Error())
 		return
 	}
@@ -92,6 +97,10 @@ func (h *TelemetryHandler) GetLatestForParameter(c *gin.Context) {
 
 	result, err := h.telemetryService.GetLatestForParameter(c.Request.Context(), uint(devID), uint(paramID))
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "Parameter telemetry not found: "+err.Error())
 		return
 	}
@@ -114,11 +123,15 @@ func (h *TelemetryHandler) parseTelemetryFilterParams(c *gin.Context, defaultDev
 	}
 
 	skipCountRaw := strings.TrimSpace(strings.ToLower(c.Query("skip_count")))
+	scope := middleware.GetScope(c)
 	filter := repository.TelemetryFilterParams{
-		Page:      page,
-		PageSize:  pageSize,
-		Quality:   strings.TrimSpace(c.Query("quality")),
-		SkipCount: skipCountRaw == "1" || skipCountRaw == "true",
+		TenantID:       scope.TenantID,
+		SiteID:         scope.SiteID,
+		AllowedSiteIDs: scope.AllowedSiteIDs,
+		Page:           page,
+		PageSize:       pageSize,
+		Quality:        strings.TrimSpace(c.Query("quality")),
+		SkipCount:      skipCountRaw == "1" || skipCountRaw == "true",
 	}
 
 	// Device ID & Device IDs
@@ -220,6 +233,10 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to retrieve historical telemetry: "+err.Error())
 		return
 	}
@@ -250,6 +267,10 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to retrieve historical telemetry: "+err.Error())
 		return
 	}
@@ -289,6 +310,10 @@ func (h *TelemetryHandler) GetRawTelemetry(c *gin.Context) {
 	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())
 		return
 	}
@@ -319,6 +344,10 @@ func (h *TelemetryHandler) GetAllRawTelemetry(c *gin.Context) {
 	}
 	records, total, err := h.telemetryService.GetHistorical(c.Request.Context(), params)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to query raw telemetry: "+err.Error())
 		return
 	}

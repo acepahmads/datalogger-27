@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"datalogger/internal/communication"
+	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -33,6 +34,20 @@ func NewCommunicationHandler(
 	}
 }
 
+func (h *CommunicationHandler) getAccessibleDevice(c *gin.Context, id uint) (*model.Device, bool) {
+	dev, err := h.deviceService.GetDeviceByID(id)
+	if err != nil || dev == nil {
+		response.NotFound(c, "Device not found")
+		return nil, false
+	}
+	scope := middleware.GetScope(c)
+	if scope.Authenticated && !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+		response.Forbidden(c, "Access denied: device belongs to another tenant or restricted station")
+		return nil, false
+	}
+	return dev, true
+}
+
 // Connect handles POST /api/devices/:id/communication/connect
 func (h *CommunicationHandler) Connect(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -41,9 +56,8 @@ func (h *CommunicationHandler) Connect(c *gin.Context) {
 		return
 	}
 
-	dev, err := h.deviceService.GetDeviceByID(uint(id))
-	if err != nil {
-		response.NotFound(c, "Device not found")
+	dev, ok := h.getAccessibleDevice(c, uint(id))
+	if !ok {
 		return
 	}
 
@@ -71,6 +85,10 @@ func (h *CommunicationHandler) Disconnect(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.getAccessibleDevice(c, uint(id)); !ok {
+		return
+	}
+
 	if err := h.connManager.DisconnectDevice(uint(id)); err != nil {
 		response.InternalError(c, "Failed to disconnect: "+err.Error())
 		return
@@ -95,9 +113,8 @@ func (h *CommunicationHandler) Reconnect(c *gin.Context) {
 		return
 	}
 
-	dev, err := h.deviceService.GetDeviceByID(uint(id))
-	if err != nil {
-		response.NotFound(c, "Device not found")
+	dev, ok := h.getAccessibleDevice(c, uint(id))
+	if !ok {
 		return
 	}
 
@@ -125,9 +142,8 @@ func (h *CommunicationHandler) TestConnection(c *gin.Context) {
 		return
 	}
 
-	dev, err := h.deviceService.GetDeviceByID(uint(id))
-	if err != nil {
-		response.NotFound(c, "Device not found")
+	dev, ok := h.getAccessibleDevice(c, uint(id))
+	if !ok {
 		return
 	}
 
@@ -151,9 +167,8 @@ func (h *CommunicationHandler) GetStatus(c *gin.Context) {
 		return
 	}
 
-	dev, err := h.deviceService.GetDeviceByID(uint(id))
-	if err != nil {
-		response.NotFound(c, "Device not found")
+	dev, ok := h.getAccessibleDevice(c, uint(id))
+	if !ok {
 		return
 	}
 
@@ -222,9 +237,8 @@ func (h *CommunicationHandler) TestReadParameter(c *gin.Context) {
 		return
 	}
 
-	dev, err := h.deviceService.GetDeviceByID(uint(deviceID))
-	if err != nil {
-		response.NotFound(c, "Device not found")
+	dev, ok := h.getAccessibleDevice(c, uint(deviceID))
+	if !ok {
 		return
 	}
 

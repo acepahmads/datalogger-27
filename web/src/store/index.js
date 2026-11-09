@@ -128,6 +128,11 @@ export default new Vuex.Store({
     activeAlarms: [],
     alarmPreferences: null,
     activities: [],
+    tenants: [],
+    sites: [],
+    activeTenantId: Number(localStorage.getItem('datalogger_active_tenant_id') || 0) || 0,
+    activeSiteId: Number(localStorage.getItem('datalogger_active_site_id') || 0) || 0,
+    contextRevision: 0,
     ws: null,
   },
   getters: {
@@ -141,6 +146,10 @@ export default new Vuex.Store({
     canAccessDev: (state, getters) => getters.isSuperAdmin,
     canAccessRawTelemetry: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
     canAccessRawTrendMode: (state, getters) => getters.isSuperAdmin || getters.isAdmin,
+    availableTenants: state => (Array.isArray(state.tenants) ? state.tenants : []),
+    availableSites: state => (Array.isArray(state.sites) ? state.sites : []),
+    activeTenant: state => (state.tenants || []).find(t => Number(t.id) === Number(state.activeTenantId)) || null,
+    activeSite: state => (state.sites || []).find(s => Number(s.id) === Number(state.activeSiteId)) || null,
     rawTelemetryMaxRangeHours: state => {
       const val = Number(state.systemStatus && state.systemStatus.raw_telemetry_max_range_hours);
       return val > 0 ? val : 168;
@@ -172,10 +181,47 @@ export default new Vuex.Store({
     CLEAR_AUTH(state) {
       state.token = '';
       state.user = null;
+      state.tenants = [];
+      state.sites = [];
+      state.activeTenantId = 0;
+      state.activeSiteId = 0;
       try {
         localStorage.removeItem('datalogger_token');
         localStorage.removeItem('datalogger_user');
+        localStorage.removeItem('datalogger_active_tenant_id');
+        localStorage.removeItem('datalogger_active_site_id');
       } catch (e) {}
+    },
+    SET_TENANTS(state, tenants) {
+      state.tenants = Array.isArray(tenants) ? tenants : [];
+    },
+    SET_SITES(state, sites) {
+      state.sites = Array.isArray(sites) ? sites : [];
+    },
+    SET_ACTIVE_TENANT_ID(state, tenantId) {
+      const val = Number(tenantId) || 0;
+      state.activeTenantId = val;
+      try {
+        if (val > 0) {
+          localStorage.setItem('datalogger_active_tenant_id', String(val));
+        } else {
+          localStorage.removeItem('datalogger_active_tenant_id');
+        }
+      } catch (e) {}
+    },
+    SET_ACTIVE_SITE_ID(state, siteId) {
+      const val = Number(siteId) || 0;
+      state.activeSiteId = val;
+      try {
+        if (val > 0) {
+          localStorage.setItem('datalogger_active_site_id', String(val));
+        } else {
+          localStorage.removeItem('datalogger_active_site_id');
+        }
+      } catch (e) {}
+    },
+    INCREMENT_CONTEXT_REVISION(state) {
+      state.contextRevision = (state.contextRevision || 0) + 1;
     },
     CLEAR_SENSITIVE_DATA(state) {
       state.tasks = [];
@@ -401,11 +447,91 @@ export default new Vuex.Store({
         console.error('Failed to fetch activity:', err);
       }
     },
+    async fetchTenantContext({ commit, state, getters }) {
+      if (!state.token) return null;
+      try {
+        const res = await axios.get(`${API_BASE}/tenants/context`);
+        if (res.data && res.data.data) {
+          const ctx = res.data.data;
+          const tenants = Array.isArray(ctx.tenants) ? ctx.tenants : [];
+          const sites = Array.isArray(ctx.sites) ? ctx.sites : [];
+          commit('SET_TENANTS', tenants);
+          commit('SET_SITES', sites);
+
+          if (!getters.isSuperAdmin) {
+            const fixedTenantId = Number(ctx.active_tenant_id || (state.user && state.user.tenant_id) || 0);
+            commit('SET_ACTIVE_TENANT_ID', fixedTenantId);
+          } else if (state.activeTenantId > 0 && !tenants.some(t => Number(t.id) === Number(state.activeTenantId))) {
+            commit('SET_ACTIVE_TENANT_ID', 0);
+          }
+
+          if (state.activeSiteId > 0 && !sites.some(s => Number(s.id) === Number(state.activeSiteId))) {
+            commit('SET_ACTIVE_SITE_ID', 0);
+          }
+          return ctx;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch tenant context:', err);
+      }
+      return null;
+    },
+    async setActiveTenant({ commit, dispatch, state }, tenantId) {
+      const nextTenantId = Number(tenantId) || 0;
+      commit('SET_ACTIVE_TENANT_ID', nextTenantId);
+      commit('SET_ACTIVE_SITE_ID', 0);
+      commit('CLEAR_SENSITIVE_DATA');
+      if (state.ws && state.ws.readyState === 1) {
+        try {
+          state.ws.send(JSON.stringify({ type: 'SET_SCOPE', tenant_id: nextTenantId, site_id: 0 }));
+        } catch (e) {}
+      }
+      await dispatch('fetchTenantContext');
+      await Promise.all([
+        dispatch('fetchSystemStatus'),
+        dispatch('fetchDevices'),
+        dispatch('fetchAlarms'),
+        dispatch('fetchActiveAlarms'),
+      ]);
+      commit('INCREMENT_CONTEXT_REVISION');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tenant-context-changed', {
+          detail: { tenantId: nextTenantId, siteId: 0 },
+        }));
+      }
+    },
+    async setActiveSite({ commit, dispatch, state }, siteId) {
+      const nextSiteId = Number(siteId) || 0;
+      commit('SET_ACTIVE_SITE_ID', nextSiteId);
+      if (state.ws && state.ws.readyState === 1) {
+        try {
+          state.ws.send(JSON.stringify({
+            type: 'SET_SCOPE',
+            tenant_id: Number(state.activeTenantId) || 0,
+            site_id: nextSiteId,
+          }));
+        } catch (e) {}
+      }
+      await Promise.all([
+        dispatch('fetchSystemStatus'),
+        dispatch('fetchDevices'),
+        dispatch('fetchAlarms'),
+        dispatch('fetchActiveAlarms'),
+      ]);
+      commit('INCREMENT_CONTEXT_REVISION');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tenant-context-changed', {
+          detail: { tenantId: Number(state.activeTenantId) || 0, siteId: nextSiteId },
+        }));
+      }
+    },
     async login({ commit, dispatch }, { username, password }) {
       const res = await axios.post(`${API_BASE}/auth/login`, { username, password });
       if (res.data && res.data.data) {
         const data = res.data.data;
+        dispatch('closeWebSocket');
         commit('CLEAR_SENSITIVE_DATA');
+        commit('SET_ACTIVE_TENANT_ID', 0);
+        commit('SET_ACTIVE_SITE_ID', 0);
         commit('SET_TOKEN', data.token);
         const u = data.user || {};
         let role = 'OPERATOR';
@@ -424,8 +550,17 @@ export default new Vuex.Store({
           full_name: u.full_name || u.username,
           email: u.email,
           role: role.toUpperCase(),
+          tenant_id: u.tenant_id || null,
+          tenant_name: u.tenant_name || (u.tenant && u.tenant.name) || '',
+          allowed_site_ids: u.allowed_site_ids || '',
         });
+        await dispatch('fetchTenantContext');
+        dispatch('fetchSystemStatus');
+        dispatch('fetchDevices');
+        dispatch('fetchAlarms');
+        dispatch('fetchActiveAlarms');
         dispatch('initWebSocket');
+        commit('INCREMENT_CONTEXT_REVISION');
         return data;
       }
       throw new Error((res.data && res.data.error) || 'Login failed');
@@ -439,6 +574,8 @@ export default new Vuex.Store({
         if (res.data && res.data.data) {
           const data = res.data.data;
           commit('CLEAR_SENSITIVE_DATA');
+          commit('SET_ACTIVE_TENANT_ID', 0);
+          commit('SET_ACTIVE_SITE_ID', 0);
           commit('SET_TOKEN', data.token);
           const u = data.user || {};
           let role = 'OPERATOR';
@@ -457,7 +594,11 @@ export default new Vuex.Store({
             full_name: u.full_name || 'Control Room Operator',
             email: u.email || 'operator_user@datalogger.local',
             role: role.toUpperCase(),
+            tenant_id: u.tenant_id || null,
+            tenant_name: u.tenant_name || (u.tenant && u.tenant.name) || '',
+            allowed_site_ids: u.allowed_site_ids || '',
           });
+          await dispatch('fetchTenantContext');
           dispatch('fetchSystemStatus');
           dispatch('fetchDevices');
           dispatch('fetchAlarms');
@@ -493,6 +634,8 @@ export default new Vuex.Store({
         const data = res.data.data;
         dispatch('closeWebSocket');
         commit('CLEAR_SENSITIVE_DATA');
+        commit('SET_ACTIVE_TENANT_ID', 0);
+        commit('SET_ACTIVE_SITE_ID', 0);
         commit('SET_TOKEN', data.token);
         const u = data.user || {};
         let role = 'OPERATOR';
@@ -509,8 +652,17 @@ export default new Vuex.Store({
           full_name: u.full_name || u.username,
           email: u.email,
           role: role.toUpperCase(),
+          tenant_id: u.tenant_id || null,
+          tenant_name: u.tenant_name || (u.tenant && u.tenant.name) || '',
+          allowed_site_ids: u.allowed_site_ids || '',
         });
+        await dispatch('fetchTenantContext');
+        dispatch('fetchSystemStatus');
+        dispatch('fetchDevices');
+        dispatch('fetchAlarms');
+        dispatch('fetchActiveAlarms');
         dispatch('initWebSocket');
+        commit('INCREMENT_CONTEXT_REVISION');
         return data;
       }
       throw new Error((res.data && res.data.error) || 'Failed to switch account');
@@ -879,6 +1031,15 @@ export default new Vuex.Store({
 
       socket.onopen = () => {
         commit('SET_WS_CONNECTED', true);
+        if (state.activeTenantId > 0 || state.activeSiteId > 0) {
+          try {
+            socket.send(JSON.stringify({
+              type: 'SET_SCOPE',
+              tenant_id: Number(state.activeTenantId) || 0,
+              site_id: Number(state.activeSiteId) || 0,
+            }));
+          } catch (e) {}
+        }
         // Reconcile active alarms and system status after connection or reconnection
         dispatch('fetchActiveAlarms');
         dispatch('fetchSystemStatus');

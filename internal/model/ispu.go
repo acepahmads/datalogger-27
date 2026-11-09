@@ -53,6 +53,8 @@ const (
 // ISPUParameterMapping maps a physical/virtual datalogger parameter to an official ISPU pollutant.
 type ISPUParameterMapping struct {
 	ID               uint          `gorm:"primaryKey" json:"id"`
+	TenantID         uint          `gorm:"not null;default:1;index;uniqueIndex:idx_device_pollutant" json:"tenant_id"`
+	SiteID           uint          `gorm:"not null;default:0;index;uniqueIndex:idx_device_pollutant" json:"site_id"`
 	DeviceID         uint          `gorm:"uniqueIndex:idx_device_pollutant;index;not null" json:"device_id"`
 	Device           *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	ParameterID      uint          `gorm:"index;not null" json:"parameter_id"`
@@ -80,6 +82,8 @@ const (
 // ISPUCalculationResult stores the persisted calculation result for a station, period, and mode.
 type ISPUCalculationResult struct {
 	ID                         uint                  `gorm:"primaryKey" json:"id"`
+	TenantID                   uint                  `gorm:"not null;default:1;index;uniqueIndex:idx_dev_period_mode" json:"tenant_id"`
+	SiteID                     uint                  `gorm:"not null;default:0;index;uniqueIndex:idx_dev_period_mode" json:"site_id"`
 	DeviceID                   uint                  `gorm:"uniqueIndex:idx_dev_period_mode;index;not null" json:"device_id"`
 	Device                     *Device               `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	CalculationMode            ISPUCalculationMode   `gorm:"size:32;default:'REGULATORY';uniqueIndex:idx_dev_period_mode;index;not null" json:"calculation_mode"`

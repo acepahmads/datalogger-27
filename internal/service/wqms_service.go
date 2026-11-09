@@ -17,11 +17,14 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
 
 type wqmsTriggerJob struct {
+	TenantID  uint
+	SiteID    uint
 	DeviceID  uint
 	BucketEnd time.Time
 	Reason    string
@@ -100,15 +103,34 @@ func (s *WQMSService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 	if bucketEnd.IsZero() || database.IsRestoreMode() {
 		return
 	}
+	var tenantID, siteID uint = 1, 1
+	if deviceID > 0 {
+		var dev model.Device
+		if err := s.db.Select("id, tenant_id, site_id").First(&dev, deviceID).Error; err == nil {
+			if dev.TenantID > 0 {
+				tenantID = dev.TenantID
+			}
+			if dev.SiteID > 0 {
+				siteID = dev.SiteID
+			}
+		}
+	}
+
 	cfg := config.Get()
 	dom := "AQMS"
 	if cfg != nil && cfg.MonitoringDomain != "" {
 		dom = strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
 	}
+	if siteID > 0 {
+		var site model.Site
+		if err := s.db.Select("id, monitoring_domain").First(&site, siteID).Error; err == nil && site.MonitoringDomain != "" {
+			dom = strings.ToUpper(strings.TrimSpace(site.MonitoringDomain))
+		}
+	}
 	if dom != "WQMS" && dom != "CUSTOM" {
-		// Only run if explicit WQMS mappings exist
+		// Only run if explicit WQMS mappings exist for this tenant/site
 		var cnt int64
-		s.db.Model(&model.WQMSParameterMapping{}).Where("enabled = ?", true).Count(&cnt)
+		s.db.Model(&model.WQMSParameterMapping{}).Where("tenant_id = ? AND (site_id = ? OR site_id = 0) AND enabled = ?", tenantID, siteID, true).Count(&cnt)
 		if cnt == 0 {
 			return
 		}
@@ -117,7 +139,7 @@ func (s *WQMSService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 		reason = "AGGREGATION_COMPLETED"
 	}
 	select {
-	case s.jobChan <- wqmsTriggerJob{DeviceID: 0, BucketEnd: bucketEnd, Reason: reason}:
+	case s.jobChan <- wqmsTriggerJob{TenantID: tenantID, SiteID: siteID, DeviceID: 0, BucketEnd: bucketEnd, Reason: reason}:
 	default:
 	}
 }
@@ -125,7 +147,7 @@ func (s *WQMSService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 func (s *WQMSService) workerLoop(ctx context.Context) {
 	defer s.workerWg.Done()
 	const coalesceDelay = 500 * time.Millisecond
-	scheduled := make(map[int64]struct {
+	scheduled := make(map[string]struct {
 		job      wqmsTriggerJob
 		deadline time.Time
 	})
@@ -142,7 +164,7 @@ func (s *WQMSService) workerLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			key := job.BucketEnd.Unix()
+			key := fmt.Sprintf("%d_%d_%d", job.TenantID, job.SiteID, job.BucketEnd.Unix())
 			s.jobMu.Lock()
 			if existing, exists := scheduled[key]; exists {
 				if job.Reason == "MANUAL_RECALCULATE" {
@@ -177,6 +199,9 @@ func (s *WQMSService) workerLoop(ctx context.Context) {
 
 			for _, job := range due {
 				calcCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				if job.TenantID > 0 {
+					calcCtx = tenantctx.WithScope(calcCtx, tenantctx.Scope{IsSuperAdmin: true, TenantID: job.TenantID, SiteID: job.SiteID})
+				}
 				_, _, _ = s.CalculateStationWindow(calcCtx, job.DeviceID, job.BucketEnd, job.Reason)
 				cancel()
 			}
@@ -212,7 +237,9 @@ func (s *WQMSService) UpdateStationConfig(ctx context.Context, req model.WQMSSta
 	}
 
 	if s.systemRepo != nil {
+		tid := cfg.TenantID
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  &tid,
 			Username:  actor,
 			Action:    "WQMS_CONFIG_UPDATE",
 			Resource:  "WQMS_CONFIG",
@@ -233,6 +260,16 @@ func (s *WQMSService) GetStandards() map[model.WQMSWaterClass]map[model.WQMSPara
 
 // GetMappings retrieves station WQMS mappings and auto-discovers matching active water quality sensors.
 func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.WQMSParameterMapping, error) {
+	scope := tenantctx.FromContext(ctx)
+	if deviceID > 0 {
+		var dev model.Device
+		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err == nil {
+			if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, fmt.Errorf("access denied: device %d belongs to another tenant or restricted site", deviceID)
+			}
+		}
+	}
+
 	mappings, err := s.wqmsRepo.GetMappingsByDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, err
@@ -243,10 +280,21 @@ func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.W
 		mappedCodes[m.ParamCode] = true
 	}
 
+	devSubQ := s.db.WithContext(ctx).Model(&model.Device{}).
+		Select("id").
+		Where("enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE")
+	if scope.TenantID > 0 {
+		devSubQ = devSubQ.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		devSubQ = devSubQ.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		devSubQ = devSubQ.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+
 	var allParams []model.Parameter
 	pQuery := s.db.WithContext(ctx).
-		Where("enabled = ? AND device_id IN (SELECT id FROM devices WHERE enabled = ? AND (status != ? AND status != ?))",
-			true, true, "DISABLED", "INACTIVE")
+		Where("enabled = ? AND device_id IN (?)", true, devSubQ)
 	if deviceID > 0 {
 		pQuery = pQuery.Where("device_id = ?", deviceID)
 	}
@@ -256,9 +304,21 @@ func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.W
 			if code == "" || mappedCodes[code] {
 				continue
 			}
+			var dev model.Device
+			_ = s.db.WithContext(ctx).First(&dev, p.DeviceID).Error
+			tID := dev.TenantID
+			if tID == 0 {
+				tID = scope.WriteTenantID(0)
+			}
+			sID := dev.SiteID
+			if sID == 0 {
+				sID = scope.WriteSiteID(0)
+			}
 			std := OfficialWQMSStandards[model.WaterClass2][code]
 			pid := p.ID
 			autoMap := model.WQMSParameterMapping{
+				TenantID:         tID,
+				SiteID:           sID,
 				DeviceID:         p.DeviceID,
 				ParameterID:      &pid,
 				ParamCode:        code,
@@ -272,8 +332,7 @@ func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.W
 			if createErr := s.db.WithContext(ctx).Create(&autoMap).Error; createErr == nil {
 				pCopy := p
 				autoMap.Parameter = &pCopy
-				var dev model.Device
-				if s.db.WithContext(ctx).First(&dev, p.DeviceID).Error == nil {
+				if dev.ID > 0 {
 					autoMap.Device = &dev
 				}
 				mappings = append(mappings, autoMap)
@@ -287,6 +346,19 @@ func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.W
 
 // SaveMapping creates or updates a WQMS sensor or periodic laboratory parameter mapping and triggers recalculation.
 func (s *WQMSService) SaveMapping(ctx context.Context, m *model.WQMSParameterMapping, actor, ipAddress string) error {
+	scope := tenantctx.FromContext(ctx)
+	if m.ID > 0 {
+		existingByID, err := s.wqmsRepo.GetMappingByID(ctx, m.ID)
+		if err != nil {
+			return err
+		}
+		if !scope.CanAccessRecord(existingByID.TenantID, existingByID.SiteID) {
+			return fmt.Errorf("access denied: WQMS mapping belongs to another tenant or restricted site")
+		}
+		m.TenantID = existingByID.TenantID
+		m.SiteID = existingByID.SiteID
+	}
+
 	m.SourceType = strings.ToUpper(strings.TrimSpace(m.SourceType))
 	if m.SourceType != "LAB" {
 		m.SourceType = "SENSOR"
@@ -317,12 +389,28 @@ func (s *WQMSService) SaveMapping(ctx context.Context, m *model.WQMSParameterMap
 			m.DeviceID = p.DeviceID
 		}
 	}
+	if m.DeviceID > 0 {
+		var dev model.Device
+		if err := s.db.WithContext(ctx).First(&dev, m.DeviceID).Error; err == nil {
+			if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return fmt.Errorf("access denied: device belongs to another tenant or restricted site")
+			}
+			m.TenantID = dev.TenantID
+			m.SiteID = dev.SiteID
+		}
+	}
+	if m.TenantID == 0 {
+		m.TenantID = scope.WriteTenantID(0)
+	}
+	if m.SiteID == 0 {
+		m.SiteID = scope.WriteSiteID(0)
+	}
 
-	// Upsert by (DeviceID, ParamCode) if ID == 0 to avoid unique constraint errors
+	// Upsert by (TenantID, SiteID, DeviceID, ParamCode) if ID == 0 to avoid unique constraint errors
 	if m.ID == 0 {
 		var existing model.WQMSParameterMapping
 		if err := s.db.WithContext(ctx).
-			Where("device_id = ? AND param_code = ?", m.DeviceID, m.ParamCode).
+			Where("tenant_id = ? AND site_id = ? AND device_id = ? AND param_code = ?", m.TenantID, m.SiteID, m.DeviceID, m.ParamCode).
 			First(&existing).Error; err == nil {
 			m.ID = existing.ID
 			m.CreatedAt = existing.CreatedAt
@@ -334,7 +422,9 @@ func (s *WQMSService) SaveMapping(ctx context.Context, m *model.WQMSParameterMap
 	}
 
 	if s.systemRepo != nil {
+		tid := m.TenantID
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  &tid,
 			Username:  actor,
 			Action:    "WQMS_MAPPING_SAVE",
 			Resource:  string(m.ParamCode),
@@ -350,11 +440,20 @@ func (s *WQMSService) SaveMapping(ctx context.Context, m *model.WQMSParameterMap
 
 // DeleteMapping removes a WQMS parameter mapping and triggers recalculation.
 func (s *WQMSService) DeleteMapping(ctx context.Context, id uint, actor, ipAddress string) error {
+	m, err := s.wqmsRepo.GetMappingByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(m.TenantID, m.SiteID) {
+		return fmt.Errorf("access denied: WQMS mapping belongs to another tenant or restricted site")
+	}
 	if err := s.wqmsRepo.DeleteMapping(ctx, id); err != nil {
 		return err
 	}
 	if s.systemRepo != nil {
+		tid := m.TenantID
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  &tid,
 			Username:  actor,
 			Action:    "WQMS_MAPPING_DELETE",
 			Resource:  fmt.Sprintf("wqms_mapping_%d", id),
@@ -368,8 +467,12 @@ func (s *WQMSService) DeleteMapping(ctx context.Context, id uint, actor, ipAddre
 }
 
 func (s *WQMSService) resolveAggregationIntervalSec(ctx context.Context, deviceID uint) int {
+	scope := tenantctx.FromContext(ctx)
 	var aggDef model.AggregationDefinition
 	q := s.db.WithContext(ctx).Where("enabled = ?", true)
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
 	if deviceID > 0 {
 		q = q.Where("device_id = ?", deviceID)
 	}
@@ -385,12 +488,36 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 	if targetEnd.IsZero() {
 		targetEnd = time.Now().UTC()
 	}
-	cfg, err := s.wqmsRepo.GetOrCreateStationConfig(ctx, 0)
+	scope := tenantctx.FromContext(ctx)
+	tenantID := scope.WriteTenantID(0)
+	siteID := scope.WriteSiteID(0)
+	if deviceID > 0 {
+		var dev model.Device
+		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err == nil {
+			if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, nil, fmt.Errorf("access denied: device %d belongs to another tenant or restricted site", deviceID)
+			}
+			if dev.TenantID > 0 {
+				tenantID = dev.TenantID
+			}
+			if dev.SiteID > 0 {
+				siteID = dev.SiteID
+			}
+		}
+	}
+	calcCtx := tenantctx.WithScope(ctx, tenantctx.Scope{
+		IsSuperAdmin:   true,
+		TenantID:       tenantID,
+		SiteID:         siteID,
+		AllowedSiteIDs: scope.AllowedSiteIDs,
+	})
+
+	cfg, err := s.wqmsRepo.GetOrCreateStationConfig(calcCtx, 0)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	mappings, err := s.GetMappings(ctx, deviceID)
+	mappings, err := s.GetMappings(calcCtx, deviceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -571,6 +698,8 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 	// Build & persist Operational result
 	opEval := s.calculator.EvaluateStation(opInputs, cfg.WaterClass, cfg.DOSaturationMgL)
 	opRes := &model.WQMSCalculationResult{
+		TenantID:               tenantID,
+		SiteID:                 siteID,
 		DeviceID:               0,
 		CalculationMode:        model.CalculationModeOperational,
 		WaterClass:             opEval.WaterClass,
@@ -595,7 +724,7 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		ParameterResults:       opEval.ParameterResults,
 	}
 	if opRes.ActiveParametersCount > 0 {
-		_ = s.wqmsRepo.UpsertCalculationResult(ctx, opRes)
+		_ = s.wqmsRepo.UpsertCalculationResult(calcCtx, opRes)
 	}
 
 	// Build & persist Regulatory 24h result (snap regulatory period_end to top-of-hour or current aligned boundary on manual/config runs)
@@ -606,6 +735,8 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 
 	regEval := s.calculator.EvaluateStation(regInputs, cfg.WaterClass, cfg.DOSaturationMgL)
 	regRes := &model.WQMSCalculationResult{
+		TenantID:               tenantID,
+		SiteID:                 siteID,
 		DeviceID:               0,
 		CalculationMode:        model.CalculationModeRegulatory,
 		WaterClass:             regEval.WaterClass,
@@ -630,13 +761,15 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 		ParameterResults:       regEval.ParameterResults,
 	}
 	if regRes.ActiveParametersCount > 0 && (isHourlyBoundary || isManualOrConfig) {
-		_ = s.wqmsRepo.UpsertCalculationResult(ctx, regRes)
+		_ = s.wqmsRepo.UpsertCalculationResult(calcCtx, regRes)
 	}
 
 	if s.hub != nil && (opRes.ActiveParametersCount > 0 || regRes.ActiveParametersCount > 0) {
-		ika := s.ComputeCurrentIKA(ctx, 0, cfg, opRes)
+		ika := s.ComputeCurrentIKA(calcCtx, 0, cfg, opRes)
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "wqms.calculated",
+			TenantID:  tenantID,
+			SiteID:    siteID,
 			Timestamp: nowUTC,
 			Data: map[string]interface{}{
 				"operational_ip": opRes,
@@ -796,7 +929,14 @@ func (s *WQMSService) GetHistory(ctx context.Context, filter repository.WQMSHist
 
 // GetCalculationDetail retrieves a single persisted WQMS IP calculation with full parameter breakdown.
 func (s *WQMSService) GetCalculationDetail(ctx context.Context, id uint) (*model.WQMSCalculationResult, error) {
-	return s.wqmsRepo.GetByID(ctx, id)
+	res, err := s.wqmsRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(res.TenantID, res.SiteID) {
+		return nil, fmt.Errorf("access denied: WQMS calculation record belongs to another tenant or restricted site")
+	}
+	return res, nil
 }
 
 // Recalculate triggers an explicit manual station recalculation and optional lookback backfill.
@@ -804,12 +944,18 @@ func (s *WQMSService) Recalculate(ctx context.Context, deviceID uint, targetTime
 	if targetTime.IsZero() {
 		targetTime = time.Now().UTC()
 	}
-	_, _, err := s.CalculateStationWindow(ctx, 0, targetTime, "MANUAL_RECALCULATE")
+	regRes, _, err := s.CalculateStationWindow(ctx, deviceID, targetTime, "MANUAL_RECALCULATE")
 	if err != nil {
 		return nil, err
 	}
 	if s.systemRepo != nil {
+		var auditTID *uint
+		if regRes != nil && regRes.TenantID > 0 {
+			tid := regRes.TenantID
+			auditTID = &tid
+		}
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  auditTID,
 			Username:  actor,
 			Action:    "WQMS_RECALCULATE",
 			Resource:  "WQMS_IP_IKA",

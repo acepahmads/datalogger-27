@@ -57,6 +57,10 @@ func (h *AggregationHandler) GetDefinition(c *gin.Context) {
 
 	def, err := h.aggService.GetDefinition(c.Request.Context(), uint(id))
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "Aggregation definition not found")
 		return
 	}
@@ -78,6 +82,10 @@ func (h *AggregationHandler) CreateDefinition(c *gin.Context) {
 
 	def, err := h.aggService.CreateDefinition(c.Request.Context(), &req, uStr, ip, ua)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -105,6 +113,10 @@ func (h *AggregationHandler) UpdateDefinition(c *gin.Context) {
 
 	def, err := h.aggService.UpdateDefinition(c.Request.Context(), uint(id), &req, uStr, ip, ua)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -125,6 +137,10 @@ func (h *AggregationHandler) DeleteDefinition(c *gin.Context) {
 	ua := c.Request.UserAgent()
 
 	if err := h.aggService.DeleteDefinition(c.Request.Context(), uint(id), uStr, ip, ua); err != nil {
+		if strings.HasPrefix(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}

@@ -11,6 +11,7 @@ import (
 	"datalogger/internal/database"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/pkg/tenantctx"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -29,10 +30,12 @@ type AuthService struct {
 }
 
 type JWTClaims struct {
-	UserID   uint   `json:"user_id"`
-	Username string `json:"username"`
-	FullName string `json:"full_name,omitempty"`
-	Role     string `json:"role"`
+	UserID         uint   `json:"user_id"`
+	Username       string `json:"username"`
+	FullName       string `json:"full_name,omitempty"`
+	Role           string `json:"role"`
+	TenantID       *uint  `json:"tenant_id,omitempty"`
+	AllowedSiteIDs string `json:"allowed_site_ids,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -50,6 +53,20 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 		return "", nil, errors.New("user account is deactivated")
 	}
 
+	roleName := "OPERATOR"
+	if user.Role != nil {
+		uName := strings.ToUpper(user.Role.Name)
+		if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
+			roleName = uName
+		} else {
+			roleName = user.Role.Name
+		}
+	}
+	isSuper := strings.EqualFold(roleName, "SUPERADMIN") || strings.EqualFold(roleName, "Administrator")
+	if !isSuper && user.Tenant != nil && strings.EqualFold(user.Tenant.Status, model.TenantStatusSuspended) {
+		return "", nil, errors.New("organization tenant account is currently suspended")
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		if user.Username == "admin" && (password == "admin123" || password == "password123" || password == "Password123!") {
 			// allow backward-compatible legacy test credentials
@@ -61,8 +78,15 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 	// Update last login
 	_ = s.repo.UpdateUserLastLogin(user.ID)
 
+	var claimTenantID *uint
+	if !isSuper && user.TenantID != nil && *user.TenantID > 0 {
+		tid := *user.TenantID
+		claimTenantID = &tid
+	}
+
 	// Log audit trail
 	_ = s.repo.AddAuditTrail(&model.AuditTrail{
+		TenantID:  claimTenantID,
 		UserID:    &user.ID,
 		Username:  user.Username,
 		Action:    "LOGIN",
@@ -73,26 +97,18 @@ func (s *AuthService) Login(username, password, ipAddress, userAgent string) (st
 		CreatedAt: time.Now(),
 	})
 
-	roleName := "OPERATOR"
-	if user.Role != nil {
-		uName := strings.ToUpper(user.Role.Name)
-		if uName == "SUPERADMIN" || uName == "ADMIN" || uName == "ENGINEER" || uName == "OPERATOR" {
-			roleName = uName
-		} else {
-			roleName = user.Role.Name
-		}
-	}
-
 	fullName := user.FullName
 	if strings.TrimSpace(fullName) == "" {
 		fullName = user.Username
 	}
 
 	claims := JWTClaims{
-		UserID:   user.ID,
-		Username: user.Username,
-		FullName: fullName,
-		Role:     roleName,
+		UserID:         user.ID,
+		Username:       user.Username,
+		FullName:       fullName,
+		Role:           roleName,
+		TenantID:       claimTenantID,
+		AllowedSiteIDs: user.AllowedSiteIDs,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.config.JWTExpirationHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -167,11 +183,20 @@ func (s *AuthService) SwitchAccount(callerID uint, callerUsername, targetUsernam
 		fullName = targetUser.Username
 	}
 
+	var targetClaimTenantID *uint
+	isTargetSuper := strings.EqualFold(roleName, "SUPERADMIN") || strings.EqualFold(roleName, "Administrator")
+	if !isTargetSuper && targetUser.TenantID != nil && *targetUser.TenantID > 0 {
+		tid := *targetUser.TenantID
+		targetClaimTenantID = &tid
+	}
+
 	claims := JWTClaims{
-		UserID:   targetUser.ID,
-		Username: targetUser.Username,
-		FullName: fullName,
-		Role:     roleName,
+		UserID:         targetUser.ID,
+		Username:       targetUser.Username,
+		FullName:       fullName,
+		Role:           roleName,
+		TenantID:       targetClaimTenantID,
+		AllowedSiteIDs: targetUser.AllowedSiteIDs,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(s.config.JWTExpirationHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -216,19 +241,23 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 
 // User Management DTOs
 type CreateUserRequest struct {
-	Username string `json:"username" binding:"required"`
-	Email    string `json:"email"`
-	FullName string `json:"full_name"`
-	Password string `json:"password" binding:"required"`
-	RoleID   uint   `json:"role_id" binding:"required"`
-	IsActive bool   `json:"is_active"`
+	Username       string `json:"username" binding:"required"`
+	Email          string `json:"email"`
+	FullName       string `json:"full_name"`
+	Password       string `json:"password" binding:"required"`
+	RoleID         uint   `json:"role_id" binding:"required"`
+	IsActive       bool   `json:"is_active"`
+	TenantID       *uint  `json:"tenant_id"`
+	AllowedSiteIDs string `json:"allowed_site_ids"`
 }
 
 type UpdateUserRequest struct {
-	Email    string `json:"email"`
-	FullName string `json:"full_name"`
-	RoleID   uint   `json:"role_id"`
-	IsActive *bool  `json:"is_active"`
+	Email          string  `json:"email"`
+	FullName       string  `json:"full_name"`
+	RoleID         uint    `json:"role_id"`
+	IsActive       *bool   `json:"is_active"`
+	TenantID       *uint   `json:"tenant_id"`
+	AllowedSiteIDs *string `json:"allowed_site_ids"`
 }
 
 type RoleInput struct {
@@ -243,6 +272,30 @@ func (s *AuthService) GetUsers(params repository.UserFilterParams) ([]model.User
 
 func (s *AuthService) GetUserByID(id uint) (*model.User, error) {
 	return s.repo.GetUserByID(id)
+}
+
+func (s *AuthService) resolveActorTenantID(actorID uint, actorRole string) (bool, *uint) {
+	isSuper := strings.EqualFold(actorRole, "SUPERADMIN") || strings.EqualFold(actorRole, "Administrator")
+	if isSuper {
+		return true, nil
+	}
+	if actorID > 0 && s.repo != nil {
+		if actor, err := s.repo.GetUserByID(actorID); err == nil && actor != nil && actor.TenantID != nil && *actor.TenantID > 0 {
+			tid := *actor.TenantID
+			return false, &tid
+		}
+	}
+	return false, nil
+}
+
+func (s *AuthService) sanitizeAllowedSites(tenantID *uint, rawCSV string) string {
+	ids := tenantctx.ParseCSVUintIDs(rawCSV)
+	if len(ids) == 0 || tenantID == nil || *tenantID == 0 || s.repo == nil || s.repo.GetDB() == nil {
+		return ""
+	}
+	var validIDs []uint
+	_ = s.repo.GetDB().Model(&model.Site{}).Where("tenant_id = ? AND id IN ?", *tenantID, ids).Pluck("id", &validIDs).Error
+	return tenantctx.FormatCSVUintIDs(validIDs)
 }
 
 func (s *AuthService) CreateUser(req CreateUserRequest, actorID uint, actorUsername, actorRole, ip, ua string) (*model.User, error) {
@@ -265,10 +318,28 @@ func (s *AuthService) CreateUser(req CreateUserRequest, actorID uint, actorUsern
 		return nil, errors.New("invalid role ID specified")
 	}
 
+	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
+	isTargetSuper := strings.EqualFold(role.Name, "SUPERADMIN") || strings.EqualFold(role.Name, "Administrator")
+
 	// Privilege escalation prevention
-	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
-		if strings.EqualFold(role.Name, "SUPERADMIN") || strings.EqualFold(role.Name, "Administrator") {
-			return nil, errors.New("access denied: only SUPERADMIN can assign the SUPERADMIN role")
+	if !isSuper && isTargetSuper {
+		return nil, errors.New("access denied: only SUPERADMIN can assign the SUPERADMIN role")
+	}
+
+	var assignedTenantID *uint
+	if !isTargetSuper {
+		if !isSuper && actorTenantID != nil {
+			if req.TenantID != nil && *req.TenantID > 0 && *req.TenantID != *actorTenantID {
+				return nil, errors.New("access denied: cannot create user in another tenant")
+			}
+			tid := *actorTenantID
+			assignedTenantID = &tid
+		} else if req.TenantID != nil && *req.TenantID > 0 {
+			tid := *req.TenantID
+			assignedTenantID = &tid
+		} else {
+			defaultTID := tenantctx.DefaultTenantID
+			assignedTenantID = &defaultTID
 		}
 	}
 
@@ -278,21 +349,28 @@ func (s *AuthService) CreateUser(req CreateUserRequest, actorID uint, actorUsern
 	}
 
 	user := &model.User{
-		Username: req.Username,
-		Email:    strings.TrimSpace(req.Email),
-		FullName: strings.TrimSpace(req.FullName),
-		Password: string(hash),
-		RoleID:   req.RoleID,
-		IsActive: req.IsActive,
+		TenantID:       assignedTenantID,
+		AllowedSiteIDs: s.sanitizeAllowedSites(assignedTenantID, req.AllowedSiteIDs),
+		Username:       req.Username,
+		Email:          strings.TrimSpace(req.Email),
+		FullName:       strings.TrimSpace(req.FullName),
+		Password:       string(hash),
+		RoleID:         req.RoleID,
+		IsActive:       req.IsActive,
 	}
 
 	if err := s.repo.CreateUser(user); err != nil {
 		return nil, err
 	}
 
-	user.Role = role
+	if created, err := s.repo.GetUserByID(user.ID); err == nil && created != nil {
+		user = created
+	} else {
+		user.Role = role
+	}
 
 	_ = s.repo.AddAuditTrail(&model.AuditTrail{
+		TenantID:  assignedTenantID,
 		UserID:    &actorID,
 		Username:  actorUsername,
 		Action:    "USER_CREATE",
@@ -312,11 +390,18 @@ func (s *AuthService) UpdateUser(id uint, req UpdateUserRequest, actorID uint, a
 		return nil, errors.New("user not found")
 	}
 
-	// Privilege escalation prevention
-	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
+
+	// Privilege escalation & Cross-tenant prevention
+	if !isSuper {
 		// Non-superadmin cannot edit a SUPERADMIN user
 		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
 			return nil, errors.New("access denied: cannot modify a SUPERADMIN account")
+		}
+		if actorTenantID != nil {
+			if user.TenantID == nil || *user.TenantID != *actorTenantID {
+				return nil, errors.New("access denied: user belongs to another tenant")
+			}
 		}
 		// Non-superadmin cannot elevate themselves or change their own role
 		if req.RoleID > 0 && req.RoleID != user.RoleID && user.ID == actorID {
@@ -337,7 +422,7 @@ func (s *AuthService) UpdateUser(id uint, req UpdateUserRequest, actorID uint, a
 			return nil, errors.New("invalid target role specified")
 		}
 
-		if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+		if !isSuper {
 			if strings.EqualFold(newRole.Name, "SUPERADMIN") || strings.EqualFold(newRole.Name, "Administrator") {
 				return nil, errors.New("access denied: cannot elevate user to SUPERADMIN")
 			}
@@ -345,6 +430,24 @@ func (s *AuthService) UpdateUser(id uint, req UpdateUserRequest, actorID uint, a
 
 		user.RoleID = req.RoleID
 		user.Role = newRole
+		if strings.EqualFold(newRole.Name, "SUPERADMIN") || strings.EqualFold(newRole.Name, "Administrator") {
+			user.TenantID = nil
+			user.AllowedSiteIDs = ""
+		}
+	}
+
+	if isSuper && req.TenantID != nil {
+		isTargetSuper := user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator"))
+		if isTargetSuper || *req.TenantID == 0 {
+			user.TenantID = nil
+		} else {
+			tid := *req.TenantID
+			user.TenantID = &tid
+		}
+	}
+
+	if req.AllowedSiteIDs != nil {
+		user.AllowedSiteIDs = s.sanitizeAllowedSites(user.TenantID, *req.AllowedSiteIDs)
 	}
 
 	if req.FullName != "" {
@@ -371,7 +474,12 @@ func (s *AuthService) UpdateUser(id uint, req UpdateUserRequest, actorID uint, a
 		return nil, err
 	}
 
+	if updated, err := s.repo.GetUserByID(user.ID); err == nil && updated != nil {
+		user = updated
+	}
+
 	_ = s.repo.AddAuditTrail(&model.AuditTrail{
+		TenantID:  user.TenantID,
 		UserID:    &actorID,
 		Username:  actorUsername,
 		Action:    "USER_UPDATE",
@@ -391,9 +499,13 @@ func (s *AuthService) SetUserActive(id uint, active bool, actorID uint, actorUse
 		return errors.New("user not found")
 	}
 
-	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
+	if !isSuper {
 		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
 			return errors.New("access denied: cannot modify active status of a SUPERADMIN account")
+		}
+		if actorTenantID != nil && (user.TenantID == nil || *user.TenantID != *actorTenantID) {
+			return errors.New("access denied: user belongs to another tenant")
 		}
 	}
 
@@ -440,9 +552,13 @@ func (s *AuthService) ResetPassword(id uint, newPassword string, actorID uint, a
 		return errors.New("user not found")
 	}
 
-	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
+	if !isSuper {
 		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
 			return errors.New("access denied: cannot reset password of a SUPERADMIN account")
+		}
+		if actorTenantID != nil && (user.TenantID == nil || *user.TenantID != *actorTenantID) {
+			return errors.New("access denied: user belongs to another tenant")
 		}
 	}
 
@@ -475,9 +591,13 @@ func (s *AuthService) DeleteUser(id uint, actorID uint, actorUsername, actorRole
 		return errors.New("user not found")
 	}
 
-	if !strings.EqualFold(actorRole, "SUPERADMIN") && !strings.EqualFold(actorRole, "Administrator") {
+	isSuper, actorTenantID := s.resolveActorTenantID(actorID, actorRole)
+	if !isSuper {
 		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
 			return errors.New("access denied: cannot delete a SUPERADMIN account")
+		}
+		if actorTenantID != nil && (user.TenantID == nil || *user.TenantID != *actorTenantID) {
+			return errors.New("access denied: user belongs to another tenant")
 		}
 	}
 
@@ -697,8 +817,8 @@ func (s *AuthService) HasPermission(roleName, permCode string) bool {
 		return strings.EqualFold(roleName, "ADMIN")
 	}
 
-	// Strictly prohibit non-SUPERADMIN from accessing development
-	if strings.HasPrefix(permCode, "development.") {
+	// Strictly prohibit non-SUPERADMIN from accessing development or platform tenant management
+	if strings.HasPrefix(permCode, "development.") || permCode == "tenant.manage" {
 		return false
 	}
 

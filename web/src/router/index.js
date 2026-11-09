@@ -20,6 +20,7 @@ import BackupRestoreView from '../views/BackupRestoreView.vue';
 import RetentionStorageView from '../views/RetentionStorageView.vue';
 import ReportsView from '../views/ReportsView.vue';
 import AccessControlView from '../views/AccessControlView.vue';
+import TenantsManagementView from '../views/TenantsManagementView.vue';
 import OperatorCommandCenterView from '../views/OperatorCommandCenterView.vue';
 import DashboardOperatorView from '../views/DashboardOperatorView.vue';
 import ISPUAnalysisView from '../views/ISPUAnalysisView.vue';
@@ -159,6 +160,13 @@ const routes = [
     component: RetentionStorageView,
     meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER'] },
   },
+  {
+    path: '/administration/tenants',
+    name: 'TenantsManagement',
+    component: TenantsManagementView,
+    meta: { roles: ['SUPERADMIN', 'ADMIN'] },
+  },
+  { path: '/system/tenants', redirect: '/administration/tenants' },
   {
     path: '/administration/users',
     name: 'UserManagement',

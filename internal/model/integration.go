@@ -31,8 +31,11 @@ const (
 
 // OutputDestination represents an upstream receiving platform or socket target
 type OutputDestination struct {
-	ID                uint                     `gorm:"primaryKey" json:"id"`
-	Name              string                   `gorm:"size:128;not null" json:"name"`
+	ID                      uint                     `gorm:"primaryKey" json:"id"`
+	TenantID                uint                     `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID                  *uint                    `gorm:"index" json:"site_id,omitempty"` // nil = all sites in TenantID
+	Site                    *Site                    `gorm:"foreignKey:SiteID" json:"site,omitempty"`
+	Name                    string                   `gorm:"size:128;not null" json:"name"`
 	Type              DestinationType          `gorm:"size:32;not null" json:"type"`
 	Endpoint          string                   `gorm:"size:255;not null" json:"endpoint"` // URL or host:port
 	Enabled           bool                     `gorm:"default:false" json:"enabled"`     // Local-first: default false unless explicitly activated
@@ -124,6 +127,8 @@ type ParameterMappingItem struct {
 // OutboundDeliveryQueue stores persistent pending, sending, retrying, and delivered telemetry batches
 type OutboundDeliveryQueue struct {
 	ID                   uint64                 `gorm:"primaryKey;autoIncrement" json:"id"`
+	TenantID             uint                   `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID               *uint                  `gorm:"index" json:"site_id,omitempty"`
 	BatchID              string                 `gorm:"size:64;not null;index" json:"batch_id"` // deterministic: BATCH-DEST<dest_id>-<interval>-<period_end>
 	DestinationID        uint                   `gorm:"not null;index" json:"destination_id"`
 	Destination          *OutputDestination     `gorm:"foreignKey:DestinationID" json:"destination,omitempty"`

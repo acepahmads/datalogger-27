@@ -3,12 +3,14 @@ package websocket
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"datalogger/internal/logger"
 	"datalogger/pkg/sysinfo"
+	"datalogger/pkg/tenantctx"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -23,16 +25,23 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	hub      *Hub
-	conn     *websocket.Conn
-	send     chan []byte
-	role     string
-	username string
+	hub            *Hub
+	conn           *websocket.Conn
+	send           chan []byte
+	role           string
+	username       string
+	userTenantID   *uint
+	activeTenantID uint
+	activeSiteID   uint
+	allowedSiteIDs []uint
+	scopeMu        sync.RWMutex
 }
 
 type WSMessage struct {
 	Type      string      `json:"type"` // "HEALTH_UPDATE", "ACTIVITY_LOG", "TASK_UPDATE", "ALARM"
 	Timestamp time.Time   `json:"timestamp"`
+	TenantID  uint        `json:"tenant_id,omitempty"`
+	SiteID    uint        `json:"site_id,omitempty"`
 	Data      interface{} `json:"data"`
 }
 
@@ -49,6 +58,7 @@ var GlobalHub *Hub
 var (
 	tokenValidatorMu sync.RWMutex
 	tokenValidator   func(token string) (role string, username string, err error)
+	scopeValidator   func(token string) (role string, username string, tenantID *uint, allowedSiteIDs []uint, err error)
 )
 
 // SetTokenValidator registers a token validator function for WebSocket clients
@@ -56,6 +66,83 @@ func SetTokenValidator(validator func(token string) (role string, username strin
 	tokenValidatorMu.Lock()
 	defer tokenValidatorMu.Unlock()
 	tokenValidator = validator
+}
+
+// SetScopeValidator registers a multi-tenant aware token validator function for WebSocket clients
+func SetScopeValidator(validator func(token string) (role string, username string, tenantID *uint, allowedSiteIDs []uint, err error)) {
+	tokenValidatorMu.Lock()
+	defer tokenValidatorMu.Unlock()
+	scopeValidator = validator
+}
+
+func extractUintField(v interface{}) uint {
+	switch n := v.(type) {
+	case uint:
+		return n
+	case int:
+		if n > 0 {
+			return uint(n)
+		}
+	case int64:
+		if n > 0 {
+			return uint(n)
+		}
+	case float64:
+		if n > 0 {
+			return uint(n)
+		}
+	}
+	return 0
+}
+
+func extractMessageScope(msg WSMessage) (uint, uint) {
+	tid, sid := msg.TenantID, msg.SiteID
+	if mData, ok := msg.Data.(map[string]interface{}); ok {
+		if tid == 0 {
+			tid = extractUintField(mData["tenant_id"])
+		}
+		if sid == 0 {
+			sid = extractUintField(mData["site_id"])
+		}
+	}
+	return tid, sid
+}
+
+func (c *Client) matchesScope(msgTenantID, msgSiteID uint) bool {
+	c.scopeMu.RLock()
+	defer c.scopeMu.RUnlock()
+
+	isSuper := strings.EqualFold(c.role, "SUPERADMIN") || strings.EqualFold(c.role, "Administrator")
+	if msgTenantID > 0 {
+		if !isSuper {
+			if c.userTenantID != nil && *c.userTenantID > 0 && *c.userTenantID != msgTenantID {
+				return false
+			}
+			if c.activeTenantID > 0 && c.activeTenantID != msgTenantID {
+				return false
+			}
+		} else if c.activeTenantID > 0 && c.activeTenantID != msgTenantID {
+			return false
+		}
+	}
+	if msgSiteID > 0 {
+		if !isSuper && len(c.allowedSiteIDs) > 0 {
+			allowed := false
+			for _, id := range c.allowedSiteIDs {
+				if id == msgSiteID {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return false
+			}
+		}
+		if c.activeSiteID > 0 && c.activeSiteID != msgSiteID {
+			return false
+		}
+	}
+	return true
 }
 
 func NewHub() *Hub {
@@ -92,10 +179,16 @@ func (h *Hub) Run() {
 			logger.Debug("WebSocket client disconnected. Total clients: %d", len(h.clients))
 
 		case message := <-h.broadcast:
+			msgTenantID, msgSiteID := extractMessageScope(message)
 			h.mu.RLock()
 			for client := range h.clients {
 				isSuper := strings.EqualFold(client.role, "SUPERADMIN") || strings.EqualFold(client.role, "Administrator")
 				canRaw := isSuper || strings.EqualFold(client.role, "ADMIN")
+
+				// 0. Strict Multi-Tenant & Multi-Site room isolation
+				if !client.matchesScope(msgTenantID, msgSiteID) {
+					continue
+				}
 
 				// 1. Strict restriction: Non-superadmin CANNOT receive development events or activity monitor events
 				if (message.Type == "TASK_UPDATE" || message.Type == "ACTIVITY_LOG" || message.Type == "SYSTEM_ACTIVITY_EVENT" || message.Type == "activity.event") && !isSuper {
@@ -191,13 +284,24 @@ func ServeWS(hub *Hub, c *gin.Context) {
 
 	role := "OPERATOR"
 	username := "guest"
+	var userTenantID *uint
+	var allowedSites []uint
+
 	tokenValidatorMu.RLock()
 	val := tokenValidator
+	sVal := scopeValidator
 	tokenValidatorMu.RUnlock()
 
 	if tokenStr == "local-admin-token" {
 		role = "SUPERADMIN"
 		username = "admin"
+	} else if sVal != nil && tokenStr != "" {
+		if r, u, tid, sites, err := sVal(tokenStr); err == nil && r != "" {
+			role = r
+			username = u
+			userTenantID = tid
+			allowedSites = sites
+		}
 	} else if val != nil && tokenStr != "" {
 		if r, u, err := val(tokenStr); err == nil && r != "" {
 			role = r
@@ -205,12 +309,47 @@ func ServeWS(hub *Hub, c *gin.Context) {
 		}
 	}
 
+	var reqTenantID, reqSiteID uint
+	if v, err := strconv.ParseUint(strings.TrimSpace(c.Query("tenant_id")), 10, 32); err == nil {
+		reqTenantID = uint(v)
+	}
+	if v, err := strconv.ParseUint(strings.TrimSpace(c.Query("site_id")), 10, 32); err == nil {
+		reqSiteID = uint(v)
+	}
+
+	isSuper := strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator")
+	activeTenantID := reqTenantID
+	if !isSuper && userTenantID != nil && *userTenantID > 0 {
+		activeTenantID = *userTenantID
+	}
+	activeSiteID := reqSiteID
+	if !isSuper && len(allowedSites) > 0 {
+		allowed := false
+		for _, id := range allowedSites {
+			if id == reqSiteID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			if len(allowedSites) == 1 {
+				activeSiteID = allowedSites[0]
+			} else {
+				activeSiteID = 0
+			}
+		}
+	}
+
 	client := &Client{
-		hub:      hub,
-		conn:     conn,
-		send:     make(chan []byte, 256),
-		role:     role,
-		username: username,
+		hub:            hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		role:           role,
+		username:       username,
+		userTenantID:   userTenantID,
+		activeTenantID: activeTenantID,
+		activeSiteID:   activeSiteID,
+		allowedSiteIDs: allowedSites,
 	}
 
 	hub.register <- client
@@ -233,9 +372,32 @@ func (c *Client) readPump() {
 	})
 
 	for {
-		_, _, err := c.conn.ReadMessage()
+		_, raw, err := c.conn.ReadMessage()
 		if err != nil {
 			break
+		}
+		// Allow live scope updates (SET_SCOPE) from Header Tenant/Site switcher without reconnecting
+		var cmd struct {
+			Type     string `json:"type"`
+			TenantID uint   `json:"tenant_id"`
+			SiteID   uint   `json:"site_id"`
+		}
+		if json.Unmarshal(raw, &cmd) == nil && strings.EqualFold(cmd.Type, "SET_SCOPE") {
+			c.scopeMu.Lock()
+			isSuper := strings.EqualFold(c.role, "SUPERADMIN") || strings.EqualFold(c.role, "Administrator")
+			if isSuper {
+				c.activeTenantID = cmd.TenantID
+				c.activeSiteID = cmd.SiteID
+			} else {
+				if c.userTenantID != nil && *c.userTenantID > 0 {
+					c.activeTenantID = *c.userTenantID
+				}
+				s := tenantctx.Scope{AllowedSiteIDs: c.allowedSiteIDs}
+				if cmd.SiteID == 0 || s.IsSiteAllowed(cmd.SiteID) {
+					c.activeSiteID = cmd.SiteID
+				}
+			}
+			c.scopeMu.Unlock()
 		}
 	}
 }

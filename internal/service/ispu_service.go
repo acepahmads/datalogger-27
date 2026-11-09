@@ -17,11 +17,14 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
 
 type ispuTriggerJob struct {
+	TenantID  uint
+	SiteID    uint
 	DeviceID  uint
 	BucketEnd time.Time
 	Reason    string
@@ -116,11 +119,29 @@ func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 	if deviceID == 0 || bucketEnd.IsZero() || database.IsRestoreMode() {
 		return
 	}
+	var dev model.Device
+	var tenantID, siteID uint
+	if err := s.db.Select("id, tenant_id, site_id").First(&dev, deviceID).Error; err == nil {
+		tenantID = dev.TenantID
+		siteID = dev.SiteID
+	}
+	s.enqueueScopedJob(tenantID, siteID, deviceID, bucketEnd, reason)
+}
+
+func (s *ISPUService) enqueueScopedJob(tenantID, siteID, deviceID uint, bucketEnd time.Time, reason string) {
+	if bucketEnd.IsZero() || database.IsRestoreMode() {
+		return
+	}
+	if deviceID == 0 && tenantID == 0 {
+		return
+	}
 	if reason == "" {
 		reason = "AGGREGATION_COMPLETED"
 	}
 
 	job := ispuTriggerJob{
+		TenantID:  tenantID,
+		SiteID:    siteID,
 		DeviceID:  deviceID,
 		BucketEnd: bucketEnd,
 		Reason:    reason,
@@ -130,11 +151,14 @@ func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 	case s.jobChan <- job:
 	default:
 		logger.Warn("ISPU calculation job queue is full, processing immediately in background for station %d bucket %v", deviceID, bucketEnd)
-		go func() {
+		go func(j ispuTriggerJob) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
-			_, _ = s.CalculateStationWindowWithReason(ctx, deviceID, bucketEnd, reason)
-		}()
+			if j.TenantID > 0 {
+				ctx = tenantctx.WithScope(ctx, tenantctx.Scope{IsSuperAdmin: true, TenantID: j.TenantID, SiteID: j.SiteID})
+			}
+			_, _ = s.CalculateStationWindowWithReason(ctx, j.DeviceID, j.BucketEnd, j.Reason)
+		}(job)
 	}
 }
 
@@ -143,6 +167,9 @@ func (s *ISPUService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event AggregationCompletedEvent) {
 	if event.DeviceID == 0 || event.ParameterID == 0 || database.IsRestoreMode() {
 		return
+	}
+	if event.TenantID > 0 {
+		ctx = tenantctx.WithScope(ctx, tenantctx.Scope{IsSuperAdmin: true, TenantID: event.TenantID, SiteID: event.SiteID})
 	}
 
 	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, event.DeviceID)
@@ -163,8 +190,10 @@ func (s *ISPUService) HandleAggregationCompleted(ctx context.Context, event Aggr
 		return // Not an ISPU pollutant (e.g. ambient temperature, humidity, wind)
 	}
 
-	s.EnqueueCalculation(event.DeviceID, event.PeriodEnd, "AGGREGATION_COMPLETED")
-	s.EnqueueCalculation(0, event.PeriodEnd, "AGGREGATION_COMPLETED")
+	s.enqueueScopedJob(event.TenantID, event.SiteID, event.DeviceID, event.PeriodEnd, "AGGREGATION_COMPLETED")
+	if event.TenantID > 0 {
+		s.enqueueScopedJob(event.TenantID, event.SiteID, 0, event.PeriodEnd, "AGGREGATION_COMPLETED")
+	}
 }
 
 // workerLoop coordinates job debouncing/coalescing and invokes calculation.
@@ -191,7 +220,7 @@ func (s *ISPUService) workerLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			key := fmt.Sprintf("%d_%d", job.DeviceID, job.BucketEnd.Unix())
+			key := fmt.Sprintf("%d_%d_%d_%d", job.TenantID, job.SiteID, job.DeviceID, job.BucketEnd.Unix())
 			s.jobMu.Lock()
 			existing, exists := scheduledJobs[key]
 			if exists {
@@ -228,6 +257,9 @@ func (s *ISPUService) workerLoop(ctx context.Context) {
 
 			for _, job := range dueJobs {
 				calcCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				if job.TenantID > 0 {
+					calcCtx = tenantctx.WithScope(calcCtx, tenantctx.Scope{IsSuperAdmin: true, TenantID: job.TenantID, SiteID: job.SiteID})
+				}
 				_, err := s.CalculateStationWindowWithReason(calcCtx, job.DeviceID, job.BucketEnd, job.Reason)
 				if err != nil {
 					logger.Warn("Failed to execute ISPU calculation for station %d bucket %v: %v", job.DeviceID, job.BucketEnd, err)
@@ -332,21 +364,55 @@ func (s *ISPUService) CalculateStationWindow(ctx context.Context, deviceID uint,
 
 // CalculateStationWindowWithReason performs a 24-hour regulatory ISPU evaluation with explicit reason and persists the result.
 func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, deviceID uint, targetEnd time.Time, reason string) (*model.ISPUCalculationResult, error) {
+	scope := tenantctx.FromContext(ctx)
 	var dev model.Device
+	var tenantID, siteID uint
 	if deviceID > 0 {
 		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
 			return nil, fmt.Errorf("station/device %d not found: %w", deviceID, err)
 		}
+		if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+			return nil, fmt.Errorf("access denied: station/device %d belongs to another tenant or restricted site", deviceID)
+		}
+		tenantID = dev.TenantID
+		siteID = dev.SiteID
+		if tenantID == 0 {
+			tenantID = 1
+		}
+		if siteID == 0 {
+			siteID = 1
+		}
 	} else {
-		// Unified station: resolve timezone and parameters from active devices
-		if err := s.db.WithContext(ctx).Where("enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE").First(&dev).Error; err != nil {
-			_ = s.db.WithContext(ctx).Where("enabled = ?", true).First(&dev).Error
+		tenantID = scope.WriteTenantID(0)
+		siteID = scope.WriteSiteID(0)
+		// Unified station: resolve timezone and parameters from active devices in tenant/site
+		devQ := s.db.WithContext(ctx).Where("tenant_id = ?", tenantID)
+		if scope.SiteID > 0 {
+			devQ = devQ.Where("site_id = ?", scope.SiteID)
+		} else if len(scope.AllowedSiteIDs) > 0 {
+			devQ = devQ.Where("site_id IN ?", scope.AllowedSiteIDs)
+		}
+		if err := devQ.Where("enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE").First(&dev).Error; err != nil {
+			fallbackQ := s.db.WithContext(ctx).Where("tenant_id = ? AND enabled = ?", tenantID, true)
+			if scope.SiteID > 0 {
+				fallbackQ = fallbackQ.Where("site_id = ?", scope.SiteID)
+			}
+			_ = fallbackQ.First(&dev).Error
+		}
+		if dev.SiteID > 0 && scope.SiteID == 0 {
+			siteID = dev.SiteID
 		}
 		if dev.DeviceCode == "" {
 			dev.DeviceCode = "AQMS"
 			dev.DeviceName = "Air Quality Monitoring Station"
 		}
 	}
+	calcCtx := tenantctx.WithScope(ctx, tenantctx.Scope{
+		IsSuperAdmin:   true,
+		TenantID:       tenantID,
+		SiteID:         siteID,
+		AllowedSiteIDs: scope.AllowedSiteIDs,
+	})
 
 	tzName := dev.Timezone
 	if tzName == "" {
@@ -361,7 +427,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	var intervalSec int = 120
 	aggFunction := "AVG"
 	var aggDefs []model.AggregationDefinition
-	aggQuery := s.db.WithContext(ctx).Where("enabled = ?", true)
+	aggQuery := s.db.WithContext(ctx).Where("tenant_id = ? AND enabled = ?", tenantID, true)
 	if deviceID > 0 {
 		aggQuery = aggQuery.Where("device_id = ?", deviceID)
 	}
@@ -379,9 +445,11 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	refTime := targetEnd.In(loc)
 	if targetEnd.IsZero() {
 		var latestAgg model.AggregationResult
-		aggQ := s.db.WithContext(ctx)
+		aggQ := s.db.WithContext(ctx).Where("tenant_id = ?", tenantID)
 		if deviceID > 0 {
 			aggQ = aggQ.Where("device_id = ?", deviceID)
+		} else if siteID > 0 {
+			aggQ = aggQ.Where("site_id = ?", siteID)
 		}
 		if err := aggQ.Order("period_end DESC").First(&latestAgg).Error; err == nil && !latestAgg.PeriodEnd.IsZero() {
 			refTime = latestAgg.PeriodEnd.In(loc)
@@ -400,7 +468,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	}
 
 	// Fetch active parameter mappings for station (cross-device if deviceID == 0)
-	mappings, err := s.GetMappings(ctx, deviceID)
+	mappings, err := s.GetMappings(calcCtx, deviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch parameter mappings: %w", err)
 	}
@@ -433,13 +501,18 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			}
 		}
 
+		mDeviceID := deviceID
+		if mDeviceID == 0 && m.DeviceID > 0 {
+			mDeviceID = m.DeviceID
+		}
+
 		// --- Mode A: Operational (Aggregation-driven for latest bucket) ---
 		var opAgg model.AggregationResult
 		hasOpAgg := false
 		alignBuffer := time.Duration(intervalSec) * time.Second
 		if err := s.db.WithContext(ctx).
 			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_end <= ? AND quality != ?",
-				deviceID, m.ParameterID, opPeriodStart.Add(-alignBuffer).UTC(), periodEnd.Add(alignBuffer).UTC(), model.QualityBad).
+				mDeviceID, m.ParameterID, opPeriodStart.Add(-alignBuffer).UTC(), periodEnd.Add(alignBuffer).UTC(), model.QualityBad).
 			Order("period_end DESC").
 			First(&opAgg).Error; err == nil && opAgg.ID > 0 {
 			hasOpAgg = true
@@ -451,19 +524,21 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			var rawCount int64
 			s.db.WithContext(ctx).Model(&model.RawData{}).
 				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
-					deviceID, m.ParameterID, opPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+					mDeviceID, m.ParameterID, opPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 				Select("AVG(value)").
 				Row().Scan(&rawAvg)
 
 			s.db.WithContext(ctx).Model(&model.RawData{}).
 				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
-					deviceID, m.ParameterID, opPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+					mDeviceID, m.ParameterID, opPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 				Count(&rawCount)
 
 			if rawCount > 0 && rawAvg != nil {
 				hasOpAgg = true
 				opAgg = model.AggregationResult{
-					DeviceID:        deviceID,
+					TenantID:        tenantID,
+					SiteID:          siteID,
+					DeviceID:        mDeviceID,
 					ParameterID:     m.ParameterID,
 					PeriodStart:     opPeriodStart.UTC(),
 					PeriodEnd:       periodEnd.UTC(),
@@ -608,7 +683,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 		s.db.WithContext(ctx).Model(&model.AggregationResult{}).
 			Select("COALESCE(avg_value, value) AS val, period_end AS rec, identifier AS ident").
 			Where("device_id = ? AND parameter_id = ? AND period_end >= ? AND period_start <= ? AND quality != ?",
-				deviceID, m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad).
+				mDeviceID, m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad).
 			Order("period_end ASC").
 			Find(&aggStats)
 
@@ -622,7 +697,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			s.db.WithContext(ctx).Model(&model.RawData{}).
 				Select("AVG(value) AS val, MAX(timestamp) AS rec, DATE_FORMAT(timestamp, '%Y%m%d%H0000') AS ident").
 				Where("device_id = ? AND parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
-					deviceID, m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad).
+					mDeviceID, m.ParameterID, paramRegStart.UTC(), paramRegEnd.UTC(), model.QualityBad).
 				Group("DATE(timestamp), HOUR(timestamp)").
 				Find(&rawHourly)
 
@@ -796,7 +871,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			s.db.WithContext(ctx).Model(&model.RawData{}).
 				Select("processed_value AS val, received_at AS rec").
 				Where("device_id = ? AND parameter_id = ? AND received_at >= ? AND received_at <= ? AND quality != ?",
-					deviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
+					mDeviceID, m.ParameterID, regPeriodStart.UTC(), periodEnd.UTC(), model.QualityBad).
 				Order("received_at ASC").
 				Find(&rawStats)
 
@@ -967,6 +1042,8 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	}
 
 	opCalcRes := &model.ISPUCalculationResult{
+		TenantID:                   tenantID,
+		SiteID:                     siteID,
 		DeviceID:                   deviceID,
 		CalculationMode:            model.CalculationModeOperational,
 		PeriodStart:                opPeriodStart.UTC(),
@@ -1020,7 +1097,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 			MinConcentration:          po.MinConcentration,
 		})
 	}
-	if err := s.ispuRepo.UpsertCalculationResult(ctx, opCalcRes); err != nil {
+	if err := s.ispuRepo.UpsertCalculationResult(calcCtx, opCalcRes); err != nil {
 		logger.Warn("Failed to persist operational ISPU result for station %d: %v", deviceID, err)
 	}
 
@@ -1042,6 +1119,8 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	}
 
 	regCalcRes := &model.ISPUCalculationResult{
+		TenantID:                   tenantID,
+		SiteID:                     siteID,
 		DeviceID:                   deviceID,
 		CalculationMode:            model.CalculationModeRegulatory,
 		PeriodStart:                regPeriodStart.UTC(),
@@ -1111,14 +1190,14 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 				// Check if an existing regulatory record already exists for this exact period (idempotent update)
 				var existingRecordCount int64
 				_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-					Where("device_id = ? AND period_end = ? AND calculation_mode = ?", deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
+					Where("tenant_id = ? AND site_id = ? AND device_id = ? AND period_end = ? AND calculation_mode = ?", tenantID, siteID, deviceID, periodEnd.UTC(), model.CalculationModeRegulatory).
 					Count(&existingRecordCount)
 
 				if existingRecordCount == 0 {
 					// Allow initial seed record if station has 0 regulatory records across all history
 					var existingRegCount int64
 					_ = s.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}).
-						Where("device_id = ? AND calculation_mode = ?", deviceID, model.CalculationModeRegulatory).
+						Where("tenant_id = ? AND site_id = ? AND device_id = ? AND calculation_mode = ?", tenantID, siteID, deviceID, model.CalculationModeRegulatory).
 						Count(&existingRegCount)
 					if existingRegCount > 0 {
 						shouldPersistRegulatory = false
@@ -1129,7 +1208,7 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	}
 
 	if shouldPersistRegulatory {
-		if err := s.ispuRepo.UpsertCalculationResult(ctx, regCalcRes); err != nil {
+		if err := s.ispuRepo.UpsertCalculationResult(calcCtx, regCalcRes); err != nil {
 			return nil, fmt.Errorf("failed to persist regulatory ISPU calculation result: %w", err)
 		}
 	}
@@ -1142,11 +1221,15 @@ func (s *ISPUService) CalculateStationWindowWithReason(ctx context.Context, devi
 	if s.hub != nil {
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "ispu.calculated",
+			TenantID:  tenantID,
+			SiteID:    siteID,
 			Timestamp: time.Now().UTC(),
 			Data:      regCalcRes,
 		})
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "ispu.operational_calculated",
+			TenantID:  tenantID,
+			SiteID:    siteID,
 			Timestamp: time.Now().UTC(),
 			Data:      opCalcRes,
 		})
@@ -1165,13 +1248,28 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 		lookbackHours = 720
 	}
 
+	scope := tenantctx.FromContext(ctx)
 	var dev model.Device
+	var tenantID, siteID uint
 	if deviceID > 0 {
 		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err != nil {
 			return 0, fmt.Errorf("station/device %d not found: %w", deviceID, err)
 		}
+		if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+			return 0, fmt.Errorf("access denied: station/device %d belongs to another tenant or restricted site", deviceID)
+		}
+		tenantID = dev.TenantID
+		siteID = dev.SiteID
 	} else {
-		_ = s.db.WithContext(ctx).Where("enabled = ?", true).First(&dev).Error
+		tenantID = scope.WriteTenantID(0)
+		siteID = scope.WriteSiteID(0)
+		_ = s.db.WithContext(ctx).Where("tenant_id = ? AND enabled = ?", tenantID, true).First(&dev).Error
+	}
+	if tenantID == 0 {
+		tenantID = 1
+	}
+	if siteID == 0 {
+		siteID = 1
 	}
 
 	tzName := dev.Timezone
@@ -1220,7 +1318,7 @@ func (s *ISPUService) BackfillStationHourlyTrend(ctx context.Context, deviceID u
 	// 4. Clean up any unaligned historical ISPU records (e.g. odd minutes when interval is 2m even)
 	// and any sub-hourly unaligned REGULATORY records (where minute != 0 and trigger_reason = 'AGGREGATION_COMPLETED')
 	var allRes []model.ISPUCalculationResult
-	allQuery := s.db.WithContext(ctx)
+	allQuery := s.db.WithContext(ctx).Where("tenant_id = ? AND site_id = ?", tenantID, siteID)
 	if deviceID > 0 {
 		allQuery = allQuery.Where("device_id = ?", deviceID)
 	}
@@ -1292,6 +1390,9 @@ func (s *ISPUService) GetCalculationDetail(ctx context.Context, id uint) (*model
 	res, err := s.ispuRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(res.TenantID, res.SiteID) {
+		return nil, fmt.Errorf("access denied: ISPU calculation record belongs to another tenant or restricted site")
 	}
 	s.enrichCalculationAuditTracking(ctx, res)
 	return res, nil
@@ -1476,6 +1577,9 @@ func (s *ISPUService) GetAuditTracking(ctx context.Context, calcResultID uint, p
 	if err != nil {
 		return nil, fmt.Errorf("ISPU calculation record %d not found: %w", calcResultID, err)
 	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(res.TenantID, res.SiteID) {
+		return nil, fmt.Errorf("access denied: ISPU calculation record belongs to another tenant or restricted site")
+	}
 
 	s.enrichCalculationAuditTracking(ctx, res)
 
@@ -1557,7 +1661,13 @@ func (s *ISPUService) Recalculate(ctx context.Context, deviceID uint, targetTime
 
 	// Audit trail
 	if s.systemRepo != nil {
+		var auditTID *uint
+		if res.TenantID > 0 {
+			tid := res.TenantID
+			auditTID = &tid
+		}
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  auditTID,
 			Username:  actor,
 			Action:    "ISPU_RECALCULATE",
 			Resource:  fmt.Sprintf("station_%d", deviceID),
@@ -1673,21 +1783,43 @@ func (s *ISPUService) ExportExcel(ctx context.Context, filter repository.ISPUHis
 
 // GetMappings retrieves station parameter mappings with auto-detection of missing pollutants from all enabled devices.
 func (s *ISPUService) GetMappings(ctx context.Context, deviceID uint) ([]model.ISPUParameterMapping, error) {
+	scope := tenantctx.FromContext(ctx)
+	if deviceID > 0 {
+		var dev model.Device
+		if err := s.db.WithContext(ctx).First(&dev, deviceID).Error; err == nil {
+			if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, fmt.Errorf("access denied: device %d belongs to another tenant or restricted site", deviceID)
+			}
+		}
+	}
+
 	mappings, err := s.ispuRepo.GetMappingsByDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Auto-detect missing official pollutants from all enabled devices
+	// Auto-detect missing official pollutants from all enabled devices within tenant/site scope
 	mappedPollutants := make(map[model.ISPUParameter]bool)
 	for _, m := range mappings {
 		mappedPollutants[m.PollutantCode] = true
 	}
 
+	devSubQ := s.db.WithContext(ctx).Model(&model.Device{}).
+		Select("id").
+		Where("enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE")
+	if scope.TenantID > 0 {
+		devSubQ = devSubQ.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		devSubQ = devSubQ.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		devSubQ = devSubQ.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+
 	var allParams []model.Parameter
 	pQuery := s.db.WithContext(ctx).
 		Preload("Device").
-		Where("enabled = ? AND device_id IN (SELECT id FROM devices WHERE enabled = ? AND (status != ? AND status != ?))", true, true, "DISABLED", "INACTIVE")
+		Where("enabled = ? AND device_id IN (?)", true, devSubQ)
 	if deviceID > 0 {
 		pQuery = pQuery.Where("device_id = ?", deviceID)
 	}
@@ -1697,9 +1829,21 @@ func (s *ISPUService) GetMappings(ctx context.Context, deviceID uint) ([]model.I
 			if pollutant == "" || mappedPollutants[pollutant] {
 				continue
 			}
+			var dev model.Device
+			_ = s.db.WithContext(ctx).First(&dev, p.DeviceID).Error
+			tID := dev.TenantID
+			if tID == 0 {
+				tID = scope.WriteTenantID(0)
+			}
+			sID := dev.SiteID
+			if sID == 0 {
+				sID = scope.WriteSiteID(0)
+			}
 
 			// Automatically create mapping for detected pollutant
 			autoMapping := model.ISPUParameterMapping{
+				TenantID:         tID,
+				SiteID:           sID,
 				DeviceID:         p.DeviceID,
 				ParameterID:      p.ID,
 				PollutantCode:    pollutant,
@@ -1714,8 +1858,7 @@ func (s *ISPUService) GetMappings(ctx context.Context, deviceID uint) ([]model.I
 			if err := s.db.WithContext(ctx).Create(&autoMapping).Error; err == nil {
 				paramCopy := p
 				autoMapping.Parameter = &paramCopy
-				var dev model.Device
-				if s.db.WithContext(ctx).First(&dev, p.DeviceID).Error == nil {
+				if dev.ID > 0 {
 					autoMapping.Device = &dev
 				}
 				mappings = append(mappings, autoMapping)
@@ -1729,23 +1872,56 @@ func (s *ISPUService) GetMappings(ctx context.Context, deviceID uint) ([]model.I
 
 // SaveMapping creates or updates an ISPU parameter mapping with audit logging.
 func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParameterMapping, actor, ipAddress string) error {
+	scope := tenantctx.FromContext(ctx)
 	action := "ISPU_MAPPING_CREATE"
 	if mapping.ID > 0 {
+		existingByID, err := s.ispuRepo.GetMappingByID(ctx, mapping.ID)
+		if err != nil {
+			return err
+		}
+		if !scope.CanAccessRecord(existingByID.TenantID, existingByID.SiteID) {
+			return fmt.Errorf("access denied: ISPU mapping belongs to another tenant or restricted site")
+		}
+		mapping.TenantID = existingByID.TenantID
+		mapping.SiteID = existingByID.SiteID
 		action = "ISPU_MAPPING_UPDATE"
 	}
 
-	// Resolve DeviceID from ParameterID if missing
-	if mapping.DeviceID == 0 && mapping.ParameterID > 0 {
+	// Resolve DeviceID and TenantID/SiteID from ParameterID/DeviceID
+	if mapping.ParameterID > 0 {
 		var param model.Parameter
-		if err := s.db.WithContext(ctx).First(&param, mapping.ParameterID).Error; err == nil {
+		if err := s.db.WithContext(ctx).First(&param, mapping.ParameterID).Error; err != nil {
+			return fmt.Errorf("parameter %d not found", mapping.ParameterID)
+		}
+		if mapping.DeviceID == 0 {
 			mapping.DeviceID = param.DeviceID
 		}
 	}
+	if mapping.DeviceID > 0 {
+		var dev model.Device
+		if err := s.db.WithContext(ctx).First(&dev, mapping.DeviceID).Error; err != nil {
+			return fmt.Errorf("device %d not found", mapping.DeviceID)
+		}
+		if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+			return fmt.Errorf("access denied: device belongs to another tenant or restricted site")
+		}
+		mapping.TenantID = dev.TenantID
+		mapping.SiteID = dev.SiteID
+	}
+	if mapping.TenantID == 0 {
+		mapping.TenantID = scope.WriteTenantID(0)
+	}
+	if mapping.SiteID == 0 {
+		mapping.SiteID = scope.WriteSiteID(0)
+	}
 
-	// Single global mapping per pollutant: if an existing mapping for this pollutant exists, update it
+	// Single mapping per (tenant, site, device, pollutant): if an existing mapping exists, update it
 	if mapping.ID == 0 {
 		var existing model.ISPUParameterMapping
-		if err := s.db.WithContext(ctx).Where("pollutant_code = ?", mapping.PollutantCode).First(&existing).Error; err == nil {
+		if err := s.db.WithContext(ctx).
+			Where("tenant_id = ? AND site_id = ? AND device_id = ? AND pollutant_code = ?",
+				mapping.TenantID, mapping.SiteID, mapping.DeviceID, mapping.PollutantCode).
+			First(&existing).Error; err == nil {
 			mapping.ID = existing.ID
 			action = "ISPU_MAPPING_UPDATE"
 		}
@@ -1764,6 +1940,7 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 		var p model.Parameter
 		if err := s.db.WithContext(ctx).First(&p, mapping.ParameterID).Error; err == nil {
 			_ = s.db.WithContext(ctx).Create(&model.AggregationDefinition{
+				TenantID:           mapping.TenantID,
 				Name:               fmt.Sprintf("ISPU Rollup 2m - %s", p.ParameterName),
 				Code:               fmt.Sprintf("AGG_%d_%s_120S", mapping.DeviceID, mapping.PollutantCode),
 				SourceType:         model.SourceCustomerProcessed,
@@ -1782,7 +1959,9 @@ func (s *ISPUService) SaveMapping(ctx context.Context, mapping *model.ISPUParame
 	}
 
 	if s.systemRepo != nil {
+		tid := mapping.TenantID
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  &tid,
 			Username:  actor,
 			Action:    action,
 			Resource:  fmt.Sprintf("station_%d_pollutant_%s", mapping.DeviceID, mapping.PollutantCode),
@@ -1802,13 +1981,18 @@ func (s *ISPUService) DeleteMapping(ctx context.Context, id uint, actor, ipAddre
 	if err != nil {
 		return err
 	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(m.TenantID, m.SiteID) {
+		return fmt.Errorf("access denied: ISPU mapping belongs to another tenant or restricted site")
+	}
 
 	if err := s.ispuRepo.DeleteMapping(ctx, id); err != nil {
 		return err
 	}
 
 	if s.systemRepo != nil {
+		tid := m.TenantID
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  &tid,
 			Username:  actor,
 			Action:    "ISPU_MAPPING_DELETE",
 			Resource:  fmt.Sprintf("mapping_%d", id),

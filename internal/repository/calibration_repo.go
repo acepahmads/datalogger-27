@@ -5,13 +5,17 @@ import (
 	"strings"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
 
 type CalibrationLogFilter struct {
-	DeviceID    uint
-	ParameterID uint
+	TenantID       uint
+	SiteID         uint
+	AllowedSiteIDs []uint
+	DeviceID       uint
+	ParameterID    uint
 	Domain      string
 	Action      string
 	Page        int
@@ -29,9 +33,19 @@ func NewCalibrationRepository(db *gorm.DB) *CalibrationRepository {
 // ListCalibratableParameters returns enabled analog/numeric parameters belonging to active/enabled devices
 func (r *CalibrationRepository) ListCalibratableParameters(ctx context.Context, deviceID uint) ([]model.Parameter, map[uint]model.Device, error) {
 	var devices []model.Device
+	scope := tenantctx.FromContext(ctx)
 	devQuery := r.db.WithContext(ctx).
 		Preload("Connection").
 		Where("deleted_at IS NULL AND (enabled = 1 OR enabled = true) AND (status IS NULL OR status = '' OR status NOT IN ('DISABLED', 'INACTIVE'))")
+	if scope.TenantID > 0 {
+		devQuery = devQuery.Where("tenant_id = ?", scope.TenantID)
+	}
+	if len(scope.AllowedSiteIDs) > 0 {
+		devQuery = devQuery.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	if scope.SiteID > 0 {
+		devQuery = devQuery.Where("site_id = ?", scope.SiteID)
+	}
 	if deviceID > 0 {
 		devQuery = devQuery.Where("id = ?", deviceID)
 	}
@@ -100,7 +114,27 @@ func (r *CalibrationRepository) GetCalibrationLogByID(ctx context.Context, id ui
 }
 
 func (r *CalibrationRepository) ListCalibrationLogs(ctx context.Context, filter CalibrationLogFilter) ([]model.SensorCalibrationLog, int64, error) {
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
+	if filter.SiteID == 0 && scope.SiteID > 0 {
+		filter.SiteID = scope.SiteID
+	}
+	if len(filter.AllowedSiteIDs) == 0 && len(scope.AllowedSiteIDs) > 0 {
+		filter.AllowedSiteIDs = scope.AllowedSiteIDs
+	}
+
 	q := r.db.WithContext(ctx).Model(&model.SensorCalibrationLog{})
+	if filter.TenantID > 0 {
+		q = q.Where("tenant_id = ?", filter.TenantID)
+	}
+	if len(filter.AllowedSiteIDs) > 0 {
+		q = q.Where("site_id IN ?", filter.AllowedSiteIDs)
+	}
+	if filter.SiteID > 0 {
+		q = q.Where("site_id = ?", filter.SiteID)
+	}
 	if filter.DeviceID > 0 {
 		q = q.Where("device_id = ?", filter.DeviceID)
 	}

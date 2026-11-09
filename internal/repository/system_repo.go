@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -24,8 +25,21 @@ func (r *SystemRepository) GetDB() *gorm.DB {
 
 // Devices
 func (r *SystemRepository) GetAllDevices() ([]model.Device, error) {
+	return r.GetAllDevicesScoped(tenantctx.Scope{})
+}
+
+func (r *SystemRepository) GetAllDevicesScoped(scope tenantctx.Scope) ([]model.Device, error) {
 	var devices []model.Device
-	err := r.db.Preload("TypeRel").Preload("Connection").Preload("Parameters").Find(&devices).Error
+	q := r.db.Preload("TypeRel").Preload("Connection").Preload("Parameters").Preload("Site").Preload("Tenant")
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	err := q.Find(&devices).Error
 	return devices, err
 }
 
@@ -40,11 +54,23 @@ func (r *SystemRepository) GetDeviceByID(id uint) (*model.Device, error) {
 
 // Alarms
 func (r *SystemRepository) GetAllAlarms(status string) ([]model.Alarm, error) {
+	return r.GetAllAlarmsScoped(status, tenantctx.Scope{})
+}
+
+func (r *SystemRepository) GetAllAlarmsScoped(status string, scope tenantctx.Scope) ([]model.Alarm, error) {
 	var alarms []model.Alarm
 	query := r.db.Preload("Device").Preload("Parameter").Order("triggered_at DESC")
+	if scope.TenantID > 0 {
+		query = query.Where("alarms.tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		query = query.Where("alarms.site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		query = query.Where("alarms.site_id IN ?", scope.AllowedSiteIDs)
+	}
 	if status != "" {
 		st := strings.ToUpper(strings.TrimSpace(status))
-		query = query.Where("status = ?", st)
+		query = query.Where("alarms.status = ?", st)
 		if st == "ACTIVE" || st == "ACKNOWLEDGED" {
 			query = query.Where(activeAlarmEntityScopeSQL)
 		}
@@ -94,6 +120,7 @@ type SystemLogFilterParams struct {
 }
 
 type AuditTrailFilterParams struct {
+	TenantID  uint
 	Username  string
 	Action    string
 	Resource  string
@@ -105,15 +132,18 @@ type AuditTrailFilterParams struct {
 }
 
 type CommunicationLogFilterParams struct {
-	DeviceID  *uint
-	Protocol  string
-	Direction string
-	Status    string
-	Search    string
-	StartTime *time.Time
-	EndTime   *time.Time
-	Page      int
-	PageSize  int
+	TenantID       uint
+	SiteID         uint
+	AllowedSiteIDs []uint
+	DeviceID       *uint
+	Protocol       string
+	Direction      string
+	Status         string
+	Search         string
+	StartTime      *time.Time
+	EndTime        *time.Time
+	Page           int
+	PageSize       int
 }
 
 // Logs & Audit
@@ -178,6 +208,13 @@ func (r *SystemRepository) GetAuditTrails(limit int) ([]model.AuditTrail, error)
 func (r *SystemRepository) GetAuditTrailsFiltered(params AuditTrailFilterParams) ([]model.AuditTrail, int64, error) {
 	hasUserTable := r.db != nil && r.db.Migrator().HasTable(&model.User{})
 	query := r.db.Model(&model.AuditTrail{})
+	if params.TenantID > 0 {
+		if hasUserTable {
+			query = query.Where("tenant_id = ? OR (tenant_id IS NULL AND user_id IN (SELECT id FROM users WHERE tenant_id = ?))", params.TenantID, params.TenantID)
+		} else {
+			query = query.Where("tenant_id = ?", params.TenantID)
+		}
+	}
 	if params.Username != "" {
 		trimmedActor := strings.TrimSpace(params.Username)
 		if hasUserTable {
@@ -317,6 +354,14 @@ func (r *SystemRepository) GetCommunicationLogs(limit int) ([]model.Communicatio
 
 func (r *SystemRepository) GetCommunicationLogsFiltered(params CommunicationLogFilterParams) ([]model.CommunicationLog, int64, error) {
 	query := r.db.Model(&model.CommunicationLog{})
+	if params.TenantID > 0 {
+		query = query.Where("tenant_id = ?", params.TenantID)
+	}
+	if params.SiteID > 0 {
+		query = query.Where("site_id = ?", params.SiteID)
+	} else if len(params.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", params.AllowedSiteIDs)
+	}
 	if params.DeviceID != nil && *params.DeviceID > 0 {
 		query = query.Where("device_id = ?", *params.DeviceID)
 	}
@@ -378,7 +423,7 @@ func (r *SystemRepository) GetRecentHealth(limit int) ([]model.SystemHealth, err
 // User & Auth
 func (r *SystemRepository) GetUserByUsername(username string) (*model.User, error) {
 	var user model.User
-	err := r.db.Preload("Role").Where("username = ?", username).First(&user).Error
+	err := r.db.Preload("Role").Preload("Tenant").Where("username = ?", username).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +432,7 @@ func (r *SystemRepository) GetUserByUsername(username string) (*model.User, erro
 
 func (r *SystemRepository) GetUserByID(id uint) (*model.User, error) {
 	var user model.User
-	err := r.db.Preload("Role").First(&user, id).Error
+	err := r.db.Preload("Role").Preload("Tenant").First(&user, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -400,15 +445,26 @@ func (r *SystemRepository) UpdateUserLastLogin(id uint) error {
 }
 
 type UserFilterParams struct {
-	Search   string
-	Status   string // "ACTIVE", "INACTIVE", "ALL"
-	RoleID   uint
-	Page     int
-	PageSize int
+	TenantID       uint
+	HideSuperAdmin bool
+	Search         string
+	Status         string // "ACTIVE", "INACTIVE", "ALL"
+	RoleID         uint
+	Page           int
+	PageSize       int
 }
 
 func (r *SystemRepository) GetUsersFiltered(params UserFilterParams) ([]model.User, int64, error) {
-	query := r.db.Model(&model.User{}).Preload("Role")
+	query := r.db.Model(&model.User{}).Preload("Role").Preload("Tenant")
+
+	if params.TenantID > 0 {
+		query = query.Where("users.tenant_id = ?", params.TenantID)
+	}
+	if params.HideSuperAdmin {
+		query = query.Where("users.role_id NOT IN (?)",
+			r.db.Model(&model.Role{}).Select("id").Where("UPPER(name) IN ?", []string{"SUPERADMIN", "ADMINISTRATOR"}),
+		)
+	}
 
 	if params.Search != "" {
 		like := "%" + params.Search + "%"
@@ -451,10 +507,12 @@ func (r *SystemRepository) CreateUser(user *model.User) error {
 
 func (r *SystemRepository) UpdateUser(user *model.User) error {
 	return r.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
-		"full_name": user.FullName,
-		"email":     user.Email,
-		"role_id":   user.RoleID,
-		"is_active": user.IsActive,
+		"full_name":        user.FullName,
+		"email":            user.Email,
+		"role_id":          user.RoleID,
+		"is_active":        user.IsActive,
+		"tenant_id":        user.TenantID,
+		"allowed_site_ids": user.AllowedSiteIDs,
 	}).Error
 }
 
@@ -474,7 +532,7 @@ func (r *SystemRepository) CountActiveAdmins() (int64, error) {
 	var count int64
 	err := r.db.Model(&model.User{}).
 		Joins("JOIN roles ON roles.id = users.role_id").
-		Where("users.is_active = ? AND (roles.name = ? OR roles.name = ?)", true, "Administrator", "admin").
+		Where("users.is_active = ? AND UPPER(roles.name) IN ?", true, []string{"SUPERADMIN", "ADMINISTRATOR", "ADMIN"}).
 		Count(&count).Error
 	return count, err
 }

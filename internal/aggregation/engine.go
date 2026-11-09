@@ -37,7 +37,26 @@ func (e *Engine) Calculate(
 	loc := ResolveLocation(def.Timezone)
 	identifier := FormatIdentifier(bucketEnd, loc)
 
+	tid := def.TenantID
+	sid := def.SiteID
+	if (tid == 0 || sid == 0) && def.Device != nil {
+		if tid == 0 {
+			tid = def.Device.TenantID
+		}
+		if sid == 0 {
+			sid = def.Device.SiteID
+		}
+	}
+	if tid == 0 {
+		tid = 1
+	}
+	if sid == 0 {
+		sid = 1
+	}
+
 	res := &model.AggregationResult{
+		TenantID:                tid,
+		SiteID:                  sid,
 		AggregationDefinitionID: def.ID,
 		DeviceID:                def.DeviceID,
 		ParameterID:             def.ParameterID,

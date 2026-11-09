@@ -80,7 +80,9 @@ const (
 // WQMSStationConfig stores station-level configuration for WQMS IP & IKA evaluation.
 type WQMSStationConfig struct {
 	ID              uint           `gorm:"primaryKey" json:"id"`
-	DeviceID        uint           `gorm:"uniqueIndex;not null;default:0" json:"device_id"` // 0 = unified station
+	TenantID        uint           `gorm:"not null;default:1;index;uniqueIndex:idx_wqms_cfg_tenant_site_dev" json:"tenant_id"`
+	SiteID          uint           `gorm:"not null;default:0;index;uniqueIndex:idx_wqms_cfg_tenant_site_dev" json:"site_id"`
+	DeviceID        uint           `gorm:"uniqueIndex:idx_wqms_cfg_tenant_site_dev;not null;default:0" json:"device_id"` // 0 = unified station
 	WaterClass      WQMSWaterClass `gorm:"size:16;not null;default:'CLASS_2'" json:"water_class"`
 	IKAWindowDays   int            `gorm:"not null;default:30" json:"ika_window_days"`
 	DOSaturationMgL float64        `gorm:"not null;default:8.0" json:"do_saturation_mgl"` // Cim theoretical saturation DO (mg/L)
@@ -94,6 +96,8 @@ type WQMSStationConfig struct {
 // to an official WQMS water quality parameter.
 type WQMSParameterMapping struct {
 	ID               uint          `gorm:"primaryKey" json:"id"`
+	TenantID         uint          `gorm:"not null;default:1;index;uniqueIndex:idx_wqms_dev_param" json:"tenant_id"`
+	SiteID           uint          `gorm:"not null;default:0;index;uniqueIndex:idx_wqms_dev_param" json:"site_id"`
 	DeviceID         uint          `gorm:"uniqueIndex:idx_wqms_dev_param;index;not null;default:0" json:"device_id"`
 	Device           *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	ParameterID      *uint         `gorm:"index" json:"parameter_id"`
@@ -116,6 +120,8 @@ type WQMSParameterMapping struct {
 // WQMSCalculationResult stores a persisted Pollution Index (IPj) evaluation for a station, period, and mode.
 type WQMSCalculationResult struct {
 	ID                     uint                  `gorm:"primaryKey" json:"id"`
+	TenantID               uint                  `gorm:"not null;default:1;index;uniqueIndex:idx_wqms_dev_period_mode" json:"tenant_id"`
+	SiteID                 uint                  `gorm:"not null;default:0;index;uniqueIndex:idx_wqms_dev_period_mode" json:"site_id"`
 	DeviceID               uint                  `gorm:"uniqueIndex:idx_wqms_dev_period_mode;index;not null;default:0" json:"device_id"`
 	Device                 *Device               `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	CalculationMode        ISPUCalculationMode   `gorm:"size:32;default:'REGULATORY';uniqueIndex:idx_wqms_dev_period_mode;index;not null" json:"calculation_mode"`

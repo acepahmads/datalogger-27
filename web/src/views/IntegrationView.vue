@@ -1684,6 +1684,7 @@
                 <option value="SPARING_JWT_STATIC">Static Secret Key → JWT HS256 (KLHK SPARING)</option>
                 <option value="LOGIN_BEARER">2-Step Auth Login → Bearer Token (KLHK / ISPU AQMS)</option>
                 <option value="BEARER_TOKEN">Static Bearer Token</option>
+                <option value="INGEST_KEY">Central Datalogger Edge Ingest Key (X-Ingest-Key)</option>
                 <option value="API_KEY">API Key Header</option>
                 <option value="BASIC_AUTH">HTTP Basic Auth</option>
               </select>
@@ -1697,6 +1698,15 @@
                 type="password"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700"
                 placeholder="***REDACTED***"
+              />
+            </div>
+            <div v-if="editingDest.auth_type === 'INGEST_KEY'">
+              <label class="block text-slate-500 mb-1">Edge Ingest Key (dlg_live_...)</label>
+              <input
+                v-model="editingDest.api_key_value"
+                type="password"
+                class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
+                placeholder="dlg_live_xxxxxxxxxxxx"
               />
             </div>
             <div v-if="editingDest.auth_type === 'API_KEY'" class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">

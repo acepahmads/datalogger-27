@@ -117,6 +117,7 @@
               <tr>
                 <th class="px-4 py-3">User</th>
                 <th class="px-4 py-3">Role</th>
+                <th class="px-4 py-3">Tenant &amp; Stasiun</th>
                 <th class="px-4 py-3">Status</th>
                 <th class="px-4 py-3">Email</th>
                 <th class="px-4 py-3">Last Login</th>
@@ -125,7 +126,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-2xs">
               <tr v-if="usersLoading">
-                <td colspan="6" class="px-4 py-8 text-center text-slate-500 font-sans">
+                <td colspan="7" class="px-4 py-8 text-center text-slate-500 font-sans">
                   <div class="flex items-center justify-center gap-2">
                     <svg class="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
                       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -136,7 +137,7 @@
                 </td>
               </tr>
               <tr v-else-if="users.length === 0">
-                <td colspan="6" class="px-4 py-8 text-center text-slate-500 font-sans">
+                <td colspan="7" class="px-4 py-8 text-center text-slate-500 font-sans">
                   No users found matching current filters.
                 </td>
               </tr>
@@ -160,6 +161,21 @@
                         :class="getRoleBadgeClass(u.role ? u.role.name : '')">
                     {{ u.role ? u.role.name : 'No Role' }}
                   </span>
+                </td>
+
+                <!-- Tenant & Allowed Sites -->
+                <td class="px-4 py-3">
+                  <div v-if="isUserSuperRole(u)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                    🌐 Semua Tenant (Global)
+                  </div>
+                  <div v-else class="space-y-0.5">
+                    <div class="font-semibold text-slate-800 dark:text-slate-200 text-2xs">
+                      🏢 {{ resolveUserTenantLabel(u) }}
+                    </div>
+                    <div class="text-3xs font-mono text-slate-500">
+                      {{ formatUserAllowedSites(u) }}
+                    </div>
+                  </div>
                 </td>
 
                 <!-- Status -->
@@ -406,6 +422,44 @@
             </select>
           </div>
 
+          <!-- Tenant & Site Scope (Hidden when assigning Global SUPERADMIN) -->
+          <div v-if="!isRoleIdSuperAdmin(userForm.role_id)" class="space-y-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800">
+            <div v-if="isSuperAdmin">
+              <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Organisasi Tenant *</label>
+              <select
+                v-model.number="userForm.tenant_id"
+                @change="userForm.selectedSiteIds = []"
+                class="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+              >
+                <option v-for="t in tenantsList" :key="'cu-t-' + t.id" :value="t.id">{{ t.name }} ({{ t.code }})</option>
+              </select>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-3xs font-semibold uppercase text-slate-500">Akses Stasiun Pantau</label>
+                <span class="text-3xs font-mono text-cyan-600 dark:text-cyan-400">
+                  {{ userForm.selectedSiteIds.length === 0 ? 'Semua Stasiun' : `${userForm.selectedSiteIds.length} Stasiun Dipilih` }}
+                </span>
+              </div>
+              <div v-if="sitesForTenant(userForm.tenant_id).length > 0" class="max-h-28 overflow-y-auto space-y-1">
+                <label
+                  v-for="s in sitesForTenant(userForm.tenant_id)"
+                  :key="'cu-s-' + s.id"
+                  class="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-2xs"
+                >
+                  <input type="checkbox" :value="s.id" v-model="userForm.selectedSiteIds" class="rounded text-cyan-600" />
+                  <span class="font-medium text-slate-800 dark:text-slate-200">{{ s.name }}</span>
+                  <span class="text-3xs font-mono text-slate-400">[{{ s.monitoring_domain || 'AQMS' }}]</span>
+                </label>
+              </div>
+              <p class="text-3xs text-slate-400 mt-1">Kosongkan centang untuk mengizinkan akses ke seluruh stasiun pada tenant ini.</p>
+            </div>
+          </div>
+          <div v-else class="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-3xs text-purple-700 dark:text-purple-300 font-semibold">
+            🌐 Role SUPERADMIN memiliki akses lintas seluruh Tenant &amp; Stasiun secara global.
+          </div>
+
           <div class="flex items-center gap-2 pt-1">
             <input type="checkbox" id="user-active-toggle" v-model="userForm.is_active" class="rounded text-blue-600" />
             <label for="user-active-toggle" class="text-xs text-slate-700 dark:text-slate-300">Active account immediately</label>
@@ -446,6 +500,41 @@
                     class="w-full bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200">
               <option v-for="r in assignableRoles" :key="r.id" :value="r.id">{{ r.name }}</option>
             </select>
+          </div>
+
+          <!-- Tenant & Site Scope on Edit -->
+          <div v-if="!isRoleIdSuperAdmin(editUserForm.role_id)" class="space-y-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800">
+            <div v-if="isSuperAdmin">
+              <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Organisasi Tenant *</label>
+              <select
+                v-model.number="editUserForm.tenant_id"
+                @change="editUserForm.selectedSiteIds = []"
+                class="w-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200"
+              >
+                <option v-for="t in tenantsList" :key="'eu-t-' + t.id" :value="t.id">{{ t.name }} ({{ t.code }})</option>
+              </select>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-3xs font-semibold uppercase text-slate-500">Akses Stasiun Pantau</label>
+                <span class="text-3xs font-mono text-cyan-600 dark:text-cyan-400">
+                  {{ editUserForm.selectedSiteIds.length === 0 ? 'Semua Stasiun' : `${editUserForm.selectedSiteIds.length} Stasiun Dipilih` }}
+                </span>
+              </div>
+              <div v-if="sitesForTenant(editUserForm.tenant_id).length > 0" class="max-h-28 overflow-y-auto space-y-1">
+                <label
+                  v-for="s in sitesForTenant(editUserForm.tenant_id)"
+                  :key="'eu-s-' + s.id"
+                  class="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-2xs"
+                >
+                  <input type="checkbox" :value="s.id" v-model="editUserForm.selectedSiteIds" class="rounded text-cyan-600" />
+                  <span class="font-medium text-slate-800 dark:text-slate-200">{{ s.name }}</span>
+                  <span class="text-3xs font-mono text-slate-400">[{{ s.monitoring_domain || 'AQMS' }}]</span>
+                </label>
+              </div>
+              <p class="text-3xs text-slate-400 mt-1">Kosongkan centang untuk mengizinkan akses ke seluruh stasiun pada tenant ini.</p>
+            </div>
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
@@ -553,13 +642,19 @@ export default {
         password: '',
         role_id: 1,
         is_active: true,
+        tenant_id: 1,
+        selectedSiteIds: [],
       },
       editingUser: {},
       editUserForm: {
         full_name: '',
         email: '',
         role_id: 1,
+        tenant_id: 1,
+        selectedSiteIds: [],
       },
+      tenantsList: [],
+      allSitesList: [],
       passwordUser: {},
       newPassword: '',
 
@@ -594,8 +689,57 @@ export default {
     this.fetchUsers();
     this.fetchRoles();
     this.fetchPermissions();
+    this.fetchTenantsAndSites();
   },
   methods: {
+    async fetchTenantsAndSites() {
+      try {
+        const ctxRes = await axios.get('/api/tenants/context');
+        if (ctxRes.data && ctxRes.data.data) {
+          this.tenantsList = ctxRes.data.data.tenants || [];
+        }
+        const sitesRes = await axios.get('/api/sites', { headers: { 'X-Tenant-ID': '' } });
+        if (sitesRes.data && sitesRes.data.data) {
+          this.allSitesList = sitesRes.data.data || [];
+        }
+      } catch (e) {}
+    },
+    isRoleIdSuperAdmin(roleId) {
+      const r = this.roles.find(item => Number(item.id) === Number(roleId));
+      if (!r || !r.name) return false;
+      const upper = r.name.toUpperCase();
+      return upper === 'SUPERADMIN' || upper === 'ADMINISTRATOR';
+    },
+    isUserSuperRole(u) {
+      const name = ((u && u.role && u.role.name) || '').toUpperCase();
+      return name === 'SUPERADMIN' || name === 'ADMINISTRATOR';
+    },
+    resolveUserTenantLabel(u) {
+      if (u && u.tenant && u.tenant.name) return u.tenant.name;
+      const tid = Number(u && u.tenant_id);
+      if (tid > 0) {
+        const found = this.tenantsList.find(t => Number(t.id) === tid);
+        if (found) return found.name;
+        return `Tenant #${tid}`;
+      }
+      return 'Default Organization';
+    },
+    formatUserAllowedSites(u) {
+      const csv = String((u && u.allowed_site_ids) || '').trim();
+      if (!csv) return '📍 Semua Stasiun';
+      const ids = csv.split(',').map(s => Number(s.trim())).filter(n => n > 0);
+      if (ids.length === 0) return '📍 Semua Stasiun';
+      const names = ids.map(id => {
+        const found = this.allSitesList.find(s => Number(s.id) === id);
+        return found ? found.name : `#${id}`;
+      });
+      return `📍 ${names.join(', ')}`;
+    },
+    sitesForTenant(tenantId) {
+      const tid = Number(tenantId) || Number(this.$store.state.activeTenantId) || Number(this.$store.state.user && this.$store.state.user.tenant_id) || 1;
+      if (!this.isSuperAdmin) return this.allSitesList;
+      return this.allSitesList.filter(s => Number(s.tenant_id) === tid);
+    },
     showToast(msg, type = 'success') {
       this.toastMessage = msg;
       this.toastType = type;
@@ -669,6 +813,9 @@ export default {
     },
     openCreateUserModal() {
       const defaultRole = this.assignableRoles.length > 0 ? this.assignableRoles[0].id : 1;
+      const defaultTid = Number(this.$store.state.activeTenantId) ||
+        Number(this.$store.state.user && this.$store.state.user.tenant_id) ||
+        (this.tenantsList[0] && this.tenantsList[0].id) || 1;
       this.userForm = {
         username: '',
         full_name: '',
@@ -676,6 +823,8 @@ export default {
         password: '',
         role_id: defaultRole,
         is_active: true,
+        tenant_id: defaultTid,
+        selectedSiteIds: [],
       };
       this.showCreateUserModal = true;
     },
@@ -688,7 +837,18 @@ export default {
         }
       }
       try {
-        const res = await axios.post('/api/users', this.userForm);
+        const isSuperTarget = this.isRoleIdSuperAdmin(this.userForm.role_id);
+        const payload = {
+          username: this.userForm.username,
+          full_name: this.userForm.full_name,
+          email: this.userForm.email,
+          password: this.userForm.password,
+          role_id: this.userForm.role_id,
+          is_active: this.userForm.is_active,
+          tenant_id: isSuperTarget ? null : (Number(this.userForm.tenant_id) || 1),
+          allowed_site_ids: isSuperTarget ? '' : (this.userForm.selectedSiteIds || []).join(','),
+        };
+        const res = await axios.post('/api/users', payload);
         if (res.data && res.data.success) {
           this.showToast(`User '${this.userForm.username}' created successfully.`);
           this.showCreateUserModal = false;
@@ -700,10 +860,16 @@ export default {
     },
     openEditUserModal(user) {
       this.editingUser = user;
+      const parsedSiteIds = String(user.allowed_site_ids || '')
+        .split(',')
+        .map(s => Number(s.trim()))
+        .filter(n => n > 0);
       this.editUserForm = {
         full_name: user.full_name || '',
         email: user.email || '',
         role_id: user.role_id,
+        tenant_id: Number(user.tenant_id) || Number(this.$store.state.activeTenantId) || 1,
+        selectedSiteIds: parsedSiteIds,
       };
       this.showEditUserModal = true;
     },
@@ -716,7 +882,16 @@ export default {
         }
       }
       try {
-        const res = await axios.put(`/api/users/${this.editingUser.id}`, this.editUserForm);
+        const isSuperTarget = this.isRoleIdSuperAdmin(this.editUserForm.role_id);
+        const allowedCsv = isSuperTarget ? '' : (this.editUserForm.selectedSiteIds || []).join(',');
+        const payload = {
+          full_name: this.editUserForm.full_name,
+          email: this.editUserForm.email,
+          role_id: this.editUserForm.role_id,
+          tenant_id: isSuperTarget ? null : (Number(this.editUserForm.tenant_id) || 1),
+          allowed_site_ids: allowedCsv,
+        };
+        const res = await axios.put(`/api/users/${this.editingUser.id}`, payload);
         if (res.data && res.data.success) {
           this.showToast(`User '${this.editingUser.username}' updated successfully.`);
           this.showEditUserModal = false;

@@ -3,7 +3,10 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
+	"datalogger/internal/middleware"
+	"datalogger/internal/model"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
 
@@ -30,11 +33,34 @@ func (h *CategoryHandler) getActorInfo(c *gin.Context) (string, string, string) 
 	return username, ip, ua
 }
 
+func (h *CategoryHandler) checkCategoryAccess(c *gin.Context, id uint) (*model.ParameterCategory, bool) {
+	cat, err := h.categoryService.GetCategory(id)
+	if err != nil || cat == nil {
+		response.NotFound(c, "Category not found")
+		return nil, false
+	}
+	scope := middleware.GetScope(c)
+	if scope.Authenticated && !scope.CanAccessTenant(cat.TenantID) {
+		response.Forbidden(c, "Access denied: category belongs to another tenant")
+		return nil, false
+	}
+	return cat, true
+}
+
 // ListCategories returns all parameter categories, optionally filtered by enabled status and domain
 func (h *CategoryHandler) ListCategories(c *gin.Context) {
 	enabledOnly := c.Query("enabled_only") == "true"
 	domain := c.Query("domain")
-	categories, err := h.categoryService.ListCategoriesWithDomain(enabledOnly, domain)
+	scope := middleware.GetScope(c)
+	tenantID := scope.TenantID
+	if tenantID == 0 && scope.IsSuperAdmin {
+		if qTid, err := strconv.ParseUint(strings.TrimSpace(c.Query("tenant_id")), 10, 32); err == nil && qTid > 0 {
+			tenantID = uint(qTid)
+		} else if c.Query("all_tenants") != "true" {
+			tenantID = 1
+		}
+	}
+	categories, err := h.categoryService.ListCategoriesForTenant(tenantID, enabledOnly, domain)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "Failed to retrieve categories: "+err.Error())
 		return
@@ -51,9 +77,8 @@ func (h *CategoryHandler) GetCategory(c *gin.Context) {
 		return
 	}
 
-	cat, err := h.categoryService.GetCategory(uint(id))
-	if err != nil {
-		response.NotFound(c, "Category not found")
+	cat, ok := h.checkCategoryAccess(c, uint(id))
+	if !ok {
 		return
 	}
 
@@ -66,6 +91,11 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request payload: "+err.Error())
 		return
+	}
+
+	scope := middleware.GetScope(c)
+	if scope.Authenticated {
+		req.TenantID = scope.WriteTenantID(req.TenantID)
 	}
 
 	user, ip, ua := h.getActorInfo(c)
@@ -84,6 +114,9 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid category ID")
+		return
+	}
+	if _, ok := h.checkCategoryAccess(c, uint(id)); !ok {
 		return
 	}
 
@@ -111,6 +144,9 @@ func (h *CategoryHandler) ToggleCategory(c *gin.Context) {
 		response.BadRequest(c, "Invalid category ID")
 		return
 	}
+	if _, ok := h.checkCategoryAccess(c, uint(id)); !ok {
+		return
+	}
 
 	var payload struct {
 		Enabled bool `json:"enabled"`
@@ -136,6 +172,9 @@ func (h *CategoryHandler) DeleteCategory(c *gin.Context) {
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid category ID")
+		return
+	}
+	if _, ok := h.checkCategoryAccess(c, uint(id)); !ok {
 		return
 	}
 
@@ -179,6 +218,9 @@ func (h *CategoryHandler) AssignParameters(c *gin.Context) {
 	var targetCategoryID *uint
 	if idStr != "" && idStr != "0" && idStr != "null" && idStr != "unassign" {
 		if id, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+			if _, ok := h.checkCategoryAccess(c, uint(id)); !ok {
+				return
+			}
 			uID := uint(id)
 			targetCategoryID = &uID
 		}

@@ -14,6 +14,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 )
 
 type ModbusWriter interface {
@@ -73,6 +74,10 @@ func NewActuationService(
 // -------------------------------------------------------------
 
 func (s *ActuationService) CreateActuator(actuator *model.DeviceActuator) error {
+	return s.CreateActuatorWithContext(context.Background(), actuator)
+}
+
+func (s *ActuationService) CreateActuatorWithContext(ctx context.Context, actuator *model.DeviceActuator) error {
 	if actuator.ActuatorCode == "" {
 		return fmt.Errorf("actuator_code is required")
 	}
@@ -81,6 +86,22 @@ func (s *ActuationService) CreateActuator(actuator *model.DeviceActuator) error 
 	}
 	if actuator.DeviceID == 0 {
 		return fmt.Errorf("device_id is required")
+	}
+
+	dev, err := s.deviceRepo.GetByID(actuator.DeviceID)
+	if err != nil || dev == nil {
+		return fmt.Errorf("device %d not found", actuator.DeviceID)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(dev.TenantID, dev.SiteID) {
+		return fmt.Errorf("access denied: device belongs to another tenant or restricted site")
+	}
+	actuator.TenantID = dev.TenantID
+	actuator.SiteID = dev.SiteID
+	if actuator.TenantID == 0 {
+		actuator.TenantID = 1
+	}
+	if actuator.SiteID == 0 {
+		actuator.SiteID = 1
 	}
 
 	// Default payloads if unset
@@ -98,9 +119,16 @@ func (s *ActuationService) CreateActuator(actuator *model.DeviceActuator) error 
 }
 
 func (s *ActuationService) UpdateActuator(actuator *model.DeviceActuator) error {
+	return s.UpdateActuatorWithContext(context.Background(), actuator)
+}
+
+func (s *ActuationService) UpdateActuatorWithContext(ctx context.Context, actuator *model.DeviceActuator) error {
 	existing, err := s.actuatorRepo.GetActuatorByID(actuator.ID)
 	if err != nil {
 		return fmt.Errorf("actuator not found: %w", err)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(existing.TenantID, existing.SiteID) {
+		return fmt.Errorf("access denied: actuator belongs to another tenant or restricted site")
 	}
 
 	existing.ActuatorName = actuator.ActuatorName
@@ -121,6 +149,17 @@ func (s *ActuationService) UpdateActuator(actuator *model.DeviceActuator) error 
 }
 
 func (s *ActuationService) DeleteActuator(id uint) error {
+	return s.DeleteActuatorWithContext(context.Background(), id)
+}
+
+func (s *ActuationService) DeleteActuatorWithContext(ctx context.Context, id uint) error {
+	existing, err := s.actuatorRepo.GetActuatorByID(id)
+	if err != nil {
+		return fmt.Errorf("actuator not found: %w", err)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(existing.TenantID, existing.SiteID) {
+		return fmt.Errorf("access denied: actuator belongs to another tenant or restricted site")
+	}
 	return s.actuatorRepo.DeleteActuator(id)
 }
 
@@ -128,12 +167,38 @@ func (s *ActuationService) GetActuator(id uint) (*model.DeviceActuator, error) {
 	return s.actuatorRepo.GetActuatorByID(id)
 }
 
+func (s *ActuationService) GetActuatorWithContext(ctx context.Context, id uint) (*model.DeviceActuator, error) {
+	act, err := s.actuatorRepo.GetActuatorByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(act.TenantID, act.SiteID) {
+		return nil, fmt.Errorf("access denied: actuator belongs to another tenant or restricted site")
+	}
+	return act, nil
+}
+
 func (s *ActuationService) ListActuatorsByDevice(deviceID uint) ([]model.DeviceActuator, error) {
+	return s.actuatorRepo.ListActuatorsByDevice(deviceID)
+}
+
+func (s *ActuationService) ListActuatorsByDeviceWithContext(ctx context.Context, deviceID uint) ([]model.DeviceActuator, error) {
+	dev, err := s.deviceRepo.GetByID(deviceID)
+	if err != nil || dev == nil {
+		return nil, fmt.Errorf("device %d not found", deviceID)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(dev.TenantID, dev.SiteID) {
+		return nil, fmt.Errorf("access denied: device belongs to another tenant or restricted site")
+	}
 	return s.actuatorRepo.ListActuatorsByDevice(deviceID)
 }
 
 func (s *ActuationService) ListAllActiveActuators() ([]model.DeviceActuator, error) {
 	return s.actuatorRepo.ListAllActiveActuators()
+}
+
+func (s *ActuationService) ListAllActiveActuatorsWithContext(ctx context.Context) ([]model.DeviceActuator, error) {
+	return s.actuatorRepo.ListAllActiveActuatorsScoped(tenantctx.FromContext(ctx))
 }
 
 // -------------------------------------------------------------
@@ -192,6 +257,9 @@ func (s *ActuationService) TestWrite(ctx context.Context, req ActuatorTestWriteR
 	device, err := s.deviceRepo.GetByID(deviceID)
 	if err != nil || device == nil {
 		return nil, fmt.Errorf("device %d not found: %w", deviceID, err)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(device.TenantID, device.SiteID) {
+		return nil, fmt.Errorf("access denied: device belongs to another tenant or restricted site")
 	}
 
 	adapter, err := s.adapterProvider(device)
@@ -254,6 +322,9 @@ func (s *ActuationService) Actuate(ctx context.Context, actuatorID uint, action 
 	if err != nil {
 		return nil, fmt.Errorf("actuator %d not found: %w", actuatorID, err)
 	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(actuator.TenantID, actuator.SiteID) {
+		return nil, fmt.Errorf("access denied: actuator belongs to another tenant or restricted site")
+	}
 
 	if !actuator.Enabled {
 		return nil, fmt.Errorf("actuator %s (%s) is disabled", actuator.ActuatorName, actuator.ActuatorCode)
@@ -301,7 +372,24 @@ func (s *ActuationService) Actuate(ctx context.Context, actuatorID uint, action 
 	resp, writeErr := adapter.WriteRegisters(writeCtx, writeReq)
 	latency := int(time.Since(start).Milliseconds())
 
+	tID := actuator.TenantID
+	if tID == 0 {
+		tID = device.TenantID
+	}
+	if tID == 0 {
+		tID = 1
+	}
+	sID := actuator.SiteID
+	if sID == 0 {
+		sID = device.SiteID
+	}
+	if sID == 0 {
+		sID = 1
+	}
+
 	logEntry := &model.ActuationLog{
+		TenantID:       tID,
+		SiteID:         sID,
 		ActuatorID:     actuatorID,
 		ScheduleID:     scheduleID,
 		DeviceID:       actuator.DeviceID,
@@ -353,6 +441,8 @@ func (s *ActuationService) Actuate(ctx context.Context, actuatorID uint, action 
 	if s.hub != nil {
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "ACTUATOR_STATE_CHANGED",
+			TenantID:  tID,
+			SiteID:    sID,
 			Timestamp: time.Now().UTC(),
 			Data: map[string]interface{}{
 				"actuator_id":     actuatorID,
@@ -437,8 +527,59 @@ func (s *ActuationService) GetSchedule(id uint) (*model.ActuationSchedule, error
 	return s.actuatorRepo.GetScheduleByID(id)
 }
 
+func (s *ActuationService) CreateScheduleWithContext(ctx context.Context, schedule *model.ActuationSchedule) error {
+	if schedule.ActuatorID == 0 {
+		return fmt.Errorf("actuator_id is required")
+	}
+	act, err := s.actuatorRepo.GetActuatorByID(schedule.ActuatorID)
+	if err != nil {
+		return fmt.Errorf("actuator not found: %w", err)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(act.TenantID, act.SiteID) {
+		return fmt.Errorf("access denied: actuator belongs to another tenant or restricted site")
+	}
+	return s.CreateSchedule(schedule)
+}
+
+func (s *ActuationService) UpdateScheduleWithContext(ctx context.Context, schedule *model.ActuationSchedule) error {
+	existing, err := s.actuatorRepo.GetScheduleByID(schedule.ID)
+	if err != nil {
+		return fmt.Errorf("schedule not found: %w", err)
+	}
+	if existing.Actuator != nil && !tenantctx.FromContext(ctx).CanAccessRecord(existing.Actuator.TenantID, existing.Actuator.SiteID) {
+		return fmt.Errorf("access denied: schedule belongs to another tenant or restricted site")
+	}
+	return s.UpdateSchedule(schedule)
+}
+
+func (s *ActuationService) DeleteScheduleWithContext(ctx context.Context, id uint) error {
+	existing, err := s.actuatorRepo.GetScheduleByID(id)
+	if err != nil {
+		return fmt.Errorf("schedule not found: %w", err)
+	}
+	if existing.Actuator != nil && !tenantctx.FromContext(ctx).CanAccessRecord(existing.Actuator.TenantID, existing.Actuator.SiteID) {
+		return fmt.Errorf("access denied: schedule belongs to another tenant or restricted site")
+	}
+	return s.actuatorRepo.DeleteSchedule(id)
+}
+
+func (s *ActuationService) ListSchedulesByActuatorWithContext(ctx context.Context, actuatorID uint) ([]model.ActuationSchedule, error) {
+	act, err := s.actuatorRepo.GetActuatorByID(actuatorID)
+	if err != nil {
+		return nil, fmt.Errorf("actuator not found: %w", err)
+	}
+	if !tenantctx.FromContext(ctx).CanAccessRecord(act.TenantID, act.SiteID) {
+		return nil, fmt.Errorf("access denied: actuator belongs to another tenant or restricted site")
+	}
+	return s.actuatorRepo.ListSchedulesByActuator(actuatorID)
+}
+
 func (s *ActuationService) ListLogs(actuatorID, deviceID *uint, limit int) ([]model.ActuationLog, error) {
 	return s.actuatorRepo.ListLogs(actuatorID, deviceID, limit)
+}
+
+func (s *ActuationService) ListLogsWithContext(ctx context.Context, actuatorID, deviceID *uint, limit int) ([]model.ActuationLog, error) {
+	return s.actuatorRepo.ListLogsScoped(tenantctx.FromContext(ctx), actuatorID, deviceID, limit)
 }
 
 // -------------------------------------------------------------

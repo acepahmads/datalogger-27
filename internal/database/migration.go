@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"datalogger/internal/config"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 
@@ -21,6 +22,9 @@ func RunMigrations(db *gorm.DB) error {
 
 	// 1. Auto-migrate models
 	err := db.AutoMigrate(
+		&model.Tenant{},
+		&model.Site{},
+		&model.TenantAPIKey{},
 		&model.User{},
 		&model.Role{},
 		&model.Permission{},
@@ -335,6 +339,7 @@ func RunMigrations(db *gorm.DB) error {
 	ensureParameterCategoriesAndPermissions(db)
 	ensureISPUPermissions(db)
 	ensurePhase7RBAC(db)
+	ensureMultiTenantSchemaAndBackfill(db)
 
 	// 5. Update Development Tracking Dashboard for Phase 2
 	updatePhase2Tracking(db)
@@ -2990,6 +2995,8 @@ func ensureDefaultRetentionPolicies(db *gorm.DB) {
 
 // preMigrateEdgeSchema safely pre-populates existing database rows before unique indexes are built
 func preMigrateEdgeSchema(db *gorm.DB) {
+	preMigrateMultiTenantIndexes(db)
+
 	// 1. Devices table pre-migration
 	if db.Migrator().HasTable("devices") {
 		_ = db.Exec("UPDATE devices SET device_code = code WHERE (device_code IS NULL OR device_code = '') AND (code IS NOT NULL AND code != '');").Error
@@ -3136,122 +3143,8 @@ func ensureParameterCategoriesAndPermissions(db *gorm.DB) {
 		_ = db.Model(&opRole).Association("Permissions").Append(catPerms)
 	}
 
-	// 2. Seed Default Parameter Categories (Air Quality, Water Quality, Environmental)
-	defaultCategories := []model.ParameterCategory{
-		{
-			Code:              "gas_pollutants",
-			Name:              "Gas & Pollutants",
-			Description:       "Gaseous air pollutants such as O3, CO, CO2, NO2, SO2",
-			IconKey:           "atom",
-			ColorKey:          "purple",
-			DisplayOrder:      1,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainAQMS,
-		},
-		{
-			Code:              "particulate_matter",
-			Name:              "Particulate Matter",
-			Description:       "Suspended airborne particulate matter (PM2.5, PM10, TSP)",
-			IconKey:           "particles",
-			ColorKey:          "sky",
-			DisplayOrder:      2,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainAQMS,
-		},
-		{
-			Code:              "meteorology",
-			Name:              "Weather / Meteorology",
-			Description:       "Ambient weather, wind, rain, pressure, and solar radiation",
-			IconKey:           "cloud-rain",
-			ColorKey:          "cyan",
-			DisplayOrder:      3,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainAQMS,
-		},
-		{
-			Code:              "water_quality",
-			Name:              "Water Quality",
-			Description:       "Primary water quality indicators (pH, DO, Turbidity, Salinity)",
-			IconKey:           "droplet",
-			ColorKey:          "blue",
-			DisplayOrder:      4,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainWQMS,
-		},
-		{
-			Code:              "physical_water",
-			Name:              "Physical Water Parameters",
-			Description:       "Water temperature, conductivity, TDS, and TSS",
-			IconKey:           "thermometer",
-			ColorKey:          "amber",
-			DisplayOrder:      5,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainWQMS,
-		},
-		{
-			Code:              "chemical_parameters",
-			Name:              "Chemical Parameters",
-			Description:       "Chemical oxygen demand, BOD, ammonia, nitrates, chlorine",
-			IconKey:           "gauge",
-			ColorKey:          "teal",
-			DisplayOrder:      6,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainWQMS,
-		},
-		{
-			Code:              "flow_level",
-			Name:              "Flow & Level",
-			Description:       "Effluent flow rate, water level, river discharge, and volume",
-			IconKey:           "waves",
-			ColorKey:          "emerald",
-			DisplayOrder:      7,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainWQMS,
-		},
-		{
-			Code:              "environmental",
-			Name:              "Custom Environmental Parameters",
-			Description:       "Specialized noise, vibration, radiation, and electrical telemetry",
-			IconKey:           "activity",
-			ColorKey:          "slate",
-			DisplayOrder:      8,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainCustom,
-		},
-		{
-			Code:              "status",
-			Name:              "Status",
-			Description:       "Equipment & operational status indicators (Pump ON/OFF, Valve, Power, Blower, Door)",
-			IconKey:           "power",
-			ColorKey:          "emerald",
-			DisplayOrder:      9,
-			DefaultColumnSpan: 1,
-			Enabled:           true,
-			Domain:            model.DomainAll,
-		},
-	}
-
-	catMap := make(map[string]uint)
-	for _, c := range defaultCategories {
-		var existing model.ParameterCategory
-		if err := db.Where("code = ?", c.Code).First(&existing).Error; err != nil {
-			db.Create(&c)
-			catMap[c.Code] = c.ID
-		} else {
-			if existing.Domain == "" || (existing.Domain == "ALL" && c.Domain != model.DomainAll) {
-				db.Model(&existing).Update("domain", c.Domain)
-			}
-			catMap[c.Code] = existing.ID
-		}
-	}
+	// 2. Seed Default Parameter Categories (Air Quality, Water Quality, Environmental) for Default Tenant #1
+	catMap := SeedTenantDefaultCategories(db, 1)
 
 	// 3. Safe heuristic auto-mapping for unassigned legacy parameters
 	type ParamCategoryMini struct {
@@ -3545,6 +3438,11 @@ func ensurePhase7RBAC(db *gorm.DB) {
 		// Sensor Calibration (1–10 Point Regression: AQMS, SPARING, WQMS ONLIMO)
 		{Code: "calibration.view", Name: "View Sensor Calibration", Category: "CALIBRATION", Description: "View sensor calibration curves, live readings, and calibration audit logs"},
 		{Code: "calibration.manage", Name: "Manage Sensor Calibration", Category: "CALIBRATION", Description: "Execute 1–10 point sensor calibration, per-parameter R2 configuration, session lock, reset, and rollback"},
+		// Multi-Tenant & Multi-Site Management
+		{Code: "tenant.manage", Name: "Manage Tenants & Quotas", Category: "TENANT", Description: "Create, edit, suspend, and configure global platform tenants and quotas"},
+		{Code: "site.view", Name: "View Sites & Stations", Category: "TENANT", Description: "View monitoring stations, domains, and GPS coordinates within tenant"},
+		{Code: "site.manage", Name: "Manage Sites & Stations", Category: "TENANT", Description: "Create, edit, and configure monitoring stations within tenant"},
+		{Code: "ingest_key.manage", Name: "Manage Edge Ingest API Keys", Category: "TENANT", Description: "Generate, toggle, and revoke Hybrid Edge Push API keys within tenant"},
 	}
 
 	for _, p := range allPerms {
@@ -3611,7 +3509,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 	if adminRole, ok := roleMap["ADMIN"]; ok && adminRole != nil {
 		var adminPerms []model.Permission
 		for _, p := range dbAllPerms {
-			if strings.HasPrefix(p.Code, "development.") || p.Code == "telemetry.raw" || p.Code == "role.manage" {
+			if strings.HasPrefix(p.Code, "development.") || p.Code == "telemetry.raw" || p.Code == "role.manage" || p.Code == "tenant.manage" {
 				continue
 			}
 			adminPerms = append(adminPerms, p)
@@ -3635,6 +3533,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
 			"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 			"calibration.view": true, "calibration.manage": true,
+			"site.view": true, "site.manage": true,
 			"config.view": true,
 			"integration.view": true, "integration.test": true,
 		}
@@ -3658,6 +3557,7 @@ func ensurePhase7RBAC(db *gorm.DB) {
 			"report.view":       true,
 			"ispu.view":         true, "ispu.export": true,
 			"wqms.view":         true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
+			"site.view":         true,
 			"integration.view":  true,
 		}
 		for _, p := range dbAllPerms {
@@ -4162,6 +4062,300 @@ func updatePhase10Tracking(db *gorm.DB) {
 				Log:       vt.TestResult,
 				CreatedAt: now,
 			}).Error
+		}
+	}
+}
+
+// DefaultParameterCategories returns the 9 canonical industrial SCADA parameter categories for a Tenant.
+func DefaultParameterCategories(tenantID uint) []model.ParameterCategory {
+	if tenantID == 0 {
+		tenantID = 1
+	}
+	return []model.ParameterCategory{
+		{
+			TenantID:          tenantID,
+			Code:              "gas_pollutants",
+			Name:              "Gas & Pollutants",
+			Description:       "Gaseous air pollutants such as O3, CO, CO2, NO2, SO2",
+			IconKey:           "atom",
+			ColorKey:          "purple",
+			DisplayOrder:      1,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainAQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "particulate_matter",
+			Name:              "Particulate Matter",
+			Description:       "Suspended airborne particulate matter (PM2.5, PM10, TSP)",
+			IconKey:           "particles",
+			ColorKey:          "sky",
+			DisplayOrder:      2,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainAQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "meteorology",
+			Name:              "Weather / Meteorology",
+			Description:       "Ambient weather, wind, rain, pressure, and solar radiation",
+			IconKey:           "cloud-rain",
+			ColorKey:          "cyan",
+			DisplayOrder:      3,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainAQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "water_quality",
+			Name:              "Water Quality",
+			Description:       "Primary water quality indicators (pH, DO, Turbidity, Salinity)",
+			IconKey:           "droplet",
+			ColorKey:          "blue",
+			DisplayOrder:      4,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainWQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "physical_water",
+			Name:              "Physical Water Parameters",
+			Description:       "Water temperature, conductivity, TDS, and TSS",
+			IconKey:           "thermometer",
+			ColorKey:          "amber",
+			DisplayOrder:      5,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainWQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "chemical_parameters",
+			Name:              "Chemical Parameters",
+			Description:       "Chemical oxygen demand, BOD, ammonia, nitrates, chlorine",
+			IconKey:           "gauge",
+			ColorKey:          "teal",
+			DisplayOrder:      6,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainWQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "flow_level",
+			Name:              "Flow & Level",
+			Description:       "Effluent flow rate, water level, river discharge, and volume",
+			IconKey:           "waves",
+			ColorKey:          "emerald",
+			DisplayOrder:      7,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainWQMS,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "environmental",
+			Name:              "Custom Environmental Parameters",
+			Description:       "Specialized noise, vibration, radiation, and electrical telemetry",
+			IconKey:           "activity",
+			ColorKey:          "slate",
+			DisplayOrder:      8,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainCustom,
+		},
+		{
+			TenantID:          tenantID,
+			Code:              "status",
+			Name:              "Status",
+			Description:       "Equipment & operational status indicators (Pump ON/OFF, Valve, Power, Blower, Door)",
+			IconKey:           "power",
+			ColorKey:          "emerald",
+			DisplayOrder:      9,
+			DefaultColumnSpan: 1,
+			Enabled:           true,
+			Domain:            model.DomainAll,
+		},
+	}
+}
+
+// SeedTenantDefaultCategories ensures all 9 canonical SCADA categories exist for the given tenantID.
+func SeedTenantDefaultCategories(db *gorm.DB, tenantID uint) map[string]uint {
+	if tenantID == 0 {
+		tenantID = 1
+	}
+	catMap := make(map[string]uint)
+	for _, c := range DefaultParameterCategories(tenantID) {
+		var existing model.ParameterCategory
+		if err := db.Where("tenant_id = ? AND code = ?", tenantID, c.Code).First(&existing).Error; err != nil {
+			_ = db.Create(&c).Error
+			catMap[c.Code] = c.ID
+		} else {
+			if existing.Domain == "" || (existing.Domain == "ALL" && c.Domain != model.DomainAll) {
+				_ = db.Model(&existing).Update("domain", c.Domain).Error
+			}
+			catMap[c.Code] = existing.ID
+		}
+	}
+	return catMap
+}
+
+// preMigrateMultiTenantIndexes safely drops single-tenant global unique indexes before AutoMigrate builds composite (tenant_id, ...) indexes.
+func preMigrateMultiTenantIndexes(db *gorm.DB) {
+	dropLegacyIndexesIfUpgrading := func(table string, modelPtr interface{}, idxNames ...string) {
+		if !db.Migrator().HasTable(table) || db.Migrator().HasColumn(table, "tenant_id") {
+			return
+		}
+		for _, idx := range idxNames {
+			if db.Migrator().HasIndex(modelPtr, idx) {
+				_ = db.Migrator().DropIndex(modelPtr, idx)
+			}
+		}
+	}
+
+	dropLegacyIndexesIfUpgrading("devices", &model.Device{}, "idx_devices_device_code", "device_code")
+	dropLegacyIndexesIfUpgrading("parameter_categories", &model.ParameterCategory{}, "idx_parameter_categories_code", "code")
+	dropLegacyIndexesIfUpgrading("wqms_station_configs", &model.WQMSStationConfig{}, "idx_wqms_station_configs_device_id", "device_id")
+	dropLegacyIndexesIfUpgrading("wqms_parameter_mappings", &model.WQMSParameterMapping{}, "idx_wqms_dev_param")
+	dropLegacyIndexesIfUpgrading("wqms_calculation_results", &model.WQMSCalculationResult{}, "idx_wqms_dev_period_mode")
+	dropLegacyIndexesIfUpgrading("ispu_parameter_mappings", &model.ISPUParameterMapping{}, "idx_device_pollutant")
+	dropLegacyIndexesIfUpgrading("ispu_calculation_results", &model.ISPUCalculationResult{}, "idx_dev_period_mode")
+}
+
+// ensureMultiTenantSchemaAndBackfill seeds Default Tenant #1 and Site #1 from existing single-tenant settings
+// and non-destructively backfills tenant_id = 1 / site_id = 1 on legacy records.
+func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
+	var branding model.SystemBranding
+	hasBranding := db.Order("id asc").First(&branding).Error == nil
+
+	var loc model.StationLocation
+	hasLoc := db.Order("id asc").First(&loc).Error == nil
+
+	// 1. Ensure Tenant #1 ("default") exists
+	var defaultTenant model.Tenant
+	if err := db.Unscoped().First(&defaultTenant, 1).Error; err != nil {
+		custName := strings.TrimSpace(branding.CustomerName)
+		if custName == "" {
+			custName = "Default Organization"
+		}
+		custSub := strings.TrimSpace(branding.CustomerSubtitle)
+		if custSub == "" {
+			custSub = "Environmental & Industrial Telemetry Platform"
+		}
+		defaultTenant = model.Tenant{
+			ID:               1,
+			Code:             "default",
+			Name:             custName,
+			Description:      "Primary default organization migrated from single-tenant installation",
+			Status:           model.TenantStatusActive,
+			CustomerName:     custName,
+			CustomerSubtitle: custSub,
+			CustomerLogo:     branding.CustomerLogo,
+			CustomerHasLogo:  branding.CustomerHasLogo || strings.TrimSpace(branding.CustomerLogo) != "",
+		}
+		_ = db.Create(&defaultTenant).Error
+	} else if hasBranding && strings.TrimSpace(defaultTenant.CustomerLogo) == "" && strings.TrimSpace(branding.CustomerLogo) != "" {
+		_ = db.Model(&defaultTenant).Updates(map[string]interface{}{
+			"customer_logo":     branding.CustomerLogo,
+			"customer_has_logo": true,
+		}).Error
+	}
+
+	// 2. Ensure Site #1 ("main-station") under Tenant #1 exists
+	var defaultSite model.Site
+	if err := db.Unscoped().First(&defaultSite, 1).Error; err != nil {
+		domain := "AQMS"
+		if cfg := config.Get(); cfg != nil && strings.TrimSpace(cfg.MonitoringDomain) != "" {
+			d := strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
+			if d == "AQMS" || d == "SPARING" || d == "WQMS" {
+				domain = d
+			}
+		}
+		if hasBranding && strings.TrimSpace(branding.StationDomainPrefix) != "" && domain == "AQMS" {
+			d := strings.ToUpper(strings.TrimSpace(branding.StationDomainPrefix))
+			if d == "AQMS" || d == "SPARING" || d == "WQMS" {
+				domain = d
+			}
+		}
+		siteName := "Main Monitoring Station"
+		if hasLoc && strings.TrimSpace(loc.StationName) != "" {
+			siteName = strings.TrimSpace(loc.StationName)
+		}
+		stMode := "MANUAL"
+		if hasBranding && strings.TrimSpace(branding.StationTypeMode) != "" {
+			stMode = strings.TrimSpace(branding.StationTypeMode)
+		}
+		defaultSite = model.Site{
+			ID:               1,
+			TenantID:         1,
+			Code:             "main-station",
+			Name:             siteName,
+			MonitoringDomain: domain,
+			StationTypeMode:  stMode,
+			Latitude:         loc.Latitude,
+			Longitude:        loc.Longitude,
+			LocationSource:   loc.LocationSource,
+			AccuracyMeters:   loc.AccuracyMeters,
+			Address:          loc.Address,
+			IsConfigured:     loc.IsConfigured,
+			Timezone:         "Asia/Jakarta",
+			Enabled:          true,
+		}
+		_ = db.Create(&defaultSite).Error
+	}
+
+	// 3. Backfill users: SUPERADMIN gets tenant_id = NULL (Global); non-SUPERADMIN gets tenant_id = 1 if NULL
+	var superRoleIDs []uint
+	_ = db.Model(&model.Role{}).Where("UPPER(name) IN ?", []string{"SUPERADMIN", "ADMINISTRATOR"}).Pluck("id", &superRoleIDs).Error
+	if len(superRoleIDs) > 0 {
+		_ = db.Model(&model.User{}).Where("role_id IN ? AND tenant_id IS NOT NULL", superRoleIDs).Update("tenant_id", nil).Error
+		_ = db.Model(&model.User{}).Where("role_id NOT IN ? AND (tenant_id IS NULL OR tenant_id = 0)", superRoleIDs).Update("tenant_id", 1).Error
+	}
+
+	// 4. Backfill domain tables where tenant_id / site_id were 0 or NULL
+	tenantSiteTables := []string{
+		"devices",
+		"raw_data",
+		"processed_data",
+		"aggregated_data",
+		"alarms",
+		"aggregation_definitions",
+		"aggregation_results",
+		"sensor_calibration_logs",
+		"communication_logs",
+		"device_actuators",
+		"actuation_logs",
+	}
+	for _, tbl := range tenantSiteTables {
+		if db.Migrator().HasTable(tbl) {
+			if db.Migrator().HasColumn(tbl, "tenant_id") {
+				_ = db.Exec(fmt.Sprintf("UPDATE %s SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0", tbl)).Error
+			}
+			if db.Migrator().HasColumn(tbl, "site_id") {
+				_ = db.Exec(fmt.Sprintf("UPDATE %s SET site_id = 1 WHERE site_id IS NULL OR site_id = 0", tbl)).Error
+			}
+		}
+	}
+
+	tenantOnlyTables := []string{
+		"parameter_categories",
+		"notification_channels",
+		"notifications",
+		"output_destinations",
+		"outbound_delivery_queues",
+		"ispu_parameter_mappings",
+		"ispu_calculation_results",
+		"wqms_station_configs",
+		"wqms_parameter_mappings",
+		"wqms_calculation_results",
+	}
+	for _, tbl := range tenantOnlyTables {
+		if db.Migrator().HasTable(tbl) && db.Migrator().HasColumn(tbl, "tenant_id") {
+			_ = db.Exec(fmt.Sprintf("UPDATE %s SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0", tbl)).Error
 		}
 	}
 }

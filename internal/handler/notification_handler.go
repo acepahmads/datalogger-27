@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -33,6 +34,7 @@ func NewNotificationHandler(engine *service.NotificationEngine, repo *repository
 // ChannelDTO represents a channel with secrets safely redacted
 type ChannelDTO struct {
 	ID               uint                          `json:"id"`
+	TenantID         uint                          `json:"tenant_id"`
 	Name             string                        `json:"name"`
 	Type             model.NotificationChannelType `json:"type"`
 	Enabled          bool                          `json:"enabled"`
@@ -75,6 +77,7 @@ func toChannelDTO(ch *model.NotificationChannel) ChannelDTO {
 
 	return ChannelDTO{
 		ID:               ch.ID,
+		TenantID:         ch.TenantID,
 		Name:             ch.Name,
 		Type:             ch.Type,
 		Enabled:          ch.Enabled,
@@ -126,6 +129,10 @@ func (h *NotificationHandler) GetChannel(c *gin.Context) {
 		response.InternalError(c, "Failed to retrieve channel: "+err.Error())
 		return
 	}
+	if !middleware.GetScope(c).CanAccessTenant(ch.TenantID) {
+		response.Forbidden(c, "Access denied to another tenant's notification channel")
+		return
+	}
 
 	response.OK(c, toChannelDTO(ch))
 }
@@ -160,6 +167,10 @@ func (h *NotificationHandler) UpdateChannel(c *gin.Context) {
 			return
 		}
 		response.InternalError(c, "Failed to retrieve channel: "+err.Error())
+		return
+	}
+	if !middleware.GetScope(c).CanAccessTenant(existing.TenantID) {
+		response.Forbidden(c, "Access denied to another tenant's notification channel")
 		return
 	}
 
@@ -325,6 +336,10 @@ func (h *NotificationHandler) GetNotification(c *gin.Context) {
 		response.InternalError(c, "Failed to retrieve notification: "+err.Error())
 		return
 	}
+	if !middleware.GetScope(c).CanAccessTenant(n.TenantID) {
+		response.Forbidden(c, "Access denied to another tenant's notification")
+		return
+	}
 
 	response.OK(c, n)
 }
@@ -394,6 +409,20 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid notification ID")
+		return
+	}
+
+	existing, err := h.repo.GetByID(c.Request.Context(), uint(id))
+	if err != nil {
+		if err == repository.ErrNotificationNotFound {
+			response.NotFound(c, "Notification not found")
+			return
+		}
+		response.InternalError(c, "Failed to retrieve notification: "+err.Error())
+		return
+	}
+	if !middleware.GetScope(c).CanAccessTenant(existing.TenantID) {
+		response.Forbidden(c, "Access denied to another tenant's notification")
 		return
 	}
 

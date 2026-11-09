@@ -3,6 +3,8 @@ package handler
 import (
 	"strings"
 
+	"datalogger/internal/middleware"
+	"datalogger/internal/model"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
 
@@ -20,6 +22,35 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
+}
+
+func serializeAuthUser(user *model.User, roleName string) gin.H {
+	isSuper := strings.EqualFold(roleName, "SUPERADMIN") || strings.EqualFold(roleName, "Administrator")
+	var tenantID *uint
+	var tenantInfo gin.H
+	if !isSuper && user.TenantID != nil && *user.TenantID > 0 {
+		tid := *user.TenantID
+		tenantID = &tid
+		if user.Tenant != nil {
+			tenantInfo = gin.H{
+				"id":            user.Tenant.ID,
+				"code":          user.Tenant.Code,
+				"name":          user.Tenant.Name,
+				"customer_name": user.Tenant.CustomerName,
+				"status":        user.Tenant.Status,
+			}
+		}
+	}
+	return gin.H{
+		"id":               user.ID,
+		"username":         user.Username,
+		"full_name":        user.FullName,
+		"role":             roleName,
+		"email":            user.Email,
+		"tenant_id":        tenantID,
+		"tenant":           tenantInfo,
+		"allowed_site_ids": user.AllowedSiteIDs,
+	}
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -49,13 +80,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"token": token,
-		"user": gin.H{
-			"id":        user.ID,
-			"username":  user.Username,
-			"full_name": user.FullName,
-			"role":      roleName,
-			"email":     user.Email,
-		},
+		"user":  serializeAuthUser(user, roleName),
 	})
 }
 
@@ -63,11 +88,26 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	username, _ := c.Get("username")
 	role, _ := c.Get("role")
 	userID, _ := c.Get("userID")
+	scope := middleware.GetScope(c)
+
+	if uid, ok := userID.(uint); ok && uid > 0 && h.authService != nil {
+		if user, err := h.authService.GetUserByID(uid); err == nil && user != nil {
+			roleStr, _ := role.(string)
+			uMap := serializeAuthUser(user, roleStr)
+			uMap["effective_tenant_id"] = scope.TenantID
+			uMap["effective_site_id"] = scope.SiteID
+			response.OK(c, uMap)
+			return
+		}
+	}
 
 	response.OK(c, gin.H{
-		"id":       userID,
-		"username": username,
-		"role":     role,
+		"id":                  userID,
+		"username":            username,
+		"role":                role,
+		"tenant_id":           scope.UserTenantID,
+		"effective_tenant_id": scope.TenantID,
+		"effective_site_id":   scope.SiteID,
 	})
 }
 
@@ -148,12 +188,6 @@ func (h *AuthHandler) SwitchAccount(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"token": token,
-		"user": gin.H{
-			"id":        targetUser.ID,
-			"username":  targetUser.Username,
-			"full_name": targetUser.FullName,
-			"role":      roleName,
-			"email":     targetUser.Email,
-		},
+		"user":  serializeAuthUser(targetUser, roleName),
 	})
 }

@@ -5,17 +5,20 @@ import (
 )
 
 type User struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	Username  string    `gorm:"size:64;uniqueIndex;not null" json:"username"`
-	Email     string    `gorm:"size:128;uniqueIndex" json:"email"`
-	Password  string    `gorm:"size:255;not null" json:"-"`
-	FullName  string    `gorm:"size:128" json:"full_name"`
-	RoleID    uint      `gorm:"index" json:"role_id"`
-	Role      *Role     `gorm:"foreignKey:RoleID" json:"role,omitempty"`
-	IsActive  bool      `gorm:"default:true" json:"is_active"`
-	LastLogin *time.Time `json:"last_login"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             uint       `gorm:"primaryKey" json:"id"`
+	TenantID       *uint      `gorm:"index" json:"tenant_id"` // nil strictly for global SUPERADMIN
+	Tenant         *Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	AllowedSiteIDs string     `gorm:"size:255;default:''" json:"allowed_site_ids,omitempty"` // optional CSV site IDs for station-restricted operators
+	Username       string     `gorm:"size:64;uniqueIndex;not null" json:"username"`
+	Email          string     `gorm:"size:128;uniqueIndex" json:"email"`
+	Password       string     `gorm:"size:255;not null" json:"-"`
+	FullName       string     `gorm:"size:128" json:"full_name"`
+	RoleID         uint       `gorm:"index" json:"role_id"`
+	Role           *Role      `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	IsActive       bool       `gorm:"default:true" json:"is_active"`
+	LastLogin      *time.Time `json:"last_login"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type Role struct {

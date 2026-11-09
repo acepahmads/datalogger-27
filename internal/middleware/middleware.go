@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -9,6 +10,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
+	"datalogger/pkg/tenantctx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +20,7 @@ func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-Tenant-ID, X-Site-ID, X-Ingest-Key, X-API-Key")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length")
 
@@ -27,6 +29,119 @@ func CORS() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+func parseHeaderOrQueryUint(c *gin.Context, headerKey, queryKey string) uint {
+	raw := strings.TrimSpace(c.GetHeader(headerKey))
+	if raw == "" && queryKey != "" {
+		raw = strings.TrimSpace(c.Query(queryKey))
+	}
+	if raw == "" {
+		return 0
+	}
+	if v, err := strconv.ParseUint(raw, 10, 32); err == nil {
+		return uint(v)
+	}
+	return 0
+}
+
+// ResolveScope builds a strict Multi-Tenant & Multi-Site Scope from validated JWT claims and request headers.
+func ResolveScope(c *gin.Context, claims *service.JWTClaims) tenantctx.Scope {
+	if claims == nil {
+		return tenantctx.Scope{}
+	}
+	isSuper := strings.EqualFold(claims.Role, "SUPERADMIN") || strings.EqualFold(claims.Role, "Administrator")
+	reqTenantID := parseHeaderOrQueryUint(c, "X-Tenant-ID", "tenant_id")
+	reqSiteID := parseHeaderOrQueryUint(c, "X-Site-ID", "site_id")
+
+	scope := tenantctx.Scope{
+		Authenticated:  true,
+		IsSuperAdmin:   isSuper,
+		UserID:         claims.UserID,
+		Username:       claims.Username,
+		Role:           claims.Role,
+		UserTenantID:   claims.TenantID,
+		AllowedSiteIDs: tenantctx.ParseCSVUintIDs(claims.AllowedSiteIDs),
+	}
+
+	if isSuper {
+		scope.TenantID = reqTenantID
+		scope.SiteID = reqSiteID
+		return scope
+	}
+
+	// Non-SUPERADMIN: lock TenantID strictly to JWT claim (completely ignore spoofed X-Tenant-ID)
+	if claims.TenantID != nil && *claims.TenantID > 0 {
+		scope.TenantID = *claims.TenantID
+	}
+
+	if len(scope.AllowedSiteIDs) > 0 {
+		if reqSiteID > 0 && scope.IsSiteAllowed(reqSiteID) {
+			scope.SiteID = reqSiteID
+		} else if len(scope.AllowedSiteIDs) == 1 {
+			scope.SiteID = scope.AllowedSiteIDs[0]
+		}
+	} else {
+		scope.SiteID = reqSiteID
+	}
+
+	return scope
+}
+
+func applyClaimsAndScope(c *gin.Context, claims *service.JWTClaims) tenantctx.Scope {
+	scope := ResolveScope(c, claims)
+	c.Set("userID", claims.UserID)
+	c.Set("username", claims.Username)
+	c.Set("fullName", claims.FullName)
+	c.Set("role", claims.Role)
+	c.Set("tenantScope", scope)
+	c.Set("tenantID", scope.TenantID)
+	c.Set("siteID", scope.SiteID)
+	c.Request = c.Request.WithContext(tenantctx.WithScope(c.Request.Context(), scope))
+	return scope
+}
+
+// GetScope extracts the resolved tenantctx.Scope from gin.Context (or falls back to Request.Context()).
+func GetScope(c *gin.Context) tenantctx.Scope {
+	if c == nil {
+		return tenantctx.Scope{}
+	}
+	if val, ok := c.Get("tenantScope"); ok {
+		if s, ok2 := val.(tenantctx.Scope); ok2 {
+			return s
+		}
+	}
+	if c.Request != nil {
+		return tenantctx.FromContext(c.Request.Context())
+	}
+	return tenantctx.Scope{}
+}
+
+// OptionalTenantContext Opportunistically parses Bearer/query JWT tokens on public/semi-public endpoints
+// (such as /api/system/branding, /api/system/location, /api/system/status) so tenant context is honored when logged in.
+func OptionalTenantContext(authService *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if authService == nil {
+			c.Next()
+			return
+		}
+		tokenString := ""
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+				tokenString = strings.TrimSpace(parts[1])
+			}
+		} else {
+			tokenString = strings.TrimSpace(c.Query("token"))
+		}
+		if tokenString != "" && !strings.HasPrefix(tokenString, "dlg_") {
+			if claims, err := authService.ValidateToken(tokenString); err == nil && claims != nil {
+				applyClaimsAndScope(c, claims)
+			}
+		}
 		c.Next()
 	}
 }
@@ -61,10 +176,7 @@ func JWTAuth(authService *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("userID", claims.UserID)
-		c.Set("username", claims.Username)
-		c.Set("fullName", claims.FullName)
-		c.Set("role", claims.Role)
+		applyClaimsAndScope(c, claims)
 		c.Next()
 	}
 }
@@ -99,8 +211,8 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Strict restriction: Non-superadmin CANNOT access development.*
-		if strings.HasPrefix(permissionCode, "development.") {
+		// Strict restriction: Non-superadmin CANNOT access development.* or tenant.manage
+		if strings.HasPrefix(permissionCode, "development.") || permissionCode == "tenant.manage" {
 			response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")
 			c.Abort()
 			return
@@ -131,9 +243,9 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// ADMIN fallback: Operational & administrative permissions (strictly no dev or role.manage; telemetry.raw is permitted)
+		// ADMIN fallback: Operational & administrative permissions (strictly no dev, role.manage, or tenant.manage; telemetry.raw is permitted)
 		if strings.EqualFold(role, "ADMIN") {
-			if !strings.HasPrefix(permissionCode, "development.") && permissionCode != "role.manage" {
+			if !strings.HasPrefix(permissionCode, "development.") && permissionCode != "role.manage" && permissionCode != "tenant.manage" {
 				c.Next()
 				return
 			}
@@ -154,6 +266,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"ispu.view": true, "ispu.export": true, "ispu.recalculate": true, "ispu.manage_mapping": true,
 				"wqms.view": true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
 				"calibration.view": true, "calibration.manage": true,
+				"site.view": true, "site.manage": true,
 				"config.view": true,
 			}
 			if engAllowed[permissionCode] {
@@ -173,6 +286,7 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 				"report.view":       true,
 				"ispu.view":         true, "ispu.export": true,
 				"wqms.view":         true, "wqms.export": true, "wqms.recalculate": true, "wqms.manage_mapping": true,
+				"site.view":         true,
 			}
 			if opAllowed[permissionCode] {
 				c.Next()

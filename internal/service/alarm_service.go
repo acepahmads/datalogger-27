@@ -10,6 +10,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 )
 
 // AlarmService manages alarm persistence and lifecycle state transitions
@@ -75,6 +76,8 @@ func (s *AlarmService) CreateAlarm(ctx context.Context, alarm *model.Alarm) erro
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "alarm.created",
 			Timestamp: time.Now().UTC(),
+			TenantID:  alarm.TenantID,
+			SiteID:    alarm.SiteID,
 			Data:      alarm,
 		})
 	}
@@ -89,7 +92,15 @@ func (s *AlarmService) CreateAlarm(ctx context.Context, alarm *model.Alarm) erro
 
 // GetAlarmByID retrieves an alarm by its unique primary key
 func (s *AlarmService) GetAlarmByID(ctx context.Context, id uint) (*model.Alarm, error) {
-	return s.alarmRepo.GetByID(ctx, id)
+	alarm, err := s.alarmRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	scope := tenantctx.FromContext(ctx)
+	if scope.Authenticated && !scope.CanAccessRecord(alarm.TenantID, alarm.SiteID) {
+		return nil, repository.ErrAlarmNotFound
+	}
+	return alarm, nil
 }
 
 // ListAlarms retrieves filtered, paginated alarms with preloaded relations
@@ -125,6 +136,16 @@ func (s *AlarmService) AcknowledgeAlarm(ctx context.Context, id uint, username s
 
 // AcknowledgeAlarmWithUser handles operator acknowledgement with user ID, username, display name, and optional notes
 func (s *AlarmService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, userID *uint, username, displayName string, notes ...string) (*model.Alarm, error) {
+	scope := tenantctx.FromContext(ctx)
+	if scope.Authenticated {
+		existing, err := s.alarmRepo.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !scope.CanAccessRecord(existing.TenantID, existing.SiteID) {
+			return nil, repository.ErrAlarmNotFound
+		}
+	}
 	if strings.TrimSpace(username) == "" {
 		username = "admin"
 	}
@@ -167,6 +188,8 @@ func (s *AlarmService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, us
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "alarm.acknowledged",
 			Timestamp: ackAt,
+			TenantID:  alarm.TenantID,
+			SiteID:    alarm.SiteID,
 			Data:      alarm,
 		})
 	}
@@ -176,6 +199,16 @@ func (s *AlarmService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, us
 
 // ClearAlarm transitions an active or acknowledged alarm to CLEARED state
 func (s *AlarmService) ClearAlarm(ctx context.Context, id uint) (*model.Alarm, error) {
+	scope := tenantctx.FromContext(ctx)
+	if scope.Authenticated {
+		existing, err := s.alarmRepo.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !scope.CanAccessRecord(existing.TenantID, existing.SiteID) {
+			return nil, repository.ErrAlarmNotFound
+		}
+	}
 	clearedAt := time.Now().UTC()
 
 	alarm, err := s.alarmRepo.Clear(ctx, id, clearedAt)
@@ -199,6 +232,8 @@ func (s *AlarmService) ClearAlarm(ctx context.Context, id uint) (*model.Alarm, e
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "alarm.cleared",
 			Timestamp: clearedAt,
+			TenantID:  alarm.TenantID,
+			SiteID:    alarm.SiteID,
 			Data:      alarm,
 		})
 	}
@@ -235,6 +270,8 @@ func (s *AlarmService) ClearDeviceAlarms(ctx context.Context, deviceID uint, ala
 			s.hub.Broadcast(websocket.WSMessage{
 				Type:      "alarm.cleared",
 				Timestamp: clearedAt,
+				TenantID:  alarmCopy.TenantID,
+				SiteID:    alarmCopy.SiteID,
 				Data:      &alarmCopy,
 			})
 		}
@@ -271,6 +308,8 @@ func (s *AlarmService) ClearAllDeviceAlarms(ctx context.Context, deviceID uint) 
 			s.hub.Broadcast(websocket.WSMessage{
 				Type:      "alarm.cleared",
 				Timestamp: clearedAt,
+				TenantID:  alarmCopy.TenantID,
+				SiteID:    alarmCopy.SiteID,
 				Data:      &alarmCopy,
 			})
 		}
@@ -310,6 +349,8 @@ func (s *AlarmService) ClearAllParameterAlarms(ctx context.Context, paramID uint
 			s.hub.Broadcast(websocket.WSMessage{
 				Type:      "alarm.cleared",
 				Timestamp: clearedAt,
+				TenantID:  alarmCopy.TenantID,
+				SiteID:    alarmCopy.SiteID,
 				Data:      &alarmCopy,
 			})
 		}
@@ -323,6 +364,16 @@ func (s *AlarmService) ClearAllParameterAlarms(ctx context.Context, paramID uint
 // DeleteAlarm permanently removes a single alarm record (and dependent notification entries),
 // syncing in-memory active alarm caches and audit logs.
 func (s *AlarmService) DeleteAlarm(ctx context.Context, id uint, userID *uint, username string) (*model.Alarm, error) {
+	scope := tenantctx.FromContext(ctx)
+	if scope.Authenticated {
+		existing, err := s.alarmRepo.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !scope.CanAccessRecord(existing.TenantID, existing.SiteID) {
+			return nil, repository.ErrAlarmNotFound
+		}
+	}
 	if strings.TrimSpace(username) == "" {
 		username = "admin"
 	}
@@ -354,6 +405,8 @@ func (s *AlarmService) DeleteAlarm(ctx context.Context, id uint, userID *uint, u
 			s.hub.Broadcast(websocket.WSMessage{
 				Type:      "alarm.cleared",
 				Timestamp: now,
+				TenantID:  deleted.TenantID,
+				SiteID:    deleted.SiteID,
 				Data:      map[string]interface{}{"id": deleted.ID},
 			})
 		}

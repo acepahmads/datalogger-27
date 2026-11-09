@@ -18,10 +18,13 @@ import (
 	"datalogger/internal/queue"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 )
 
 // TelemetryIngestPayload represents an incoming field telemetry measurement
 type TelemetryIngestPayload struct {
+	TenantID        uint
+	SiteID          uint
 	DeviceID        uint
 	DeviceCode      string
 	DeviceName      string
@@ -53,6 +56,8 @@ type TelemetryIngestPayload struct {
 
 // LatestTelemetry holds instantaneous cached values for fast lookup
 type LatestTelemetry struct {
+	TenantID        uint                    `json:"tenant_id,omitempty"`
+	SiteID          uint                    `json:"site_id,omitempty"`
 	DeviceID        uint                    `json:"device_id"`
 	DeviceCode      string                  `json:"device_code"`
 	DeviceName      string                  `json:"device_name"`
@@ -371,6 +376,8 @@ func (s *TelemetryService) SyncParameterCalibrationCache(param *model.Parameter)
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "device.telemetry.received",
 			Timestamp: time.Now().UTC(),
+			TenantID:  broadcastCopy.TenantID,
+			SiteID:    broadcastCopy.SiteID,
 			Data:      broadcastCopy,
 		})
 	}
@@ -438,6 +445,8 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 		// Active telemetry proves device communication is alive: recover offline status if active
 		dev := &model.Device{
 			ID:         latest.DeviceID,
+			TenantID:   latest.TenantID,
+			SiteID:     latest.SiteID,
 			DeviceCode: latest.DeviceCode,
 			Enabled:    true,
 			Status:     model.DeviceStatusActive,
@@ -453,6 +462,8 @@ func (s *TelemetryService) Ingest(payload *TelemetryIngestPayload) error {
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "device.telemetry.received",
 			Timestamp: latest.ReceivedAt,
+			TenantID:  latest.TenantID,
+			SiteID:    latest.SiteID,
 			Data:      latest,
 		})
 	}
@@ -608,7 +619,28 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		source = "MODBUS_TCP"
 	}
 
+	tenantID := p.TenantID
+	siteID := p.SiteID
+	if (tenantID == 0 || siteID == 0) && s.deviceLookup != nil {
+		if d, err := s.deviceLookup(p.DeviceID); err == nil && d != nil {
+			if tenantID == 0 {
+				tenantID = d.TenantID
+			}
+			if siteID == 0 {
+				siteID = d.SiteID
+			}
+		}
+	}
+	if tenantID == 0 {
+		tenantID = 1
+	}
+	if siteID == 0 {
+		siteID = 1
+	}
+
 	rawData := &model.RawData{
+		TenantID:        tenantID,
+		SiteID:          siteID,
 		RecordUUID:      fmt.Sprintf("REC-%d-%d-%d-%d", p.DeviceID, p.ParameterID, seq, recAt.UnixNano()),
 		DeviceID:        p.DeviceID,
 		ParameterID:     p.ParameterID,
@@ -644,6 +676,8 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 	}
 
 	latest := &LatestTelemetry{
+		TenantID:                 tenantID,
+		SiteID:                   siteID,
 		DeviceID:                 p.DeviceID,
 		DeviceCode:               p.DeviceCode,
 		DeviceName:               p.DeviceName,
@@ -790,6 +824,8 @@ func (s *TelemetryService) evaluateStaleParameters() {
 				s.hub.Broadcast(websocket.WSMessage{
 					Type:      "device.telemetry.received",
 					Timestamp: item.UpdatedAt,
+					TenantID:  item.TenantID,
+					SiteID:    item.SiteID,
 					Data:      item,
 				})
 			}
@@ -828,6 +864,8 @@ func (s *TelemetryService) evaluateStaleParameters() {
 					s.hub.Broadcast(websocket.WSMessage{
 						Type:      "device.telemetry.received",
 						Timestamp: item.UpdatedAt,
+						TenantID:  item.TenantID,
+						SiteID:    item.SiteID,
 						Data:      item,
 					})
 				}
@@ -989,17 +1027,21 @@ func (s *TelemetryService) persistBatch(batch []*model.RawData) {
 
 // GetLatestForDevice retrieves all latest parameter values for a device (from cache or DB)
 func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint) ([]LatestTelemetry, error) {
+	scope := tenantctx.FromContext(ctx)
+	var dev *model.Device
+	if deviceID > 0 && s.deviceLookup != nil {
+		if d, err := s.deviceLookup(deviceID); err == nil && d != nil {
+			dev = d
+			if scope.Authenticated && !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, fmt.Errorf("access denied: device belongs to another tenant or restricted station")
+			}
+		}
+	}
+
 	// First check DB parameters to get the full catalog of parameters for this device
 	params, err := s.repo.GetLatestForDevice(ctx, deviceID)
 	if err != nil {
 		return nil, err
-	}
-
-	var dev *model.Device
-	if s.deviceLookup != nil {
-		if d, err := s.deviceLookup(deviceID); err == nil {
-			dev = d
-		}
 	}
 
 	s.latestMu.RLock()
@@ -1077,6 +1119,15 @@ func (s *TelemetryService) GetLatestForDevice(ctx context.Context, deviceID uint
 
 // GetLatestForParameter retrieves the latest value for a single parameter
 func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, paramID uint) (*LatestTelemetry, error) {
+	scope := tenantctx.FromContext(ctx)
+	if deviceID > 0 && scope.Authenticated && s.deviceLookup != nil {
+		if d, err := s.deviceLookup(deviceID); err == nil && d != nil {
+			if !scope.CanAccessRecord(d.TenantID, d.SiteID) {
+				return nil, fmt.Errorf("access denied: device belongs to another tenant or restricted station")
+			}
+		}
+	}
+
 	s.latestMu.RLock()
 	if cached, ok := s.latestCache[paramID]; ok && cached.DeviceID == deviceID {
 		copy := *cached
@@ -1159,12 +1210,33 @@ func (s *TelemetryService) GetLatestForParameter(ctx context.Context, deviceID, 
 
 // GetQualitySummary computes health and state counts across active parameters (Phase 3.2)
 func (s *TelemetryService) GetQualitySummary(ctx context.Context, deviceID *uint) (*QualitySummaryDTO, error) {
+	scope := tenantctx.FromContext(ctx)
+	if deviceID != nil && *deviceID > 0 && scope.Authenticated && s.deviceLookup != nil {
+		if d, err := s.deviceLookup(*deviceID); err == nil && d != nil {
+			if !scope.CanAccessRecord(d.TenantID, d.SiteID) {
+				return nil, fmt.Errorf("access denied: device belongs to another tenant or restricted station")
+			}
+		}
+	}
+
 	s.latestMu.RLock()
 	var items []*LatestTelemetry
 	for _, item := range s.latestCache {
-		if deviceID == nil || item.DeviceID == *deviceID {
-			items = append(items, item)
+		if item == nil {
+			continue
 		}
+		if deviceID != nil && item.DeviceID != *deviceID {
+			continue
+		}
+		if scope.Authenticated {
+			if !scope.CanAccessRecord(item.TenantID, item.SiteID) {
+				continue
+			}
+			if scope.SiteID > 0 && item.SiteID != scope.SiteID {
+				continue
+			}
+		}
+		items = append(items, item)
 	}
 	s.latestMu.RUnlock()
 
@@ -1223,6 +1295,14 @@ func (s *TelemetryService) GetQualitySummary(ctx context.Context, deviceID *uint
 
 // GetHistorical returns paginated historical telemetry records
 func (s *TelemetryService) GetHistorical(ctx context.Context, filter repository.TelemetryFilterParams) ([]model.RawData, int64, error) {
+	scope := tenantctx.FromContext(ctx)
+	if filter.DeviceID > 0 && scope.Authenticated && s.deviceLookup != nil {
+		if d, err := s.deviceLookup(filter.DeviceID); err == nil && d != nil {
+			if !scope.CanAccessRecord(d.TenantID, d.SiteID) {
+				return nil, 0, fmt.Errorf("access denied: device belongs to another tenant or restricted station")
+			}
+		}
+	}
 	records, total, err := s.repo.GetHistorical(ctx, filter)
 	if err != nil && (strings.Contains(err.Error(), "invalid connection") || strings.Contains(err.Error(), "bad connection")) {
 		// Transient dropped idle connection in pool: retry once with fresh connection

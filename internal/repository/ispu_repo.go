@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -32,15 +33,35 @@ func NewISPURepository(db *gorm.DB) *ISPURepository {
 	return &ISPURepository{db: db}
 }
 
+func applyISPUScope(ctx context.Context, q *gorm.DB) *gorm.DB {
+	scope := tenantctx.FromContext(ctx)
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("(site_id = ? OR site_id = 0)", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("(site_id IN ? OR site_id = 0)", scope.AllowedSiteIDs)
+	}
+	return q
+}
+
 // UpsertCalculationResult performs deterministic, idempotent upsert of an ISPU calculation and its parameter results.
 func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model.ISPUCalculationResult) error {
 	if res.CalculationMode == "" {
 		res.CalculationMode = model.CalculationModeRegulatory
 	}
+	scope := tenantctx.FromContext(ctx)
+	if res.TenantID == 0 {
+		res.TenantID = scope.WriteTenantID(0)
+	}
+	if res.SiteID == 0 {
+		res.SiteID = scope.WriteSiteID(0)
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing model.ISPUCalculationResult
-		err := tx.Where("device_id = ? AND period_start = ? AND period_end = ? AND calculation_mode = ?",
-			res.DeviceID, res.PeriodStart, res.PeriodEnd, res.CalculationMode).First(&existing).Error
+		err := tx.Where("tenant_id = ? AND site_id = ? AND device_id = ? AND period_start = ? AND period_end = ? AND calculation_mode = ?",
+			res.TenantID, res.SiteID, res.DeviceID, res.PeriodStart, res.PeriodEnd, res.CalculationMode).First(&existing).Error
 
 		if err == nil {
 			// Update existing record
@@ -78,7 +99,7 @@ func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model
 // Mode can be "REGULATORY", "OPERATIONAL", or empty/ALL.
 func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint, mode string) (*model.ISPUCalculationResult, error) {
 	var res model.ISPUCalculationResult
-	query := r.db.WithContext(ctx).
+	query := applyISPUScope(ctx, r.db.WithContext(ctx)).
 		Preload("Device").
 		Preload("ParameterResults").
 		Preload("ParameterResults.Parameter")
@@ -89,7 +110,7 @@ func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint,
 		if mode == string(model.CalculationModeRegulatory) {
 			// First attempt to query strictly cadence-aligned hourly regulatory checkpoint
 			var hourlyRes model.ISPUCalculationResult
-			hourlyQuery := r.db.WithContext(ctx).
+			hourlyQuery := applyISPUScope(ctx, r.db.WithContext(ctx)).
 				Preload("Device").
 				Preload("ParameterResults").
 				Preload("ParameterResults.Parameter").
@@ -134,7 +155,7 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 	var results []model.ISPUCalculationResult
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&model.ISPUCalculationResult{})
+	query := applyISPUScope(ctx, r.db.WithContext(ctx).Model(&model.ISPUCalculationResult{}))
 
 	if filter.DeviceID > 0 {
 		query = query.Where("device_id = ?", filter.DeviceID)
@@ -191,7 +212,7 @@ func (r *ISPURepository) GetHistory(ctx context.Context, filter ISPUHistoryFilte
 // GetTrend retrieves historical calculation series for trend analysis charts.
 func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime, endTime time.Time, mode string) ([]model.ISPUCalculationResult, error) {
 	var results []model.ISPUCalculationResult
-	query := r.db.WithContext(ctx).
+	query := applyISPUScope(ctx, r.db.WithContext(ctx)).
 		Where("period_end >= ? AND period_end <= ?", startTime.UTC(), endTime.UTC())
 	if deviceID > 0 {
 		query = query.Where("device_id = ?", deviceID)
@@ -229,7 +250,7 @@ func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime,
 // GetMappingsByDeviceID retrieves configured ISPU parameter mappings for a device (or all devices if deviceID == 0).
 func (r *ISPURepository) GetMappingsByDeviceID(ctx context.Context, deviceID uint) ([]model.ISPUParameterMapping, error) {
 	var mappings []model.ISPUParameterMapping
-	query := r.db.WithContext(ctx).
+	query := applyISPUScope(ctx, r.db.WithContext(ctx)).
 		Preload("Parameter").
 		Preload("Device")
 	if deviceID > 0 {
@@ -251,6 +272,13 @@ func (r *ISPURepository) GetMappingByID(ctx context.Context, id uint) (*model.IS
 
 // SaveMapping creates or updates an ISPU parameter mapping.
 func (r *ISPURepository) SaveMapping(ctx context.Context, mapping *model.ISPUParameterMapping) error {
+	scope := tenantctx.FromContext(ctx)
+	if mapping.TenantID == 0 {
+		mapping.TenantID = scope.WriteTenantID(0)
+	}
+	if mapping.SiteID == 0 {
+		mapping.SiteID = scope.WriteSiteID(0)
+	}
 	if mapping.ID > 0 {
 		return r.db.WithContext(ctx).Save(mapping).Error
 	}

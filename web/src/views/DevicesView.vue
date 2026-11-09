@@ -132,6 +132,7 @@
           <option value="UDP">UDP</option>
           <option value="SERIAL">SERIAL</option>
           <option value="WEBSOCKET">WEBSOCKET</option>
+          <option value="EDGE_PUSH">EDGE_PUSH</option>
           <option value="CUSTOM">CUSTOM</option>
         </select>
       </div>
@@ -234,7 +235,10 @@
 
               <!-- Location -->
               <td class="py-3.5 px-3.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                {{ dev.location || '--' }}
+                <div v-if="siteBadgeLabel(dev)" class="text-3xs font-mono font-semibold text-cyan-700 dark:text-cyan-400 mb-0.5">
+                  📍 {{ siteBadgeLabel(dev) }}
+                </div>
+                <div>{{ dev.location || '--' }}</div>
               </td>
 
               <!-- Admin Status -->
@@ -641,6 +645,15 @@ export default {
       return d.toLocaleString('en-GB', {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
       });
+    },
+    siteBadgeLabel(dev) {
+      if (!dev) return '';
+      if (dev.site && dev.site.name) return dev.site.name;
+      const sid = Number(dev.site_id || 0);
+      if (!sid) return '';
+      const sites = (this.$store && this.$store.getters && this.$store.getters.availableSites) || [];
+      const found = sites.find(s => Number(s.id) === sid);
+      return found ? found.name : `Site #${sid}`;
     },
   },
 };

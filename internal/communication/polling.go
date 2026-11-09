@@ -98,6 +98,17 @@ func (p *PollingEngine) getActivityMonitor() *ActivityMonitor {
 	return GetGlobalActivityMonitor()
 }
 
+func (p *PollingEngine) broadcastForDevice(device *model.Device, msg websocket.WSMessage) {
+	if p.hub == nil {
+		return
+	}
+	if device != nil {
+		msg.TenantID = device.TenantID
+		msg.SiteID = device.SiteID
+	}
+	p.hub.Broadcast(msg)
+}
+
 // toHealthInput converts a ConnectionHealth struct to service.DeviceHealthInput
 func toHealthInput(h ConnectionHealth) *service.DeviceHealthInput {
 	return &service.DeviceHealthInput{
@@ -186,6 +197,9 @@ func (p *PollingEngine) ResumeAllWorkers() {
 // StartDeviceWorker registers an isolated worker goroutine for a specific device
 func (p *PollingEngine) StartDeviceWorker(device *model.Device) {
 	if device == nil || device.Connection == nil {
+		return
+	}
+	if strings.EqualFold(device.DeviceType, string(model.ProtocolEdgePush)) || device.Connection.Protocol == model.ProtocolEdgePush {
 		return
 	}
 
@@ -459,7 +473,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 							_ = p.deviceService.SetConnectionError(cachedDev.ID, "Device communication failure")
 						}
 						if p.hub != nil {
-							p.hub.Broadcast(websocket.WSMessage{
+							p.broadcastForDevice(cachedDev, websocket.WSMessage{
 								Type:      "device.connection.changed",
 								Timestamp: time.Now(),
 								Data: map[string]interface{}{
@@ -582,7 +596,7 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 				}
 
 				if p.hub != nil {
-					p.hub.Broadcast(websocket.WSMessage{
+					p.broadcastForDevice(device, websocket.WSMessage{
 						Type:      "device.communication.error",
 						Timestamp: time.Now(),
 						Data: map[string]interface{}{
@@ -612,7 +626,7 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 		}
 
 		if p.hub != nil {
-			p.hub.Broadcast(websocket.WSMessage{
+			p.broadcastForDevice(device, websocket.WSMessage{
 				Type:      "device.communication.success",
 				Timestamp: res.Timestamp,
 				Data:      res,
@@ -633,7 +647,7 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 			_ = p.deviceService.SetOnline(device.ID)
 		}
 		if p.hub != nil {
-			p.hub.Broadcast(websocket.WSMessage{
+			p.broadcastForDevice(device, websocket.WSMessage{
 				Type:      "device.connection.changed",
 				Timestamp: time.Now(),
 				Data: map[string]interface{}{
@@ -714,7 +728,7 @@ jobLoop:
 				p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
 			}
 			if p.hub != nil {
-				p.hub.Broadcast(websocket.WSMessage{
+				p.broadcastForDevice(device, websocket.WSMessage{
 					Type:      "device.communication.success",
 					Timestamp: res.Timestamp,
 					Data:      res,
@@ -881,7 +895,7 @@ jobLoop:
 			}
 
 			if p.hub != nil {
-				p.hub.Broadcast(websocket.WSMessage{
+				p.broadcastForDevice(device, websocket.WSMessage{
 					Type:      "device.communication.success",
 					Timestamp: res.Timestamp,
 					Data:      res,
@@ -895,7 +909,7 @@ jobLoop:
 			_ = p.deviceService.SetOnline(device.ID)
 		}
 		if p.hub != nil {
-			p.hub.Broadcast(websocket.WSMessage{
+			p.broadcastForDevice(device, websocket.WSMessage{
 				Type:      "device.connection.changed",
 				Timestamp: time.Now(),
 				Data: map[string]interface{}{
@@ -1076,7 +1090,7 @@ func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []mo
 			}
 			res := p.ingestFallbackReading(device, &remParam, fc, pdu, qty, 0, effVal, formulaVal, isHeld, quality, pErr, source)
 			if p.hub != nil {
-				p.hub.Broadcast(websocket.WSMessage{
+				p.broadcastForDevice(device, websocket.WSMessage{
 					Type:      "device.communication.success",
 					Timestamp: res.Timestamp,
 					Data:      res,
@@ -1122,7 +1136,7 @@ func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []mo
 			_ = p.deviceService.SetOffline(device.ID)
 		}
 		if p.hub != nil {
-			p.hub.Broadcast(websocket.WSMessage{
+			p.broadcastForDevice(device, websocket.WSMessage{
 				Type:      "device.connection.changed",
 				Timestamp: nowErr,
 				Data: map[string]interface{}{
@@ -1168,7 +1182,7 @@ func (p *PollingEngine) executeSingleFallback(
 				p.alarmEvaluator.EvaluateDeviceCommFailure(ctx, device, toHealthInput(h), err)
 			}
 			if p.hub != nil {
-				p.hub.Broadcast(websocket.WSMessage{
+				p.broadcastForDevice(device, websocket.WSMessage{
 					Type:      "device.communication.error",
 					Timestamp: time.Now(),
 					Data: map[string]interface{}{
@@ -1194,7 +1208,7 @@ func (p *PollingEngine) executeSingleFallback(
 		p.alarmEvaluator.EvaluateDeviceCommSuccess(ctx, device, toHealthInput(h))
 	}
 	if p.hub != nil {
-		p.hub.Broadcast(websocket.WSMessage{
+		p.broadcastForDevice(device, websocket.WSMessage{
 			Type:      "device.communication.success",
 			Timestamp: res.Timestamp,
 			Data:      res,

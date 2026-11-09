@@ -16,11 +16,13 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
 	"datalogger/pkg/sysinfo"
+	"datalogger/pkg/tenantctx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +30,7 @@ import (
 type SystemHandler struct {
 	systemService   *service.SystemService
 	outboundService service.OutboundService
+	tenantService   *service.TenantService
 }
 
 func NewSystemHandler(systemService *service.SystemService) *SystemHandler {
@@ -37,6 +40,11 @@ func NewSystemHandler(systemService *service.SystemService) *SystemHandler {
 // SetOutboundService injects outbound integration service for network & delivery monitoring
 func (h *SystemHandler) SetOutboundService(outboundService service.OutboundService) {
 	h.outboundService = outboundService
+}
+
+// SetTenantService injects multi-tenant & multi-site service for scoped branding, location, and domain settings
+func (h *SystemHandler) SetTenantService(tenantService *service.TenantService) {
+	h.tenantService = tenantService
 }
 
 // GetRemovableStorage reports detected removable USB drives / flash drives
@@ -244,7 +252,7 @@ func (h *SystemHandler) GetNetworkStatus(c *gin.Context) {
 
 // System Status
 func (h *SystemHandler) GetStatus(c *gin.Context) {
-	status, err := h.systemService.GetSystemStatusOverview()
+	status, err := h.systemService.GetSystemStatusOverviewScoped(c.Request.Context())
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -292,7 +300,7 @@ func (h *SystemHandler) GetDetailedSerialPorts(c *gin.Context) {
 
 // Devices
 func (h *SystemHandler) GetDevices(c *gin.Context) {
-	devices, err := h.systemService.GetDevices()
+	devices, err := h.systemService.GetDevicesScoped(middleware.GetScope(c))
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -312,6 +320,11 @@ func (h *SystemHandler) GetDeviceByID(c *gin.Context) {
 		response.NotFound(c, "Device not found")
 		return
 	}
+	scope := middleware.GetScope(c)
+	if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+		response.Forbidden(c, "Access denied: device belongs to another tenant")
+		return
+	}
 	response.OK(c, dev)
 }
 
@@ -325,6 +338,11 @@ func (h *SystemHandler) GetDeviceStatus(c *gin.Context) {
 	dev, err := h.systemService.GetDeviceByID(uint(id))
 	if err != nil {
 		response.NotFound(c, "Device not found")
+		return
+	}
+	scope := middleware.GetScope(c)
+	if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+		response.Forbidden(c, "Access denied: device belongs to another tenant")
 		return
 	}
 
@@ -342,8 +360,8 @@ func (h *SystemHandler) GetDeviceStatus(c *gin.Context) {
 
 // Data endpoints
 func (h *SystemHandler) GetData(c *gin.Context) {
-	// Returns latest operational telemetry readings from parameters
-	devices, err := h.systemService.GetDevices()
+	// Returns latest operational telemetry readings from parameters (scoped to tenant/site)
+	devices, err := h.systemService.GetDevicesScoped(middleware.GetScope(c))
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -449,7 +467,7 @@ func (h *SystemHandler) GetAlarms(c *gin.Context) {
 
 	// Default unpaginated query (backward-compatible slice output for web UI)
 	status := c.Query("status")
-	alarms, err := h.systemService.GetAlarms(status)
+	alarms, err := h.systemService.GetAlarmsWithContext(c.Request.Context(), status)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -458,7 +476,7 @@ func (h *SystemHandler) GetAlarms(c *gin.Context) {
 }
 
 func (h *SystemHandler) GetActiveAlarms(c *gin.Context) {
-	alarms, err := h.systemService.GetAlarms("ACTIVE")
+	alarms, err := h.systemService.GetAlarmsWithContext(c.Request.Context(), "ACTIVE")
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -473,10 +491,14 @@ func (h *SystemHandler) GetAlarmByID(c *gin.Context) {
 		return
 	}
 
-	alarm, err := h.systemService.GetAlarmByID(uint(id))
+	alarm, err := h.systemService.GetAlarmByIDWithContext(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, repository.ErrAlarmNotFound) {
 			response.NotFound(c, "Alarm not found")
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
 			return
 		}
 		response.InternalError(c, err.Error())
@@ -493,11 +515,15 @@ func (h *SystemHandler) CreateAlarm(c *gin.Context) {
 		return
 	}
 
-	if err := h.systemService.CreateAlarm(&alarm); err != nil {
+	if err := h.systemService.CreateAlarmWithContext(c.Request.Context(), &alarm); err != nil {
 		if errors.Is(err, repository.ErrMissingAlarmCode) ||
 			errors.Is(err, repository.ErrMissingAlarmMessage) ||
 			errors.Is(err, repository.ErrInvalidAlarmSeverity) {
 			response.BadRequest(c, err.Error())
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
 			return
 		}
 		response.InternalError(c, err.Error())
@@ -545,6 +571,10 @@ func (h *SystemHandler) AcknowledgeAlarm(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, repository.ErrAlarmNotFound) {
 			response.NotFound(c, "Alarm not found")
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
 			return
 		}
 		if errors.Is(err, repository.ErrCannotAcknowledgeCleared) || errors.Is(err, repository.ErrAlarmAlreadyAcknowledged) {
@@ -709,10 +739,14 @@ func (h *SystemHandler) ClearAlarm(c *gin.Context) {
 		return
 	}
 
-	alarm, err := h.systemService.ClearAlarm(uint(id))
+	alarm, err := h.systemService.ClearAlarmWithContext(c.Request.Context(), uint(id))
 	if err != nil {
 		if errors.Is(err, repository.ErrAlarmNotFound) {
 			response.NotFound(c, "Alarm not found")
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
 			return
 		}
 		if errors.Is(err, repository.ErrAlarmAlreadyCleared) {
@@ -771,6 +805,10 @@ func (h *SystemHandler) DeleteAlarm(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, repository.ErrAlarmNotFound) {
 			response.NotFound(c, "Alarm not found")
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
 			return
 		}
 		response.InternalError(c, err.Error())
@@ -975,6 +1013,7 @@ func (h *SystemHandler) GetLogs(c *gin.Context) {
 }
 
 func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
+	scope := middleware.GetScope(c)
 	pageStr := c.Query("page")
 	pageSizeStr := c.Query("page_size")
 	username := c.Query("username")
@@ -999,6 +1038,7 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 		endTime := parseFlexibleDate(endDateStr)
 
 		params := repository.AuditTrailFilterParams{
+			TenantID:  scope.TenantID,
 			Username:  username,
 			Action:    action,
 			Resource:  resourceName,
@@ -1036,14 +1076,26 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 		return
 	}
 
-	// Legacy unpaginated endpoint
+	// Legacy unpaginated endpoint (tenant-scoped when scope.TenantID > 0)
 	limit := 50
 	if lStr := c.Query("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil {
 			limit = l
 		}
 	}
-	trails, err := h.systemService.GetAuditTrails(limit)
+	var (
+		trails []model.AuditTrail
+		err    error
+	)
+	if scope.TenantID > 0 {
+		trails, _, err = h.systemService.GetAuditTrailsFiltered(repository.AuditTrailFilterParams{
+			TenantID: scope.TenantID,
+			Page:     1,
+			PageSize: limit,
+		})
+	} else {
+		trails, err = h.systemService.GetAuditTrails(limit)
+	}
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -1055,6 +1107,7 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 }
 
 func (h *SystemHandler) GetCommunicationLogs(c *gin.Context) {
+	scope := middleware.GetScope(c)
 	pageStr := c.Query("page")
 	pageSizeStr := c.Query("page_size")
 	deviceIDStr := c.Query("device_id")
@@ -1087,15 +1140,18 @@ func (h *SystemHandler) GetCommunicationLogs(c *gin.Context) {
 		endTime := parseFlexibleDate(endDateStr)
 
 		params := repository.CommunicationLogFilterParams{
-			DeviceID:  devID,
-			Protocol:  protocol,
-			Direction: direction,
-			Status:    status,
-			Search:    search,
-			StartTime: startTime,
-			EndTime:   endTime,
-			Page:      page,
-			PageSize:  pageSize,
+			TenantID:       scope.TenantID,
+			SiteID:         scope.SiteID,
+			AllowedSiteIDs: scope.AllowedSiteIDs,
+			DeviceID:       devID,
+			Protocol:       protocol,
+			Direction:      direction,
+			Status:         status,
+			Search:         search,
+			StartTime:      startTime,
+			EndTime:        endTime,
+			Page:           page,
+			PageSize:       pageSize,
 		}
 
 		logs, total, err := h.systemService.GetCommunicationLogsFiltered(params)
@@ -1131,7 +1187,21 @@ func (h *SystemHandler) GetCommunicationLogs(c *gin.Context) {
 			limit = l
 		}
 	}
-	logs, err := h.systemService.GetCommunicationLogs(limit)
+	var (
+		logs []model.CommunicationLog
+		err  error
+	)
+	if scope.TenantID > 0 || scope.SiteID > 0 || len(scope.AllowedSiteIDs) > 0 {
+		logs, _, err = h.systemService.GetCommunicationLogsFiltered(repository.CommunicationLogFilterParams{
+			TenantID:       scope.TenantID,
+			SiteID:         scope.SiteID,
+			AllowedSiteIDs: scope.AllowedSiteIDs,
+			Page:           1,
+			PageSize:       limit,
+		})
+	} else {
+		logs, err = h.systemService.GetCommunicationLogs(limit)
+	}
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -1157,6 +1227,11 @@ type DatabaseConnTestRequest struct {
 }
 
 func (h *SystemHandler) TestDatabaseConnection(c *gin.Context) {
+	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin && scope.UserTenantID != nil {
+		response.Forbidden(c, "Hanya Superadmin platform yang dapat menguji koneksi database server")
+		return
+	}
 	var req DatabaseConnTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request payload")
@@ -1182,6 +1257,11 @@ func (h *SystemHandler) TestDatabaseConnection(c *gin.Context) {
 }
 
 func (h *SystemHandler) SaveDatabaseConfig(c *gin.Context) {
+	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin && scope.UserTenantID != nil {
+		response.Forbidden(c, "Hanya Superadmin platform yang dapat mengubah konfigurasi database server")
+		return
+	}
 	var req DatabaseConnTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request payload")
@@ -1202,6 +1282,18 @@ func (h *SystemHandler) SaveDatabaseConfig(c *gin.Context) {
 // GetConfig returns the masked runtime system configuration (config.view)
 func (h *SystemHandler) GetConfig(c *gin.Context) {
 	cfg := h.systemService.GetSystemConfig()
+	scope := middleware.GetScope(c)
+	if h.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+		if st, err := h.tenantService.ResolveEffectiveSite(scope); err == nil && st != nil && strings.TrimSpace(st.MonitoringDomain) != "" {
+			cfg.MonitoringDomain = st.MonitoringDomain
+		}
+	}
+	if !scope.IsSuperAdmin && scope.UserTenantID != nil {
+		cfg.DBHost = "***"
+		cfg.DBUser = "***"
+		cfg.DBName = "***"
+		cfg.SerialPort = ""
+	}
 	response.OK(c, cfg)
 }
 
@@ -1228,6 +1320,17 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 	ip := c.ClientIP()
 	ua := c.Request.UserAgent()
 
+	scope := middleware.GetScope(c)
+	if h.tenantService != nil && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) || (scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1))) {
+		result, err := h.systemService.SaveScopedSiteDomainConfig(c.Request.Context(), req, actorID, actorUsername, ip, ua)
+		if err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.OK(c, result)
+		return
+	}
+
 	result, err := h.systemService.SaveSystemConfig(req, actorID, actorUsername, ip, ua)
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -1245,7 +1348,7 @@ func (h *SystemHandler) CheckDomainCompatibility(c *gin.Context) {
 		return
 	}
 
-	report, err := h.systemService.CheckDomainCompatibility(target)
+	report, err := h.systemService.CheckDomainCompatibilityScoped(c.Request.Context(), target)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -1261,6 +1364,30 @@ func (h *SystemHandler) GetBranding(c *gin.Context) {
 		response.InternalError(c, "Failed to load branding: "+err.Error())
 		return
 	}
+	scope := middleware.GetScope(c)
+	if h.tenantService != nil && scope.TenantID > 0 {
+		if t, tErr := h.tenantService.GetTenantByID(scope.TenantID); tErr == nil && t != nil {
+			merged := *branding
+			if strings.TrimSpace(t.CustomerName) != "" {
+				merged.CustomerName = t.CustomerName
+			}
+			if strings.TrimSpace(t.CustomerSubtitle) != "" {
+				merged.CustomerSubtitle = t.CustomerSubtitle
+			}
+			merged.CustomerLogo = t.CustomerLogo
+			merged.CustomerHasLogo = t.CustomerHasLogo
+			if st, sErr := h.tenantService.ResolveEffectiveSite(scope); sErr == nil && st != nil {
+				if strings.TrimSpace(st.StationTypeMode) != "" {
+					merged.StationTypeMode = st.StationTypeMode
+				}
+				if strings.TrimSpace(st.MonitoringDomain) != "" {
+					merged.StationDomainPrefix = st.MonitoringDomain
+				}
+			}
+			response.OK(c, &merged)
+			return
+		}
+	}
 	response.OK(c, branding)
 }
 
@@ -1272,16 +1399,110 @@ func (h *SystemHandler) SaveBranding(c *gin.Context) {
 		return
 	}
 
+	scope := middleware.GetScope(c)
+	// Scoped Tenant ADMIN (or SUPERADMIN explicitly viewing Tenant > 1)
+	if h.tenantService != nil && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) || (scope.IsSuperAdmin && scope.TenantID > 1)) {
+		tid := scope.TenantID
+		if tid == 0 && scope.UserTenantID != nil {
+			tid = *scope.UserTenantID
+		}
+		// If SUPERADMIN passed Maker fields while scoped to Tenant > 1, update Maker fields globally
+		if scope.IsSuperAdmin && (req.MakerName != nil || req.MakerSubtitle != nil || req.MakerLogo != nil || req.MakerHasLogo != nil) {
+			makerReq := service.UpdateSystemBrandingRequest{
+				MakerName:     req.MakerName,
+				MakerSubtitle: req.MakerSubtitle,
+				MakerLogo:     req.MakerLogo,
+				MakerHasLogo:  req.MakerHasLogo,
+			}
+			_, _ = h.systemService.SaveBranding(makerReq)
+		}
+
+		clearLogo := req.Reset || (req.CustomerHasLogo != nil && !*req.CustomerHasLogo)
+		var custName, custSub, custLogo *string
+		if req.Reset {
+			defSub := "AQMS"
+			custSub = &defSub
+		} else {
+			custName = req.CustomerName
+			custSub = req.CustomerSubtitle
+			custLogo = req.CustomerLogo
+		}
+		_, err := h.tenantService.UpdateTenant(tid, service.UpdateTenantRequest{
+			CustomerName:      custName,
+			CustomerSubtitle:  custSub,
+			CustomerLogo:      custLogo,
+			ClearCustomerLogo: clearLogo,
+		}, scope, c.ClientIP())
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+				response.Forbidden(c, err.Error())
+				return
+			}
+			response.InternalError(c, "Failed to save tenant branding: "+err.Error())
+			return
+		}
+
+		if req.StationTypeMode != nil {
+			if st, sErr := h.tenantService.ResolveEffectiveSite(scope); sErr == nil && st != nil {
+				_, _ = h.tenantService.UpdateSite(st.ID, service.UpdateSiteRequest{
+					StationTypeMode: req.StationTypeMode,
+				}, scope, c.ClientIP())
+			}
+		}
+
+		// Sync DefaultTenantID (#1) customer fields into global SystemBranding for login screen consistency
+		if tid == tenantctx.DefaultTenantID {
+			custSync := req
+			custSync.MakerName = nil
+			custSync.MakerSubtitle = nil
+			custSync.MakerLogo = nil
+			custSync.MakerHasLogo = nil
+			custSync.Reset = false
+			_, _ = h.systemService.SaveBranding(custSync)
+		}
+
+		h.GetBranding(c)
+		return
+	}
+
 	branding, err := h.systemService.SaveBranding(req)
 	if err != nil {
 		response.InternalError(c, "Failed to save branding: "+err.Error())
 		return
+	}
+	if h.tenantService != nil && h.tenantService.GetRepo() != nil {
+		if t1, tErr := h.tenantService.GetTenantByID(tenantctx.DefaultTenantID); tErr == nil && t1 != nil {
+			t1.CustomerName = branding.CustomerName
+			t1.CustomerSubtitle = branding.CustomerSubtitle
+			t1.CustomerLogo = branding.CustomerLogo
+			t1.CustomerHasLogo = branding.CustomerHasLogo
+			_ = h.tenantService.GetRepo().UpdateTenant(t1)
+		}
 	}
 	response.OK(c, branding)
 }
 
 // GetStationLocation retrieves the persistent station coordinates and configuration
 func (h *SystemHandler) GetStationLocation(c *gin.Context) {
+	scope := middleware.GetScope(c)
+	if h.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+		if st, err := h.tenantService.ResolveEffectiveSite(scope); err == nil && st != nil {
+			response.OK(c, &model.StationLocation{
+				ID:             st.ID,
+				StationName:    st.Name,
+				Latitude:       st.Latitude,
+				Longitude:      st.Longitude,
+				LocationSource: st.LocationSource,
+				AccuracyMeters: st.AccuracyMeters,
+				Address:        st.Address,
+				IsConfigured:   st.IsConfigured,
+				UpdatedBy:      st.UpdatedBy,
+				UpdatedAt:      st.UpdatedAt,
+			})
+			return
+		}
+	}
+
 	loc, err := h.systemService.GetStationLocation()
 	if err != nil {
 		response.InternalError(c, "Failed to load station location: "+err.Error())
@@ -1313,10 +1534,129 @@ func (h *SystemHandler) SaveStationLocation(c *gin.Context) {
 	ip := c.ClientIP()
 	ua := c.Request.UserAgent()
 
+	scope := middleware.GetScope(c)
+	if h.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+		st, err := h.tenantService.ResolveEffectiveSite(scope)
+		if err != nil || st == nil {
+			response.NotFound(c, "Target station not found")
+			return
+		}
+		if !scope.CanAccessRecord(st.TenantID, st.ID) {
+			response.Forbidden(c, "Access denied: station belongs to another tenant")
+			return
+		}
+
+		var details string
+		if req.Reset {
+			st.IsConfigured = false
+			st.Latitude = nil
+			st.Longitude = nil
+			st.LocationSource = model.LocationSourceUnconfigured
+			st.AccuracyMeters = nil
+			st.Address = ""
+			st.UpdatedBy = actorUsername
+			details = fmt.Sprintf("Station '%s' location reset to unconfigured", st.Name)
+		} else {
+			if req.Latitude == nil {
+				response.BadRequest(c, "latitude is required")
+				return
+			}
+			if *req.Latitude < -90.0 || *req.Latitude > 90.0 {
+				response.BadRequest(c, "latitude must be between -90 and 90")
+				return
+			}
+			if req.Longitude == nil {
+				response.BadRequest(c, "longitude is required")
+				return
+			}
+			if *req.Longitude < -180.0 || *req.Longitude > 180.0 {
+				response.BadRequest(c, "longitude must be between -180 and 180")
+				return
+			}
+			source := strings.ToUpper(strings.TrimSpace(req.LocationSource))
+			if source == "" || source == model.LocationSourceUnconfigured {
+				source = model.LocationSourceManual
+			}
+			if source != model.LocationSourceManual && source != model.LocationSourceGPS && source != model.LocationSourceIPGeolocation && source != model.LocationSourceModbusRTU {
+				response.BadRequest(c, fmt.Sprintf("invalid location source '%s'", source))
+				return
+			}
+			if req.AccuracyMeters != nil && *req.AccuracyMeters < 0 {
+				response.BadRequest(c, "accuracy_meters cannot be negative")
+				return
+			}
+			st.Latitude = req.Latitude
+			st.Longitude = req.Longitude
+			st.LocationSource = source
+			st.AccuracyMeters = req.AccuracyMeters
+			st.IsConfigured = true
+			st.UpdatedBy = actorUsername
+			if req.StationName != nil && strings.TrimSpace(*req.StationName) != "" {
+				st.Name = strings.TrimSpace(*req.StationName)
+			}
+			if req.Address != nil {
+				st.Address = strings.TrimSpace(*req.Address)
+			}
+			details = fmt.Sprintf("Station '%s' location updated via %s to Lat: %.6f, Lng: %.6f", st.Name, source, *req.Latitude, *req.Longitude)
+		}
+
+		if err := h.tenantService.GetRepo().UpdateSite(st); err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+		if st.ID == tenantctx.DefaultSiteID {
+			_, _ = h.systemService.SaveStationLocation(req, actorID, actorUsername, ip, ua)
+		} else if h.systemService.GetSystemRepo() != nil {
+			var uidPtr *uint
+			if actorID > 0 {
+				uidPtr = &actorID
+			}
+			tid := st.TenantID
+			_ = h.systemService.GetSystemRepo().AddAuditTrail(&model.AuditTrail{
+				TenantID:  &tid,
+				UserID:    uidPtr,
+				Username:  actorUsername,
+				Action:    "STATION_LOCATION_UPDATE",
+				Resource:  "STATION_LOCATION",
+				Details:   details,
+				IPAddress: ip,
+				UserAgent: ua,
+				CreatedAt: time.Now(),
+			})
+		}
+
+		response.OK(c, &model.StationLocation{
+			ID:             st.ID,
+			StationName:    st.Name,
+			Latitude:       st.Latitude,
+			Longitude:      st.Longitude,
+			LocationSource: st.LocationSource,
+			AccuracyMeters: st.AccuracyMeters,
+			Address:        st.Address,
+			IsConfigured:   st.IsConfigured,
+			UpdatedBy:      st.UpdatedBy,
+			UpdatedAt:      st.UpdatedAt,
+		})
+		return
+	}
+
 	loc, err := h.systemService.SaveStationLocation(req, actorID, actorUsername, ip, ua)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
+	}
+	if h.tenantService != nil && h.tenantService.GetRepo() != nil {
+		if st1, sErr := h.tenantService.GetRepo().GetSiteByID(tenantctx.DefaultSiteID); sErr == nil && st1 != nil {
+			st1.Name = loc.StationName
+			st1.Latitude = loc.Latitude
+			st1.Longitude = loc.Longitude
+			st1.LocationSource = loc.LocationSource
+			st1.AccuracyMeters = loc.AccuracyMeters
+			st1.Address = loc.Address
+			st1.IsConfigured = loc.IsConfigured
+			st1.UpdatedBy = loc.UpdatedBy
+			_ = h.tenantService.GetRepo().UpdateSite(st1)
+		}
 	}
 	response.OK(c, loc)
 }

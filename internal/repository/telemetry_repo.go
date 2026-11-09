@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -12,7 +13,10 @@ import (
 
 // TelemetryFilterParams defines criteria for querying historical or raw telemetry
 type TelemetryFilterParams struct {
-	DeviceID     uint
+	TenantID       uint
+	SiteID         uint
+	AllowedSiteIDs []uint
+	DeviceID       uint
 	DeviceIDs    []uint
 	ParameterID  uint
 	ParameterIDs []uint
@@ -105,11 +109,24 @@ func (r *TelemetryRepository) SaveBatch(ctx context.Context, batch []*model.RawD
 // GetLatestForDevice returns all enabled parameters for a device with current values (or all if deviceID == 0)
 func (r *TelemetryRepository) GetLatestForDevice(ctx context.Context, deviceID uint) ([]model.Parameter, error) {
 	var params []model.Parameter
-	query := r.db.WithContext(ctx).Preload("Category").Where("deleted_at IS NULL")
+	scope := tenantctx.FromContext(ctx)
+	query := r.db.WithContext(ctx).Preload("Category").Where("parameters.deleted_at IS NULL")
 	if deviceID > 0 {
-		query = query.Where("device_id = ?", deviceID)
+		query = query.Where("parameters.device_id = ?", deviceID)
 	}
-	err := query.Order("id ASC").Find(&params).Error
+	if scope.TenantID > 0 || scope.SiteID > 0 || len(scope.AllowedSiteIDs) > 0 {
+		query = query.Joins("JOIN devices ON devices.id = parameters.device_id AND devices.deleted_at IS NULL")
+		if scope.TenantID > 0 {
+			query = query.Where("devices.tenant_id = ?", scope.TenantID)
+		}
+		if len(scope.AllowedSiteIDs) > 0 {
+			query = query.Where("devices.site_id IN ?", scope.AllowedSiteIDs)
+		}
+		if scope.SiteID > 0 {
+			query = query.Where("devices.site_id = ?", scope.SiteID)
+		}
+	}
+	err := query.Order("parameters.id ASC").Find(&params).Error
 	return params, err
 }
 
@@ -132,6 +149,26 @@ func (r *TelemetryRepository) GetHistorical(ctx context.Context, filter Telemetr
 	var total int64
 
 	baseQuery := r.db.WithContext(ctx).Model(&model.RawData{})
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
+	if filter.SiteID == 0 && scope.SiteID > 0 {
+		filter.SiteID = scope.SiteID
+	}
+	if len(filter.AllowedSiteIDs) == 0 && len(scope.AllowedSiteIDs) > 0 {
+		filter.AllowedSiteIDs = scope.AllowedSiteIDs
+	}
+
+	if filter.TenantID > 0 {
+		baseQuery = baseQuery.Where("tenant_id = ?", filter.TenantID)
+	}
+	if len(filter.AllowedSiteIDs) > 0 {
+		baseQuery = baseQuery.Where("site_id IN (?)", filter.AllowedSiteIDs)
+	}
+	if filter.SiteID > 0 {
+		baseQuery = baseQuery.Where("site_id = ?", filter.SiteID)
+	}
 
 	if len(filter.DeviceIDs) > 0 {
 		baseQuery = baseQuery.Where("device_id IN (?)", filter.DeviceIDs)

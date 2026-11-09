@@ -19,6 +19,8 @@ const (
 // SensorCalibrationLog stores an immutable audit record of every calibration, reset, or rollback action
 type SensorCalibrationLog struct {
 	ID            uint   `gorm:"primaryKey" json:"id"`
+	TenantID      uint   `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID        uint   `gorm:"not null;default:1;index" json:"site_id"`
 	DeviceID      uint   `gorm:"index;not null" json:"device_id"`
 	DeviceCode    string `gorm:"size:64" json:"device_code"`
 	DeviceName    string `gorm:"size:128" json:"device_name"`

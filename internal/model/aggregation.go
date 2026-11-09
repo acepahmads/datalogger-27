@@ -30,6 +30,8 @@ const (
 // AggregationDefinition represents configuration for periodic telemetry rollups (Phase 3.3)
 type AggregationDefinition struct {
 	ID                 uint                  `gorm:"primaryKey;autoIncrement" json:"id"`
+	TenantID           uint                  `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID             uint                  `gorm:"not null;default:1;index" json:"site_id"`
 	Name               string                `gorm:"size:128;not null" json:"name"`
 	Code               string                `gorm:"size:64;not null;index:idx_agg_def_dev_code,unique" json:"code"`
 	SourceType         AggregationSourceType `gorm:"size:32;not null;default:'CUSTOMER_PROCESSED';index" json:"source_type"`
@@ -59,6 +61,8 @@ type AggregationDefinition struct {
 // AggregationResult stores persisted rollups with deterministic period identifiers (Section 3.3.15)
 type AggregationResult struct {
 	ID                      uint64                `gorm:"primaryKey;autoIncrement" json:"id"`
+	TenantID                uint                  `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID                  uint                  `gorm:"not null;default:1;index" json:"site_id"`
 	AggregationDefinitionID uint                  `gorm:"not null;index:idx_agg_res_def_start,unique;index:idx_agg_res_def" json:"aggregation_definition_id"`
 	DeviceID                uint                  `gorm:"not null;index:idx_agg_res_dev_param" json:"device_id"`
 	ParameterID             uint                  `gorm:"not null;index:idx_agg_res_dev_param;index:idx_agg_res_param" json:"parameter_id"`

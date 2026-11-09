@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -14,7 +15,10 @@ import (
 
 // AggregationResultFilter encapsulates query criteria for aggregation results
 type AggregationResultFilter struct {
-	DefinitionID uint
+	TenantID       uint
+	SiteID         uint
+	AllowedSiteIDs []uint
+	DefinitionID   uint
 	DeviceID     uint
 	DeviceIDs    []uint
 	ParameterID  uint
@@ -65,7 +69,17 @@ func (r *AggregationRepository) GetDefinitionByID(ctx context.Context, id uint) 
 
 // ListDefinitions retrieves aggregation definitions with optional device and enabled filtering
 func (r *AggregationRepository) ListDefinitions(ctx context.Context, deviceID uint, enabledOnly bool) ([]model.AggregationDefinition, error) {
+	scope := tenantctx.FromContext(ctx)
 	query := r.db.WithContext(ctx).Preload("Device").Preload("Parameter").Order("id asc")
+	if scope.TenantID > 0 {
+		query = query.Where("tenant_id = ?", scope.TenantID)
+	}
+	if len(scope.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	if scope.SiteID > 0 {
+		query = query.Where("site_id = ?", scope.SiteID)
+	}
 	if deviceID > 0 {
 		query = query.Where("device_id = ?", deviceID)
 	}
@@ -144,6 +158,8 @@ func (r *AggregationRepository) SaveResult(ctx context.Context, result *model.Ag
 				{Name: "period_start"},
 			},
 			DoUpdates: clause.AssignmentColumns([]string{
+				"tenant_id",
+				"site_id",
 				"identifier",
 				"period_end",
 				"value",
@@ -188,7 +204,17 @@ func (r *AggregationRepository) GetResultByID(ctx context.Context, id uint) (*mo
 
 // GetResultByIdentifier retrieves results by deterministic identifier (e.g. 20261008140000)
 func (r *AggregationRepository) GetResultByIdentifier(ctx context.Context, identifier string, sourceType model.AggregationSourceType) ([]model.AggregationResult, error) {
+	scope := tenantctx.FromContext(ctx)
 	query := r.db.WithContext(ctx).Where("identifier = ?", identifier)
+	if scope.TenantID > 0 {
+		query = query.Where("tenant_id = ?", scope.TenantID)
+	}
+	if len(scope.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	if scope.SiteID > 0 {
+		query = query.Where("site_id = ?", scope.SiteID)
+	}
 	if sourceType != "" {
 		query = query.Where("source_type = ?", sourceType)
 	}
@@ -201,7 +227,27 @@ func (r *AggregationRepository) GetResultByIdentifier(ctx context.Context, ident
 
 // GetResultsByFilter retrieves paginated aggregation results based on filter criteria
 func (r *AggregationRepository) GetResultsByFilter(ctx context.Context, filter AggregationResultFilter) ([]model.AggregationResult, int64, error) {
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
+	if filter.SiteID == 0 && scope.SiteID > 0 {
+		filter.SiteID = scope.SiteID
+	}
+	if len(filter.AllowedSiteIDs) == 0 && len(scope.AllowedSiteIDs) > 0 {
+		filter.AllowedSiteIDs = scope.AllowedSiteIDs
+	}
+
 	query := r.db.WithContext(ctx).Model(&model.AggregationResult{}).Preload("Device").Preload("Parameter")
+	if filter.TenantID > 0 {
+		query = query.Where("tenant_id = ?", filter.TenantID)
+	}
+	if len(filter.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", filter.AllowedSiteIDs)
+	}
+	if filter.SiteID > 0 {
+		query = query.Where("site_id = ?", filter.SiteID)
+	}
 
 	if filter.DefinitionID > 0 {
 		query = query.Where("aggregation_definition_id = ?", filter.DefinitionID)

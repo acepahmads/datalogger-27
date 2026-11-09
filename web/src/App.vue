@@ -67,6 +67,7 @@
         :class="(isOperatorRoute || isDashboardOperatorRoute) ? 'px-1 sm:px-1.5 pt-0.5 sm:pt-1 pb-0 overflow-y-auto bg-[#EDF4F8] dark:bg-[#081421]' : (isTelemetryRoute ? 'p-2 sm:p-2.5 sm:pb-2 overflow-y-auto lg:overflow-hidden flex flex-col min-h-0 bg-transparent dark:bg-slate-950' : 'p-4 overflow-y-auto bg-transparent dark:bg-slate-950')"
       >
         <router-view
+          :key="'ctx-' + ($store.state.contextRevision || 0)"
           :is-sidebar-collapsed="isSidebarCollapsed || sidebarAutoHide"
           :is-top-panel-hidden="isTopPanelHidden"
           :is-sidebar-auto-hide="sidebarAutoHide"

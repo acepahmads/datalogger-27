@@ -22,6 +22,8 @@ const (
 
 type Alarm struct {
 	ID                   uint          `gorm:"primaryKey" json:"id"`
+	TenantID             uint          `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID               uint          `gorm:"not null;default:1;index" json:"site_id"`
 	DeviceID             *uint         `gorm:"index" json:"device_id"`
 	Device               *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	ParameterID          *uint         `gorm:"index" json:"parameter_id"`
@@ -68,6 +70,7 @@ const (
 
 type NotificationChannel struct {
 	ID               uint                    `gorm:"primaryKey" json:"id"`
+	TenantID         uint                    `gorm:"not null;default:1;index" json:"tenant_id"`
 	Name             string                  `gorm:"size:128;not null" json:"name"`
 	Type             NotificationChannelType `gorm:"size:32;not null" json:"type"`
 	Enabled          bool                    `gorm:"default:true" json:"enabled"`
@@ -85,6 +88,7 @@ type NotificationChannel struct {
 
 type Notification struct {
 	ID               uint               `gorm:"primaryKey" json:"id"`
+	TenantID         uint               `gorm:"not null;default:1;index" json:"tenant_id"`
 	AlarmID          uint               `gorm:"index;not null" json:"alarm_id"`
 	Alarm            *Alarm             `gorm:"foreignKey:AlarmID" json:"alarm,omitempty"`
 	ChannelID        *uint              `gorm:"index" json:"channel_id,omitempty"`

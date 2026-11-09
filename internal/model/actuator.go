@@ -55,6 +55,8 @@ const (
 // DeviceActuator represents a controllable output equipment (pump, valve, relay, fan, etc.)
 type DeviceActuator struct {
 	ID                   uint          `gorm:"primaryKey" json:"id"`
+	TenantID             uint          `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID               uint          `gorm:"not null;default:1;index" json:"site_id"`
 	DeviceID             uint          `gorm:"uniqueIndex:idx_dev_act_code;index;not null" json:"device_id"`
 	Device               *Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	ActuatorCode         string        `gorm:"size:64;uniqueIndex:idx_dev_act_code;not null" json:"actuator_code"`
@@ -127,6 +129,8 @@ type ActuationSchedule struct {
 // ActuationLog provides an immutable audit trail of every actuation command
 type ActuationLog struct {
 	ID             uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	TenantID       uint            `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID         uint            `gorm:"not null;default:1;index" json:"site_id"`
 	ActuatorID     uint            `gorm:"not null;index" json:"actuator_id"`
 	ScheduleID     *uint           `gorm:"index" json:"schedule_id,omitempty"`
 	DeviceID       uint            `gorm:"not null;index" json:"device_id"`

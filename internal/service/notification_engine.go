@@ -14,6 +14,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service/notification"
+	"datalogger/pkg/tenantctx"
 )
 
 // ChannelRateLimiter tracks per-channel dispatch timestamps within a rolling window
@@ -167,13 +168,18 @@ func (e *NotificationEngine) Stop() {
 	logger.Info("NotificationEngine background dispatcher stopped gracefully")
 }
 
-// DispatchAlarm inspects an active alarm, resolves eligible channels, and enqueues notifications asynchronously
+// DispatchAlarm inspects an active alarm, resolves eligible channels for the alarm's tenant, and enqueues notifications asynchronously
 func (e *NotificationEngine) DispatchAlarm(ctx context.Context, alarm *model.Alarm) {
 	if alarm == nil || e.repo == nil {
 		return
 	}
 
-	channels, err := e.repo.ListChannels(ctx)
+	alarmTenantID := alarm.TenantID
+	if alarmTenantID == 0 {
+		alarmTenantID = 1
+	}
+
+	channels, err := e.repo.ListChannelsForTenant(ctx, alarmTenantID)
 	if err != nil {
 		logger.Error("NotificationEngine failed querying active channels: %v", err)
 		return
@@ -233,6 +239,7 @@ func (e *NotificationEngine) DispatchAlarm(ctx context.Context, alarm *model.Ala
 		}
 
 		notif := &model.Notification{
+			TenantID:       alarmTenantID,
 			AlarmID:        alarm.ID,
 			ChannelID:      &chID,
 			Channel:        string(ch.Type),
@@ -315,7 +322,7 @@ func (e *NotificationEngine) deliverNotification(n *model.Notification) {
 		}
 	}
 	if channel == nil {
-		ch, err := e.repo.GetChannelByType(ctx, model.NotificationChannelType(n.Channel))
+		ch, err := e.repo.GetChannelByTypeForTenant(ctx, n.TenantID, model.NotificationChannelType(n.Channel))
 		if err == nil {
 			channel = ch
 		}
@@ -468,6 +475,12 @@ func (e *NotificationEngine) TestSend(ctx context.Context, channelID uint, recip
 			ErrorMsg: "Channel not found",
 		}
 	}
+	if scope := tenantctx.FromContext(ctx); !scope.CanAccessTenant(ch.TenantID) {
+		return notification.DeliveryResult{
+			Success:  false,
+			ErrorMsg: "Access denied: channel belongs to another tenant",
+		}
+	}
 
 	e.mu.RLock()
 	provider, exists := e.providers[ch.Type]
@@ -501,6 +514,13 @@ func (e *NotificationEngine) TestSend(ctx context.Context, channelID uint, recip
 
 // RetryNotification manually resets a notification to PENDING and triggers immediate queue evaluation
 func (e *NotificationEngine) RetryNotification(ctx context.Context, id uint) (*model.Notification, error) {
+	existing, err := e.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if scope := tenantctx.FromContext(ctx); !scope.CanAccessTenant(existing.TenantID) {
+		return nil, repository.ErrNotificationNotFound
+	}
 	n, err := e.repo.Retry(ctx, id)
 	if err != nil {
 		return nil, err
@@ -514,6 +534,13 @@ func (e *NotificationEngine) RetryNotification(ctx context.Context, id uint) (*m
 
 // CancelNotification cancels a pending or retrying notification
 func (e *NotificationEngine) CancelNotification(ctx context.Context, id uint) (*model.Notification, error) {
+	existing, err := e.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if scope := tenantctx.FromContext(ctx); !scope.CanAccessTenant(existing.TenantID) {
+		return nil, repository.ErrNotificationNotFound
+	}
 	return e.repo.Cancel(ctx, id)
 }
 

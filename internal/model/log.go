@@ -6,6 +6,7 @@ import (
 
 type AuditTrail struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
+	TenantID  *uint     `gorm:"index" json:"tenant_id,omitempty"`
 	UserID    *uint     `gorm:"index" json:"user_id"`
 	Username  string    `gorm:"size:64;not null" json:"username"`
 	FullName  string    `gorm:"-" json:"full_name"`
@@ -28,6 +29,8 @@ type SystemLog struct {
 
 type CommunicationLog struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
+	TenantID     uint      `gorm:"not null;default:1;index" json:"tenant_id"`
+	SiteID       uint      `gorm:"not null;default:1;index" json:"site_id"`
 	DeviceID     uint      `gorm:"index;not null" json:"device_id"`
 	Protocol     string    `gorm:"size:32;not null" json:"protocol"`
 	Direction    string    `gorm:"size:16;not null" json:"direction"` // TX, RX

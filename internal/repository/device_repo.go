@@ -11,6 +11,9 @@ import (
 )
 
 type DeviceFilterParams struct {
+	TenantID         uint
+	SiteID           uint
+	AllowedSiteIDs   []uint
 	Search           string
 	Status           string
 	ConnectionStatus string
@@ -36,35 +39,45 @@ func (r *DeviceRepository) List(params DeviceFilterParams) ([]model.Device, int6
 	var devices []model.Device
 	var total int64
 
-	query := r.db.Model(&model.Device{}).Where("deleted_at IS NULL")
+	query := r.db.Model(&model.Device{}).Where("devices.deleted_at IS NULL")
+
+	if params.TenantID > 0 {
+		query = query.Where("devices.tenant_id = ?", params.TenantID)
+	}
+	if len(params.AllowedSiteIDs) > 0 {
+		query = query.Where("devices.site_id IN ?", params.AllowedSiteIDs)
+	}
+	if params.SiteID > 0 {
+		query = query.Where("devices.site_id = ?", params.SiteID)
+	}
 
 	// Search filter
 	if params.Search != "" {
 		searchTerm := "%" + strings.TrimSpace(params.Search) + "%"
 		query = query.Where(
-			"device_code LIKE ? OR device_name LIKE ? OR code LIKE ? OR name LIKE ? OR manufacturer LIKE ? OR model LIKE ? OR location LIKE ?",
+			"devices.device_code LIKE ? OR devices.device_name LIKE ? OR devices.code LIKE ? OR devices.name LIKE ? OR devices.manufacturer LIKE ? OR devices.model LIKE ? OR devices.location LIKE ?",
 			searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
 		)
 	}
 
 	// Status filter (Administrative)
 	if params.Status != "" {
-		query = query.Where("status = ?", strings.ToUpper(strings.TrimSpace(params.Status)))
+		query = query.Where("devices.status = ?", strings.ToUpper(strings.TrimSpace(params.Status)))
 	}
 
 	// Connection status filter (Communication)
 	if params.ConnectionStatus != "" {
-		query = query.Where("connection_status = ?", strings.ToUpper(strings.TrimSpace(params.ConnectionStatus)))
+		query = query.Where("devices.connection_status = ?", strings.ToUpper(strings.TrimSpace(params.ConnectionStatus)))
 	}
 
 	// Device Type filter
 	if params.DeviceType != "" {
-		query = query.Where("device_type = ?", params.DeviceType)
+		query = query.Where("devices.device_type = ?", params.DeviceType)
 	}
 
 	// Enabled filter
 	if params.Enabled != nil {
-		query = query.Where("enabled = ?", *params.Enabled)
+		query = query.Where("devices.enabled = ?", *params.Enabled)
 	}
 
 	// Protocol filter
@@ -79,22 +92,22 @@ func (r *DeviceRepository) List(params DeviceFilterParams) ([]model.Device, int6
 	}
 
 	// Sorting
-	sortBy := "id"
+	sortBy := "devices.id"
 	switch strings.ToLower(params.SortBy) {
 	case "device_code", "code":
-		sortBy = "device_code"
+		sortBy = "devices.device_code"
 	case "device_name", "name":
-		sortBy = "device_name"
+		sortBy = "devices.device_name"
 	case "created_at":
-		sortBy = "created_at"
+		sortBy = "devices.created_at"
 	case "updated_at":
-		sortBy = "updated_at"
+		sortBy = "devices.updated_at"
 	case "status":
-		sortBy = "status"
+		sortBy = "devices.status"
 	case "connection_status":
-		sortBy = "connection_status"
+		sortBy = "devices.connection_status"
 	case "last_seen_at":
-		sortBy = "last_seen_at"
+		sortBy = "devices.last_seen_at"
 	}
 
 	sortDir := "desc"
@@ -114,7 +127,7 @@ func (r *DeviceRepository) List(params DeviceFilterParams) ([]model.Device, int6
 	}
 
 	// Execute query with preloads
-	err := query.Preload("Connection").Preload("Parameters", "deleted_at IS NULL").Preload("Parameters.Category").Preload("TypeRel").Find(&devices).Error
+	err := query.Preload("Tenant").Preload("Site").Preload("Connection").Preload("Parameters", "deleted_at IS NULL").Preload("Parameters.Category").Preload("TypeRel").Find(&devices).Error
 	return devices, total, err
 }
 
@@ -122,6 +135,8 @@ func (r *DeviceRepository) List(params DeviceFilterParams) ([]model.Device, int6
 func (r *DeviceRepository) GetByID(id uint) (*model.Device, error) {
 	var dev model.Device
 	err := r.db.Where("deleted_at IS NULL").
+		Preload("Tenant").
+		Preload("Site").
 		Preload("Connection").
 		Preload("Parameters", "deleted_at IS NULL").
 		Preload("Parameters.Category").
@@ -138,6 +153,28 @@ func (r *DeviceRepository) GetByCode(code string) (*model.Device, error) {
 	var dev model.Device
 	cleanCode := strings.TrimSpace(code)
 	err := r.db.Where("deleted_at IS NULL AND (LOWER(device_code) = LOWER(?) OR LOWER(code) = LOWER(?))", cleanCode, cleanCode).
+		Preload("Tenant").
+		Preload("Site").
+		Preload("Connection").
+		Preload("Parameters", "deleted_at IS NULL").
+		Preload("Parameters.Category").
+		First(&dev).Error
+	if err != nil {
+		return nil, err
+	}
+	return &dev, nil
+}
+
+// GetByCodeInTenant fetches a device by its unique device code within a specific tenant
+func (r *DeviceRepository) GetByCodeInTenant(tenantID uint, code string) (*model.Device, error) {
+	if tenantID == 0 {
+		return r.GetByCode(code)
+	}
+	var dev model.Device
+	cleanCode := strings.TrimSpace(code)
+	err := r.db.Where("tenant_id = ? AND deleted_at IS NULL AND (LOWER(device_code) = LOWER(?) OR LOWER(code) = LOWER(?))", tenantID, cleanCode, cleanCode).
+		Preload("Tenant").
+		Preload("Site").
 		Preload("Connection").
 		Preload("Parameters", "deleted_at IS NULL").
 		Preload("Parameters.Category").
@@ -152,7 +189,7 @@ func (r *DeviceRepository) GetByCode(code string) (*model.Device, error) {
 func (r *DeviceRepository) Create(device *model.Device) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		conn := device.Connection
-		if err := tx.Omit("Connection", "Parameters").Create(device).Error; err != nil {
+		if err := tx.Omit("Tenant", "Site", "Connection", "Parameters").Create(device).Error; err != nil {
 			return err
 		}
 
@@ -172,7 +209,7 @@ func (r *DeviceRepository) Update(device *model.Device) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		conn := device.Connection
 		// Update device attributes
-		if err := tx.Omit("Connection", "Parameters").Save(device).Error; err != nil {
+		if err := tx.Omit("Tenant", "Site", "Connection", "Parameters").Save(device).Error; err != nil {
 			return err
 		}
 
@@ -309,7 +346,7 @@ func (r *DeviceRepository) SetParameterEnabled(deviceID, paramID uint, enabled b
 }
 
 // GetDeviceAuditTrail fetches audit records related to a specific device
-func (r *DeviceRepository) GetDeviceAuditTrail(deviceID uint, deviceCode string, limit int) ([]model.AuditTrail, error) {
+func (r *DeviceRepository) GetDeviceAuditTrail(deviceID uint, deviceCode string, limit int, tenantID ...uint) ([]model.AuditTrail, error) {
 	var trails []model.AuditTrail
 	idStr := strconv.FormatUint(uint64(deviceID), 10)
 	devPattern1 := "%\"device_id\":" + idStr + "%"
@@ -320,7 +357,11 @@ func (r *DeviceRepository) GetDeviceAuditTrail(deviceID uint, deviceCode string,
 	query := r.db.Where(
 		"(resource = ? OR resource = 'DEVICE' OR resource = 'PARAMETER' OR resource = ?) AND (details LIKE ? OR details LIKE ? OR details LIKE ? OR resource = ?)",
 		deviceCode, resPattern, devPattern1, devPattern2, codePattern, resPattern,
-	).Order("created_at DESC")
+	)
+	if len(tenantID) > 0 && tenantID[0] > 0 {
+		query = query.Where("(tenant_id IS NULL OR tenant_id = ?)", tenantID[0])
+	}
+	query = query.Order("created_at DESC")
 
 	if limit > 0 {
 		query = query.Limit(limit)

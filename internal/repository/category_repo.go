@@ -21,8 +21,21 @@ func (r *CategoryRepository) List(enabledOnly bool) ([]model.ParameterCategory, 
 
 // ListWithDomain returns parameter categories, optionally filtered by enabled status and domain
 func (r *CategoryRepository) ListWithDomain(enabledOnly bool, domain string) ([]model.ParameterCategory, error) {
+	return r.ListForTenant(0, enabledOnly, domain)
+}
+
+// DB exposes the underlying gorm.DB handle for seeding defaults when needed
+func (r *CategoryRepository) DB() *gorm.DB {
+	return r.db
+}
+
+// ListForTenant returns parameter categories scoped by tenantID (0 = all / default)
+func (r *CategoryRepository) ListForTenant(tenantID uint, enabledOnly bool, domain string) ([]model.ParameterCategory, error) {
 	var categories []model.ParameterCategory
 	query := r.db.Model(&model.ParameterCategory{}).Where("deleted_at IS NULL")
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
 	if enabledOnly {
 		query = query.Where("enabled = ?", true)
 	}
@@ -40,11 +53,14 @@ func (r *CategoryRepository) ListWithDomain(enabledOnly bool, domain string) ([]
 		Count      int
 	}
 	var counts []CountResult
-	_ = r.db.Model(&model.Parameter{}).
-		Select("category_id, count(*) as count").
-		Where("deleted_at IS NULL AND category_id IS NOT NULL").
-		Group("category_id").
-		Scan(&counts).Error
+	countQuery := r.db.Model(&model.Parameter{}).
+		Select("parameters.category_id, count(*) as count").
+		Where("parameters.deleted_at IS NULL AND parameters.category_id IS NOT NULL")
+	if tenantID > 0 {
+		countQuery = countQuery.Joins("JOIN devices ON devices.id = parameters.device_id AND devices.deleted_at IS NULL").
+			Where("devices.tenant_id = ?", tenantID)
+	}
+	_ = countQuery.Group("parameters.category_id").Scan(&counts).Error
 
 	countMap := make(map[uint]int)
 	for _, c := range counts {
@@ -73,8 +89,17 @@ func (r *CategoryRepository) GetByID(id uint) (*model.ParameterCategory, error) 
 
 // GetByCode finds a category by its unique code
 func (r *CategoryRepository) GetByCode(code string) (*model.ParameterCategory, error) {
+	return r.GetByCodeInTenant(0, code)
+}
+
+// GetByCodeInTenant finds a category by its unique code within a tenant
+func (r *CategoryRepository) GetByCodeInTenant(tenantID uint, code string) (*model.ParameterCategory, error) {
 	var cat model.ParameterCategory
-	err := r.db.Where("code = ? AND deleted_at IS NULL", code).First(&cat).Error
+	query := r.db.Where("code = ? AND deleted_at IS NULL", code)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	err := query.First(&cat).Error
 	if err != nil {
 		return nil, err
 	}
@@ -86,16 +111,19 @@ func (r *CategoryRepository) GetByCode(code string) (*model.ParameterCategory, e
 
 // Create inserts a new parameter category, purging any previously soft-deleted row with the same code
 func (r *CategoryRepository) Create(cat *model.ParameterCategory) error {
+	if cat.TenantID == 0 {
+		cat.TenantID = 1
+	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Remove any soft-deleted category holding the same unique code
+		// Remove any soft-deleted category holding the same unique code in this tenant
 		_ = tx.Unscoped().
-			Where("code = ? AND deleted_at IS NOT NULL", cat.Code).
+			Where("tenant_id = ? AND code = ? AND deleted_at IS NOT NULL", cat.TenantID, cat.Code).
 			Delete(&model.ParameterCategory{}).Error
 
 		if cat.DisplayOrder <= 0 {
 			var maxOrder int
 			_ = tx.Model(&model.ParameterCategory{}).
-				Where("deleted_at IS NULL").
+				Where("tenant_id = ? AND deleted_at IS NULL", cat.TenantID).
 				Select("COALESCE(MAX(display_order), 0)").
 				Scan(&maxOrder).Error
 			cat.DisplayOrder = maxOrder + 1
@@ -106,10 +134,12 @@ func (r *CategoryRepository) Create(cat *model.ParameterCategory) error {
 }
 
 // PurgeSoftDeletedByCode removes any soft-deleted category row matching code so an active category can reuse it
-func (r *CategoryRepository) PurgeSoftDeletedByCode(code string, excludeID uint) {
-	_ = r.db.Unscoped().
-		Where("code = ? AND id <> ? AND deleted_at IS NOT NULL", code, excludeID).
-		Delete(&model.ParameterCategory{}).Error
+func (r *CategoryRepository) PurgeSoftDeletedByCode(code string, excludeID uint, tenantID ...uint) {
+	q := r.db.Unscoped().Where("code = ? AND id <> ? AND deleted_at IS NOT NULL", code, excludeID)
+	if len(tenantID) > 0 && tenantID[0] > 0 {
+		q = q.Where("tenant_id = ?", tenantID[0])
+	}
+	_ = q.Delete(&model.ParameterCategory{}).Error
 }
 
 // Update saves modifications to a category

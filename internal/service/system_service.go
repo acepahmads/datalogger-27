@@ -13,6 +13,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/pkg/sysinfo"
+	"datalogger/pkg/tenantctx"
 )
 
 type SystemService struct {
@@ -22,6 +23,7 @@ type SystemService struct {
 	telemetryService *TelemetryService
 	backupService    *BackupService
 	alarmService     *AlarmService
+	tenantService    *TenantService
 }
 
 func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *repository.PhaseRepository, cfg *config.Config) *SystemService {
@@ -48,11 +50,28 @@ func (s *SystemService) GetAlarmService() *AlarmService {
 	return s.alarmService
 }
 
+func (s *SystemService) SetTenantService(ts *TenantService) {
+	s.tenantService = ts
+}
+
+func (s *SystemService) GetTenantService() *TenantService {
+	return s.tenantService
+}
+
+func (s *SystemService) GetSystemRepo() *repository.SystemRepository {
+	return s.systemRepo
+}
+
 func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, error) {
+	return s.GetSystemStatusOverviewScoped(context.Background())
+}
+
+func (s *SystemService) GetSystemStatusOverviewScoped(ctx context.Context) (*model.SystemStatusOverview, error) {
+	scope := tenantctx.FromContext(ctx)
 	info := sysinfo.GetInfo()
 
-	// Devices summary
-	devices, _ := s.systemRepo.GetAllDevices()
+	// Devices summary (scoped by tenant / site)
+	devices, _ := s.systemRepo.GetAllDevicesScoped(scope)
 	onlineDev := 0
 	offlineDev := 0
 	errorDev := 0
@@ -96,12 +115,12 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		failedRate = (float64(totalFailed) / float64(totalComm)) * 100
 	}
 
-	// Alarms summary (scoped to active, non-deleted devices & parameters)
+	// Alarms summary (scoped to active, non-deleted devices & parameters in caller's tenant/site)
 	var alarms []model.Alarm
 	if s.alarmService != nil {
-		alarms, _ = s.alarmService.GetActiveOrAckedAlarms(context.Background())
+		alarms, _ = s.alarmService.GetActiveOrAckedAlarms(ctx)
 	} else {
-		alarms, _ = s.systemRepo.GetAllAlarms("")
+		alarms, _ = s.systemRepo.GetAllAlarmsScoped("", scope)
 	}
 	activeAlarms := 0
 	warningAlarms := 0
@@ -131,30 +150,37 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		dbStatusStr = fmt.Sprintf("MariaDB Edge (%s)", dbMetrics.Status)
 	}
 
+	monitoringDomain := config.Get().MonitoringDomain
+	if s.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+		if st, err := s.tenantService.ResolveEffectiveSite(scope); err == nil && st != nil && strings.TrimSpace(st.MonitoringDomain) != "" {
+			monitoringDomain = st.MonitoringDomain
+		}
+	}
+
 	overview := &model.SystemStatusOverview{
-		CPUPercent:        info.CPUPercent,
-		ProcessCPUPercent: info.ProcessCPUPercent,
-		ProcessRSSBytes:   info.ProcessRSSBytes,
-		ProcessRSSMB:      info.ProcessRSSMB,
-		GoHeapAllocBytes:  info.GoHeapAllocBytes,
-		GoHeapSysBytes:    info.GoHeapSysBytes,
-		GoNumGoroutine:    info.GoNumGoroutine,
-		CPUPerCore:        info.CPUPerCore,
-		RAMPercent:        info.RAMPercent,
-		RAMUsedMB:         float64(info.RAMUsedBytes) / (1024 * 1024),
-		RAMTotalMB:        float64(info.RAMTotalBytes) / (1024 * 1024),
-		DiskPercent:       info.DiskPercent,
-		DiskUsedGB:        float64(info.DiskUsedBytes) / (1024 * 1024 * 1024),
-		DiskTotalGB:       float64(info.DiskTotalBytes) / (1024 * 1024 * 1024),
-		UptimeHuman:       info.UptimeHuman,
-		UptimeSeconds:     info.UptimeSeconds,
-		OS:                fmt.Sprintf("%s / %s", info.OS, info.Arch),
-		Arch:              info.Arch,
-		Hostname:          info.Hostname,
-		NumCPU:            info.NumCPU,
-		Goroutines:        info.Goroutines,
+		CPUPercent:                info.CPUPercent,
+		ProcessCPUPercent:         info.ProcessCPUPercent,
+		ProcessRSSBytes:           info.ProcessRSSBytes,
+		ProcessRSSMB:              info.ProcessRSSMB,
+		GoHeapAllocBytes:          info.GoHeapAllocBytes,
+		GoHeapSysBytes:            info.GoHeapSysBytes,
+		GoNumGoroutine:            info.GoNumGoroutine,
+		CPUPerCore:                info.CPUPerCore,
+		RAMPercent:                info.RAMPercent,
+		RAMUsedMB:                 float64(info.RAMUsedBytes) / (1024 * 1024),
+		RAMTotalMB:                float64(info.RAMTotalBytes) / (1024 * 1024),
+		DiskPercent:               info.DiskPercent,
+		DiskUsedGB:                float64(info.DiskUsedBytes) / (1024 * 1024 * 1024),
+		DiskTotalGB:               float64(info.DiskTotalBytes) / (1024 * 1024 * 1024),
+		UptimeHuman:               info.UptimeHuman,
+		UptimeSeconds:             info.UptimeSeconds,
+		OS:                        fmt.Sprintf("%s / %s", info.OS, info.Arch),
+		Arch:                      info.Arch,
+		Hostname:                  info.Hostname,
+		NumCPU:                    info.NumCPU,
+		Goroutines:                info.Goroutines,
 		AppVersion:                s.cfg.Version,
-		MonitoringDomain:          config.Get().MonitoringDomain,
+		MonitoringDomain:          monitoringDomain,
 		RawTelemetryMaxRangeHours: config.Get().EffectiveRawTelemetryMaxRangeHours(),
 
 		ServiceStatus:   "RUNNING",
@@ -195,6 +221,11 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 		AcknowledgedAlarms: ackAlarms,
 	}
 
+	isScopedTenant := !scope.IsSuperAdmin && scope.UserTenantID != nil
+	if scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 0) {
+		isScopedTenant = true
+	}
+
 	if s.telemetryService != nil {
 		metrics := s.telemetryService.GetMetrics()
 		overview.PersistenceStatus = metrics.PersistenceStatus
@@ -209,7 +240,7 @@ func (s *SystemService) GetSystemStatusOverview() (*model.SystemStatusOverview, 
 			overview.QueueStatus = "HEALTHY"
 		}
 
-		if metrics.IngestedCount > 0 {
+		if !isScopedTenant && metrics.IngestedCount > 0 {
 			overview.DataReceivedCount = int64(metrics.IngestedCount)
 			if info.UptimeSeconds > 0 {
 				overview.DataPerSec = float64(metrics.IngestedCount) / float64(info.UptimeSeconds)
@@ -258,27 +289,43 @@ func (s *SystemService) GetDevices() ([]model.Device, error) {
 	return s.systemRepo.GetAllDevices()
 }
 
+func (s *SystemService) GetDevicesScoped(scope tenantctx.Scope) ([]model.Device, error) {
+	return s.systemRepo.GetAllDevicesScoped(scope)
+}
+
 func (s *SystemService) GetDeviceByID(id uint) (*model.Device, error) {
 	return s.systemRepo.GetDeviceByID(id)
 }
 
 func (s *SystemService) GetAlarms(status string) ([]model.Alarm, error) {
+	return s.GetAlarmsWithContext(context.Background(), status)
+}
+
+func (s *SystemService) GetAlarmsWithContext(ctx context.Context, status string) ([]model.Alarm, error) {
 	if s.alarmService != nil {
-		return s.alarmService.GetAlarmsByStatus(context.Background(), status)
+		return s.alarmService.GetAlarmsByStatus(ctx, status)
 	}
-	return s.systemRepo.GetAllAlarms(status)
+	return s.systemRepo.GetAllAlarmsScoped(status, tenantctx.FromContext(ctx))
 }
 
 func (s *SystemService) GetAlarmByID(id uint) (*model.Alarm, error) {
+	return s.GetAlarmByIDWithContext(context.Background(), id)
+}
+
+func (s *SystemService) GetAlarmByIDWithContext(ctx context.Context, id uint) (*model.Alarm, error) {
 	if s.alarmService != nil {
-		return s.alarmService.GetAlarmByID(context.Background(), id)
+		return s.alarmService.GetAlarmByID(ctx, id)
 	}
 	return nil, errors.New("alarm service not configured")
 }
 
 func (s *SystemService) CreateAlarm(alarm *model.Alarm) error {
+	return s.CreateAlarmWithContext(context.Background(), alarm)
+}
+
+func (s *SystemService) CreateAlarmWithContext(ctx context.Context, alarm *model.Alarm) error {
 	if s.alarmService != nil {
-		return s.alarmService.CreateAlarm(context.Background(), alarm)
+		return s.alarmService.CreateAlarm(ctx, alarm)
 	}
 	return errors.New("alarm service not configured")
 }
@@ -299,8 +346,12 @@ func (s *SystemService) AcknowledgeAlarmWithUser(ctx context.Context, id uint, u
 }
 
 func (s *SystemService) ClearAlarm(id uint) (*model.Alarm, error) {
+	return s.ClearAlarmWithContext(context.Background(), id)
+}
+
+func (s *SystemService) ClearAlarmWithContext(ctx context.Context, id uint) (*model.Alarm, error) {
 	if s.alarmService != nil {
-		return s.alarmService.ClearAlarm(context.Background(), id)
+		return s.alarmService.ClearAlarm(ctx, id)
 	}
 	return nil, errors.New("alarm service not configured")
 }
@@ -626,6 +677,12 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 			changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> %s", cfg.MonitoringDomain, dom))
 			cfg.MonitoringDomain = dom
 		}
+		if s.tenantService != nil && s.tenantService.GetRepo() != nil {
+			if st, err := s.tenantService.GetRepo().GetSiteByID(tenantctx.DefaultSiteID); err == nil && st != nil {
+				st.MonitoringDomain = dom
+				_ = s.tenantService.GetRepo().UpdateSite(st)
+			}
+		}
 	}
 
 	// Apply optional parameter category reassignments if provided
@@ -682,6 +739,80 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 	}, nil
 }
 
+// SaveScopedSiteDomainConfig updates ONLY the effective Site's MonitoringDomain and tenant-scoped parameter
+// category reassignments without mutating host config.json (DB credentials, HTTP port, or serial ports).
+func (s *SystemService) SaveScopedSiteDomainConfig(ctx context.Context, req SaveSystemConfigRequest, actorID uint, actorUsername, ip, ua string) (*ConfigSaveResult, error) {
+	scope := tenantctx.FromContext(ctx)
+	if s.tenantService == nil {
+		return nil, errors.New("tenant service not configured")
+	}
+	st, err := s.tenantService.ResolveEffectiveSite(scope)
+	if err != nil || st == nil {
+		return nil, errors.New("target station not found for current tenant context")
+	}
+
+	var changedNotes []string
+	if req.MonitoringDomain != "" {
+		dom := strings.ToUpper(strings.TrimSpace(req.MonitoringDomain))
+		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" {
+			return nil, errors.New("monitoring domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
+		}
+		if dom != st.MonitoringDomain {
+			changedNotes = append(changedNotes, fmt.Sprintf("site[%s].monitoring_domain: %s -> %s", st.Code, st.MonitoringDomain, dom))
+			st.MonitoringDomain = dom
+			st.UpdatedBy = actorUsername
+			if err := s.tenantService.GetRepo().UpdateSite(st); err != nil {
+				return nil, err
+			}
+			if st.ID == tenantctx.DefaultSiteID {
+				cfg := config.Get()
+				cfg.MonitoringDomain = dom
+				_ = config.Save("config.json", cfg)
+			}
+		}
+	}
+
+	if len(req.Reassignments) > 0 && s.systemRepo.GetDB() != nil {
+		db := s.systemRepo.GetDB()
+		for _, re := range req.Reassignments {
+			if re.ParameterID > 0 {
+				_ = db.Model(&model.Parameter{}).
+					Where("id = ? AND device_id IN (?)", re.ParameterID, db.Model(&model.Device{}).Select("id").Where("tenant_id = ?", st.TenantID)).
+					Update("category_id", re.TargetCategoryID).Error
+			}
+		}
+		changedNotes = append(changedNotes, fmt.Sprintf("%d parameters reassigned", len(req.Reassignments)))
+	}
+
+	details := fmt.Sprintf("Station '%s' configuration updated.", st.Name)
+	if len(changedNotes) > 0 {
+		details = fmt.Sprintf("Station '%s' configuration updated: %s", st.Name, strings.Join(changedNotes, ", "))
+	}
+	var uidPtr *uint
+	if actorID > 0 {
+		uidPtr = &actorID
+	}
+	tid := st.TenantID
+	_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+		TenantID:  &tid,
+		UserID:    uidPtr,
+		Username:  actorUsername,
+		Action:    "CONFIG_UPDATE",
+		Resource:  "SITE_CONFIG",
+		Details:   details,
+		IPAddress: ip,
+		UserAgent: ua,
+		CreatedAt: time.Now(),
+	})
+
+	return &ConfigSaveResult{
+		Saved:                 true,
+		RestartRequired:       false,
+		AcquisitionDisruption: false,
+		Message:               "Konfigurasi domain stasiun berhasil disimpan.",
+	}, nil
+}
+
 type DomainCompatibilityReport struct {
 	CurrentDomain          string                     `json:"current_domain"`
 	TargetDomain           string                     `json:"target_domain"`
@@ -715,12 +846,22 @@ type CategoryMiniDTO struct {
 }
 
 func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCompatibilityReport, error) {
+	return s.CheckDomainCompatibilityScoped(context.Background(), targetDomain)
+}
+
+func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targetDomain string) (*DomainCompatibilityReport, error) {
+	scope := tenantctx.FromContext(ctx)
 	target := strings.ToUpper(strings.TrimSpace(targetDomain))
 	if target != "AQMS" && target != "WQMS" && target != "SPARING" && target != "CUSTOM" {
 		return nil, errors.New("target domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
 	}
 
 	currentDomain := s.cfg.MonitoringDomain
+	if s.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+		if st, err := s.tenantService.ResolveEffectiveSite(scope); err == nil && st != nil && strings.TrimSpace(st.MonitoringDomain) != "" {
+			currentDomain = st.MonitoringDomain
+		}
+	}
 	if currentDomain == "" {
 		currentDomain = "AQMS"
 	}
@@ -735,7 +876,7 @@ func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCo
 		}, nil
 	}
 
-	// 1. Fetch all parameters with their device and category
+	// 1. Fetch all parameters with their device and category (scoped to tenant/site)
 	type ParamJoin struct {
 		ParamID      uint
 		ParamCode    string
@@ -749,12 +890,20 @@ func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCo
 	}
 
 	var params []ParamJoin
-	_ = db.Table("parameters").
+	pQuery := db.Table("parameters").
 		Select("parameters.id as param_id, parameters.parameter_code as param_code, parameters.parameter_name as param_name, parameters.device_id as device_id, devices.device_code as device_code, parameters.category_id as category_id, parameter_categories.code as category_code, parameter_categories.name as category_name, parameter_categories.domain as cat_domain").
 		Joins("LEFT JOIN devices ON devices.id = parameters.device_id").
 		Joins("LEFT JOIN parameter_categories ON parameter_categories.id = parameters.category_id").
-		Where("parameters.deleted_at IS NULL").
-		Find(&params).Error
+		Where("parameters.deleted_at IS NULL AND devices.deleted_at IS NULL")
+	if scope.TenantID > 0 {
+		pQuery = pQuery.Where("devices.tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		pQuery = pQuery.Where("devices.site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		pQuery = pQuery.Where("devices.site_id IN ?", scope.AllowedSiteIDs)
+	}
+	_ = pQuery.Find(&params).Error
 
 	var incomp []IncompatibleParameterDTO
 	for _, p := range params {
@@ -813,7 +962,11 @@ func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCo
 
 	// 2. Fetch target domain available categories
 	var cats []model.ParameterCategory
-	_ = db.Where("deleted_at IS NULL AND enabled = true").Find(&cats).Error
+	catTid := scope.TenantID
+	if catTid == 0 {
+		catTid = tenantctx.DefaultTenantID
+	}
+	_ = db.Where("deleted_at IS NULL AND enabled = true AND tenant_id = ?", catTid).Find(&cats).Error
 	var avail []CategoryMiniDTO
 	for _, c := range cats {
 		cDom := strings.ToUpper(c.Domain)

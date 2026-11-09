@@ -64,6 +64,10 @@ func (h *CalibrationHandler) GetLiveReading(c *gin.Context) {
 
 	live, err := h.calService.GetLiveParameterReading(c.Request.Context(), uint(paramID), pollNow)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "akses ditolak") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, err.Error())
 		return
 	}
@@ -102,6 +106,10 @@ func (h *CalibrationHandler) UpdateConfig(c *gin.Context) {
 	username, role := h.extractActor(c)
 	dto, err := h.calService.UpdateParameterConfig(c.Request.Context(), uint(paramID), &req, username, role, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "akses ditolak") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -125,6 +133,10 @@ func (h *CalibrationHandler) ToggleSession(c *gin.Context) {
 	username, role := h.extractActor(c)
 	dto, err := h.calService.ToggleCalibrationSession(c.Request.Context(), uint(paramID), req.Active, username, role, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "akses ditolak") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -148,6 +160,10 @@ func (h *CalibrationHandler) ApplyCalibration(c *gin.Context) {
 	username, role := h.extractActor(c)
 	dto, logEntry, err := h.calService.ApplyCalibration(c.Request.Context(), uint(paramID), &req, username, role, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "akses ditolak") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -171,6 +187,10 @@ func (h *CalibrationHandler) ResetCalibration(c *gin.Context) {
 	username, role := h.extractActor(c)
 	dto, logEntry, err := h.calService.ResetCalibration(c.Request.Context(), uint(paramID), req.ReasonNote, username, role, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "akses ditolak") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -219,6 +239,10 @@ func (h *CalibrationHandler) RollbackLog(c *gin.Context) {
 	username, role := h.extractActor(c)
 	dto, rbLog, err := h.calService.RollbackCalibration(c.Request.Context(), uint(logID), username, role, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "akses ditolak") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}

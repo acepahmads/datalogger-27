@@ -53,6 +53,7 @@ const (
 	ProtocolMQTT      ProtocolType = "MQTT"
 	ProtocolSerial    ProtocolType = "SERIAL"
 	ProtocolWebSocket ProtocolType = "WEBSOCKET"
+	ProtocolEdgePush  ProtocolType = "EDGE_PUSH"
 	ProtocolCustom    ProtocolType = "CUSTOM"
 )
 
@@ -187,7 +188,11 @@ func (c *DeviceConnection) AfterFind(tx *gorm.DB) error {
 // Device entity (Section 3)
 type Device struct {
 	ID               uint                   `gorm:"primaryKey" json:"id"`
-	DeviceCode       string                 `gorm:"column:device_code;size:64;uniqueIndex;not null" json:"device_code"`
+	TenantID         uint                   `gorm:"column:tenant_id;not null;default:1;index;uniqueIndex:idx_tenant_device_code" json:"tenant_id"`
+	SiteID           uint                   `gorm:"column:site_id;not null;default:1;index" json:"site_id"`
+	Tenant           *Tenant                `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Site             *Site                  `gorm:"foreignKey:SiteID" json:"site,omitempty"`
+	DeviceCode       string                 `gorm:"column:device_code;size:64;uniqueIndex:idx_tenant_device_code;not null" json:"device_code"`
 	DeviceName       string                 `gorm:"column:device_name;size:128;not null" json:"device_name"`
 	DeviceType       string                 `gorm:"column:device_type;size:64;not null;default:'MODBUS_TCP'" json:"device_type"`
 	Manufacturer     string                 `gorm:"size:128" json:"manufacturer"`
@@ -225,6 +230,12 @@ type Device struct {
 }
 
 func (d *Device) BeforeSave(tx *gorm.DB) error {
+	if d.TenantID == 0 {
+		d.TenantID = 1
+	}
+	if d.SiteID == 0 {
+		d.SiteID = 1
+	}
 	if d.DeviceCode == "" && d.Code != "" {
 		d.DeviceCode = d.Code
 	}

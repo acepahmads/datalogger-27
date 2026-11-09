@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"datalogger/internal/model"
@@ -123,6 +124,10 @@ func (h *ISPUHandler) GetDetail(c *gin.Context) {
 
 	record, err := h.ispuService.GetCalculationDetail(c.Request.Context(), uint(id))
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "ISPU calculation record not found")
 		return
 	}
@@ -150,6 +155,10 @@ func (h *ISPUHandler) GetAuditTracking(c *gin.Context) {
 	pollutant := c.Query("pollutant")
 	details, err := h.ispuService.GetAuditTracking(c.Request.Context(), uint(calcID), pollutant)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, err.Error())
 		return
 	}
@@ -184,6 +193,10 @@ func (h *ISPUHandler) Recalculate(c *gin.Context) {
 
 	result, err := h.ispuService.Recalculate(c.Request.Context(), req.DeviceID, targetTime, actor, c.ClientIP())
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "recalculation failed: "+err.Error())
 		return
 	}
@@ -202,6 +215,10 @@ func (h *ISPUHandler) GetMappings(c *gin.Context) {
 
 	mappings, err := h.ispuService.GetMappings(c.Request.Context(), deviceID)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to get mappings: "+err.Error())
 		return
 	}
@@ -228,6 +245,10 @@ func (h *ISPUHandler) SaveMapping(c *gin.Context) {
 	}
 
 	if err := h.ispuService.SaveMapping(c.Request.Context(), &mapping, actor, c.ClientIP()); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to save mapping: "+err.Error())
 		return
 	}
@@ -250,6 +271,10 @@ func (h *ISPUHandler) DeleteMapping(c *gin.Context) {
 	}
 
 	if err := h.ispuService.DeleteMapping(c.Request.Context(), uint(id), actor, c.ClientIP()); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to delete mapping: "+err.Error())
 		return
 	}
@@ -325,6 +350,10 @@ func (h *ISPUHandler) Backfill(c *gin.Context) {
 
 	count, err := h.ispuService.BackfillStationHourlyTrend(c.Request.Context(), req.DeviceID, req.Hours)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to backfill trend: "+err.Error())
 		return
 	}

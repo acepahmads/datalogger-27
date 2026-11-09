@@ -7,6 +7,7 @@ import (
 	"datalogger/internal/communication"
 	"datalogger/internal/communication/modbus"
 	"datalogger/internal/logger"
+	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -31,6 +32,34 @@ func NewDeviceHandler(deviceService *service.DeviceService, pollingEngine ...*co
 
 func (h *DeviceHandler) SetPollingEngine(pe *communication.PollingEngine) {
 	h.pollingEngine = pe
+}
+
+func (h *DeviceHandler) checkDeviceAccess(c *gin.Context, id uint) (*model.Device, bool) {
+	device, err := h.deviceService.GetDeviceByID(id)
+	if err != nil || device == nil {
+		response.NotFound(c, "Device not found")
+		return nil, false
+	}
+	scope := middleware.GetScope(c)
+	if scope.Authenticated && !scope.CanAccessRecord(device.TenantID, device.SiteID) {
+		response.Forbidden(c, "Access denied: device belongs to another tenant or restricted station")
+		return nil, false
+	}
+	return device, true
+}
+
+func isHostSerialProtocol(devType string, conn *service.ConnectionConfigDTO) bool {
+	dt := strings.ToUpper(strings.TrimSpace(devType))
+	if dt == string(model.ProtocolModbusRTU) || dt == string(model.ProtocolSerial) {
+		return true
+	}
+	if conn != nil {
+		cp := strings.ToUpper(strings.TrimSpace(string(conn.Protocol)))
+		if cp == string(model.ProtocolModbusRTU) || cp == string(model.ProtocolSerial) || strings.TrimSpace(conn.SerialPort) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // ListDevices handles GET /api/devices with pagination, search, and filtering
@@ -58,7 +87,24 @@ func (h *DeviceHandler) ListDevices(c *gin.Context) {
 		}
 	}
 
+	scope := middleware.GetScope(c)
+	tenantID := scope.TenantID
+	if tenantID == 0 && scope.IsSuperAdmin {
+		if qTid, err := strconv.ParseUint(strings.TrimSpace(c.Query("tenant_id")), 10, 32); err == nil && qTid > 0 {
+			tenantID = uint(qTid)
+		}
+	}
+	siteID := scope.SiteID
+	if qSid, err := strconv.ParseUint(strings.TrimSpace(c.Query("site_id")), 10, 32); err == nil && qSid > 0 {
+		if scope.IsSiteAllowed(uint(qSid)) {
+			siteID = uint(qSid)
+		}
+	}
+
 	params := repository.DeviceFilterParams{
+		TenantID:         tenantID,
+		SiteID:           siteID,
+		AllowedSiteIDs:   scope.AllowedSiteIDs,
 		Search:           search,
 		Status:           status,
 		ConnectionStatus: connStatus,
@@ -99,9 +145,8 @@ func (h *DeviceHandler) GetDeviceByID(c *gin.Context) {
 		return
 	}
 
-	device, err := h.deviceService.GetDeviceByID(uint(id))
-	if err != nil {
-		response.NotFound(c, "Device not found")
+	device, ok := h.checkDeviceAccess(c, uint(id))
+	if !ok {
 		return
 	}
 
@@ -114,6 +159,20 @@ func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request payload: "+err.Error())
 		return
+	}
+
+	scope := middleware.GetScope(c)
+	if scope.Authenticated {
+		if !scope.IsSuperAdmin && scope.UserTenantID != nil && *scope.UserTenantID > 0 && isHostSerialProtocol(req.DeviceType, req.Connection) {
+			response.Forbidden(c, "Host physical serial ports (MODBUS_RTU / SERIAL) can only be configured by SUPERADMIN")
+			return
+		}
+		req.TenantID = scope.WriteTenantID(req.TenantID)
+		req.SiteID = scope.WriteSiteID(req.SiteID)
+		if req.SiteID > 0 && !scope.IsSiteAllowed(req.SiteID) {
+			response.Forbidden(c, "Access denied to selected station")
+			return
+		}
 	}
 
 	username := h.getUsername(c)
@@ -141,10 +200,43 @@ func (h *DeviceHandler) UpdateDevice(c *gin.Context) {
 		return
 	}
 
+	existingDev, ok := h.checkDeviceAccess(c, uint(id))
+	if !ok {
+		return
+	}
+
 	var req service.UpdateDeviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid update payload: "+err.Error())
 		return
+	}
+
+	scope := middleware.GetScope(c)
+	if scope.Authenticated {
+		if !scope.IsSuperAdmin {
+			req.TenantID = nil // Non-superadmin cannot move device across tenants
+			if scope.UserTenantID != nil && *scope.UserTenantID > 0 {
+				newType := ""
+				if req.DeviceType != nil {
+					newType = *req.DeviceType
+				}
+				// Block non-superadmin from newly binding or changing a host physical serial port
+				if isHostSerialProtocol(newType, req.Connection) {
+					prevSerial := ""
+					if existingDev.Connection != nil {
+						prevSerial = existingDev.Connection.SerialPort
+					}
+					if req.Connection != nil && strings.TrimSpace(req.Connection.SerialPort) != strings.TrimSpace(prevSerial) {
+						response.Forbidden(c, "Host physical serial ports (MODBUS_RTU / SERIAL) can only be modified by SUPERADMIN")
+						return
+					}
+				}
+			}
+			if req.SiteID != nil && *req.SiteID > 0 && !scope.IsSiteAllowed(*req.SiteID) {
+				response.Forbidden(c, "Access denied to selected station")
+				return
+			}
+		}
 	}
 
 	username := h.getUsername(c)
@@ -176,6 +268,10 @@ func (h *DeviceHandler) DeleteDevice(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
+
 	username := h.getUsername(c)
 	ip := c.ClientIP()
 	ua := c.Request.UserAgent()
@@ -197,6 +293,10 @@ func (h *DeviceHandler) ToggleDeviceEnabled(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
 		return
 	}
 
@@ -238,6 +338,10 @@ func (h *DeviceHandler) UpdateDeviceStatus(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
+
 	var req struct {
 		Status model.DeviceAdminStatus `json:"status"`
 	}
@@ -276,10 +380,27 @@ func (h *DeviceHandler) UpdateConnection(c *gin.Context) {
 		return
 	}
 
+	existingDev, ok := h.checkDeviceAccess(c, uint(id))
+	if !ok {
+		return
+	}
+
 	var req service.ConnectionConfigDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid connection payload: "+err.Error())
 		return
+	}
+
+	scope := middleware.GetScope(c)
+	if scope.Authenticated && !scope.IsSuperAdmin && scope.UserTenantID != nil && *scope.UserTenantID > 0 && isHostSerialProtocol("", &req) {
+		prevSerial := ""
+		if existingDev.Connection != nil {
+			prevSerial = existingDev.Connection.SerialPort
+		}
+		if strings.TrimSpace(req.SerialPort) != strings.TrimSpace(prevSerial) {
+			response.Forbidden(c, "Host physical serial ports (MODBUS_RTU / SERIAL) can only be configured by SUPERADMIN")
+			return
+		}
 	}
 
 	username := h.getUsername(c)
@@ -309,6 +430,10 @@ func (h *DeviceHandler) GetDeviceActivity(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
+
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	trails, err := h.deviceService.GetDeviceAuditTrail(uint(id), limit)
 	if err != nil {
@@ -327,6 +452,10 @@ func (h *DeviceHandler) ListParameters(c *gin.Context) {
 		return
 	}
 
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
+
 	params, err := h.deviceService.ListParameters(uint(id))
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -340,6 +469,9 @@ func (h *DeviceHandler) GetParameter(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
 		return
 	}
 	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
@@ -361,6 +493,9 @@ func (h *DeviceHandler) CreateParameter(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
 		return
 	}
 
@@ -393,6 +528,9 @@ func (h *DeviceHandler) UpdateParameter(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
 		return
 	}
 	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
@@ -440,6 +578,9 @@ func (h *DeviceHandler) DeleteParameter(c *gin.Context) {
 		response.BadRequest(c, "Invalid device ID")
 		return
 	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
 	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid parameter ID")
@@ -474,6 +615,9 @@ func (h *DeviceHandler) ToggleParameterEnabled(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
 		return
 	}
 	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
@@ -523,6 +667,9 @@ func (h *DeviceHandler) GetParameterQuality(c *gin.Context) {
 		response.BadRequest(c, "Invalid device ID")
 		return
 	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
 	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid parameter ID")
@@ -543,6 +690,9 @@ func (h *DeviceHandler) UpdateParameterQuality(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
 		return
 	}
 	paramID, err := strconv.ParseUint(c.Param("paramId"), 10, 32)
@@ -647,10 +797,8 @@ func (h *DeviceHandler) GetDevicePollingPlan(c *gin.Context) {
 		return
 	}
 
-	dev, err := h.deviceService.GetDeviceByID(uint(id))
-	if err != nil {
-		logger.Warn("[DeviceHandler] Device ID %d not found for polling plan: %v", id, err)
-		response.NotFound(c, "Device not found: "+err.Error())
+	dev, ok := h.checkDeviceAccess(c, uint(id))
+	if !ok {
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -25,6 +26,9 @@ const activeAlarmEntityScopeSQL = "(device_id IS NULL OR device_id IN (SELECT id
 
 // AlarmFilterParams defines filtering, search, and pagination criteria for alarms
 type AlarmFilterParams struct {
+	TenantID       uint
+	SiteID         uint
+	AllowedSiteIDs []uint
 	Status         string
 	Severity       string
 	DeviceID       uint
@@ -77,6 +81,24 @@ func (r *AlarmRepository) Create(ctx context.Context, alarm *model.Alarm) error 
 		alarm.TriggeredAt = time.Now().UTC()
 	}
 
+	if (alarm.TenantID == 0 || alarm.SiteID == 0) && alarm.DeviceID != nil && *alarm.DeviceID > 0 {
+		var dev model.Device
+		if err := r.db.WithContext(ctx).Select("id, tenant_id, site_id").First(&dev, *alarm.DeviceID).Error; err == nil {
+			if alarm.TenantID == 0 {
+				alarm.TenantID = dev.TenantID
+			}
+			if alarm.SiteID == 0 {
+				alarm.SiteID = dev.SiteID
+			}
+		}
+	}
+	if alarm.TenantID == 0 {
+		alarm.TenantID = 1
+	}
+	if alarm.SiteID == 0 {
+		alarm.SiteID = 1
+	}
+
 	return r.db.WithContext(ctx).Create(alarm).Error
 }
 
@@ -101,9 +123,30 @@ func (r *AlarmRepository) List(ctx context.Context, params AlarmFilterParams) ([
 	var alarms []model.Alarm
 	var total int64
 
+	scope := tenantctx.FromContext(ctx)
+	if params.TenantID == 0 && scope.TenantID > 0 {
+		params.TenantID = scope.TenantID
+	}
+	if params.SiteID == 0 && scope.SiteID > 0 {
+		params.SiteID = scope.SiteID
+	}
+	if len(params.AllowedSiteIDs) == 0 && len(scope.AllowedSiteIDs) > 0 {
+		params.AllowedSiteIDs = scope.AllowedSiteIDs
+	}
+
 	query := r.db.WithContext(ctx).Model(&model.Alarm{}).
 		Preload("Device").
 		Preload("Parameter")
+
+	if params.TenantID > 0 {
+		query = query.Where("tenant_id = ?", params.TenantID)
+	}
+	if len(params.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", params.AllowedSiteIDs)
+	}
+	if params.SiteID > 0 {
+		query = query.Where("site_id = ?", params.SiteID)
+	}
 
 	if params.Status != "" {
 		st := strings.ToUpper(strings.TrimSpace(params.Status))
@@ -170,12 +213,21 @@ func (r *AlarmRepository) List(ctx context.Context, params AlarmFilterParams) ([
 // GetActive retrieves all active alarms ordered by triggered_at descending
 func (r *AlarmRepository) GetActive(ctx context.Context) ([]model.Alarm, error) {
 	var alarms []model.Alarm
-	err := r.db.WithContext(ctx).
+	scope := tenantctx.FromContext(ctx)
+	q := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("Parameter").
-		Where("status = ? AND "+activeAlarmEntityScopeSQL, model.AlarmActive).
-		Order("triggered_at DESC").
-		Find(&alarms).Error
+		Where("status = ? AND "+activeAlarmEntityScopeSQL, model.AlarmActive)
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("site_id = ?", scope.SiteID)
+	}
+	err := q.Order("triggered_at DESC").Find(&alarms).Error
 	return alarms, err
 }
 
@@ -240,12 +292,21 @@ func (r *AlarmRepository) AcknowledgeWithUser(ctx context.Context, id uint, user
 // GetActiveOrAcked retrieves all alarms currently in ACTIVE or ACKNOWLEDGED state
 func (r *AlarmRepository) GetActiveOrAcked(ctx context.Context) ([]model.Alarm, error) {
 	var alarms []model.Alarm
-	err := r.db.WithContext(ctx).
+	scope := tenantctx.FromContext(ctx)
+	q := r.db.WithContext(ctx).
 		Preload("Device").
 		Preload("Parameter").
-		Where("status IN ? AND "+activeAlarmEntityScopeSQL, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked}).
-		Order("triggered_at DESC").
-		Find(&alarms).Error
+		Where("status IN ? AND "+activeAlarmEntityScopeSQL, []model.AlarmStatus{model.AlarmActive, model.AlarmAcked})
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("site_id = ?", scope.SiteID)
+	}
+	err := q.Order("triggered_at DESC").Find(&alarms).Error
 	return alarms, err
 }
 
@@ -365,6 +426,15 @@ func (r *AlarmRepository) ClearActiveByParameter(ctx context.Context, paramID ui
 }
 
 func (r *AlarmRepository) applyAlarmFilters(query *gorm.DB, params AlarmFilterParams) *gorm.DB {
+	if params.TenantID > 0 {
+		query = query.Where("tenant_id = ?", params.TenantID)
+	}
+	if len(params.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", params.AllowedSiteIDs)
+	}
+	if params.SiteID > 0 {
+		query = query.Where("site_id = ?", params.SiteID)
+	}
 	if params.Status != "" && !strings.EqualFold(strings.TrimSpace(params.Status), "ALL") {
 		st := strings.ToUpper(strings.TrimSpace(params.Status))
 		query = query.Where("status = ?", st)
@@ -435,6 +505,17 @@ func (r *AlarmRepository) PurgeAlarms(ctx context.Context, params AlarmFilterPar
 	type idStatusRow struct {
 		ID     uint              `gorm:"column:id"`
 		Status model.AlarmStatus `gorm:"column:status"`
+	}
+
+	scope := tenantctx.FromContext(ctx)
+	if params.TenantID == 0 && scope.TenantID > 0 {
+		params.TenantID = scope.TenantID
+	}
+	if params.SiteID == 0 && scope.SiteID > 0 {
+		params.SiteID = scope.SiteID
+	}
+	if len(params.AllowedSiteIDs) == 0 && len(scope.AllowedSiteIDs) > 0 {
+		params.AllowedSiteIDs = scope.AllowedSiteIDs
 	}
 
 	var matched []idStatusRow

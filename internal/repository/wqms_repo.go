@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -33,12 +34,31 @@ func NewWQMSRepository(db *gorm.DB) *WQMSRepository {
 	return &WQMSRepository{db: db}
 }
 
+func applyWQMSScope(ctx context.Context, q *gorm.DB) *gorm.DB {
+	scope := tenantctx.FromContext(ctx)
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("(site_id = ? OR site_id = 0)", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("(site_id IN ? OR site_id = 0)", scope.AllowedSiteIDs)
+	}
+	return q
+}
+
 // GetOrCreateStationConfig retrieves or creates the station WQMS configuration (deviceID=0 for unified station).
 func (r *WQMSRepository) GetOrCreateStationConfig(ctx context.Context, deviceID uint) (*model.WQMSStationConfig, error) {
+	scope := tenantctx.FromContext(ctx)
+	tID := scope.WriteTenantID(0)
+	sID := scope.WriteSiteID(0)
+
 	var cfg model.WQMSStationConfig
-	err := r.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&cfg).Error
+	err := r.db.WithContext(ctx).Where("tenant_id = ? AND site_id = ? AND device_id = ?", tID, sID, deviceID).First(&cfg).Error
 	if err == gorm.ErrRecordNotFound {
 		cfg = model.WQMSStationConfig{
+			TenantID:        tID,
+			SiteID:          sID,
 			DeviceID:        deviceID,
 			WaterClass:      model.WaterClass2,
 			IKAWindowDays:   30,
@@ -47,7 +67,7 @@ func (r *WQMSRepository) GetOrCreateStationConfig(ctx context.Context, deviceID 
 		}
 		if createErr := r.db.WithContext(ctx).Create(&cfg).Error; createErr != nil {
 			// Handle concurrent insert race cleanly
-			_ = r.db.WithContext(ctx).Where("device_id = ?", deviceID).First(&cfg).Error
+			_ = r.db.WithContext(ctx).Where("tenant_id = ? AND site_id = ? AND device_id = ?", tID, sID, deviceID).First(&cfg).Error
 		}
 		return &cfg, nil
 	}
@@ -59,8 +79,15 @@ func (r *WQMSRepository) GetOrCreateStationConfig(ctx context.Context, deviceID 
 
 // SaveStationConfig updates or creates the station WQMS configuration.
 func (r *WQMSRepository) SaveStationConfig(ctx context.Context, cfg *model.WQMSStationConfig) error {
+	scope := tenantctx.FromContext(ctx)
+	if cfg.TenantID == 0 {
+		cfg.TenantID = scope.WriteTenantID(0)
+	}
+	if cfg.SiteID == 0 {
+		cfg.SiteID = scope.WriteSiteID(0)
+	}
 	var existing model.WQMSStationConfig
-	err := r.db.WithContext(ctx).Where("device_id = ?", cfg.DeviceID).First(&existing).Error
+	err := r.db.WithContext(ctx).Where("tenant_id = ? AND site_id = ? AND device_id = ?", cfg.TenantID, cfg.SiteID, cfg.DeviceID).First(&existing).Error
 	if err == nil {
 		cfg.ID = existing.ID
 		cfg.CreatedAt = existing.CreatedAt
@@ -74,10 +101,17 @@ func (r *WQMSRepository) UpsertCalculationResult(ctx context.Context, res *model
 	if res.CalculationMode == "" {
 		res.CalculationMode = model.CalculationModeRegulatory
 	}
+	scope := tenantctx.FromContext(ctx)
+	if res.TenantID == 0 {
+		res.TenantID = scope.WriteTenantID(0)
+	}
+	if res.SiteID == 0 {
+		res.SiteID = scope.WriteSiteID(0)
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing model.WQMSCalculationResult
-		err := tx.Where("device_id = ? AND period_start = ? AND period_end = ? AND calculation_mode = ?",
-			res.DeviceID, res.PeriodStart, res.PeriodEnd, res.CalculationMode).First(&existing).Error
+		err := tx.Where("tenant_id = ? AND site_id = ? AND device_id = ? AND period_start = ? AND period_end = ? AND calculation_mode = ?",
+			res.TenantID, res.SiteID, res.DeviceID, res.PeriodStart, res.PeriodEnd, res.CalculationMode).First(&existing).Error
 
 		if err == nil {
 			res.ID = existing.ID
@@ -114,7 +148,7 @@ func (r *WQMSRepository) UpsertCalculationResult(ctx context.Context, res *model
 // GetLatestByDeviceID retrieves the latest WQMS IP calculation result for a station/device.
 func (r *WQMSRepository) GetLatestByDeviceID(ctx context.Context, deviceID uint, mode string) (*model.WQMSCalculationResult, error) {
 	var res model.WQMSCalculationResult
-	query := r.db.WithContext(ctx).
+	query := applyWQMSScope(ctx, r.db.WithContext(ctx)).
 		Preload("Device").
 		Preload("ParameterResults").
 		Preload("ParameterResults.Parameter")
@@ -150,7 +184,7 @@ func (r *WQMSRepository) GetTrend(ctx context.Context, deviceID uint, since time
 		limit = 720
 	}
 	var list []model.WQMSCalculationResult
-	q := r.db.WithContext(ctx).
+	q := applyWQMSScope(ctx, r.db.WithContext(ctx)).
 		Preload("ParameterResults").
 		Where("period_end >= ?", since.UTC())
 	if deviceID > 0 {
@@ -172,7 +206,7 @@ func (r *WQMSRepository) GetHistory(ctx context.Context, filter WQMSHistoryFilte
 		filter.PageSize = 25
 	}
 
-	q := r.db.WithContext(ctx).Model(&model.WQMSCalculationResult{})
+	q := applyWQMSScope(ctx, r.db.WithContext(ctx).Model(&model.WQMSCalculationResult{}))
 	if filter.DeviceID > 0 {
 		q = q.Where("device_id = ?", filter.DeviceID)
 	}
@@ -219,7 +253,7 @@ func (r *WQMSRepository) GetHistory(ctx context.Context, filter WQMSHistoryFilte
 // GetResultsForIKAWindow retrieves recent valid IP results within the lookback window to compute IKA.
 func (r *WQMSRepository) GetResultsForIKAWindow(ctx context.Context, deviceID uint, since time.Time, mode model.ISPUCalculationMode) ([]model.WQMSCalculationResult, error) {
 	var records []model.WQMSCalculationResult
-	q := r.db.WithContext(ctx).
+	q := applyWQMSScope(ctx, r.db.WithContext(ctx)).
 		Where("period_end >= ? AND calculation_mode = ? AND overall_category != ?",
 			since.UTC(), mode, model.WQMSCategoryUnavailable)
 	if deviceID > 0 {
@@ -232,7 +266,7 @@ func (r *WQMSRepository) GetResultsForIKAWindow(ctx context.Context, deviceID ui
 // GetMappingsByDeviceID retrieves WQMS parameter mappings (deviceID=0 returns all station mappings).
 func (r *WQMSRepository) GetMappingsByDeviceID(ctx context.Context, deviceID uint) ([]model.WQMSParameterMapping, error) {
 	var mappings []model.WQMSParameterMapping
-	q := r.db.WithContext(ctx).Preload("Device").Preload("Parameter")
+	q := applyWQMSScope(ctx, r.db.WithContext(ctx)).Preload("Device").Preload("Parameter")
 	if deviceID > 0 {
 		q = q.Where("device_id = ? OR source_type = 'LAB'", deviceID)
 	}
@@ -251,6 +285,13 @@ func (r *WQMSRepository) GetMappingByID(ctx context.Context, id uint) (*model.WQ
 
 // SaveMapping creates or updates a WQMS parameter mapping.
 func (r *WQMSRepository) SaveMapping(ctx context.Context, m *model.WQMSParameterMapping) error {
+	scope := tenantctx.FromContext(ctx)
+	if m.TenantID == 0 {
+		m.TenantID = scope.WriteTenantID(0)
+	}
+	if m.SiteID == 0 {
+		m.SiteID = scope.WriteSiteID(0)
+	}
 	if m.ID > 0 {
 		return r.db.WithContext(ctx).Save(m).Error
 	}

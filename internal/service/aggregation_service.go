@@ -17,6 +17,7 @@ import (
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 )
 
 // Request and Response DTOs
@@ -88,6 +89,8 @@ type DownsampledHistoryResponse struct {
 
 // AggregationCompletedEvent describes a completed, persisted aggregation bucket.
 type AggregationCompletedEvent struct {
+	TenantID        uint      `json:"tenant_id,omitempty"`
+	SiteID          uint      `json:"site_id,omitempty"`
 	DeviceID        uint      `json:"device_id"`
 	ParameterID     uint      `json:"parameter_id"`
 	DefinitionID    uint      `json:"definition_id"`
@@ -275,6 +278,23 @@ func (s *AggregationService) CreateDefinition(ctx context.Context, req *CreateAg
 		return nil, errors.New("device_id is required")
 	}
 
+	tenantID := uint(1)
+	siteID := uint(1)
+	scope := tenantctx.FromContext(ctx)
+	if s.devRepo != nil {
+		if dev, err := s.devRepo.GetByID(req.DeviceID); err == nil && dev != nil {
+			if scope.Authenticated && !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, errors.New("access denied: device belongs to another tenant or restricted station")
+			}
+			if dev.TenantID > 0 {
+				tenantID = dev.TenantID
+			}
+			if dev.SiteID > 0 {
+				siteID = dev.SiteID
+			}
+		}
+	}
+
 	// Handle batch creation for All Parameters
 	if req.AllParameters || req.ParameterID == 0 {
 		if s.devRepo == nil {
@@ -345,6 +365,8 @@ func (s *AggregationService) CreateDefinition(ctx context.Context, req *CreateAg
 	}
 
 	def := &model.AggregationDefinition{
+		TenantID:           tenantID,
+		SiteID:             siteID,
 		Name:               strings.TrimSpace(req.Name),
 		Code:               code,
 		SourceType:         req.SourceType,
@@ -391,6 +413,9 @@ func (s *AggregationService) UpdateDefinition(ctx context.Context, id uint, req 
 	def, err := s.repo.GetDefinitionByID(ctx, id)
 	if err != nil {
 		return nil, errors.New("aggregation definition not found")
+	}
+	if scope := tenantctx.FromContext(ctx); scope.Authenticated && !scope.CanAccessRecord(def.TenantID, def.SiteID) {
+		return nil, errors.New("access denied: aggregation definition belongs to another tenant")
 	}
 
 	oldState, _ := json.Marshal(def)
@@ -454,6 +479,9 @@ func (s *AggregationService) DeleteDefinition(ctx context.Context, id uint, user
 	if err != nil {
 		return errors.New("aggregation definition not found")
 	}
+	if scope := tenantctx.FromContext(ctx); scope.Authenticated && !scope.CanAccessRecord(def.TenantID, def.SiteID) {
+		return errors.New("access denied: aggregation definition belongs to another tenant")
+	}
 
 	if err := s.repo.DeleteDefinition(ctx, id); err != nil {
 		return fmt.Errorf("failed to delete aggregation definition: %w", err)
@@ -480,7 +508,14 @@ func (s *AggregationService) DeleteDefinition(ctx context.Context, id uint, user
 
 // GetDefinition retrieves a single definition
 func (s *AggregationService) GetDefinition(ctx context.Context, id uint) (*model.AggregationDefinition, error) {
-	return s.repo.GetDefinitionByID(ctx, id)
+	def, err := s.repo.GetDefinitionByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if scope := tenantctx.FromContext(ctx); scope.Authenticated && !scope.CanAccessRecord(def.TenantID, def.SiteID) {
+		return nil, errors.New("access denied: aggregation definition belongs to another tenant")
+	}
+	return def, nil
 }
 
 // ListDefinitions lists definitions for a device or all devices
@@ -495,6 +530,10 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 	if err != nil {
 		s.calcMu.Unlock()
 		return nil, fmt.Errorf("definition %d not found: %w", defID, err)
+	}
+	if scope := tenantctx.FromContext(ctx); scope.Authenticated && !scope.CanAccessRecord(def.TenantID, def.SiteID) {
+		s.calcMu.Unlock()
+		return nil, errors.New("access denied: aggregation definition belongs to another tenant")
 	}
 
 	bucket := aggregation.CalculateBucket(bucketStart, def.IntervalSeconds, def.Timezone)
@@ -515,6 +554,8 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 		s.hub.Broadcast(websocket.WSMessage{
 			Type:      "aggregation.result.updated",
 			Timestamp: time.Now().UTC(),
+			TenantID:  result.TenantID,
+			SiteID:    result.SiteID,
 			Data:      result,
 		})
 	}
@@ -524,6 +565,8 @@ func (s *AggregationService) CalculateBucket(ctx context.Context, defID uint, bu
 
 	if s.onAggregationCompleted != nil {
 		event := AggregationCompletedEvent{
+			TenantID:        result.TenantID,
+			SiteID:          result.SiteID,
 			DeviceID:        def.DeviceID,
 			ParameterID:     def.ParameterID,
 			DefinitionID:    def.ID,
@@ -614,11 +657,15 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 			s.hub.Broadcast(websocket.WSMessage{
 				Type:      "aggregation.result.updated",
 				Timestamp: time.Now().UTC(),
+				TenantID:  result.TenantID,
+				SiteID:    result.SiteID,
 				Data:      result,
 			})
 		}
 		if s.onAggregationCompleted != nil {
 			aggEvents = append(aggEvents, AggregationCompletedEvent{
+				TenantID:        result.TenantID,
+				SiteID:          result.SiteID,
 				DeviceID:        def.DeviceID,
 				ParameterID:     def.ParameterID,
 				DefinitionID:    def.ID,
@@ -654,6 +701,8 @@ func (s *AggregationService) processPendingBucketsInternal(ctx context.Context, 
 					s.hub.Broadcast(websocket.WSMessage{
 						Type:      "aggregation.result.updated",
 						Timestamp: time.Now().UTC(),
+						TenantID:  activeResult.TenantID,
+						SiteID:    activeResult.SiteID,
 						Data:      activeResult,
 					})
 				}
@@ -875,6 +924,13 @@ func (s *AggregationService) GetDownsampledHistory(
 ) (*DownsampledHistoryResponse, error) {
 	if endTime.Before(startTime) {
 		return nil, errors.New("end_time must be after start_time")
+	}
+	if scope := tenantctx.FromContext(ctx); scope.Authenticated && s.devRepo != nil {
+		if dev, err := s.devRepo.GetByID(deviceID); err == nil && dev != nil {
+			if !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, errors.New("access denied: device belongs to another tenant or restricted station")
+			}
+		}
 	}
 
 	duration := endTime.Sub(startTime)
@@ -1101,6 +1157,15 @@ func (s *AggregationService) GetResultSamples(ctx context.Context, resultID uint
 		if err != nil {
 			return nil, fmt.Errorf("aggregation result %d not found: %w", resultID, err)
 		}
+		if scope := tenantctx.FromContext(ctx); scope.Authenticated && !scope.CanAccessRecord(res.TenantID, res.SiteID) {
+			return nil, errors.New("access denied: aggregation result belongs to another tenant")
+		}
+	} else if deviceID > 0 && s.devRepo != nil {
+		if scope := tenantctx.FromContext(ctx); scope.Authenticated {
+			if dev, dErr := s.devRepo.GetByID(deviceID); dErr == nil && dev != nil && !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+				return nil, errors.New("access denied: device belongs to another tenant")
+			}
+		}
 	}
 
 	var dID, pID uint
@@ -1279,11 +1344,15 @@ func (s *AggregationService) RecalculateRangeForDevice(
 			s.hub.Broadcast(websocket.WSMessage{
 				Type:      "aggregation.result.updated",
 				Timestamp: now,
+				TenantID:  result.TenantID,
+				SiteID:    result.SiteID,
 				Data:      result,
 			})
 		}
 		if s.onAggregationCompleted != nil && !curr.PeriodEnd.After(now) {
 			aggEvents = append(aggEvents, AggregationCompletedEvent{
+				TenantID:        result.TenantID,
+				SiteID:          result.SiteID,
 				DeviceID:        def.DeviceID,
 				ParameterID:     def.ParameterID,
 				DefinitionID:    def.ID,

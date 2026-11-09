@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"datalogger/internal/database"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 )
@@ -25,6 +26,7 @@ func NewCategoryService(categoryRepo *repository.CategoryRepository, systemRepo 
 }
 
 type CreateCategoryRequest struct {
+	TenantID          uint   `json:"tenant_id"`
 	Code              string `json:"code"`
 	Name              string `json:"name"`
 	Description       string `json:"description"`
@@ -65,6 +67,17 @@ func (s *CategoryService) ListCategoriesWithDomain(enabledOnly bool, domain stri
 	return s.categoryRepo.ListWithDomain(enabledOnly, domain)
 }
 
+func (s *CategoryService) ListCategoriesForTenant(tenantID uint, enabledOnly bool, domain string) ([]model.ParameterCategory, error) {
+	if tenantID > 0 && s.categoryRepo.DB() != nil {
+		var total int64
+		_ = s.categoryRepo.DB().Model(&model.ParameterCategory{}).Where("tenant_id = ? AND deleted_at IS NULL", tenantID).Count(&total).Error
+		if total == 0 {
+			database.SeedTenantDefaultCategories(s.categoryRepo.DB(), tenantID)
+		}
+	}
+	return s.categoryRepo.ListForTenant(tenantID, enabledOnly, domain)
+}
+
 func (s *CategoryService) GetCategory(id uint) (*model.ParameterCategory, error) {
 	return s.categoryRepo.GetByID(id)
 }
@@ -82,8 +95,13 @@ func (s *CategoryService) CreateCategory(req *CreateCategoryRequest, actor, ip, 
 		return nil, errors.New("category name is required")
 	}
 
-	// Check unique code
-	if existing, _ := s.categoryRepo.GetByCode(code); existing != nil {
+	tenantID := req.TenantID
+	if tenantID == 0 {
+		tenantID = 1
+	}
+
+	// Check unique code within tenant
+	if existing, _ := s.categoryRepo.GetByCodeInTenant(tenantID, code); existing != nil {
 		return nil, fmt.Errorf("category with code '%s' already exists", code)
 	}
 
@@ -113,6 +131,7 @@ func (s *CategoryService) CreateCategory(req *CreateCategoryRequest, actor, ip, 
 	}
 
 	cat := &model.ParameterCategory{
+		TenantID:          tenantID,
 		Code:              code,
 		Name:              name,
 		Description:       strings.TrimSpace(req.Description),
@@ -149,12 +168,12 @@ func (s *CategoryService) UpdateCategory(id uint, req *UpdateCategoryRequest, ac
 			return nil, errors.New("category code must contain only letters, numbers, underscores, and hyphens")
 		}
 		if !strings.EqualFold(code, cat.Code) {
-			if existing, _ := s.categoryRepo.GetByCode(code); existing != nil && existing.ID != cat.ID {
+			if existing, _ := s.categoryRepo.GetByCodeInTenant(cat.TenantID, code); existing != nil && existing.ID != cat.ID {
 				return nil, fmt.Errorf("category with code '%s' already exists", code)
 			}
 		}
 		if code != cat.Code {
-			s.categoryRepo.PurgeSoftDeletedByCode(code, cat.ID)
+			s.categoryRepo.PurgeSoftDeletedByCode(code, cat.ID, cat.TenantID)
 			cat.Code = code
 		}
 	}

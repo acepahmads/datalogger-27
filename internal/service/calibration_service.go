@@ -12,6 +12,7 @@ import (
 	"datalogger/internal/config"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/pkg/tenantctx"
 )
 
 // CalibratableParameterDTO enriches a parameter with parent device info, active calibration curve, and live telemetry
@@ -112,6 +113,7 @@ type CalibrationService struct {
 	deviceRepo         *repository.DeviceRepository
 	systemRepo         *repository.SystemRepository
 	telemetryService   *TelemetryService
+	tenantService      *TenantService
 	onDeviceReload     func(deviceID uint)
 	onDemandPoll       OnDemandParameterPollFunc
 	onClearParamAlarms func(ctx context.Context, deviceID, paramID uint)
@@ -131,6 +133,10 @@ func NewCalibrationService(
 	}
 }
 
+func (s *CalibrationService) SetTenantService(ts *TenantService) {
+	s.tenantService = ts
+}
+
 func (s *CalibrationService) SetOnDeviceReload(fn func(deviceID uint)) {
 	s.onDeviceReload = fn
 }
@@ -141,6 +147,30 @@ func (s *CalibrationService) SetOnDemandPoll(fn OnDemandParameterPollFunc) {
 
 func (s *CalibrationService) SetOnClearParamAlarms(fn func(ctx context.Context, deviceID, paramID uint)) {
 	s.onClearParamAlarms = fn
+}
+
+func (s *CalibrationService) resolveStationDomainCtx(ctx context.Context) string {
+	scope := tenantctx.FromContext(ctx)
+	if s.tenantService != nil && (scope.TenantID > 0 || scope.SiteID > 0) {
+		if site, err := s.tenantService.ResolveEffectiveSite(scope); err == nil && site != nil {
+			sd := strings.TrimSpace(site.MonitoringDomain)
+			if sd != "" && !strings.EqualFold(sd, "CUSTOM") {
+				return sd
+			}
+		}
+	}
+	return s.resolveStationDomain()
+}
+
+func (s *CalibrationService) checkDeviceScope(ctx context.Context, dev *model.Device) error {
+	if dev == nil {
+		return nil
+	}
+	scope := tenantctx.FromContext(ctx)
+	if scope.Authenticated && !scope.CanAccessRecord(dev.TenantID, dev.SiteID) {
+		return errors.New("akses ditolak: parameter milik tenant atau stasiun lain")
+	}
+	return nil
 }
 
 func (s *CalibrationService) resolveStationDomain() string {
@@ -292,7 +322,7 @@ func (s *CalibrationService) ListCalibratableParameters(ctx context.Context, dev
 	if err != nil {
 		return nil, "", err
 	}
-	stationDomain := s.resolveStationDomain()
+	stationDomain := s.resolveStationDomainCtx(ctx)
 	normStation := model.NormalizeCalibrationDomain(stationDomain)
 	if normStation == "" {
 		normStation = model.CalibrationDomainSparing
@@ -319,6 +349,12 @@ func (s *CalibrationService) GetLiveParameterReading(ctx context.Context, paramI
 	param, dev, err := s.repo.GetParameterWithDevice(ctx, paramID)
 	if err != nil {
 		return nil, errors.New("parameter tidak ditemukan")
+	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, err
+	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, err
 	}
 
 	res := &LiveCalibrationReadingDTO{
@@ -382,6 +418,9 @@ func (s *CalibrationService) UpdateParameterConfig(
 	if err != nil {
 		return nil, errors.New("parameter tidak ditemukan")
 	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, err
+	}
 
 	updates := map[string]interface{}{}
 	if req.CalMinR2 != nil {
@@ -428,6 +467,9 @@ func (s *CalibrationService) ToggleCalibrationSession(
 	param, dev, err := s.repo.GetParameterWithDevice(ctx, paramID)
 	if err != nil {
 		return nil, errors.New("parameter tidak ditemukan")
+	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -493,6 +535,9 @@ func (s *CalibrationService) ApplyCalibration(
 	param, dev, err := s.repo.GetParameterWithDevice(ctx, paramID)
 	if err != nil {
 		return nil, nil, errors.New("parameter tidak ditemukan")
+	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, nil, err
 	}
 	if param.IsDiscreteStatus() {
 		return nil, nil, errors.New("parameter diskrit/status tidak mendukung kalibrasi regresi")
@@ -599,6 +644,8 @@ func (s *CalibrationService) ApplyCalibration(
 	param.CalUpdatedBy = username
 
 	logEntry := &model.SensorCalibrationLog{
+		TenantID:               dev.TenantID,
+		SiteID:                 dev.SiteID,
 		DeviceID:               param.DeviceID,
 		DeviceCode:             dev.DeviceCode,
 		DeviceName:             dev.DeviceName,
@@ -669,6 +716,9 @@ func (s *CalibrationService) ResetCalibration(
 	if err != nil {
 		return nil, nil, errors.New("parameter tidak ditemukan")
 	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, nil, err
+	}
 
 	stationDomain := s.resolveStationDomain()
 	effDomain := model.InferCalibrationDomain(param.CalibrationDomain, param.ParameterCode, param.ParameterName, param.Unit, stationDomain)
@@ -726,6 +776,8 @@ func (s *CalibrationService) ResetCalibration(
 	param.CalUpdatedBy = username
 
 	logEntry := &model.SensorCalibrationLog{
+		TenantID:               dev.TenantID,
+		SiteID:                 dev.SiteID,
 		DeviceID:               param.DeviceID,
 		DeviceCode:             dev.DeviceCode,
 		DeviceName:             dev.DeviceName,
@@ -787,10 +839,17 @@ func (s *CalibrationService) RollbackCalibration(
 	if err != nil {
 		return nil, nil, errors.New("riwayat log kalibrasi tidak ditemukan")
 	}
+	scope := tenantctx.FromContext(ctx)
+	if scope.Authenticated && !scope.CanAccessRecord(targetLog.TenantID, targetLog.SiteID) {
+		return nil, nil, errors.New("akses ditolak: log kalibrasi milik tenant atau stasiun lain")
+	}
 
 	param, dev, err := s.repo.GetParameterWithDevice(ctx, targetLog.ParameterID)
 	if err != nil {
 		return nil, nil, errors.New("parameter target rollback tidak ditemukan")
+	}
+	if err := s.checkDeviceScope(ctx, dev); err != nil {
+		return nil, nil, err
 	}
 
 	prevEnabled := param.CalibrationEnabled
@@ -893,6 +952,8 @@ func (s *CalibrationService) RollbackCalibration(
 	newEq := param.CalibrationEquation()
 
 	rbLog := &model.SensorCalibrationLog{
+		TenantID:               dev.TenantID,
+		SiteID:                 dev.SiteID,
 		DeviceID:               param.DeviceID,
 		DeviceCode:             dev.DeviceCode,
 		DeviceName:             dev.DeviceName,

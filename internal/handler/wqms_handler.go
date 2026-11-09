@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"datalogger/internal/model"
@@ -152,6 +153,10 @@ func (h *WQMSHandler) GetDetail(c *gin.Context) {
 	}
 	rec, err := h.wqmsService.GetCalculationDetail(c.Request.Context(), uint(id))
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "WQMS calculation record not found")
 		return
 	}
@@ -168,6 +173,10 @@ func (h *WQMSHandler) GetMappings(c *gin.Context) {
 	}
 	mappings, err := h.wqmsService.GetMappings(c.Request.Context(), deviceID)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to get WQMS mappings: "+err.Error())
 		return
 	}
@@ -192,6 +201,10 @@ func (h *WQMSHandler) SaveMapping(c *gin.Context) {
 		}
 	}
 	if err := h.wqmsService.SaveMapping(c.Request.Context(), &m, actor, c.ClientIP()); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to save WQMS mapping: "+err.Error())
 		return
 	}
@@ -212,6 +225,10 @@ func (h *WQMSHandler) DeleteMapping(c *gin.Context, ) {
 		}
 	}
 	if err := h.wqmsService.DeleteMapping(c.Request.Context(), uint(id), actor, c.ClientIP()); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to delete WQMS mapping: "+err.Error())
 		return
 	}
@@ -239,6 +256,10 @@ func (h *WQMSHandler) Recalculate(c *gin.Context) {
 	}
 	bundle, err := h.wqmsService.Recalculate(c.Request.Context(), req.DeviceID, targetTime, actor, c.ClientIP())
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "failed to recalculate WQMS IP & IKA: "+err.Error())
 		return
 	}

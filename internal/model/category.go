@@ -9,7 +9,8 @@ import (
 // ParameterCategory represents a configurable domain category for telemetry parameters (e.g. Gas & Pollutants, Meteorology, Water Quality)
 type ParameterCategory struct {
 	ID                uint           `gorm:"primaryKey" json:"id"`
-	Code              string         `gorm:"size:64;uniqueIndex;not null" json:"code"`
+	TenantID          uint           `gorm:"not null;default:1;index;uniqueIndex:idx_tenant_cat_code" json:"tenant_id"`
+	Code              string         `gorm:"size:64;uniqueIndex:idx_tenant_cat_code;not null" json:"code"`
 	Name              string         `gorm:"size:128;not null" json:"name"`
 	Description       string         `gorm:"size:255" json:"description"`
 	IconKey           string         `gorm:"size:64;default:'activity'" json:"icon_key"`
@@ -22,6 +23,13 @@ type ParameterCategory struct {
 	CreatedAt         time.Time      `json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
 	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (c *ParameterCategory) BeforeSave(tx *gorm.DB) error {
+	if c.TenantID == 0 {
+		c.TenantID = 1
+	}
+	return nil
 }
 
 // Monitoring domain constants

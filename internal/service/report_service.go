@@ -12,6 +12,7 @@ import (
 
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -154,8 +155,9 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 		repType = "COMPREHENSIVE"
 	}
 
-	// 1. Fetch devices
-	allDevices, err := s.systemRepo.GetAllDevices()
+	// 1. Fetch devices within caller's tenant/site scope
+	scope := tenantctx.FromContext(ctx)
+	allDevices, err := s.systemRepo.GetAllDevicesScoped(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -231,8 +233,13 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 	for _, d := range targetDevices {
 		targetDevIDs = append(targetDevIDs, d.ID)
 	}
+	if scope.TenantID > 0 {
+		rawAggQuery = rawAggQuery.Where("tenant_id = ?", scope.TenantID)
+	}
 	if len(targetDevIDs) > 0 {
 		rawAggQuery = rawAggQuery.Where("device_id IN ?", targetDevIDs)
+	} else if scope.TenantID > 0 || scope.SiteID > 0 || len(scope.AllowedSiteIDs) > 0 || len(req.DeviceIDs) > 0 {
+		rawAggQuery = rawAggQuery.Where("1 = 0")
 	}
 	if len(req.ParameterIDs) > 0 {
 		rawAggQuery = rawAggQuery.Where("parameter_id IN ?", req.ParameterIDs)
@@ -258,8 +265,13 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 	procAggQuery := s.db.WithContext(ctx).Table("processed_data").
 		Select("parameter_id, COUNT(*) as total_samples, MIN(scaled_value) as min_val, MAX(scaled_value) as max_val, AVG(scaled_value) as avg_val").
 		Where("timestamp >= ? AND timestamp <= ?", req.StartTime, req.EndTime)
+	if scope.TenantID > 0 {
+		procAggQuery = procAggQuery.Where("tenant_id = ?", scope.TenantID)
+	}
 	if len(targetDevIDs) > 0 {
 		procAggQuery = procAggQuery.Where("device_id IN ?", targetDevIDs)
+	} else if scope.TenantID > 0 || scope.SiteID > 0 || len(scope.AllowedSiteIDs) > 0 || len(req.DeviceIDs) > 0 {
+		procAggQuery = procAggQuery.Where("1 = 0")
 	}
 	if len(req.ParameterIDs) > 0 {
 		procAggQuery = procAggQuery.Where("parameter_id IN ?", req.ParameterIDs)
@@ -355,8 +367,18 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 	var alarms []model.Alarm
 	alarmQuery := s.db.WithContext(ctx).Preload("Device").
 		Where("triggered_at >= ? AND triggered_at <= ?", req.StartTime, req.EndTime)
+	if scope.TenantID > 0 {
+		alarmQuery = alarmQuery.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		alarmQuery = alarmQuery.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		alarmQuery = alarmQuery.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
 	if len(targetDevIDs) > 0 {
 		alarmQuery = alarmQuery.Where("device_id IN ?", targetDevIDs)
+	} else if len(req.DeviceIDs) > 0 {
+		alarmQuery = alarmQuery.Where("1 = 0")
 	}
 	_ = alarmQuery.Order("triggered_at DESC").Limit(100).Find(&alarms).Error
 

@@ -8,12 +8,71 @@
         DL
       </div>
       <div class="flex items-center space-x-2">
-        <h1 class="text-xs font-bold tracking-tight text-slate-900 dark:text-white uppercase font-sans">
+        <h1 class="text-xs font-bold tracking-tight text-slate-900 dark:text-white uppercase font-sans hidden md:block">
           {{ $t('header.appTitle') }}
         </h1>
-        <span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-3xs px-1.5 py-0.5 rounded-full font-mono font-medium">
+        <span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-3xs px-1.5 py-0.5 rounded-full font-mono font-medium hidden lg:inline-block">
           {{ $t('header.version') }}
         </span>
+      </div>
+
+      <!-- Multi-Tenant & Multi-Site Workspace Switcher -->
+      <div class="flex items-center gap-1.5 pl-2 ml-1 border-l border-slate-200 dark:border-slate-800">
+        <!-- SUPERADMIN Global / Tenant Switcher -->
+        <div v-if="isSuperAdmin" class="flex items-center gap-1">
+          <select
+            id="header-tenant-switcher"
+            :value="activeTenantId"
+            @change="onHeaderTenantChange($event.target.value)"
+            class="h-7 max-w-[190px] sm:max-w-[230px] px-2 rounded-lg text-2xs font-semibold bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer truncate"
+            title="Pilih Workspace Tenant (SUPERADMIN Global Switcher)"
+          >
+            <option :value="0">🌐 Semua Tenant (Global)</option>
+            <option v-for="t in availableTenants" :key="'hdr-t-' + t.id" :value="t.id">
+              🏢 {{ t.name }} ({{ t.code }})
+            </option>
+          </select>
+        </div>
+
+        <!-- Scoped Tenant Badge for Non-Superadmin -->
+        <div
+          v-else-if="currentTenantLabel"
+          class="h-7 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/70 flex items-center gap-1.5 text-2xs font-semibold text-slate-700 dark:text-slate-200 max-w-[180px] truncate"
+          :title="'Organisasi Tenant: ' + currentTenantLabel"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+          <span class="truncate">{{ currentTenantLabel }}</span>
+        </div>
+
+        <!-- Site / Station Switcher -->
+        <select
+          v-if="availableSites.length > 0 && (!isSuperAdmin || activeTenantId > 0)"
+          id="header-site-switcher"
+          :value="activeSiteId"
+          @change="onHeaderSiteChange($event.target.value)"
+          class="h-7 max-w-[165px] sm:max-w-[215px] px-2 rounded-lg text-2xs font-semibold bg-cyan-50 hover:bg-cyan-100/80 dark:bg-cyan-950/40 dark:hover:bg-cyan-900/50 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer truncate"
+          title="Filter Stasiun / Titik Pantau"
+        >
+          <option :value="0">📍 Semua Stasiun ({{ availableSites.length }})</option>
+          <option v-for="s in availableSites" :key="'hdr-s-' + s.id" :value="s.id">
+            📍 {{ s.name }} [{{ s.monitoring_domain || 'AQMS' }}]
+          </option>
+        </select>
+
+        <!-- Quick Manage Tenants/Sites Shortcut for SUPERADMIN & ADMIN -->
+        <router-link
+          v-if="isSuperAdmin || isAdmin"
+          to="/administration/tenants"
+          class="hidden sm:flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs"
+          :class="$route.path.startsWith('/administration/tenants')
+            ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/50'
+            : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60'"
+          title="Kelola Tenant, Stasiun & Edge Ingest API Keys"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
+          </svg>
+        </router-link>
       </div>
     </div>
 
@@ -352,6 +411,12 @@
               {{ userRole }}
             </span>
           </div>
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80">
+            <span class="text-slate-500">Workspace / Tenant</span>
+            <span class="font-semibold text-slate-900 dark:text-white">
+              {{ isSuperAdmin ? (activeTenant ? activeTenant.name + ' (Scoped)' : 'Global Platform (All Tenants)') : (currentTenantLabel || 'Default Organization') }}
+            </span>
+          </div>
         </div>
 
         <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
@@ -512,8 +577,31 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isAdmin() {
+      return this.userRole === 'ADMIN';
+    },
     isOperator() {
       return this.userRole === 'OPERATOR';
+    },
+    availableTenants() {
+      return (this.$store && this.$store.getters && this.$store.getters.availableTenants) || [];
+    },
+    availableSites() {
+      return (this.$store && this.$store.getters && this.$store.getters.availableSites) || [];
+    },
+    activeTenantId() {
+      return Number((this.$store && this.$store.state && this.$store.state.activeTenantId) || 0);
+    },
+    activeSiteId() {
+      return Number((this.$store && this.$store.state && this.$store.state.activeSiteId) || 0);
+    },
+    activeTenant() {
+      return (this.$store && this.$store.getters && this.$store.getters.activeTenant) || null;
+    },
+    currentTenantLabel() {
+      if (this.activeTenant && this.activeTenant.name) return this.activeTenant.name;
+      if (this.availableTenants.length === 1 && this.availableTenants[0].name) return this.availableTenants[0].name;
+      return (this.user && this.user.tenant_name) || '';
     },
     roleBadgeClass() {
       if (this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR') {
@@ -608,6 +696,14 @@ export default {
     document.removeEventListener('click', this.handleOutsideClick);
   },
   methods: {
+    async onHeaderTenantChange(val) {
+      const nextId = Number(val) || 0;
+      await this.$store.dispatch('setActiveTenant', nextId);
+    },
+    async onHeaderSiteChange(val) {
+      const nextId = Number(val) || 0;
+      await this.$store.dispatch('setActiveSite', nextId);
+    },
     toggleSidebarAutoHide() {
       this.$store.dispatch('toggleSidebarAutoHide');
       this.$emit('toggle-autohide', this.sidebarAutoHide);

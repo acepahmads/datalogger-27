@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -58,6 +59,8 @@ type OutboundRepository interface {
 
 // QueuePurgeFilter defines criteria for manual bulk removal of queue items and delivery logs
 type QueuePurgeFilter struct {
+	TenantID      uint       `json:"tenant_id,omitempty"`
+	SiteID        uint       `json:"site_id,omitempty"`
 	DestinationID *uint      `json:"destination_id,omitempty"`
 	Status        string     `json:"status,omitempty"`
 	OlderThan     *time.Time `json:"older_than,omitempty"`
@@ -66,6 +69,9 @@ type QueuePurgeFilter struct {
 
 // QueueFilter provides filtering and pagination options for queue listing
 type QueueFilter struct {
+	TenantID        uint
+	SiteID          uint
+	AllowedSiteIDs  []uint
 	DestinationID   *uint
 	DeviceID        *uint
 	Status          string
@@ -91,8 +97,17 @@ func NewOutboundRepository(db *gorm.DB) OutboundRepository {
 
 // GetAllDestinations retrieves all outbound destinations with their payload configs and device profiles
 func (r *outboundRepository) GetAllDestinations(ctx context.Context, enabledOnly bool) ([]model.OutputDestination, error) {
+	scope := tenantctx.FromContext(ctx)
 	var destinations []model.OutputDestination
-	query := r.db.WithContext(ctx).Preload("PayloadConfig").Preload("Device")
+	query := r.db.WithContext(ctx).Preload("PayloadConfig").Preload("Device").Preload("Site")
+	if scope.TenantID > 0 {
+		query = query.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		query = query.Where("(site_id IS NULL OR site_id = ?)", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		query = query.Where("(site_id IS NULL OR site_id IN ?)", scope.AllowedSiteIDs)
+	}
 	if enabledOnly {
 		query = query.Where("enabled = ?", true)
 	}
@@ -106,6 +121,7 @@ func (r *outboundRepository) GetDestinationByID(ctx context.Context, id uint) (*
 	err := r.db.WithContext(ctx).
 		Preload("PayloadConfig").
 		Preload("Device").
+		Preload("Site").
 		Where("id = ?", id).
 		First(&dest).Error
 	if err != nil {
@@ -116,12 +132,15 @@ func (r *outboundRepository) GetDestinationByID(ctx context.Context, id uint) (*
 
 // CreateDestination persists a new outbound destination
 func (r *outboundRepository) CreateDestination(ctx context.Context, dest *model.OutputDestination) error {
-	return r.db.WithContext(ctx).Create(dest).Error
+	if dest.TenantID == 0 {
+		dest.TenantID = tenantctx.FromContext(ctx).WriteTenantID(0)
+	}
+	return r.db.WithContext(ctx).Omit("PayloadConfig", "Device", "Site").Create(dest).Error
 }
 
 // UpdateDestination updates mutable fields on an existing outbound destination without touching associations
 func (r *outboundRepository) UpdateDestination(ctx context.Context, dest *model.OutputDestination) error {
-	return r.db.WithContext(ctx).Omit("PayloadConfig", "Device").Save(dest).Error
+	return r.db.WithContext(ctx).Omit("PayloadConfig", "Device", "Site").Save(dest).Error
 }
 
 // DeleteDestination removes a destination setup and its associated payload config,
@@ -173,17 +192,28 @@ func (r *outboundRepository) UpsertPayloadConfig(ctx context.Context, cfg *model
 	return nil
 }
 
-// applyActiveDeviceParamScope restricts aggregation_results queries strictly to active, non-deleted devices and active, non-deleted parameters.
-func applyActiveDeviceParamScope(q *gorm.DB) *gorm.DB {
-	return q.
+// applyActiveDeviceParamScope restricts aggregation_results queries strictly to active, non-deleted devices and active, non-deleted parameters,
+// while honoring any multi-tenant/site scope attached to ctx.
+func applyActiveDeviceParamScope(ctx context.Context, db *gorm.DB) *gorm.DB {
+	scope := tenantctx.FromContext(ctx)
+	q := db.WithContext(ctx).
 		Joins("INNER JOIN devices ON devices.id = aggregation_results.device_id AND devices.deleted_at IS NULL AND devices.enabled = ? AND UPPER(COALESCE(devices.status, 'ACTIVE')) NOT IN ('INACTIVE', 'DISABLED')", true).
 		Joins("INNER JOIN parameters ON parameters.id = aggregation_results.parameter_id AND parameters.deleted_at IS NULL AND parameters.enabled = ?", true)
+	if scope.TenantID > 0 {
+		q = q.Where("devices.tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("devices.site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("devices.site_id IN ?", scope.AllowedSiteIDs)
+	}
+	return q
 }
 
 // GetCustomerAggregationResults queries strictly persisted CUSTOMER_PROCESSED aggregation records for a single device
 func (r *outboundRepository) GetCustomerAggregationResults(ctx context.Context, deviceID uint, bucketEnd time.Time, intervalSeconds int) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
-	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	query := applyActiveDeviceParamScope(ctx, r.db).
 		Preload("Parameter").
 		Preload("Device").
 		Where("aggregation_results.device_id = ?", deviceID).
@@ -201,7 +231,7 @@ func (r *outboundRepository) GetCustomerAggregationResults(ctx context.Context, 
 // GetCustomerAggregationResultsForWindow queries strictly persisted CUSTOMER_PROCESSED aggregation records across all relevant devices for a window
 func (r *outboundRepository) GetCustomerAggregationResultsForWindow(ctx context.Context, bucketEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
-	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	query := applyActiveDeviceParamScope(ctx, r.db).
 		Preload("Parameter").
 		Preload("Device").
 		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
@@ -223,7 +253,7 @@ func (r *outboundRepository) GetLatestAggregationResults(ctx context.Context, de
 	var results []model.AggregationResult
 	// Find latest period_end for this device
 	var latest model.AggregationResult
-	err := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	err := applyActiveDeviceParamScope(ctx, r.db).
 		Where("aggregation_results.device_id = ? AND aggregation_results.source_type = ?", deviceID, model.SourceCustomerProcessed).
 		Order("aggregation_results.period_end DESC").
 		First(&latest).Error
@@ -231,7 +261,7 @@ func (r *outboundRepository) GetLatestAggregationResults(ctx context.Context, de
 		return nil, err
 	}
 
-	err = applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	err = applyActiveDeviceParamScope(ctx, r.db).
 		Preload("Parameter").
 		Preload("Device").
 		Where("aggregation_results.device_id = ? AND aggregation_results.source_type = ? AND aggregation_results.period_end = ?", deviceID, model.SourceCustomerProcessed, latest.PeriodEnd).
@@ -245,7 +275,7 @@ func (r *outboundRepository) GetLatestAggregationResultsMultiDevice(ctx context.
 	var results []model.AggregationResult
 	// Find latest period_end overall across active devices/parameters
 	var latest model.AggregationResult
-	q := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	q := applyActiveDeviceParamScope(ctx, r.db).
 		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed)
 	if len(deviceIDs) > 0 {
 		q = q.Where("aggregation_results.device_id IN (?)", deviceIDs)
@@ -255,7 +285,7 @@ func (r *outboundRepository) GetLatestAggregationResultsMultiDevice(ctx context.
 		return nil, err
 	}
 
-	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	query := applyActiveDeviceParamScope(ctx, r.db).
 		Preload("Parameter").
 		Preload("Device").
 		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
@@ -273,7 +303,7 @@ func (r *outboundRepository) GetLatestAggregationResultsMultiDevice(ctx context.
 // ordered chronologically by period_start ASC (e.g. 30 buckets of 2-minute SPARING data within 1 hour).
 func (r *outboundRepository) GetCustomerAggregationResultsForRange(ctx context.Context, windowStart time.Time, windowEnd time.Time, intervalSeconds int, deviceIDs []uint) ([]model.AggregationResult, error) {
 	var results []model.AggregationResult
-	query := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+	query := applyActiveDeviceParamScope(ctx, r.db).
 		Preload("Parameter").
 		Preload("Device").
 		Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed).
@@ -298,7 +328,7 @@ func (r *outboundRepository) GetRecentAggregationResultsMultiDevice(ctx context.
 	}
 
 	buildBase := func() *gorm.DB {
-		q := applyActiveDeviceParamScope(r.db.WithContext(ctx)).
+		q := applyActiveDeviceParamScope(ctx, r.db).
 			Where("aggregation_results.source_type = ?", model.SourceCustomerProcessed)
 		if intervalSeconds > 0 {
 			q = q.Where("aggregation_results.interval_seconds = ?", intervalSeconds)
@@ -339,6 +369,25 @@ func (r *outboundRepository) EnqueueDelivery(ctx context.Context, item *model.Ou
 // EnqueueOrRefreshDelivery persists a delivery queue entry or refreshes an undelivered/cancelled entry with the same idempotency key.
 // Returns action ("CREATED", "UPDATED", or "SKIPPED_DELIVERED") and the prior status when an item already existed.
 func (r *outboundRepository) EnqueueOrRefreshDelivery(ctx context.Context, item *model.OutboundDeliveryQueue) (string, model.OutboundDeliveryStatus, error) {
+	if item.TenantID == 0 {
+		if item.Destination != nil && item.Destination.TenantID > 0 {
+			item.TenantID = item.Destination.TenantID
+			if item.SiteID == nil && item.Destination.SiteID != nil {
+				item.SiteID = item.Destination.SiteID
+			}
+		} else if item.DestinationID > 0 {
+			var dest model.OutputDestination
+			if err := r.db.WithContext(ctx).Select("id", "tenant_id", "site_id").First(&dest, item.DestinationID).Error; err == nil && dest.TenantID > 0 {
+				item.TenantID = dest.TenantID
+				if item.SiteID == nil && dest.SiteID != nil {
+					item.SiteID = dest.SiteID
+				}
+			}
+		}
+		if item.TenantID == 0 {
+			item.TenantID = tenantctx.FromContext(ctx).WriteTenantID(0)
+		}
+	}
 	var existing model.OutboundDeliveryQueue
 	err := r.db.WithContext(ctx).Where("idempotency_key = ?", item.IdempotencyKey).First(&existing).Error
 	if err == nil {
@@ -400,8 +449,27 @@ func (r *outboundRepository) GetQueueItems(ctx context.Context, filter QueueFilt
 	var items []model.OutboundDeliveryQueue
 	var total int64
 
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
+	if filter.SiteID == 0 && scope.SiteID > 0 {
+		filter.SiteID = scope.SiteID
+	}
+	if len(filter.AllowedSiteIDs) == 0 && len(scope.AllowedSiteIDs) > 0 {
+		filter.AllowedSiteIDs = scope.AllowedSiteIDs
+	}
+
 	query := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{})
 
+	if filter.TenantID > 0 {
+		query = query.Where("tenant_id = ?", filter.TenantID)
+	}
+	if filter.SiteID > 0 {
+		query = query.Where("(site_id IS NULL OR site_id = ?)", filter.SiteID)
+	} else if len(filter.AllowedSiteIDs) > 0 {
+		query = query.Where("(site_id IS NULL OR site_id IN ?)", filter.AllowedSiteIDs)
+	}
 	if filter.DestinationID != nil && *filter.DestinationID > 0 {
 		query = query.Where("destination_id = ?", *filter.DestinationID)
 	}
@@ -476,8 +544,18 @@ func (r *outboundRepository) GetQueueSummary(ctx context.Context) (*model.Delive
 	}
 	var counts []statusCount
 
-	err := r.db.WithContext(ctx).
-		Model(&model.OutboundDeliveryQueue{}).
+	scope := tenantctx.FromContext(ctx)
+	q := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{})
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("(site_id IS NULL OR site_id = ?)", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("(site_id IS NULL OR site_id IN ?)", scope.AllowedSiteIDs)
+	}
+
+	err := q.
 		Select("status, COUNT(*) as count").
 		Group("status").
 		Scan(&counts).Error
@@ -659,6 +737,7 @@ func (r *outboundRepository) GetUndeliveredQueueItemsByDestination(ctx context.C
 
 // GetUndeliveredQueueItemsOverlappingWindow retrieves all PENDING, RETRYING, and FAILED queue items whose [period_start, period_end] overlaps [startTime, endTime]
 func (r *outboundRepository) GetUndeliveredQueueItemsOverlappingWindow(ctx context.Context, startTime, endTime time.Time) ([]model.OutboundDeliveryQueue, error) {
+	scope := tenantctx.FromContext(ctx)
 	var items []model.OutboundDeliveryQueue
 	q := r.db.WithContext(ctx).
 		Preload("Destination").
@@ -668,6 +747,9 @@ func (r *outboundRepository) GetUndeliveredQueueItemsOverlappingWindow(ctx conte
 			string(model.DeliveryRetrying),
 			string(model.DeliveryFailed),
 		})
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
 	if startTime.Equal(endTime) {
 		q = q.Where("period_end >= ? AND period_start <= ?", startTime, endTime)
 	} else {
@@ -761,6 +843,10 @@ func (r *outboundRepository) DeleteQueueItem(ctx context.Context, id uint64) err
 
 // PurgeQueueItems manually purges queue items and optional delivery logs matching criteria
 func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error) {
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
 	var deletedQueue int64
 	var deletedLogs int64
 
@@ -770,6 +856,10 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 			logQuery := "DELETE FROM delivery_logs WHERE 1 = 1"
 			var logArgs []interface{}
 
+			if filter.TenantID > 0 {
+				logQuery += " AND destination_id IN (SELECT id FROM output_destinations WHERE tenant_id = ?)"
+				logArgs = append(logArgs, filter.TenantID)
+			}
 			if filter.DestinationID != nil && *filter.DestinationID > 0 {
 				logQuery += " AND destination_id = ?"
 				logArgs = append(logArgs, *filter.DestinationID)
@@ -798,6 +888,10 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 		queueQuery := "DELETE FROM outbound_delivery_queues WHERE 1 = 1"
 		var queueArgs []interface{}
 
+		if filter.TenantID > 0 {
+			queueQuery += " AND tenant_id = ?"
+			queueArgs = append(queueArgs, filter.TenantID)
+		}
 		if filter.DestinationID != nil && *filter.DestinationID > 0 {
 			queueQuery += " AND destination_id = ?"
 			queueArgs = append(queueArgs, *filter.DestinationID)
@@ -833,10 +927,17 @@ func (r *outboundRepository) PurgeQueueItems(ctx context.Context, filter QueuePu
 
 // CountQueuePurgeItems counts the number of queue entries and logs that match the purge criteria
 func (r *outboundRepository) CountQueuePurgeItems(ctx context.Context, filter QueuePurgeFilter) (int64, int64, error) {
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
 	var queueCount int64
 	var logsCount int64
 
 	q := r.db.WithContext(ctx).Model(&model.OutboundDeliveryQueue{})
+	if filter.TenantID > 0 {
+		q = q.Where("tenant_id = ?", filter.TenantID)
+	}
 	if filter.DestinationID != nil && *filter.DestinationID > 0 {
 		q = q.Where("destination_id = ?", *filter.DestinationID)
 	}
@@ -856,6 +957,9 @@ func (r *outboundRepository) CountQueuePurgeItems(ctx context.Context, filter Qu
 
 	if filter.PurgeLogs {
 		lq := r.db.WithContext(ctx).Model(&model.DeliveryLog{})
+		if filter.TenantID > 0 {
+			lq = lq.Where("destination_id IN (?)", r.db.Model(&model.OutputDestination{}).Select("id").Where("tenant_id = ?", filter.TenantID))
+		}
 		if filter.DestinationID != nil && *filter.DestinationID > 0 {
 			lq = lq.Where("destination_id = ?", *filter.DestinationID)
 		}
@@ -879,6 +983,10 @@ func (r *outboundRepository) CountQueuePurgeItems(ctx context.Context, filter Qu
 
 // PurgeQueueBatch deletes a single batch of matching items by ID, returning deleted counts and done indicator
 func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePurgeFilter, batchSize int) (int64, int64, bool, error) {
+	scope := tenantctx.FromContext(ctx)
+	if filter.TenantID == 0 && scope.TenantID > 0 {
+		filter.TenantID = scope.TenantID
+	}
 	if batchSize <= 0 {
 		batchSize = 1000
 	}
@@ -892,6 +1000,9 @@ func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePu
 		if filter.PurgeLogs {
 			var logIDs []uint
 			lq := tx.Model(&model.DeliveryLog{}).Select("id")
+			if filter.TenantID > 0 {
+				lq = lq.Where("destination_id IN (?)", tx.Model(&model.OutputDestination{}).Select("id").Where("tenant_id = ?", filter.TenantID))
+			}
 			if filter.DestinationID != nil && *filter.DestinationID > 0 {
 				lq = lq.Where("destination_id = ?", *filter.DestinationID)
 			}
@@ -924,6 +1035,9 @@ func (r *outboundRepository) PurgeQueueBatch(ctx context.Context, filter QueuePu
 		// 2. Delete queue items batch by primary key IDs
 		var queueIDs []uint64
 		q := tx.Model(&model.OutboundDeliveryQueue{}).Select("id")
+		if filter.TenantID > 0 {
+			q = q.Where("tenant_id = ?", filter.TenantID)
+		}
 		if filter.DestinationID != nil && *filter.DestinationID > 0 {
 			q = q.Where("destination_id = ?", *filter.DestinationID)
 		}

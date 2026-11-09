@@ -10,11 +10,19 @@ import './assets/main.css';
 Vue.config.productionTip = false;
 Vue.use(i18n);
 
-// Setup Axios authorization header
+// Setup Axios authorization and Multi-Tenant / Multi-Site scope headers
 axios.interceptors.request.use((config) => {
   const token = store.state.token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const activeTenantId = Number(store.state.activeTenantId || 0);
+  if (activeTenantId > 0) {
+    config.headers['X-Tenant-ID'] = String(activeTenantId);
+  }
+  const activeSiteId = Number(store.state.activeSiteId || 0);
+  if (activeSiteId > 0) {
+    config.headers['X-Site-ID'] = String(activeSiteId);
   }
   return config;
 });
@@ -32,7 +40,7 @@ axios.interceptors.response.use(
         (typeof window !== 'undefined' && (window.location.hash || '').startsWith('#/login'));
       if (!url.includes('/auth/login') && !url.includes('/auth/logout') && !onLoginScreen) {
         // Silently re-authenticate as default operator rather than dumping user to login screen
-        store.dispatch('autoLoginOperator').catch(() => {});
+        store.dispatch('autoLoginOperator').catch(() => { });
       }
     }
     return Promise.reject(error);
@@ -40,7 +48,7 @@ axios.interceptors.response.use(
 );
 
 // Format date helper filter
-Vue.filter('formatDate', function(value) {
+Vue.filter('formatDate', function (value) {
   if (!value) return '';
   const date = new Date(value);
   return date.toLocaleString('en-GB', {
@@ -72,8 +80,9 @@ new Vue({
         this.$store.dispatch('fetchDevices');
         this.$store.dispatch('fetchAlarms');
         this.$store.dispatch('initWebSocket');
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
+      this.$store.dispatch('fetchTenantContext');
       this.$store.dispatch('fetchSystemStatus');
       this.$store.dispatch('fetchDevices');
       this.$store.dispatch('fetchAlarms');

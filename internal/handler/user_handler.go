@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"datalogger/internal/middleware"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -45,6 +46,7 @@ func (h *UserHandler) getActorInfo(c *gin.Context) (uint, string, string, string
 
 // ListUsers returns paginated users with optional search and status filtering
 func (h *UserHandler) ListUsers(c *gin.Context) {
+	scope := middleware.GetScope(c)
 	search := c.Query("search")
 	status := c.Query("status")
 	roleIDStr := c.Query("role_id")
@@ -59,11 +61,13 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 	}
 
 	params := repository.UserFilterParams{
-		Search:   search,
-		Status:   status,
-		RoleID:   roleID,
-		Page:     page,
-		PageSize: pageSize,
+		TenantID:       scope.TenantID,
+		HideSuperAdmin: !scope.IsSuperAdmin,
+		Search:         search,
+		Status:         status,
+		RoleID:         roleID,
+		Page:           page,
+		PageSize:       pageSize,
 	}
 
 	users, total, err := h.authService.GetUsers(params)
@@ -82,6 +86,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 // GetUser returns a single user by ID
 func (h *UserHandler) GetUser(c *gin.Context) {
+	scope := middleware.GetScope(c)
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
@@ -94,6 +99,16 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		response.NotFound(c, "User not found")
 		return
 	}
+	if !scope.IsSuperAdmin {
+		if user.Role != nil && (strings.EqualFold(user.Role.Name, "SUPERADMIN") || strings.EqualFold(user.Role.Name, "Administrator")) {
+			response.Forbidden(c, "Access denied")
+			return
+		}
+		if scope.TenantID > 0 && (user.TenantID == nil || *user.TenantID != scope.TenantID) {
+			response.Forbidden(c, "Access denied: user belongs to another tenant")
+			return
+		}
+	}
 
 	response.OK(c, user)
 }
@@ -104,6 +119,11 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request payload: "+err.Error())
 		return
+	}
+	scope := middleware.GetScope(c)
+	if scope.IsSuperAdmin && req.TenantID == nil && scope.TenantID > 0 {
+		tid := scope.TenantID
+		req.TenantID = &tid
 	}
 
 	actorID, actorUsername, actorRole, ip, ua := h.getActorInfo(c)

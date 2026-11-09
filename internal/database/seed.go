@@ -20,6 +20,34 @@ func Seed(db *gorm.DB) error {
 
 	logger.Info("Starting database seed with 10 development phases and initial configuration...")
 
+	// 0. Ensure Default Tenant #1 & Site #1 exist
+	var tCount int64
+	db.Model(&model.Tenant{}).Count(&tCount)
+	if tCount == 0 {
+		db.Create(&model.Tenant{
+			ID:               1,
+			Code:             "default",
+			Name:             "Default Organization",
+			Status:           model.TenantStatusActive,
+			CustomerName:     "Default Organization",
+			CustomerSubtitle: "Environmental & Industrial Telemetry Platform",
+		})
+	}
+	var sCount int64
+	db.Model(&model.Site{}).Count(&sCount)
+	if sCount == 0 {
+		db.Create(&model.Site{
+			ID:               1,
+			TenantID:         1,
+			Code:             "main-station",
+			Name:             "Main Monitoring Station",
+			MonitoringDomain: "AQMS",
+			StationTypeMode:  "MANUAL",
+			Timezone:         "Asia/Jakarta",
+			Enabled:          true,
+		})
+	}
+
 	// 1. Roles & Permissions
 	adminRole := model.Role{
 		Name:        "Administrator",

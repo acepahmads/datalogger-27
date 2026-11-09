@@ -23,6 +23,7 @@ import (
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
+	"datalogger/pkg/tenantctx"
 )
 
 // OutboundService manages destination definitions, payload formatting, offline queueing, and dispatch workers
@@ -645,6 +646,14 @@ func (s *outboundService) deliverRESTDetailed(ctx context.Context, dest *model.O
 			}
 			if dest.APIKeyValue != "" {
 				req.Header.Set(headerName, dest.APIKeyValue)
+			}
+		case "INGEST_KEY":
+			keyVal := strings.TrimSpace(dest.APIKeyValue)
+			if keyVal == "" {
+				keyVal = strings.TrimSpace(dest.AuthToken)
+			}
+			if keyVal != "" {
+				req.Header.Set("X-Ingest-Key", keyVal)
 			}
 		case "BASIC_AUTH":
 			if dest.Username != "" {
@@ -1363,20 +1372,81 @@ func isActiveOutboundAggregationResult(item model.AggregationResult) bool {
 	return true
 }
 
+func destinationScopeCtx(ctx context.Context, dest *model.OutputDestination) context.Context {
+	if dest == nil || dest.TenantID == 0 {
+		return ctx
+	}
+	sc := tenantctx.Scope{
+		TenantID: dest.TenantID,
+	}
+	if dest.SiteID != nil && *dest.SiteID > 0 {
+		sc.SiteID = *dest.SiteID
+	}
+	return tenantctx.WithScope(ctx, sc)
+}
+
+func checkDestScope(ctx context.Context, dest *model.OutputDestination) error {
+	if dest == nil {
+		return nil
+	}
+	scope := tenantctx.FromContext(ctx)
+	if !scope.CanAccessTenant(dest.TenantID) {
+		return fmt.Errorf("access denied: destination belongs to another tenant")
+	}
+	if dest.SiteID != nil && *dest.SiteID > 0 && !scope.IsSiteAllowed(*dest.SiteID) {
+		return fmt.Errorf("access denied: destination belongs to an unauthorized site")
+	}
+	return nil
+}
+
+func checkQueueScope(ctx context.Context, item *model.OutboundDeliveryQueue) error {
+	if item == nil {
+		return nil
+	}
+	scope := tenantctx.FromContext(ctx)
+	if !scope.CanAccessTenant(item.TenantID) {
+		return fmt.Errorf("access denied: queue item belongs to another tenant")
+	}
+	if item.SiteID != nil && *item.SiteID > 0 && !scope.IsSiteAllowed(*item.SiteID) {
+		return fmt.Errorf("access denied: queue item belongs to an unauthorized site")
+	}
+	return nil
+}
+
 // HandleBucketCompleted is triggered when an aggregation bucket finishes.
-// It generates unified batches per destination and aggregation window across all relevant devices.
+// It generates unified batches per destination and aggregation window across all relevant devices within the same tenant/site.
 func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID uint, bucketEnd time.Time) error {
-	// 1. Fetch enabled destinations
-	destinations, err := s.repo.GetAllDestinations(ctx, true)
+	var triggerDev *model.Device
+	if s.deviceRepo != nil && deviceID > 0 {
+		triggerDev, _ = s.deviceRepo.GetByID(deviceID)
+	}
+
+	destQueryCtx := ctx
+	if triggerDev != nil && triggerDev.TenantID > 0 {
+		destQueryCtx = tenantctx.WithScope(ctx, tenantctx.Scope{TenantID: triggerDev.TenantID})
+	}
+
+	// 1. Fetch enabled destinations (scoped to triggering device's tenant when known)
+	destinations, err := s.repo.GetAllDestinations(destQueryCtx, true)
 	if err != nil || len(destinations) == 0 {
 		return nil // No active outbound destinations
 	}
 
 	for _, dest := range destinations {
+		if triggerDev != nil {
+			if dest.TenantID > 0 && triggerDev.TenantID > 0 && dest.TenantID != triggerDev.TenantID {
+				continue
+			}
+			if dest.SiteID != nil && *dest.SiteID > 0 && triggerDev.SiteID > 0 && *dest.SiteID != triggerDev.SiteID {
+				continue
+			}
+		}
 		// Check station filter: if destination is restricted to a single device and it's not this device, skip
 		if dest.DeviceID != nil && *dest.DeviceID != deviceID {
 			continue
 		}
+
+		destCtx := destinationScopeCtx(ctx, &dest)
 
 		var queryDeviceIDs []uint
 		if dest.DeviceID != nil {
@@ -1411,7 +1481,7 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 				windowStart := bucketEnd.Add(-time.Duration(dest.DispatchIntervalSeconds) * time.Second)
 				windowEnd := bucketEnd
 
-				rangeResults, err := s.repo.GetCustomerAggregationResultsForRange(ctx, windowStart, windowEnd, sourceInterval, queryDeviceIDs)
+				rangeResults, err := s.repo.GetCustomerAggregationResultsForRange(destCtx, windowStart, windowEnd, sourceInterval, queryDeviceIDs)
 				if err != nil {
 					logger.Error("[Outbound] Failed to fetch bundled aggregation range [%s, %s] for dest %d: %v",
 						windowStart.Format(time.RFC3339), windowEnd.Format(time.RFC3339), dest.ID, err)
@@ -1457,7 +1527,7 @@ func (s *outboundService) HandleBucketCompleted(ctx context.Context, deviceID ui
 		}
 
 		// Mode B: Immediate Per-Bucket Dispatch (e.g. every 2m, 5m, 30m, or 60m single-bucket aggregation)
-		results, err := s.repo.GetCustomerAggregationResultsForWindow(ctx, bucketEnd, dest.IntervalSeconds, queryDeviceIDs)
+		results, err := s.repo.GetCustomerAggregationResultsForWindow(destCtx, bucketEnd, dest.IntervalSeconds, queryDeviceIDs)
 		if err != nil {
 			logger.Error("[Outbound] Failed to fetch aggregation results for window %s dest %d: %v", bucketEnd.Format(time.RFC3339), dest.ID, err)
 			continue
@@ -1709,6 +1779,8 @@ func (s *outboundService) enqueueAggregatedBatchGroupWithAction(
 	}
 
 	queueItem := &model.OutboundDeliveryQueue{
+		TenantID:             dest.TenantID,
+		SiteID:               dest.SiteID,
 		BatchID:              batchID,
 		DestinationID:        dest.ID,
 		DeviceID:             queueDeviceID,
@@ -1765,6 +1837,9 @@ func (s *outboundService) GetDestinationByID(ctx context.Context, id uint, redac
 	if err != nil {
 		return nil, err
 	}
+	if err := checkDestScope(ctx, dest); err != nil {
+		return nil, err
+	}
 	if redactSecrets {
 		redactDestinationSecrets(dest)
 	}
@@ -1800,6 +1875,33 @@ func validateCustomHeadersJSON(raw string) error {
 
 // CreateDestination persists a new outbound destination with default payload config
 func (s *outboundService) CreateDestination(ctx context.Context, dest *model.OutputDestination) error {
+	scope := tenantctx.FromContext(ctx)
+	dest.TenantID = scope.WriteTenantID(dest.TenantID)
+	if dest.DeviceID != nil && *dest.DeviceID > 0 && s.deviceRepo != nil {
+		dev, err := s.deviceRepo.GetByID(*dest.DeviceID)
+		if err != nil || dev == nil {
+			return fmt.Errorf("selected device not found")
+		}
+		if dev.TenantID != dest.TenantID {
+			return fmt.Errorf("access denied: selected device belongs to another tenant")
+		}
+		if dest.SiteID == nil && dev.SiteID > 0 {
+			sID := dev.SiteID
+			dest.SiteID = &sID
+		}
+	}
+	if dest.SiteID != nil && *dest.SiteID > 0 && !scope.IsSiteAllowed(*dest.SiteID) {
+		return fmt.Errorf("access denied: unauthorized site")
+	}
+
+	isCloudSyncPreset := strings.EqualFold(dest.AuthType, "INGEST_KEY") || strings.EqualFold(dest.AuthType, "DATALOGGER_CLOUD_SYNC")
+	if isCloudSyncPreset {
+		dest.AuthType = "API_KEY"
+		if strings.TrimSpace(dest.APIKeyHeader) == "" || strings.EqualFold(dest.APIKeyHeader, "X-API-Key") {
+			dest.APIKeyHeader = "X-Ingest-Key"
+		}
+	}
+
 	dest.Endpoint = strings.TrimSpace(dest.Endpoint)
 	dest.AuthURL = strings.TrimSpace(dest.AuthURL)
 	dest.CustomHeaders = strings.TrimSpace(dest.CustomHeaders)
@@ -1842,8 +1944,16 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 		IncludeMetadata:    true,
 		Version:            1,
 	}
-	// If created with LOGIN_BEARER, initialize with KLHK ISPU AQMS friendly defaults right away
-	if dest.AuthType == "LOGIN_BEARER" {
+	// If created with INGEST_KEY / X-Ingest-Key, initialize with Datalogger Hybrid Cloud Sync defaults
+	if isCloudSyncPreset || strings.EqualFold(dest.APIKeyHeader, "X-Ingest-Key") {
+		cfg.TemplateType = "MULTI_DEVICE"
+		cfg.Structure = "ARRAY_BY_DEVICE"
+		cfg.NestedDataKey = "devices"
+		cfg.IncludeDeviceIdentity = true
+		cfg.IncludeUnits = true
+		cfg.IncludeQuality = true
+		cfg.IncludeMetadata = true
+	} else if dest.AuthType == "LOGIN_BEARER" {
 		cfg.TemplateType = "KLHK_ISPU_AQMS"
 		cfg.StationIDField = "id_stasiun"
 		cfg.TimestampField = "waktu"
@@ -1898,6 +2008,28 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 	existing, err := s.repo.GetDestinationByID(ctx, dest.ID)
 	if err != nil {
 		return err
+	}
+	if err := checkDestScope(ctx, existing); err != nil {
+		return err
+	}
+	dest.TenantID = existing.TenantID
+	if dest.SiteID == nil && existing.SiteID != nil && !tenantctx.FromContext(ctx).IsSuperAdmin {
+		// Allow clearing or updating SiteID within allowed sites
+		if dest.SiteID != nil && !tenantctx.FromContext(ctx).IsSiteAllowed(*dest.SiteID) {
+			return fmt.Errorf("access denied: unauthorized site")
+		}
+	}
+	if dest.DeviceID != nil && *dest.DeviceID > 0 && s.deviceRepo != nil {
+		dev, dErr := s.deviceRepo.GetByID(*dest.DeviceID)
+		if dErr != nil || dev == nil || dev.TenantID != existing.TenantID {
+			return fmt.Errorf("access denied: selected device belongs to another tenant")
+		}
+	}
+	if strings.EqualFold(dest.AuthType, "INGEST_KEY") || strings.EqualFold(dest.AuthType, "DATALOGGER_CLOUD_SYNC") {
+		dest.AuthType = "API_KEY"
+		if strings.TrimSpace(dest.APIKeyHeader) == "" || strings.EqualFold(dest.APIKeyHeader, "X-API-Key") {
+			dest.APIKeyHeader = "X-Ingest-Key"
+		}
 	}
 
 	dest.Endpoint = strings.TrimSpace(dest.Endpoint)
@@ -2005,18 +2137,39 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 
 // DeleteDestination removes a destination
 func (s *outboundService) DeleteDestination(ctx context.Context, id uint) error {
+	existing, err := s.repo.GetDestinationByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := checkDestScope(ctx, existing); err != nil {
+		return err
+	}
 	s.clearCachedAuthToken(id)
 	return s.repo.DeleteDestination(ctx, id)
 }
 
 // GetPayloadConfig fetches payload config for a destination
 func (s *outboundService) GetPayloadConfig(ctx context.Context, destID uint) (*model.DestinationPayloadConfig, error) {
+	dest, err := s.repo.GetDestinationByID(ctx, destID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDestScope(ctx, dest); err != nil {
+		return nil, err
+	}
 	return s.repo.GetPayloadConfigByDestinationID(ctx, destID)
 }
 
 // UpdatePayloadConfig validates and updates payload config, then rebuilds PayloadSnapshot
 // on all undelivered (PENDING, RETRYING, FAILED) queue items for this destination and re-queues them.
 func (s *outboundService) UpdatePayloadConfig(ctx context.Context, cfg *model.DestinationPayloadConfig) error {
+	dest, err := s.repo.GetDestinationByID(ctx, cfg.DestinationID)
+	if err != nil {
+		return err
+	}
+	if err := checkDestScope(ctx, dest); err != nil {
+		return err
+	}
 	if err := s.formatter.ValidateConfig(cfg); err != nil {
 		return err
 	}
@@ -2024,11 +2177,7 @@ func (s *outboundService) UpdatePayloadConfig(ctx context.Context, cfg *model.De
 		return err
 	}
 
-	destEnabled := true
-	if dest, err := s.repo.GetDestinationByID(ctx, cfg.DestinationID); err == nil && dest != nil {
-		destEnabled = dest.Enabled
-	}
-	cfg.RequeuedBatches = s.reprocessUndeliveredItemsForDestination(ctx, cfg.DestinationID, cfg, destEnabled)
+	cfg.RequeuedBatches = s.reprocessUndeliveredItemsForDestination(ctx, cfg.DestinationID, cfg, dest.Enabled)
 	return nil
 }
 
@@ -2231,6 +2380,9 @@ func (s *outboundService) RefreshQueueForWindowDetailed(
 	var targetDev *model.Device
 	if s.deviceRepo != nil && opts.DeviceID > 0 {
 		targetDev, _ = s.deviceRepo.GetByID(opts.DeviceID)
+	}
+	if targetDev != nil && targetDev.TenantID > 0 && tenantctx.FromContext(ctx).TenantID == 0 {
+		ctx = tenantctx.WithScope(ctx, tenantctx.Scope{TenantID: targetDev.TenantID})
 	}
 
 	allDests, _ := s.repo.GetAllDestinations(ctx, !opts.IncludeDisabledDestinations)
@@ -3210,6 +3362,12 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 	var batch *OutboundBatchData
 
 	dest, _ := s.repo.GetDestinationByID(ctx, destID)
+	if dest != nil {
+		if err := checkDestScope(ctx, dest); err != nil {
+			return "", err
+		}
+		ctx = destinationScopeCtx(ctx, dest)
+	}
 	var targetDeviceIDs []uint
 	if dest != nil && dest.DeviceID != nil {
 		targetDeviceIDs = []uint{*dest.DeviceID}
@@ -3739,6 +3897,9 @@ func (s *outboundService) TestPayloadWithConfig(ctx context.Context, destID uint
 	if err != nil {
 		return nil, fmt.Errorf("destination not found: %w", err)
 	}
+	if err := checkDestScope(ctx, dest); err != nil {
+		return nil, err
+	}
 
 	previewJSON, err := s.GeneratePreviewWithConfig(ctx, destID, nil, customCfg)
 	if err != nil {
@@ -3814,6 +3975,9 @@ func (s *outboundService) GetQueueItemDetail(ctx context.Context, id uint64) (*Q
 	if err != nil {
 		return nil, err
 	}
+	if err := checkQueueScope(ctx, item); err != nil {
+		return nil, err
+	}
 
 	var sourceValues []model.SourceAggregationValueItem
 	if strings.TrimSpace(item.SourceValuesJSON) != "" {
@@ -3835,7 +3999,13 @@ func (s *outboundService) GetQueueSummary(ctx context.Context) (*model.DeliveryQ
 // resets the queue item to PENDING (attempts=0), and wakes the delivery worker immediately.
 func (s *outboundService) RetryQueueItem(ctx context.Context, id uint64) error {
 	item, err := s.repo.GetQueueItemByID(ctx, id)
-	if err == nil && item != nil {
+	if err != nil {
+		return err
+	}
+	if err := checkQueueScope(ctx, item); err != nil {
+		return err
+	}
+	if item != nil {
 		s.clearCachedAuthToken(item.DestinationID)
 		if cfg, cfgErr := s.repo.GetPayloadConfigByDestinationID(ctx, item.DestinationID); cfgErr == nil && cfg != nil {
 			_ = s.rebuildQueueItemPayload(item, cfg)
@@ -3863,12 +4033,17 @@ func (s *outboundService) ReplayQueueItem(ctx context.Context, id uint64) (*mode
 	if err != nil {
 		return nil, fmt.Errorf("queue item %d not found: %w", id, err)
 	}
+	if err := checkQueueScope(ctx, original); err != nil {
+		return nil, err
+	}
 
 	now := time.Now()
 	newIdempotencyKey := fmt.Sprintf("%s_REPLAY_%d", original.IdempotencyKey, now.UnixNano())
 	replayOfID := original.ID
 
 	newItem := &model.OutboundDeliveryQueue{
+		TenantID:             original.TenantID,
+		SiteID:               original.SiteID,
 		BatchID:              original.BatchID,
 		DestinationID:        original.DestinationID,
 		DeviceID:             original.DeviceID,
@@ -3904,21 +4079,41 @@ func (s *outboundService) ReplayQueueItem(ctx context.Context, id uint64) (*mode
 
 // CancelQueueItem marks an item as CANCELLED
 func (s *outboundService) CancelQueueItem(ctx context.Context, id uint64) error {
+	item, err := s.repo.GetQueueItemByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := checkQueueScope(ctx, item); err != nil {
+		return err
+	}
 	return s.repo.CancelQueueItem(ctx, id)
 }
 
 // DeleteQueueItem permanently removes a single queue item
 func (s *outboundService) DeleteQueueItem(ctx context.Context, id uint64) error {
+	item, err := s.repo.GetQueueItemByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := checkQueueScope(ctx, item); err != nil {
+		return err
+	}
 	return s.repo.DeleteQueueItem(ctx, id)
 }
 
 // PurgeQueue bulk deletes queue items and optional delivery logs
 func (s *outboundService) PurgeQueue(ctx context.Context, filter repository.QueuePurgeFilter) (int64, int64, error) {
+	if filter.TenantID == 0 {
+		filter.TenantID = tenantctx.FromContext(ctx).TenantID
+	}
 	return s.repo.PurgeQueueItems(ctx, filter)
 }
 
 // StartPurge initiates a non-blocking background queue purge job with progress tracking
 func (s *outboundService) StartPurge(ctx context.Context, filter repository.QueuePurgeFilter) (*PurgeProgress, error) {
+	if filter.TenantID == 0 {
+		filter.TenantID = tenantctx.FromContext(ctx).TenantID
+	}
 	s.purgeMu.Lock()
 	if s.purgeProgress.IsRunning {
 		prog := s.purgeProgress

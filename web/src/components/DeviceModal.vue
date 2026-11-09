@@ -105,6 +105,22 @@
             </div>
           </div>
 
+          <!-- Multi-Site Station Assignment -->
+          <div v-if="availableSites.length > 0">
+            <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              Stasiun / Titik Pantau (Site)
+            </label>
+            <select
+              v-model.number="form.site_id"
+              @change="onSiteSelectionChange"
+              class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+            >
+              <option v-for="s in availableSites" :key="'dm-site-' + s.id" :value="s.id">
+                📍 {{ s.name }} ({{ s.code }} · {{ s.monitoring_domain || 'AQMS' }})
+              </option>
+            </select>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Administrative Status -->
             <div>
@@ -302,6 +318,7 @@
               <option value="MQTT">MQTT (Topic Subscriber)</option>
               <option value="SERIAL">SERIAL (Raw UART / COM Port)</option>
               <option value="WEBSOCKET">WEBSOCKET (Live Stream Client)</option>
+              <option value="EDGE_PUSH">EDGE_PUSH (Hybrid Cloud Edge Push Receiver)</option>
               <option value="CUSTOM">CUSTOM (Proprietary Protocol)</option>
             </select>
           </div>
@@ -719,6 +736,7 @@ export default {
       useCustomPort: false,
       fallbackPorts: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyACM0', '/dev/ttyACM1', '/dev/ttyS0'],
       form: {
+        site_id: 1,
         device_code: '',
         device_name: '',
         device_type: 'MODBUS_TCP',
@@ -794,6 +812,9 @@ export default {
       }
       return null;
     },
+    availableSites() {
+      return (this.$store && this.$store.getters && this.$store.getters.availableSites) || [];
+    },
     isCustomProtocol() {
       return this.form.connection.protocol === 'CUSTOM';
     },
@@ -861,6 +882,7 @@ export default {
             proto = 'HTTP';
           }
           this.form = {
+            site_id: newVal.site_id || this.defaultSiteId(),
             device_code: newVal.device_code || newVal.code || '',
             device_name: newVal.device_name || newVal.name || '',
             device_type: proto,
@@ -969,6 +991,7 @@ export default {
       const suggestedName = `${baseName} (Copy)`;
 
       this.form = {
+        site_id: source.site_id || this.defaultSiteId(),
         device_code: suggestedCode,
         device_name: suggestedName,
         device_type: proto,
@@ -1084,8 +1107,21 @@ export default {
         }
       }
     },
+    defaultSiteId() {
+      const active = Number(this.$store && this.$store.state && this.$store.state.activeSiteId);
+      if (active > 0) return active;
+      if (this.availableSites.length > 0) return this.availableSites[0].id;
+      return 1;
+    },
+    onSiteSelectionChange() {
+      const chosen = this.availableSites.find(s => Number(s.id) === Number(this.form.site_id));
+      if (chosen && !this.form.location) {
+        this.form.location = chosen.address || chosen.name || '';
+      }
+    },
     resetForm() {
       this.form = {
+        site_id: this.defaultSiteId(),
         device_code: '',
         device_name: '',
         device_type: 'MODBUS_TCP',

@@ -21,6 +21,7 @@ import (
 	"datalogger/internal/scheduler"
 	"datalogger/internal/service"
 	"datalogger/internal/websocket"
+	"datalogger/pkg/tenantctx"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -85,6 +86,7 @@ func main() {
 	phaseRepo := repository.NewPhaseRepository(db)
 	systemRepo := repository.NewSystemRepository(db)
 	telemetryRepo := repository.NewTelemetryRepository(db)
+	tenantRepo := repository.NewTenantRepository(db)
 
 	// 6. Initialize Services
 	authService := service.NewAuthService(systemRepo, cfg)
@@ -96,9 +98,19 @@ func main() {
 		}
 		return claims.Role, claims.Username, nil
 	})
+	websocket.SetScopeValidator(func(token string) (string, string, *uint, []uint, error) {
+		claims, err := authService.ValidateToken(token)
+		if err != nil || claims == nil {
+			return "", "", nil, nil, err
+		}
+		return claims.Role, claims.Username, claims.TenantID, tenantctx.ParseCSVUintIDs(claims.AllowedSiteIDs), nil
+	})
+	tenantService := service.NewTenantService(tenantRepo, systemRepo)
 	deviceService := service.NewDeviceService(deviceRepo, systemRepo)
+	deviceService.SetTenantService(tenantService)
 	phaseService := service.NewPhaseService(phaseRepo, systemRepo)
 	systemService := service.NewSystemService(systemRepo, phaseRepo, cfg)
+	systemService.SetTenantService(tenantService)
 
 	// 7. Initialize WebSocket Hub
 	hub := websocket.NewHub()
@@ -253,6 +265,8 @@ func main() {
 	devHandler := handler.NewDevHandler(phaseService, hub)
 	systemHandler := handler.NewSystemHandler(systemService)
 	systemHandler.SetOutboundService(outboundService)
+	systemHandler.SetTenantService(tenantService)
+	tenantHandler := handler.NewTenantHandler(tenantService)
 	deviceHandler := handler.NewDeviceHandler(deviceService, pollingEngine)
 	commHandler := handler.NewCommunicationHandler(connManager, pollingEngine, deviceService)
 	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
@@ -272,6 +286,8 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
+	ingestHandler := handler.NewIngestHandler(ingestService)
 	commTraceHandler := handler.NewCommTraceHandler(commTracer, deviceService)
 	activityHandler := handler.NewActivityMonitorHandler(activityMonitor, deviceService, commTracer)
 
@@ -294,6 +310,7 @@ func main() {
 	// Sensor Calibration & Multi-Point Regression Module (1–10 Points: AQMS, SPARING, WQMS ONLIMO)
 	calibrationRepo := repository.NewCalibrationRepository(db)
 	calibrationService := service.NewCalibrationService(calibrationRepo, deviceRepo, systemRepo, telemetryService)
+	calibrationService.SetTenantService(tenantService)
 	calibrationService.SetOnDeviceReload(func(deviceID uint) {
 		if pollingEngine != nil {
 			if dev, err := deviceService.GetDeviceByID(deviceID); err == nil && dev != nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
@@ -345,6 +362,7 @@ func main() {
 	// Public & Protected API routes
 	api := r.Group("/api")
 	api.Use(middleware.RestoreMaintenanceGuard())
+	api.Use(middleware.OptionalTenantContext(authService))
 	{
 		// Auth
 		api.POST("/auth/login", authHandler.Login)
@@ -352,6 +370,41 @@ func main() {
 		api.POST("/auth/switch-account", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"), authHandler.SwitchAccount)
 		api.GET("/auth/me", middleware.JWTAuth(authService), authHandler.Me)
 		api.GET("/users/me", middleware.JWTAuth(authService), authHandler.Me)
+
+		// Hybrid Edge-to-Central Telemetry Push Gateway (API Key Authenticated via X-Ingest-Key)
+		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
+		api.POST("/v1/ingest/telemetry", ingestHandler.IngestTelemetry)
+
+		// Multi-Tenant & Multi-Site Organization Management
+		tenantsGroup := api.Group("/tenants")
+		tenantsGroup.Use(middleware.JWTAuth(authService))
+		{
+			tenantsGroup.GET("/context", tenantHandler.GetContext)
+			tenantsGroup.GET("/current", tenantHandler.GetCurrentTenant)
+			tenantsGroup.GET("", tenantHandler.ListTenants)
+			tenantsGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
+			tenantsGroup.PUT("/:id", tenantHandler.UpdateTenant) // also handles PUT /api/tenants/current
+			tenantsGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
+		}
+
+		sitesGroup := api.Group("/sites")
+		sitesGroup.Use(middleware.JWTAuth(authService))
+		{
+			sitesGroup.GET("", middleware.RequirePermission("site.view"), tenantHandler.ListSites)
+			sitesGroup.POST("", middleware.RequirePermission("site.manage"), tenantHandler.CreateSite)
+			sitesGroup.PUT("/:id", middleware.RequirePermission("site.manage"), tenantHandler.UpdateSite)
+			sitesGroup.DELETE("/:id", middleware.RequirePermission("site.manage"), tenantHandler.DeleteSite)
+		}
+
+		ingestKeysGroup := api.Group("/ingest-keys")
+		ingestKeysGroup.Use(middleware.JWTAuth(authService))
+		{
+			ingestKeysGroup.GET("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ListAPIKeys)
+			ingestKeysGroup.POST("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.CreateAPIKey)
+			ingestKeysGroup.PUT("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
+			ingestKeysGroup.PUT("/:id/enable", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
+			ingestKeysGroup.DELETE("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.DeleteAPIKey)
+		}
 
 		// Development Phases & Tasks (Protected & Authorized — SUPERADMIN only)
 		devGroup := api.Group("")
@@ -772,17 +825,27 @@ func main() {
 			queueGroup.POST("/purge/cancel", middleware.RequirePermission("integration.queue.manage"), outboundHandler.CancelPurge)
 		}
 
-		// Public deployment domain inspection
+		// Public / Scoped deployment domain inspection
 		api.GET("/system/domain", func(c *gin.Context) {
+			monDom := config.Get().MonitoringDomain
+			scope := middleware.GetScope(c)
+			if scope.SiteID > 0 || scope.TenantID > 0 {
+				if st, err := tenantService.ResolveEffectiveSite(scope); err == nil && st != nil && st.MonitoringDomain != "" {
+					monDom = st.MonitoringDomain
+				}
+			}
 			c.JSON(http.StatusOK, gin.H{
 				"success": true,
 				"data": gin.H{
-					"monitoring_domain": config.Get().MonitoringDomain,
+					"monitoring_domain": monDom,
 					"app_name":          config.Get().AppName,
 					"version":           config.Get().Version,
 				},
 			})
 		})
+
+		// Hybrid Edge-to-Central Telemetry Push Gateway v1 (API Key Authenticated via X-Ingest-Key)
+		r.POST("/api/v1/ingest/telemetry", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestTelemetry)
 
 		// Compatibility API v1 routes (mirrors device and polling-plan routes for /api/v1 callers)
 		apiV1 := r.Group("/api/v1")

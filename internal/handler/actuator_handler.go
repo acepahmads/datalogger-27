@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"datalogger/internal/model"
 	"datalogger/internal/service"
@@ -27,8 +28,12 @@ func (h *ActuatorHandler) ListByDevice(c *gin.Context) {
 		return
 	}
 
-	actuators, err := h.actuationService.ListActuatorsByDevice(uint(deviceID))
+	actuators, err := h.actuationService.ListActuatorsByDeviceWithContext(c.Request.Context(), uint(deviceID))
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
@@ -38,7 +43,7 @@ func (h *ActuatorHandler) ListByDevice(c *gin.Context) {
 
 // ListAllActive handles GET /api/actuators
 func (h *ActuatorHandler) ListAllActive(c *gin.Context) {
-	actuators, err := h.actuationService.ListAllActiveActuators()
+	actuators, err := h.actuationService.ListAllActiveActuatorsWithContext(c.Request.Context())
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -55,8 +60,12 @@ func (h *ActuatorHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	actuator, err := h.actuationService.GetActuator(uint(id))
+	actuator, err := h.actuationService.GetActuatorWithContext(c.Request.Context(), uint(id))
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "Actuator not found")
 		return
 	}
@@ -79,7 +88,11 @@ func (h *ActuatorHandler) Create(c *gin.Context) {
 	}
 
 	actuator.DeviceID = uint(deviceID)
-	if err := h.actuationService.CreateActuator(&actuator); err != nil {
+	if err := h.actuationService.CreateActuatorWithContext(c.Request.Context(), &actuator); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -102,7 +115,11 @@ func (h *ActuatorHandler) Update(c *gin.Context) {
 	}
 
 	actuator.ID = uint(id)
-	if err := h.actuationService.UpdateActuator(&actuator); err != nil {
+	if err := h.actuationService.UpdateActuatorWithContext(c.Request.Context(), &actuator); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -118,7 +135,11 @@ func (h *ActuatorHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.actuationService.DeleteActuator(uint(id)); err != nil {
+	if err := h.actuationService.DeleteActuatorWithContext(c.Request.Context(), uint(id)); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
@@ -140,6 +161,10 @@ func (h *ActuatorHandler) TestWriteExisting(c *gin.Context) {
 
 	res, err := h.actuationService.TestWrite(c.Request.Context(), req)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -157,6 +182,10 @@ func (h *ActuatorHandler) TestWriteRaw(c *gin.Context) {
 
 	res, err := h.actuationService.TestWrite(c.Request.Context(), req)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -189,6 +218,10 @@ func (h *ActuatorHandler) Actuate(c *gin.Context) {
 	action := model.ActuationAction(body.Action)
 	logEntry, err := h.actuationService.Actuate(c.Request.Context(), uint(id), action, triggeredBy, nil)
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, fmt.Sprintf("Actuation failed: %v", err))
 		return
 	}
@@ -208,8 +241,12 @@ func (h *ActuatorHandler) ListSchedules(c *gin.Context) {
 		return
 	}
 
-	schedules, err := h.actuationService.ListSchedulesByActuator(uint(id))
+	schedules, err := h.actuationService.ListSchedulesByActuatorWithContext(c.Request.Context(), uint(id))
 	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
@@ -232,7 +269,11 @@ func (h *ActuatorHandler) CreateSchedule(c *gin.Context) {
 	}
 
 	schedule.ActuatorID = uint(id)
-	if err := h.actuationService.CreateSchedule(&schedule); err != nil {
+	if err := h.actuationService.CreateScheduleWithContext(c.Request.Context(), &schedule); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -255,7 +296,11 @@ func (h *ActuatorHandler) UpdateSchedule(c *gin.Context) {
 	}
 
 	schedule.ID = uint(id)
-	if err := h.actuationService.UpdateSchedule(&schedule); err != nil {
+	if err := h.actuationService.UpdateScheduleWithContext(c.Request.Context(), &schedule); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -271,7 +316,11 @@ func (h *ActuatorHandler) DeleteSchedule(c *gin.Context) {
 		return
 	}
 
-	if err := h.actuationService.DeleteSchedule(uint(id)); err != nil {
+	if err := h.actuationService.DeleteScheduleWithContext(c.Request.Context(), uint(id)); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
@@ -299,7 +348,7 @@ func (h *ActuatorHandler) ListLogs(c *gin.Context) {
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 
-	logs, err := h.actuationService.ListLogs(actuatorIDPtr, deviceIDPtr, limit)
+	logs, err := h.actuationService.ListLogsWithContext(c.Request.Context(), actuatorIDPtr, deviceIDPtr, limit)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

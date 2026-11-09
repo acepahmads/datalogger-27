@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"datalogger/internal/model"
+	"datalogger/pkg/tenantctx"
 
 	"gorm.io/gorm"
 )
@@ -84,8 +85,21 @@ func (r *ActuatorRepository) ListActuatorsByDevice(deviceID uint) ([]model.Devic
 }
 
 func (r *ActuatorRepository) ListAllActiveActuators() ([]model.DeviceActuator, error) {
+	return r.ListAllActiveActuatorsScoped(tenantctx.Scope{})
+}
+
+func (r *ActuatorRepository) ListAllActiveActuatorsScoped(scope tenantctx.Scope) ([]model.DeviceActuator, error) {
 	var list []model.DeviceActuator
-	err := r.db.Preload("Device").Preload("Device.Connection").Preload("FeedbackParameter").Preload("Schedules").Where("enabled = ?", true).Order("device_id ASC, id ASC").Find(&list).Error
+	q := r.db.Preload("Device").Preload("Device.Connection").Preload("FeedbackParameter").Preload("Schedules").Where("enabled = ?", true)
+	if scope.TenantID > 0 {
+		q = q.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		q = q.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		q = q.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
+	err := q.Order("device_id ASC, id ASC").Find(&list).Error
 	return list, err
 }
 
@@ -182,10 +196,22 @@ func (r *ActuatorRepository) CreateLog(log *model.ActuationLog) error {
 }
 
 func (r *ActuatorRepository) ListLogs(actuatorID *uint, deviceID *uint, limit int) ([]model.ActuationLog, error) {
+	return r.ListLogsScoped(tenantctx.Scope{}, actuatorID, deviceID, limit)
+}
+
+func (r *ActuatorRepository) ListLogsScoped(scope tenantctx.Scope, actuatorID *uint, deviceID *uint, limit int) ([]model.ActuationLog, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
 	query := r.db.Order("executed_at DESC").Limit(limit)
+	if scope.TenantID > 0 {
+		query = query.Where("tenant_id = ?", scope.TenantID)
+	}
+	if scope.SiteID > 0 {
+		query = query.Where("site_id = ?", scope.SiteID)
+	} else if len(scope.AllowedSiteIDs) > 0 {
+		query = query.Where("site_id IN ?", scope.AllowedSiteIDs)
+	}
 	if actuatorID != nil && *actuatorID > 0 {
 		query = query.Where("actuator_id = ?", *actuatorID)
 	}

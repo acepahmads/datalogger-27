@@ -346,6 +346,14 @@
             <span>{{ $t('navigation.retentionStorage') }}</span>
           </router-link>
 
+          <router-link v-if="isSuperAdmin || isAdmin" to="/administration/tenants" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/tenants') }">
+            <span class="active-indicator"></span>
+            <svg class="w-4 h-4 mr-2.5 text-purple-500 dark:text-purple-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.85">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
+            </svg>
+            <span class="font-semibold text-purple-600 dark:text-purple-300">Tenant &amp; Stasiun</span>
+          </router-link>
+
           <router-link v-if="isSuperAdmin || isAdmin" to="/administration/users" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/users') || $route.path.startsWith('/administration/roles') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">

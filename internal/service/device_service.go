@@ -42,6 +42,8 @@ type ConnectionConfigDTO struct {
 }
 
 type CreateDeviceRequest struct {
+	TenantID        uint                 `json:"tenant_id"`
+	SiteID          uint                 `json:"site_id"`
 	DeviceCode      string               `json:"device_code"`
 	DeviceName      string               `json:"device_name"`
 	DeviceType      string               `json:"device_type"`
@@ -61,6 +63,8 @@ type CreateDeviceRequest struct {
 }
 
 type UpdateDeviceRequest struct {
+	TenantID        *uint                `json:"tenant_id"`
+	SiteID          *uint                `json:"site_id"`
 	DeviceCode      *string              `json:"device_code"`
 	DeviceName      *string              `json:"device_name"`
 	DeviceType      *string              `json:"device_type"`
@@ -597,12 +601,13 @@ func parseNullableInt(val interface{}, clear *bool) *int {
 }
 
 type DeviceService struct {
-	repo         *repository.DeviceRepository
-	systemRepo   *repository.SystemRepository
-	alarmService *AlarmService
-	commMu       sync.Mutex
-	lastCommErr  map[uint]time.Time
-	prevStatus   map[uint]model.DeviceConnectionStatus
+	repo          *repository.DeviceRepository
+	systemRepo    *repository.SystemRepository
+	alarmService  *AlarmService
+	tenantService *TenantService
+	commMu        sync.Mutex
+	lastCommErr   map[uint]time.Time
+	prevStatus    map[uint]model.DeviceConnectionStatus
 }
 
 func NewDeviceService(repo *repository.DeviceRepository, systemRepo *repository.SystemRepository) *DeviceService {
@@ -616,6 +621,10 @@ func NewDeviceService(repo *repository.DeviceRepository, systemRepo *repository.
 
 func (s *DeviceService) SetAlarmService(as *AlarmService) {
 	s.alarmService = as
+}
+
+func (s *DeviceService) SetTenantService(ts *TenantService) {
+	s.tenantService = ts
 }
 
 func (s *DeviceService) clearDeviceAlarms(deviceID uint) {
@@ -653,6 +662,11 @@ func (s *DeviceService) GetDeviceByCode(code string) (*model.Device, error) {
 	return s.repo.GetByCode(code)
 }
 
+// GetDeviceByCodeInTenant retrieves device by its code within a specific tenant
+func (s *DeviceService) GetDeviceByCodeInTenant(tenantID uint, code string) (*model.Device, error) {
+	return s.repo.GetByCodeInTenant(tenantID, code)
+}
+
 // CreateDevice registers a new device with validation and audit trail
 func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddress, userAgent string) (*model.Device, error) {
 	// 1. Validation
@@ -683,8 +697,34 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 		devType = normalizeProtocol(devType)
 	}
 
-	// Check unique device_code
-	if existing, _ := s.repo.GetByCode(code); existing != nil {
+	tenantID := req.TenantID
+	if tenantID == 0 {
+		tenantID = 1
+	}
+	siteID := req.SiteID
+
+	if s.tenantService != nil {
+		if err := s.tenantService.CheckDeviceQuota(tenantID, 1); err != nil {
+			return nil, err
+		}
+		if s.tenantService.GetRepo() != nil {
+			if siteID > 0 {
+				site, err := s.tenantService.GetRepo().GetSiteByID(siteID)
+				if err != nil || site == nil || site.TenantID != tenantID {
+					return nil, errors.New("selected station/site does not belong to target tenant")
+				}
+				siteID = site.ID
+			} else if site, err := s.tenantService.GetRepo().GetDefaultSiteForTenant(tenantID); err == nil && site != nil {
+				siteID = site.ID
+			}
+		}
+	}
+	if siteID == 0 {
+		siteID = 1
+	}
+
+	// Check unique device_code within tenant
+	if existing, _ := s.repo.GetByCodeInTenant(tenantID, code); existing != nil {
 		return nil, fmt.Errorf("device with code '%s' already exists", code)
 	}
 
@@ -722,6 +762,8 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 	}
 
 	device := &model.Device{
+		TenantID:         tenantID,
+		SiteID:           siteID,
 		DeviceCode:       code,
 		DeviceName:       name,
 		DeviceType:       devType,
@@ -748,10 +790,15 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 	if err := s.repo.Create(device); err != nil {
 		return nil, fmt.Errorf("failed to create device: %w", err)
 	}
+	if reloaded, err := s.repo.GetByID(device.ID); err == nil && reloaded != nil {
+		device = reloaded
+	}
 
 	// Audit Trail
 	auditPayload := map[string]interface{}{
 		"device_id":   device.ID,
+		"tenant_id":   device.TenantID,
+		"site_id":     device.SiteID,
 		"device_code": device.DeviceCode,
 		"device_name": device.DeviceName,
 		"status":      device.Status,
@@ -763,7 +810,7 @@ func (s *DeviceService) CreateDevice(req *CreateDeviceRequest, username, ipAddre
 		auditPayload["cloned_from_device_id"] = *req.SourceDeviceID
 	}
 	auditDetails, _ := json.Marshal(auditPayload)
-	s.recordAudit(username, action, "DEVICE", string(auditDetails), ipAddress, userAgent)
+	s.recordAuditWithTenant(device.TenantID, username, action, "DEVICE", string(auditDetails), ipAddress, userAgent)
 
 	return device, nil
 }
@@ -783,6 +830,24 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 		"location":    device.Location,
 	})
 
+	if req.TenantID != nil && *req.TenantID > 0 && *req.TenantID != device.TenantID {
+		if s.tenantService != nil {
+			if err := s.tenantService.CheckDeviceQuota(*req.TenantID, 1); err != nil {
+				return nil, err
+			}
+		}
+		device.TenantID = *req.TenantID
+	}
+	if req.SiteID != nil && *req.SiteID > 0 {
+		if s.tenantService != nil && s.tenantService.GetRepo() != nil {
+			site, err := s.tenantService.GetRepo().GetSiteByID(*req.SiteID)
+			if err != nil || site == nil || site.TenantID != device.TenantID {
+				return nil, errors.New("selected station/site does not belong to this tenant")
+			}
+		}
+		device.SiteID = *req.SiteID
+	}
+
 	if req.DeviceCode != nil {
 		cleanCode := strings.TrimSpace(*req.DeviceCode)
 		if cleanCode == "" {
@@ -792,7 +857,7 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 			return nil, errors.New("device_code cannot exceed 64 characters")
 		}
 		if !strings.EqualFold(cleanCode, device.DeviceCode) {
-			if existing, _ := s.repo.GetByCode(cleanCode); existing != nil && existing.ID != device.ID {
+			if existing, _ := s.repo.GetByCodeInTenant(device.TenantID, cleanCode); existing != nil && existing.ID != device.ID {
 				return nil, fmt.Errorf("device code '%s' is already in use by another device", cleanCode)
 			}
 			device.DeviceCode = cleanCode
@@ -870,6 +935,9 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 	if err := s.repo.Update(device); err != nil {
 		return nil, fmt.Errorf("failed to update device: %w", err)
 	}
+	if reloaded, err := s.repo.GetByID(device.ID); err == nil && reloaded != nil {
+		device = reloaded
+	}
 
 	if !device.Enabled || device.Status == model.DeviceStatusDisabled || device.Status == model.DeviceStatusInactive {
 		s.clearDeviceAlarms(device.ID)
@@ -888,7 +956,7 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 		"before":    string(beforeState),
 		"after":     string(afterState),
 	})
-	s.recordAudit(username, "UPDATE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
+	s.recordAuditWithTenant(device.TenantID, username, "UPDATE_DEVICE", "DEVICE", string(auditDetails), ipAddress, userAgent)
 
 	return device, nil
 }
@@ -1783,7 +1851,7 @@ func (s *DeviceService) GetDeviceAuditTrail(deviceID uint, limit int) ([]model.A
 	if err != nil {
 		return nil, errors.New("device not found")
 	}
-	return s.repo.GetDeviceAuditTrail(deviceID, dev.DeviceCode, limit)
+	return s.repo.GetDeviceAuditTrail(deviceID, dev.DeviceCode, limit, dev.TenantID)
 }
 
 func normalizeProtocol(proto string) string {
@@ -1912,11 +1980,21 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 }
 
 func (s *DeviceService) recordAudit(username, action, resource, details, ipAddress, userAgent string) {
+	s.recordAuditWithTenant(0, username, action, resource, details, ipAddress, userAgent)
+}
+
+func (s *DeviceService) recordAuditWithTenant(tenantID uint, username, action, resource, details, ipAddress, userAgent string) {
 	if s.systemRepo != nil {
 		if username == "" {
 			username = "system"
 		}
+		var tidPtr *uint
+		if tenantID > 0 {
+			tid := tenantID
+			tidPtr = &tid
+		}
 		_ = s.systemRepo.AddAuditTrail(&model.AuditTrail{
+			TenantID:  tidPtr,
 			Username:  username,
 			Action:    action,
 			Resource:  resource,

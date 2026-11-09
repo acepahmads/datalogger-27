@@ -56,6 +56,10 @@ func (h *OutboundHandler) GetDestinationByID(c *gin.Context) {
 
 	dest, err := h.service.GetDestinationByID(c.Request.Context(), uint(id), redactSecrets)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "Destination not found")
 		return
 	}
@@ -76,6 +80,10 @@ func (h *OutboundHandler) CreateDestination(c *gin.Context) {
 	}
 
 	if err := h.service.CreateDestination(c.Request.Context(), &dest); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to create destination: "+err.Error())
 		return
 	}
@@ -99,6 +107,10 @@ func (h *OutboundHandler) UpdateDestination(c *gin.Context) {
 	dest.ID = uint(id)
 
 	if err := h.service.UpdateDestination(c.Request.Context(), &dest); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to update destination: "+err.Error())
 		return
 	}
@@ -115,6 +127,10 @@ func (h *OutboundHandler) DeleteDestination(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteDestination(c.Request.Context(), uint(id)); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to delete destination: "+err.Error())
 		return
 	}
@@ -132,6 +148,10 @@ func (h *OutboundHandler) GetPayloadConfig(c *gin.Context) {
 
 	cfg, err := h.service.GetPayloadConfig(c.Request.Context(), uint(id))
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		// Return default scaffold if config record doesn't exist yet
 		cfg = &model.DestinationPayloadConfig{
 			DestinationID:   uint(id),
@@ -168,6 +188,10 @@ func (h *OutboundHandler) UpdatePayloadConfig(c *gin.Context) {
 	cfg.DestinationID = uint(id)
 
 	if err := h.service.UpdatePayloadConfig(c.Request.Context(), &cfg); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, "Configuration validation failed: "+err.Error())
 		return
 	}
@@ -201,6 +225,10 @@ func (h *OutboundHandler) GeneratePreview(c *gin.Context) {
 
 	preview, err := h.service.GeneratePreviewWithConfig(c.Request.Context(), uint(id), deviceID, customCfg)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, "Failed to generate preview: "+err.Error())
 		return
 	}
@@ -226,6 +254,10 @@ func (h *OutboundHandler) TestPayload(c *gin.Context) {
 
 	result, err := h.service.TestPayloadWithConfig(c.Request.Context(), uint(id), customCfg)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.BadRequest(c, "Test execution failed: "+err.Error())
 		return
 	}
@@ -323,6 +355,10 @@ func (h *OutboundHandler) GetQueueItemDetail(c *gin.Context) {
 
 	detail, err := h.service.GetQueueItemDetail(c.Request.Context(), id)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "Queue item not found")
 		return
 	}
@@ -339,6 +375,10 @@ func (h *OutboundHandler) RetryQueueItem(c *gin.Context) {
 	}
 
 	if err := h.service.RetryQueueItem(c.Request.Context(), id); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to retry queue item: "+err.Error())
 		return
 	}
@@ -356,6 +396,10 @@ func (h *OutboundHandler) ReplayQueueItem(c *gin.Context) {
 
 	newItem, err := h.service.ReplayQueueItem(c.Request.Context(), id)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to replay queue item: "+err.Error())
 		return
 	}
@@ -372,6 +416,10 @@ func (h *OutboundHandler) CancelQueueItem(c *gin.Context) {
 	}
 
 	if err := h.service.CancelQueueItem(c.Request.Context(), id); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to cancel queue item: "+err.Error())
 		return
 	}
@@ -388,6 +436,10 @@ func (h *OutboundHandler) DeleteQueueItem(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteQueueItem(c.Request.Context(), id); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, "Failed to delete queue item: "+err.Error())
 		return
 	}
