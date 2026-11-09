@@ -371,9 +371,8 @@ func main() {
 		api.GET("/auth/me", middleware.JWTAuth(authService), authHandler.Me)
 		api.GET("/users/me", middleware.JWTAuth(authService), authHandler.Me)
 
-		// Hybrid Edge-to-Central Telemetry Push Gateway (API Key Authenticated via X-Ingest-Key)
+		// Hybrid Edge-to-Central Telemetry Push Gateway (API Key Authenticated via X-Ingest-Key; /api/v1/ingest/telemetry is registered below)
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
-		api.POST("/v1/ingest/telemetry", ingestHandler.IngestTelemetry)
 
 		// Multi-Tenant & Multi-Site Organization Management
 		tenantsGroup := api.Group("/tenants")

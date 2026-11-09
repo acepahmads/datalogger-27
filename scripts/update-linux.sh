@@ -17,8 +17,9 @@ echo "Detected CPU Architecture: $ARCH"
 
 # 1. Check if git repo needs pulling or if already pulled
 if [ -d ".git" ]; then
-  echo "[1/4] Pulling latest commits from GitHub..."
-  git pull origin main || true
+  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+  echo "[1/4] Pulling latest commits from GitHub (branch: $CURRENT_BRANCH)..."
+  git pull origin "$CURRENT_BRANCH" || true
 fi
 
 # 2. Stop systemd service if active
