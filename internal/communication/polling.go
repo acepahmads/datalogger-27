@@ -201,6 +201,11 @@ func (p *PollingEngine) StartDeviceWorker(device *model.Device) {
 	if device.Connection != nil && device.Connection.SerialPort != "" {
 		GetSharedAdapterTracker().RegisterDevice(device.ID, device.DeviceCode, device.DeviceName, device.Connection.SerialPort)
 	}
+	hasFormula := deviceHasActiveFormula(device)
+	GetSharedAdapterTracker().SetDeviceFormulaActive(device.ID, hasFormula)
+	if hasFormula && p.deviceService != nil {
+		_ = p.deviceService.SetOnline(device.ID)
+	}
 
 	workerCtx, workerCancel := context.WithCancel(p.ctx)
 	p.workers[device.ID] = workerCancel
@@ -270,6 +275,11 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 		}
 		cachedDev.Parameters = cachedParams
 	}
+	initFormula := deviceHasActiveFormula(cachedDev)
+	GetSharedAdapterTracker().SetDeviceFormulaActive(deviceID, initFormula)
+	if initFormula && p.deviceService != nil {
+		_ = p.deviceService.SetOnline(deviceID)
+	}
 
 	currentIntervalMs = calculateDeviceTickIntervalMs(baseIntervalMs, cachedParams)
 	ticker.Reset(time.Duration(currentIntervalMs) * time.Millisecond)
@@ -319,6 +329,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 						}
 						cachedDev.Parameters = cachedParams
 					}
+					GetSharedAdapterTracker().SetDeviceFormulaActive(deviceID, deviceHasActiveFormula(cachedDev))
 					targetTick := calculateDeviceTickIntervalMs(baseIntervalMs, cachedParams)
 					if targetTick != currentIntervalMs {
 						currentIntervalMs = targetTick
@@ -386,6 +397,7 @@ func (p *PollingEngine) runWorker(ctx context.Context, deviceID uint) {
 			}
 
 			hasFormula := deviceHasActiveFormula(cachedDev)
+			GetSharedAdapterTracker().SetDeviceFormulaActive(cachedDev.ID, hasFormula)
 			if cycleSuccess || hasFormula {
 				now := time.Now().UTC()
 				cachedDev.LastDataAt = &now
@@ -559,6 +571,13 @@ func (p *PollingEngine) pollDevice(ctx context.Context, device *model.Device, en
 
 // pollDeviceSingle executes the parameter read loop sequentially (Single Read mode)
 func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Device, enabledParams []model.Parameter) bool {
+	if device != nil {
+		cp := *device
+		if len(cp.Parameters) == 0 {
+			cp.Parameters = enabledParams
+		}
+		GetSharedAdapterTracker().SetDeviceFormulaActive(device.ID, deviceHasActiveFormula(&cp))
+	}
 	anySuccess := false
 	source := ""
 	if device != nil && device.Connection != nil {
@@ -652,6 +671,13 @@ func (p *PollingEngine) pollDeviceSingle(ctx context.Context, device *model.Devi
 
 // pollDeviceBatch executes consolidated Modbus batch read jobs with controlled single-read fallback
 func (p *PollingEngine) pollDeviceBatch(ctx context.Context, device *model.Device, enabledParams []model.Parameter) bool {
+	if device != nil {
+		cp := *device
+		if len(cp.Parameters) == 0 {
+			cp.Parameters = enabledParams
+		}
+		GetSharedAdapterTracker().SetDeviceFormulaActive(device.ID, deviceHasActiveFormula(&cp))
+	}
 	plan := modbus.PlanDeviceBatches(device, enabledParams)
 	if len(plan.Jobs) == 0 {
 		return false
@@ -803,7 +829,11 @@ jobLoop:
 
 			if isFatalCommError(err) {
 				rem := filterUnpolledParams(enabledParams, polledIDs)
-				if p.markRemainingParamsBad(device, rem, 0, err, source, anySuccess) {
+				cp := *device
+				if len(cp.Parameters) == 0 {
+					cp.Parameters = enabledParams
+				}
+				if p.markRemainingParamsBad(device, rem, 0, err, source, anySuccess || deviceHasActiveFormula(&cp)) {
 					anySuccess = true
 				}
 				break jobLoop
@@ -989,6 +1019,11 @@ func (p *PollingEngine) ingestFallbackReading(
 		qFlags = model.FlagFormulaFallback
 	}
 
+	effectiveFormula := param.Formula
+	if param.CalibrationEnabled || param.CalibrationSessionActive {
+		effectiveFormula = ""
+	}
+
 	if p.telemetryService != nil {
 		_ = p.telemetryService.Ingest(&service.TelemetryIngestPayload{
 			DeviceID:      device.ID,
@@ -1002,7 +1037,7 @@ func (p *PollingEngine) ingestFallbackReading(
 			RawValue:      effVal,
 			Value:         finalVal,
 			FormulaValue:  formulaVal,
-			Formula:       param.Formula,
+			Formula:       effectiveFormula,
 			IsHeldValue:   isHeld,
 			Quality:       quality,
 			QualityReason: qReason,
@@ -1033,7 +1068,7 @@ func (p *PollingEngine) ingestFallbackReading(
 		elapsed,
 	)
 	res.ScaledValue = effVal
-	res.Formula = param.Formula
+	res.Formula = effectiveFormula
 	res.FormulaValue = formulaVal
 	res.IsHeld = isHeld
 	res.Quality = quality
@@ -1057,10 +1092,14 @@ func (p *PollingEngine) markRemainingParamsBad(device *model.Device, params []mo
 
 		if p.holdTracker != nil {
 			effVal, formulaVal, isHeld, quality, pErr = p.holdTracker.ProcessReading(&remParam, 0, 0, err)
-		} else if fVal := evalParamFormula(remParam.Formula, 0, 0); fVal != nil {
-			formulaVal = fVal
-			quality = model.QualityGood
-			pErr = nil
+		} else if paramHasActiveFormula(&remParam) {
+			fallbackEng, fallbackRaw := resolveFormulaFallbackInputs(&remParam, nil)
+			if fVal := evalParamFormula(remParam.Formula, fallbackEng, fallbackRaw); fVal != nil {
+				effVal = fallbackEng
+				formulaVal = fVal
+				quality = model.QualityGood
+				pErr = nil
+			}
 		}
 
 		if isHeld || (formulaVal != nil && pErr == nil) {
@@ -1281,8 +1320,10 @@ func (p *PollingEngine) ReadParameter(
 
 		if p.holdTracker != nil {
 			effVal, formulaVal, isHeld, quality, pErr = p.holdTracker.ProcessReading(param, 0, 0, err)
-		} else if !param.CalibrationEnabled && !param.CalibrationSessionActive {
-			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
+		} else if paramHasActiveFormula(param) {
+			fallbackEng, fallbackRaw := resolveFormulaFallbackInputs(param, nil)
+			if fVal := evalParamFormula(param.Formula, fallbackEng, fallbackRaw); fVal != nil {
+				effVal = fallbackEng
 				formulaVal = fVal
 				quality = model.QualityGood
 				pErr = nil

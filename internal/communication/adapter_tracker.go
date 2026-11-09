@@ -25,6 +25,7 @@ type USBAdapterTracker struct {
 	deviceCodes         map[uint]string            // deviceID -> deviceCode
 	deviceNames         map[uint]string            // deviceID -> deviceName
 	devicePorts         map[uint]string            // deviceID -> serialPort
+	deviceFormula       map[uint]bool              // deviceID -> hasActiveFormula
 	adapterDevices      map[string]map[uint]bool   // adapterKey -> set of deviceIDs
 	adapterStatus       map[string]string          // adapterKey -> TransportStatus
 	adapterMissing      map[string]bool            // adapterKey -> isMissing
@@ -51,6 +52,7 @@ func GetSharedAdapterTracker() *USBAdapterTracker {
 			deviceCodes:       make(map[uint]string),
 			deviceNames:       make(map[uint]string),
 			devicePorts:       make(map[uint]string),
+			deviceFormula:     make(map[uint]bool),
 			adapterDevices:    make(map[string]map[uint]bool),
 			adapterStatus:     make(map[string]string),
 			adapterMissing:    make(map[string]bool),
@@ -69,11 +71,48 @@ func ResetSharedAdapterTracker() {
 	tracker.deviceCodes = make(map[uint]string)
 	tracker.deviceNames = make(map[uint]string)
 	tracker.devicePorts = make(map[uint]string)
+	tracker.deviceFormula = make(map[uint]bool)
 	tracker.adapterDevices = make(map[string]map[uint]bool)
 	tracker.adapterStatus = make(map[string]string)
 	tracker.adapterMissing = make(map[string]bool)
 	tracker.customAdapterKeys = make(map[string]string)
 	tracker.adapterPresenceHook = nil
+}
+
+// SetDeviceFormulaActive records whether a device has at least one enabled parameter with an active formula
+func (t *USBAdapterTracker) SetDeviceFormulaActive(deviceID uint, active bool) {
+	if deviceID == 0 {
+		return
+	}
+	t.mu.Lock()
+	if t.deviceFormula == nil {
+		t.deviceFormula = make(map[uint]bool)
+	}
+	t.deviceFormula[deviceID] = active
+	t.mu.Unlock()
+}
+
+// HasActiveFormula returns true if the device currently has an active parameter formula
+func (t *USBAdapterTracker) HasActiveFormula(deviceID uint) bool {
+	if deviceID == 0 {
+		return false
+	}
+	t.mu.RLock()
+	cached, hasCached := t.deviceFormula[deviceID]
+	ds := t.deviceService
+	t.mu.RUnlock()
+
+	if ds != nil {
+		if dev, err := ds.GetDeviceByID(deviceID); err == nil && dev != nil {
+			active := deviceHasActiveFormula(dev)
+			t.SetDeviceFormulaActive(deviceID, active)
+			return active
+		}
+	}
+	if hasCached {
+		return cached
+	}
+	return false
 }
 
 // SetActivityMonitor attaches the ActivityMonitor
@@ -218,6 +257,8 @@ func (t *USBAdapterTracker) UnregisterDevice(deviceID uint) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	delete(t.deviceFormula, deviceID)
+
 	adapterKey, exists := t.deviceAdapters[deviceID]
 	if !exists {
 		return
@@ -319,6 +360,13 @@ func (t *USBAdapterTracker) OnPortMissing(deviceID uint, portPath string, reason
 		adapterKey, deviceID, portPath, len(affectedIDs), affectedIDs)
 
 	for _, dID := range affectedIDs {
+		if t.HasActiveFormula(dID) {
+			if cm != nil {
+				_ = cm.closeTransportAdapter(dID)
+			}
+			continue
+		}
+
 		t.mu.RLock()
 		devCode := t.deviceCodes[dID]
 		devName := t.deviceNames[dID]
@@ -429,6 +477,16 @@ func (t *USBAdapterTracker) OnPortRecovered(deviceID uint, portPath string) {
 	}
 
 	for _, dID := range affectedIDs {
+		if t.HasActiveFormula(dID) {
+			if mon != nil {
+				mon.UpdateDevicePollingSnapshot(dID, func(s *DevicePollingSnapshot) {
+					s.TransportStatus = TransportAvailable
+					s.LastError = ""
+				})
+			}
+			continue
+		}
+
 		t.mu.RLock()
 		devCode := t.deviceCodes[dID]
 		devName := t.deviceNames[dID]
@@ -491,6 +549,8 @@ func (t *USBAdapterTracker) OnPortRecovered(deviceID uint, portPath string) {
 // OnCommunicationSuccess confirms that a verified Modbus response was received.
 // This is the ONLY place where a device transitions to ONLINE!
 func (t *USBAdapterTracker) OnCommunicationSuccess(deviceID uint, latencyMs int) {
+	hasFormula := t.HasActiveFormula(deviceID)
+
 	t.mu.RLock()
 	devCode := t.deviceCodes[deviceID]
 	devName := t.deviceNames[deviceID]
@@ -520,7 +580,7 @@ func (t *USBAdapterTracker) OnCommunicationSuccess(deviceID uint, latencyMs int)
 			s.IsFresh = true
 		})
 
-		if wasOffline {
+		if wasOffline && !hasFormula {
 			mon.RecordEvent(ActivityEvent{
 				Severity:    SeverityInfo,
 				Category:    CategoryCommunication,
@@ -606,6 +666,17 @@ func (t *USBAdapterTracker) EvaluateDeviceFreshness(snap *DevicePollingSnapshot,
 
 	thresh := CalculateFreshnessThreshold(conn)
 	snap.FreshnessThresholdMs = thresh.Milliseconds()
+
+	if t.HasActiveFormula(snap.DeviceID) {
+		snap.CommunicationStatus = CommOnline
+		snap.TransportStatus = TransportAvailable
+		if snap.PollingState == PollingStateStopped || snap.PollingState == PollingStateTimeout || snap.PollingState == PollingStateUnknown {
+			snap.PollingState = PollingStateSuccess
+		}
+		snap.LastError = ""
+		snap.IsFresh = true
+		return true
+	}
 
 	// 1. Proactive physical port presence check for serial devices
 	if conn != nil && conn.Protocol == model.ProtocolModbusRTU && conn.SerialPort != "" {
