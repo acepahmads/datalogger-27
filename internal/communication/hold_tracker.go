@@ -45,6 +45,13 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		return engVal, nil, false, model.QualityBad, fmt.Errorf("parameter cannot be nil")
 	}
 
+	// Never evaluate custom parameter formula when Sensor Calibration curve or Calibration Session is active
+	// so two formulas can never stack on top of each other.
+	effectiveFormula := param.Formula
+	if param.CalibrationEnabled || param.CalibrationSessionActive {
+		effectiveFormula = ""
+	}
+
 	t.mu.Lock()
 	state, exists := t.states[param.ID]
 	if !exists {
@@ -63,10 +70,23 @@ func (t *AnomalyHoldTracker) ProcessReading(
 	// 2. If hold-last-value is disabled, process normally
 	if !param.HoldLastValueEnabled {
 		if readErr != nil {
-			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
-				return 0, fVal, false, model.QualityGood, nil
+			t.mu.RLock()
+			fallbackEng, fallbackRaw := resolveFormulaFallbackInputs(param, state)
+			t.mu.RUnlock()
+			if fVal := evalParamFormula(effectiveFormula, fallbackEng, fallbackRaw); fVal != nil {
+				return fallbackEng, fVal, false, model.QualityGood, nil
 			}
 			return 0, nil, false, model.QualityBad, readErr
+		}
+
+		if !isAnomaly {
+			t.mu.Lock()
+			valCopy := engVal
+			rawCopy := rawVal
+			state.LastGoodValue = &valCopy
+			state.LastGoodRaw = &rawCopy
+			state.LastGoodTimestamp = time.Now()
+			t.mu.Unlock()
 		}
 
 		quality = model.QualityGood
@@ -74,7 +94,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 			quality = model.QualityUncertain
 		}
 
-		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+		formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 		return engVal, formulaVal, false, quality, nil
 	}
 
@@ -102,7 +122,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		state.LastGoodTimestamp = now
 		t.mu.Unlock()
 
-		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+		formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 		return engVal, formulaVal, false, model.QualityGood, nil
 	}
 
@@ -113,12 +133,13 @@ func (t *AnomalyHoldTracker) ProcessReading(
 	// If no previous good value exists yet, evaluate formula fallback (if configured) or report real state
 	if state.LastGoodValue == nil {
 		if readErr != nil {
-			if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
-				return 0, fVal, false, model.QualityGood, nil
+			fallbackEng, fallbackRaw := resolveFormulaFallbackInputs(param, state)
+			if fVal := evalParamFormula(effectiveFormula, fallbackEng, fallbackRaw); fVal != nil {
+				return fallbackEng, fVal, false, model.QualityGood, nil
 			}
 			return 0, nil, false, model.QualityBad, readErr
 		}
-		formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+		formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 		return engVal, formulaVal, false, model.QualityBad, nil
 	}
 
@@ -139,7 +160,7 @@ func (t *AnomalyHoldTracker) ProcessReading(
 			effectiveRaw = *state.LastGoodRaw
 		}
 		state.IsHeld = true
-		formulaVal = evalParamFormula(param.Formula, effectiveVal, effectiveRaw)
+		formulaVal = evalParamFormula(effectiveFormula, effectiveVal, effectiveRaw)
 
 		// Return last good value with UNCERTAIN quality and isHeld=true
 		return effectiveVal, formulaVal, true, model.QualityUncertain, nil
@@ -151,14 +172,34 @@ func (t *AnomalyHoldTracker) ProcessReading(
 		param.ParameterCode, param.ID, elapsed.Round(time.Second), holdDuration)
 
 	if readErr != nil {
-		if fVal := evalParamFormula(param.Formula, 0, 0); fVal != nil {
-			return 0, fVal, false, model.QualityGood, nil
+		fallbackEng, fallbackRaw := resolveFormulaFallbackInputs(param, state)
+		if fVal := evalParamFormula(effectiveFormula, fallbackEng, fallbackRaw); fVal != nil {
+			return fallbackEng, fVal, false, model.QualityGood, nil
 		}
 		return 0, nil, false, model.QualityBad, readErr
 	}
 
-	formulaVal = evalParamFormula(param.Formula, engVal, rawVal)
+	formulaVal = evalParamFormula(effectiveFormula, engVal, rawVal)
 	return engVal, formulaVal, false, model.QualityBad, nil
+}
+
+// resolveFormulaFallbackInputs returns the last verified physical sensor reading (if any)
+// so formulas referencing x/val/value/raw do not spike to 0 on transient timeouts,
+// while never compounding previous formula outputs when no physical reading has occurred.
+func resolveFormulaFallbackInputs(param *model.Parameter, state *ParameterHoldState) (float64, float64) {
+	if state != nil && state.LastGoodValue != nil {
+		eng := *state.LastGoodValue
+		raw := eng
+		if state.LastGoodRaw != nil {
+			raw = *state.LastGoodRaw
+		}
+		return eng, raw
+	}
+	if param != nil && param.CurrentUncalibratedValue != nil {
+		uncal := *param.CurrentUncalibratedValue
+		return param.ApplyCalibration(uncal), uncal
+	}
+	return 0, 0
 }
 
 // Reset clears hold state for a specific parameter

@@ -71,6 +71,7 @@ type LatestTelemetry struct {
 	UncalibratedValue        *float64                `json:"uncalibrated_value,omitempty"`
 	CalibrationEnabled       bool                    `json:"calibration_enabled,omitempty"`
 	CalibrationSessionActive bool                    `json:"calibration_session_active,omitempty"`
+	CalEquation              string                  `json:"cal_equation,omitempty"`
 	ValueNumeric             *float64                `json:"value_numeric,omitempty"`
 	FormulaValue    *float64                `json:"formula_value,omitempty"`
 	Formula         string                  `json:"formula,omitempty"`
@@ -350,6 +351,13 @@ func (s *TelemetryService) SyncParameterCalibrationCache(param *model.Parameter)
 	if ok && cached != nil {
 		cached.CalibrationEnabled = param.CalibrationEnabled
 		cached.CalibrationSessionActive = param.CalibrationSessionActive
+		if param.CalibrationEnabled {
+			cached.CalEquation = param.CalibrationEquation()
+			cached.Formula = ""
+			cached.FormulaValue = nil
+		} else {
+			cached.CalEquation = ""
+		}
 		if cached.UncalibratedValue != nil {
 			newCal := param.ApplyCalibration(*cached.UncalibratedValue)
 			cached.Value = newCal
@@ -540,6 +548,7 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 	// Active Calibration Session Guard: tag readings with calibration_session so alarms & regulatory AQMS/SPARING/ONLIMO buckets are protected
 	calEnabled := false
 	calSessionActive := false
+	calEquation := ""
 	resolvedParam := p.Parameter
 	if resolvedParam == nil && s.paramLookup != nil {
 		if lookedUp, err := s.paramLookup(p.ParameterID); err == nil && lookedUp != nil {
@@ -549,6 +558,9 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 	if resolvedParam != nil {
 		calEnabled = resolvedParam.CalibrationEnabled
 		calSessionActive = resolvedParam.CalibrationSessionActive
+		if calEnabled {
+			calEquation = resolvedParam.CalibrationEquation()
+		}
 		if calSessionActive {
 			if valResult.Quality != model.QualityBad {
 				valResult.Quality = model.QualityUncertain
@@ -638,34 +650,6 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		siteID = 1
 	}
 
-	rawData := &model.RawData{
-		TenantID:        tenantID,
-		SiteID:          siteID,
-		RecordUUID:      fmt.Sprintf("REC-%d-%d-%d-%d", p.DeviceID, p.ParameterID, seq, recAt.UnixNano()),
-		DeviceID:        p.DeviceID,
-		ParameterID:     p.ParameterID,
-		Value:           val,
-		ProcessedValue:  val,
-		ValueNumeric:    &valNum,
-		FormulaValue:    p.FormulaValue,
-		IsHeldValue:     p.IsHeldValue,
-		ValueText:       valText,
-		ValueBool:       valBool,
-		RawValue:        rawVal,
-		RawHex:          p.RawHex,
-		RawBytes:        p.RawBytes,
-		Quality:         valResult.Quality,
-		QualityReason:   valResult.QualityReason,
-		QualityFlags:    valResult.QualityFlags,
-		Source:          source,
-		Sequence:        seq,
-		DeviceTimestamp: p.DeviceTimestamp,
-		ReceivedAt:      recAt,
-		ProcessedAt:     &valResult.ProcessedAt,
-		StoredAt:        now,
-		Timestamp:       recAt,
-	}
-
 	var uncalPtr *float64
 	if p.UncalibratedValue != nil && !math.IsNaN(*p.UncalibratedValue) && !math.IsInf(*p.UncalibratedValue, 0) {
 		u := *p.UncalibratedValue
@@ -673,6 +657,35 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 	} else if !calEnabled {
 		u := val
 		uncalPtr = &u
+	}
+
+	rawData := &model.RawData{
+		TenantID:          tenantID,
+		SiteID:            siteID,
+		RecordUUID:        fmt.Sprintf("REC-%d-%d-%d-%d", p.DeviceID, p.ParameterID, seq, recAt.UnixNano()),
+		DeviceID:          p.DeviceID,
+		ParameterID:       p.ParameterID,
+		Value:             val,
+		ProcessedValue:    val,
+		UncalibratedValue: uncalPtr,
+		ValueNumeric:      &valNum,
+		FormulaValue:      p.FormulaValue,
+		IsHeldValue:       p.IsHeldValue,
+		ValueText:         valText,
+		ValueBool:         valBool,
+		RawValue:          rawVal,
+		RawHex:            p.RawHex,
+		RawBytes:          p.RawBytes,
+		Quality:           valResult.Quality,
+		QualityReason:     valResult.QualityReason,
+		QualityFlags:      valResult.QualityFlags,
+		Source:            source,
+		Sequence:          seq,
+		DeviceTimestamp:   p.DeviceTimestamp,
+		ReceivedAt:        recAt,
+		ProcessedAt:       &valResult.ProcessedAt,
+		StoredAt:          now,
+		Timestamp:         recAt,
 	}
 
 	latest := &LatestTelemetry{
@@ -691,6 +704,7 @@ func (s *TelemetryService) normalizeAndValidate(p *TelemetryIngestPayload) (*mod
 		UncalibratedValue:        uncalPtr,
 		CalibrationEnabled:       calEnabled,
 		CalibrationSessionActive: calSessionActive,
+		CalEquation:              calEquation,
 		ValueNumeric:             &valNum,
 		FormulaValue:    p.FormulaValue,
 		Formula:         p.Formula,

@@ -41,18 +41,36 @@ func canAccessRawTelemetry(c *gin.Context) bool {
 	return ok && (strings.EqualFold(role, "SUPERADMIN") || strings.EqualFold(role, "Administrator") || strings.EqualFold(role, "ADMIN"))
 }
 
-func sanitizeRawData(records []model.RawData) {
+func isOperatorRole(c *gin.Context) bool {
+	roleVal, exists := c.Get("role")
+	if !exists {
+		return true
+	}
+	role, ok := roleVal.(string)
+	return !ok || strings.EqualFold(strings.TrimSpace(role), "OPERATOR")
+}
+
+func sanitizeRawData(records []model.RawData, stripCalibration bool) {
 	for i := range records {
 		records[i].RawValue = 0
 		records[i].RawHex = ""
 		records[i].RawBytes = nil
+		if stripCalibration {
+			records[i].UncalibratedValue = nil
+		}
 	}
 }
 
-func sanitizeLatest(items []service.LatestTelemetry) {
+func sanitizeLatest(items []service.LatestTelemetry, stripCalibration bool) {
 	for i := range items {
 		items[i].RawValue = 0
 		items[i].RawHex = ""
+		if stripCalibration {
+			items[i].UncalibratedValue = nil
+			items[i].CalibrationEnabled = false
+			items[i].CalibrationSessionActive = false
+			items[i].CalEquation = ""
+		}
 	}
 }
 
@@ -75,7 +93,7 @@ func (h *TelemetryHandler) GetLatestForDevice(c *gin.Context) {
 	}
 
 	if !canAccessRawTelemetry(c) {
-		sanitizeLatest(results)
+		sanitizeLatest(results, isOperatorRole(c))
 	}
 
 	response.OK(c, results)
@@ -108,6 +126,12 @@ func (h *TelemetryHandler) GetLatestForParameter(c *gin.Context) {
 	if !canAccessRawTelemetry(c) && result != nil {
 		result.RawValue = 0
 		result.RawHex = ""
+		if isOperatorRole(c) {
+			result.UncalibratedValue = nil
+			result.CalibrationEnabled = false
+			result.CalibrationSessionActive = false
+			result.CalEquation = ""
+		}
 	}
 
 	response.OK(c, result)
@@ -242,7 +266,7 @@ func (h *TelemetryHandler) GetHistorical(c *gin.Context) {
 	}
 
 	if !canAccessRawTelemetry(c) {
-		sanitizeRawData(records)
+		sanitizeRawData(records, isOperatorRole(c))
 	}
 	if isStrictSuperAdmin(c) && h.injectionService != nil {
 		h.injectionService.AnnotateRawDataForSuperadmin(c.Request.Context(), records)
@@ -276,7 +300,7 @@ func (h *TelemetryHandler) GetAllHistorical(c *gin.Context) {
 	}
 
 	if !canAccessRawTelemetry(c) {
-		sanitizeRawData(records)
+		sanitizeRawData(records, isOperatorRole(c))
 	}
 	if isStrictSuperAdmin(c) && h.injectionService != nil {
 		h.injectionService.AnnotateRawDataForSuperadmin(c.Request.Context(), records)

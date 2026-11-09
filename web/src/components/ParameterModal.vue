@@ -903,7 +903,8 @@
               <span class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-500/30">
                 STALE {{ form.stale_timeout_seconds || 120 }}s
               </span>
-              <span v-if="form.formula" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300">FORMULA</span>
+              <span v-if="isParamCalibrated" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-300 dark:border-sky-500/40">KALIBRASI AKTIF</span>
+              <span v-else-if="form.formula" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300">FORMULA</span>
               <span v-if="form.hold_last_value_enabled" class="px-1.5 py-0.5 rounded text-4xs font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">HOLD</span>
               <span class="text-slate-400 text-xs transform transition" :class="showAdvancedSettings ? 'rotate-180' : ''">▼</span>
             </div>
@@ -912,6 +913,50 @@
           <div v-show="showAdvancedSettings" class="p-4 pt-1 border-t border-slate-200/80 dark:border-slate-800/60 space-y-4">
             <!-- Mathematical Formula Evaluation -->
             <div class="space-y-2">
+              <!-- Active Sensor Calibration Formula Banner (Prevents Double-Formula Collision) -->
+              <div
+                v-if="isParamCalibrated || isParamInCalSession"
+                class="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/35 border border-sky-200 dark:border-sky-700/60 space-y-2"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div class="text-2xs font-bold text-sky-800 dark:text-sky-200 flex items-center gap-1.5">
+                      <span>🎯 {{ isParamCalibrated ? 'Formula Hasil Kalibrasi Sensor Aktif' : 'Mode Sesi Kalibrasi Sedang Aktif' }}</span>
+                      <span
+                        v-if="isParamCalibrated && paramToEdit && paramToEdit.cal_r2 !== null && paramToEdit.cal_r2 !== undefined"
+                        class="px-1.5 py-0.2 rounded text-4xs font-mono bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-600/40"
+                      >
+                        R² = {{ Number(paramToEdit.cal_r2).toFixed(4) }}
+                      </span>
+                    </div>
+                    <div v-if="isParamCalibrated" class="mt-1 font-mono text-xs font-extrabold text-sky-900 dark:text-sky-100">
+                      {{ activeParamCalibrationEquation }}
+                    </div>
+                    <p class="text-3xs text-sky-700 dark:text-sky-300/90 mt-1 leading-relaxed">
+                      Formula manual dikunci otomatis selama kurva Kalibrasi Sensor aktif agar rumus tidak bertumpuk ganda. Untuk kembali ke nilai murni tanpa kalibrasi (<code>y = x</code>) atau mengisi formula manual, klik <b>Reset Kalibrasi</b>.
+                    </p>
+                  </div>
+                  <div v-if="canManageCategories && paramToEdit" class="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      @click="openCalibrationWorkspaceFromModal"
+                      class="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white btn-text text-3xs font-semibold transition cursor-pointer"
+                    >
+                      🎯 Buka Kalibrasi
+                    </button>
+                    <button
+                      v-if="isParamCalibrated"
+                      type="button"
+                      :disabled="resettingCalibrationInModal"
+                      @click="resetCalibrationFromModal"
+                      class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white btn-text text-3xs font-semibold transition cursor-pointer disabled:opacity-50"
+                    >
+                      {{ resettingCalibrationInModal ? 'Mereset...' : '↺ Reset Kalibrasi (y = x)' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div class="flex items-center justify-between">
                 <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   {{ $t('parameterModal.formula') }}
@@ -921,15 +966,16 @@
               <input
                 v-model="form.formula"
                 type="text"
-                :placeholder="$t('parameterModal.formulaPlaceholder')"
-                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono transition"
+                :disabled="isParamCalibrated || isParamInCalSession"
+                :placeholder="isParamCalibrated ? 'Dikunci karena Formula Kalibrasi Sensor sedang aktif (' + activeParamCalibrationEquation + ')' : $t('parameterModal.formulaPlaceholder')"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono transition disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 {{ $t('parameterModal.formulaDesc') }}
               </p>
 
               <!-- Quick Presets -->
-              <div class="flex items-center space-x-1.5 flex-wrap gap-y-1.5 pt-0.5">
+              <div v-if="!isParamCalibrated && !isParamInCalSession" class="flex items-center space-x-1.5 flex-wrap gap-y-1.5 pt-0.5">
                 <span class="text-3xs text-slate-500 dark:text-slate-400 mr-1 font-medium">{{ $t('parameterModal.presets') }}:</span>
                 <button
                   type="button"
@@ -1186,6 +1232,7 @@
 import ParameterIcon from './ParameterIcon.vue';
 import { PARAMETER_ICON_CATALOG, resolveParameterIconKey } from '../utils/parameterIcons.js';
 import { getCategoryColor } from '../utils/categoryTheme.js';
+import { formatCalibrationEquation } from '../utils/calibrationMath.js';
 import apiClient from '../services/api.js';
 
 export default {
@@ -1237,6 +1284,8 @@ export default {
       customByteSlots: ['A', 'B', 'C', 'D'],
       unknownByteOrderWarning: null,
       showAdvancedSettings: false,
+      resettingCalibrationInModal: false,
+      localCalibrationOverrideCleared: false,
       form: {
         category_id: null,
         parameter_code: '',
@@ -1277,6 +1326,24 @@ export default {
   computed: {
     isEditing() {
       return !this.isCopying && !!this.paramToEdit;
+    },
+    isParamCalibrated() {
+      if (!this.isEditing || !this.paramToEdit || this.localCalibrationOverrideCleared) return false;
+      return Boolean(this.paramToEdit.calibration_enabled);
+    },
+    isParamInCalSession() {
+      if (!this.isEditing || !this.paramToEdit) return false;
+      return Boolean(this.paramToEdit.calibration_session_active);
+    },
+    activeParamCalibrationEquation() {
+      if (!this.isParamCalibrated || !this.paramToEdit) return 'y = x (Default)';
+      return formatCalibrationEquation(
+        true,
+        this.paramToEdit.calibration_model,
+        this.paramToEdit.cal_c2,
+        this.paramToEdit.cal_c1,
+        this.paramToEdit.cal_c0
+      );
     },
     canManageCategories() {
       const user = this.$store && this.$store.state ? this.$store.state.user : null;
@@ -1778,7 +1845,39 @@ export default {
     },
     closeModal() {
       this.error = null;
+      this.localCalibrationOverrideCleared = false;
       this.$emit('close');
+    },
+    openCalibrationWorkspaceFromModal() {
+      if (!this.paramToEdit) return;
+      const pid = this.paramToEdit.id;
+      this.closeModal();
+      if (this.$router) {
+        this.$router.push({ path: '/monitoring/calibration', query: { parameter_id: pid } }).catch(() => {});
+      }
+    },
+    async resetCalibrationFromModal() {
+      if (!this.paramToEdit || !this.isParamCalibrated) return;
+      const pName = this.paramToEdit.parameter_name || this.paramToEdit.parameter_code || 'Parameter';
+      if (!window.confirm(`Reset kurva kalibrasi "${pName}" kembali ke nilai tanpa kalibrasi (y = x)?\n\nCatatan: Skala & Offset register Modbus dasar tidak akan berubah.`)) {
+        return;
+      }
+      this.resettingCalibrationInModal = true;
+      this.error = null;
+      try {
+        await apiClient.post(`/calibrations/parameters/${this.paramToEdit.id}/reset`, {
+          reason_note: 'Reset kalibrasi ke default (y = x) melalui Config Parameter',
+        });
+        this.localCalibrationOverrideCleared = true;
+        this.paramToEdit.calibration_enabled = false;
+        this.form.formula = '';
+        this.$emit('calibration-reset', { paramId: this.paramToEdit.id });
+      } catch (err) {
+        const rawMsg = (err.response && err.response.data && (err.response.data.message || err.response.data.error)) || err.message || 'Gagal mereset kalibrasi';
+        this.error = rawMsg;
+      } finally {
+        this.resettingCalibrationInModal = false;
+      }
     },
     resetForm() {
       const dev = this.currentDevice;
@@ -1880,7 +1979,8 @@ export default {
         zero_value_alarm_policy: param.zero_value_alarm_policy || 'NORMAL',
         batch_mode: param.batch_mode || 'AUTO',
       };
-      this.showAdvancedSettings = !!(param.formula || param.hold_last_value_enabled || param.spike_detection_enabled || (param.stale_timeout_seconds && Number(param.stale_timeout_seconds) !== 120));
+      this.localCalibrationOverrideCleared = false;
+      this.showAdvancedSettings = !!(param.formula || param.calibration_enabled || param.calibration_session_active || param.hold_last_value_enabled || param.spike_detection_enabled || (param.stale_timeout_seconds && Number(param.stale_timeout_seconds) !== 120));
       this.initByteOrderFromParam(param.byte_order, dt);
     },
     populateFromSource(source) {
@@ -2139,7 +2239,7 @@ export default {
         scale: this.cleanNum(this.form.scale) !== null ? this.cleanNum(this.form.scale) : 1.0,
         offset: this.cleanNum(this.form.offset) !== null ? this.cleanNum(this.form.offset) : 0.0,
         enabled: !!this.form.enabled,
-        formula: this.form.formula ? this.form.formula.trim() : '',
+        formula: (this.isParamCalibrated || this.isParamInCalSession) ? '' : (this.form.formula ? this.form.formula.trim() : ''),
         hold_last_value_enabled: !!this.form.hold_last_value_enabled,
         hold_last_value_seconds: this.cleanNum(this.form.hold_last_value_seconds) || 120,
         zero_value_alarm_policy: this.isStatusCategoryOrBool ? 'SUPPRESS_THRESHOLD' : (this.form.zero_value_alarm_policy || 'NORMAL'),

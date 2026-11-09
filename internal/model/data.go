@@ -69,9 +69,10 @@ type RawData struct {
 	Parameter *Parameter `gorm:"foreignKey:ParameterID" json:"parameter,omitempty"`
 
 	// Engineering Scaled & Processed Values
-	Value          float64  `gorm:"type:double" json:"value"`
-	ProcessedValue float64  `gorm:"type:double" json:"processed_value"`
-	ValueNumeric   *float64 `gorm:"type:double" json:"value_numeric,omitempty"`
+	Value             float64  `gorm:"type:double" json:"value"`
+	ProcessedValue    float64  `gorm:"type:double" json:"processed_value"`
+	UncalibratedValue *float64 `gorm:"column:uncalibrated_value;type:double" json:"uncalibrated_value,omitempty"`
+	ValueNumeric      *float64 `gorm:"type:double" json:"value_numeric,omitempty"`
 	FormulaValue   *float64 `gorm:"type:double" json:"formula_value,omitempty"`
 	IsHeldValue    bool     `gorm:"default:false;index" json:"is_held_value"`
 	ValueText      string   `gorm:"size:255" json:"value_text,omitempty"`
