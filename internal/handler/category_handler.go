@@ -15,10 +15,15 @@ import (
 
 type CategoryHandler struct {
 	categoryService *service.CategoryService
+	tenantService   *service.TenantService
 }
 
 func NewCategoryHandler(categoryService *service.CategoryService) *CategoryHandler {
 	return &CategoryHandler{categoryService: categoryService}
+}
+
+func (h *CategoryHandler) SetTenantService(ts *service.TenantService) {
+	h.tenantService = ts
 }
 
 func (h *CategoryHandler) getActorInfo(c *gin.Context) (string, string, string) {
@@ -65,6 +70,25 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "Failed to retrieve categories: "+err.Error())
 		return
 	}
+
+	// Align water-quality categories ("WQMS") with active SPARING / ONLIMO station domain so Operator Dashboard
+	// renders Water Quality, Physical Water, Chemical Parameters, and Flow & Level sections natively.
+	if c.Query("raw_domain") != "true" {
+		effectiveDom := strings.ToUpper(strings.TrimSpace(domain))
+		if effectiveDom == "" && h.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+			if st, sErr := h.tenantService.ResolveEffectiveSite(scope); sErr == nil && st != nil {
+				effectiveDom = strings.ToUpper(strings.TrimSpace(st.MonitoringDomain))
+			}
+		}
+		if effectiveDom == "SPARING" || effectiveDom == "ONLIMO" {
+			for i := range categories {
+				if strings.EqualFold(strings.TrimSpace(categories[i].Domain), "WQMS") {
+					categories[i].Domain = effectiveDom
+				}
+			}
+		}
+	}
+
 	response.OK(c, categories)
 }
 

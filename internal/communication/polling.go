@@ -28,23 +28,25 @@ type PollingEngine struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	stopOnce         sync.Once
-	batchFailuresMu  sync.Mutex
-	batchFailures    map[string]int
-	activityMonitor  *ActivityMonitor
+	batchFailuresMu      sync.Mutex
+	batchFailures        map[string]int
+	activityMonitor      *ActivityMonitor
+	sensorPollingEnabled bool
 }
 
 // NewPollingEngine constructs the polling coordinator
 func NewPollingEngine(connManager *ConnectionManager, deviceService *service.DeviceService, hub *websocket.Hub) *PollingEngine {
 	ctx, cancel := context.WithCancel(context.Background())
 	pe := &PollingEngine{
-		connManager:   connManager,
-		deviceService: deviceService,
-		hub:           hub,
-		holdTracker:   NewAnomalyHoldTracker(),
-		workers:       make(map[uint]context.CancelFunc),
-		batchFailures: make(map[string]int),
-		ctx:           ctx,
-		cancel:        cancel,
+		connManager:          connManager,
+		deviceService:        deviceService,
+		hub:                   hub,
+		holdTracker:          NewAnomalyHoldTracker(),
+		workers:              make(map[uint]context.CancelFunc),
+		batchFailures:        make(map[string]int),
+		ctx:                  ctx,
+		cancel:               cancel,
+		sensorPollingEnabled: true,
 	}
 
 	tracker := GetSharedAdapterTracker()
@@ -123,8 +125,36 @@ func toHealthInput(h ConnectionHealth) *service.DeviceHealthInput {
 	}
 }
 
+// IsSensorPollingEnabled reports whether physical sensor polling (Modbus/Serial/TCP) is active.
+func (p *PollingEngine) IsSensorPollingEnabled() bool {
+	p.workersMu.Lock()
+	defer p.workersMu.Unlock()
+	return p.sensorPollingEnabled
+}
+
+// SetSensorPollingEnabled dynamically enables or pauses physical sensor polling without stopping HTTP/MQTT receivers.
+func (p *PollingEngine) SetSensorPollingEnabled(enabled bool) {
+	p.workersMu.Lock()
+	changed := p.sensorPollingEnabled != enabled
+	p.sensorPollingEnabled = enabled
+	p.workersMu.Unlock()
+
+	if !enabled {
+		p.PauseAllWorkers()
+		logger.Info("Physical sensor polling disabled by configuration; HTTP API & MQTT telemetry receivers remain active")
+		return
+	}
+	if changed && p.ctx.Err() == nil {
+		p.Start()
+	}
+}
+
 // Start spawns polling workers for all enabled devices
 func (p *PollingEngine) Start() {
+	if !p.IsSensorPollingEnabled() {
+		logger.Info("PollingEngine startup skipped physical sensor workers (sensor_polling_enabled=false)")
+		return
+	}
 	if p.deviceService == nil {
 		logger.Warn("PollingEngine started without deviceService, skipping device discovery")
 		return
@@ -199,7 +229,13 @@ func (p *PollingEngine) StartDeviceWorker(device *model.Device) {
 	if device == nil || device.Connection == nil {
 		return
 	}
-	if strings.EqualFold(device.DeviceType, string(model.ProtocolEdgePush)) || device.Connection.Protocol == model.ProtocolEdgePush {
+	if strings.EqualFold(device.DeviceType, string(model.ProtocolEdgePush)) ||
+		device.Connection.Protocol == model.ProtocolEdgePush ||
+		strings.EqualFold(device.DeviceType, string(model.ProtocolMQTT)) ||
+		device.Connection.Protocol == model.ProtocolMQTT {
+		return
+	}
+	if !p.IsSensorPollingEnabled() {
 		return
 	}
 

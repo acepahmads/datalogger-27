@@ -219,6 +219,10 @@ func main() {
 	pollingEngine.SetTelemetryService(telemetryService)
 	pollingEngine.SetAlarmEvaluator(alarmEvaluator)
 	pollingEngine.SetActivityMonitor(activityMonitor)
+	pollingEngine.SetSensorPollingEnabled(cfg.SensorPollingEnabled)
+	systemService.SetOnSensorPollingToggle(func(enabled bool) {
+		pollingEngine.SetSensorPollingEnabled(enabled)
+	})
 	pollingEngine.Start()
 	defer pollingEngine.Stop()
 
@@ -286,7 +290,9 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+	categoryHandler.SetTenantService(tenantService)
 	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
+	ingestService.SetHub(hub)
 	ingestHandler := handler.NewIngestHandler(ingestService)
 	commTraceHandler := handler.NewCommTraceHandler(commTracer, deviceService)
 	activityHandler := handler.NewActivityMonitorHandler(activityMonitor, deviceService, commTracer)
@@ -371,8 +377,9 @@ func main() {
 		api.GET("/auth/me", middleware.JWTAuth(authService), authHandler.Me)
 		api.GET("/users/me", middleware.JWTAuth(authService), authHandler.Me)
 
-		// Hybrid Edge-to-Central Telemetry Push Gateway (API Key Authenticated via X-Ingest-Key; /api/v1/ingest/telemetry is registered below)
+		// Multi-Tenant Telemetry Receiver Gateway (Plain JSON + Authorization: Bearer dlg_live_...)
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
+		api.POST("/ingest/mqtt", ingestHandler.IngestMQTT)
 
 		// Multi-Tenant & Multi-Site Organization Management
 		tenantsGroup := api.Group("/tenants")
@@ -398,6 +405,7 @@ func main() {
 		ingestKeysGroup := api.Group("/ingest-keys")
 		ingestKeysGroup.Use(middleware.JWTAuth(authService))
 		{
+			ingestKeysGroup.GET("/payload-template", middleware.RequirePermission("device.view"), ingestHandler.GetPayloadTemplate)
 			ingestKeysGroup.GET("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ListAPIKeys)
 			ingestKeysGroup.POST("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.CreateAPIKey)
 			ingestKeysGroup.PUT("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
@@ -843,8 +851,9 @@ func main() {
 			})
 		})
 
-		// Hybrid Edge-to-Central Telemetry Push Gateway v1 (API Key Authenticated via X-Ingest-Key)
+		// Multi-Tenant Telemetry Receiver Gateway v1 (Plain JSON + Authorization: Bearer dlg_live_...)
 		r.POST("/api/v1/ingest/telemetry", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestTelemetry)
+		r.POST("/api/v1/ingest/mqtt", middleware.RestoreMaintenanceGuard(), ingestHandler.IngestMQTT)
 
 		// Compatibility API v1 routes (mirrors device and polling-plan routes for /api/v1 callers)
 		apiV1 := r.Group("/api/v1")

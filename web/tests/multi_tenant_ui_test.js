@@ -47,12 +47,17 @@ assert(routerCode.includes("path: '/administration/tenants'"), 'Router must regi
 assert(routerCode.includes('TenantsManagementView'), 'Router must wire TenantsManagementView');
 assert(sidebarCode.includes('to="/administration/tenants"'), 'Sidebar must link to /administration/tenants');
 
-// 6. TenantsManagementView.vue: 3 Tabs (Tenants, Sites, Edge Ingest Keys) + Light-Mode CSS Compliance
+// 6. TenantsManagementView.vue: 3 Tabs + Standardized Bearer Token, AQMS/SPARING/ONLIMO Payload Generator, Configurable Modules & Light-Mode CSS Compliance
 assert(tenantsViewCode.includes("activeTab = 'tenants'"), 'TenantsManagementView must include tenants tab');
 assert(tenantsViewCode.includes("activeTab = 'sites'"), 'TenantsManagementView must include sites tab');
 assert(tenantsViewCode.includes("activeTab = 'ingest'"), 'TenantsManagementView must include ingest keys tab');
 assert(tenantsViewCode.includes('/api/v1/ingest/telemetry'), 'TenantsManagementView must document /api/v1/ingest/telemetry endpoint');
-assert(tenantsViewCode.includes('X-Ingest-Key'), 'TenantsManagementView must document X-Ingest-Key header');
+assert(tenantsViewCode.includes('/api/v1/ingest/mqtt'), 'TenantsManagementView must document /api/v1/ingest/mqtt endpoint');
+assert(tenantsViewCode.includes('Authorization: Bearer'), 'TenantsManagementView must document Authorization: Bearer token header');
+assert(tenantsViewCode.includes("'AQMS', 'SPARING', 'ONLIMO'"), 'TenantsManagementView must support AQMS, SPARING, and ONLIMO logger payload templates');
+assert(tenantsViewCode.includes('sensor_polling_enabled'), 'TenantsManagementView must allow toggling sensor_polling_enabled');
+assert(tenantsViewCode.includes('mqtt_ingest_enabled'), 'TenantsManagementView must allow toggling mqtt_ingest_enabled');
+assert(!tenantsViewCode.includes('v-model="keyForm.auto_provision"'), 'TenantsManagementView must enforce strict manual parameter registration (no auto_provision checkbox)');
 
 const classRegex = /class="([^"]*)"/g;
 let match;

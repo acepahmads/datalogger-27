@@ -315,12 +315,30 @@
               <option value="TCP">TCP (Raw Industrial Socket)</option>
               <option value="UDP">UDP (Datagram Receiver)</option>
               <option value="HTTP">HTTP / REST (Polling Client)</option>
-              <option value="MQTT">MQTT (Topic Subscriber)</option>
+              <option value="MQTT">MQTT (Broker / Webhook Receiver)</option>
               <option value="SERIAL">SERIAL (Raw UART / COM Port)</option>
               <option value="WEBSOCKET">WEBSOCKET (Live Stream Client)</option>
-              <option value="EDGE_PUSH">EDGE_PUSH (Hybrid Cloud Edge Push Receiver)</option>
+              <option value="EDGE_PUSH">EDGE_PUSH (API Receiver — JSON + Bearer Token)</option>
               <option value="CUSTOM">CUSTOM (Proprietary Protocol)</option>
             </select>
+          </div>
+
+          <!-- Passive API Push Info Banner (EDGE_PUSH) -->
+          <div v-if="isEdgePushProtocol" class="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/50 rounded-xl space-y-1.5 text-xs text-emerald-950 dark:text-emerald-200">
+            <div class="flex items-center justify-between">
+              <span class="font-bold">Mode Penerima API Telemetri (AQMS · SPARING · ONLIMO)</span>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">JSON + BEARER TOKEN</span>
+            </div>
+            <p class="text-2xs text-emerald-800/90 dark:text-emerald-300/90 leading-relaxed">
+              Perangkat ini bersifat pasif (tanpa polling serial/TCP). Datalogger mengirim JSON standar ke
+              <code class="font-mono font-semibold">POST /api/v1/ingest/telemetry</code> menggunakan header
+              <code class="font-mono font-semibold">Authorization: Bearer dlg_live_...</code>. Setelah perangkat disimpan, tambahkan parameter secara manual sesuai kode parameter payload.
+            </p>
+          </div>
+
+          <!-- MQTT Receiver Info Note -->
+          <div v-if="form.connection.protocol === 'MQTT'" class="p-3 bg-cyan-50/80 dark:bg-cyan-950/25 border border-cyan-200 dark:border-cyan-800/50 rounded-xl text-2xs text-cyan-900 dark:text-cyan-200 leading-relaxed">
+            <span class="font-bold">Mode MQTT Receiver:</span> Mendukung integrasi broker MQTT (Port default <code class="font-mono">1883</code>, Host opsional) maupun penerimaan bridge/webhook ke <code class="font-mono font-semibold">POST /api/v1/ingest/mqtt</code> dengan topik <code class="font-mono">datalogger/ingest/&lt;site_code&gt;/&lt;device_code&gt;</code>.
           </div>
 
           <!-- DYNAMIC PROTOCOL FIELDS -->
@@ -546,7 +564,7 @@
           </div>
 
           <!-- Common Timing Configuration -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+          <div v-if="!isEdgePushProtocol" class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800/80">
             <div>
               <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.timeout') }}
@@ -818,6 +836,10 @@ export default {
     isCustomProtocol() {
       return this.form.connection.protocol === 'CUSTOM';
     },
+    isEdgePushProtocol() {
+      const p = this.form.connection && this.form.connection.protocol;
+      return p === 'EDGE_PUSH';
+    },
     isModbusProtocol() {
       const p = this.form.connection && this.form.connection.protocol;
       return p === 'MODBUS_TCP' || p === 'MODBUS_RTU';
@@ -829,10 +851,6 @@ export default {
     isSerialProtocol() {
       const p = this.form.connection.protocol;
       return ['MODBUS_RTU', 'SERIAL'].includes(p) || (p === 'CUSTOM' && this.form.connection.connection_type === 'SERIAL');
-    },
-    isModbusProtocol() {
-      const p = this.form.connection.protocol;
-      return ['MODBUS_TCP', 'MODBUS_RTU'].includes(p);
     },
     byIDPorts() {
       return this.detailedPorts.filter(p => p.type === 'BY_ID');
@@ -1075,10 +1093,12 @@ export default {
         if (!this.form.connection.byte_order) this.form.connection.byte_order = 'ABCD';
         this.fetchAvailableSerialPorts();
       } else if (p === 'MQTT') {
-        this.form.connection.connection_type = 'ETHERNET';
+        this.form.connection.connection_type = 'MQTT_BROKER';
         if (!this.form.connection.port || [502, 80, 8080, 8000].includes(this.form.connection.port)) {
           this.form.connection.port = 1883;
         }
+      } else if (p === 'EDGE_PUSH') {
+        this.form.connection.connection_type = 'HTTPS_PUSH';
       } else if (p === 'HTTP') {
         this.form.connection.connection_type = 'ETHERNET';
         if (!this.form.connection.port || [502, 1883, 8080, 8000].includes(this.form.connection.port)) {
@@ -1183,8 +1203,8 @@ export default {
         return;
       }
 
-      // Validate Connection Info
-      if (this.isNetworkProtocol && (!this.form.connection.host || !this.form.connection.host.trim())) {
+      // Validate Connection Info (MQTT host is optional when using built-in /api/v1/ingest/mqtt receiver)
+      if (this.isNetworkProtocol && this.form.connection.protocol !== 'MQTT' && (!this.form.connection.host || !this.form.connection.host.trim())) {
         this.activeTab = 'connection';
         this.error = this.$t('deviceModal.hostRequired');
         this.scrollToError();

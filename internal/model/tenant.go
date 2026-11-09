@@ -88,7 +88,7 @@ func (s *Site) BeforeSave(tx *gorm.DB) error {
 	s.Code = NormalizeSlugCode(s.Code)
 	s.Name = strings.TrimSpace(s.Name)
 	dom := strings.ToUpper(strings.TrimSpace(s.MonitoringDomain))
-	if dom != "AQMS" && dom != "SPARING" && dom != "WQMS" {
+	if dom != "AQMS" && dom != "SPARING" && dom != "ONLIMO" && dom != "WQMS" && dom != "CUSTOM" {
 		dom = "AQMS"
 	}
 	s.MonitoringDomain = dom
@@ -107,7 +107,7 @@ func (s *Site) BeforeSave(tx *gorm.DB) error {
 	return nil
 }
 
-// TenantAPIKey authenticates Hybrid Edge-to-Cloud telemetry push requests (X-Ingest-Key: dlg_live_...).
+// TenantAPIKey authenticates Multi-Tenant Telemetry Push requests (Authorization: Bearer dlg_live_...).
 type TenantAPIKey struct {
 	ID            uint       `gorm:"primaryKey" json:"id"`
 	TenantID      uint       `gorm:"not null;index" json:"tenant_id"`
@@ -117,7 +117,7 @@ type TenantAPIKey struct {
 	Name          string     `gorm:"size:128;not null" json:"name"`
 	KeyPrefix     string     `gorm:"size:32;index;not null" json:"key_prefix"`
 	KeyHash       string     `gorm:"size:128;uniqueIndex;not null" json:"-"`
-	AutoProvision bool       `gorm:"default:true" json:"auto_provision"`
+	AutoProvision bool       `gorm:"default:false" json:"auto_provision"`
 	Enabled       bool       `gorm:"default:true;index" json:"enabled"`
 	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
 	LastUsedIP    string     `gorm:"size:64" json:"last_used_ip,omitempty"`

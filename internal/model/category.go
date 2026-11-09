@@ -36,6 +36,7 @@ func (c *ParameterCategory) BeforeSave(tx *gorm.DB) error {
 const (
 	DomainAQMS    = "AQMS"
 	DomainWQMS    = "WQMS"
+	DomainONLIMO  = "ONLIMO"
 	DomainSPARING = "SPARING"
 	DomainCustom  = "CUSTOM"
 	DomainAll     = "ALL"
@@ -45,6 +46,7 @@ const (
 var ValidCategoryDomains = map[string]bool{
 	DomainAQMS:    true,
 	DomainWQMS:    true,
+	DomainONLIMO:  true,
 	DomainSPARING: true,
 	DomainCustom:  true,
 	DomainAll:     true,

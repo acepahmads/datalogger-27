@@ -107,7 +107,7 @@
       </div>
 
       <!-- Domain Selection Cards Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <!-- 1. AQMS Card -->
         <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
              :class="form.monitoring_domain === 'AQMS'
@@ -251,6 +251,55 @@
             <button v-else @click="initiateDomainSwitch('SPARING')"
                     class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-teal-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
               <span>Switch to SPARING</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3B. ONLIMO Card -->
+        <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
+             :class="form.monitoring_domain === 'ONLIMO'
+               ? 'bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-400 dark:border-indigo-500/50 shadow-sm ring-1 ring-indigo-400/30'
+               : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl p-2 rounded-xl bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-400">🏞️</span>
+              <span v-if="form.monitoring_domain === 'ONLIMO'" class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40">
+                ACTIVE DOMAIN
+              </span>
+              <span v-else class="text-4xs font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                READY
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center gap-1.5">
+                ONLIMO
+                <span class="text-2xs text-slate-500 dark:text-slate-400 font-normal">Air Sungai KLHK</span>
+              </h3>
+              <p class="text-3xs text-slate-600 dark:text-slate-400 mt-1 leading-normal">
+                Online Monitoring Kualitas Air Sungai / Permukaan (pH, DO, BOD, COD, TSS, NH3-N, NO3, TDS, Turbidity).
+              </p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+              <span class="text-4xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">Relevant Categories:</span>
+              <div class="flex flex-wrap gap-1 text-3xs font-mono">
+                <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20">Water Quality</span>
+                <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20">DO &amp; Turbidity</span>
+                <span class="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-300 dark:border-cyan-500/20">Water Level</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button v-if="form.monitoring_domain === 'ONLIMO'" disabled
+                    class="w-full py-1.5 px-3 rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30 text-xs font-semibold cursor-default text-center">
+              ✓ Active Domain
+            </button>
+            <button v-else @click="initiateDomainSwitch('ONLIMO')"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-indigo-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
+              <span>Switch to ONLIMO</span>
               <span>→</span>
             </button>
           </div>
@@ -777,6 +826,62 @@
             </div>
           </div>
 
+          <!-- Configurable Telemetry Acquisition Modules -->
+          <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Modul Akuisisi Telemetri (Sensor Fisik · MQTT · HTTP Bearer API)
+                </h3>
+                <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Atur pembacaan sensor fisik (Modbus/Serial) dan penerimaan MQTT. Penerima HTTP JSON + Bearer Token (<code class="font-mono">/api/v1/ingest/telemetry</code>) selalu aktif.
+                </p>
+              </div>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                Hot-Reloadable
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" v-model="form.sensor_polling_enabled" class="mt-0.5 rounded text-emerald-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white">Aktifkan Modul Polling Sensor Fisik</div>
+                  <div class="text-3xs text-slate-500 mt-0.5">Matikan pada server pusat multi-tenant murni jika hanya menerima push API / MQTT dari tenant.</div>
+                </div>
+              </label>
+
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" v-model="form.mqtt_ingest_enabled" class="mt-0.5 rounded text-cyan-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white">Aktifkan Modul Penerimaan MQTT</div>
+                  <div class="text-3xs text-slate-500 mt-0.5">Izinkan penerimaan telemetri via webhook/bridge MQTT (<code class="font-mono">/api/v1/ingest/mqtt</code>).</div>
+                </div>
+              </label>
+            </div>
+
+            <div v-if="form.mqtt_ingest_enabled" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-3xs text-slate-700 dark:text-slate-400 uppercase tracking-wider mb-1 font-semibold">MQTT Broker URL (Opsional)</label>
+                <input
+                  type="text"
+                  v-model="form.mqtt_broker_url"
+                  placeholder="tcp://127.0.0.1:1883"
+                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white text-xs"
+                />
+              </div>
+              <div>
+                <label class="block text-3xs text-slate-700 dark:text-slate-400 uppercase tracking-wider mb-1 font-semibold">MQTT Topic Prefix</label>
+                <input
+                  type="text"
+                  v-model="form.mqtt_topic_prefix"
+                  placeholder="datalogger/ingest/+"
+                  class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg px-3 py-2 font-mono text-slate-900 dark:text-white text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
           <!-- Raw Telemetry Time Range Limit Governance -->
           <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4">
             <div class="flex items-center justify-between mb-2">
@@ -1244,6 +1349,10 @@ export default {
         serial_stop_bits: 1,
         serial_parity: 'N',
         serial_timeout_ms: 1000,
+        sensor_polling_enabled: true,
+        mqtt_ingest_enabled: true,
+        mqtt_broker_url: '',
+        mqtt_topic_prefix: 'datalogger/ingest/+',
       },
     };
   },
@@ -1258,6 +1367,7 @@ export default {
       if (d === 'AQMS') return 'bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/30';
       if (d === 'WQMS') return 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30';
       if (d === 'SPARING') return 'bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30';
+      if (d === 'ONLIMO') return 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/30';
       return 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/30';
     },
     configAutoStationTypePreview() {
@@ -1544,6 +1654,10 @@ export default {
             serial_stop_bits: cfg.serial_stop_bits || 1,
             serial_parity: cfg.serial_parity || 'N',
             serial_timeout_ms: cfg.serial_timeout_ms || 1000,
+            sensor_polling_enabled: cfg.sensor_polling_enabled !== false,
+            mqtt_ingest_enabled: cfg.mqtt_ingest_enabled !== false,
+            mqtt_broker_url: cfg.mqtt_broker_url || '',
+            mqtt_topic_prefix: cfg.mqtt_topic_prefix || 'datalogger/ingest/+',
           };
         }
       } catch (err) {

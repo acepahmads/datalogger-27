@@ -40,7 +40,11 @@ func (r *CategoryRepository) ListForTenant(tenantID uint, enabledOnly bool, doma
 		query = query.Where("enabled = ?", true)
 	}
 	if domain != "" && domain != "ALL" && domain != "CUSTOM" {
-		query = query.Where("domain = ? OR domain = 'ALL' OR domain = 'CUSTOM' OR domain = '' OR domain IS NULL", domain)
+		if domain == "SPARING" || domain == "ONLIMO" || domain == "WQMS" {
+			query = query.Where("domain IN ? OR domain = '' OR domain IS NULL", []string{domain, "WQMS", "SPARING", "ONLIMO", "ALL", "CUSTOM"})
+		} else {
+			query = query.Where("domain = ? OR domain = 'ALL' OR domain = 'CUSTOM' OR domain = '' OR domain IS NULL", domain)
+		}
 	}
 	err := query.Order("display_order ASC, id ASC").Find(&categories).Error
 	if err != nil {

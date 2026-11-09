@@ -344,9 +344,69 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- CARD 3: MODBUS COMMUNICATION & POLLING     -->
+        <!-- CARD 3A: API / MQTT JSON PARAMETER FORMAT  -->
         <!-- ========================================== -->
-        <div class="p-4 bg-slate-50/70 dark:bg-[#070b13]/80 border border-slate-200 dark:border-slate-800/80 rounded-xl space-y-3.5">
+        <div v-if="isPushOrMqttDevice" class="p-4 bg-emerald-50/60 dark:bg-emerald-950/15 border border-emerald-200 dark:border-emerald-800/50 rounded-xl space-y-3.5">
+          <div class="flex items-center justify-between border-b border-emerald-200/80 dark:border-emerald-800/50 pb-2">
+            <div class="flex items-center space-x-2">
+              <span class="text-emerald-600 dark:text-emerald-400 text-xs">📡</span>
+              <h3 class="text-2xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Format Parameter Penerima JSON API / MQTT
+              </h3>
+            </div>
+            <span class="px-2 py-0.5 rounded text-4xs font-mono font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-700/60">
+              {{ srcProtocolName }} · MANUAL SCHEMA
+            </span>
+          </div>
+
+          <div class="p-2.5 rounded-lg bg-white/80 dark:bg-[#0B0F19]/80 border border-emerald-200/70 dark:border-emerald-800/40 text-2xs text-slate-700 dark:text-slate-300 leading-relaxed">
+            Parameter ini tidak menggunakan alamat register Modbus. Nilai dibaca langsung dari key JSON
+            <code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono font-bold text-emerald-700 dark:text-emerald-300">values.{{ (form.parameter_code && form.parameter_code.trim()) ? form.parameter_code.trim() : 'kode_parameter' }}</code>
+            pada payload HTTP Bearer Token (<code class="font-mono">AQMS</code> / <code class="font-mono">SPARING</code> / <code class="font-mono">ONLIMO</code>) atau topik MQTT.
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <!-- Data Type -->
+            <div>
+              <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                {{ $t('parameterModal.dataType') }} <span class="text-rose-500 font-bold">*</span>
+              </label>
+              <select
+                v-model="form.data_type"
+                @change="handleDataTypeChange"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono"
+              >
+                <option value="FLOAT32">FLOAT32 (Angka Desimal Standar)</option>
+                <option value="FLOAT64">FLOAT64 (Presisi Tinggi)</option>
+                <option value="INT32">INT32 (Bilangan Bulat)</option>
+                <option value="BOOLEAN">BOOLEAN (Status Digital 0 / 1)</option>
+              </select>
+            </div>
+
+            <!-- Decimal Precision -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {{ $t('parameterModal.precision') }}
+                </label>
+                <span class="text-4xs text-slate-400 font-mono font-normal">0 - 6 digits</span>
+              </div>
+              <input
+                v-model.number="form.precision"
+                type="number"
+                min="0"
+                max="6"
+                placeholder="2"
+                class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono transition"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- CARD 3B: MODBUS COMMUNICATION & POLLING    -->
+        <!-- ========================================== -->
+        <div v-else class="p-4 bg-slate-50/70 dark:bg-[#070b13]/80 border border-slate-200 dark:border-slate-800/80 rounded-xl space-y-3.5">
           <div class="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800/60 pb-2">
             <div class="flex items-center space-x-2">
               <span class="text-cyan-600 dark:text-cyan-400 text-xs">⚡</span>
@@ -540,7 +600,7 @@
         </div>
 
         <!-- Custom Byte Order Mapping Editor & Preview (Conditional) -->
-        <div v-if="isCustomByteOrder" class="p-4 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-950/20 backdrop-blur-sm space-y-3.5 transition">
+        <div v-if="isCustomByteOrder && !isPushOrMqttDevice" class="p-4 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-950/20 backdrop-blur-sm space-y-3.5 transition">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div class="flex items-center space-x-2 flex-wrap gap-y-1">
               <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
@@ -1409,11 +1469,15 @@ export default {
     },
     srcProtocolName() {
       const dev = this.currentDevice;
-      return dev ? (dev.communication_protocol || dev.protocol || 'UNKNOWN') : 'UNKNOWN';
+      return dev ? String(dev.communication_protocol || dev.protocol || (dev.connection && dev.connection.protocol) || dev.device_type || 'UNKNOWN').toUpperCase() : 'UNKNOWN';
     },
     destProtocolName() {
       const dev = this.targetDevice;
-      return dev ? (dev.communication_protocol || dev.protocol || 'UNKNOWN') : 'UNKNOWN';
+      return dev ? String(dev.communication_protocol || dev.protocol || (dev.connection && dev.connection.protocol) || dev.device_type || 'UNKNOWN').toUpperCase() : 'UNKNOWN';
+    },
+    isPushOrMqttDevice() {
+      const proto = this.isCopying && this.targetDeviceId ? this.destProtocolName : this.srcProtocolName;
+      return proto === 'EDGE_PUSH' || proto === 'MQTT';
     },
     destProtocolMismatch() {
       if (!this.isCopying) return false;
@@ -1693,6 +1757,7 @@ export default {
       return this.customByteSlots.join('');
     },
     byteOrderValidationError() {
+      if (this.isPushOrMqttDevice) return null;
       if (this.byteOrderSelection !== 'CUSTOM') return null;
       const size = this.byteOrderSize;
       if (!this.customByteSlots || this.customByteSlots.length !== size) {
@@ -2213,9 +2278,9 @@ export default {
         status_off_label: this.form.status_off_label ? this.form.status_off_label.trim() : '',
         description: this.form.description ? this.form.description.trim() : '',
         slave_id: this.cleanNum(this.form.slave_id) || 1,
-        register_address: this.cleanNum(this.form.register_address) || 0,
+        register_address: this.isPushOrMqttDevice ? 0 : (this.cleanNum(this.form.register_address) || 0),
         register_type: this.form.register_type,
-        byte_order: this.form.byte_order || '',
+        byte_order: this.isPushOrMqttDevice ? '' : (this.form.byte_order || ''),
         min_value: minVal,
         max_value: maxVal,
         warning_low: warnLow,

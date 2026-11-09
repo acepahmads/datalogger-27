@@ -1248,12 +1248,20 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		enabled = *req.Enabled
 	}
 
+	isPassiveProto := strings.EqualFold(dev.DeviceType, string(model.ProtocolEdgePush)) ||
+		strings.EqualFold(dev.DeviceType, string(model.ProtocolMQTT)) ||
+		(dev.Connection != nil && (dev.Connection.Protocol == model.ProtocolEdgePush || dev.Connection.Protocol == model.ProtocolMQTT))
+
 	byteOrder := strings.TrimSpace(req.ByteOrder)
 	if byteOrder == "" {
 		byteOrder = modbus.DefaultByteOrderForDataType(dataType)
 	} else {
 		if err := modbus.ValidateByteOrder(byteOrder, dataType); err != nil {
-			return nil, fmt.Errorf("invalid byte order configuration: %w", err)
+			if isPassiveProto {
+				byteOrder = modbus.DefaultByteOrderForDataType(dataType)
+			} else {
+				return nil, fmt.Errorf("invalid byte order configuration: %w", err)
+			}
 		}
 	}
 
@@ -1487,7 +1495,15 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 	if req.ByteOrder != nil && *req.ByteOrder != "" {
 		newOrder := strings.TrimSpace(*req.ByteOrder)
 		if err := modbus.ValidateByteOrder(newOrder, param.DataType); err != nil {
-			return nil, fmt.Errorf("invalid byte order configuration: %w", err)
+			dev, _ := s.repo.GetByID(deviceID)
+			isPassiveProto := dev != nil && (strings.EqualFold(dev.DeviceType, string(model.ProtocolEdgePush)) ||
+				strings.EqualFold(dev.DeviceType, string(model.ProtocolMQTT)) ||
+				(dev.Connection != nil && (dev.Connection.Protocol == model.ProtocolEdgePush || dev.Connection.Protocol == model.ProtocolMQTT)))
+			if isPassiveProto {
+				newOrder = modbus.DefaultByteOrderForDataType(param.DataType)
+			} else {
+				return nil, fmt.Errorf("invalid byte order configuration: %w", err)
+			}
 		}
 		param.ByteOrder = newOrder
 	} else if req.DataType != nil {
@@ -1928,6 +1944,10 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 	if connType == "" {
 		if proto == model.ProtocolModbusRTU || proto == model.ProtocolSerial {
 			connType = "SERIAL"
+		} else if proto == model.ProtocolEdgePush {
+			connType = "HTTPS_PUSH"
+		} else if proto == model.ProtocolMQTT {
+			connType = "MQTT_BROKER"
 		} else {
 			connType = "ETHERNET"
 		}

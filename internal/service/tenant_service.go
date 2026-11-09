@@ -202,7 +202,7 @@ func (s *TenantService) CreateTenant(req CreateTenantRequest, actorUsername, ip 
 		defSiteName = name + " - Stasiun Utama"
 	}
 	defDom := strings.ToUpper(strings.TrimSpace(req.DefaultDomain))
-	if defDom != "AQMS" && defDom != "SPARING" && defDom != "WQMS" {
+	if defDom != "AQMS" && defDom != "SPARING" && defDom != "ONLIMO" && defDom != "WQMS" {
 		defDom = "AQMS"
 	}
 	_ = s.repo.CreateSite(&model.Site{
@@ -657,10 +657,8 @@ func (s *TenantService) CreateAPIKey(req CreateAPIKeyRequest, scope tenantctx.Sc
 	}
 	rawKey := "dlg_live_" + hex.EncodeToString(rawBytes)
 	prefix := rawKey[:17] + "..."
-	autoProv := true
-	if req.AutoProvision != nil {
-		autoProv = *req.AutoProvision
-	}
+	// Strict governance: devices and parameters must be registered manually by users (never auto-created).
+	autoProv := false
 
 	k := &model.TenantAPIKey{
 		TenantID:      tenantID,
@@ -705,9 +703,7 @@ func (s *TenantService) ToggleAPIKey(id uint, enabled bool, autoProvision *bool,
 		return nil, errors.New("access denied: API key belongs to another tenant")
 	}
 	k.Enabled = enabled
-	if autoProvision != nil {
-		k.AutoProvision = *autoProvision
-	}
+	k.AutoProvision = false
 	if err := s.repo.UpdateAPIKey(k); err != nil {
 		return nil, err
 	}

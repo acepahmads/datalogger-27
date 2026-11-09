@@ -17,13 +17,14 @@ import (
 )
 
 type SystemService struct {
-	systemRepo       *repository.SystemRepository
-	phaseRepo        *repository.PhaseRepository
-	cfg              *config.Config
-	telemetryService *TelemetryService
-	backupService    *BackupService
-	alarmService     *AlarmService
-	tenantService    *TenantService
+	systemRepo            *repository.SystemRepository
+	phaseRepo             *repository.PhaseRepository
+	cfg                   *config.Config
+	telemetryService      *TelemetryService
+	backupService         *BackupService
+	alarmService          *AlarmService
+	tenantService         *TenantService
+	onSensorPollingToggle func(enabled bool)
 }
 
 func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *repository.PhaseRepository, cfg *config.Config) *SystemService {
@@ -32,6 +33,10 @@ func NewSystemService(systemRepo *repository.SystemRepository, phaseRepo *reposi
 		phaseRepo:  phaseRepo,
 		cfg:        cfg,
 	}
+}
+
+func (s *SystemService) SetOnSensorPollingToggle(fn func(enabled bool)) {
+	s.onSensorPollingToggle = fn
 }
 
 func (s *SystemService) SetTelemetryService(ts *TelemetryService) {
@@ -462,6 +467,10 @@ type SystemConfigDTO struct {
 	BackupScheduleTime          string `json:"backup_schedule_time"`
 	BackupCompression           string `json:"backup_compression"`
 	MonitoringDomain            string `json:"monitoring_domain"`
+	SensorPollingEnabled        bool   `json:"sensor_polling_enabled"`
+	MQTTIngestEnabled           bool   `json:"mqtt_ingest_enabled"`
+	MQTTBrokerURL               string `json:"mqtt_broker_url"`
+	MQTTTopicPrefix             string `json:"mqtt_topic_prefix"`
 	RawTelemetryMaxRangeHours   int    `json:"raw_telemetry_max_range_hours"`
 }
 
@@ -488,6 +497,10 @@ type SaveSystemConfigRequest struct {
 	SerialParity              string                          `json:"serial_parity"`
 	SerialTimeoutMs           int                             `json:"serial_timeout_ms"`
 	MonitoringDomain          string                          `json:"monitoring_domain"`
+	SensorPollingEnabled      *bool                           `json:"sensor_polling_enabled,omitempty"`
+	MQTTIngestEnabled         *bool                           `json:"mqtt_ingest_enabled,omitempty"`
+	MQTTBrokerURL             *string                         `json:"mqtt_broker_url,omitempty"`
+	MQTTTopicPrefix           *string                         `json:"mqtt_topic_prefix,omitempty"`
 	RawTelemetryMaxRangeHours int                             `json:"raw_telemetry_max_range_hours"`
 	Reassignments             []ReassignParameterCategoryItem `json:"reassignments,omitempty"`
 }
@@ -531,6 +544,10 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		BackupScheduleTime:          cfg.BackupScheduleTime,
 		BackupCompression:           cfg.BackupCompression,
 		MonitoringDomain:            cfg.MonitoringDomain,
+		SensorPollingEnabled:        cfg.SensorPollingEnabled,
+		MQTTIngestEnabled:           cfg.MQTTIngestEnabled,
+		MQTTBrokerURL:               cfg.MQTTBrokerURL,
+		MQTTTopicPrefix:             cfg.MQTTTopicPrefix,
 		RawTelemetryMaxRangeHours:   cfg.EffectiveRawTelemetryMaxRangeHours(),
 	}
 }
@@ -667,11 +684,36 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		cfg.SerialTimeoutMs = req.SerialTimeoutMs
 	}
 
+	// Telemetry Acquisition Modules (Physical Sensor Polling & MQTT Receiver)
+	var sensorPollingToggledTo *bool
+	if req.SensorPollingEnabled != nil && *req.SensorPollingEnabled != cfg.SensorPollingEnabled {
+		changedNotes = append(changedNotes, fmt.Sprintf("sensor_polling_enabled: %t -> %t", cfg.SensorPollingEnabled, *req.SensorPollingEnabled))
+		cfg.SensorPollingEnabled = *req.SensorPollingEnabled
+		val := *req.SensorPollingEnabled
+		sensorPollingToggledTo = &val
+	}
+	if req.MQTTIngestEnabled != nil && *req.MQTTIngestEnabled != cfg.MQTTIngestEnabled {
+		changedNotes = append(changedNotes, fmt.Sprintf("mqtt_ingest_enabled: %t -> %t", cfg.MQTTIngestEnabled, *req.MQTTIngestEnabled))
+		cfg.MQTTIngestEnabled = *req.MQTTIngestEnabled
+	}
+	if req.MQTTBrokerURL != nil && strings.TrimSpace(*req.MQTTBrokerURL) != cfg.MQTTBrokerURL {
+		changedNotes = append(changedNotes, fmt.Sprintf("mqtt_broker_url: %s -> %s", cfg.MQTTBrokerURL, strings.TrimSpace(*req.MQTTBrokerURL)))
+		cfg.MQTTBrokerURL = strings.TrimSpace(*req.MQTTBrokerURL)
+	}
+	if req.MQTTTopicPrefix != nil && strings.TrimSpace(*req.MQTTTopicPrefix) != cfg.MQTTTopicPrefix {
+		topic := strings.TrimSpace(*req.MQTTTopicPrefix)
+		if topic == "" {
+			topic = "datalogger/ingest/+"
+		}
+		changedNotes = append(changedNotes, fmt.Sprintf("mqtt_topic_prefix: %s -> %s", cfg.MQTTTopicPrefix, topic))
+		cfg.MQTTTopicPrefix = topic
+	}
+
 	// Monitoring Domain
 	if req.MonitoringDomain != "" {
 		dom := strings.ToUpper(strings.TrimSpace(req.MonitoringDomain))
-		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" {
-			return nil, errors.New("monitoring domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
+		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" && dom != "ONLIMO" {
+			return nil, errors.New("monitoring domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', or 'CUSTOM'")
 		}
 		if dom != cfg.MonitoringDomain {
 			changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> %s", cfg.MonitoringDomain, dom))
@@ -699,6 +741,10 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 
 	if err := config.Save("config.json", cfg); err != nil {
 		return nil, errors.New("failed to save configuration file: " + err.Error())
+	}
+
+	if sensorPollingToggledTo != nil && s.onSensorPollingToggle != nil {
+		s.onSensorPollingToggle(*sensorPollingToggledTo)
 	}
 
 	// Audit trail
@@ -754,8 +800,8 @@ func (s *SystemService) SaveScopedSiteDomainConfig(ctx context.Context, req Save
 	var changedNotes []string
 	if req.MonitoringDomain != "" {
 		dom := strings.ToUpper(strings.TrimSpace(req.MonitoringDomain))
-		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" {
-			return nil, errors.New("monitoring domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
+		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" && dom != "ONLIMO" {
+			return nil, errors.New("monitoring domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', or 'CUSTOM'")
 		}
 		if dom != st.MonitoringDomain {
 			changedNotes = append(changedNotes, fmt.Sprintf("site[%s].monitoring_domain: %s -> %s", st.Code, st.MonitoringDomain, dom))
@@ -849,11 +895,20 @@ func (s *SystemService) CheckDomainCompatibility(targetDomain string) (*DomainCo
 	return s.CheckDomainCompatibilityScoped(context.Background(), targetDomain)
 }
 
+func isWaterMonitoringDomain(d string) bool {
+	switch strings.ToUpper(strings.TrimSpace(d)) {
+	case "WQMS", "SPARING", "ONLIMO":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targetDomain string) (*DomainCompatibilityReport, error) {
 	scope := tenantctx.FromContext(ctx)
 	target := strings.ToUpper(strings.TrimSpace(targetDomain))
-	if target != "AQMS" && target != "WQMS" && target != "SPARING" && target != "CUSTOM" {
-		return nil, errors.New("target domain must be 'AQMS', 'WQMS', 'SPARING', or 'CUSTOM'")
+	if target != "AQMS" && target != "WQMS" && target != "SPARING" && target != "ONLIMO" && target != "CUSTOM" {
+		return nil, errors.New("target domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', or 'CUSTOM'")
 	}
 
 	currentDomain := s.cfg.MonitoringDomain
@@ -915,7 +970,7 @@ func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targ
 			continue // Generic or Custom categories are compatible with any domain
 		}
 
-		if target == "AQMS" && catDom == "WQMS" {
+		if target == "AQMS" && isWaterMonitoringDomain(catDom) {
 			catName := ""
 			if p.CategoryName != nil {
 				catName = *p.CategoryName
@@ -934,9 +989,9 @@ func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targ
 				CurrentCategoryCode: catCode,
 				CurrentCategoryName: catName,
 				CategoryDomain:      catDom,
-				Reason:              fmt.Sprintf("Parameter '%s' is categorized under WQMS category '%s', which differs from target AQMS domain.", p.ParamName, catName),
+				Reason:              fmt.Sprintf("Parameter '%s' is categorized under water category '%s' (%s), which differs from target AQMS domain.", p.ParamName, catName, catDom),
 			})
-		} else if target == "WQMS" && catDom == "AQMS" {
+		} else if isWaterMonitoringDomain(target) && catDom == "AQMS" {
 			catName := ""
 			if p.CategoryName != nil {
 				catName = *p.CategoryName
@@ -955,7 +1010,7 @@ func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targ
 				CurrentCategoryCode: catCode,
 				CurrentCategoryName: catName,
 				CategoryDomain:      catDom,
-				Reason:              fmt.Sprintf("Parameter '%s' is categorized under AQMS category '%s', which differs from target WQMS domain.", p.ParamName, catName),
+				Reason:              fmt.Sprintf("Parameter '%s' is categorized under AQMS category '%s', which differs from target %s domain.", p.ParamName, catName, target),
 			})
 		}
 	}
@@ -970,7 +1025,8 @@ func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targ
 	var avail []CategoryMiniDTO
 	for _, c := range cats {
 		cDom := strings.ToUpper(c.Domain)
-		if target == "CUSTOM" || cDom == target || cDom == "ALL" || cDom == "CUSTOM" || cDom == "" {
+		waterMatch := isWaterMonitoringDomain(target) && isWaterMonitoringDomain(cDom)
+		if target == "CUSTOM" || cDom == target || waterMatch || cDom == "ALL" || cDom == "CUSTOM" || cDom == "" {
 			avail = append(avail, CategoryMiniDTO{
 				ID:     c.ID,
 				Code:   c.Code,

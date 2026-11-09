@@ -49,8 +49,14 @@ type Config struct {
 	BackupMinFreeSpaceMB        int64  `json:"backup_min_free_space_mb"`
 	BackupMaxKeepCount          int    `json:"backup_max_keep_count"`
 
-	// Primary Monitoring Domain: "AQMS", "WQMS", "CUSTOM"
+	// Primary Monitoring Domain: "AQMS", "SPARING", "ONLIMO", "WQMS", "CUSTOM"
 	MonitoringDomain string `json:"monitoring_domain"`
+
+	// Configurable Telemetry Acquisition Modules (Multi-Tenant Receiver & Hybrid Edge)
+	SensorPollingEnabled bool   `json:"sensor_polling_enabled"`
+	MQTTIngestEnabled    bool   `json:"mqtt_ingest_enabled"`
+	MQTTBrokerURL        string `json:"mqtt_broker_url"`
+	MQTTTopicPrefix      string `json:"mqtt_topic_prefix"`
 
 	// Raw Telemetry Query Governance: Maximum allowed time span in hours (default 168 = 7 days)
 	RawTelemetryMaxRangeHours int `json:"raw_telemetry_max_range_hours"`
@@ -106,6 +112,10 @@ func DefaultConfig() *Config {
 		BackupMinFreeSpaceMB:        500,
 		BackupMaxKeepCount:          10,
 		MonitoringDomain:            "AQMS",
+		SensorPollingEnabled:        true,
+		MQTTIngestEnabled:           true,
+		MQTTBrokerURL:               "",
+		MQTTTopicPrefix:             "datalogger/ingest/+",
 		RawTelemetryMaxRangeHours:   168,
 		SerialPort:                  "COM1",
 		SerialBaudRate:              9600,
@@ -212,6 +222,30 @@ func Load(configPath string) (*Config, error) {
 	}
 	cfg.MonitoringDomain = NormalizeMonitoringDomain(cfg.MonitoringDomain)
 
+	if sPoll := strings.TrimSpace(os.Getenv("SENSOR_POLLING_ENABLED")); sPoll != "" {
+		cfg.SensorPollingEnabled = !strings.EqualFold(sPoll, "false") && sPoll != "0"
+	} else if sPoll2 := strings.TrimSpace(os.Getenv("DATALOGGER_SENSOR_POLLING_ENABLED")); sPoll2 != "" {
+		cfg.SensorPollingEnabled = !strings.EqualFold(sPoll2, "false") && sPoll2 != "0"
+	}
+
+	if mqttEn := strings.TrimSpace(os.Getenv("MQTT_INGEST_ENABLED")); mqttEn != "" {
+		cfg.MQTTIngestEnabled = !strings.EqualFold(mqttEn, "false") && mqttEn != "0"
+	} else if mqttEn2 := strings.TrimSpace(os.Getenv("DATALOGGER_MQTT_INGEST_ENABLED")); mqttEn2 != "" {
+		cfg.MQTTIngestEnabled = !strings.EqualFold(mqttEn2, "false") && mqttEn2 != "0"
+	}
+
+	if mqttBroker := strings.TrimSpace(os.Getenv("MQTT_BROKER_URL")); mqttBroker != "" {
+		cfg.MQTTBrokerURL = mqttBroker
+	} else if mqttBroker2 := strings.TrimSpace(os.Getenv("DATALOGGER_MQTT_BROKER_URL")); mqttBroker2 != "" {
+		cfg.MQTTBrokerURL = mqttBroker2
+	}
+
+	if mqttTopic := strings.TrimSpace(os.Getenv("MQTT_TOPIC_PREFIX")); mqttTopic != "" {
+		cfg.MQTTTopicPrefix = mqttTopic
+	} else if mqttTopic2 := strings.TrimSpace(os.Getenv("DATALOGGER_MQTT_TOPIC_PREFIX")); mqttTopic2 != "" {
+		cfg.MQTTTopicPrefix = mqttTopic2
+	}
+
 	if maxRangeStr := os.Getenv("DATALOGGER_RAW_MAX_RANGE_HOURS"); maxRangeStr != "" {
 		if v, err := strconv.Atoi(strings.TrimSpace(maxRangeStr)); err == nil && v > 0 {
 			cfg.RawTelemetryMaxRangeHours = v
@@ -264,10 +298,10 @@ func Get() *Config {
 	return globalConfig
 }
 
-// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, WQMS, SPARING, or CUSTOM.
+// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, SPARING, ONLIMO, WQMS, or CUSTOM.
 func NormalizeMonitoringDomain(domain string) string {
 	d := strings.ToUpper(strings.TrimSpace(domain))
-	if d == "AQMS" || d == "WQMS" || d == "SPARING" || d == "CUSTOM" {
+	if d == "AQMS" || d == "SPARING" || d == "ONLIMO" || d == "WQMS" || d == "CUSTOM" {
 		return d
 	}
 	return "AQMS"

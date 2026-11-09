@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -85,6 +86,7 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	telemetryService.SetParamLookup(deviceRepo.FindParameterByID)
 	t.Cleanup(func() {
 		telemetryService.Stop()
+		_ = os.Remove("config.json")
 	})
 
 	categoryService := service.NewCategoryService(categoryRepo, systemRepo)
@@ -92,6 +94,7 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	calibrationService.SetTenantService(tenantService)
 
 	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
+	ingestService.SetHub(hub)
 	outboundService := service.NewOutboundService(outboundRepo, deviceRepo, nil)
 
 	authHandler := handler.NewAuthHandler(authService)
@@ -99,10 +102,12 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	tenantHandler := handler.NewTenantHandler(tenantService)
 	ingestHandler := handler.NewIngestHandler(ingestService)
 	deviceHandler := handler.NewDeviceHandler(deviceService, nil)
+	telemetryHandler := handler.NewTelemetryHandler(telemetryService)
 	systemHandler := handler.NewSystemHandler(systemService)
 	systemHandler.SetTenantService(tenantService)
 	systemHandler.SetOutboundService(outboundService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+	categoryHandler.SetTenantService(tenantService)
 	calibHandler := handler.NewCalibrationHandler(calibrationService)
 	outboundHandler := handler.NewOutboundHandler(outboundService)
 
@@ -116,7 +121,10 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		api.POST("/auth/login", authHandler.Login)
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
 		api.POST("/v1/ingest/telemetry", ingestHandler.IngestTelemetry)
+		api.POST("/ingest/mqtt", ingestHandler.IngestMQTT)
+		api.POST("/v1/ingest/mqtt", ingestHandler.IngestMQTT)
 
+		api.GET("/system/status", systemHandler.GetStatus)
 		api.GET("/system/branding", systemHandler.GetBranding)
 		api.PUT("/system/branding", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveBranding)
 		api.GET("/system/location", systemHandler.GetStationLocation)
@@ -150,6 +158,7 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		keysGrp := api.Group("/ingest-keys")
 		keysGrp.Use(middleware.JWTAuth(authService))
 		{
+			keysGrp.GET("/payload-template", middleware.RequirePermission("device.view"), ingestHandler.GetPayloadTemplate)
 			keysGrp.GET("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ListAPIKeys)
 			keysGrp.POST("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.CreateAPIKey)
 			keysGrp.PUT("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
@@ -172,6 +181,9 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 			devGrp.GET("", middleware.RequirePermission("device.view"), deviceHandler.ListDevices)
 			devGrp.GET("/:id", middleware.RequirePermission("device.view"), deviceHandler.GetDeviceByID)
 			devGrp.POST("", middleware.RequirePermission("device.create"), deviceHandler.CreateDevice)
+			devGrp.GET("/:id/parameters", middleware.RequirePermission("device.view"), deviceHandler.ListParameters)
+			devGrp.POST("/:id/parameters", middleware.RequirePermission("device.manage"), deviceHandler.CreateParameter)
+			devGrp.GET("/:id/telemetry/latest", middleware.RequirePermission("telemetry.view"), telemetryHandler.GetLatestForDevice)
 		}
 
 		catGrp := api.Group("/categories")
@@ -519,14 +531,22 @@ func TestMultiTenant_ScopedAdminSelfServiceAndSiteRestriction(t *testing.T) {
 	}
 }
 
-// Test 5: Hybrid Edge Push Gateway (POST /api/v1/ingest/telemetry) with Auto-Provisioning & Key Validation
-func TestMultiTenant_HybridEdgePushAutoProvision(t *testing.T) {
+// Test 5: Standardized Multi-Tenant API Receiver (AQMS / SPARING / ONLIMO) with Plain JSON + Bearer Token,
+// Strict Manual Device & Parameter Registration (NO Auto-Create), Configurable Sensor/MQTT Modules, and Live Operator Dashboard Sync
+func TestMultiTenant_StandardizedBearerReceiverStrictManualAndOperatorSync(t *testing.T) {
 	env := setupMultiTenantTestEnv(t)
+
+	// Restore global config flags after test
+	t.Cleanup(func() {
+		cfg := config.Get()
+		cfg.SensorPollingEnabled = true
+		cfg.MQTTIngestEnabled = true
+	})
 
 	// Create Tenant #2
 	wT2 := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
-		"name": "PT Tambang Mandiri",
-		"code": "tambang-mandiri",
+		"name": "PT Tirta Lestari",
+		"code": "tirta-lestari",
 	})
 	var t2Resp struct {
 		Data model.Tenant `json:"data"`
@@ -534,10 +554,31 @@ func TestMultiTenant_HybridEdgePushAutoProvision(t *testing.T) {
 	_ = json.Unmarshal(wT2.Body.Bytes(), &t2Resp)
 	tenant2ID := t2Resp.Data.ID
 
-	// Mint an Edge Ingest API key for Tenant #2
+	// Create an ONLIMO station manually inside Tenant #2
+	wSite := doJSONReq(t, env.Router, "POST", "/api/sites", env.SuperAdminToken, nil, map[string]interface{}{
+		"tenant_id":         tenant2ID,
+		"name":              "Stasiun ONLIMO Sungai Citarum",
+		"code":              "stasiun-onlimo-citarum",
+		"monitoring_domain": "ONLIMO",
+		"timezone":          "Asia/Jakarta",
+		"enabled":           true,
+	})
+	if wSite.Code != http.StatusCreated && wSite.Code != http.StatusOK {
+		t.Fatalf("create ONLIMO site failed (%d): %s", wSite.Code, wSite.Body.String())
+	}
+	var siteResp struct {
+		Data model.Site `json:"data"`
+	}
+	_ = json.Unmarshal(wSite.Body.Bytes(), &siteResp)
+	onlimoSiteID := siteResp.Data.ID
+	if siteResp.Data.MonitoringDomain != "ONLIMO" {
+		t.Fatalf("expected site MonitoringDomain=ONLIMO, got %s", siteResp.Data.MonitoringDomain)
+	}
+
+	// Mint a Bearer Token for Tenant #2 (even if caller sends auto_provision=true, server strictly enforces auto_provision=false!)
 	wKey := doJSONReq(t, env.Router, "POST", "/api/ingest-keys", env.SuperAdminToken, nil, map[string]interface{}{
 		"tenant_id":      tenant2ID,
-		"name":           "Edge Box Pit #4",
+		"name":           "Bearer Token ONLIMO Citarum",
 		"auto_provision": true,
 	})
 	if wKey.Code != http.StatusOK && wKey.Code != http.StatusCreated {
@@ -554,46 +595,198 @@ func TestMultiTenant_HybridEdgePushAutoProvision(t *testing.T) {
 	if plainKey == "" {
 		t.Fatalf("expected non-empty plain_key dlg_live_...")
 	}
-
-	// 1. Reject invalid key with 401
-	wBadKey := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", "", map[string]string{
-		"X-Ingest-Key": "dlg_live_invalid_bogus_key",
-	}, map[string]interface{}{
-		"device_code": "EDGE-01",
-		"readings":    []map[string]interface{}{{"code": "PH", "value": 7.12}},
-	})
-	if wBadKey.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for invalid ingest key, got %d", wBadKey.Code)
+	if keyResp.Data.Key.AutoProvision {
+		t.Fatalf("expected AutoProvision to be strictly enforced to false, got true")
 	}
 
-	// 2. Push valid Edge telemetry -> auto-provisions EDGE_PUSH device & parameters inside Tenant #2 ONLY!
-	wPush := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", "", map[string]string{
-		"X-Ingest-Key": plainKey,
+	// 1. Reject invalid Bearer token with 401
+	wBadBearer := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", "dlg_live_invalid_bogus_token", nil, map[string]interface{}{
+		"logger_type": "ONLIMO",
+		"site_code":   "stasiun-onlimo-citarum",
+		"device_code": "ONLIMO-CTR-01",
+		"values":      map[string]interface{}{"ph": 7.12},
+	})
+	if wBadBearer.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for invalid Bearer token, got %d: %s", wBadBearer.Code, wBadBearer.Body.String())
+	}
+
+	// 2. Pushing to an UNREGISTERED device MUST return 404 Not Found and NEVER auto-create a device!
+	wUnregDev := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", plainKey, nil, map[string]interface{}{
+		"logger_type": "ONLIMO",
+		"site_code":   "stasiun-onlimo-citarum",
+		"device_code": "UNREGISTERED-DEV-99",
+		"values":      map[string]interface{}{"ph": 7.12},
+	})
+	if wUnregDev.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unregistered device_code, got %d: %s", wUnregDev.Code, wUnregDev.Body.String())
+	}
+
+	// 3. User manually creates passive EDGE_PUSH device & manual parameters (ph, cod, tss) — NO Modbus host/register needed!
+	wCreateDev := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", tenant2ID),
 	}, map[string]interface{}{
-		"site_code":   "pit-4-wqms",
-		"site_name":   "WQMS Settling Pond Pit 4",
-		"domain":      "WQMS",
-		"device_code": "EDGE-WQMS-04",
-		"device_name": "Multiparameter Sonde Pit 4",
-		"readings": []map[string]interface{}{
-			{"code": "PH", "name": "Acidity pH", "value": 7.35, "unit": "pH"},
-			{"code": "TSS", "name": "Total Suspended Solids", "value": 42.8, "unit": "mg/L"},
+		"site_id":     onlimoSiteID,
+		"device_code": "ONLIMO-CTR-01",
+		"device_name": "Datalogger ONLIMO Citarum",
+		"device_type": "EDGE_PUSH",
+		"timezone":    "Asia/Jakarta",
+		"status":      "ACTIVE",
+		"enabled":     true,
+		"connection": map[string]interface{}{
+			"protocol":        "EDGE_PUSH",
+			"connection_type": "HTTPS_PUSH",
+			"enabled":         true,
 		},
 	})
-	if wPush.Code != http.StatusOK {
-		t.Fatalf("valid edge push failed (%d): %s", wPush.Code, wPush.Body.String())
+	if wCreateDev.Code != http.StatusCreated && wCreateDev.Code != http.StatusOK {
+		t.Fatalf("manual EDGE_PUSH device create failed (%d): %s", wCreateDev.Code, wCreateDev.Body.String())
+	}
+	var createdDevResp struct {
+		Data model.Device `json:"data"`
+	}
+	_ = json.Unmarshal(wCreateDev.Body.Bytes(), &createdDevResp)
+	onlimoDevID := createdDevResp.Data.ID
+
+	for _, mp := range []map[string]interface{}{
+		{"parameter_code": "ph", "parameter_name": "Acidity pH", "unit": "-", "data_type": "FLOAT64", "precision": 2},
+		{"parameter_code": "cod", "parameter_name": "Chemical Oxygen Demand", "unit": "mg/L", "data_type": "FLOAT32", "precision": 2},
+		{"parameter_code": "tss", "parameter_name": "Total Suspended Solids", "unit": "mg/L", "data_type": "INT16", "precision": 1},
+	} {
+		wP := doJSONReq(t, env.Router, "POST", fmt.Sprintf("/api/devices/%d/parameters", onlimoDevID), env.SuperAdminToken, map[string]string{
+			"X-Tenant-ID": fmt.Sprintf("%d", tenant2ID),
+		}, mp)
+		if wP.Code != http.StatusCreated && wP.Code != http.StatusOK {
+			t.Fatalf("manual parameter create (%v) failed (%d): %s", mp["parameter_code"], wP.Code, wP.Body.String())
+		}
 	}
 
-	// Verify auto-provisioned device belongs strictly to Tenant #2 and is invisible to Tenant #1!
-	wT1Check := doJSONReq(t, env.Router, "GET", "/api/devices?all=true", env.Tenant1AdmToken, nil, nil)
-	if bytes.Contains(wT1Check.Body.Bytes(), []byte("EDGE-WQMS-04")) {
-		t.Fatalf("SECURITY VIOLATION: Tenant 1 saw Tenant 2 auto-provisioned EDGE-WQMS-04 device!")
+	// 4. Mode A Single JSON + Bearer Token with 2 registered params (ph, cod) + 1 unregistered param (bod_unreg)
+	wPushSingle := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", plainKey, nil, map[string]interface{}{
+		"logger_type": "ONLIMO",
+		"site_code":   "stasiun-onlimo-citarum",
+		"device_code": "ONLIMO-CTR-01",
+		"timestamp":   "2026-11-09T15:55:00+07:00",
+		"values": map[string]interface{}{
+			"ph":        7.18,
+			"cod":       32.6,
+			"bod_unreg": 14.2,
+		},
+	})
+	if wPushSingle.Code != http.StatusOK {
+		t.Fatalf("Mode A Bearer push failed (%d): %s", wPushSingle.Code, wPushSingle.Body.String())
+	}
+	var pushSingleResp struct {
+		Data service.EdgeIngestResponse `json:"data"`
+	}
+	_ = json.Unmarshal(wPushSingle.Body.Bytes(), &pushSingleResp)
+	if pushSingleResp.Data.ParametersIngested != 2 || pushSingleResp.Data.ParametersSkipped != 1 {
+		t.Fatalf("expected 2 ingested & 1 skipped, got %+v", pushSingleResp.Data)
+	}
+	if len(pushSingleResp.Data.UnregisteredParameters) != 1 || pushSingleResp.Data.UnregisteredParameters[0] != "bod_unreg" {
+		t.Fatalf("expected unregistered_parameters=[bod_unreg], got %+v", pushSingleResp.Data.UnregisteredParameters)
 	}
 
-	wT2Check := doJSONReq(t, env.Router, "GET", "/api/devices?all=true", env.SuperAdminToken, map[string]string{
+	// Verify bod_unreg was strictly NOT auto-created in DB!
+	var paramCount int64
+	env.DB.Model(&model.Parameter{}).Where("device_id = ?", onlimoDevID).Count(&paramCount)
+	if paramCount != 3 {
+		t.Fatalf("expected strictly 3 manual parameters (no auto-create!), got %d", paramCount)
+	}
+
+	// 5. Payload with ONLY unregistered parameters -> returns 422 Unprocessable Entity
+	wAllUnreg := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", plainKey, nil, map[string]interface{}{
+		"logger_type": "ONLIMO",
+		"site_code":   "stasiun-onlimo-citarum",
+		"device_code": "ONLIMO-CTR-01",
+		"values":      map[string]interface{}{"mercury_unreg": 0.02},
+	})
+	if wAllUnreg.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 when 0 parameters match manual schema, got %d: %s", wAllUnreg.Code, wAllUnreg.Body.String())
+	}
+
+	// 6. Mode B Batch Backfill JSON (records[]) -> processes multiple timestamps and updates Operator Dashboard live values to newest record!
+	wPushBatch := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/telemetry", plainKey, nil, map[string]interface{}{
+		"logger_type": "ONLIMO",
+		"site_code":   "stasiun-onlimo-citarum",
+		"device_code": "ONLIMO-CTR-01",
+		"records": []map[string]interface{}{
+			{
+				"timestamp": "2026-11-09T16:00:00+07:00",
+				"values":    map[string]interface{}{"ph": 7.21, "cod": 33.4, "tss": 24.0},
+			},
+			{
+				"timestamp": "2026-11-09T16:05:00+07:00",
+				"values":    map[string]interface{}{"ph": 7.35, "cod": 35.8, "tss": 28.0},
+			},
+		},
+	})
+	if wPushBatch.Code != http.StatusOK {
+		t.Fatalf("Mode B Batch push failed (%d): %s", wPushBatch.Code, wPushBatch.Body.String())
+	}
+	var pushBatchResp struct {
+		Data service.EdgeIngestResponse `json:"data"`
+	}
+	_ = json.Unmarshal(wPushBatch.Body.Bytes(), &pushBatchResp)
+	if pushBatchResp.Data.RecordsProcessed != 2 || pushBatchResp.Data.ParametersIngested != 6 {
+		t.Fatalf("expected 2 records & 6 parameters ingested, got %+v", pushBatchResp.Data)
+	}
+
+	// 7. MQTT Webhook Receiver + Configurable Acquisition Modules Test
+	wMqttOk := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/mqtt", plainKey, nil, map[string]interface{}{
+		"topic": "datalogger/ingest/stasiun-onlimo-citarum/ONLIMO-CTR-01",
+		"payload": map[string]interface{}{
+			"logger_type": "ONLIMO",
+			"values":      map[string]interface{}{"tss": 30.0},
+		},
+	})
+	if wMqttOk.Code != http.StatusOK {
+		t.Fatalf("MQTT ingest expected 200 when enabled, got %d: %s", wMqttOk.Code, wMqttOk.Body.String())
+	}
+
+	// Admin disables physical sensor polling AND MQTT receiver via PUT /api/system/config; HTTP Bearer remains active!
+	wToggleCfg := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.SuperAdminToken, nil, map[string]interface{}{
+		"sensor_polling_enabled": false,
+		"mqtt_ingest_enabled":    false,
+	})
+	if wToggleCfg.Code != http.StatusOK {
+		t.Fatalf("toggle acquisition modules failed (%d): %s", wToggleCfg.Code, wToggleCfg.Body.String())
+	}
+	wMqttBlocked := doJSONReq(t, env.Router, "POST", "/api/v1/ingest/mqtt", plainKey, nil, map[string]interface{}{
+		"site_code": "stasiun-onlimo-citarum", "device_code": "ONLIMO-CTR-01", "values": map[string]interface{}{"tss": 31.0},
+	})
+	if wMqttBlocked.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 when mqtt_ingest_enabled=false, got %d", wMqttBlocked.Code)
+	}
+
+	// 8. Payload Template Builder Endpoint returns actual manual parameters (ph, cod, tss)
+	wTpl := doJSONReq(t, env.Router, "GET", fmt.Sprintf("/api/ingest-keys/payload-template?site_id=%d&device_id=%d", onlimoSiteID, onlimoDevID), env.SuperAdminToken, map[string]string{
 		"X-Tenant-ID": fmt.Sprintf("%d", tenant2ID),
 	}, nil)
-	if !bytes.Contains(wT2Check.Body.Bytes(), []byte("EDGE-WQMS-04")) {
-		t.Fatalf("expected EDGE-WQMS-04 in Tenant 2 devices, got %s", wT2Check.Body.String())
+	if wTpl.Code != http.StatusOK || !bytes.Contains(wTpl.Body.Bytes(), []byte("Authorization: Bearer")) || !bytes.Contains(wTpl.Body.Bytes(), []byte("\"using_actual_params\":true")) {
+		t.Fatalf("expected payload-template with actual manual params & Bearer curl, got (%d): %s", wTpl.Code, wTpl.Body.String())
+	}
+
+	// 9. Operator Dashboard Live Monitoring Verification (Scoped to Tenant #2 ONLIMO Site — Zero Leak to Tenant #1!)
+	scopeHeaders := map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", tenant2ID),
+		"X-Site-ID":   fmt.Sprintf("%d", onlimoSiteID),
+	}
+	wStatus := doJSONReq(t, env.Router, "GET", "/api/system/status", env.SuperAdminToken, scopeHeaders, nil)
+	if !bytes.Contains(wStatus.Body.Bytes(), []byte("\"monitoring_domain\":\"ONLIMO\"")) {
+		t.Fatalf("expected Operator Dashboard /api/system/status monitoring_domain=ONLIMO, got %s", wStatus.Body.String())
+	}
+	wCats := doJSONReq(t, env.Router, "GET", "/api/categories", env.SuperAdminToken, scopeHeaders, nil)
+	if !bytes.Contains(wCats.Body.Bytes(), []byte("\"domain\":\"ONLIMO\"")) {
+		t.Fatalf("expected /api/categories to dynamically align water categories to domain=ONLIMO for Operator Dashboard, got %s", wCats.Body.String())
+	}
+
+	wDevCheck := doJSONReq(t, env.Router, "GET", "/api/devices?all=true", env.SuperAdminToken, scopeHeaders, nil)
+	if !bytes.Contains(wDevCheck.Body.Bytes(), []byte("\"connection_status\":\"ONLINE\"")) || !bytes.Contains(wDevCheck.Body.Bytes(), []byte("7.35")) {
+		t.Fatalf("expected ONLIMO-CTR-01 ONLINE with current_value=7.35 for Operator Dashboard, got %s", wDevCheck.Body.String())
+	}
+
+	wT1Check := doJSONReq(t, env.Router, "GET", "/api/devices?all=true", env.Tenant1AdmToken, nil, nil)
+	if bytes.Contains(wT1Check.Body.Bytes(), []byte("ONLIMO-CTR-01")) {
+		t.Fatalf("SECURITY VIOLATION: Tenant 1 saw Tenant 2 ONLIMO-CTR-01 device!")
 	}
 }

@@ -16,7 +16,7 @@
             </span>
           </h1>
           <p class="text-xs text-slate-500 dark:text-slate-400">
-            Kelola isolasi organisasi tenant, titik pantau stasiun (AQMS / SPARING / WQMS), dan kunci autentikasi Edge Push Gateway.
+            Kelola organisasi tenant, stasiun pantau (AQMS / SPARING / ONLIMO), token Bearer API Receiver, serta modul akuisisi Sensor Fisik &amp; MQTT.
           </p>
         </div>
       </div>
@@ -50,7 +50,7 @@
           class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
           :class="activeTab === 'ingest' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-white font-semibold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
         >
-          <span>🔑 Edge Ingest Keys ({{ ingestKeys.length }})</span>
+          <span>🔑 API &amp; Bearer Tokens ({{ ingestKeys.length }})</span>
         </button>
       </div>
     </div>
@@ -344,7 +344,7 @@
         <div>
           <h2 class="text-sm font-bold text-slate-900 dark:text-white">Daftar Stasiun / Titik Pantau</h2>
           <p class="text-2xs text-slate-500">
-            Setiap stasiun memiliki domain kepatuhan (AQMS / SPARING / WQMS), koordinat GPS, dan perangkat sensor terisolasi.
+            Setiap stasiun memiliki domain datalogger (AQMS / SPARING / ONLIMO), koordinat GPS, dan perangkat serta parameter manual terisolasi.
           </p>
         </div>
         <button
@@ -449,14 +449,80 @@
     </div>
 
     <!-- =================================================================== -->
-    <!-- TAB 3: EDGE INGEST API KEYS & HYBRID CLOUD GUIDE                    -->
+    <!-- TAB 3: API BEARER TOKENS, ACQUISITION MODULES & PAYLOAD GENERATOR   -->
     <!-- =================================================================== -->
     <div v-if="activeTab === 'ingest'" class="space-y-4">
+      <!-- Configurable Telemetry Acquisition Modules (SUPERADMIN) -->
+      <div v-if="isSuperAdmin" class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white">Konfigurasi Modul Akuisisi Data Server</h2>
+            <p class="text-2xs text-slate-500">
+              Atur modul pembacaan sensor fisik (Modbus/Serial) dan penerimaan MQTT tanpa mematikan penerima utama HTTP JSON + Bearer Token.
+            </p>
+          </div>
+          <span class="px-2.5 py-1 rounded-lg text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 self-start sm:self-auto">
+            HTTP JSON + BEARER: SELALU AKTIF
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <!-- Physical Sensor Polling Toggle -->
+          <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div>
+              <div class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>🔌 Modul Pembacaan Sensor Fisik (Modbus RTU / TCP / Serial)</span>
+              </div>
+              <p class="text-3xs text-slate-500 mt-0.5 leading-relaxed">
+                Nonaktifkan pada server pusat cloud murni agar hanya menerima data push API/MQTT, atau aktifkan untuk hybrid gateway.
+              </p>
+            </div>
+            <button
+              id="btn-toggle-sensor-polling"
+              type="button"
+              :disabled="savingModules"
+              @click="toggleAcquisitionModule('sensor_polling_enabled')"
+              class="px-3 py-1.5 rounded-xl font-mono text-3xs font-bold border transition cursor-pointer flex-shrink-0"
+              :class="acqModules.sensor_polling_enabled
+                ? 'bg-emerald-600 text-white btn-text border-emerald-600'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'"
+            >
+              {{ acqModules.sensor_polling_enabled ? 'ENABLED' : 'PAUSED' }}
+            </button>
+          </div>
+
+          <!-- MQTT Receiver Toggle -->
+          <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div>
+              <div class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>📡 Modul Penerimaan Telemetri MQTT (<code class="font-mono text-3xs">/api/v1/ingest/mqtt</code>)</span>
+              </div>
+              <p class="text-3xs text-slate-500 mt-0.5 leading-relaxed">
+                Izinkan admin/integrator meneruskan pesan dari Broker MQTT (<code class="font-mono">{{ acqModules.mqtt_topic_prefix || 'datalogger/ingest/+' }}</code>) dengan Bearer Token.
+              </p>
+            </div>
+            <button
+              id="btn-toggle-mqtt-ingest"
+              type="button"
+              :disabled="savingModules"
+              @click="toggleAcquisitionModule('mqtt_ingest_enabled')"
+              class="px-3 py-1.5 rounded-xl font-mono text-3xs font-bold border transition cursor-pointer flex-shrink-0"
+              :class="acqModules.mqtt_ingest_enabled
+                ? 'bg-cyan-600 text-white btn-text border-cyan-600'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'"
+            >
+              {{ acqModules.mqtt_ingest_enabled ? 'ENABLED' : 'DISABLED' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- API Bearer Keys Header -->
       <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 class="text-sm font-bold text-slate-900 dark:text-white">Edge Ingest API Keys (Hybrid Cloud Push)</h2>
+          <h2 class="text-sm font-bold text-slate-900 dark:text-white">Telemetry Receiver Bearer Tokens (AQMS · SPARING · ONLIMO)</h2>
           <p class="text-2xs text-slate-500">
-            Gunakan kunci <code class="font-mono text-emerald-600 dark:text-emerald-400">dlg_live_...</code> pada unit Edge Datalogger di lapangan untuk mengirim telemetri ke server pusat tanpa VPN/IP publik statis.
+            Kirim JSON standar menggunakan header <code class="font-mono text-emerald-600 dark:text-emerald-400">Authorization: Bearer dlg_live_...</code>. Device dan parameter wajib didaftarkan secara manual terlebih dahulu.
           </p>
         </div>
         <button
@@ -465,7 +531,7 @@
           @click="openCreateKeyModal"
           class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto"
         >
-          + Buat Ingest API Key
+          + Buat Bearer Token Baru
         </button>
       </div>
 
@@ -477,10 +543,10 @@
         <div class="flex items-start justify-between gap-3">
           <div>
             <div class="text-xs font-bold text-amber-900 dark:text-amber-200">
-              ⚠️ Simpan Edge Ingest Key Ini Sekarang (Hanya Ditampilkan Sekali!)
+              ⚠️ Simpan Bearer Token Ini Sekarang (Hanya Ditampilkan Sekali!)
             </div>
             <p class="text-2xs text-amber-800 dark:text-amber-300/90 mt-0.5">
-              Server hanya menyimpan hash SHA-256. Salin kunci di bawah ke konfigurasi Outbound / Edge Push di lapangan:
+              Server hanya menyimpan hash SHA-256. Gunakan pada header <code class="font-mono font-bold">Authorization: Bearer {{ newlyCreatedPlainKey }}</code>:
             </p>
           </div>
           <button type="button" @click="newlyCreatedPlainKey = ''" class="text-amber-700 dark:text-amber-300 text-xs underline cursor-pointer">
@@ -499,7 +565,7 @@
             @click="copyPlainKey(newlyCreatedPlainKey)"
             class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white btn-text text-xs font-bold cursor-pointer"
           >
-            📋 Salin API Key
+            📋 Salin Bearer Token
           </button>
         </div>
       </div>
@@ -510,11 +576,11 @@
           <table class="w-full text-left text-xs min-w-[860px]">
             <thead class="bg-slate-50 dark:bg-[#0B0F19]/60 text-3xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800">
               <tr>
-                <th class="px-4 py-3">Nama Kunci</th>
-                <th class="px-4 py-3">Key Prefix</th>
+                <th class="px-4 py-3">Nama Token</th>
+                <th class="px-4 py-3">Bearer Prefix</th>
                 <th v-if="isSuperAdmin" class="px-4 py-3">Tenant</th>
                 <th class="px-4 py-3">Target Stasiun</th>
-                <th class="px-4 py-3">Auto-Provision</th>
+                <th class="px-4 py-3">Mode Parameter</th>
                 <th class="px-4 py-3">Pemakaian Terakhir</th>
                 <th class="px-4 py-3">Status</th>
                 <th class="px-4 py-3 text-right">Aksi</th>
@@ -523,19 +589,14 @@
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
               <tr v-for="k in ingestKeys" :key="k.id" class="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
                 <td class="px-4 py-3 font-bold text-slate-900 dark:text-white">{{ k.name }}</td>
-                <td class="px-4 py-3 font-mono text-2xs text-emerald-700 dark:text-emerald-400">{{ k.key_prefix }}••••••••</td>
+                <td class="px-4 py-3 font-mono text-2xs text-emerald-700 dark:text-emerald-400">Bearer {{ k.key_prefix }}••••••</td>
                 <td v-if="isSuperAdmin" class="px-4 py-3 text-2xs">{{ tenantNameById(k.tenant_id) }}</td>
                 <td class="px-4 py-3 text-2xs">
-                  {{ k.site_id ? siteNameById(k.site_id) : 'Semua Stasiun (via site_code)' }}
+                  {{ k.site_id ? siteNameById(k.site_id) : 'Semua Stasiun Tenant (via site_code)' }}
                 </td>
                 <td class="px-4 py-3">
-                  <span
-                    class="px-2 py-0.5 rounded text-3xs font-mono font-semibold"
-                    :class="k.auto_provision
-                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500'"
-                  >
-                    {{ k.auto_provision ? 'AUTO-CREATE' : 'STRICT' }}
+                  <span class="px-2 py-0.5 rounded text-3xs font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    STRICT MANUAL
                   </span>
                 </td>
                 <td class="px-4 py-3 font-mono text-3xs text-slate-500">
@@ -560,13 +621,13 @@
                     @click="revokeIngestKey(k)"
                     class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-3xs font-semibold cursor-pointer"
                   >
-                    Cabut Kunci
+                    Cabut Token
                   </button>
                 </td>
               </tr>
               <tr v-if="ingestKeys.length === 0">
                 <td :colspan="isSuperAdmin ? 8 : 7" class="px-4 py-8 text-center text-slate-500">
-                  Belum ada Edge Ingest API Key dibuat.
+                  Belum ada Bearer Token dibuat.
                 </td>
               </tr>
             </tbody>
@@ -574,28 +635,126 @@
         </div>
       </div>
 
-      <!-- Integration Quick Guide -->
-      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 text-xs">
-        <div class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <span>📡 Panduan Cepat Integrasi Edge Datalogger → Server Pusat</span>
+      <!-- Interactive Standardized JSON Payload & Bearer Token Builder -->
+      <div class="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-4 text-xs">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <div class="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <span>🧾 Generator Payload JSON Standar &amp; Bearer Token (AQMS · SPARING · ONLIMO)</span>
+            </div>
+            <p class="text-2xs text-slate-500 mt-0.5">
+              Pilih jenis datalogger, stasiun, dan perangkat manual untuk menghasilkan contoh JSON siap pakai yang terhubung langsung ke Dashboard Operator.
+            </p>
+          </div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button
+              v-for="lt in ['AQMS', 'SPARING', 'ONLIMO']"
+              :key="'lt-btn-' + lt"
+              type="button"
+              @click="selectPayloadLoggerType(lt)"
+              class="px-3 py-1.5 rounded-lg font-mono text-2xs font-bold border transition cursor-pointer"
+              :class="payloadBuilder.loggerType === lt
+                ? 'bg-emerald-600 text-white border-emerald-600 btn-text shadow-2xs'
+                : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'"
+            >
+              {{ lt }}
+            </button>
+          </div>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <div class="font-semibold text-cyan-700 dark:text-cyan-400">Opsi 1 — Sinkronisasi Antar Datalogger-27 (Tanpa Coding)</div>
-            <ol class="list-decimal list-inside text-2xs text-slate-600 dark:text-slate-400 space-y-1">
-              <li>Pada unit Edge di lapangan, buka menu <strong>Outbound &amp; Integration</strong> → <strong>+ Add Destination</strong>.</li>
-              <li>Isi Endpoint: <code class="font-mono">{{ centralIngestEndpoint }}</code></li>
-              <li>Pilih Auth Mode: <strong>API Key / Edge Ingest Key (X-Ingest-Key)</strong> dan tempel kunci <code class="font-mono">dlg_live_...</code>.</li>
-            </ol>
-          </div>
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 space-y-1.5">
-            <div class="font-semibold text-emerald-700 dark:text-emerald-400">Opsi 2 — HTTP JSON Push Langsung (PLC / IoT Gateway / Script)</div>
-            <pre class="text-3xs font-mono overflow-x-auto text-slate-700 dark:text-slate-300 leading-relaxed">POST {{ centralIngestEndpoint }}
-X-Ingest-Key: dlg_live_xxxxxxxxxxxx
-Content-Type: application/json
 
-{"site_code":"main-station","device_code":"AQMS-EDGE-01","readings":[{"code":"PM25","value":24.6,"unit":"µg/m³"}]}</pre>
+        <!-- Station & Registered Device Selector -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Stasiun Target (site_code)</label>
+            <select
+              v-model.number="payloadBuilder.siteId"
+              @change="onPayloadSiteChange"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+            >
+              <option :value="0">-- Contoh Template Standar ({{ payloadBuilder.loggerType }}) --</option>
+              <option v-for="s in sites" :key="'pb-site-' + s.id" :value="s.id">
+                {{ s.code }} — {{ s.name }} ({{ s.monitoring_domain || 'AQMS' }})
+              </option>
+            </select>
           </div>
+
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Perangkat Terdaftar Manual (device_code)</label>
+            <select
+              v-model.number="payloadBuilder.deviceId"
+              class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
+            >
+              <option :value="0">-- Gunakan Contoh Kode Device --</option>
+              <option v-for="d in filteredDevicesForBuilder" :key="'pb-dev-' + d.id" :value="d.id">
+                {{ d.device_code || d.code }} ({{ (d.parameters || []).filter(p => p.enabled !== false).length }} parameter manual)
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Mode Contoh Payload</label>
+            <div class="flex items-center p-1 bg-slate-100 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 gap-1">
+              <button
+                v-for="m in payloadFormatTabs"
+                :key="m.id"
+                type="button"
+                @click="payloadBuilder.mode = m.id"
+                class="flex-1 px-2 py-1 rounded-lg text-3xs font-bold transition cursor-pointer text-center"
+                :class="payloadBuilder.mode === m.id
+                  ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'"
+              >
+                {{ m.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Registered Parameter Chips Notice -->
+        <div class="p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+          :class="selectedBuilderDeviceParams.length > 0
+            ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-900 dark:text-emerald-200'
+            : 'bg-slate-50 dark:bg-[#0B0F19] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'"
+        >
+          <div class="text-2xs">
+            <template v-if="selectedBuilderDeviceParams.length > 0">
+              <strong>Menggunakan {{ selectedBuilderDeviceParams.length }} Parameter Manual Aktual</strong> pada perangkat
+              <code class="font-mono font-bold">{{ selectedBuilderDevice.device_code || selectedBuilderDevice.code }}</code>:
+              <span class="inline-flex flex-wrap gap-1 ml-1">
+                <code
+                  v-for="p in selectedBuilderDeviceParams"
+                  :key="'chip-' + p.id"
+                  class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-emerald-300/70 dark:border-emerald-700/60 font-mono text-3xs"
+                >
+                  {{ p.parameter_code || p.code }}{{ p.unit ? ` (${p.unit})` : '' }}
+                </code>
+              </span>
+            </template>
+            <template v-else>
+              Menampilkan <strong>Template Parameter Standar {{ payloadBuilder.loggerType }}</strong>. Buat Device (<code class="font-mono">EDGE_PUSH</code> / <code class="font-mono">MQTT</code>) &amp; Parameter secara manual di menu <strong>Devices</strong> agar key <code class="font-mono">values</code> disesuaikan otomatis.
+            </template>
+          </div>
+          <button
+            type="button"
+            @click="copyPlainKey(generatedPayloadSnippet)"
+            class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white btn-text text-3xs font-bold cursor-pointer flex-shrink-0"
+          >
+            📋 Salin Payload
+          </button>
+        </div>
+
+        <!-- Generated Code Preview -->
+        <div class="rounded-xl bg-slate-950 text-emerald-300 border border-slate-800 p-3.5 overflow-x-auto">
+          <div class="flex items-center justify-between text-3xs font-mono text-slate-400 pb-2 mb-2 border-b border-slate-800">
+            <span v-if="payloadBuilder.mode !== 'mqtt'">
+              POST {{ centralIngestEndpoint }} &bull; Authorization: Bearer {{ previewBearerToken }}
+            </span>
+            <span v-else>
+              POST {{ centralMqttIngestEndpoint }} &bull; Topic: datalogger/ingest/{{ resolvedBuilderSiteCode }}/{{ resolvedBuilderDeviceCode }}
+            </span>
+            <span class="text-emerald-400 font-bold">{{ payloadBuilder.loggerType }}</span>
+          </div>
+          <pre class="text-2xs font-mono leading-relaxed whitespace-pre">{{ generatedPayloadSnippet }}</pre>
         </div>
       </div>
     </div>
@@ -782,9 +941,10 @@ Content-Type: application/json
                 v-model="siteForm.monitoring_domain"
                 class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white"
               >
-                <option value="AQMS">AQMS (Udara Ambien &amp; ISPU)</option>
-                <option value="SPARING">SPARING (Air Limbah Industri)</option>
-                <option value="WQMS">WQMS / ONLIMO (Kualitas Air Sungai)</option>
+                <option value="AQMS">AQMS (Kualitas Udara Ambien &amp; ISPU)</option>
+                <option value="SPARING">SPARING (Pemantauan Air Limbah Industri)</option>
+                <option value="ONLIMO">ONLIMO (Pemantauan Kualitas Air Sungai / Permukaan)</option>
+                <option value="WQMS">WQMS (Water Quality Umum)</option>
               </select>
             </div>
             <div>
@@ -897,22 +1057,22 @@ Content-Type: application/json
             </select>
           </div>
 
-          <label class="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 cursor-pointer">
-            <input type="checkbox" v-model="keyForm.auto_provision" class="mt-0.5 rounded text-emerald-600" />
-            <div>
-              <div class="font-semibold text-slate-900 dark:text-white">Auto-Provision Device &amp; Parameter</div>
-              <div class="text-3xs text-slate-500 mt-0.5">
-                Otomatis mendaftarkan device bertipe <code class="font-mono">EDGE_PUSH</code> dan parameter baru saat payload pertama diterima dari lapangan.
-              </div>
+          <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 space-y-1">
+            <div class="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
+              <span>Registrasi Device &amp; Parameter Manual</span>
+              <span class="text-4xs font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold">STRICT SCHEMA</span>
             </div>
-          </label>
+            <div class="text-3xs text-emerald-800/90 dark:text-emerald-300/80 leading-relaxed">
+              Parameter tidak dibuat otomatis. Pastikan Device (<code class="font-mono">EDGE_PUSH</code> / <code class="font-mono">MQTT</code>) dan kode parameter telah didaftarkan secara manual oleh user. Autentikasi menggunakan <code class="font-mono">Authorization: Bearer dlg_live_...</code>.
+            </div>
+          </div>
 
           <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
             <button type="button" @click="showCreateKeyModal = false" class="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer">
               Batal
             </button>
             <button type="submit" :disabled="savingKey" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white btn-text font-bold cursor-pointer">
-              {{ savingKey ? 'Membuat...' : 'Generate API Key' }}
+              {{ savingKey ? 'Membuat...' : 'Generate Bearer Token' }}
             </button>
           </div>
         </form>
@@ -936,10 +1096,32 @@ export default {
       tenants: [],
       sites: [],
       ingestKeys: [],
+      registeredDevices: [],
 
       savingTenant: false,
       savingSite: false,
       savingKey: false,
+      savingModules: false,
+
+      acqModules: {
+        sensor_polling_enabled: true,
+        mqtt_ingest_enabled: true,
+        mqtt_broker_url: '',
+        mqtt_topic_prefix: 'datalogger/ingest/+',
+      },
+
+      payloadBuilder: {
+        loggerType: 'AQMS',
+        siteId: 0,
+        deviceId: 0,
+        mode: 'single',
+      },
+      payloadFormatTabs: [
+        { id: 'single', label: 'JSON Real-Time' },
+        { id: 'batch', label: 'JSON Batch' },
+        { id: 'curl', label: 'cURL Bearer' },
+        { id: 'mqtt', label: 'MQTT' },
+      ],
 
       showTenantModal: false,
       editingTenant: null,
@@ -991,7 +1173,7 @@ export default {
         tenant_id: 1,
         site_id: 0,
         name: '',
-        auto_provision: true,
+        auto_provision: false,
       },
     };
   },
@@ -1041,6 +1223,112 @@ export default {
       const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://central-datalogger.example.com';
       return `${origin}/api/v1/ingest/telemetry`;
     },
+    centralMqttIngestEndpoint() {
+      const origin = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://central-datalogger.example.com';
+      return `${origin}/api/v1/ingest/mqtt`;
+    },
+    previewBearerToken() {
+      return this.newlyCreatedPlainKey || 'dlg_live_YOUR_SECRET_BEARER_TOKEN';
+    },
+    selectedBuilderSite() {
+      return this.sites.find(s => Number(s.id) === Number(this.payloadBuilder.siteId)) || null;
+    },
+    filteredDevicesForBuilder() {
+      if (!this.payloadBuilder.siteId) return this.registeredDevices;
+      return this.registeredDevices.filter(d => Number(d.site_id) === Number(this.payloadBuilder.siteId));
+    },
+    selectedBuilderDevice() {
+      return this.filteredDevicesForBuilder.find(d => Number(d.id) === Number(this.payloadBuilder.deviceId)) || null;
+    },
+    selectedBuilderDeviceParams() {
+      if (!this.selectedBuilderDevice || !Array.isArray(this.selectedBuilderDevice.parameters)) return [];
+      return this.selectedBuilderDevice.parameters.filter(p => p.enabled !== false && (p.parameter_code || p.code));
+    },
+    resolvedBuilderSiteCode() {
+      if (this.selectedBuilderSite && this.selectedBuilderSite.code) return this.selectedBuilderSite.code;
+      const lt = String(this.payloadBuilder.loggerType || 'AQMS').toLowerCase();
+      return `stasiun-${lt}-01`;
+    },
+    resolvedBuilderDeviceCode() {
+      if (this.selectedBuilderDevice) {
+        return this.selectedBuilderDevice.device_code || this.selectedBuilderDevice.code || 'LOGGER-01';
+      }
+      return `${this.payloadBuilder.loggerType}-LOGGER-01`;
+    },
+    generatedPayloadObject() {
+      const lt = String(this.payloadBuilder.loggerType || 'AQMS').toUpperCase();
+      const siteCode = this.resolvedBuilderSiteCode;
+      const deviceCode = this.resolvedBuilderDeviceCode;
+
+      const sampleForCode = (rawCode) => {
+        const k = String(rawCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const map = {
+          pm25: 34.5, pm10: 62.1, so2: 12.4, co: 1150.0, o3: 41.2, no2: 18.9, hc: 8.4,
+          ws: 2.8, wd: 185.0, temp: 28.4, temperature: 28.4, humidity: 71.2, rh: 71.2, pressure: 1009.5, sr: 540.0, rain: 0.0,
+          ph: 7.18, cod: 45.2, bod: 16.4, tss: 31.4, nh3n: 0.42, nh4: 0.48, no3: 2.85,
+          do: 6.45, tds: 312.0, turbidity: 14.8, debit: 124.8, flow: 124.8, waterlevel: 1.42, level: 1.42,
+        };
+        return map[k] !== undefined ? map[k] : 15.25;
+      };
+
+      let values1 = {};
+      let values2 = {};
+      if (this.selectedBuilderDeviceParams.length > 0) {
+        this.selectedBuilderDeviceParams.forEach((p) => {
+          const code = p.parameter_code || p.code;
+          const v = sampleForCode(code);
+          values1[code] = v;
+          values2[code] = Number((v * 1.03).toFixed(2));
+        });
+      } else if (lt === 'SPARING') {
+        values1 = { ph: 7.18, cod: 45.2, tss: 31.4, nh3n: 0.42, debit: 124.8 };
+        values2 = { ph: 7.21, cod: 46.5, tss: 32.1, nh3n: 0.44, debit: 126.2 };
+      } else if (lt === 'ONLIMO') {
+        values1 = { ph: 7.05, do: 6.45, bod: 14.2, cod: 32.6, tss: 24.0, nh3n: 0.31, no3: 2.85, tds: 312.0, turbidity: 14.8, temperature: 27.6, water_level: 1.42 };
+        values2 = { ph: 7.09, do: 6.52, bod: 14.6, cod: 33.4, tss: 24.8, nh3n: 0.33, no3: 2.91, tds: 315.0, turbidity: 15.1, temperature: 27.8, water_level: 1.44 };
+      } else {
+        values1 = { pm25: 34.5, pm10: 62.1, so2: 12.4, co: 1150.0, o3: 41.2, no2: 18.9, hc: 8.4, ws: 2.8, wd: 185.0, temperature: 28.4, humidity: 71.2, pressure: 1009.5, sr: 540.0, rain: 0.0 };
+        values2 = { pm25: 35.2, pm10: 63.4, so2: 12.8, co: 1165.0, o3: 42.0, no2: 19.3, hc: 8.6, ws: 3.0, wd: 188.0, temperature: 28.5, humidity: 70.8, pressure: 1009.4, sr: 548.0, rain: 0.0 };
+      }
+
+      const nowIso = '2026-11-09T16:00:00+07:00';
+      const prevIso = '2026-11-09T15:55:00+07:00';
+
+      if (this.payloadBuilder.mode === 'batch') {
+        return {
+          logger_type: lt,
+          site_code: siteCode,
+          device_code: deviceCode,
+          records: [
+            { timestamp: prevIso, values: values1 },
+            { timestamp: nowIso, values: values2 },
+          ],
+        };
+      }
+
+      return {
+        logger_type: lt,
+        site_code: siteCode,
+        device_code: deviceCode,
+        timestamp: nowIso,
+        values: values1,
+      };
+    },
+    generatedPayloadSnippet() {
+      const jsonPretty = JSON.stringify(this.generatedPayloadObject, null, 2);
+      if (this.payloadBuilder.mode === 'curl') {
+        return `curl -X POST "${this.centralIngestEndpoint}" \\\n  -H "Authorization: Bearer ${this.previewBearerToken}" \\\n  -H "Content-Type: application/json" \\\n  -d '${jsonPretty}'`;
+      }
+      if (this.payloadBuilder.mode === 'mqtt') {
+        const topic = `datalogger/ingest/${this.resolvedBuilderSiteCode}/${this.resolvedBuilderDeviceCode}`;
+        const webhookBody = JSON.stringify({
+          topic,
+          payload: this.generatedPayloadObject,
+        }, null, 2);
+        return `# MQTT Broker Topic: ${topic}\n# Webhook / Bridge Forwarding ke Server:\ncurl -X POST "${this.centralMqttIngestEndpoint}" \\\n  -H "Authorization: Bearer ${this.previewBearerToken}" \\\n  -H "Content-Type: application/json" \\\n  -d '${webhookBody}'`;
+      }
+      return jsonPretty;
+    },
   },
   mounted() {
     if (this.$route && this.$route.query && this.$route.query.tab) {
@@ -1064,8 +1352,79 @@ export default {
         this.loadTenantsOrProfile(),
         this.loadSites(),
         this.loadIngestKeys(),
+        this.loadRegisteredDevices(),
+        this.loadAcquisitionModules(),
       ]);
       this.$store.dispatch('fetchTenantContext');
+    },
+    async loadRegisteredDevices() {
+      try {
+        const res = await axios.get('/api/devices', { params: { page_size: 200 } });
+        const raw = res.data && res.data.data;
+        if (Array.isArray(raw)) {
+          this.registeredDevices = raw;
+        } else if (raw && Array.isArray(raw.items)) {
+          this.registeredDevices = raw.items;
+        }
+      } catch (_) {
+        this.registeredDevices = [];
+      }
+    },
+    async loadAcquisitionModules() {
+      if (!this.isSuperAdmin) return;
+      try {
+        const res = await axios.get('/api/system/config');
+        const d = res.data && res.data.data;
+        if (d) {
+          this.acqModules = {
+            sensor_polling_enabled: d.sensor_polling_enabled !== false,
+            mqtt_ingest_enabled: d.mqtt_ingest_enabled !== false,
+            mqtt_broker_url: d.mqtt_broker_url || '',
+            mqtt_topic_prefix: d.mqtt_topic_prefix || 'datalogger/ingest/+',
+          };
+        }
+      } catch (_) {
+        // non-blocking
+      }
+    },
+    async toggleAcquisitionModule(field) {
+      if (!this.isSuperAdmin) return;
+      this.savingModules = true;
+      const nextVal = !this.acqModules[field];
+      try {
+        await axios.put('/api/system/config', { [field]: nextVal });
+        this.acqModules[field] = nextVal;
+        const label = field === 'sensor_polling_enabled' ? 'Modul Pembacaan Sensor Fisik' : 'Modul Penerimaan MQTT';
+        this.showToast(`${label} berhasil diubah menjadi ${nextVal ? 'AKTIF' : 'NONAKTIF'}.`);
+      } catch (err) {
+        this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
+      } finally {
+        this.savingModules = false;
+      }
+    },
+    selectPayloadLoggerType(lt) {
+      this.payloadBuilder.loggerType = lt;
+      const matchingSite = this.sites.find(s => String(s.monitoring_domain || '').toUpperCase() === lt);
+      if (matchingSite) {
+        this.payloadBuilder.siteId = matchingSite.id;
+        this.onPayloadSiteChange();
+      } else {
+        this.payloadBuilder.siteId = 0;
+        this.payloadBuilder.deviceId = 0;
+      }
+    },
+    onPayloadSiteChange() {
+      const site = this.selectedBuilderSite;
+      if (site && site.monitoring_domain) {
+        const dom = String(site.monitoring_domain).toUpperCase();
+        if (['AQMS', 'SPARING', 'ONLIMO'].includes(dom)) {
+          this.payloadBuilder.loggerType = dom;
+        } else if (dom === 'WQMS') {
+          this.payloadBuilder.loggerType = 'ONLIMO';
+        }
+      }
+      const devs = this.filteredDevicesForBuilder;
+      this.payloadBuilder.deviceId = devs.length > 0 ? devs[0].id : 0;
     },
     async loadTenantsOrProfile() {
       try {
@@ -1128,6 +1487,7 @@ export default {
     domainBadgeClass(domain) {
       const d = String(domain || 'AQMS').toUpperCase();
       if (d === 'SPARING') return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30';
+      if (d === 'ONLIMO') return 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30';
       if (d === 'WQMS') return 'bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/30';
       return 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/30';
     },
@@ -1299,7 +1659,7 @@ export default {
         tenant_id: defaultTid,
         site_id: this.activeSiteId || 0,
         name: '',
-        auto_provision: true,
+        auto_provision: false,
       };
       this.showCreateKeyModal = true;
     },
@@ -1309,14 +1669,14 @@ export default {
         const payload = {
           tenant_id: this.keyForm.tenant_id,
           name: this.keyForm.name,
-          auto_provision: this.keyForm.auto_provision,
+          auto_provision: false,
           site_id: this.keyForm.site_id > 0 ? this.keyForm.site_id : null,
         };
         const res = await axios.post('/api/ingest-keys', payload);
         if (res.data && res.data.data) {
           this.newlyCreatedPlainKey = res.data.data.plain_key || '';
           this.showCreateKeyModal = false;
-          this.showToast('Edge Ingest API Key berhasil dibuat! Salin kunci sebelum menutup banner.');
+          this.showToast('Bearer Token berhasil dibuat! Salin token sebelum menutup banner.');
           await this.loadIngestKeys();
         }
       } catch (err) {
