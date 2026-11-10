@@ -17,7 +17,14 @@ import (
 func RunMigrations(db *gorm.DB) error {
 	logger.Info("Executing MariaDB schema migrations for Phase 2.1...")
 
-	// 0. Pre-migrate existing tables to ensure unique columns are populated before index creation
+	// 0. Bootstrap multi-tenant parent tables (tenants, sites, tenant_api_keys) and seed Default Tenant #1 + Site #1
+	// BEFORE AutoMigrate adds foreign key constraints (fk_devices_tenant, fk_devices_site, fk_users_tenant,
+	// fk_output_destinations_site) onto pre-existing single-tenant tables.
+	if err := bootstrapMultiTenantParentTables(db); err != nil {
+		return err
+	}
+
+	// 0b. Pre-migrate existing tables to ensure unique columns are populated before index creation
 	preMigrateEdgeSchema(db)
 
 	// 1. Auto-migrate models
@@ -4237,16 +4244,64 @@ func preMigrateMultiTenantIndexes(db *gorm.DB) {
 	dropLegacyIndexesIfUpgrading("ispu_calculation_results", &model.ISPUCalculationResult{}, "idx_dev_period_mode")
 }
 
-// ensureMultiTenantSchemaAndBackfill seeds Default Tenant #1 and Site #1 from existing single-tenant settings
-// and non-destructively backfills tenant_id = 1 / site_id = 1 on legacy records.
-func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
+// bootstrapMultiTenantParentTables creates the tenants, sites, and tenant_api_keys parent tables,
+// guarantees Tenant #1 and Site #1 exist, and sanitizes any pre-existing child foreign key columns
+// BEFORE the main AutoMigrate adds InnoDB FOREIGN KEY constraints (e.g. fk_devices_tenant, fk_devices_site).
+func bootstrapMultiTenantParentTables(db *gorm.DB) error {
+	if err := db.AutoMigrate(&model.Tenant{}); err != nil {
+		return err
+	}
+	if err := ensureDefaultTenantRecord(db); err != nil {
+		return err
+	}
+
+	if db.Migrator().HasTable("sites") && db.Migrator().HasColumn("sites", "tenant_id") {
+		_ = db.Exec("UPDATE sites SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0 OR tenant_id NOT IN (SELECT id FROM tenants)").Error
+	}
+	if err := db.AutoMigrate(&model.Site{}); err != nil {
+		return err
+	}
+	if err := ensureDefaultSiteRecord(db); err != nil {
+		return err
+	}
+
+	if db.Migrator().HasTable("tenant_api_keys") {
+		if db.Migrator().HasColumn("tenant_api_keys", "tenant_id") {
+			_ = db.Exec("UPDATE tenant_api_keys SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0 OR tenant_id NOT IN (SELECT id FROM tenants)").Error
+		}
+		if db.Migrator().HasColumn("tenant_api_keys", "site_id") {
+			_ = db.Exec("UPDATE tenant_api_keys SET site_id = NULL WHERE site_id = 0 OR (site_id IS NOT NULL AND site_id NOT IN (SELECT id FROM sites))").Error
+		}
+	}
+	if err := db.AutoMigrate(&model.TenantAPIKey{}); err != nil {
+		return err
+	}
+
+	// Sanitize any already-added child FK columns (e.g. recovering from an interrupted upgrade)
+	if db.Migrator().HasTable("users") && db.Migrator().HasColumn("users", "tenant_id") {
+		_ = db.Exec("UPDATE users SET tenant_id = NULL WHERE tenant_id = 0 OR (tenant_id IS NOT NULL AND tenant_id NOT IN (SELECT id FROM tenants))").Error
+	}
+	if db.Migrator().HasTable("devices") {
+		if db.Migrator().HasColumn("devices", "tenant_id") {
+			_ = db.Exec("UPDATE devices SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0 OR tenant_id NOT IN (SELECT id FROM tenants)").Error
+		}
+		if db.Migrator().HasColumn("devices", "site_id") {
+			_ = db.Exec("UPDATE devices SET site_id = 1 WHERE site_id IS NULL OR site_id = 0 OR site_id NOT IN (SELECT id FROM sites)").Error
+		}
+	}
+	if db.Migrator().HasTable("output_destinations") && db.Migrator().HasColumn("output_destinations", "site_id") {
+		_ = db.Exec("UPDATE output_destinations SET site_id = NULL WHERE site_id = 0 OR (site_id IS NOT NULL AND site_id NOT IN (SELECT id FROM sites))").Error
+	}
+	return nil
+}
+
+func ensureDefaultTenantRecord(db *gorm.DB) error {
 	var branding model.SystemBranding
-	hasBranding := db.Order("id asc").First(&branding).Error == nil
+	hasBranding := false
+	if db.Migrator().HasTable(&model.SystemBranding{}) {
+		hasBranding = db.Order("id asc").First(&branding).Error == nil
+	}
 
-	var loc model.StationLocation
-	hasLoc := db.Order("id asc").First(&loc).Error == nil
-
-	// 1. Ensure Tenant #1 ("default") exists
 	var defaultTenant model.Tenant
 	if err := db.Unscoped().First(&defaultTenant, 1).Error; err != nil {
 		custName := strings.TrimSpace(branding.CustomerName)
@@ -4257,9 +4312,14 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 		if custSub == "" {
 			custSub = "Environmental & Industrial Telemetry Platform"
 		}
+		tenantCode := "default"
+		var byCode model.Tenant
+		if db.Unscoped().Where("code = ?", tenantCode).First(&byCode).Error == nil && byCode.ID != 1 {
+			tenantCode = "default-primary"
+		}
 		defaultTenant = model.Tenant{
 			ID:               1,
-			Code:             "default",
+			Code:             tenantCode,
 			Name:             custName,
 			Description:      "Primary default organization migrated from single-tenant installation",
 			Status:           model.TenantStatusActive,
@@ -4268,27 +4328,48 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 			CustomerLogo:     branding.CustomerLogo,
 			CustomerHasLogo:  branding.CustomerHasLogo || strings.TrimSpace(branding.CustomerLogo) != "",
 		}
-		_ = db.Create(&defaultTenant).Error
-	} else if hasBranding && strings.TrimSpace(defaultTenant.CustomerLogo) == "" && strings.TrimSpace(branding.CustomerLogo) != "" {
-		_ = db.Model(&defaultTenant).Updates(map[string]interface{}{
-			"customer_logo":     branding.CustomerLogo,
-			"customer_has_logo": true,
-		}).Error
+		if createErr := db.Create(&defaultTenant).Error; createErr != nil {
+			return fmt.Errorf("failed to seed default tenant #1: %w", createErr)
+		}
+	} else {
+		if defaultTenant.DeletedAt.Valid {
+			_ = db.Unscoped().Model(&defaultTenant).Update("deleted_at", nil).Error
+		}
+		if hasBranding && strings.TrimSpace(defaultTenant.CustomerLogo) == "" && strings.TrimSpace(branding.CustomerLogo) != "" {
+			_ = db.Model(&defaultTenant).Updates(map[string]interface{}{
+				"customer_logo":     branding.CustomerLogo,
+				"customer_has_logo": true,
+			}).Error
+		}
+	}
+	return nil
+}
+
+func ensureDefaultSiteRecord(db *gorm.DB) error {
+	var branding model.SystemBranding
+	hasBranding := false
+	if db.Migrator().HasTable(&model.SystemBranding{}) {
+		hasBranding = db.Order("id asc").First(&branding).Error == nil
 	}
 
-	// 2. Ensure Site #1 ("main-station") under Tenant #1 exists
+	var loc model.StationLocation
+	hasLoc := false
+	if db.Migrator().HasTable(&model.StationLocation{}) {
+		hasLoc = db.Order("id asc").First(&loc).Error == nil
+	}
+
 	var defaultSite model.Site
 	if err := db.Unscoped().First(&defaultSite, 1).Error; err != nil {
 		domain := "AQMS"
 		if cfg := config.Get(); cfg != nil && strings.TrimSpace(cfg.MonitoringDomain) != "" {
 			d := strings.ToUpper(strings.TrimSpace(cfg.MonitoringDomain))
-			if d == "AQMS" || d == "SPARING" || d == "WQMS" {
+			if d == "AQMS" || d == "SPARING" || d == "WQMS" || d == "ONLIMO" {
 				domain = d
 			}
 		}
 		if hasBranding && strings.TrimSpace(branding.StationDomainPrefix) != "" && domain == "AQMS" {
 			d := strings.ToUpper(strings.TrimSpace(branding.StationDomainPrefix))
-			if d == "AQMS" || d == "SPARING" || d == "WQMS" {
+			if d == "AQMS" || d == "SPARING" || d == "WQMS" || d == "ONLIMO" {
 				domain = d
 			}
 		}
@@ -4300,10 +4381,15 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 		if hasBranding && strings.TrimSpace(branding.StationTypeMode) != "" {
 			stMode = strings.TrimSpace(branding.StationTypeMode)
 		}
+		siteCode := "main-station"
+		var byCode model.Site
+		if db.Unscoped().Where("tenant_id = ? AND code = ?", 1, siteCode).First(&byCode).Error == nil && byCode.ID != 1 {
+			siteCode = "main-station-primary"
+		}
 		defaultSite = model.Site{
 			ID:               1,
 			TenantID:         1,
-			Code:             "main-station",
+			Code:             siteCode,
 			Name:             siteName,
 			MonitoringDomain: domain,
 			StationTypeMode:  stMode,
@@ -4316,8 +4402,20 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 			Timezone:         "Asia/Jakarta",
 			Enabled:          true,
 		}
-		_ = db.Create(&defaultSite).Error
+		if createErr := db.Create(&defaultSite).Error; createErr != nil {
+			return fmt.Errorf("failed to seed default site #1: %w", createErr)
+		}
+	} else if defaultSite.DeletedAt.Valid {
+		_ = db.Unscoped().Model(&defaultSite).Update("deleted_at", nil).Error
 	}
+	return nil
+}
+
+// ensureMultiTenantSchemaAndBackfill seeds Default Tenant #1 and Site #1 from existing single-tenant settings
+// and non-destructively backfills tenant_id = 1 / site_id = 1 on legacy records.
+func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
+	_ = ensureDefaultTenantRecord(db)
+	_ = ensureDefaultSiteRecord(db)
 
 	// 3. Backfill users: SUPERADMIN gets tenant_id = NULL (Global); non-SUPERADMIN gets tenant_id = 1 if NULL
 	var superRoleIDs []uint

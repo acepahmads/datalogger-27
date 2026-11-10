@@ -707,5 +707,108 @@ func TestMigrationPhase10Tracking(t *testing.T) {
 	}
 }
 
+type legacySingleTenantDevice struct {
+	ID               uint   `gorm:"primaryKey"`
+	DeviceCode       string `gorm:"column:device_code;size:64;uniqueIndex;not null"`
+	DeviceName       string `gorm:"column:device_name;size:128;not null"`
+	DeviceType       string `gorm:"column:device_type;size:64;not null;default:'MODBUS_TCP'"`
+	Code             string `gorm:"size:64"`
+	Name             string `gorm:"size:128"`
+	Status           string `gorm:"size:32;default:'ACTIVE'"`
+	Enabled          bool   `gorm:"default:true"`
+	ConnectionStatus string `gorm:"size:32;default:'UNKNOWN'"`
+	Timezone         string `gorm:"size:64;default:'UTC'"`
+}
+
+func (legacySingleTenantDevice) TableName() string { return "devices" }
+
+type halfMigratedDevice struct {
+	ID         uint   `gorm:"primaryKey"`
+	TenantID   uint   `gorm:"column:tenant_id;not null;default:1"`
+	SiteID     uint   `gorm:"column:site_id;not null;default:1"`
+	DeviceCode string `gorm:"column:device_code;size:64;not null"`
+	DeviceName string `gorm:"column:device_name;size:128;not null"`
+	DeviceType string `gorm:"column:device_type;size:64;not null;default:'MODBUS_TCP'"`
+}
+
+func (halfMigratedDevice) TableName() string { return "devices" }
+
+func TestMigrationSingleTenantUpgradeForeignKeysAndHalfMigratedRecovery(t *testing.T) {
+	// Scenario A: Pre-existing single-tenant DB with devices BEFORE tenants/sites tables exist (strict FK enforcement ON)
+	dsnA := fmt.Sprintf("file:mem_mig_fk_a_%d?mode=memory&cache=shared&_pragma=foreign_keys(1)", time.Now().UnixNano())
+	dbA, err := gorm.Open(sqlite.Open(dsnA), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open dbA: %v", err)
+	}
+
+	if err := dbA.AutoMigrate(&legacySingleTenantDevice{}); err != nil {
+		t.Fatalf("Failed to migrate legacy devices schema: %v", err)
+	}
+	if err := dbA.Create(&legacySingleTenantDevice{
+		DeviceCode: "DEV-LEGACY-01",
+		DeviceName: "Legacy Sensor 01",
+		DeviceType: "MODBUS_TCP",
+		Code:       "DEV-LEGACY-01",
+		Name:       "Legacy Sensor 01",
+		Status:     "ACTIVE",
+		Enabled:    true,
+	}).Error; err != nil {
+		t.Fatalf("Failed to seed legacy devices table: %v", err)
+	}
+
+	if err := database.RunMigrations(dbA); err != nil {
+		t.Fatalf("RunMigrations on legacy single-tenant DB failed: %v", err)
+	}
+
+	var t1 model.Tenant
+	if err := dbA.First(&t1, 1).Error; err != nil {
+		t.Fatalf("Expected Default Tenant #1 to be seeded before FK constraint creation: %v", err)
+	}
+	var s1 model.Site
+	if err := dbA.First(&s1, 1).Error; err != nil {
+		t.Fatalf("Expected Default Site #1 to be seeded before FK constraint creation: %v", err)
+	}
+	var migratedDev model.Device
+	if err := dbA.Where("device_code = ?", "DEV-LEGACY-01").First(&migratedDev).Error; err != nil {
+		t.Fatalf("Expected legacy device to survive upgrade: %v", err)
+	}
+	if migratedDev.TenantID != 1 || migratedDev.SiteID != 1 {
+		t.Fatalf("Expected legacy device to be assigned tenant_id=1 & site_id=1, got tenant_id=%d site_id=%d", migratedDev.TenantID, migratedDev.SiteID)
+	}
+
+	// Scenario B: Half-migrated MariaDB recovery (empty tenants & sites tables + devices with orphaned/0 tenant_id & site_id)
+	dsnB := fmt.Sprintf("file:mem_mig_fk_b_%d?mode=memory&cache=shared&_pragma=foreign_keys(1)", time.Now().UnixNano())
+	dbB, err := gorm.Open(sqlite.Open(dsnB), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("Failed to open dbB: %v", err)
+	}
+	if err := dbB.AutoMigrate(&model.Tenant{}, &model.Site{}, &halfMigratedDevice{}); err != nil {
+		t.Fatalf("Failed to create half-migrated tables: %v", err)
+	}
+	if err := dbB.Create(&halfMigratedDevice{TenantID: 1, SiteID: 1, DeviceCode: "DEV-HALF-01", DeviceName: "Half Migrated 01"}).Error; err != nil {
+		t.Fatalf("Failed to seed DEV-HALF-01: %v", err)
+	}
+	if err := dbB.Exec("INSERT INTO devices (tenant_id, site_id, device_code, device_name, device_type) VALUES (999, 0, 'DEV-HALF-02', 'Orphaned FK 02', 'MODBUS_TCP')").Error; err != nil {
+		t.Fatalf("Failed to seed DEV-HALF-02: %v", err)
+	}
+
+	if err := database.RunMigrations(dbB); err != nil {
+		t.Fatalf("RunMigrations on half-migrated DB failed: %v", err)
+	}
+
+	var devHalf2 model.Device
+	if err := dbB.Where("device_code = ?", "DEV-HALF-02").First(&devHalf2).Error; err != nil {
+		t.Fatalf("Expected DEV-HALF-02 to exist: %v", err)
+	}
+	if devHalf2.TenantID != 1 || devHalf2.SiteID != 1 {
+		t.Fatalf("Expected orphaned FK device to be healed to tenant_id=1 & site_id=1, got tenant_id=%d site_id=%d", devHalf2.TenantID, devHalf2.SiteID)
+	}
+}
+
+
 
 
