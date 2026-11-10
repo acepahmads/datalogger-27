@@ -755,6 +755,27 @@ func resolveEffectiveStaleTimeout(dev *model.Device, param *model.Parameter) int
 		staleTimeout = param.StaleTimeoutSeconds
 	}
 
+	isPassive := dev != nil && (strings.EqualFold(dev.DeviceType, string(model.ProtocolEdgePush)) ||
+		strings.EqualFold(dev.DeviceType, string(model.ProtocolMQTT)) ||
+		(dev.Connection != nil && (dev.Connection.Protocol == model.ProtocolEdgePush || dev.Connection.Protocol == model.ProtocolMQTT)))
+
+	if isPassive {
+		devTimeoutSec := 300
+		if dev.Connection != nil && dev.Connection.Timeout >= 5 && dev.Connection.Timeout != 1000 {
+			if dev.Connection.Timeout > 86400 {
+				devTimeoutSec = dev.Connection.Timeout / 1000
+			} else {
+				devTimeoutSec = dev.Connection.Timeout
+			}
+		}
+		if staleTimeout <= 120 && devTimeoutSec > staleTimeout {
+			staleTimeout = devTimeoutSec
+		} else if dev.Connection != nil && dev.Connection.Timeout >= 5 && dev.Connection.Timeout != 1000 && devTimeoutSec > staleTimeout {
+			staleTimeout = devTimeoutSec
+		}
+		return staleTimeout
+	}
+
 	pollMs := 0
 	if param != nil && param.PollingIntervalMs != nil && *param.PollingIntervalMs > 0 {
 		pollMs = *param.PollingIntervalMs
@@ -787,6 +808,7 @@ func (s *TelemetryService) evaluateStaleParameters() {
 	var staleCandidates []staleEvalCandidate
 	devLastData := make(map[uint]time.Time)
 	devCodes := make(map[uint]string)
+	devMaxStale := make(map[uint]int)
 	devCache := make(map[uint]*model.Device)
 
 	for _, item := range s.latestCache {
@@ -825,6 +847,9 @@ func (s *TelemetryService) evaluateStaleParameters() {
 		}
 
 		staleTimeout := resolveEffectiveStaleTimeout(dev, param)
+		if staleTimeout > devMaxStale[item.DeviceID] {
+			devMaxStale[item.DeviceID] = staleTimeout
+		}
 		isStale, staleQ, staleReason := s.qualityProcessor.CheckStale(item.ParameterID, staleTimeout, item.ReceivedAt)
 		if isStale {
 			now := time.Now().UTC()
@@ -917,6 +942,9 @@ func (s *TelemetryService) evaluateStaleParameters() {
 					Status:     model.DeviceStatusActive,
 					LastDataAt: &lastDataCopy,
 				}
+			}
+			if maxStale, ok := devMaxStale[devID]; ok && maxStale > 0 && len(dev.Parameters) == 0 {
+				dev.Parameters = []model.Parameter{{Enabled: true, StaleTimeoutSeconds: maxStale}}
 			}
 			s.alarmEvaluator.EvaluateDeviceOffline(s.ctx, dev, nil)
 		}

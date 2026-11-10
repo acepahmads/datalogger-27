@@ -684,6 +684,7 @@
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Perangkat Terdaftar Manual (device_code)</label>
             <select
               v-model.number="payloadBuilder.deviceId"
+              @change="syncSelectedBuilderDeviceTimeout"
               class="w-full bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 font-mono text-2xs text-slate-900 dark:text-white"
             >
               <option :value="0">-- Gunakan Contoh Kode Device --</option>
@@ -709,6 +710,67 @@
                 {{ m.label }}
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- Direct Offline / Communication Timeout Config for Selected Tenant Device -->
+        <div
+          v-if="selectedBuilderDevice"
+          class="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/60 space-y-2.5"
+        >
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-sky-950 dark:text-sky-200 flex items-center gap-1.5">
+                <span>⏱️ Batas Waktu Terima Data / Offline Timeout:</span>
+                <code class="font-mono text-sky-700 dark:text-sky-300">{{ selectedBuilderDevice.device_code || selectedBuilderDevice.code }}</code>
+              </div>
+              <p class="text-3xs text-sky-800/90 dark:text-sky-300/80 mt-0.5">
+                Tentukan jeda maksimal jika data belum diterima dari tenant sebelum perangkat &amp; kartu parameter dinyatakan <strong>Offline</strong> (<code class="font-mono">COMMUNICATION_TIMEOUT</code>).
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input
+                v-model.number="deviceTimeoutSeconds"
+                type="number"
+                min="30"
+                max="86400"
+                step="30"
+                class="w-24 px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0B0F19] border border-sky-300 dark:border-sky-700 font-mono text-xs font-bold text-slate-900 dark:text-white"
+              />
+              <span class="text-3xs font-mono text-sky-800 dark:text-sky-300 whitespace-nowrap">
+                detik (={{ Math.round((Number(deviceTimeoutSeconds) || 300) / 60 * 10) / 10 }}m)
+              </span>
+              <button
+                type="button"
+                :disabled="savingDeviceTimeout"
+                @click="saveBuilderDeviceTimeout"
+                class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white btn-text text-3xs font-bold cursor-pointer whitespace-nowrap"
+              >
+                {{ savingDeviceTimeout ? 'Menyimpan...' : 'Simpan Timeout' }}
+              </button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-3xs font-semibold text-sky-800 dark:text-sky-300 mr-1">Preset Cepat:</span>
+            <button
+              v-for="pr in [
+                { sec: 180, label: '3 Menit (180s)' },
+                { sec: 300, label: '5 Menit (300s)' },
+                { sec: 600, label: '10 Menit (600s)' },
+                { sec: 900, label: '15 Menit (900s)' },
+                { sec: 1800, label: '30 Menit (1800s)' },
+                { sec: 3900, label: '65 Menit (3900s)' }
+              ]"
+              :key="'dev-to-' + pr.sec"
+              type="button"
+              @click="deviceTimeoutSeconds = pr.sec"
+              class="px-2 py-1 rounded-md text-3xs font-mono font-semibold border transition cursor-pointer"
+              :class="Number(deviceTimeoutSeconds) === pr.sec
+                ? 'bg-sky-600 text-white btn-text border-sky-600'
+                : 'bg-white dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-sky-200 dark:border-sky-800'"
+            >
+              {{ pr.label }}
+            </button>
           </div>
         </div>
 
@@ -1104,6 +1166,8 @@ export default {
       savingSite: false,
       savingKey: false,
       savingModules: false,
+      savingDeviceTimeout: false,
+      deviceTimeoutSeconds: 300,
 
       acqModules: {
         sensor_polling_enabled: true,
@@ -1368,8 +1432,62 @@ export default {
         } else if (raw && Array.isArray(raw.items)) {
           this.registeredDevices = raw.items;
         }
+        if (!this.payloadBuilder.deviceId && this.registeredDevices.length > 0) {
+          this.payloadBuilder.deviceId = this.registeredDevices[0].id;
+          if (!this.payloadBuilder.siteId && this.registeredDevices[0].site_id) {
+            this.payloadBuilder.siteId = this.registeredDevices[0].site_id;
+          }
+        }
+        this.syncSelectedBuilderDeviceTimeout();
       } catch (_) {
         this.registeredDevices = [];
+      }
+    },
+    syncSelectedBuilderDeviceTimeout() {
+      const dev = this.selectedBuilderDevice;
+      if (!dev) {
+        this.deviceTimeoutSeconds = 300;
+        return;
+      }
+      const connTimeout = Number(dev.connection && (dev.connection.timeout || dev.connection.timeout_ms)) || 0;
+      if (connTimeout >= 10 && connTimeout !== 1000) {
+        this.deviceTimeoutSeconds = connTimeout;
+        return;
+      }
+      const params = Array.isArray(dev.parameters) ? dev.parameters : [];
+      const maxParamStale = params.reduce((mx, p) => Math.max(mx, Number(p.stale_timeout_seconds) || 0), 0);
+      this.deviceTimeoutSeconds = maxParamStale >= 180 ? maxParamStale : 300;
+    },
+    async saveBuilderDeviceTimeout() {
+      const dev = this.selectedBuilderDevice;
+      if (!dev || !dev.id) return;
+      const sec = Math.max(30, Number(this.deviceTimeoutSeconds) || 300);
+      this.deviceTimeoutSeconds = sec;
+      this.savingDeviceTimeout = true;
+      try {
+        const conn = dev.connection || {};
+        const proto = conn.protocol || dev.device_type || 'EDGE_PUSH';
+        await axios.put(`/api/devices/${dev.id}/connection`, {
+          protocol: proto,
+          connection_type: conn.connection_type || (proto === 'MQTT' ? 'MQTT_BROKER' : 'HTTPS_PUSH'),
+          host: conn.host || '',
+          port: conn.port || (proto === 'MQTT' ? 1883 : 443),
+          timeout: sec,
+          retry_count: conn.retry_count || 3,
+          polling_interval: conn.polling_interval || 1000,
+          enabled: conn.enabled !== false,
+        });
+        await this.loadRegisteredDevices();
+        await Promise.all([
+          this.$store.dispatch('fetchDevices'),
+          this.$store.dispatch('fetchActiveAlarms'),
+        ]);
+        const devCode = dev.device_code || dev.code;
+        this.showToast(`Timeout penerimaan data untuk ${devCode} berhasil diatur ke ${sec} detik (${Math.round(sec / 60 * 10) / 10} menit).`);
+      } catch (err) {
+        this.showToast((err.response && err.response.data && err.response.data.error) || err.message, 'error');
+      } finally {
+        this.savingDeviceTimeout = false;
       }
     },
     async loadAcquisitionModules() {
@@ -1428,6 +1546,7 @@ export default {
       }
       const devs = this.filteredDevicesForBuilder;
       this.payloadBuilder.deviceId = devs.length > 0 ? devs[0].id : 0;
+      this.syncSelectedBuilderDeviceTimeout();
     },
     async loadTenantsOrProfile() {
       try {

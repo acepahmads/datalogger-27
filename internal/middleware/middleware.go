@@ -76,6 +76,8 @@ func ResolveScope(c *gin.Context, claims *service.JWTClaims) tenantctx.Scope {
 	// Non-SUPERADMIN: lock TenantID strictly to JWT claim (completely ignore spoofed X-Tenant-ID)
 	if claims.TenantID != nil && *claims.TenantID > 0 {
 		scope.TenantID = *claims.TenantID
+	} else {
+		scope.TenantID = tenantctx.DefaultTenantID
 	}
 
 	if len(scope.AllowedSiteIDs) > 0 {
@@ -212,11 +214,8 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Strict restriction: Non-superadmin CANNOT access development.*, tenant.manage, site.manage, or ingest_key.manage
-		if strings.HasPrefix(permissionCode, "development.") ||
-			permissionCode == "tenant.manage" ||
-			permissionCode == "site.manage" ||
-			permissionCode == "ingest_key.manage" {
+		// Strict restriction: Non-superadmin CANNOT access development.* or global tenant.manage
+		if strings.HasPrefix(permissionCode, "development.") || permissionCode == "tenant.manage" {
 			response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"' (Superadmin only)")
 			c.Abort()
 			return

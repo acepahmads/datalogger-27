@@ -117,23 +117,24 @@ func (s *TenantService) ListTenants(scope tenantctx.Scope) ([]model.Tenant, erro
 	if scope.IsSuperAdmin {
 		return s.repo.ListTenants(true)
 	}
-	if scope.TenantID > 0 {
-		t, err := s.repo.GetTenantByID(scope.TenantID)
-		if err != nil {
-			return nil, err
-		}
-		if len(scope.AllowedSiteIDs) > 0 {
-			filtered := make([]model.Site, 0, len(t.Sites))
-			for _, st := range t.Sites {
-				if scope.IsSiteAllowed(st.ID) {
-					filtered = append(filtered, st)
-				}
-			}
-			t.Sites = filtered
-		}
-		return []model.Tenant{*t}, nil
+	tid := scope.TenantID
+	if tid == 0 {
+		tid = tenantctx.DefaultTenantID
 	}
-	return s.repo.ListTenants(true)
+	t, err := s.repo.GetTenantByID(tid)
+	if err != nil {
+		return nil, err
+	}
+	if len(scope.AllowedSiteIDs) > 0 {
+		filtered := make([]model.Site, 0, len(t.Sites))
+		for _, st := range t.Sites {
+			if scope.IsSiteAllowed(st.ID) {
+				filtered = append(filtered, st)
+			}
+		}
+		t.Sites = filtered
+	}
+	return []model.Tenant{*t}, nil
 }
 
 func (s *TenantService) GetTenantByID(id uint) (*model.Tenant, error) {
@@ -396,6 +397,8 @@ func (s *TenantService) ListSites(scope tenantctx.Scope, explicitTenantID uint) 
 	tid := scope.TenantID
 	if scope.IsSuperAdmin && explicitTenantID > 0 {
 		tid = explicitTenantID
+	} else if !scope.IsSuperAdmin && tid == 0 {
+		tid = tenantctx.DefaultTenantID
 	}
 	return s.repo.ListSites(tid, scope.AllowedSiteIDs)
 }
@@ -627,6 +630,8 @@ func (s *TenantService) ListAPIKeys(scope tenantctx.Scope, explicitTenantID uint
 	tid := scope.TenantID
 	if scope.IsSuperAdmin && explicitTenantID > 0 {
 		tid = explicitTenantID
+	} else if !scope.IsSuperAdmin && tid == 0 {
+		tid = tenantctx.DefaultTenantID
 	}
 	return s.repo.ListAPIKeys(tid)
 }

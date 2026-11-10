@@ -895,8 +895,8 @@
             </div>
           </div>
 
-          <!-- Configurable Telemetry Acquisition Modules -->
-          <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-3">
+          <!-- Configurable Telemetry Acquisition Modules (SUPERADMIN Only) -->
+          <div v-if="isSuperAdmin" class="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-3">
             <div class="flex items-center justify-between">
               <div>
                 <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
@@ -907,7 +907,7 @@
                 </p>
               </div>
               <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                Hot-Reloadable
+                Superadmin Only · Hot-Reloadable
               </span>
             </div>
 
@@ -929,7 +929,10 @@
               <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" v-model="form.mqtt_ingest_enabled" class="mt-0.5 rounded text-cyan-600" />
                 <div>
-                  <div class="font-semibold text-slate-900 dark:text-white">Aktifkan Modul Penerimaan MQTT</div>
+                  <div class="font-semibold text-slate-900 dark:text-white">
+                    Aktifkan Modul Penerimaan MQTT
+                    <span v-if="isCloudActive && !form.mqtt_ingest_enabled" class="ml-1 text-3xs font-mono text-sky-600 dark:text-sky-400">(Default OFF di Mode CLOUD)</span>
+                  </div>
                   <div class="text-3xs text-slate-500 mt-0.5">Izinkan penerimaan telemetri via webhook/bridge MQTT (<code class="font-mono">/api/v1/ingest/mqtt</code>).</div>
                 </div>
               </label>
@@ -1660,9 +1663,17 @@ export default {
           ...this.form,
           monitoring_domain: this.targetDomainForModal,
           cloud_mode: nextIsCloud,
-          sensor_polling_enabled: nextIsCloud ? false : this.form.sensor_polling_enabled,
           reassignments: reassignmentsArray,
         };
+        if (this.isSuperAdmin) {
+          payload.sensor_polling_enabled = nextIsCloud ? false : this.form.sensor_polling_enabled;
+          payload.mqtt_ingest_enabled = nextIsCloud ? false : this.form.mqtt_ingest_enabled;
+        } else {
+          delete payload.sensor_polling_enabled;
+          delete payload.mqtt_ingest_enabled;
+          delete payload.mqtt_broker_url;
+          delete payload.mqtt_topic_prefix;
+        }
 
         const res = await axios.post('/api/system/config', payload);
         if (res.data && res.data.success) {
@@ -1670,12 +1681,13 @@ export default {
           this.form.cloud_mode = nextIsCloud;
           if (nextIsCloud) {
             this.form.sensor_polling_enabled = false;
+            this.form.mqtt_ingest_enabled = false;
           }
           await this.$store.dispatch('fetchSystemStatus');
           this.saveResult = {
             restart_required: false,
             message: nextIsCloud
-              ? 'Konfigurasi CLOUD berhasil diaktifkan. Modul pembacaan sensor fisik dinonaktifkan dan menu teknis dikunci khusus Superadmin.'
+              ? 'Konfigurasi CLOUD berhasil diaktifkan. Modul pembacaan sensor fisik & MQTT dinonaktifkan secara default dan menu teknis dikunci khusus Superadmin.'
               : `Monitoring domain successfully transitioned to ${this.targetDomainForModal}. Zero data deletion guaranteed.`,
           };
           this.showDomainModal = false;
@@ -1728,8 +1740,10 @@ export default {
         const res = await axios.get('/api/system/config');
         if (res.data && res.data.data) {
           const cfg = res.data.data;
+          const isCloudCfg = Boolean(cfg.cloud_mode || String(cfg.monitoring_domain || '').toUpperCase() === 'CLOUD');
           this.form = {
             monitoring_domain: cfg.monitoring_domain || 'AQMS',
+            cloud_mode: isCloudCfg,
             db_host: cfg.db_host || '127.0.0.1',
             db_port: cfg.db_port || '3306',
             db_name: cfg.db_name || 'datalogger',
@@ -1746,7 +1760,7 @@ export default {
             serial_stop_bits: cfg.serial_stop_bits || 1,
             serial_parity: cfg.serial_parity || 'N',
             serial_timeout_ms: cfg.serial_timeout_ms || 1000,
-            sensor_polling_enabled: cfg.sensor_polling_enabled !== false,
+            sensor_polling_enabled: isCloudCfg ? false : (cfg.sensor_polling_enabled !== false),
             mqtt_ingest_enabled: cfg.mqtt_ingest_enabled !== false,
             mqtt_broker_url: cfg.mqtt_broker_url || '',
             mqtt_topic_prefix: cfg.mqtt_topic_prefix || 'datalogger/ingest/+',
@@ -1810,7 +1824,14 @@ export default {
       this.saving = true;
       this.saveResult = null;
       try {
-        const res = await axios.post('/api/system/config', this.form);
+        const payload = { ...this.form };
+        if (!this.isSuperAdmin) {
+          delete payload.sensor_polling_enabled;
+          delete payload.mqtt_ingest_enabled;
+          delete payload.mqtt_broker_url;
+          delete payload.mqtt_topic_prefix;
+        }
+        const res = await axios.post('/api/system/config', payload);
         if (res.data && res.data.success) {
           this.saveResult = res.data.data;
           this.$store.commit('SET_SYSTEM_STATUS', {

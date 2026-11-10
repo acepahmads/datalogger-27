@@ -4476,6 +4476,51 @@ func ensureMultiTenantSchemaAndBackfill(db *gorm.DB) {
 			_ = db.Exec(fmt.Sprintf("UPDATE %s SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0", tbl)).Error
 		}
 	}
+
+	// 5. Ensure passive EDGE_PUSH / MQTT devices default to 300s (5 minutes) communication/stale timeout instead of 60s/120s/1000ms
+	if db.Migrator().HasTable(&model.DeviceConnection{}) && db.Migrator().HasTable(&model.Device{}) {
+		_ = db.Exec(`
+			UPDATE device_connections dc
+			INNER JOIN devices d ON d.id = dc.device_id
+			SET dc.timeout = 300
+			WHERE (UPPER(d.device_type) IN ('EDGE_PUSH', 'MQTT') OR UPPER(dc.protocol) IN ('EDGE_PUSH', 'MQTT'))
+			  AND (dc.timeout IS NULL OR dc.timeout <= 120 OR dc.timeout = 1000)
+		`).Error
+	}
+	if db.Migrator().HasTable(&model.Parameter{}) && db.Migrator().HasTable(&model.Device{}) {
+		_ = db.Exec(`
+			UPDATE parameters p
+			INNER JOIN devices d ON d.id = p.device_id
+			LEFT JOIN device_connections dc ON dc.device_id = d.id
+			SET p.stale_timeout_seconds = CASE
+				WHEN dc.timeout IS NOT NULL AND dc.timeout >= 180 AND dc.timeout <> 1000 THEN dc.timeout
+				ELSE 300
+			END
+			WHERE (UPPER(d.device_type) IN ('EDGE_PUSH', 'MQTT') OR UPPER(dc.protocol) IN ('EDGE_PUSH', 'MQTT'))
+			  AND (p.stale_timeout_seconds IS NULL OR p.stale_timeout_seconds <= 120)
+		`).Error
+	}
+
+	// 6. One-time migration: in CLOUD mode, ensure both sensor polling and MQTT ingest default to disabled/off
+	if db.Migrator().HasTable(&model.SystemLog{}) {
+		const migKey = "cloud_mode_default_mqtt_off_v1"
+		var count int64
+		db.Model(&model.SystemLog{}).Where("component = 'MIGRATION' AND message = ?", migKey).Count(&count)
+		if count == 0 {
+			if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+				cfg.SensorPollingEnabled = false
+				cfg.MQTTIngestEnabled = false
+				_ = config.Save("config.json", cfg)
+			}
+			_ = db.Create(&model.SystemLog{
+				Level:     "INFO",
+				Component: "MIGRATION",
+				Message:   migKey,
+				Details:   "Applied default sensor_polling_enabled=false and mqtt_ingest_enabled=false for CLOUD mode and 300s default timeout for EDGE_PUSH/MQTT devices.",
+				CreatedAt: time.Now(),
+			}).Error
+		}
+	}
 }
 
 

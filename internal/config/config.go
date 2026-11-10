@@ -132,12 +132,15 @@ func Load(configPath string) (*Config, error) {
 	cfg := DefaultConfig()
 
 	// If config file exists, load it
+	hasExplicitMQTTInFile := false
 	if configPath != "" {
-		if file, err := os.Open(configPath); err == nil {
-			defer file.Close()
-			decoder := json.NewDecoder(file)
-			if err := decoder.Decode(cfg); err != nil {
+		if rawBytes, err := os.ReadFile(configPath); err == nil {
+			if err := json.Unmarshal(rawBytes, cfg); err != nil {
 				return nil, err
+			}
+			var rawMap map[string]json.RawMessage
+			if json.Unmarshal(rawBytes, &rawMap) == nil {
+				_, hasExplicitMQTTInFile = rawMap["mqtt_ingest_enabled"]
 			}
 		}
 	}
@@ -263,6 +266,9 @@ func Load(configPath string) (*Config, error) {
 	}
 	if cfg.CloudMode {
 		cfg.SensorPollingEnabled = false
+		if !hasExplicitMQTTInFile && os.Getenv("MQTT_INGEST_ENABLED") == "" && os.Getenv("DATALOGGER_MQTT_INGEST_ENABLED") == "" {
+			cfg.MQTTIngestEnabled = false
+		}
 	}
 
 	// Ensure data, log, queue, and backup directories exist

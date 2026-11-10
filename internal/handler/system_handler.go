@@ -1324,6 +1324,16 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 	ua := c.Request.UserAgent()
 
 	scope := middleware.GetScope(c)
+	isAcqModuleChange := req.SensorPollingEnabled != nil ||
+		req.MQTTIngestEnabled != nil ||
+		req.MQTTBrokerURL != nil ||
+		req.MQTTTopicPrefix != nil
+
+	if isAcqModuleChange && !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang dapat mengatur modul pembacaan sensor dan modul MQTT")
+		return
+	}
+
 	isPlatformCloudChange := strings.EqualFold(strings.TrimSpace(req.MonitoringDomain), "CLOUD") ||
 		req.CloudMode != nil ||
 		config.Get().IsCloudMode()

@@ -754,11 +754,8 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 		}
 	}
 
-	// 3. Determine Offline State
-	timeout := e.cfg.DeviceOfflineTimeout
-	if timeout <= 0 {
-		timeout = DefaultDeviceOfflineTimeout
-	}
+	// 3. Determine Offline State (honors per-device EDGE_PUSH/MQTT timeout and parameter StaleTimeoutSeconds)
+	timeout := e.resolveDeviceOfflineTimeout(device)
 
 	isOffline := false
 	var outageDuration time.Duration
@@ -830,6 +827,70 @@ func (e *AlarmEvaluator) EvaluateDeviceOffline(ctx context.Context, device *mode
 			_ = e.statusUpdater(device.ID, model.DeviceConnOnline)
 		}
 	}
+}
+
+// resolveDeviceOfflineTimeout computes the effective communication timeout for a device.
+// For passive push/webhook devices (EDGE_PUSH / MQTT), telemetry typically arrives every >= 2 minutes,
+// so the minimum default timeout is 300s (5 minutes), or the user-configured Connection.Timeout (in seconds)
+// / maximum parameter StaleTimeoutSeconds.
+func (e *AlarmEvaluator) resolveDeviceOfflineTimeout(device *model.Device) time.Duration {
+	timeout := e.cfg.DeviceOfflineTimeout
+	if timeout <= 0 {
+		timeout = DefaultDeviceOfflineTimeout
+	}
+	if device == nil {
+		return timeout
+	}
+
+	isPassive := strings.EqualFold(device.DeviceType, string(model.ProtocolEdgePush)) ||
+		strings.EqualFold(device.DeviceType, string(model.ProtocolMQTT)) ||
+		(device.Connection != nil && (device.Connection.Protocol == model.ProtocolEdgePush || device.Connection.Protocol == model.ProtocolMQTT))
+
+	if isPassive {
+		if timeout < 300*time.Second {
+			timeout = 300 * time.Second
+		}
+		if device.Connection != nil && device.Connection.Timeout >= 5 && device.Connection.Timeout != 1000 {
+			var connDur time.Duration
+			if device.Connection.Timeout > 86400 {
+				connDur = time.Duration(device.Connection.Timeout) * time.Millisecond
+			} else {
+				connDur = time.Duration(device.Connection.Timeout) * time.Second
+			}
+			if connDur >= 5*time.Second {
+				timeout = connDur
+			}
+		}
+	} else if device.Connection != nil {
+		pollMs := device.Connection.PollingInterval
+		if pollMs <= 0 {
+			pollMs = device.Connection.PollIntervalMs
+		}
+		if pollMs > 0 {
+			pollSec := (pollMs + 999) / 1000
+			minForPoll := time.Duration(pollSec*2+(pollSec+1)/2) * time.Second
+			if minForPoll > timeout {
+				timeout = minForPoll
+			}
+		}
+	}
+
+	for _, p := range device.Parameters {
+		if !p.Enabled {
+			continue
+		}
+		if p.StaleTimeoutSeconds > 0 {
+			pDur := time.Duration(p.StaleTimeoutSeconds) * time.Second
+			if isPassive && p.StaleTimeoutSeconds <= 120 && timeout > pDur {
+				continue
+			}
+			if pDur > timeout {
+				timeout = pDur
+			}
+		}
+	}
+
+	return timeout
 }
 
 // EvaluateDeviceCommFailure evaluates communication errors against consecutive failure thresholds

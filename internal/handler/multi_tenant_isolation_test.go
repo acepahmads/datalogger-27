@@ -139,10 +139,11 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		tenantsGrp.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGrp.GET("/context", tenantHandler.GetContext)
-			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN"), tenantHandler.GetCurrentTenant)
-			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN"), tenantHandler.ListTenants)
+			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.GetCurrentTenant)
+			tenantsGrp.PUT("/current", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateCurrentTenant)
+			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.ListTenants)
 			tenantsGrp.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
-			tenantsGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateTenant)
+			tenantsGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateTenant)
 			tenantsGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
 		}
 
@@ -150,13 +151,13 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		sitesGrp.Use(middleware.JWTAuth(authService))
 		{
 			sitesGrp.GET("", middleware.RequirePermission("site.view"), tenantHandler.ListSites)
-			sitesGrp.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateSite)
-			sitesGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateSite)
-			sitesGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteSite)
+			sitesGrp.POST("", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.CreateSite)
+			sitesGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateSite)
+			sitesGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.DeleteSite)
 		}
 
 		keysGrp := api.Group("/ingest-keys")
-		keysGrp.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"))
+		keysGrp.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMIN"))
 		{
 			keysGrp.GET("/payload-template", ingestHandler.GetPayloadTemplate)
 			keysGrp.GET("", tenantHandler.ListAPIKeys)
@@ -452,49 +453,62 @@ func TestMultiTenant_ScopedAdminSelfServiceAndSiteRestriction(t *testing.T) {
 		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from creating SUPERADMIN, got %d", wEscalation.Code)
 	}
 
-	// 1b. Tenant & Stasiun management is STRICTLY SUPERADMIN ONLY: Tenant 1 ADMIN gets 403 Forbidden on /api/tenants, POST /api/sites, and /api/ingest-keys
+	// 1b. Tenant 1 ADMIN CANNOT create or delete tenants (POST/DELETE /api/tenants -> 403 Forbidden),
+	//     and CANNOT configure sensor polling or MQTT acquisition modules (PUT /api/system/config -> 403 Forbidden),
+	//     but CAN self-service their own tenant profile, stations, and Bearer tokens!
+	wAdmCreateTenantBlocked := doJSONReq(t, env.Router, "POST", "/api/tenants", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"name": "Rogue New Tenant",
+		"code": "rogue-tenant",
+	})
+	if wAdmCreateTenantBlocked.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from POST /api/tenants, got %d", wAdmCreateTenantBlocked.Code)
+	}
+	wAdmAcqBlocked := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"mqtt_ingest_enabled": true,
+	})
+	if wAdmAcqBlocked.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from toggling mqtt_ingest_enabled, got %d", wAdmAcqBlocked.Code)
+	}
+
 	wAdmTenantEdit := doJSONReq(t, env.Router, "PUT", "/api/tenants/current", env.Tenant1AdmToken, nil, map[string]interface{}{
 		"name": "PT Default Industri",
 	})
-	if wAdmTenantEdit.Code != http.StatusForbidden {
-		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from PUT /api/tenants/current, got %d", wAdmTenantEdit.Code)
-	}
-	wAdmCreateSite := doJSONReq(t, env.Router, "POST", "/api/sites", env.Tenant1AdmToken, nil, map[string]interface{}{
-		"name":              "Rogue Site",
-		"code":              "rogue-site",
-		"monitoring_domain": "SPARING",
-	})
-	if wAdmCreateSite.Code != http.StatusForbidden {
-		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from POST /api/sites, got %d", wAdmCreateSite.Code)
+	if wAdmTenantEdit.Code != http.StatusOK {
+		t.Fatalf("expected Tenant ADMIN to update own tenant profile (200), got %d: %s", wAdmTenantEdit.Code, wAdmTenantEdit.Body.String())
 	}
 	wAdmListKeys := doJSONReq(t, env.Router, "GET", "/api/ingest-keys", env.Tenant1AdmToken, nil, nil)
-	if wAdmListKeys.Code != http.StatusForbidden {
-		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from GET /api/ingest-keys, got %d", wAdmListKeys.Code)
+	if wAdmListKeys.Code != http.StatusOK {
+		t.Fatalf("expected Tenant ADMIN to list own tenant ingest-keys (200), got %d", wAdmListKeys.Code)
 	}
 
-	// 2. SUPERADMIN creates Site #2 ("SPARING Outlet #2") under Tenant #1
-	wSite2 := doJSONReq(t, env.Router, "POST", "/api/sites", env.SuperAdminToken, nil, map[string]interface{}{
-		"tenant_id":         1,
+	// 2. Tenant 1 ADMIN creates Site #2 ("SPARING Outlet #2") under their own Tenant #1
+	wSite2 := doJSONReq(t, env.Router, "POST", "/api/sites", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"tenant_id":         999, // Even if a spoofed tenant_id is passed, TenantService locks it to Tenant #1!
 		"name":              "SPARING Outlet #2",
 		"code":              "sparing-outlet-2",
 		"monitoring_domain": "SPARING",
 		"enabled":           true,
 	})
 	if wSite2.Code != http.StatusOK && wSite2.Code != http.StatusCreated {
-		t.Fatalf("SUPERADMIN create site failed (%d): %s", wSite2.Code, wSite2.Body.String())
+		t.Fatalf("Tenant ADMIN create own site failed (%d): %s", wSite2.Code, wSite2.Body.String())
 	}
 	var site2Resp struct {
 		Data model.Site `json:"data"`
 	}
 	_ = json.Unmarshal(wSite2.Body.Bytes(), &site2Resp)
 	site2ID := site2Resp.Data.ID
+	if site2Resp.Data.TenantID != 1 {
+		t.Fatalf("SECURITY VIOLATION: expected Tenant ADMIN site to be locked to tenant_id=1, got %d", site2Resp.Data.TenantID)
+	}
 
-	// 2b. Verify CLOUD Configuration Mode: disables sensor polling & locks device/calibration mutations to SUPERADMIN only
+	// 2b. Verify CLOUD Configuration Mode: defaults both sensor_polling_enabled=false & mqtt_ingest_enabled=false
+	//     and locks device/calibration mutations to SUPERADMIN only
 	t.Cleanup(func() {
 		cfg := config.Get()
 		cfg.CloudMode = false
 		cfg.MonitoringDomain = "AQMS"
 		cfg.SensorPollingEnabled = true
+		cfg.MQTTIngestEnabled = true
 	})
 	wSwitchCloud := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.SuperAdminToken, nil, map[string]interface{}{
 		"monitoring_domain": "CLOUD",
@@ -502,6 +516,10 @@ func TestMultiTenant_ScopedAdminSelfServiceAndSiteRestriction(t *testing.T) {
 	})
 	if wSwitchCloud.Code != http.StatusOK {
 		t.Fatalf("SUPERADMIN switch to CLOUD failed (%d): %s", wSwitchCloud.Code, wSwitchCloud.Body.String())
+	}
+	if config.Get().SensorPollingEnabled || config.Get().MQTTIngestEnabled {
+		t.Fatalf("expected CLOUD mode to default both sensor_polling_enabled=false and mqtt_ingest_enabled=false, got polling=%t mqtt=%t",
+			config.Get().SensorPollingEnabled, config.Get().MQTTIngestEnabled)
 	}
 
 	wCloudStatus := doJSONReq(t, env.Router, "GET", "/api/system/status", env.Tenant1AdmToken, map[string]string{

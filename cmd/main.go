@@ -385,15 +385,15 @@ func main() {
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
 		api.POST("/ingest/mqtt", ingestHandler.IngestMQTT)
 
-		// Multi-Tenant & Multi-Site Organization Management (Strictly SUPERADMIN except read-only /context & /sites for scoped switcher)
+		// Multi-Tenant & Multi-Site Organization Management (SUPERADMIN global + ADMIN scoped to own tenant)
 		tenantsGroup := api.Group("/tenants")
 		tenantsGroup.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGroup.GET("/context", tenantHandler.GetContext)
-			tenantsGroup.GET("/current", middleware.RequireRole("SUPERADMIN"), tenantHandler.GetCurrentTenant)
-			tenantsGroup.GET("", middleware.RequireRole("SUPERADMIN"), tenantHandler.ListTenants)
+			tenantsGroup.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.GetCurrentTenant)
+			tenantsGroup.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.ListTenants)
 			tenantsGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
-			tenantsGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateTenant)
+			tenantsGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateTenant)
 			tenantsGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
 		}
 
@@ -401,13 +401,13 @@ func main() {
 		sitesGroup.Use(middleware.JWTAuth(authService))
 		{
 			sitesGroup.GET("", middleware.RequirePermission("site.view"), tenantHandler.ListSites)
-			sitesGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateSite)
-			sitesGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateSite)
-			sitesGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteSite)
+			sitesGroup.POST("", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.CreateSite)
+			sitesGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateSite)
+			sitesGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.DeleteSite)
 		}
 
 		ingestKeysGroup := api.Group("/ingest-keys")
-		ingestKeysGroup.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"))
+		ingestKeysGroup.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMIN"))
 		{
 			ingestKeysGroup.GET("/payload-template", ingestHandler.GetPayloadTemplate)
 			ingestKeysGroup.GET("", tenantHandler.ListAPIKeys)

@@ -164,7 +164,7 @@ const routes = [
     path: '/administration/tenants',
     name: 'TenantsManagement',
     component: TenantsManagementView,
-    meta: { roles: ['SUPERADMIN'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN'] },
   },
   { path: '/system/tenants', redirect: '/administration/tenants' },
   {

@@ -726,11 +726,14 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		wasCloud := cfg.IsCloudMode()
 		if dom == "CLOUD" {
 			if !wasCloud || cfg.MonitoringDomain != "CLOUD" {
-				changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> CLOUD (cloud_mode=true, sensor_polling_enabled=false)", cfg.MonitoringDomain))
+				changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> CLOUD (cloud_mode=true, sensor_polling_enabled=false, mqtt_ingest_enabled=false)", cfg.MonitoringDomain))
 			}
 			cfg.MonitoringDomain = "CLOUD"
 			cfg.CloudMode = true
 			cfg.SensorPollingEnabled = false
+			if req.MQTTIngestEnabled == nil {
+				cfg.MQTTIngestEnabled = false
+			}
 			fVal := false
 			sensorPollingToggledTo = &fVal
 		} else {
@@ -744,6 +747,9 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 					cfg.SensorPollingEnabled = true
 					tVal := true
 					sensorPollingToggledTo = &tVal
+				}
+				if req.MQTTIngestEnabled == nil {
+					cfg.MQTTIngestEnabled = true
 				}
 			}
 			if s.tenantService != nil && s.tenantService.GetRepo() != nil {

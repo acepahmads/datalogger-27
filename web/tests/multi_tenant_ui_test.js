@@ -43,19 +43,22 @@ assert(headerCode.includes('header-site-switcher'), 'Header.vue must render #hea
 assert(headerCode.includes('Semua Tenant (Global)'), 'Header.vue must allow SUPERADMIN to view Semua Tenant (Global)');
 assert(headerCode.includes('Semua Stasiun'), 'Header.vue must allow selecting Semua Stasiun');
 
-// 5. Router, Header & Sidebar: Strictly SUPERADMIN-Only /administration/tenants + Cloud Mode Menu Restrictions
+// 5. Router, Header & Sidebar: SUPERADMIN & Scoped ADMIN /administration/tenants + Cloud Mode Menu Restrictions
 assert(routerCode.includes("path: '/administration/tenants'"), 'Router must register /administration/tenants');
 assert(routerCode.includes('TenantsManagementView'), 'Router must wire TenantsManagementView');
 assert(
-  /path:\s*'\/administration\/tenants'[\s\S]{0,160}roles:\s*\['SUPERADMIN'\]/.test(routerCode),
-  'Router must restrict /administration/tenants strictly to SUPERADMIN'
+  /path:\s*'\/administration\/tenants'[\s\S]{0,160}roles:\s*\['SUPERADMIN',\s*'ADMIN'\]/.test(routerCode),
+  'Router must allow SUPERADMIN and scoped ADMIN on /administration/tenants'
 );
 assert(routerCode.includes("'/monitoring/devices'") && routerCode.includes('cloudRestrictedPrefixes'), 'Router must block Cloud-restricted paths for non-SUPERADMIN');
-assert(sidebarCode.includes('v-if="isSuperAdmin" to="/administration/tenants"'), 'Sidebar must restrict Tenant & Stasiun strictly to isSuperAdmin');
+assert(sidebarCode.includes('v-if="isSuperAdmin || isAdmin" to="/administration/tenants"'), 'Sidebar must allow Tenant & Stasiun for SUPERADMIN and scoped ADMIN');
 assert(sidebarCode.includes('isSuperAdmin || !isCloudMode'), 'Sidebar must hide Devices & Sensors in Cloud mode for non-Superadmin');
 assert(sidebarCode.includes('isSuperAdmin || (!isOperator && !isCloudMode)'), 'Sidebar must hide Sensor Calibration in Cloud mode for non-Superadmin');
-assert(!headerCode.includes('v-if="isSuperAdmin || isAdmin"\n          to="/administration/tenants"'), 'Header must restrict Tenants shortcut strictly to SUPERADMIN');
+assert(/v-if="isSuperAdmin \|\| isAdmin"\s+to="\/administration\/tenants"/.test(headerCode), 'Header must allow Tenants shortcut for SUPERADMIN and scoped ADMIN');
 assert(configViewCode.includes("initiateDomainSwitch('CLOUD')"), 'ConfigView must offer CLOUD configuration mode');
+assert(configViewCode.includes('<!-- Configurable Telemetry Acquisition Modules (SUPERADMIN Only) -->'), 'ConfigView must restrict sensor polling & MQTT module toggles to SUPERADMIN');
+assert(deviceModalCode.includes('input-edge-push-timeout-seconds'), 'DeviceModal must expose EDGE_PUSH / MQTT offline timeout input in seconds');
+assert(tenantsViewCode.includes('saveBuilderDeviceTimeout'), 'TenantsManagementView must allow configuring device offline timeout in seconds');
 
 // 6. TenantsManagementView.vue: 3 Tabs + Standardized Bearer Token, AQMS/SPARING/ONLIMO Payload Generator, Configurable Modules & Light-Mode CSS Compliance
 assert(tenantsViewCode.includes("activeTab = 'tenants'"), 'TenantsManagementView must include tenants tab');

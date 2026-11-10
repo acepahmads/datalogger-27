@@ -345,6 +345,15 @@ func (r *DeviceRepository) SetParameterEnabled(deviceID, paramID uint, enabled b
 	return r.db.Model(&model.Parameter{}).Where("id = ? AND device_id = ?", paramID, deviceID).Update("enabled", enabled).Error
 }
 
+func (r *DeviceRepository) SyncDeviceParametersStaleTimeout(deviceID uint, staleTimeoutSeconds int) error {
+	if deviceID == 0 || staleTimeoutSeconds <= 0 {
+		return nil
+	}
+	return r.db.Model(&model.Parameter{}).
+		Where("device_id = ? AND deleted_at IS NULL", deviceID).
+		Update("stale_timeout_seconds", staleTimeoutSeconds).Error
+}
+
 // GetDeviceAuditTrail fetches audit records related to a specific device
 func (r *DeviceRepository) GetDeviceAuditTrail(deviceID uint, deviceCode string, limit int, tenantID ...uint) ([]model.AuditTrail, error) {
 	var trails []model.AuditTrail

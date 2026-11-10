@@ -20,19 +20,19 @@ import (
 
 // Request DTOs
 type ConnectionConfigDTO struct {
-	Protocol        model.ProtocolType `json:"protocol"`
-	ConnectionType  string             `json:"connection_type"`
-	Host            string             `json:"host"`
-	Port            int                `json:"port"`
-	SerialPort      string             `json:"serial_port"`
-	BaudRate        int                `json:"baud_rate"`
-	DataBits        int                `json:"data_bits"`
-	Parity          string             `json:"parity"`
-	StopBits        int                `json:"stop_bits"`
-	Timeout         int                `json:"timeout"`
-	RetryCount      int                `json:"retry_count"`
-	PollingInterval int                `json:"polling_interval"`
-	Enabled         bool               `json:"enabled"`
+	Protocol          model.ProtocolType `json:"protocol"`
+	ConnectionType    string             `json:"connection_type"`
+	Host              string             `json:"host"`
+	Port              int                `json:"port"`
+	SerialPort        string             `json:"serial_port"`
+	BaudRate          int                `json:"baud_rate"`
+	DataBits          int                `json:"data_bits"`
+	Parity            string             `json:"parity"`
+	StopBits          int                `json:"stop_bits"`
+	Timeout           int                `json:"timeout"`
+	RetryCount        int                `json:"retry_count"`
+	PollingInterval   int                `json:"polling_interval"`
+	Enabled           bool               `json:"enabled"`
 	SlaveID           int                `json:"slave_id"`
 	ByteOrder         string             `json:"byte_order"`
 	ExtraConfig       string             `json:"extra_config,omitempty"`
@@ -42,81 +42,81 @@ type ConnectionConfigDTO struct {
 }
 
 type CreateDeviceRequest struct {
-	TenantID        uint                 `json:"tenant_id"`
-	SiteID          uint                 `json:"site_id"`
-	DeviceCode      string               `json:"device_code"`
-	DeviceName      string               `json:"device_name"`
-	DeviceType      string               `json:"device_type"`
-	Manufacturer    string               `json:"manufacturer"`
-	Model           string               `json:"model"`
-	SerialNumber    string               `json:"serial_number"`
-	FirmwareVersion string               `json:"firmware_version"`
-	Description     string               `json:"description"`
-	Location        string               `json:"location"`
-	Latitude        *float64             `json:"latitude"`
-	Longitude       *float64             `json:"longitude"`
-	Timezone        string               `json:"timezone"`
+	TenantID        uint                    `json:"tenant_id"`
+	SiteID          uint                    `json:"site_id"`
+	DeviceCode      string                  `json:"device_code"`
+	DeviceName      string                  `json:"device_name"`
+	DeviceType      string                  `json:"device_type"`
+	Manufacturer    string                  `json:"manufacturer"`
+	Model           string                  `json:"model"`
+	SerialNumber    string                  `json:"serial_number"`
+	FirmwareVersion string                  `json:"firmware_version"`
+	Description     string                  `json:"description"`
+	Location        string                  `json:"location"`
+	Latitude        *float64                `json:"latitude"`
+	Longitude       *float64                `json:"longitude"`
+	Timezone        string                  `json:"timezone"`
 	Status          model.DeviceAdminStatus `json:"status"`
-	Enabled         *bool                `json:"enabled"`
-	Connection      *ConnectionConfigDTO `json:"connection,omitempty"`
-	SourceDeviceID  *uint                `json:"source_device_id,omitempty"`
+	Enabled         *bool                   `json:"enabled"`
+	Connection      *ConnectionConfigDTO    `json:"connection,omitempty"`
+	SourceDeviceID  *uint                   `json:"source_device_id,omitempty"`
 }
 
 type UpdateDeviceRequest struct {
-	TenantID        *uint                `json:"tenant_id"`
-	SiteID          *uint                `json:"site_id"`
-	DeviceCode      *string              `json:"device_code"`
-	DeviceName      *string              `json:"device_name"`
-	DeviceType      *string              `json:"device_type"`
-	Manufacturer    *string              `json:"manufacturer"`
-	Model           *string              `json:"model"`
-	SerialNumber    *string              `json:"serial_number"`
-	FirmwareVersion *string              `json:"firmware_version"`
-	Description     *string              `json:"description"`
-	Location        *string              `json:"location"`
-	Latitude        *float64             `json:"latitude"`
-	Longitude       *float64             `json:"longitude"`
-	Timezone        *string              `json:"timezone"`
+	TenantID        *uint                    `json:"tenant_id"`
+	SiteID          *uint                    `json:"site_id"`
+	DeviceCode      *string                  `json:"device_code"`
+	DeviceName      *string                  `json:"device_name"`
+	DeviceType      *string                  `json:"device_type"`
+	Manufacturer    *string                  `json:"manufacturer"`
+	Model           *string                  `json:"model"`
+	SerialNumber    *string                  `json:"serial_number"`
+	FirmwareVersion *string                  `json:"firmware_version"`
+	Description     *string                  `json:"description"`
+	Location        *string                  `json:"location"`
+	Latitude        *float64                 `json:"latitude"`
+	Longitude       *float64                 `json:"longitude"`
+	Timezone        *string                  `json:"timezone"`
 	Status          *model.DeviceAdminStatus `json:"status"`
-	Enabled         *bool                `json:"enabled"`
-	Connection      *ConnectionConfigDTO `json:"connection,omitempty"`
+	Enabled         *bool                    `json:"enabled"`
+	Connection      *ConnectionConfigDTO     `json:"connection,omitempty"`
 }
 
 type CreateParameterRequest struct {
-	ParameterCode            string                  `json:"parameter_code"`
-	ParameterName            string                  `json:"parameter_name"`
-	DataType                 model.ParameterDataType `json:"data_type"`
-	Unit                     string                  `json:"unit"`
-	Icon                     string                  `json:"icon"`
-	StatusOnLabel            string                  `json:"status_on_label"`
-	StatusOffLabel           string                  `json:"status_off_label"`
-	CategoryID               *uint                   `json:"category_id"`
-	Description              string                  `json:"description"`
-	MinValue                 *float64                `json:"min_value"`
-	MaxValue                 *float64                `json:"max_value"`
-	WarningLow               *float64                `json:"warning_low"`
-	WarningHigh              *float64                `json:"warning_high"`
-	QualityValidationEnabled *bool                   `json:"quality_validation_enabled"`
-	ProcessingEnabled        *bool                   `json:"processing_enabled"`
-	StaleTimeoutSeconds      *int                    `json:"stale_timeout_seconds"`
-	SpikeDetectionEnabled    *bool                   `json:"spike_detection_enabled"`
-	SpikeThreshold           *float64                `json:"spike_threshold"`
-	SpikeWindowSize          *int                    `json:"spike_window_size"`
-	Precision                int                     `json:"precision"`
-	Scale                    float64                 `json:"scale"`
-	Offset                   float64                 `json:"offset"`
-	RegisterAddress          int                     `json:"register_address"`
-	RegisterType             string                  `json:"register_type"`
-	SlaveID                  int                     `json:"slave_id"`
-	ByteOrder                string                  `json:"byte_order"`
-	BatchMode                string                  `json:"batch_mode"`
-	Enabled                  *bool                   `json:"enabled"`
-	Formula                  string                  `json:"formula"`
-	HoldLastValueEnabled     *bool                   `json:"hold_last_value_enabled"`
-	HoldLastValueSeconds     int                     `json:"hold_last_value_seconds"`
+	ParameterCode            string                      `json:"parameter_code"`
+	ParameterName            string                      `json:"parameter_name"`
+	DataType                 model.ParameterDataType     `json:"data_type"`
+	Unit                     string                      `json:"unit"`
+	Icon                     string                      `json:"icon"`
+	StatusOnLabel            string                      `json:"status_on_label"`
+	StatusOffLabel           string                      `json:"status_off_label"`
+	CategoryID               *uint                       `json:"category_id"`
+	Description              string                      `json:"description"`
+	MinValue                 *float64                    `json:"min_value"`
+	MaxValue                 *float64                    `json:"max_value"`
+	WarningLow               *float64                    `json:"warning_low"`
+	WarningHigh              *float64                    `json:"warning_high"`
+	QualityValidationEnabled *bool                       `json:"quality_validation_enabled"`
+	ProcessingEnabled        *bool                       `json:"processing_enabled"`
+	StaleTimeoutSeconds      *int                        `json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    *bool                       `json:"spike_detection_enabled"`
+	SpikeThreshold           *float64                    `json:"spike_threshold"`
+	SpikeWindowSize          *int                        `json:"spike_window_size"`
+	Precision                int                         `json:"precision"`
+	Scale                    float64                     `json:"scale"`
+	Offset                   float64                     `json:"offset"`
+	RegisterAddress          int                         `json:"register_address"`
+	RegisterType             string                      `json:"register_type"`
+	SlaveID                  int                         `json:"slave_id"`
+	ByteOrder                string                      `json:"byte_order"`
+	BatchMode                string                      `json:"batch_mode"`
+	Enabled                  *bool                       `json:"enabled"`
+	Formula                  string                      `json:"formula"`
+	HoldLastValueEnabled     *bool                       `json:"hold_last_value_enabled"`
+	HoldLastValueSeconds     int                         `json:"hold_last_value_seconds"`
 	ZeroValueAlarmPolicy     *model.ZeroValueAlarmPolicy `json:"zero_value_alarm_policy"`
-	SourceParameterID        *uint                   `json:"source_parameter_id,omitempty"`
-	PollingIntervalMs        *int                    `json:"polling_interval_ms,omitempty"`
+	SourceParameterID        *uint                       `json:"source_parameter_id,omitempty"`
+	PollingIntervalMs        *int                        `json:"polling_interval_ms,omitempty"`
 }
 
 func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
@@ -178,42 +178,42 @@ func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 }
 
 type UpdateParameterRequest struct {
-	ParameterCode            *string                  `json:"parameter_code"`
-	ParameterName            *string                  `json:"parameter_name"`
-	DataType                 *model.ParameterDataType `json:"data_type"`
-	Unit                     *string                  `json:"unit"`
-	Icon                     *string                  `json:"icon"`
-	StatusOnLabel            *string                  `json:"status_on_label"`
-	StatusOffLabel           *string                  `json:"status_off_label"`
-	CategoryID               *uint                    `json:"category_id"`
-	ClearCategoryID          bool                     `json:"clear_category_id"`
-	Description              *string                  `json:"description"`
-	MinValue                 *float64                 `json:"min_value"`
-	MaxValue                 *float64                 `json:"max_value"`
-	WarningLow               *float64                 `json:"warning_low"`
-	WarningHigh              *float64                 `json:"warning_high"`
-	ClearMinValue            bool                     `json:"clear_min_value"`
-	ClearMaxValue            bool                     `json:"clear_max_value"`
-	ClearWarningLow          bool                     `json:"clear_warning_low"`
-	ClearWarningHigh         bool                     `json:"clear_warning_high"`
-	QualityValidationEnabled *bool                    `json:"quality_validation_enabled"`
-	ProcessingEnabled        *bool                    `json:"processing_enabled"`
-	StaleTimeoutSeconds      *int                     `json:"stale_timeout_seconds"`
-	SpikeDetectionEnabled    *bool                    `json:"spike_detection_enabled"`
-	SpikeThreshold           *float64                 `json:"spike_threshold"`
-	SpikeWindowSize          *int                     `json:"spike_window_size"`
-	Precision                *int                     `json:"precision"`
-	Scale                    *float64                 `json:"scale"`
-	Offset                   *float64                 `json:"offset"`
-	RegisterAddress          *int                     `json:"register_address"`
-	RegisterType             *string                  `json:"register_type"`
-	SlaveID                  *int                     `json:"slave_id"`
-	ByteOrder                *string                  `json:"byte_order"`
-	BatchMode                *string                  `json:"batch_mode"`
-	Enabled                  *bool                    `json:"enabled"`
-	Formula                  *string                  `json:"formula"`
-	HoldLastValueEnabled     *bool                    `json:"hold_last_value_enabled"`
-	HoldLastValueSeconds     *int                     `json:"hold_last_value_seconds"`
+	ParameterCode            *string                     `json:"parameter_code"`
+	ParameterName            *string                     `json:"parameter_name"`
+	DataType                 *model.ParameterDataType    `json:"data_type"`
+	Unit                     *string                     `json:"unit"`
+	Icon                     *string                     `json:"icon"`
+	StatusOnLabel            *string                     `json:"status_on_label"`
+	StatusOffLabel           *string                     `json:"status_off_label"`
+	CategoryID               *uint                       `json:"category_id"`
+	ClearCategoryID          bool                        `json:"clear_category_id"`
+	Description              *string                     `json:"description"`
+	MinValue                 *float64                    `json:"min_value"`
+	MaxValue                 *float64                    `json:"max_value"`
+	WarningLow               *float64                    `json:"warning_low"`
+	WarningHigh              *float64                    `json:"warning_high"`
+	ClearMinValue            bool                        `json:"clear_min_value"`
+	ClearMaxValue            bool                        `json:"clear_max_value"`
+	ClearWarningLow          bool                        `json:"clear_warning_low"`
+	ClearWarningHigh         bool                        `json:"clear_warning_high"`
+	QualityValidationEnabled *bool                       `json:"quality_validation_enabled"`
+	ProcessingEnabled        *bool                       `json:"processing_enabled"`
+	StaleTimeoutSeconds      *int                        `json:"stale_timeout_seconds"`
+	SpikeDetectionEnabled    *bool                       `json:"spike_detection_enabled"`
+	SpikeThreshold           *float64                    `json:"spike_threshold"`
+	SpikeWindowSize          *int                        `json:"spike_window_size"`
+	Precision                *int                        `json:"precision"`
+	Scale                    *float64                    `json:"scale"`
+	Offset                   *float64                    `json:"offset"`
+	RegisterAddress          *int                        `json:"register_address"`
+	RegisterType             *string                     `json:"register_type"`
+	SlaveID                  *int                        `json:"slave_id"`
+	ByteOrder                *string                     `json:"byte_order"`
+	BatchMode                *string                     `json:"batch_mode"`
+	Enabled                  *bool                       `json:"enabled"`
+	Formula                  *string                     `json:"formula"`
+	HoldLastValueEnabled     *bool                       `json:"hold_last_value_enabled"`
+	HoldLastValueSeconds     *int                        `json:"hold_last_value_seconds"`
 	ZeroValueAlarmPolicy     *model.ZeroValueAlarmPolicy `json:"zero_value_alarm_policy"`
 	PollingIntervalMs        *int                        `json:"polling_interval_ms"`
 	ClearPollingIntervalMs   bool                        `json:"clear_polling_interval_ms"`
@@ -935,6 +935,7 @@ func (s *DeviceService) UpdateDevice(id uint, req *UpdateDeviceRequest, username
 	if err := s.repo.Update(device); err != nil {
 		return nil, fmt.Errorf("failed to update device: %w", err)
 	}
+	s.syncPassiveDeviceTimeoutAndAlarms(device)
 	if reloaded, err := s.repo.GetByID(device.ID); err == nil && reloaded != nil {
 		device = reloaded
 	}
@@ -1058,6 +1059,7 @@ func (s *DeviceService) UpdateConnection(deviceID uint, req *ConnectionConfigDTO
 	if err := s.repo.Update(device); err != nil {
 		return nil, err
 	}
+	s.syncPassiveDeviceTimeoutAndAlarms(device)
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
 		"device_id":       deviceID,
@@ -1296,8 +1298,16 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		procEnabled = *req.ProcessingEnabled
 	}
 	staleTimeout := 120
+	if isPassiveProto {
+		staleTimeout = 300
+		if dev.Connection != nil && dev.Connection.Timeout >= 10 && dev.Connection.Timeout != 1000 {
+			staleTimeout = dev.Connection.Timeout
+		}
+	}
 	if req.StaleTimeoutSeconds != nil && *req.StaleTimeoutSeconds > 0 {
-		staleTimeout = *req.StaleTimeoutSeconds
+		if !isPassiveProto || *req.StaleTimeoutSeconds != 120 {
+			staleTimeout = *req.StaleTimeoutSeconds
+		}
 	}
 	spikeEnabled := false
 	if req.SpikeDetectionEnabled != nil {
@@ -1693,14 +1703,14 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 
 	beforeState, _ := json.Marshal(map[string]interface{}{
 		"quality_validation_enabled": param.QualityValidationEnabled,
-		"processing_enabled":        param.ProcessingEnabled,
-		"min_value":                 param.MinValue,
-		"max_value":                 param.MaxValue,
-		"warning_low":               param.WarningLow,
-		"warning_high":              param.WarningHigh,
+		"processing_enabled":         param.ProcessingEnabled,
+		"min_value":                  param.MinValue,
+		"max_value":                  param.MaxValue,
+		"warning_low":                param.WarningLow,
+		"warning_high":               param.WarningHigh,
 		"stale_timeout_seconds":      param.StaleTimeoutSeconds,
 		"spike_detection_enabled":    param.SpikeDetectionEnabled,
-		"spike_threshold":           param.SpikeThreshold,
+		"spike_threshold":            param.SpikeThreshold,
 		"spike_window_size":          param.SpikeWindowSize,
 	})
 
@@ -1783,14 +1793,14 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 
 	afterState, _ := json.Marshal(map[string]interface{}{
 		"quality_validation_enabled": param.QualityValidationEnabled,
-		"processing_enabled":        param.ProcessingEnabled,
-		"min_value":                 param.MinValue,
-		"max_value":                 param.MaxValue,
-		"warning_low":               param.WarningLow,
-		"warning_high":              param.WarningHigh,
+		"processing_enabled":         param.ProcessingEnabled,
+		"min_value":                  param.MinValue,
+		"max_value":                  param.MaxValue,
+		"warning_low":                param.WarningLow,
+		"warning_high":               param.WarningHigh,
 		"stale_timeout_seconds":      param.StaleTimeoutSeconds,
 		"spike_detection_enabled":    param.SpikeDetectionEnabled,
-		"spike_threshold":           param.SpikeThreshold,
+		"spike_threshold":            param.SpikeThreshold,
 		"spike_window_size":          param.SpikeWindowSize,
 	})
 
@@ -1884,6 +1894,43 @@ func normalizeProtocol(proto string) string {
 	return upper
 }
 
+func (s *DeviceService) syncPassiveDeviceTimeoutAndAlarms(device *model.Device) {
+	if device == nil {
+		return
+	}
+	isPassiveProto := strings.EqualFold(device.DeviceType, string(model.ProtocolEdgePush)) ||
+		strings.EqualFold(device.DeviceType, string(model.ProtocolMQTT)) ||
+		(device.Connection != nil && (device.Connection.Protocol == model.ProtocolEdgePush || device.Connection.Protocol == model.ProtocolMQTT))
+	if !isPassiveProto {
+		return
+	}
+	timeoutSec := 300
+	if device.Connection != nil && device.Connection.Timeout >= 10 && device.Connection.Timeout != 1000 {
+		timeoutSec = device.Connection.Timeout
+	}
+	_ = s.repo.SyncDeviceParametersStaleTimeout(device.ID, timeoutSec)
+
+	// If last communication is within the newly configured timeout, restore ONLINE status and clear premature DEVICE_OFFLINE alarm
+	var lastComm *time.Time
+	if device.LastDataAt != nil {
+		lastComm = device.LastDataAt
+	} else if device.LastSeenAt != nil {
+		lastComm = device.LastSeenAt
+	} else if device.LastCommunication != nil {
+		lastComm = device.LastCommunication
+	}
+	if lastComm != nil && time.Since(*lastComm) <= time.Duration(timeoutSec)*time.Second {
+		_ = s.repo.SetConnectionStatus(device.ID, model.DeviceConnOnline)
+		device.ConnectionStatus = model.DeviceConnOnline
+	}
+	if s.alarmService != nil && s.alarmService.alarmEvaluator != nil {
+		s.alarmService.alarmEvaluator.EvaluateDeviceOffline(context.Background(), device, &DeviceHealthInput{
+			DeviceID:        device.ID,
+			LastCommSuccess: lastComm,
+		})
+	}
+}
+
 func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.DeviceConnection {
 	protoStr := normalizeProtocol(string(dto.Protocol))
 	if protoStr == "" {
@@ -1891,8 +1938,19 @@ func (s *DeviceService) buildConnectionModel(dto *ConnectionConfigDTO) *model.De
 	}
 	proto := model.ProtocolType(protoStr)
 
+	isPassiveProto := proto == model.ProtocolEdgePush || proto == model.ProtocolMQTT
 	timeout := dto.Timeout
-	if timeout <= 0 {
+	if isPassiveProto {
+		// Passive EDGE_PUSH / MQTT devices store communication timeout in seconds (default 300s = 5 minutes).
+		if timeout <= 0 || timeout == 1000 {
+			timeout = 300
+		} else if timeout > 86400 {
+			timeout = timeout / 1000
+		}
+		if timeout < 10 {
+			timeout = 10
+		}
+	} else if timeout <= 0 {
 		timeout = 1000
 	}
 

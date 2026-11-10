@@ -563,8 +563,72 @@
             </div>
           </div>
 
-          <!-- Common Timing Configuration -->
-          <div v-if="!isEdgePushProtocol" class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+          <!-- Passive Push / Cloud Telemetry Timeout Configuration (EDGE_PUSH & MQTT) -->
+          <div
+            v-if="isEdgePushProtocol || form.connection.protocol === 'MQTT'"
+            class="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-800/60 space-y-3"
+          >
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label class="block text-xs font-bold text-emerald-950 dark:text-emerald-200">
+                  ⏱️ Batas Waktu Terima Data / Offline Timeout (Detik)
+                </label>
+                <p class="text-2xs text-emerald-800/90 dark:text-emerald-300/80 mt-0.5">
+                  Tentukan berapa lama server menunggu pengiriman data dari tenant sebelum status perangkat &amp; kartu parameter berubah menjadi <strong>OFFLINE</strong> (<code class="font-mono">COMMUNICATION_TIMEOUT</code>). Otomatis diterapkan ke seluruh parameter pada perangkat ini.
+                </p>
+              </div>
+              <span class="px-2.5 py-1 rounded-lg text-2xs font-mono font-bold bg-emerald-600 text-white btn-text self-start sm:self-auto whitespace-nowrap">
+                ={{ Math.round((Number(form.connection.timeout) || 300) / 60 * 10) / 10 }} Menit ({{ Number(form.connection.timeout) || 300 }}s)
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div>
+                <label class="block text-3xs font-semibold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider mb-1">
+                  Timeout Tanpa Data (Detik)
+                </label>
+                <input
+                  id="input-edge-push-timeout-seconds"
+                  v-model.number="form.connection.timeout"
+                  type="number"
+                  min="30"
+                  max="86400"
+                  step="30"
+                  placeholder="300"
+                  class="w-full px-3 py-2 bg-white dark:bg-[#0B0F19] border border-emerald-300 dark:border-emerald-700/80 rounded-xl text-xs text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-3xs font-semibold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider mb-1">
+                  Preset Interval Pengiriman Cloud (Rekomendasi: 1.5x – 2.5x Interval Kirim)
+                </label>
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="preset in [
+                      { sec: 180, label: '3 Menit (180s)' },
+                      { sec: 300, label: '5 Menit (300s - Default)' },
+                      { sec: 600, label: '10 Menit (600s)' },
+                      { sec: 900, label: '15 Menit (900s)' },
+                      { sec: 1800, label: '30 Menit (1800s)' },
+                      { sec: 3900, label: '65 Menit / Jam (3900s)' }
+                    ]"
+                    :key="'to-preset-' + preset.sec"
+                    type="button"
+                    @click="form.connection.timeout = preset.sec"
+                    class="px-2.5 py-1.5 rounded-lg text-2xs font-mono font-semibold border transition cursor-pointer"
+                    :class="Number(form.connection.timeout) === preset.sec
+                      ? 'bg-emerald-600 text-white btn-text border-emerald-600 shadow-2xs'
+                      : 'bg-white dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-emerald-200 dark:border-emerald-800/70 hover:border-emerald-400'"
+                  >
+                    {{ preset.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Common Timing Configuration (Active Polling Protocols) -->
+          <div v-if="!isEdgePushProtocol && form.connection.protocol !== 'MQTT'" class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800/80">
             <div>
               <label class="block text-2xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 {{ $t('deviceModal.timeout') }}
@@ -899,6 +963,11 @@ export default {
           if (proto === 'HTTP/REST' || proto === 'REST') {
             proto = 'HTTP';
           }
+          const isPassive = proto === 'EDGE_PUSH' || proto === 'MQTT';
+          const rawTimeout = (newVal.connection && (newVal.connection.timeout || newVal.connection.timeout_ms)) || 0;
+          const resolvedTimeout = isPassive
+            ? ((rawTimeout <= 0 || rawTimeout === 1000) ? 300 : rawTimeout)
+            : (rawTimeout || 1000);
           this.form = {
             site_id: newVal.site_id || this.defaultSiteId(),
             device_code: newVal.device_code || newVal.code || '',
@@ -927,7 +996,7 @@ export default {
               data_bits: (newVal.connection && newVal.connection.data_bits) || 8,
               parity: (newVal.connection && newVal.connection.parity) || 'N',
               stop_bits: (newVal.connection && newVal.connection.stop_bits) || 1,
-              timeout: (newVal.connection && (newVal.connection.timeout || newVal.connection.timeout_ms)) || 1000,
+              timeout: resolvedTimeout,
               retry_count: (newVal.connection && newVal.connection.retry_count) || 3,
               polling_interval: (newVal.connection && (newVal.connection.polling_interval || newVal.connection.poll_interval_ms)) || 1000,
               enabled: newVal.connection ? newVal.connection.enabled : true,
@@ -1097,8 +1166,14 @@ export default {
         if (!this.form.connection.port || [502, 80, 8080, 8000].includes(this.form.connection.port)) {
           this.form.connection.port = 1883;
         }
+        if (!this.form.connection.timeout || this.form.connection.timeout === 1000) {
+          this.form.connection.timeout = 300;
+        }
       } else if (p === 'EDGE_PUSH') {
         this.form.connection.connection_type = 'HTTPS_PUSH';
+        if (!this.form.connection.timeout || this.form.connection.timeout === 1000) {
+          this.form.connection.timeout = 300;
+        }
       } else if (p === 'HTTP') {
         this.form.connection.connection_type = 'ETHERNET';
         if (!this.form.connection.port || [502, 1883, 8080, 8000].includes(this.form.connection.port)) {
