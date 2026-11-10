@@ -1078,7 +1078,7 @@
         <!-- Right Icon Cluster: Actuators, Health & Alarms, System, Network, Station GPS -->
         <div class="tool-cluster flex-shrink-0">
           <!-- 7. Actuators & Controls (Icon Only + Running Counter Badge) -->
-          <div class="relative toolbar-popover-anchor">
+          <div v-if="!isCloudMode" class="relative toolbar-popover-anchor">
             <button
               type="button"
               id="btn-toolbar-actuators"
@@ -1758,7 +1758,7 @@
           </div>
 
           <!-- 10. Network & Outbound Monitor (Icon Only + Status Dot) -->
-          <div class="relative toolbar-popover-anchor">
+          <div v-if="!isCloudMode" class="relative toolbar-popover-anchor">
             <button
               type="button"
               @click.stop="toggleToolbarPopover('networkMonitor')"

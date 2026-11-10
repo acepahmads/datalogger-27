@@ -106,5 +106,8 @@ assert(occViewCode.includes('getDeviceStaleTimeoutSeconds'), 'OperatorCommandCen
 assert(occViewCode.includes('Active Cloud Push Stream'), 'OperatorCommandCenterView stream diagnostics must display Active Cloud Push Stream');
 assert(dashOpViewCode.includes('Active Cloud Push Stream'), 'DashboardOperatorView stream diagnostics must display Active Cloud Push Stream');
 assert(dashOpViewCode.includes('configuredStaleTimeoutSeconds'), 'DashboardOperatorView must use configuredStaleTimeoutSeconds for stream diagnostics and bento sparklines');
+assert(occViewCode.includes('isCloudMode()'), 'OperatorCommandCenterView must define isCloudMode computed property');
+assert((occViewCode.match(/v-if="!isCloudMode"\s+class="relative toolbar-popover-anchor"/g) || []).length >= 2, 'OperatorCommandCenterView must hide Actuators and Network Monitor toolbar icons when isCloudMode is true');
+assert((dashOpViewCode.match(/v-if="!isCloudMode"\s+class="relative toolbar-popover-anchor"/g) || []).length >= 2, 'DashboardOperatorView must hide Actuators and Network Monitor toolbar icons when isCloudMode is true');
 
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

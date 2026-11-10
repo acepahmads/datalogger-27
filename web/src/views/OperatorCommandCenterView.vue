@@ -1101,7 +1101,7 @@
         <!-- Right: Status Icons (Device & Comm, Alarms, Telemetry, System, Network, Location) -->
         <div class="flex items-center space-x-1 flex-shrink-0">
           <!-- Actuator & Equipment Controls Popover (Opsi B) -->
-          <div class="relative toolbar-popover-anchor">
+          <div v-if="!isCloudMode" class="relative toolbar-popover-anchor">
             <button
               type="button"
               id="btn-toolbar-actuators"
@@ -1809,7 +1809,7 @@
             </div>
 
             <!-- 5. Network & Outbound Delivery Monitor Popover -->
-            <div class="relative toolbar-popover-anchor">
+            <div v-if="!isCloudMode" class="relative toolbar-popover-anchor">
               <button
                 type="button"
                 @click.stop="toggleToolbarPopover('networkMonitor')"
@@ -7758,9 +7758,12 @@ export default {
       }
       return 5000;
     },
-    isPassiveOrCloudTelemetry() {
+    isCloudMode() {
       const sys = this.systemStatus || this.$store?.state?.systemStatus || {};
-      if (sys.cloud_mode === true || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD') {
+      return sys.cloud_mode === true || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD';
+    },
+    isPassiveOrCloudTelemetry() {
+      if (this.isCloudMode) {
         return true;
       }
       if (this.selectedDeviceFilter) {
@@ -8474,6 +8477,7 @@ export default {
       }
     },
     async fetchOperatorActuators(silent) {
+      if (this.isCloudMode) return;
       if (!silent) this.loadingActuators = true;
       try {
         const res = await axios.get('/api/actuators');
@@ -11269,7 +11273,7 @@ export default {
       }
     },
     async fetchNetworkStatus() {
-      if (this.isFetchingNetwork) return;
+      if (this.isCloudMode || this.isFetchingNetwork) return;
       this.isFetchingNetwork = true;
       try {
         const res = await axios.get('/api/system/network');
