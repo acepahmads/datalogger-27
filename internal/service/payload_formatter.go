@@ -288,6 +288,13 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 		}
 	}
 
+	// Validate Custom Schema Builder / JSON Template when active
+	if customMode, customActive := resolveCustomSchemaMode(cfg); customActive {
+		if err := validateCustomSchemaConfig(cfg, customMode); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -301,6 +308,7 @@ type parameterMappingMatcher struct {
 	devAliasMap               map[string]string
 	wildcardEnabledMap        map[string]bool
 	wildcardAliasMap          map[string]string
+	customReferencedParams    map[string]bool
 }
 
 func defaultKLHKISPUAlias(code string) string {
@@ -528,6 +536,7 @@ func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *paramete
 		return matcher
 	}
 	matcher.templateType = strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
+	matcher.customReferencedParams = extractCustomReferencedParamTokens(cfg)
 	if strings.TrimSpace(cfg.ParameterMappingsJSON) == "" {
 		return matcher
 	}
@@ -587,6 +596,18 @@ func (m *parameterMappingMatcher) Resolve(deviceID uint, deviceCode string, para
 }
 
 func (m *parameterMappingMatcher) ResolveWithName(deviceID uint, deviceCode string, paramID uint, paramCode string, paramName string) (bool, string) {
+	en, alias := m.ResolveForValuesCollection(deviceID, deviceCode, paramID, paramCode, paramName)
+	if !en && m != nil && len(m.customReferencedParams) > 0 {
+		codeUpper := strings.ToUpper(strings.TrimSpace(paramCode))
+		aliasUpper := strings.ToUpper(strings.TrimSpace(alias))
+		if m.customReferencedParams[codeUpper] || (aliasUpper != "" && m.customReferencedParams[aliasUpper]) {
+			return true, alias
+		}
+	}
+	return en, alias
+}
+
+func (m *parameterMappingMatcher) ResolveForValuesCollection(deviceID uint, deviceCode string, paramID uint, paramCode string, paramName string) (bool, string) {
 	trimmedCode := strings.TrimSpace(paramCode)
 	if trimmedCode == "" {
 		return false, ""
@@ -783,6 +804,10 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 			return formatScalarOutboundNumber(*item.Value, cfg.NumericPrecisionMode)
 		}
 		return nil
+	}
+
+	if customMode, customActive := resolveCustomSchemaMode(cfg); customActive {
+		return formatCustomSchemaPayload(customMode, batch, cfg, matcher, stationID, tsStr, rootBucketTime, extractVal)
 	}
 
 	switch {

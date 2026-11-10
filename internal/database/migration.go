@@ -188,6 +188,15 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "sensor_stat_mode") {
 			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "sensor_stat_mode")
 		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "custom_schema_mode") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "custom_schema_mode")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "custom_fields_json") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "custom_fields_json")
+		}
+		if !db.Migrator().HasColumn(&model.DestinationPayloadConfig{}, "custom_template_json") {
+			_ = db.Migrator().AddColumn(&model.DestinationPayloadConfig{}, "custom_template_json")
+		}
 	}
 
 	// 1c. Ensure calculation_mode column is initialized and backfilled on ispu_calculation_results

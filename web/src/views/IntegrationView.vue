@@ -828,10 +828,11 @@
               <label class="block text-slate-500 mb-1">JSON Structure</label>
               <select
                 v-model="payloadConfig.structure"
-                @change="triggerLivePreview"
+                @change="onStructureChange"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-cyan-600 dark:text-cyan-400"
               >
                 <option value="FLAT">FLAT (Root Key-Value)</option>
+                <option value="CUSTOM_SCHEMA">CUSTOM_SCHEMA (Bebas Sesuai User — Visual / JSON)</option>
                 <option value="ONLIMO_DATA_OBJECT">ONLIMO_DATA_OBJECT (Root data{IDStasiun, Tanggal, Jam, ...} + apikey)</option>
                 <option value="SPARING_DATA_ARRAY">SPARING_DATA_ARRAY (Root uid + data[datetime, ...])</option>
                 <option value="MULTI_TICK_ARRAY">MULTI_TICK_ARRAY (Array multi[tick])</option>
@@ -839,6 +840,322 @@
                 <option value="NESTED_BY_DEVICE">NESTED_BY_DEVICE (Grouped by Device)</option>
                 <option value="ARRAY_BY_DEVICE">ARRAY_BY_DEVICE (Array of Devices)</option>
               </select>
+            </div>
+          </div>
+
+          <!-- ============================================================== -->
+          <!-- FLEXIBLE USER-DEFINED CUSTOM SCHEMA DESIGNER                   -->
+          <!-- ============================================================== -->
+          <div
+            v-if="isCustomSchemaActive"
+            class="p-3.5 rounded-xl bg-cyan-50/40 dark:bg-slate-800/50 border border-cyan-500/30 space-y-3 text-2xs"
+          >
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-cyan-500/20 pb-2.5">
+              <div>
+                <div class="font-bold text-xs text-cyan-700 dark:text-cyan-300 flex items-center gap-1.5">
+                  <span>✨ Custom Schema Designer — Field &amp; Struktur JSON Bebas Sesuai User</span>
+                </div>
+                <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Tidak ada field wajib yang dipaksakan. Susun nama field, urutan, maupun sub-objek bersarang sesuka Anda.
+                </p>
+              </div>
+              <!-- Mode Switcher: Visual Fields vs JSON Template -->
+              <div class="inline-flex rounded-lg p-0.5 bg-slate-200/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 self-start sm:self-auto">
+                <button
+                  type="button"
+                  @click="setCustomSchemaMode('VISUAL_FIELDS')"
+                  class="px-2.5 py-1 rounded-md text-3xs font-bold transition cursor-pointer"
+                  :class="payloadConfig.custom_schema_mode !== 'JSON_TEMPLATE'
+                    ? 'bg-cyan-600 text-white btn-text shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                >
+                  🧩 Visual Field Builder
+                </button>
+                <button
+                  type="button"
+                  @click="setCustomSchemaMode('JSON_TEMPLATE')"
+                  class="px-2.5 py-1 rounded-md text-3xs font-bold transition cursor-pointer"
+                  :class="payloadConfig.custom_schema_mode === 'JSON_TEMPLATE'
+                    ? 'bg-cyan-600 text-white btn-text shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'"
+                >
+                  📝 Editor JSON Template
+                </button>
+              </div>
+            </div>
+
+            <!-- Starter Quick Examples -->
+            <div class="flex flex-wrap items-center gap-1.5 text-3xs">
+              <span class="font-semibold text-slate-500 mr-1">Contoh Cepat:</span>
+              <button
+                type="button"
+                @click="applyCustomStarterPreset('FLAT')"
+                class="px-2 py-0.5 rounded bg-white dark:bg-slate-900 hover:border-cyan-500 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer"
+              >
+                Flat Kustom (Root)
+              </button>
+              <button
+                type="button"
+                @click="applyCustomStarterPreset('NESTED_VALUES')"
+                class="px-2 py-0.5 rounded bg-white dark:bg-slate-900 hover:border-cyan-500 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer"
+              >
+                Objek Bersarang (values)
+              </button>
+              <button
+                type="button"
+                @click="applyCustomStarterPreset('RECORDS_BATCH')"
+                class="px-2 py-0.5 rounded bg-white dark:bg-slate-900 hover:border-cyan-500 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium cursor-pointer"
+              >
+                Batch Riwayat (records[])
+              </button>
+              <button
+                type="button"
+                @click="applyCustomStarterPreset('MINIMAL')"
+                class="px-2 py-0.5 rounded bg-white dark:bg-slate-900 hover:border-amber-500 border border-slate-300 dark:border-slate-700 text-amber-700 dark:text-amber-400 font-medium cursor-pointer"
+              >
+                Mulai dari Nol
+              </button>
+            </div>
+
+            <!-- MODE A: VISUAL FIELD BUILDER -->
+            <div v-if="payloadConfig.custom_schema_mode !== 'JSON_TEMPLATE'" class="space-y-2.5">
+              <div class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Gunakan titik (<code class="font-mono text-cyan-600 dark:text-cyan-400">lokasi.kode_site</code>) untuk membuat objek bersarang otomatis. Untuk menaruh seluruh parameter sensor langsung di level root, pilih sumber <strong>Semua Parameter Aktif</strong> dengan key <code class="font-mono text-cyan-600 dark:text-cyan-400">@root</code> (atau isi misal <code class="font-mono text-cyan-600 dark:text-cyan-400">values</code> / <code class="font-mono text-cyan-600 dark:text-cyan-400">data</code> untuk membungkusnya di dalam sub-objek).
+              </div>
+
+              <div class="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto bg-white dark:bg-slate-900">
+                <table class="w-full text-left text-3xs min-w-[540px]">
+                  <thead class="bg-slate-100 dark:bg-slate-800/90 text-slate-500 font-semibold">
+                    <tr>
+                      <th class="p-2 w-10 text-center">Aktif</th>
+                      <th class="p-2 w-14 text-center">Urut</th>
+                      <th class="p-2">Nama Field JSON (Key / Dot-Path)</th>
+                      <th class="p-2">Tipe / Sumber Nilai</th>
+                      <th class="p-2">Isi Nilai / Parameter</th>
+                      <th class="p-2 w-8 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tr
+                      v-for="(cf, cIdx) in customFields"
+                      :key="'cf-row-' + cIdx"
+                      class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                    >
+                      <td class="p-1.5 text-center">
+                        <input
+                          v-model="cf.enabled"
+                          @change="onCustomFieldsChanged"
+                          type="checkbox"
+                          class="rounded border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer"
+                        />
+                      </td>
+                      <td class="p-1.5 text-center">
+                        <div class="inline-flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            @click="moveCustomField(cIdx, -1)"
+                            :disabled="cIdx === 0"
+                            class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-cyan-500 disabled:opacity-30 cursor-pointer"
+                            title="Geser ke atas"
+                          >↑</button>
+                          <button
+                            type="button"
+                            @click="moveCustomField(cIdx, 1)"
+                            :disabled="cIdx === customFields.length - 1"
+                            class="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-cyan-500 disabled:opacity-30 cursor-pointer"
+                            title="Geser ke bawah"
+                          >↓</button>
+                        </div>
+                      </td>
+                      <td class="p-1.5">
+                        <input
+                          v-model="cf.key"
+                          @input="onCustomFieldsChanged"
+                          type="text"
+                          class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-mono font-semibold text-cyan-700 dark:text-cyan-300"
+                          :placeholder="cf.source === 'ALL_PARAMETERS' ? '@root (atau misal: values)' : 'nama_field / meta.key'"
+                        />
+                      </td>
+                      <td class="p-1.5">
+                        <select
+                          v-model="cf.source"
+                          @change="onCustomFieldSourceChange(cf)"
+                          class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-medium"
+                        >
+                          <optgroup label="Data Sensor">
+                            <option value="ALL_PARAMETERS">Semua Parameter Aktif ({...})</option>
+                            <option value="PARAMETER">Parameter Sensor Tunggal</option>
+                            <option value="RECORDS_VALUES_ARRAY">Array Riwayat [{timestamp, values}]</option>
+                            <option value="RECORDS_FLAT_ARRAY">Array Riwayat Flat [{timestamp, ...}]</option>
+                          </optgroup>
+                          <optgroup label="Nilai Statis / Kustom">
+                            <option value="STATIC_STRING">Teks Statis (String)</option>
+                            <option value="STATIC_NUMBER">Angka Statis (Number)</option>
+                            <option value="STATIC_BOOL">Boolean Statis (true/false)</option>
+                            <option value="STATIC_JSON">Literal JSON ({...} / [...])</option>
+                            <option value="STATIC_NULL">Null</option>
+                          </optgroup>
+                          <optgroup label="Identitas &amp; Waktu">
+                            <option value="STATION_ID">Station ID / UID Override</option>
+                            <option value="DEVICE_CODE">Kode Device (device_code)</option>
+                            <option value="DEVICE_NAME">Nama Device</option>
+                            <option value="TIMESTAMP">Timestamp (Sesuai Format Waktu)</option>
+                            <option value="ISO8601">Waktu ISO 8601</option>
+                            <option value="DATETIME">Tanggal &amp; Jam (YYYY-MM-DD HH:mm:ss)</option>
+                            <option value="DATE_YMD">Tanggal Saja (YYYY-MM-DD)</option>
+                            <option value="TIME_HMS">Jam Saja (HH:mm:ss)</option>
+                            <option value="UNIX_SEC">UNIX Epoch Seconds</option>
+                            <option value="UNIX_MS">UNIX Epoch Milliseconds</option>
+                            <option value="INTERVAL_MINUTES">Interval Agregasi (Menit)</option>
+                            <option value="INTERVAL_SECONDS">Interval Agregasi (Detik)</option>
+                          </optgroup>
+                        </select>
+                      </td>
+                      <td class="p-1.5">
+                        <input
+                          v-if="cf.source === 'STATIC_STRING' || cf.source === 'STATIC_JSON'"
+                          v-model="cf.value"
+                          @input="onCustomFieldsChanged"
+                          type="text"
+                          class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-mono"
+                          :placeholder="cf.source === 'STATIC_JSON' ? '[1, 2, 3]' : 'Isi teks bebas...'"
+                        />
+                        <input
+                          v-else-if="cf.source === 'STATIC_NUMBER'"
+                          v-model="cf.value"
+                          @input="onCustomFieldsChanged"
+                          type="number"
+                          step="any"
+                          class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-mono"
+                          placeholder="0"
+                        />
+                        <select
+                          v-else-if="cf.source === 'STATIC_BOOL'"
+                          v-model="cf.value"
+                          @change="onCustomFieldsChanged"
+                          class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-mono"
+                        >
+                          <option value="true">true</option>
+                          <option value="false">false</option>
+                        </select>
+                        <div v-else-if="cf.source === 'PARAMETER'" class="flex items-center gap-1">
+                          <select
+                            v-if="parameterMappings.length > 0"
+                            v-model="cf.value"
+                            @change="onCustomFieldsChanged"
+                            class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-mono"
+                          >
+                            <option value="">-- Pilih Parameter --</option>
+                            <option
+                              v-for="(pm, pmIdx) in parameterMappings"
+                              :key="'pm-opt-' + pmIdx + '-' + pm.parameter_code"
+                              :value="pm.parameter_code"
+                            >
+                              {{ pm.parameter_code }} ({{ pm.external_name || pm.parameter_name }})
+                            </option>
+                          </select>
+                          <input
+                            v-else
+                            v-model="cf.value"
+                            @input="onCustomFieldsChanged"
+                            type="text"
+                            class="w-full bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-mono"
+                            placeholder="kode_parameter (misal: ph)"
+                          />
+                        </div>
+                        <span v-else class="text-slate-400 italic px-1">
+                          Otomatis saat kirim
+                        </span>
+                      </td>
+                      <td class="p-1.5 text-center">
+                        <button
+                          type="button"
+                          @click="removeCustomFieldRow(cIdx)"
+                          class="text-slate-400 hover:text-rose-500 font-bold cursor-pointer"
+                          title="Hapus baris field ini"
+                        >✕</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <button
+                  type="button"
+                  @click="addCustomFieldRow"
+                  class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white btn-text text-3xs font-bold transition cursor-pointer"
+                >
+                  + Tambah Field Baru
+                </button>
+                <button
+                  type="button"
+                  @click="convertVisualFieldsToJsonTemplate"
+                  class="px-2.5 py-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-3xs font-semibold transition cursor-pointer"
+                >
+                  ⇄ Konversi &amp; Buka di Editor JSON Template
+                </button>
+              </div>
+            </div>
+
+            <!-- MODE B: FREE-FORM JSON TEMPLATE EDITOR -->
+            <div v-else class="space-y-2.5">
+              <div v-pre class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tulis objek <code class="font-mono">{...}</code> atau array <code class="font-mono">[...]</code> bebas. Variabel dinamis dapat ditulis dengan tanda kutip (<code class="font-mono">"{{unix_sec}}"</code>) maupun tanpa kutip (<code class="font-mono">{{unix_sec}}</code>) dan tetap menghasilkan tipe JSON asli (angka/objek/array). Gunakan <code class="font-mono">"..." : "{{values}}"</code> untuk menyebar seluruh sensor aktif pada objek mana pun.
+              </div>
+
+              <!-- Clickable Token Inserter Strip -->
+              <div class="flex flex-wrap items-center gap-1 text-3xs">
+                <span class="text-slate-500 font-semibold mr-1">Sisipkan Variabel:</span>
+                <button
+                  v-for="tok in customTemplateQuickTokens"
+                  :key="tok.token"
+                  type="button"
+                  @click="insertCustomTemplateToken(tok.insert)"
+                  class="px-1.5 py-0.5 rounded bg-slate-900 text-emerald-300 hover:bg-slate-800 border border-slate-700 font-mono cursor-pointer"
+                  :title="tok.desc"
+                >
+                  {{ tok.label }}
+                </button>
+                <select
+                  v-if="parameterMappings.length > 0"
+                  v-model="selectedParamTokenInsert"
+                  @change="onInsertSingleParamToken"
+                  class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-0.5 font-mono text-3xs text-cyan-600 dark:text-cyan-400 cursor-pointer"
+                >
+                  <option value="">+ Token Parameter Tunggal</option>
+                  <option
+                    v-for="(pm, pmIdx) in parameterMappings"
+                    :key="'tok-pm-' + pmIdx + '-' + pm.parameter_code"
+                    :value="pm.parameter_code"
+                  >
+                    {{ formatParamTokenOption(pm) }}
+                  </option>
+                </select>
+              </div>
+
+              <textarea
+                ref="customJsonTextarea"
+                v-model="payloadConfig.custom_template_json"
+                @input="onCustomTemplateInput"
+                rows="11"
+                spellcheck="false"
+                class="w-full rounded-lg bg-slate-950 text-emerald-300 border border-slate-700 focus:border-cyan-500 p-3 font-mono text-2xs leading-relaxed focus:outline-hidden"
+                :placeholder="customTemplatePlaceholder"
+              ></textarea>
+
+              <div class="flex items-center justify-between text-3xs">
+                <span v-pre class="text-slate-400">
+                  Tip fallback nilai kosong: <code class="font-mono text-cyan-500">{{param:ph|0}}</code> mengisi <code class="font-mono">0</code> bila sensor null/tidak tersedia.
+                </span>
+                <button
+                  type="button"
+                  @click="prettifyCustomTemplate"
+                  class="px-2.5 py-1 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-semibold cursor-pointer"
+                >
+                  ✨ Rapikan Indentasi JSON
+                </button>
+              </div>
             </div>
           </div>
 
@@ -907,8 +1224,8 @@
           </div>
 
           <!-- Station ID & Override -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-2xs" :class="{'sm:grid-cols-3': payloadConfig.structure === 'MULTI_TICK_ARRAY'}">
-            <div>
+          <div class="grid grid-cols-1 gap-3 text-2xs" :class="{ 'sm:grid-cols-2': !isCustomSchemaActive, 'sm:grid-cols-3': payloadConfig.structure === 'MULTI_TICK_ARRAY' }">
+            <div v-if="!isCustomSchemaActive">
               <label class="block text-slate-500 mb-1">Station ID / UID Field Name</label>
               <input
                 v-model="payloadConfig.station_id_field"
@@ -919,7 +1236,9 @@
               />
             </div>
             <div>
-              <label class="block text-slate-500 mb-1">Station ID / UID Value Override</label>
+              <label class="block text-slate-500 mb-1">
+                {{ isCustomSchemaActive ? 'Nilai Station ID / UID Override (Untuk variabel station_id)' : 'Station ID / UID Value Override' }}
+              </label>
               <input
                 v-model="payloadConfig.station_id_value"
                 @input="triggerLivePreview"
@@ -941,8 +1260,8 @@
           </div>
 
           <!-- Timestamp Field, Format & Timezone -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-2xs">
-            <div>
+          <div class="grid grid-cols-1 gap-3 text-2xs" :class="isCustomSchemaActive ? 'sm:grid-cols-2' : 'sm:grid-cols-3'">
+            <div v-if="!isCustomSchemaActive">
               <label class="block text-slate-500 mb-1">
                 {{ payloadConfig.structure === 'ONLIMO_DATA_OBJECT' ? 'Date & Time Fields (Split)' : 'Timestamp Field Name' }}
               </label>
@@ -1010,7 +1329,7 @@
           </div>
 
           <!-- Interval Field Name & Omit Toggle -->
-          <div class="text-2xs">
+          <div v-if="!isCustomSchemaActive" class="text-2xs">
             <div class="flex items-center justify-between mb-1">
               <label class="block text-slate-500">Aggregation Interval Field Name</label>
               <label class="flex items-center space-x-1.5 cursor-pointer text-3xs font-semibold text-amber-600 dark:text-amber-400">
@@ -1055,7 +1374,7 @@
               <span>Include Quality Flags (GOOD/BAD)</span>
             </label>
 
-            <label class="flex items-center space-x-2 cursor-pointer">
+            <label v-if="!isCustomSchemaActive" class="flex items-center space-x-2 cursor-pointer">
               <input
                 v-model="payloadConfig.include_metadata"
                 @change="triggerLivePreview"
@@ -1092,7 +1411,7 @@
           </div>
 
           <!-- KLHK ISPU Sensor Status Flags (stat_pm10 .. stat_hc) -->
-          <div class="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20 space-y-2 text-2xs">
+          <div v-if="!isCustomSchemaActive" class="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/20 space-y-2 text-2xs">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <label class="flex items-center space-x-2 cursor-pointer font-semibold text-cyan-600 dark:text-cyan-400">
                 <input
@@ -2061,10 +2380,31 @@ export default {
         sensor_stat_mode: 'STATIC_1',
         fill_missing_preset_fields: false,
         static_metadata_json: '',
+        custom_schema_mode: '',
+        custom_fields_json: '',
+        custom_template_json: '',
         parameter_mappings_json: '[]',
         required_fields_json: '[]',
         version: 1,
       },
+      customFields: [],
+      selectedParamTokenInsert: '',
+      customTemplateDebounceTimer: null,
+      customTemplatePlaceholder: '{\n  "id_stasiun": "{{station_id}}",\n  "waktu": "{{timestamp}}",\n  "data": {{values}}\n}',
+      customTemplateQuickTokens: [
+        { token: 'station_id', label: '{{station_id}}', insert: '"{{station_id}}"', desc: 'Station ID / UID override atau kode device' },
+        { token: 'device_code', label: '{{device_code}}', insert: '"{{device_code}}"', desc: 'Kode perangkat aktif' },
+        { token: 'timestamp', label: '{{timestamp}}', insert: '"{{timestamp}}"', desc: 'Waktu sesuai pilihan Timestamp Format & Timezone' },
+        { token: 'datetime', label: '{{datetime}}', insert: '"{{datetime}}"', desc: 'YYYY-MM-DD HH:mm:ss sesuai Timezone' },
+        { token: 'date', label: '{{date}}', insert: '"{{date}}"', desc: 'Tanggal YYYY-MM-DD' },
+        { token: 'time', label: '{{time}}', insert: '"{{time}}"', desc: 'Jam HH:mm:ss' },
+        { token: 'unix_sec', label: '{{unix_sec}}', insert: '{{unix_sec}}', desc: 'Angka UNIX Epoch Seconds' },
+        { token: 'interval_minutes', label: '{{interval_minutes}}', insert: '{{interval_minutes}}', desc: 'Angka interval agregasi (menit)' },
+        { token: 'values', label: '{{values}}', insert: '{{values}}', desc: 'Objek semua parameter aktif {...}' },
+        { token: 'spread_values', label: '"...": {{values}}', insert: '"...": {{values}}', desc: 'Sebar semua parameter aktif langsung di objek ini' },
+        { token: 'records', label: '{{records}}', insert: '{{records}}', desc: 'Array riwayat [{timestamp, values}]' },
+        { token: 'records_flat', label: '{{records_flat}}', insert: '{{records_flat}}', desc: 'Array riwayat flat [{timestamp, ...}]' },
+      ],
       paramSearch: '',
       loadingParameters: false,
       parameterMappings: [],
@@ -2075,6 +2415,12 @@ export default {
     };
   },
   computed: {
+    isCustomSchemaActive() {
+      return (
+        this.payloadConfig.template_type === 'CUSTOM' ||
+        this.payloadConfig.structure === 'CUSTOM_SCHEMA'
+      );
+    },
     activeParameterCount() {
       return (this.parameterMappings || []).filter(p => p.enabled).length;
     },
@@ -2469,6 +2815,9 @@ export default {
             include_sensor_stat_flags: false,
             sensor_stat_mode: 'STATIC_1',
             fill_missing_preset_fields: false,
+            custom_schema_mode: '',
+            custom_fields_json: '',
+            custom_template_json: '',
             ...res.data.data,
           };
           if (!this.payloadConfig.timestamp_source) {
@@ -2476,6 +2825,22 @@ export default {
           }
           if (!this.payloadConfig.numeric_precision_mode) {
             this.payloadConfig.numeric_precision_mode = 'FIXED_2';
+          }
+          this.customFields = [];
+          if (this.payloadConfig.custom_fields_json) {
+            try {
+              const parsedCf = JSON.parse(this.payloadConfig.custom_fields_json);
+              if (Array.isArray(parsedCf)) {
+                this.customFields = parsedCf;
+              }
+            } catch (e) {
+              // ignore malformed custom_fields_json
+            }
+          }
+          if (this.payloadConfig.template_type === 'CUSTOM' || this.payloadConfig.structure === 'CUSTOM_SCHEMA') {
+            this.payloadConfig.template_type = 'CUSTOM';
+            this.payloadConfig.structure = 'CUSTOM_SCHEMA';
+            this.ensureDefaultCustomSchemaScaffold();
           }
           if (this.payloadConfig.parameter_mappings_json) {
             try {
@@ -2813,9 +3178,331 @@ export default {
         this.triggerLivePreview();
       }
     },
+    syncCustomSchemaPayloadFields() {
+      if (this.isCustomSchemaActive) {
+        this.payloadConfig.structure = 'CUSTOM_SCHEMA';
+        if (!this.payloadConfig.custom_schema_mode) {
+          this.payloadConfig.custom_schema_mode = 'VISUAL_FIELDS';
+        }
+        this.payloadConfig.custom_fields_json = JSON.stringify(this.customFields || []);
+      } else {
+        this.payloadConfig.custom_schema_mode = '';
+      }
+    },
+    ensureDefaultCustomSchemaScaffold() {
+      if (!this.payloadConfig.custom_schema_mode) {
+        this.payloadConfig.custom_schema_mode =
+          this.payloadConfig.custom_template_json && (!this.customFields || this.customFields.length === 0)
+            ? 'JSON_TEMPLATE'
+            : 'VISUAL_FIELDS';
+      }
+      if (!this.customFields || this.customFields.length === 0) {
+        const stField = this.payloadConfig.station_id_field || 'station_id';
+        const tsField = (this.payloadConfig.timestamp_field && !this.payloadConfig.timestamp_field.includes(','))
+          ? this.payloadConfig.timestamp_field
+          : 'timestamp';
+        const initialRows = [
+          { key: stField, source: 'STATION_ID', value: '', enabled: true },
+          { key: tsField, source: 'TIMESTAMP', value: '', enabled: true },
+        ];
+        if (!this.payloadConfig.omit_interval_field && this.payloadConfig.interval_field) {
+          initialRows.push({ key: this.payloadConfig.interval_field, source: 'INTERVAL_MINUTES', value: '', enabled: true });
+        }
+        initialRows.push({ key: '@root', source: 'ALL_PARAMETERS', value: '', enabled: true });
+        this.customFields = initialRows;
+      }
+      if (!this.payloadConfig.custom_template_json || !this.payloadConfig.custom_template_json.trim()) {
+        this.payloadConfig.custom_template_json = JSON.stringify(
+          {
+            station_id: '{{station_id}}',
+            device_code: '{{device_code}}',
+            timestamp: '{{timestamp}}',
+            values: '{{values}}',
+          },
+          null,
+          2
+        );
+      }
+      this.payloadConfig.custom_fields_json = JSON.stringify(this.customFields);
+    },
+    setCustomSchemaMode(mode) {
+      this.payloadConfig.custom_schema_mode = mode;
+      this.ensureDefaultCustomSchemaScaffold();
+      this.triggerLivePreview();
+    },
+    onStructureChange() {
+      if (this.payloadConfig.structure === 'CUSTOM_SCHEMA') {
+        this.payloadConfig.template_type = 'CUSTOM';
+        if (!this.payloadConfig.conflict_resolution || this.payloadConfig.conflict_resolution === 'FAIL_ON_CONFLICT') {
+          this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
+        }
+        this.ensureDefaultCustomSchemaScaffold();
+      } else if (this.payloadConfig.template_type === 'CUSTOM') {
+        this.payloadConfig.template_type = 'STANDARD';
+        this.payloadConfig.custom_schema_mode = '';
+      }
+      this.triggerLivePreview();
+    },
+    onCustomFieldsChanged() {
+      this.payloadConfig.custom_fields_json = JSON.stringify(this.customFields || []);
+      this.triggerLivePreview();
+    },
+    onCustomFieldSourceChange(cf) {
+      if (cf.source === 'ALL_PARAMETERS' && !cf.key) {
+        cf.key = '@root';
+      } else if (cf.source !== 'ALL_PARAMETERS' && cf.key === '@root') {
+        cf.key = 'custom_field';
+      }
+      if (cf.source === 'STATIC_BOOL' && cf.value !== 'true' && cf.value !== 'false') {
+        cf.value = 'true';
+      } else if (cf.source === 'STATIC_NUMBER' && (cf.value === '' || isNaN(Number(cf.value)))) {
+        cf.value = '0';
+      } else if (cf.source === 'STATIC_JSON' && !cf.value) {
+        cf.value = '{}';
+      } else if (cf.source === 'PARAMETER' && !cf.value && this.parameterMappings.length > 0) {
+        cf.value = this.parameterMappings[0].parameter_code;
+      }
+      this.onCustomFieldsChanged();
+    },
+    addCustomFieldRow() {
+      const nextNum = (this.customFields || []).length + 1;
+      this.customFields.push({
+        key: `field_${nextNum}`,
+        source: 'STATIC_STRING',
+        value: '',
+        enabled: true,
+      });
+      this.onCustomFieldsChanged();
+    },
+    removeCustomFieldRow(idx) {
+      this.customFields.splice(idx, 1);
+      if (this.customFields.length === 0) {
+        this.customFields.push({
+          key: '@root',
+          source: 'ALL_PARAMETERS',
+          value: '',
+          enabled: true,
+        });
+      }
+      this.onCustomFieldsChanged();
+    },
+    moveCustomField(idx, delta) {
+      const target = idx + delta;
+      if (target < 0 || target >= this.customFields.length) return;
+      const copy = [...this.customFields];
+      const [moved] = copy.splice(idx, 1);
+      copy.splice(target, 0, moved);
+      this.customFields = copy;
+      this.onCustomFieldsChanged();
+    },
+    applyCustomStarterPreset(kind) {
+      this.payloadConfig.template_type = 'CUSTOM';
+      this.payloadConfig.structure = 'CUSTOM_SCHEMA';
+      if (kind === 'FLAT') {
+        this.customFields = [
+          { key: 'uid', source: 'STATION_ID', value: '', enabled: true },
+          { key: 'datetime', source: 'TIMESTAMP', value: '', enabled: true },
+          { key: '@root', source: 'ALL_PARAMETERS', value: '', enabled: true },
+        ];
+        this.payloadConfig.custom_template_json = JSON.stringify(
+          {
+            uid: '{{station_id}}',
+            datetime: '{{timestamp}}',
+            '...': '{{values}}',
+          },
+          null,
+          2
+        );
+      } else if (kind === 'NESTED_VALUES') {
+        this.customFields = [
+          { key: 'logger_type', source: 'STATIC_STRING', value: 'SPARING', enabled: true },
+          { key: 'site_code', source: 'STATION_ID', value: '', enabled: true },
+          { key: 'device_code', source: 'DEVICE_CODE', value: '', enabled: true },
+          { key: 'timestamp', source: 'ISO8601', value: '', enabled: true },
+          { key: 'values', source: 'ALL_PARAMETERS', value: '', enabled: true },
+        ];
+        this.payloadConfig.custom_template_json = JSON.stringify(
+          {
+            logger_type: 'SPARING',
+            site_code: '{{station_id}}',
+            device_code: '{{device_code}}',
+            timestamp: '{{iso8601}}',
+            values: '{{values}}',
+          },
+          null,
+          2
+        );
+      } else if (kind === 'RECORDS_BATCH') {
+        this.customFields = [
+          { key: 'site_code', source: 'STATION_ID', value: '', enabled: true },
+          { key: 'device_code', source: 'DEVICE_CODE', value: '', enabled: true },
+          { key: 'records', source: 'RECORDS_VALUES_ARRAY', value: '', enabled: true },
+        ];
+        this.payloadConfig.custom_template_json = JSON.stringify(
+          {
+            site_code: '{{station_id}}',
+            device_code: '{{device_code}}',
+            records: '{{records}}',
+          },
+          null,
+          2
+        );
+      } else if (kind === 'MINIMAL') {
+        this.customFields = [
+          { key: 'custom_field', source: 'STATIC_STRING', value: 'nilai_kustom', enabled: true },
+          { key: '@root', source: 'ALL_PARAMETERS', value: '', enabled: true },
+        ];
+        this.payloadConfig.custom_template_json = '{\n  "custom_field": "nilai_kustom",\n  "...": "{{values}}"\n}';
+      }
+      this.payloadConfig.custom_fields_json = JSON.stringify(this.customFields);
+      this.triggerLivePreview();
+    },
+    convertVisualFieldsToJsonTemplate() {
+      const root = {};
+      const setNested = (obj, segments, val) => {
+        if (!segments || segments.length === 0) {
+          obj['...'] = val;
+          return;
+        }
+        const [head, ...rest] = segments;
+        if (rest.length === 0) {
+          obj[head] = val;
+          return;
+        }
+        if (!obj[head] || typeof obj[head] !== 'object' || Array.isArray(obj[head])) {
+          obj[head] = {};
+        }
+        setNested(obj[head], rest, val);
+      };
+      const sourceToToken = (cf) => {
+        switch (cf.source) {
+          case 'STATIC_STRING':
+            return cf.value || '';
+          case 'STATIC_NUMBER': {
+            const n = Number(cf.value);
+            return isNaN(n) ? 0 : n;
+          }
+          case 'STATIC_BOOL':
+            return String(cf.value).toLowerCase() === 'true';
+          case 'STATIC_NULL':
+            return null;
+          case 'STATIC_JSON':
+            try {
+              return JSON.parse(cf.value || '{}');
+            } catch (e) {
+              return {};
+            }
+          case 'TIMESTAMP':
+            return '{{timestamp}}';
+          case 'ISO8601':
+            return '{{iso8601}}';
+          case 'DATETIME':
+            return '{{datetime}}';
+          case 'DATE_YMD':
+            return '{{date}}';
+          case 'TIME_HMS':
+            return '{{time}}';
+          case 'UNIX_SEC':
+            return '{{unix_sec}}';
+          case 'UNIX_MS':
+            return '{{unix_ms}}';
+          case 'PERIOD_START':
+            return '{{period_start}}';
+          case 'PERIOD_END':
+            return '{{period_end}}';
+          case 'STATION_ID':
+            return '{{station_id}}';
+          case 'DEVICE_CODE':
+            return '{{device_code}}';
+          case 'DEVICE_NAME':
+            return '{{device_name}}';
+          case 'INTERVAL_MINUTES':
+            return '{{interval_minutes}}';
+          case 'INTERVAL_SECONDS':
+            return '{{interval_seconds}}';
+          case 'ALL_PARAMETERS':
+            return '{{values}}';
+          case 'RECORDS_VALUES_ARRAY':
+            return '{{records}}';
+          case 'RECORDS_FLAT_ARRAY':
+            return '{{records_flat}}';
+          case 'PARAMETER':
+            return `{{param:${cf.value || 'kode'}}}`;
+          default:
+            return cf.value || '';
+        }
+      };
+
+      for (const cf of this.customFields || []) {
+        if (!cf.enabled) continue;
+        const rawKey = (cf.key || '').trim();
+        const val = sourceToToken(cf);
+        if (!rawKey || rawKey === '@root' || rawKey === '*' || rawKey === '...' || rawKey === '@spread') {
+          root['...'] = val;
+        } else {
+          const segs = rawKey.split('.').map(s => s.trim()).filter(Boolean);
+          setNested(root, segs, val);
+        }
+      }
+
+      this.payloadConfig.custom_template_json = JSON.stringify(root, null, 2);
+      this.payloadConfig.custom_schema_mode = 'JSON_TEMPLATE';
+      this.triggerLivePreview();
+    },
+    onCustomTemplateInput() {
+      if (this.customTemplateDebounceTimer) {
+        clearTimeout(this.customTemplateDebounceTimer);
+      }
+      this.customTemplateDebounceTimer = setTimeout(() => {
+        this.triggerLivePreview();
+      }, 280);
+    },
+    insertCustomTemplateToken(insertText) {
+      if (!insertText) return;
+      const el = this.$refs.customJsonTextarea;
+      const current = this.payloadConfig.custom_template_json || '';
+      if (el && typeof el.selectionStart === 'number') {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        this.payloadConfig.custom_template_json =
+          current.slice(0, start) + insertText + current.slice(end);
+        this.$nextTick(() => {
+          el.focus();
+          const pos = start + insertText.length;
+          el.setSelectionRange(pos, pos);
+        });
+      } else {
+        this.payloadConfig.custom_template_json = current + (current ? '\n' : '') + insertText;
+      }
+      this.triggerLivePreview();
+    },
+    onInsertSingleParamToken() {
+      if (!this.selectedParamTokenInsert) return;
+      this.insertCustomTemplateToken(`"{{param:${this.selectedParamTokenInsert}}}"`);
+      this.selectedParamTokenInsert = '';
+    },
+    formatParamTokenOption(pm) {
+      if (!pm) return '';
+      const label = pm.external_name || pm.parameter_name || pm.parameter_code;
+      return `{{param:${pm.parameter_code}}} (${label})`;
+    },
+    prettifyCustomTemplate() {
+      const raw = (this.payloadConfig.custom_template_json || '').trim();
+      if (!raw) return;
+      try {
+        // Quote unquoted {{...}} temporarily for JSON.parse formatting
+        const safe = raw.replace(/:\s*(\{\{[^{}]+\}\})/g, ': "$1"');
+        const parsed = JSON.parse(safe);
+        this.payloadConfig.custom_template_json = JSON.stringify(parsed, null, 2);
+        this.triggerLivePreview();
+      } catch (err) {
+        alert('Sintaks JSON belum valid: ' + err.message);
+      }
+    },
     async triggerLivePreview() {
       if (!this.selectedDestinationId) return;
       try {
+        this.syncCustomSchemaPayloadFields();
         this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
         const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/preview`, this.payloadConfig);
         if (res.data && res.data.success) {
@@ -2828,6 +3515,7 @@ export default {
     async savePayloadConfig() {
       this.savingConfig = true;
       try {
+        this.syncCustomSchemaPayloadFields();
         this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
         const res = await axios.put(`/api/destinations/${this.selectedDestinationId}/payload-config`, this.payloadConfig);
         if (res.data && res.data.success) {
@@ -2856,6 +3544,7 @@ export default {
       this.testingPayload = true;
       this.testResult = null;
       try {
+        this.syncCustomSchemaPayloadFields();
         this.payloadConfig.parameter_mappings_json = JSON.stringify(this.parameterMappings);
         const res = await axios.post(`/api/destinations/${this.selectedDestinationId}/test`, this.payloadConfig);
         if (res.data && res.data.success) {
@@ -2984,6 +3673,9 @@ export default {
     },
     applyTemplatePreset() {
       const p = this.payloadConfig.template_type;
+      if (p !== 'CUSTOM') {
+        this.payloadConfig.custom_schema_mode = '';
+      }
       if (p !== 'KLHK_WQMS_ONLIMO') {
         this.payloadConfig.fill_missing_preset_fields = false;
       }
@@ -3147,6 +3839,14 @@ export default {
         this.payloadConfig.include_units = true;
         this.payloadConfig.include_quality = true;
         this.payloadConfig.include_sensor_stat_flags = false;
+      } else if (p === 'CUSTOM') {
+        this.payloadConfig.structure = 'CUSTOM_SCHEMA';
+        this.payloadConfig.include_sensor_stat_flags = false;
+        this.payloadConfig.include_metadata = false;
+        if (!this.payloadConfig.conflict_resolution || this.payloadConfig.conflict_resolution === 'FAIL_ON_CONFLICT') {
+          this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
+        }
+        this.ensureDefaultCustomSchemaScaffold();
       } else {
         this.payloadConfig.structure = 'FLAT';
         this.payloadConfig.omit_interval_field = false;
