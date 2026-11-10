@@ -104,6 +104,9 @@ type DestinationPayloadConfig struct {
 	SensorStatMode          string    `gorm:"size:32;default:'STATIC_1'" json:"sensor_stat_mode"`     // STATIC_1 or AUTO_QUALITY
 	FillMissingPresetFields bool      `gorm:"default:false" json:"fill_missing_preset_fields"`        // Populate missing/null canonical preset keys (e.g. 13 KLHK ONLIMO WQMS keys) with 0
 	StaticMetadataJSON    string    `gorm:"type:text" json:"static_metadata_json,omitempty"`     // JSON string map[string]interface{}
+	CustomSchemaMode      string    `gorm:"size:32;default:''" json:"custom_schema_mode,omitempty"` // "" | "VISUAL_FIELDS" | "JSON_TEMPLATE"
+	CustomFieldsJSON      string    `gorm:"type:text" json:"custom_fields_json,omitempty"`       // JSON array of CustomPayloadFieldItem
+	CustomTemplateJSON    string    `gorm:"type:text" json:"custom_template_json,omitempty"`     // Free-form JSON template with {{...}} placeholders
 	ParameterMappingsJSON string    `gorm:"type:text" json:"parameter_mappings_json,omitempty"` // JSON array of ParameterMappingItem
 	RequiredFieldsJSON    string    `gorm:"type:text" json:"required_fields_json,omitempty"`    // JSON array of string
 	Version               int       `gorm:"default:1" json:"version"`
@@ -111,6 +114,14 @@ type DestinationPayloadConfig struct {
 	CreatedAt             time.Time      `json:"created_at"`
 	UpdatedAt             time.Time      `json:"updated_at"`
 	DeletedAt             gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+// CustomPayloadFieldItem represents a single user-defined field in the Visual Custom Schema Builder
+type CustomPayloadFieldItem struct {
+	Key     string `json:"key"`     // JSON key or dot-path (e.g. "uid", "meta.site", "" / "@root" to spread ALL_PARAMETERS at root)
+	Source  string `json:"source"`  // STATIC_STRING, STATIC_NUMBER, STATIC_BOOL, STATIC_JSON, TIMESTAMP, ISO8601, DATETIME, DATE_YMD, TIME_HMS, UNIX_SEC, UNIX_MS, PERIOD_START, PERIOD_END, STATION_ID, DEVICE_CODE, DEVICE_NAME, INTERVAL_MINUTES, INTERVAL_SECONDS, ALL_PARAMETERS, RECORDS_VALUES_ARRAY, RECORDS_FLAT_ARRAY, PARAMETER
+	Value   string `json:"value"`   // Static literal or target parameter code/alias
+	Enabled bool   `json:"enabled"`
 }
 
 // ParameterMappingItem configures external aliasing and inclusion per parameter

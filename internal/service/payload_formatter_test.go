@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -701,6 +702,114 @@ func TestPayloadFormatter_KLHKWQMSONLIMO(t *testing.T) {
 		t.Fatalf("non-filled ONLIMO JSON mismatch:\ngot:  %s\nwant: %s", string(rawNoFill), expectedNoFill)
 	}
 }
+
+func TestPayloadFormatter_CustomSchemaVisualFieldsAndJSONTemplate(t *testing.T) {
+	formatter := NewConfigurablePayloadFormatter()
+	pStart := time.Date(2026, 11, 10, 4, 28, 0, 0, time.UTC) // 11:28:00 WIB
+	pEnd := time.Date(2026, 11, 10, 4, 30, 0, 0, time.UTC)   // 11:30:00 WIB
+
+	ph := 7.25
+	cod := 34.8
+	tss := 18.0
+
+	batch := &OutboundBatchData{
+		DeviceID:        10,
+		DeviceCode:      "SPARING-01",
+		DeviceName:      "Logger IPAL Utama",
+		DeviceCount:     1,
+		IntervalSeconds: 120,
+		PeriodStart:     pStart,
+		PeriodEnd:       pEnd,
+		Values: []model.SourceAggregationValueItem{
+			{DeviceID: 10, DeviceCode: "SPARING-01", ParameterID: 1, ParameterCode: "ph", ParameterName: "pH", Value: &ph, Unit: "pH", Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 10, DeviceCode: "SPARING-01", ParameterID: 2, ParameterCode: "cod", ParameterName: "COD", Value: &cod, Unit: "mg/L", Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+			{DeviceID: 10, DeviceCode: "SPARING-01", ParameterID: 3, ParameterCode: "tss", ParameterName: "TSS", Value: &tss, Unit: "mg/L", Quality: "GOOD", PeriodStart: pStart, PeriodEnd: pEnd},
+		},
+	}
+
+	// 1. Visual Field Builder Mode: arbitrary user fields + nested dot-paths + ALL_PARAMETERS + single PARAMETER, exact order, zero forced fields
+	visualCfg := &model.DestinationPayloadConfig{
+		TemplateType:          "CUSTOM",
+		Structure:             "CUSTOM_SCHEMA",
+		CustomSchemaMode:      "VISUAL_FIELDS",
+		StationIDValue:        "SITE-JOMBANG-01",
+		TimestampFormat:       "ISO8601",
+		TimestampTimezone:     "Asia/Jakarta",
+		NumericPrecisionMode:  "NATURAL_2",
+		ParameterMappingsJSON: `[{"device_id":10,"parameter_id":1,"parameter_code":"ph","external_name":"pH_air","enabled":false},{"device_id":10,"parameter_id":2,"parameter_code":"cod","external_name":"nilai_cod","enabled":true},{"device_id":10,"parameter_id":3,"parameter_code":"tss","external_name":"nilai_tss","enabled":true}]`,
+		CustomFieldsJSON: `[
+			{"key":"kode_perusahaan","source":"STATIC_STRING","value":"PT_NUSANTARA","enabled":true},
+			{"key":"versi_skema","source":"STATIC_NUMBER","value":"2","enabled":true},
+			{"key":"produksi_aktif","source":"STATIC_BOOL","value":"true","enabled":true},
+			{"key":"lokasi.kode_site","source":"STATION_ID","value":"","enabled":true},
+			{"key":"lokasi.perangkat","source":"DEVICE_CODE","value":"","enabled":true},
+			{"key":"waktu.tanggal","source":"DATE_YMD","value":"","enabled":true},
+			{"key":"waktu.jam","source":"TIME_HMS","value":"","enabled":true},
+			{"key":"sensor_utama_ph","source":"PARAMETER","value":"ph","enabled":true},
+			{"key":"data_sensor","source":"ALL_PARAMETERS","value":"","enabled":true}
+		]`,
+	}
+
+	if err := formatter.ValidateConfig(visualCfg); err != nil {
+		t.Fatalf("ValidateConfig failed on valid VISUAL_FIELDS config: %v", err)
+	}
+	// Verify ParameterMappingMatcher still marks unchecked "ph" as needed for batch collection because Source="PARAMETER" references "ph"!
+	matcher := buildParameterMappingMatcher(visualCfg)
+	if en, _ := matcher.ResolveWithName(10, "SPARING-01", 1, "ph", "pH"); !en {
+		t.Fatalf("expected ResolveWithName to include 'ph' because it is referenced by Source=PARAMETER")
+	}
+	if enVals, _ := matcher.ResolveForValuesCollection(10, "SPARING-01", 1, "ph", "pH"); enVals {
+		t.Fatalf("expected ResolveForValuesCollection to exclude 'ph' from ALL_PARAMETERS because enabled=false")
+	}
+
+	rawVisual, err := formatter.Format(batch, visualCfg)
+	if err != nil {
+		t.Fatalf("Format failed on VISUAL_FIELDS: %v", err)
+	}
+	wantVisual := `{"kode_perusahaan":"PT_NUSANTARA","versi_skema":2,"produksi_aktif":true,"lokasi":{"kode_site":"SITE-JOMBANG-01","perangkat":"SPARING-01"},"waktu":{"tanggal":"2026-11-10","jam":"11:30:00"},"sensor_utama_ph":7.25,"data_sensor":{"nilai_cod":34.8,"nilai_tss":18}}`
+	if string(rawVisual) != wantVisual {
+		t.Fatalf("VISUAL_FIELDS output mismatch:\ngot:  %s\nwant: %s", string(rawVisual), wantVisual)
+	}
+
+	// 2. JSON Template Mode: supports BOTH quoted "{{...}}" and unquoted {{...}}, spread "...": {{values}}, fallback {{param:missing|0}}, and root array/object!
+	tplCfg := &model.DestinationPayloadConfig{
+		TemplateType:          "CUSTOM",
+		Structure:             "CUSTOM_SCHEMA",
+		CustomSchemaMode:      "JSON_TEMPLATE",
+		StationIDValue:        "SITE-JOMBANG-01",
+		TimestampFormat:       "ISO8601",
+		TimestampTimezone:     "Asia/Jakarta",
+		NumericPrecisionMode:  "NATURAL_2",
+		ParameterMappingsJSON: `[{"device_id":10,"parameter_id":1,"parameter_code":"ph","external_name":"pH","enabled":true},{"device_id":10,"parameter_id":2,"parameter_code":"cod","external_name":"cod","enabled":true},{"device_id":10,"parameter_id":3,"parameter_code":"tss","external_name":"tss","enabled":false}]`,
+		CustomTemplateJSON: `{
+			"logger_type": "SPARING",
+			"header_label": "Stasiun {{station_id}} ({{date}})",
+			"epoch": {{unix_sec}},
+			"interval_min": "{{interval_minutes}}",
+			"tss_khusus": {{param:tss}},
+			"nh3n_cadangan": "{{param:nh3n|0}}",
+			"payload": {
+				"device": "{{device_code}}",
+				"...": {{values}}
+			}
+		}`,
+	}
+	if err := formatter.ValidateConfig(tplCfg); err != nil {
+		t.Fatalf("ValidateConfig failed on valid JSON_TEMPLATE config: %v", err)
+	}
+	rawTpl, err := formatter.Format(batch, tplCfg)
+	if err != nil {
+		t.Fatalf("Format failed on JSON_TEMPLATE: %v", err)
+	}
+	wantTpl := fmt.Sprintf(
+		`{"logger_type":"SPARING","header_label":"Stasiun SITE-JOMBANG-01 (2026-11-10)","epoch":%d,"interval_min":2,"tss_khusus":18,"nh3n_cadangan":0,"payload":{"device":"SPARING-01","pH":7.25,"cod":34.8}}`,
+		pEnd.Unix(),
+	)
+	if string(rawTpl) != wantTpl {
+		t.Fatalf("JSON_TEMPLATE output mismatch:\ngot:  %s\nwant: %s", string(rawTpl), wantTpl)
+	}
+}
+
 
 
 
