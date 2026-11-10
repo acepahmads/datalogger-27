@@ -97,4 +97,14 @@ assert(devicesViewCode.includes('EDGE_PUSH'), 'DevicesView must support EDGE_PUS
 // 9. IntegrationView.vue: Edge-to-Central Outbound X-Ingest-Key Support
 assert(integrationViewCode.includes('INGEST_KEY'), 'IntegrationView must support INGEST_KEY outbound authentication');
 
+// 10. OperatorCommandCenterView.vue & DashboardOperatorView.vue: Cloud / EDGE_PUSH Stale Timeout & Gap Handling
+const occViewCode = fs.readFileSync(path.join(srcDir, 'views', 'OperatorCommandCenterView.vue'), 'utf8');
+const dashOpViewCode = fs.readFileSync(path.join(srcDir, 'views', 'DashboardOperatorView.vue'), 'utf8');
+assert(occViewCode.includes('configuredStaleTimeoutSeconds'), 'OperatorCommandCenterView must compute configuredStaleTimeoutSeconds from setup timeout');
+assert(occViewCode.includes('isPassiveOrCloudTelemetry'), 'OperatorCommandCenterView must detect passive/cloud telemetry mode');
+assert(occViewCode.includes('getDeviceStaleTimeoutSeconds'), 'OperatorCommandCenterView must resolve per-device stale timeout in seconds');
+assert(occViewCode.includes('Active Cloud Push Stream'), 'OperatorCommandCenterView stream diagnostics must display Active Cloud Push Stream');
+assert(dashOpViewCode.includes('Active Cloud Push Stream'), 'DashboardOperatorView stream diagnostics must display Active Cloud Push Stream');
+assert(dashOpViewCode.includes('configuredStaleTimeoutSeconds'), 'DashboardOperatorView must use configuredStaleTimeoutSeconds for stream diagnostics and bento sparklines');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

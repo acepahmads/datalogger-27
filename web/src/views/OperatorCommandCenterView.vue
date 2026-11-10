@@ -1567,7 +1567,7 @@
                     </div>
                     <div class="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
                       <span>Total Registered: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ summaryStats.totalDevices }} units</strong></span>
-                      <span>Cycle Rate: <strong class="text-cyan-600 dark:text-cyan-400 font-mono">{{ Math.round(configuredPollingIntervalMs / 1000) }}s</strong></span>
+                      <span>{{ isPassiveOrCloudTelemetry ? 'Push Timeout:' : 'Cycle Rate:' }} <strong class="text-cyan-600 dark:text-cyan-400 font-mono">{{ isPassiveOrCloudTelemetry ? `${formatRelativeSeconds(configuredStaleTimeoutSeconds)} (${configuredStaleTimeoutSeconds}s)` : `${Math.round(configuredPollingIntervalMs / 1000)}s` }}</strong></span>
                     </div>
                   </div>
 
@@ -1623,7 +1623,7 @@
                           {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
                         </span>
                         <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">
-                          Packet Latency
+                          {{ isPassiveOrCloudTelemetry ? 'Last Packet Age' : 'Packet Latency' }}
                         </span>
                       </div>
                       <span
@@ -1651,12 +1651,12 @@
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Stream Status:</span>
                       <span class="font-semibold" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
-                        {{ isTelemetryStale ? 'Delay Warning' : 'Active High-Speed Acquisition' }}
+                        {{ isTelemetryStale ? 'Delay Warning' : (isPassiveOrCloudTelemetry ? 'Active Cloud Push Stream' : 'Active High-Speed Acquisition') }}
                       </span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                      <span class="text-slate-400">Polling Interval:</span>
-                      <span class="font-mono">{{ Math.round(configuredPollingIntervalMs / 1000) }}s Dynamic Cycle</span>
+                      <span class="text-slate-400">{{ isPassiveOrCloudTelemetry ? 'Receive Timeout:' : 'Polling Interval:' }}</span>
+                      <span class="font-mono">{{ isPassiveOrCloudTelemetry ? `${formatRelativeSeconds(configuredStaleTimeoutSeconds)} (${configuredStaleTimeoutSeconds}s Timeout)` : `${Math.round(configuredPollingIntervalMs / 1000)}s Dynamic Cycle` }}</span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Total Monitored:</span>
@@ -7195,8 +7195,12 @@ export default {
         };
       }
 
-      const freshnessThresholdSeconds = this.currentTimeframe === '1m' ? 15 : (this.currentTimeframe === '5m' ? 30 : 60);
-      const isStale = (enabledDevices.some(d => d.is_fresh === false)) || (secondsAgo !== null && secondsAgo > freshnessThresholdSeconds && (this.currentTimeframe === '1m' || this.currentTimeframe === '5m'));
+      const baseFreshnessSec = this.currentTimeframe === '1m' ? 15 : (this.currentTimeframe === '5m' ? 30 : 60);
+      const freshnessThresholdSeconds = this.isPassiveOrCloudTelemetry
+        ? Math.max(this.configuredStaleTimeoutSeconds || 300, baseFreshnessSec)
+        : Math.max(this.configuredStaleTimeoutSeconds || baseFreshnessSec, baseFreshnessSec);
+      const hasBackendUnfresh = enabledDevices.some(d => d.is_fresh === false && (!this.isDevicePassivePush(d) || secondsAgo === null || secondsAgo > this.getDeviceStaleTimeoutSeconds(d)));
+      const isStale = hasBackendUnfresh || (secondsAgo !== null && secondsAgo > freshnessThresholdSeconds && (this.isPassiveOrCloudTelemetry || this.currentTimeframe === '1m' || this.currentTimeframe === '5m'));
 
       if (isStale) {
         return {
@@ -7216,12 +7220,15 @@ export default {
       const latencyStr = this.pipelineDiagnostics && this.pipelineDiagnostics.totalEndToEndMs
         ? ` · Latency ${this.pipelineDiagnostics.totalEndToEndMs}ms`
         : '';
+      const cadenceMsg = this.isPassiveOrCloudTelemetry
+        ? `Komunikasi normal · Batas terima ${this.configuredStaleTimeoutSeconds}s (${this.formatRelativeSeconds(this.configuredStaleTimeoutSeconds)})`
+        : `Komunikasi normal · Pembaruan setiap ${pollSec}s${latencyStr}`;
       return {
         state: 'ONLINE',
         badge: 'LIVE NORMAL',
         badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-medium',
         dotClass: 'bg-emerald-500',
-        message: `Komunikasi normal · Pembaruan setiap ${pollSec}s${latencyStr}`,
+        message: cadenceMsg,
         lastTimestamp,
         lastTimeFormatted,
         secondsAgo,
@@ -7751,6 +7758,45 @@ export default {
       }
       return 5000;
     },
+    isPassiveOrCloudTelemetry() {
+      const sys = this.systemStatus || this.$store?.state?.systemStatus || {};
+      if (sys.cloud_mode === true || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD') {
+        return true;
+      }
+      if (this.selectedDeviceFilter) {
+        const dev = (this.devicesList || []).find(d => Number(d.id) === Number(this.selectedDeviceFilter));
+        if (dev && this.isDevicePassivePush(dev)) return true;
+      }
+      const activeDevs = (this.devicesList || []).filter(d => d && d.enabled !== false && (d.status || d.admin_status || '').toUpperCase() !== 'DISABLED');
+      if (activeDevs.length > 0 && activeDevs.some(d => this.isDevicePassivePush(d))) {
+        return true;
+      }
+      return false;
+    },
+    configuredStaleTimeoutSeconds() {
+      if (this.selectedDeviceFilter) {
+        const dev = (this.devicesList || []).find(d => Number(d.id) === Number(this.selectedDeviceFilter));
+        if (dev) return this.getDeviceStaleTimeoutSeconds(dev);
+      }
+      if (this.activeTrendSeries && this.activeTrendSeries.length > 0) {
+        const activeDevIds = new Set(this.activeTrendSeries.map(s => Number(s.deviceId)).filter(Boolean));
+        const activeSeriesDevs = (this.devicesList || []).filter(d => activeDevIds.has(Number(d.id)));
+        if (activeSeriesDevs.length > 0) {
+          const timeouts = activeSeriesDevs.map(d => this.getDeviceStaleTimeoutSeconds(d)).filter(v => v > 0);
+          if (timeouts.length > 0) return Math.max(...timeouts);
+        }
+      }
+      const activeDevs = (this.devicesList || []).filter(d => d && d.enabled !== false && (d.status || d.admin_status || '').toUpperCase() !== 'DISABLED');
+      if (activeDevs.length > 0) {
+        const timeouts = activeDevs.map(d => this.getDeviceStaleTimeoutSeconds(d)).filter(v => v > 0);
+        if (timeouts.length > 0) return Math.max(...timeouts);
+      }
+      if (this.isPassiveOrCloudTelemetry) {
+        return 300;
+      }
+      const intervalSec = Math.max(Math.ceil(this.configuredPollingIntervalMs / 1000), 10);
+      return Math.round(intervalSec * 2.5);
+    },
     cardGridClass() {
       return 'grid gap-1.5 sm:gap-2';
     },
@@ -7877,7 +7923,10 @@ export default {
           const alarmState = this.determineAlarmState(p, val);
 
           const receivedAt = live.received_at || p.current_received_at || p.last_updated;
-          const staleSec = p.stale_timeout_seconds || 120;
+          const devTimeoutSec = this.getDeviceStaleTimeoutSeconds ? this.getDeviceStaleTimeoutSeconds(dev) : 120;
+          const staleSec = this.isDevicePassivePush(dev)
+            ? Math.max(Number(p.stale_timeout_seconds || 0), devTimeoutSec)
+            : (p.stale_timeout_seconds || 120);
           let isTimeStale = false;
           if (receivedAt) {
             const ageSec = (nowMs - new Date(receivedAt).getTime()) / 1000;
@@ -8051,7 +8100,8 @@ export default {
     },
     isTelemetryStale() {
       const intervalSec = Math.max(Math.ceil(this.configuredPollingIntervalMs / 1000), 10);
-      return this.lastTelemetrySecondsAgo > (intervalSec * 2.5) || this.summaryStats.staleSensors > 0 || this.summaryStats.goodSensors === 0;
+      const staleThresholdSec = Math.max(this.configuredStaleTimeoutSeconds || 0, intervalSec * 2.5);
+      return this.lastTelemetrySecondsAgo > staleThresholdSec || this.summaryStats.staleSensors > 0 || this.summaryStats.goodSensors === 0;
     },
     lastTelemetryTimeStr() {
       if (!this.lastTelemetryTime) return '';
@@ -10396,9 +10446,10 @@ export default {
       const segments = [];
       let currentSegment = [];
 
-      // Adaptive gap threshold matching sampling cadence (> 3 missed cycles or > 20s)
+      // Adaptive gap threshold matching sampling cadence (> 3 missed cycles or > 20s, or passive push timeout)
       const pollMs = this.configuredPollingIntervalMs || 5000;
-      const gapThresholdMs = Math.max(pollMs * 3, 20000);
+      const passiveGapMs = this.isPassiveOrCloudTelemetry ? (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2 : 0;
+      const gapThresholdMs = Math.max(pollMs * 3, 20000, passiveGapMs);
 
       for (let i = 0; i < total; i++) {
         const item = rawList[i];
@@ -10585,6 +10636,46 @@ export default {
       if (!code) return 'Alarm';
       return String(code).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     },
+    isDevicePassivePush(dev) {
+      const sys = this.systemStatus || this.$store?.state?.systemStatus || {};
+      if (sys.cloud_mode === true || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD') {
+        return true;
+      }
+      if (!dev) return false;
+      const proto = String(dev.protocol || dev.driver_type || dev.device_type || dev.connection?.protocol || '').toUpperCase();
+      return proto === 'EDGE_PUSH' || proto === 'MQTT';
+    },
+    getDeviceStaleTimeoutSeconds(dev) {
+      const isPassive = this.isDevicePassivePush(dev);
+      if (dev) {
+        const connTimeout = Number(dev.connection?.timeout || 0);
+        if (isPassive) {
+          if (connTimeout >= 10 && connTimeout !== 1000 && connTimeout !== 5000 && connTimeout <= 86400) {
+            return connTimeout;
+          }
+          if (connTimeout > 86400) {
+            return Math.round(connTimeout / 1000);
+          }
+        }
+        const params = Array.isArray(dev.parameters) ? dev.parameters : [];
+        let maxParamStale = 0;
+        for (const p of params) {
+          if (p && p.enabled !== false && Number(p.stale_timeout_seconds) > maxParamStale) {
+            maxParamStale = Number(p.stale_timeout_seconds);
+          }
+        }
+        if (isPassive) {
+          return maxParamStale >= 30 ? maxParamStale : 300;
+        }
+        if (maxParamStale >= 30) {
+          return maxParamStale;
+        }
+        let pollMs = Number(dev.connection?.polling_interval || dev.connection?.poll_interval_ms || 5000);
+        if (pollMs > 0 && pollMs <= 60) pollMs *= 1000;
+        return Math.max(Math.round((pollMs / 1000) * 2.5), 25);
+      }
+      return isPassive ? 300 : 30;
+    },
     isDeviceActiveOnline(dev) {
       if (!dev) return false;
       const status = dev.connection_status || dev.status;
@@ -10599,6 +10690,7 @@ export default {
       ) {
         return false;
       }
+      const devStaleTimeout = this.getDeviceStaleTimeoutSeconds(dev);
       if (status === 'ONLINE' || status === 'CONNECTED') {
         // If device has parameters configured, verify that not ALL parameters are in STALE/BAD state
         const params = dev.parameters || [];
@@ -10609,7 +10701,9 @@ export default {
             const q = live?.quality || p.current_quality;
             const ts = live?.received_at || p.current_received_at;
             const ageSec = ts ? (nowMs - new Date(ts).getTime()) / 1000 : Infinity;
-            const staleLimit = p.stale_timeout_seconds || 120;
+            const staleLimit = this.isDevicePassivePush(dev)
+              ? Math.max(Number(p.stale_timeout_seconds || 0), devStaleTimeout)
+              : (p.stale_timeout_seconds || 120);
             return q !== 'STALE' && q !== 'BAD' && ageSec < staleLimit;
           });
           if (!hasAnyFreshData) {
@@ -10618,14 +10712,15 @@ export default {
         }
         return true;
       }
-      // Fallback only if status is empty/unknown: verify fresh live telemetry arrived within 15 seconds
+      // Fallback only if status is empty/unknown: verify fresh live telemetry arrived within device timeout
       const nowMs = this.currentTimeMs || Date.now();
+      const fallbackLimitSec = this.isDevicePassivePush(dev) ? devStaleTimeout : 15;
       return (dev.parameters || []).some(p => {
         const live = this.liveMap[p.id];
         const ts = live?.received_at || p.current_received_at;
         if (!ts) return false;
         const ageSec = (nowMs - new Date(ts).getTime()) / 1000;
-        return ageSec < 15 && live?.quality === 'GOOD';
+        return ageSec < fallbackLimitSec && (live?.quality === 'GOOD' || p.current_quality === 'GOOD');
       });
     },
     setupPollingTimer() {
@@ -12034,12 +12129,22 @@ export default {
         await Promise.all(this.activeTrendSeries.map(async (s) => {
           let points = [];
           let seriesLoaded = false;
+          const seriesDev = (this.devicesList || []).find(d => Number(d.id) === Number(s.deviceId)) || null;
+          const isPassiveSeries = this.isDevicePassivePush(seriesDev) || this.isPassiveOrCloudTelemetry;
+          const passiveTimeoutSec = isPassiveSeries
+            ? Math.max(this.getDeviceStaleTimeoutSeconds(seriesDev), this.configuredStaleTimeoutSeconds || 300)
+            : 0;
+          const passiveTimeoutMs = passiveTimeoutSec * 1000;
+          const queryStartTime = (isPassiveSeries && !this.fullscreenIsCustom && (endTime.getTime() - startTime.getTime()) < passiveTimeoutMs * 2)
+            ? new Date(Math.min(startTime.getTime(), endTime.getTime() - passiveTimeoutMs * 2))
+            : startTime;
+
           // 1. Primary: Intelligent Downsampling Engine (guarantees coverage across entire timeframe)
           try {
             const downRes = await axios.get(`/api/devices/${s.deviceId}/telemetry/downsampled`, {
               params: {
                 parameter_id: s.parameterId,
-                start_time: startTime.toISOString(),
+                start_time: queryStartTime.toISOString(),
                 end_time: endTime.toISOString(),
                 resolution: 'auto',
                 mode: activeMode,
@@ -12080,7 +12185,7 @@ export default {
               const res = await axios.get(endpoint, {
                 params: {
                   parameter_id: s.parameterId,
-                  start_time: startTime.toISOString(),
+                  start_time: queryStartTime.toISOString(),
                   end_time: endTime.toISOString(),
                   page_size: 500,
                 },
@@ -12137,6 +12242,74 @@ export default {
                 processed.push(validPoints[i]);
               } else {
                 processed[processed.length - 1] = validPoints[i];
+              }
+            }
+          }
+
+          // When passive / Cloud push device is within its configured timeout, hold the last valid reading across short windows (e.g. 1m, 5m, 15m)
+          if (isPassiveSeries && !this.fullscreenIsCustom && passiveTimeoutMs > 0) {
+            const winStartMs = startTime.getTime();
+            const winEndMs = endTime.getTime();
+            if (processed.length === 0) {
+              const liveItem = this.liveMap[s.parameterId];
+              const paramObj = (this.allParameters || []).find(p => Number(p.param_id || p.id) === Number(s.parameterId));
+              const rawVal = liveItem && liveItem.value !== undefined
+                ? (liveItem.processed_value !== undefined && liveItem.processed_value !== null ? liveItem.processed_value : liveItem.value)
+                : (paramObj ? paramObj.value : null);
+              const rawTs = (liveItem && liveItem.received_at) || (paramObj && paramObj.received_at) || (seriesDev && seriesDev.last_data_at);
+              const numVal = rawVal !== null && rawVal !== undefined && rawVal !== '' ? Number(rawVal) : null;
+              if (numVal !== null && isFinite(numVal) && rawTs) {
+                const tsMs = new Date(rawTs).getTime();
+                if (!isNaN(tsMs) && (winEndMs - tsMs) <= passiveTimeoutMs) {
+                  const alignedTs = pollStepMs ? Math.round(tsMs / pollStepMs) * pollStepMs : tsMs;
+                  processed.push({
+                    x: alignedTs,
+                    y: numVal,
+                    quality: 'GOOD',
+                  });
+                }
+              }
+            }
+            if (processed.length > 0) {
+              let lastBeforeOrAtStart = null;
+              const insideWindow = [];
+              for (const pt of processed) {
+                if (pt.x <= winStartMs) {
+                  if (pt.y !== null && isFinite(pt.y)) {
+                    lastBeforeOrAtStart = pt;
+                  }
+                } else {
+                  insideWindow.push(pt);
+                }
+              }
+              if (lastBeforeOrAtStart && (winEndMs - lastBeforeOrAtStart.x) <= passiveTimeoutMs * 1.5) {
+                insideWindow.unshift({
+                  ...lastBeforeOrAtStart,
+                  x: winStartMs,
+                  realX: lastBeforeOrAtStart.realX || lastBeforeOrAtStart.x,
+                  isHeld: lastBeforeOrAtStart.x < winStartMs,
+                });
+                processed = insideWindow;
+              }
+              const lastPt = processed[processed.length - 1];
+              const lastRealX = lastPt.realX || lastPt.x;
+              if (lastPt && lastPt.y !== null && isFinite(lastPt.y) && (winEndMs - lastRealX) <= passiveTimeoutMs) {
+                if (processed.length === 1 && lastPt.x > winStartMs && (lastPt.x - winStartMs) <= passiveTimeoutMs) {
+                  processed.unshift({
+                    ...lastPt,
+                    x: winStartMs,
+                    realX: lastRealX,
+                    isHeld: true,
+                  });
+                }
+                if (lastPt.x < winEndMs) {
+                  processed.push({
+                    ...lastPt,
+                    x: winEndMs,
+                    realX: lastRealX,
+                    isHeld: true,
+                  });
+                }
               }
             }
           }
@@ -12221,10 +12394,46 @@ export default {
         // Align trend window boundaries strictly to 5-second sensor polling intervals (:00, :05, :10, :15...)
         const alignedEnd = Math.floor(now / pollInterval) * pollInterval;
         if (alignedEnd !== this.trendTimeBounds.end) {
+          const newStart = alignedEnd - span;
           this.trendTimeBounds = {
-            start: alignedEnd - span,
+            start: newStart,
             end: alignedEnd,
           };
+          if (this.isPassiveOrCloudTelemetry) {
+            const passiveTimeoutMs = (this.configuredStaleTimeoutSeconds || 300) * 1000;
+            for (const s of this.activeTrendSeries) {
+              const pts = s.dataPoints;
+              if (!pts || pts.length === 0) continue;
+              const lastPt = pts[pts.length - 1];
+              const lastRealX = lastPt.realX || lastPt.x;
+              if (lastPt && lastPt.y !== null && isFinite(lastPt.y) && (alignedEnd - lastRealX) <= passiveTimeoutMs) {
+                if (lastPt.isHeld) {
+                  this.$set(pts, pts.length - 1, {
+                    ...lastPt,
+                    x: alignedEnd,
+                    realX: lastRealX,
+                    isHeld: true,
+                  });
+                } else if (lastPt.x < alignedEnd) {
+                  pts.push({
+                    ...lastPt,
+                    x: alignedEnd,
+                    realX: lastRealX,
+                    isHeld: true,
+                  });
+                }
+                if (pts.length >= 2 && pts[0].isHeld && pts[1].x > newStart) {
+                  this.$set(pts, 0, {
+                    ...pts[0],
+                    x: newStart,
+                    isHeld: true,
+                  });
+                }
+              }
+              s._cachedPathKey = null;
+            }
+            this._cachedAreaKey = null;
+          }
         }
       }
     },
@@ -12262,8 +12471,12 @@ export default {
       const alignedX = pollStepMs ? Math.round(ts / pollStepMs) * pollStepMs : ts;
 
       const pts = series.dataPoints;
+      while (pts.length > 0 && pts[pts.length - 1].isHeld) {
+        pts.pop();
+      }
       const newPt = {
         x: alignedX,
+        realX: alignedX,
         y: isValid ? numVal : null,
         quality: data.quality || 'GOOD',
       };
@@ -12280,6 +12493,15 @@ export default {
         }
       } else {
         pts.push(newPt);
+      }
+
+      if (this.isPassiveOrCloudTelemetry && !this.fullscreenIsCustom && isValid && alignedX < this.trendTimeBounds.end) {
+        pts.push({
+          ...newPt,
+          x: this.trendTimeBounds.end,
+          realX: alignedX,
+          isHeld: true,
+        });
       }
 
       // If live point is at or past current right edge, slide right edge to encompass it
@@ -12328,7 +12550,9 @@ export default {
     buildSplinePath(coords, smooth) {
       if (!coords || coords.length === 0) return '';
       if (coords.length === 1) {
-        return `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+        const x1 = Math.max(0, coords[0].x - 1.5);
+        const x2 = coords[0].x + 1.5;
+        return `M ${x1.toFixed(1)} ${coords[0].y.toFixed(1)} L ${x2.toFixed(1)} ${coords[0].y.toFixed(1)}`;
       }
       if (!smooth || coords.length < 3) {
         let d = `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
@@ -12503,7 +12727,7 @@ export default {
         return series._cachedPath;
       }
 
-      // Estimate gap threshold: when delta t exceeds 2 missed polling intervals, break path
+      // Estimate gap threshold: when delta t exceeds 2 missed polling intervals (or passive push timeout), break path
       // pathStr += ` M ${px.toFixed(1)} ${py.toFixed(1)}`
       let maxGapMs = 15 * 60 * 1000;
       if (pollStep <= 2500 && timeSpan <= 90 * 1000) maxGapMs = 6 * 1000;
@@ -12515,6 +12739,9 @@ export default {
       else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000; // 15 min for 6h
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000; // 1 hr for 24h
       else maxGapMs = 4 * 3600 * 1000; // 4 hrs for multi-day
+      if (this.isPassiveOrCloudTelemetry) {
+        maxGapMs = Math.max(maxGapMs, (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2);
+      }
 
       const segments = [];
       let currentSeg = [];
@@ -12613,6 +12840,9 @@ export default {
       else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000;
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
       else maxGapMs = 4 * 3600 * 1000;
+      if (this.isPassiveOrCloudTelemetry) {
+        maxGapMs = Math.max(maxGapMs, (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2);
+      }
 
       // Group points into continuous valid segments to avoid diagonal area fills across outages
       const segments = [];
@@ -12735,6 +12965,9 @@ export default {
       else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000;
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
       else maxGapMs = 4 * 3600 * 1000;
+      if (this.isPassiveOrCloudTelemetry) {
+        maxGapMs = Math.max(maxGapMs, (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2);
+      }
 
       const seriesValues = [];
       for (const s of this.activeTrendSeries) {
@@ -12827,6 +13060,9 @@ export default {
       else if (timeSpan <= 8 * 3600 * 1000) maxGapMs = 15 * 60 * 1000;
       else if (timeSpan <= 25 * 3600 * 1000) maxGapMs = 60 * 60 * 1000;
       else maxGapMs = 4 * 3600 * 1000;
+      if (this.isPassiveOrCloudTelemetry) {
+        maxGapMs = Math.max(maxGapMs, (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2);
+      }
 
       const seriesValues = [];
       for (const s of this.activeTrendSeries) {

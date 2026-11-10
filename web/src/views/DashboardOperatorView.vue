@@ -1523,7 +1523,7 @@
                     </div>
                     <div class="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
                       <span>Total Registered: <strong class="text-slate-700 dark:text-slate-300 font-mono">{{ summaryStats.totalDevices }} units</strong></span>
-                      <span>Cycle Rate: <strong class="text-cyan-600 dark:text-cyan-400 font-mono">{{ Math.round(configuredPollingIntervalMs / 1000) }}s</strong></span>
+                      <span>{{ isPassiveOrCloudTelemetry ? 'Push Timeout:' : 'Cycle Rate:' }} <strong class="text-cyan-600 dark:text-cyan-400 font-mono">{{ isPassiveOrCloudTelemetry ? `${formatRelativeSeconds(configuredStaleTimeoutSeconds)} (${configuredStaleTimeoutSeconds}s)` : `${Math.round(configuredPollingIntervalMs / 1000)}s` }}</strong></span>
                     </div>
                   </div>
 
@@ -1579,7 +1579,7 @@
                           {{ formatRelativeSeconds(lastTelemetrySecondsAgo) }}
                         </span>
                         <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide">
-                          Packet Latency
+                          {{ isPassiveOrCloudTelemetry ? 'Last Packet Age' : 'Packet Latency' }}
                         </span>
                       </div>
                       <span
@@ -1607,12 +1607,12 @@
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Stream Status:</span>
                       <span class="font-semibold" :class="isTelemetryStale ? 'text-rose-500' : 'text-emerald-500'">
-                        {{ isTelemetryStale ? 'Delay Warning' : 'Active High-Speed Acquisition' }}
+                        {{ isTelemetryStale ? 'Delay Warning' : (isPassiveOrCloudTelemetry ? 'Active Cloud Push Stream' : 'Active High-Speed Acquisition') }}
                       </span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                      <span class="text-slate-400">Polling Interval:</span>
-                      <span class="font-mono">{{ Math.round(configuredPollingIntervalMs / 1000) }}s Dynamic Cycle</span>
+                      <span class="text-slate-400">{{ isPassiveOrCloudTelemetry ? 'Receive Timeout:' : 'Polling Interval:' }}</span>
+                      <span class="font-mono">{{ isPassiveOrCloudTelemetry ? `${formatRelativeSeconds(configuredStaleTimeoutSeconds)} (${configuredStaleTimeoutSeconds}s Timeout)` : `${Math.round(configuredPollingIntervalMs / 1000)}s Dynamic Cycle` }}</span>
                     </div>
                     <div class="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span class="text-slate-400">Total Monitored:</span>
@@ -8956,15 +8956,17 @@ export default {
     },
     resolveBentoTrendMaxGapMs(timeSpan) {
       const pollStep = this.configuredPollingIntervalMs || 5000;
-      if (pollStep <= 2500 && timeSpan <= 90 * 1000) return 6 * 1000;
-      if (pollStep <= 2500 && timeSpan <= 7 * 60 * 1000) return 10 * 1000;
-      if (timeSpan <= 90 * 1000) return 12 * 1000;
-      if (timeSpan <= 7 * 60 * 1000) return 20 * 1000;
-      if (timeSpan <= 20 * 60 * 1000) return 45 * 1000;
-      if (timeSpan <= 2 * 3600 * 1000) return 3 * 60 * 1000;
-      if (timeSpan <= 8 * 3600 * 1000) return 15 * 60 * 1000;
-      if (timeSpan <= 25 * 3600 * 1000) return 60 * 60 * 1000;
-      return 4 * 3600 * 1000;
+      const passiveGapMs = this.isPassiveOrCloudTelemetry ? (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2 : 0;
+      let baseGap = 4 * 3600 * 1000;
+      if (pollStep <= 2500 && timeSpan <= 90 * 1000) baseGap = 6 * 1000;
+      else if (pollStep <= 2500 && timeSpan <= 7 * 60 * 1000) baseGap = 10 * 1000;
+      else if (timeSpan <= 90 * 1000) baseGap = 12 * 1000;
+      else if (timeSpan <= 7 * 60 * 1000) baseGap = 20 * 1000;
+      else if (timeSpan <= 20 * 60 * 1000) baseGap = 45 * 1000;
+      else if (timeSpan <= 2 * 3600 * 1000) baseGap = 3 * 60 * 1000;
+      else if (timeSpan <= 8 * 3600 * 1000) baseGap = 15 * 60 * 1000;
+      else if (timeSpan <= 25 * 3600 * 1000) baseGap = 60 * 60 * 1000;
+      return Math.max(baseGap, passiveGapMs);
     },
     buildBentoSparklineGeometry(rawPoints, options = {}) {
       const smooth = options.smooth !== undefined ? Boolean(options.smooth) : Boolean(this.trendLineSmooth);
@@ -9044,7 +9046,8 @@ export default {
         medianDt = deltas[Math.floor(deltas.length / 2)];
       }
       const pollMs = this.configuredPollingIntervalMs || 5000;
-      const baseGapMs = options.baseGapMs || 180000;
+      const passiveGapMs = this.isPassiveOrCloudTelemetry ? (this.configuredStaleTimeoutSeconds || 300) * 1000 * 1.2 : 0;
+      const baseGapMs = Math.max(options.baseGapMs || 180000, passiveGapMs);
       const maxGapMs = Math.max(baseGapMs, pollMs * 6, medianDt * 3.5);
 
       const segments = [];

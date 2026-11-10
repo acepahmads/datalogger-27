@@ -21,15 +21,15 @@ import (
 // shared bus state updates, and status consistency across multiple logical devices.
 type USBAdapterTracker struct {
 	mu                  sync.RWMutex
-	deviceAdapters      map[uint]string            // deviceID -> adapterKey
-	deviceCodes         map[uint]string            // deviceID -> deviceCode
-	deviceNames         map[uint]string            // deviceID -> deviceName
-	devicePorts         map[uint]string            // deviceID -> serialPort
-	deviceFormula       map[uint]bool              // deviceID -> hasActiveFormula
-	adapterDevices      map[string]map[uint]bool   // adapterKey -> set of deviceIDs
-	adapterStatus       map[string]string          // adapterKey -> TransportStatus
-	adapterMissing      map[string]bool            // adapterKey -> isMissing
-	customAdapterKeys   map[string]string          // portPath -> adapterKey for testing/explicit configuration
+	deviceAdapters      map[uint]string          // deviceID -> adapterKey
+	deviceCodes         map[uint]string          // deviceID -> deviceCode
+	deviceNames         map[uint]string          // deviceID -> deviceName
+	devicePorts         map[uint]string          // deviceID -> serialPort
+	deviceFormula       map[uint]bool            // deviceID -> hasActiveFormula
+	adapterDevices      map[string]map[uint]bool // adapterKey -> set of deviceIDs
+	adapterStatus       map[string]string        // adapterKey -> TransportStatus
+	adapterMissing      map[string]bool          // adapterKey -> isMissing
+	customAdapterKeys   map[string]string        // portPath -> adapterKey for testing/explicit configuration
 	activityMonitor     *ActivityMonitor
 	deviceService       *service.DeviceService
 	hub                 *websocket.Hub
@@ -428,14 +428,14 @@ func (t *USBAdapterTracker) OnPortMissing(deviceID uint, portPath string, reason
 				Type:      "device.connection.changed",
 				Timestamp: now,
 				Data: map[string]interface{}{
-					"device_id":          dID,
-					"id":                 dID,
-					"device_code":        devCode,
-					"connection_status":  "OFFLINE",
-					"transport_status":   TransportPortMissing,
-					"status":             "OFFLINE",
-					"reason":             "USB_PORT_MISSING",
-					"adapter_key":        adapterKey,
+					"device_id":         dID,
+					"id":                dID,
+					"device_code":       devCode,
+					"connection_status": "OFFLINE",
+					"transport_status":  TransportPortMissing,
+					"status":            "OFFLINE",
+					"reason":            "USB_PORT_MISSING",
+					"adapter_key":       adapterKey,
 				},
 			})
 		}
@@ -623,6 +623,19 @@ func (t *USBAdapterTracker) OnCommunicationSuccess(deviceID uint, latencyMs int)
 func CalculateFreshnessThreshold(conn *model.DeviceConnection) time.Duration {
 	if conn == nil {
 		return 5 * time.Second
+	}
+
+	if conn.Protocol == model.ProtocolEdgePush || conn.Protocol == model.ProtocolMQTT {
+		timeoutSec := conn.Timeout
+		if timeoutSec <= 0 || timeoutSec == 1000 || timeoutSec == 5000 {
+			timeoutSec = 300
+		} else if timeoutSec > 86400 {
+			timeoutSec = timeoutSec / 1000
+		}
+		if timeoutSec < 10 {
+			timeoutSec = 10
+		}
+		return time.Duration(timeoutSec) * time.Second
 	}
 
 	interval := time.Duration(conn.PollingInterval) * time.Millisecond
