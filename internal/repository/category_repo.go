@@ -39,7 +39,7 @@ func (r *CategoryRepository) ListForTenant(tenantID uint, enabledOnly bool, doma
 	if enabledOnly {
 		query = query.Where("enabled = ?", true)
 	}
-	if domain != "" && domain != "ALL" && domain != "CUSTOM" {
+	if domain != "" && domain != "ALL" && domain != "CUSTOM" && domain != "CLOUD" {
 		if domain == "SPARING" || domain == "ONLIMO" || domain == "WQMS" {
 			query = query.Where("domain IN ? OR domain = '' OR domain IS NULL", []string{domain, "WQMS", "SPARING", "ONLIMO", "ALL", "CUSTOM"})
 		} else {

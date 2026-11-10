@@ -39,6 +39,7 @@ const (
 	DomainONLIMO  = "ONLIMO"
 	DomainSPARING = "SPARING"
 	DomainCustom  = "CUSTOM"
+	DomainCloud   = "CLOUD"
 	DomainAll     = "ALL"
 )
 
@@ -49,6 +50,7 @@ var ValidCategoryDomains = map[string]bool{
 	DomainONLIMO:  true,
 	DomainSPARING: true,
 	DomainCustom:  true,
+	DomainCloud:   true,
 	DomainAll:     true,
 }
 

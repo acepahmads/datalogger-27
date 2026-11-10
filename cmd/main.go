@@ -219,8 +219,12 @@ func main() {
 	pollingEngine.SetTelemetryService(telemetryService)
 	pollingEngine.SetAlarmEvaluator(alarmEvaluator)
 	pollingEngine.SetActivityMonitor(activityMonitor)
-	pollingEngine.SetSensorPollingEnabled(cfg.SensorPollingEnabled)
+	pollingEngine.SetSensorPollingEnabled(!cfg.IsCloudMode() && cfg.SensorPollingEnabled)
 	systemService.SetOnSensorPollingToggle(func(enabled bool) {
+		if config.Get().IsCloudMode() {
+			pollingEngine.SetSensorPollingEnabled(false)
+			return
+		}
 		pollingEngine.SetSensorPollingEnabled(enabled)
 	})
 	pollingEngine.Start()
@@ -381,15 +385,15 @@ func main() {
 		api.POST("/ingest/telemetry", ingestHandler.IngestTelemetry)
 		api.POST("/ingest/mqtt", ingestHandler.IngestMQTT)
 
-		// Multi-Tenant & Multi-Site Organization Management
+		// Multi-Tenant & Multi-Site Organization Management (Strictly SUPERADMIN except read-only /context & /sites for scoped switcher)
 		tenantsGroup := api.Group("/tenants")
 		tenantsGroup.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGroup.GET("/context", tenantHandler.GetContext)
-			tenantsGroup.GET("/current", tenantHandler.GetCurrentTenant)
-			tenantsGroup.GET("", tenantHandler.ListTenants)
+			tenantsGroup.GET("/current", middleware.RequireRole("SUPERADMIN"), tenantHandler.GetCurrentTenant)
+			tenantsGroup.GET("", middleware.RequireRole("SUPERADMIN"), tenantHandler.ListTenants)
 			tenantsGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
-			tenantsGroup.PUT("/:id", tenantHandler.UpdateTenant) // also handles PUT /api/tenants/current
+			tenantsGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateTenant)
 			tenantsGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
 		}
 
@@ -397,20 +401,20 @@ func main() {
 		sitesGroup.Use(middleware.JWTAuth(authService))
 		{
 			sitesGroup.GET("", middleware.RequirePermission("site.view"), tenantHandler.ListSites)
-			sitesGroup.POST("", middleware.RequirePermission("site.manage"), tenantHandler.CreateSite)
-			sitesGroup.PUT("/:id", middleware.RequirePermission("site.manage"), tenantHandler.UpdateSite)
-			sitesGroup.DELETE("/:id", middleware.RequirePermission("site.manage"), tenantHandler.DeleteSite)
+			sitesGroup.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateSite)
+			sitesGroup.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateSite)
+			sitesGroup.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteSite)
 		}
 
 		ingestKeysGroup := api.Group("/ingest-keys")
-		ingestKeysGroup.Use(middleware.JWTAuth(authService))
+		ingestKeysGroup.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"))
 		{
-			ingestKeysGroup.GET("/payload-template", middleware.RequirePermission("device.view"), ingestHandler.GetPayloadTemplate)
-			ingestKeysGroup.GET("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ListAPIKeys)
-			ingestKeysGroup.POST("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.CreateAPIKey)
-			ingestKeysGroup.PUT("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
-			ingestKeysGroup.PUT("/:id/enable", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
-			ingestKeysGroup.DELETE("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.DeleteAPIKey)
+			ingestKeysGroup.GET("/payload-template", ingestHandler.GetPayloadTemplate)
+			ingestKeysGroup.GET("", tenantHandler.ListAPIKeys)
+			ingestKeysGroup.POST("", tenantHandler.CreateAPIKey)
+			ingestKeysGroup.PUT("/:id", tenantHandler.ToggleAPIKey)
+			ingestKeysGroup.PUT("/:id/enable", tenantHandler.ToggleAPIKey)
+			ingestKeysGroup.DELETE("/:id", tenantHandler.DeleteAPIKey)
 		}
 
 		// Development Phases & Tasks (Protected & Authorized — SUPERADMIN only)

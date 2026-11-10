@@ -10,7 +10,7 @@
         <div class="text-2xs text-slate-500 dark:text-slate-400 font-medium truncate">Analysis Application</div>
         <div class="flex items-center space-x-1.5 mt-2">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">{{ $t('navigation.edgeSystem') }}</span>
+          <span class="text-3xs text-emerald-600 dark:text-emerald-400 font-medium tracking-wide">{{ isCloudMode ? 'Cloud Receiver Active' : $t('navigation.edgeSystem') }}</span>
         </div>
       </div>
       <!-- Setup / Auto-Hide Pin Icon Button -->
@@ -134,7 +134,12 @@
             <span>{{ $t('navigation.systemMonitoring') }}</span>
           </router-link>
 
-          <router-link to="/monitoring/devices" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/devices' || $route.path === '/monitoring/parameters' }">
+          <router-link
+            v-if="isSuperAdmin || !isCloudMode"
+            to="/monitoring/devices"
+            class="nav-item"
+            :class="{ 'nav-active': $route.path === '/monitoring/devices' || $route.path === '/monitoring/parameters' }"
+          >
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <circle cx="12" cy="12" r="2"></circle>
@@ -144,7 +149,7 @@
           </router-link>
 
           <router-link
-            v-if="!isOperator"
+            v-if="isSuperAdmin || (!isOperator && !isCloudMode)"
             to="/monitoring/calibration"
             class="nav-item"
             :class="{ 'nav-active': $route.path.startsWith('/monitoring/calibration') }"
@@ -346,7 +351,7 @@
             <span>{{ $t('navigation.retentionStorage') }}</span>
           </router-link>
 
-          <router-link v-if="isSuperAdmin || isAdmin" to="/administration/tenants" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/tenants') }">
+          <router-link v-if="isSuperAdmin" to="/administration/tenants" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/tenants') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-purple-500 dark:text-purple-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.85">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
@@ -479,10 +484,22 @@ export default {
     monitoringDomain() {
       return String((this.systemStatus && this.systemStatus.monitoring_domain) || 'AQMS').toUpperCase();
     },
+    isCloudMode() {
+      return Boolean(
+        (this.systemStatus && this.systemStatus.cloud_mode) ||
+        this.monitoringDomain === 'CLOUD'
+      );
+    },
     showIspuMenu() {
+      if (this.isCloudMode) {
+        return this.isSuperAdmin;
+      }
       return this.monitoringDomain === 'AQMS' || this.monitoringDomain === 'CUSTOM';
     },
     showWqmsMenu() {
+      if (this.isCloudMode) {
+        return this.isSuperAdmin;
+      }
       return this.monitoringDomain === 'WQMS' || this.monitoringDomain === 'CUSTOM';
     },
   },

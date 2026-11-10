@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"datalogger/internal/config"
 	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
@@ -1283,7 +1284,9 @@ func (h *SystemHandler) SaveDatabaseConfig(c *gin.Context) {
 func (h *SystemHandler) GetConfig(c *gin.Context) {
 	cfg := h.systemService.GetSystemConfig()
 	scope := middleware.GetScope(c)
-	if h.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
+	if cfg.CloudMode {
+		cfg.MonitoringDomain = "CLOUD"
+	} else if h.tenantService != nil && (scope.SiteID > 0 || scope.TenantID > 0) {
 		if st, err := h.tenantService.ResolveEffectiveSite(scope); err == nil && st != nil && strings.TrimSpace(st.MonitoringDomain) != "" {
 			cfg.MonitoringDomain = st.MonitoringDomain
 		}
@@ -1321,7 +1324,16 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 	ua := c.Request.UserAgent()
 
 	scope := middleware.GetScope(c)
-	if h.tenantService != nil && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) || (scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1))) {
+	isPlatformCloudChange := strings.EqualFold(strings.TrimSpace(req.MonitoringDomain), "CLOUD") ||
+		req.CloudMode != nil ||
+		config.Get().IsCloudMode()
+
+	if isPlatformCloudChange && !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang dapat mengubah konfigurasi saat mode Cloud aktif")
+		return
+	}
+
+	if !isPlatformCloudChange && h.tenantService != nil && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) || (scope.IsSuperAdmin && (scope.TenantID > 1 || scope.SiteID > 1))) {
 		result, err := h.systemService.SaveScopedSiteDomainConfig(c.Request.Context(), req, actorID, actorUsername, ip, ua)
 		if err != nil {
 			response.BadRequest(c, err.Error())
@@ -1342,9 +1354,12 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 
 // CheckDomainCompatibility validates parameters and category alignment before domain switch
 func (h *SystemHandler) CheckDomainCompatibility(c *gin.Context) {
-	target := c.Query("target")
+	target := strings.TrimSpace(c.Query("target"))
 	if target == "" {
-		response.BadRequest(c, "Target domain parameter 'target' is required (e.g. 'AQMS', 'WQMS', 'CUSTOM')")
+		target = strings.TrimSpace(c.Query("target_domain"))
+	}
+	if target == "" {
+		response.BadRequest(c, "Target domain parameter 'target' is required (e.g. 'AQMS', 'WQMS', 'CUSTOM', 'CLOUD')")
 		return
 	}
 

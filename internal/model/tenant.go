@@ -88,7 +88,7 @@ func (s *Site) BeforeSave(tx *gorm.DB) error {
 	s.Code = NormalizeSlugCode(s.Code)
 	s.Name = strings.TrimSpace(s.Name)
 	dom := strings.ToUpper(strings.TrimSpace(s.MonitoringDomain))
-	if dom != "AQMS" && dom != "SPARING" && dom != "ONLIMO" && dom != "WQMS" && dom != "CUSTOM" {
+	if dom != "AQMS" && dom != "SPARING" && dom != "ONLIMO" && dom != "WQMS" && dom != "CUSTOM" && dom != "CLOUD" {
 		dom = "AQMS"
 	}
 	s.MonitoringDomain = dom

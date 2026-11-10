@@ -480,14 +480,16 @@
             <button
               id="btn-toggle-sensor-polling"
               type="button"
-              :disabled="savingModules"
+              :disabled="savingModules || acqModules.cloud_mode"
               @click="toggleAcquisitionModule('sensor_polling_enabled')"
-              class="px-3 py-1.5 rounded-xl font-mono text-3xs font-bold border transition cursor-pointer flex-shrink-0"
-              :class="acqModules.sensor_polling_enabled
-                ? 'bg-emerald-600 text-white btn-text border-emerald-600'
-                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'"
+              class="px-3 py-1.5 rounded-xl font-mono text-3xs font-bold border transition flex-shrink-0"
+              :class="acqModules.cloud_mode
+                ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 cursor-not-allowed'
+                : acqModules.sensor_polling_enabled
+                  ? 'bg-emerald-600 text-white btn-text border-emerald-600 cursor-pointer'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 cursor-pointer'"
             >
-              {{ acqModules.sensor_polling_enabled ? 'ENABLED' : 'PAUSED' }}
+              {{ acqModules.cloud_mode ? 'OFF (CLOUD MODE)' : (acqModules.sensor_polling_enabled ? 'ENABLED' : 'PAUSED') }}
             </button>
           </div>
 
@@ -1377,7 +1379,8 @@ export default {
         const d = res.data && res.data.data;
         if (d) {
           this.acqModules = {
-            sensor_polling_enabled: d.sensor_polling_enabled !== false,
+            cloud_mode: Boolean(d.cloud_mode || String(d.monitoring_domain || '').toUpperCase() === 'CLOUD'),
+            sensor_polling_enabled: !d.cloud_mode && d.sensor_polling_enabled !== false,
             mqtt_ingest_enabled: d.mqtt_ingest_enabled !== false,
             mqtt_broker_url: d.mqtt_broker_url || '',
             mqtt_topic_prefix: d.mqtt_topic_prefix || 'datalogger/ingest/+',

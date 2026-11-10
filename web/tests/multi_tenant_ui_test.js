@@ -19,6 +19,7 @@ const accessControlCode = fs.readFileSync(path.join(srcDir, 'views/AccessControl
 const deviceModalCode = fs.readFileSync(path.join(srcDir, 'components/DeviceModal.vue'), 'utf8');
 const devicesViewCode = fs.readFileSync(path.join(srcDir, 'views/DevicesView.vue'), 'utf8');
 const integrationViewCode = fs.readFileSync(path.join(srcDir, 'views/IntegrationView.vue'), 'utf8');
+const configViewCode = fs.readFileSync(path.join(srcDir, 'views/ConfigView.vue'), 'utf8');
 
 // 1. Vuex Store: Tenant & Site State, Actions, and WebSocket SET_SCOPE Handshake
 assert(storeCode.includes('activeTenantId'), 'Vuex store must define activeTenantId state');
@@ -42,10 +43,19 @@ assert(headerCode.includes('header-site-switcher'), 'Header.vue must render #hea
 assert(headerCode.includes('Semua Tenant (Global)'), 'Header.vue must allow SUPERADMIN to view Semua Tenant (Global)');
 assert(headerCode.includes('Semua Stasiun'), 'Header.vue must allow selecting Semua Stasiun');
 
-// 5. Router & Sidebar: /administration/tenants Registration
+// 5. Router, Header & Sidebar: Strictly SUPERADMIN-Only /administration/tenants + Cloud Mode Menu Restrictions
 assert(routerCode.includes("path: '/administration/tenants'"), 'Router must register /administration/tenants');
 assert(routerCode.includes('TenantsManagementView'), 'Router must wire TenantsManagementView');
-assert(sidebarCode.includes('to="/administration/tenants"'), 'Sidebar must link to /administration/tenants');
+assert(
+  /path:\s*'\/administration\/tenants'[\s\S]{0,160}roles:\s*\['SUPERADMIN'\]/.test(routerCode),
+  'Router must restrict /administration/tenants strictly to SUPERADMIN'
+);
+assert(routerCode.includes("'/monitoring/devices'") && routerCode.includes('cloudRestrictedPrefixes'), 'Router must block Cloud-restricted paths for non-SUPERADMIN');
+assert(sidebarCode.includes('v-if="isSuperAdmin" to="/administration/tenants"'), 'Sidebar must restrict Tenant & Stasiun strictly to isSuperAdmin');
+assert(sidebarCode.includes('isSuperAdmin || !isCloudMode'), 'Sidebar must hide Devices & Sensors in Cloud mode for non-Superadmin');
+assert(sidebarCode.includes('isSuperAdmin || (!isOperator && !isCloudMode)'), 'Sidebar must hide Sensor Calibration in Cloud mode for non-Superadmin');
+assert(!headerCode.includes('v-if="isSuperAdmin || isAdmin"\n          to="/administration/tenants"'), 'Header must restrict Tenants shortcut strictly to SUPERADMIN');
+assert(configViewCode.includes("initiateDomainSwitch('CLOUD')"), 'ConfigView must offer CLOUD configuration mode');
 
 // 6. TenantsManagementView.vue: 3 Tabs + Standardized Bearer Token, AQMS/SPARING/ONLIMO Payload Generator, Configurable Modules & Light-Mode CSS Compliance
 assert(tenantsViewCode.includes("activeTab = 'tenants'"), 'TenantsManagementView must include tenants tab');

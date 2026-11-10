@@ -20,7 +20,8 @@
 
       <!-- Tab Switcher & First-Run Setup Button -->
       <div class="flex flex-wrap items-center gap-2">
-        <button @click="openSetupWizard"
+        <button v-if="isSuperAdmin || !isCloudActive"
+                @click="openSetupWizard"
                 class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-cyan-700 border border-cyan-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-cyan-400 dark:border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition shadow-xs">
           <span>🚀</span>
           <span>{{ $t('config.firstRunSetup') || 'First-Run Setup' }}</span>
@@ -29,30 +30,33 @@
         <div class="flex items-center space-x-1 bg-slate-100 dark:bg-[#111827] p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-sans shadow-xs">
           <button @click="activeTab = 'domain'"
                   class="px-3 py-1.5 rounded-md transition-colors flex items-center space-x-1.5"
-                  :class="activeTab === 'domain' ? 'bg-cyan-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                  :class="activeTab === 'domain' ? 'bg-cyan-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             <span>🌍</span>
             <span>{{ $t('config.tabDomain') || 'Monitoring Domain' }}</span>
           </button>
           <button @click="activeTab = 'branding'"
                   id="tab-btn-branding"
                   class="px-3 py-1.5 rounded-md transition-colors flex items-center space-x-1.5"
-                  :class="activeTab === 'branding' ? 'bg-cyan-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                  :class="activeTab === 'branding' ? 'bg-cyan-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             <span>🏢</span>
             <span>{{ $t('config.tabBranding') || 'Organization & Branding' }}</span>
           </button>
-          <button @click="activeTab = 'database'"
+          <button v-if="isSuperAdmin || !isCloudActive"
+                  @click="activeTab = 'database'"
                   class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="activeTab === 'database' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                  :class="activeTab === 'database' ? 'bg-blue-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             {{ $t('config.tabDatabase') || 'Database' }}
           </button>
-          <button @click="activeTab = 'general'"
+          <button v-if="isSuperAdmin || !isCloudActive"
+                  @click="activeTab = 'general'"
                   class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="activeTab === 'general' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                  :class="activeTab === 'general' ? 'bg-blue-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             {{ $t('config.tabGeneral') || 'Server & Runtime' }}
           </button>
-          <button @click="activeTab = 'localfirst'"
+          <button v-if="isSuperAdmin || !isCloudActive"
+                  @click="activeTab = 'localfirst'"
                   class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="activeTab === 'localfirst' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
+                  :class="activeTab === 'localfirst' ? 'bg-blue-600 text-white btn-text font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'">
             {{ $t('config.tabLocalFirst') || 'Local-First' }}
           </button>
         </div>
@@ -107,7 +111,16 @@
       </div>
 
       <!-- Domain Selection Cards Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div v-if="isCloudActive && !isSuperAdmin" class="p-4 rounded-xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-300 dark:border-sky-500/40 text-xs text-sky-900 dark:text-sky-200 flex items-center justify-between gap-3">
+        <div>
+          <div class="font-bold">☁️ Konfigurasi Platform CLOUD Aktif (Dikelola oleh Superadmin)</div>
+          <p class="text-2xs text-sky-700 dark:text-sky-300/90 mt-0.5">
+            Server beroperasi sebagai penerima telemetri Cloud tanpa modul sensor fisik. Anda tetap dapat mengelola identitas tampilan pada tab <strong>Organization &amp; Branding</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- 1. AQMS Card -->
         <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
              :class="form.monitoring_domain === 'AQMS'
@@ -150,7 +163,8 @@
               ✓ Active Domain
             </button>
             <button v-else @click="initiateDomainSwitch('AQMS')"
-                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-cyan-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
+                    :disabled="isCloudActive && !isSuperAdmin"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-cyan-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
               <span>Switch to AQMS</span>
               <span>→</span>
             </button>
@@ -200,7 +214,8 @@
               ✓ Active Domain
             </button>
             <button v-else @click="initiateDomainSwitch('WQMS')"
-                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-blue-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
+                    :disabled="isCloudActive && !isSuperAdmin"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-blue-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
               <span>Switch to WQMS</span>
               <span>→</span>
             </button>
@@ -249,7 +264,8 @@
               ✓ Active Domain
             </button>
             <button v-else @click="initiateDomainSwitch('SPARING')"
-                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-teal-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
+                    :disabled="isCloudActive && !isSuperAdmin"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-teal-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
               <span>Switch to SPARING</span>
               <span>→</span>
             </button>
@@ -298,7 +314,8 @@
               ✓ Active Domain
             </button>
             <button v-else @click="initiateDomainSwitch('ONLIMO')"
-                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-indigo-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
+                    :disabled="isCloudActive && !isSuperAdmin"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-indigo-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
               <span>Switch to ONLIMO</span>
               <span>→</span>
             </button>
@@ -346,9 +363,61 @@
               ✓ Active Domain
             </button>
             <button v-else @click="initiateDomainSwitch('CUSTOM')"
-                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-purple-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs">
+                    :disabled="isCloudActive && !isSuperAdmin"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-purple-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
               <span>Switch to CUSTOM</span>
               <span>→</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5. CLOUD Card (Multi-Tenant Central Telemetry Receiver) -->
+        <div class="p-4 rounded-xl border transition-all flex flex-col justify-between space-y-4"
+             :class="isCloudActive
+               ? 'bg-sky-50/70 dark:bg-sky-950/25 border-sky-400 dark:border-sky-500/60 shadow-sm ring-1 ring-sky-400/30'
+               : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl p-2 rounded-xl bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/20 dark:text-sky-400">☁️</span>
+              <span v-if="isCloudActive" class="text-4xs font-mono font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-300 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/40">
+                ACTIVE CLOUD
+              </span>
+              <span v-else class="text-4xs font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                CLOUD MODE
+              </span>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white font-sans flex items-center gap-1.5">
+                CLOUD
+                <span class="text-2xs text-slate-500 dark:text-slate-400 font-normal">Central Receiver</span>
+              </h3>
+              <p class="text-3xs text-slate-600 dark:text-slate-400 mt-1 leading-normal">
+                Server penerima telemetri terpusat tanpa modul pembacaan sensor fisik. Menu Devices &amp; Sensors, Kalibrasi Sensor, Telemetry Injector, serta ISPU / IP &amp; IKA dikunci khusus Superadmin.
+              </p>
+            </div>
+
+            <div class="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+              <span class="text-4xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold block">Mode Operasional:</span>
+              <div class="flex flex-wrap gap-1 text-3xs font-mono">
+                <span class="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20">Sensor Polling OFF</span>
+                <span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20">HTTP Bearer &amp; MQTT</span>
+                <span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20">Superadmin Control</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button v-if="isCloudActive" disabled
+                    class="w-full py-1.5 px-3 rounded-lg bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/30 text-xs font-semibold cursor-default text-center">
+              ✓ Active Cloud Mode
+            </button>
+            <button v-else @click="initiateDomainSwitch('CLOUD')"
+                    :disabled="!isSuperAdmin"
+                    :title="!isSuperAdmin ? 'Hanya Superadmin yang dapat mengaktifkan mode Cloud' : 'Aktifkan mode Cloud Receiver'"
+                    class="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:hover:bg-sky-600 dark:hover:text-white dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition text-center flex items-center justify-center gap-1 shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
+              <span>{{ isSuperAdmin ? 'Switch to CLOUD' : 'Superadmin Only' }}</span>
+              <span v-if="isSuperAdmin">→</span>
             </button>
           </div>
         </div>
@@ -843,11 +912,17 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" v-model="form.sensor_polling_enabled" class="mt-0.5 rounded text-emerald-600" />
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5"
+                     :class="isCloudActive ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'">
+                <input type="checkbox" v-model="form.sensor_polling_enabled" :disabled="isCloudActive" class="mt-0.5 rounded text-emerald-600" />
                 <div>
-                  <div class="font-semibold text-slate-900 dark:text-white">Aktifkan Modul Polling Sensor Fisik</div>
-                  <div class="text-3xs text-slate-500 mt-0.5">Matikan pada server pusat multi-tenant murni jika hanya menerima push API / MQTT dari tenant.</div>
+                  <div class="font-semibold text-slate-900 dark:text-white">
+                    Aktifkan Modul Polling Sensor Fisik
+                    <span v-if="isCloudActive" class="ml-1 text-3xs font-mono text-sky-600 dark:text-sky-400">(OFF di Mode CLOUD)</span>
+                  </div>
+                  <div class="text-3xs text-slate-500 mt-0.5">
+                    {{ isCloudActive ? 'Modul pembacaan sensor fisik dinonaktifkan otomatis karena konfigurasi CLOUD sedang aktif.' : 'Matikan pada server pusat multi-tenant murni jika hanya menerima push API / MQTT dari tenant.' }}
+                  </div>
                 </div>
               </label>
 
@@ -1333,6 +1408,7 @@ export default {
       },
       form: {
         monitoring_domain: 'AQMS',
+        cloud_mode: false,
         db_host: '127.0.0.1',
         db_port: '3306',
         db_name: 'datalogger',
@@ -1357,6 +1433,14 @@ export default {
     };
   },
   computed: {
+    isSuperAdmin() {
+      const u = (this.$store && this.$store.state && this.$store.state.user) || {};
+      const r = String(u.role || '').toUpperCase();
+      return r === 'SUPERADMIN' || r === 'ADMINISTRATOR';
+    },
+    isCloudActive() {
+      return Boolean(this.form.cloud_mode || String(this.form.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     rawMaxRangePresetValue() {
       const presets = [1, 6, 12, 24, 72, 168, 336, 720, 2160, 8760];
       const v = Number(this.form.raw_telemetry_max_range_hours) || 168;
@@ -1364,6 +1448,7 @@ export default {
     },
     currentDomainBadgeClass() {
       const d = (this.form.monitoring_domain || 'AQMS').toUpperCase();
+      if (d === 'CLOUD' || this.form.cloud_mode) return 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/30';
       if (d === 'AQMS') return 'bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/30';
       if (d === 'WQMS') return 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30';
       if (d === 'SPARING') return 'bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30';
@@ -1570,21 +1655,28 @@ export default {
           });
         });
 
+        const nextIsCloud = this.targetDomainForModal === 'CLOUD';
         const payload = {
           ...this.form,
           monitoring_domain: this.targetDomainForModal,
+          cloud_mode: nextIsCloud,
+          sensor_polling_enabled: nextIsCloud ? false : this.form.sensor_polling_enabled,
           reassignments: reassignmentsArray,
         };
 
         const res = await axios.post('/api/system/config', payload);
         if (res.data && res.data.success) {
           this.form.monitoring_domain = this.targetDomainForModal;
-          this.$store.commit('SET_SYSTEM_STATUS', {
-            monitoring_domain: this.targetDomainForModal,
-          });
+          this.form.cloud_mode = nextIsCloud;
+          if (nextIsCloud) {
+            this.form.sensor_polling_enabled = false;
+          }
+          await this.$store.dispatch('fetchSystemStatus');
           this.saveResult = {
             restart_required: false,
-            message: `Monitoring domain successfully transitioned to ${this.targetDomainForModal}. Zero data deletion guaranteed.`,
+            message: nextIsCloud
+              ? 'Konfigurasi CLOUD berhasil diaktifkan. Modul pembacaan sensor fisik dinonaktifkan dan menu teknis dikunci khusus Superadmin.'
+              : `Monitoring domain successfully transitioned to ${this.targetDomainForModal}. Zero data deletion guaranteed.`,
           };
           this.showDomainModal = false;
           await this.fetchConfig();

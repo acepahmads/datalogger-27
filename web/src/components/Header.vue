@@ -59,9 +59,9 @@
           </option>
         </select>
 
-        <!-- Quick Manage Tenants/Sites Shortcut for SUPERADMIN & ADMIN -->
+        <!-- Quick Manage Tenants/Sites Shortcut (Strictly SUPERADMIN Only) -->
         <router-link
-          v-if="isSuperAdmin || isAdmin"
+          v-if="isSuperAdmin"
           to="/administration/tenants"
           class="hidden sm:flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs"
           :class="$route.path.startsWith('/administration/tenants')

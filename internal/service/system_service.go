@@ -186,6 +186,8 @@ func (s *SystemService) GetSystemStatusOverviewScoped(ctx context.Context) (*mod
 		Goroutines:                info.Goroutines,
 		AppVersion:                s.cfg.Version,
 		MonitoringDomain:          monitoringDomain,
+		CloudMode:                 config.Get().IsCloudMode(),
+		SensorPollingEnabled:      config.Get().SensorPollingEnabled && !config.Get().IsCloudMode(),
 		RawTelemetryMaxRangeHours: config.Get().EffectiveRawTelemetryMaxRangeHours(),
 
 		ServiceStatus:   "RUNNING",
@@ -467,6 +469,7 @@ type SystemConfigDTO struct {
 	BackupScheduleTime          string `json:"backup_schedule_time"`
 	BackupCompression           string `json:"backup_compression"`
 	MonitoringDomain            string `json:"monitoring_domain"`
+	CloudMode                   bool   `json:"cloud_mode"`
 	SensorPollingEnabled        bool   `json:"sensor_polling_enabled"`
 	MQTTIngestEnabled           bool   `json:"mqtt_ingest_enabled"`
 	MQTTBrokerURL               string `json:"mqtt_broker_url"`
@@ -497,6 +500,7 @@ type SaveSystemConfigRequest struct {
 	SerialParity              string                          `json:"serial_parity"`
 	SerialTimeoutMs           int                             `json:"serial_timeout_ms"`
 	MonitoringDomain          string                          `json:"monitoring_domain"`
+	CloudMode                 *bool                           `json:"cloud_mode,omitempty"`
 	SensorPollingEnabled      *bool                           `json:"sensor_polling_enabled,omitempty"`
 	MQTTIngestEnabled         *bool                           `json:"mqtt_ingest_enabled,omitempty"`
 	MQTTBrokerURL             *string                         `json:"mqtt_broker_url,omitempty"`
@@ -544,7 +548,8 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		BackupScheduleTime:          cfg.BackupScheduleTime,
 		BackupCompression:           cfg.BackupCompression,
 		MonitoringDomain:            cfg.MonitoringDomain,
-		SensorPollingEnabled:        cfg.SensorPollingEnabled,
+		CloudMode:                   cfg.IsCloudMode(),
+		SensorPollingEnabled:        cfg.SensorPollingEnabled && !cfg.IsCloudMode(),
 		MQTTIngestEnabled:           cfg.MQTTIngestEnabled,
 		MQTTBrokerURL:               cfg.MQTTBrokerURL,
 		MQTTTopicPrefix:             cfg.MQTTTopicPrefix,
@@ -709,22 +714,50 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		cfg.MQTTTopicPrefix = topic
 	}
 
-	// Monitoring Domain
+	// Monitoring Domain & Platform Cloud Mode
+	if req.CloudMode != nil && *req.CloudMode && strings.TrimSpace(req.MonitoringDomain) == "" {
+		req.MonitoringDomain = "CLOUD"
+	}
 	if req.MonitoringDomain != "" {
 		dom := strings.ToUpper(strings.TrimSpace(req.MonitoringDomain))
-		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" && dom != "ONLIMO" {
-			return nil, errors.New("monitoring domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', or 'CUSTOM'")
+		if dom != "AQMS" && dom != "WQMS" && dom != "CUSTOM" && dom != "SPARING" && dom != "ONLIMO" && dom != "CLOUD" {
+			return nil, errors.New("monitoring domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', 'CUSTOM', or 'CLOUD'")
 		}
-		if dom != cfg.MonitoringDomain {
-			changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> %s", cfg.MonitoringDomain, dom))
-			cfg.MonitoringDomain = dom
-		}
-		if s.tenantService != nil && s.tenantService.GetRepo() != nil {
-			if st, err := s.tenantService.GetRepo().GetSiteByID(tenantctx.DefaultSiteID); err == nil && st != nil {
-				st.MonitoringDomain = dom
-				_ = s.tenantService.GetRepo().UpdateSite(st)
+		wasCloud := cfg.IsCloudMode()
+		if dom == "CLOUD" {
+			if !wasCloud || cfg.MonitoringDomain != "CLOUD" {
+				changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> CLOUD (cloud_mode=true, sensor_polling_enabled=false)", cfg.MonitoringDomain))
+			}
+			cfg.MonitoringDomain = "CLOUD"
+			cfg.CloudMode = true
+			cfg.SensorPollingEnabled = false
+			fVal := false
+			sensorPollingToggledTo = &fVal
+		} else {
+			if dom != cfg.MonitoringDomain || wasCloud {
+				changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> %s", cfg.MonitoringDomain, dom))
+				cfg.MonitoringDomain = dom
+			}
+			if wasCloud && (req.CloudMode == nil || !*req.CloudMode) {
+				cfg.CloudMode = false
+				if req.SensorPollingEnabled == nil {
+					cfg.SensorPollingEnabled = true
+					tVal := true
+					sensorPollingToggledTo = &tVal
+				}
+			}
+			if s.tenantService != nil && s.tenantService.GetRepo() != nil {
+				if st, err := s.tenantService.GetRepo().GetSiteByID(tenantctx.DefaultSiteID); err == nil && st != nil {
+					st.MonitoringDomain = dom
+					_ = s.tenantService.GetRepo().UpdateSite(st)
+				}
 			}
 		}
+	} else if cfg.IsCloudMode() && cfg.SensorPollingEnabled {
+		// In Cloud Mode, physical sensor polling always stays disabled
+		cfg.SensorPollingEnabled = false
+		fVal := false
+		sensorPollingToggledTo = &fVal
 	}
 
 	// Apply optional parameter category reassignments if provided
@@ -907,8 +940,8 @@ func isWaterMonitoringDomain(d string) bool {
 func (s *SystemService) CheckDomainCompatibilityScoped(ctx context.Context, targetDomain string) (*DomainCompatibilityReport, error) {
 	scope := tenantctx.FromContext(ctx)
 	target := strings.ToUpper(strings.TrimSpace(targetDomain))
-	if target != "AQMS" && target != "WQMS" && target != "SPARING" && target != "ONLIMO" && target != "CUSTOM" {
-		return nil, errors.New("target domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', or 'CUSTOM'")
+	if target != "AQMS" && target != "WQMS" && target != "SPARING" && target != "ONLIMO" && target != "CUSTOM" && target != "CLOUD" {
+		return nil, errors.New("target domain must be 'AQMS', 'SPARING', 'ONLIMO', 'WQMS', 'CUSTOM', or 'CLOUD'")
 	}
 
 	currentDomain := s.cfg.MonitoringDomain

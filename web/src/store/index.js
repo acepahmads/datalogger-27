@@ -105,6 +105,8 @@ export default new Vuex.Store({
       critical_alarms: 0,
       acknowledged_alarms: 0,
       monitoring_domain: 'AQMS',
+      cloud_mode: false,
+      sensor_polling_enabled: true,
       raw_telemetry_max_range_hours: 168,
     },
     progress: {

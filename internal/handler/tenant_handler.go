@@ -47,6 +47,10 @@ func (h *TenantHandler) GetContext(c *gin.Context) {
 
 func (h *TenantHandler) ListTenants(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses ke manajemen Tenant & Stasiun")
+		return
+	}
 	tenants, err := h.tenantService.ListTenants(scope)
 	if err != nil {
 		response.InternalError(c, err.Error())
@@ -57,6 +61,10 @@ func (h *TenantHandler) ListTenants(c *gin.Context) {
 
 func (h *TenantHandler) GetCurrentTenant(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses ke manajemen Tenant & Stasiun")
+		return
+	}
 	tid := scope.TenantID
 	if tid == 0 {
 		tid = tenantctx.DefaultTenantID
@@ -94,8 +102,8 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 
 func (h *TenantHandler) UpdateCurrentTenant(c *gin.Context) {
 	scope := middleware.GetScope(c)
-	if !scope.IsSuperAdmin && !strings.EqualFold(scope.Role, "ADMIN") {
-		response.Forbidden(c, "Hanya Superadmin atau Admin Tenant yang dapat memperbarui profil organisasi")
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang dapat memperbarui konfigurasi Tenant & Stasiun")
 		return
 	}
 	tid := scope.TenantID
@@ -130,8 +138,8 @@ func (h *TenantHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 	scope := middleware.GetScope(c)
-	if !scope.IsSuperAdmin && !strings.EqualFold(scope.Role, "ADMIN") {
-		response.Forbidden(c, "Hanya Superadmin atau Admin Tenant yang dapat memperbarui profil organisasi")
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang dapat memperbarui konfigurasi Tenant & Stasiun")
 		return
 	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -203,6 +211,10 @@ func (h *TenantHandler) ListSites(c *gin.Context) {
 
 func (h *TenantHandler) CreateSite(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses untuk menambah stasiun")
+		return
+	}
 	var req service.CreateSiteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid station payload: "+err.Error())
@@ -218,6 +230,10 @@ func (h *TenantHandler) CreateSite(c *gin.Context) {
 
 func (h *TenantHandler) UpdateSite(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses untuk mengubah stasiun")
+		return
+	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil || id == 0 {
 		response.BadRequest(c, "Invalid station ID")
@@ -247,6 +263,10 @@ func (h *TenantHandler) UpdateSite(c *gin.Context) {
 
 func (h *TenantHandler) DeleteSite(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses untuk menghapus stasiun")
+		return
+	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil || id == 0 {
 		response.BadRequest(c, "Invalid station ID")
@@ -272,6 +292,10 @@ func (h *TenantHandler) DeleteSite(c *gin.Context) {
 
 func (h *TenantHandler) ListAPIKeys(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses ke Bearer Token API Receiver")
+		return
+	}
 	var explicitTid uint
 	if tStr := strings.TrimSpace(c.Query("tenant_id")); tStr != "" {
 		if v, err := strconv.ParseUint(tStr, 10, 32); err == nil {
@@ -288,6 +312,10 @@ func (h *TenantHandler) ListAPIKeys(c *gin.Context) {
 
 func (h *TenantHandler) CreateAPIKey(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses ke Bearer Token API Receiver")
+		return
+	}
 	var req service.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid API key payload: "+err.Error())
@@ -309,6 +337,10 @@ func (h *TenantHandler) CreateAPIKey(c *gin.Context) {
 
 func (h *TenantHandler) ToggleAPIKey(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses ke Bearer Token API Receiver")
+		return
+	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil || id == 0 {
 		response.BadRequest(c, "Invalid API key ID")
@@ -345,6 +377,10 @@ func (h *TenantHandler) ToggleAPIKey(c *gin.Context) {
 
 func (h *TenantHandler) DeleteAPIKey(c *gin.Context) {
 	scope := middleware.GetScope(c)
+	if !scope.IsSuperAdmin {
+		response.Forbidden(c, "Hanya Superadmin yang memiliki akses ke Bearer Token API Receiver")
+		return
+	}
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil || id == 0 {
 		response.BadRequest(c, "Invalid API key ID")

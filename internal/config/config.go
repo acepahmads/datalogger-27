@@ -49,8 +49,9 @@ type Config struct {
 	BackupMinFreeSpaceMB        int64  `json:"backup_min_free_space_mb"`
 	BackupMaxKeepCount          int    `json:"backup_max_keep_count"`
 
-	// Primary Monitoring Domain: "AQMS", "SPARING", "ONLIMO", "WQMS", "CUSTOM"
+	// Primary Monitoring Domain: "AQMS", "SPARING", "ONLIMO", "WQMS", "CUSTOM", "CLOUD"
 	MonitoringDomain string `json:"monitoring_domain"`
+	CloudMode        bool   `json:"cloud_mode"`
 
 	// Configurable Telemetry Acquisition Modules (Multi-Tenant Receiver & Hybrid Edge)
 	SensorPollingEnabled bool   `json:"sensor_polling_enabled"`
@@ -254,6 +255,15 @@ func Load(configPath string) (*Config, error) {
 	if cfg.RawTelemetryMaxRangeHours <= 0 {
 		cfg.RawTelemetryMaxRangeHours = 168
 	}
+	if envCloud := strings.TrimSpace(os.Getenv("CLOUD_MODE")); envCloud != "" {
+		cfg.CloudMode = strings.EqualFold(envCloud, "true") || envCloud == "1" || strings.EqualFold(envCloud, "yes")
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.MonitoringDomain), "CLOUD") {
+		cfg.CloudMode = true
+	}
+	if cfg.CloudMode {
+		cfg.SensorPollingEnabled = false
+	}
 
 	// Ensure data, log, queue, and backup directories exist
 	_ = os.MkdirAll(cfg.DataDir, 0755)
@@ -298,13 +308,21 @@ func Get() *Config {
 	return globalConfig
 }
 
-// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, SPARING, ONLIMO, WQMS, or CUSTOM.
+// NormalizeMonitoringDomain ensures the domain is uppercase and one of the valid values: AQMS, SPARING, ONLIMO, WQMS, CUSTOM, or CLOUD.
 func NormalizeMonitoringDomain(domain string) string {
 	d := strings.ToUpper(strings.TrimSpace(domain))
-	if d == "AQMS" || d == "SPARING" || d == "ONLIMO" || d == "WQMS" || d == "CUSTOM" {
+	if d == "AQMS" || d == "SPARING" || d == "ONLIMO" || d == "WQMS" || d == "CUSTOM" || d == "CLOUD" {
 		return d
 	}
 	return "AQMS"
+}
+
+// IsCloudMode returns true when the platform is configured in Cloud Receiver mode (physical sensor polling disabled).
+func (c *Config) IsCloudMode() bool {
+	if c == nil {
+		return false
+	}
+	return c.CloudMode || strings.EqualFold(strings.TrimSpace(c.MonitoringDomain), "CLOUD")
 }
 
 // EffectiveRawTelemetryMaxRangeHours returns the configured max query window in hours (defaulting to 168h / 7d).

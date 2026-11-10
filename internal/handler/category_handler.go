@@ -86,6 +86,10 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 					categories[i].Domain = effectiveDom
 				}
 			}
+		} else if effectiveDom == "CLOUD" {
+			for i := range categories {
+				categories[i].Domain = "ALL"
+			}
 		}
 	}
 

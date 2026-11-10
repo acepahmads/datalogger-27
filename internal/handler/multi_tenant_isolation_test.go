@@ -139,10 +139,10 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		tenantsGrp.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGrp.GET("/context", tenantHandler.GetContext)
-			tenantsGrp.GET("/current", tenantHandler.GetCurrentTenant)
-			tenantsGrp.GET("", tenantHandler.ListTenants)
+			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN"), tenantHandler.GetCurrentTenant)
+			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN"), tenantHandler.ListTenants)
 			tenantsGrp.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
-			tenantsGrp.PUT("/:id", tenantHandler.UpdateTenant)
+			tenantsGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateTenant)
 			tenantsGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
 		}
 
@@ -150,20 +150,20 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		sitesGrp.Use(middleware.JWTAuth(authService))
 		{
 			sitesGrp.GET("", middleware.RequirePermission("site.view"), tenantHandler.ListSites)
-			sitesGrp.POST("", middleware.RequirePermission("site.manage"), tenantHandler.CreateSite)
-			sitesGrp.PUT("/:id", middleware.RequirePermission("site.manage"), tenantHandler.UpdateSite)
-			sitesGrp.DELETE("/:id", middleware.RequirePermission("site.manage"), tenantHandler.DeleteSite)
+			sitesGrp.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateSite)
+			sitesGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.UpdateSite)
+			sitesGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteSite)
 		}
 
 		keysGrp := api.Group("/ingest-keys")
-		keysGrp.Use(middleware.JWTAuth(authService))
+		keysGrp.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN"))
 		{
-			keysGrp.GET("/payload-template", middleware.RequirePermission("device.view"), ingestHandler.GetPayloadTemplate)
-			keysGrp.GET("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ListAPIKeys)
-			keysGrp.POST("", middleware.RequirePermission("ingest_key.manage"), tenantHandler.CreateAPIKey)
-			keysGrp.PUT("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
-			keysGrp.PUT("/:id/enable", middleware.RequirePermission("ingest_key.manage"), tenantHandler.ToggleAPIKey)
-			keysGrp.DELETE("/:id", middleware.RequirePermission("ingest_key.manage"), tenantHandler.DeleteAPIKey)
+			keysGrp.GET("/payload-template", ingestHandler.GetPayloadTemplate)
+			keysGrp.GET("", tenantHandler.ListAPIKeys)
+			keysGrp.POST("", tenantHandler.CreateAPIKey)
+			keysGrp.PUT("/:id", tenantHandler.ToggleAPIKey)
+			keysGrp.PUT("/:id/enable", tenantHandler.ToggleAPIKey)
+			keysGrp.DELETE("/:id", tenantHandler.DeleteAPIKey)
 		}
 
 		usersGrp := api.Group("/users")
@@ -452,24 +452,36 @@ func TestMultiTenant_ScopedAdminSelfServiceAndSiteRestriction(t *testing.T) {
 		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from creating SUPERADMIN, got %d", wEscalation.Code)
 	}
 
-	// 1b. Tenant 1 ADMIN can update their own tenant branding via PUT /api/tenants/current
-	wSelfProfile := doJSONReq(t, env.Router, "PUT", "/api/tenants/current", env.Tenant1AdmToken, nil, map[string]interface{}{
-		"name":          "PT Default Industri",
-		"customer_name": "PT Default Industri Mandiri",
+	// 1b. Tenant & Stasiun management is STRICTLY SUPERADMIN ONLY: Tenant 1 ADMIN gets 403 Forbidden on /api/tenants, POST /api/sites, and /api/ingest-keys
+	wAdmTenantEdit := doJSONReq(t, env.Router, "PUT", "/api/tenants/current", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"name": "PT Default Industri",
 	})
-	if wSelfProfile.Code != http.StatusOK {
-		t.Fatalf("Tenant 1 ADMIN update self profile failed (%d): %s", wSelfProfile.Code, wSelfProfile.Body.String())
+	if wAdmTenantEdit.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from PUT /api/tenants/current, got %d", wAdmTenantEdit.Code)
+	}
+	wAdmCreateSite := doJSONReq(t, env.Router, "POST", "/api/sites", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"name":              "Rogue Site",
+		"code":              "rogue-site",
+		"monitoring_domain": "SPARING",
+	})
+	if wAdmCreateSite.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from POST /api/sites, got %d", wAdmCreateSite.Code)
+	}
+	wAdmListKeys := doJSONReq(t, env.Router, "GET", "/api/ingest-keys", env.Tenant1AdmToken, nil, nil)
+	if wAdmListKeys.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from GET /api/ingest-keys, got %d", wAdmListKeys.Code)
 	}
 
-	// 2. Tenant 1 ADMIN creates Site #2 ("SPARING Outlet #2")
-	wSite2 := doJSONReq(t, env.Router, "POST", "/api/sites", env.Tenant1AdmToken, nil, map[string]interface{}{
+	// 2. SUPERADMIN creates Site #2 ("SPARING Outlet #2") under Tenant #1
+	wSite2 := doJSONReq(t, env.Router, "POST", "/api/sites", env.SuperAdminToken, nil, map[string]interface{}{
+		"tenant_id":         1,
 		"name":              "SPARING Outlet #2",
 		"code":              "sparing-outlet-2",
 		"monitoring_domain": "SPARING",
 		"enabled":           true,
 	})
 	if wSite2.Code != http.StatusOK && wSite2.Code != http.StatusCreated {
-		t.Fatalf("Tenant ADMIN create site failed (%d): %s", wSite2.Code, wSite2.Body.String())
+		t.Fatalf("SUPERADMIN create site failed (%d): %s", wSite2.Code, wSite2.Body.String())
 	}
 	var site2Resp struct {
 		Data model.Site `json:"data"`
@@ -477,20 +489,60 @@ func TestMultiTenant_ScopedAdminSelfServiceAndSiteRestriction(t *testing.T) {
 	_ = json.Unmarshal(wSite2.Body.Bytes(), &site2Resp)
 	site2ID := site2Resp.Data.ID
 
-	// Create a device specifically on Site #2
-	wDevSite2 := doJSONReq(t, env.Router, "POST", "/api/devices", env.Tenant1AdmToken, nil, map[string]interface{}{
+	// 2b. Verify CLOUD Configuration Mode: disables sensor polling & locks device/calibration mutations to SUPERADMIN only
+	t.Cleanup(func() {
+		cfg := config.Get()
+		cfg.CloudMode = false
+		cfg.MonitoringDomain = "AQMS"
+		cfg.SensorPollingEnabled = true
+	})
+	wSwitchCloud := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.SuperAdminToken, nil, map[string]interface{}{
+		"monitoring_domain": "CLOUD",
+		"cloud_mode":        true,
+	})
+	if wSwitchCloud.Code != http.StatusOK {
+		t.Fatalf("SUPERADMIN switch to CLOUD failed (%d): %s", wSwitchCloud.Code, wSwitchCloud.Body.String())
+	}
+
+	wCloudStatus := doJSONReq(t, env.Router, "GET", "/api/system/status", env.Tenant1AdmToken, map[string]string{
+		"X-Site-ID": fmt.Sprintf("%d", site2ID),
+	}, nil)
+	var cloudStatusResp struct {
+		Data model.SystemStatusOverview `json:"data"`
+	}
+	_ = json.Unmarshal(wCloudStatus.Body.Bytes(), &cloudStatusResp)
+	if !cloudStatusResp.Data.CloudMode || cloudStatusResp.Data.SensorPollingEnabled {
+		t.Fatalf("expected cloud_mode=true & sensor_polling_enabled=false, got cloud_mode=%t polling=%t",
+			cloudStatusResp.Data.CloudMode, cloudStatusResp.Data.SensorPollingEnabled)
+	}
+	if cloudStatusResp.Data.MonitoringDomain != "SPARING" {
+		t.Fatalf("expected Site #2 to preserve SPARING telemetry domain on Dashboard Operator while CloudMode is active, got %s", cloudStatusResp.Data.MonitoringDomain)
+	}
+
+	// Non-SUPERADMIN (Tenant 1 ADMIN) is blocked from creating devices when CLOUD mode is active
+	wAdmCloudDevBlocked := doJSONReq(t, env.Router, "POST", "/api/devices", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"site_id":     site2ID,
+		"device_code": "BLOCKED-CLOUD-DEV",
+		"device_name": "Should Fail",
+		"device_type": "EDGE_PUSH",
+	})
+	if wAdmCloudDevBlocked.Code != http.StatusForbidden {
+		t.Fatalf("SECURITY VIOLATION: Tenant ADMIN must be blocked from POST /api/devices in CLOUD mode, got %d", wAdmCloudDevBlocked.Code)
+	}
+
+	// SUPERADMIN CAN still create devices on Site #2 even when CLOUD mode is active
+	wDevSite2 := doJSONReq(t, env.Router, "POST", "/api/devices", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": "1",
+	}, map[string]interface{}{
 		"site_id":     site2ID,
 		"device_code": "SPARING-S2-01",
 		"device_name": "Sensor COD Outlet 2",
-		"device_type": "MODBUS_TCP",
+		"device_type": "EDGE_PUSH",
 		"status":      "ACTIVE",
-		"enabled":     false,
+		"enabled":     true,
 		"connection": map[string]interface{}{
-			"protocol":        "MODBUS_TCP",
-			"connection_type": "ETHERNET",
-			"host":            "10.1.2.10",
-			"port":            502,
-			"enabled":         false,
+			"protocol": "EDGE_PUSH",
+			"enabled":  true,
 		},
 	})
 	if wDevSite2.Code != http.StatusCreated && wDevSite2.Code != http.StatusOK {

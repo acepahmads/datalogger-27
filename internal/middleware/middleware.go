@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"datalogger/internal/config"
 	"datalogger/internal/database"
 	"datalogger/internal/logger"
 	"datalogger/internal/service"
@@ -211,11 +212,32 @@ func RequirePermission(permissionCode string) gin.HandlerFunc {
 			return
 		}
 
-		// Strict restriction: Non-superadmin CANNOT access development.* or tenant.manage
-		if strings.HasPrefix(permissionCode, "development.") || permissionCode == "tenant.manage" {
-			response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"'")
+		// Strict restriction: Non-superadmin CANNOT access development.*, tenant.manage, site.manage, or ingest_key.manage
+		if strings.HasPrefix(permissionCode, "development.") ||
+			permissionCode == "tenant.manage" ||
+			permissionCode == "site.manage" ||
+			permissionCode == "ingest_key.manage" {
+			response.Forbidden(c, "Access denied: missing required permission '"+permissionCode+"' (Superadmin only)")
 			c.Abort()
 			return
+		}
+
+		// Cloud Mode restriction: when platform Cloud Mode is active, non-SUPERADMIN cannot manage devices,
+		// sensor calibration, or ISPU/WQMS analytical configurations.
+		if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+			if permissionCode == "device.create" ||
+				permissionCode == "device.update" ||
+				permissionCode == "device.delete" ||
+				permissionCode == "device.manage" ||
+				permissionCode == "device.communication.manage" ||
+				permissionCode == "device.communication.test" ||
+				strings.HasPrefix(permissionCode, "calibration.") ||
+				strings.HasPrefix(permissionCode, "ispu.manage") ||
+				strings.HasPrefix(permissionCode, "wqms.manage") {
+				response.Forbidden(c, "Access denied: modul ini hanya dapat diakses oleh Superadmin pada konfigurasi Cloud")
+				c.Abort()
+				return
+			}
 		}
 
 		// Sensor Calibration restriction: strictly blocked for OPERATOR; accessible to all non-OPERATOR roles

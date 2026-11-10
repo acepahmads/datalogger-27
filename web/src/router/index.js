@@ -164,7 +164,7 @@ const routes = [
     path: '/administration/tenants',
     name: 'TenantsManagement',
     component: TenantsManagementView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN'] },
+    meta: { roles: ['SUPERADMIN'] },
   },
   { path: '/system/tenants', redirect: '/administration/tenants' },
   {
@@ -261,6 +261,41 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 3. RBAC validation
+  if (isAuth && !isSuper) {
+    if (!store.state.systemStatus || !store.state.systemStatus._cloudChecked) {
+      try {
+        await store.dispatch('fetchSystemStatus');
+        if (store.state.systemStatus) {
+          store.state.systemStatus._cloudChecked = true;
+        }
+      } catch (_) {}
+    }
+    const isCloudMode = Boolean(
+      (store.state.systemStatus && store.state.systemStatus.cloud_mode) ||
+      String((store.state.systemStatus && store.state.systemStatus.monitoring_domain) || '').toUpperCase() === 'CLOUD'
+    );
+    if (isCloudMode) {
+      const cloudRestrictedPrefixes = [
+        '/monitoring/devices',
+        '/devices',
+        '/monitoring/parameters',
+        '/monitoring/calibration',
+        '/calibration',
+        '/monitoring/telemetry-injection',
+        '/monitoring/ispu',
+        '/ispu',
+        '/monitoring/wqms',
+        '/wqms',
+      ];
+      if (cloudRestrictedPrefixes.some(p => to.path === p || to.path.startsWith(p + '/'))) {
+        return next({
+          path: '/access-denied',
+          query: { from: to.fullPath },
+        });
+      }
+    }
+  }
+
   if (to.meta && to.meta.disallowOperator && isOperator) {
     return next({
       path: '/access-denied',

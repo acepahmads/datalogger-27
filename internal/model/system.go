@@ -48,6 +48,8 @@ type SystemStatusOverview struct {
 	Goroutines     int     `json:"goroutines"`
 	AppVersion                string `json:"app_version"`
 	MonitoringDomain          string `json:"monitoring_domain"`
+	CloudMode                 bool   `json:"cloud_mode"`
+	SensorPollingEnabled      bool   `json:"sensor_polling_enabled"`
 	RawTelemetryMaxRangeHours int    `json:"raw_telemetry_max_range_hours"`
 
 	// Datalogger service status
