@@ -1338,6 +1338,7 @@ func (h *SystemHandler) GetConfig(c *gin.Context) {
 		cfg.DBUser = "***"
 		cfg.DBName = "***"
 		cfg.SerialPort = ""
+		cfg.SuperadminUsername = ""
 	}
 	response.OK(c, cfg)
 }
@@ -1369,7 +1370,10 @@ func (h *SystemHandler) SaveConfig(c *gin.Context) {
 	isAcqModuleChange := req.SensorPollingEnabled != nil ||
 		req.MQTTIngestEnabled != nil ||
 		req.MQTTBrokerURL != nil ||
-		req.MQTTTopicPrefix != nil
+		req.MQTTTopicPrefix != nil ||
+		req.SeedUsers != nil ||
+		req.SeedSampleData != nil ||
+		req.SuperadminUsername != nil
 
 	if isAcqModuleChange && !scope.IsSuperAdmin {
 		response.Forbidden(c, "Hanya Superadmin yang dapat mengatur modul pembacaan sensor dan modul MQTT")

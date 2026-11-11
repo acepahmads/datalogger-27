@@ -3,6 +3,7 @@ package database
 import (
 	"time"
 
+	"datalogger/internal/config"
 	"datalogger/internal/logger"
 	"datalogger/internal/model"
 
@@ -12,6 +13,17 @@ import (
 
 // Seed populates the database with initial required data if empty.
 func Seed(db *gorm.DB) error {
+	cfg := config.Get()
+	seedUsers := true
+	seedSampleData := true
+	if cfg != nil {
+		seedUsers = cfg.SeedUsers
+		seedSampleData = cfg.SeedSampleData
+	}
+	if !seedUsers && !seedSampleData {
+		return nil
+	}
+
 	var count int64
 	db.Model(&model.User{}).Count(&count)
 	if count > 0 {
@@ -67,16 +79,18 @@ func Seed(db *gorm.DB) error {
 	db.Create(&operatorRole)
 
 	// 2. Default Admin User (admin / admin123)
-	hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-	adminUser := model.User{
-		Username: "admin",
-		Email:    "admin@datalogger.local",
-		Password: string(hash),
-		FullName: "Lead System Engineer",
-		RoleID:   adminRole.ID,
-		IsActive: true,
+	if seedUsers {
+		hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+		adminUser := model.User{
+			Username: "admin",
+			Email:    "admin@datalogger.local",
+			Password: string(hash),
+			FullName: "Lead System Engineer",
+			RoleID:   adminRole.ID,
+			IsActive: true,
+		}
+		db.Create(&adminUser)
 	}
-	db.Create(&adminUser)
 
 	// 3. Populate All 10 Development Phases & Pre-configured Tasks
 	phasesData := []struct {
@@ -423,99 +437,101 @@ func Seed(db *gorm.DB) error {
 	}
 
 	// 4. Sample Industrial Devices & Parameters
-	modbusTCPType := model.DeviceType{Code: "MODBUS_TCP", Name: "Modbus TCP Meter", Protocol: "MODBUS_TCP", Description: "Industrial Ethernet Modbus TCP slave"}
-	modbusRTUType := model.DeviceType{Code: "MODBUS_RTU", Name: "Modbus RTU Sensor", Protocol: "MODBUS_RTU", Description: "RS-485 Modbus RTU serial device"}
-	mqttType := model.DeviceType{Code: "MQTT_GW", Name: "MQTT Gateway", Protocol: "MQTT", Description: "Local broker sensor aggregator"}
-	db.Create(&modbusTCPType)
-	db.Create(&modbusRTUType)
-	db.Create(&mqttType)
+	if seedSampleData {
+		modbusTCPType := model.DeviceType{Code: "MODBUS_TCP", Name: "Modbus TCP Meter", Protocol: "MODBUS_TCP", Description: "Industrial Ethernet Modbus TCP slave"}
+		modbusRTUType := model.DeviceType{Code: "MODBUS_RTU", Name: "Modbus RTU Sensor", Protocol: "MODBUS_RTU", Description: "RS-485 Modbus RTU serial device"}
+		mqttType := model.DeviceType{Code: "MQTT_GW", Name: "MQTT Gateway", Protocol: "MQTT", Description: "Local broker sensor aggregator"}
+		db.Create(&modbusTCPType)
+		db.Create(&modbusRTUType)
+		db.Create(&mqttType)
 
-	dev1 := model.Device{
-		DeviceCode:       "PM-01",
-		DeviceName:       "Main Power Quality Meter PM-500",
-		DeviceType:       "MODBUS_TCP",
-		Manufacturer:     "Schneider Electric",
-		Model:            "PowerLogic PM5560",
-		SerialNumber:     "SN-PM500-9841",
-		FirmwareVersion:  "v2.4.1",
-		Description:      "Main incoming power quality and energy meter for switchboard A",
-		Location:         "Main Electrical Switchboard A",
-		Timezone:         "UTC",
-		Status:           model.DeviceStatusActive,
-		ConnectionStatus: model.DeviceConnOnline,
-		Enabled:          true,
-		DeviceTypeID:     &modbusTCPType.ID,
-		LatencyMs:        12,
-		SuccessCount:     14820,
-		FailedCount:      3,
+		dev1 := model.Device{
+			DeviceCode:       "PM-01",
+			DeviceName:       "Main Power Quality Meter PM-500",
+			DeviceType:       "MODBUS_TCP",
+			Manufacturer:     "Schneider Electric",
+			Model:            "PowerLogic PM5560",
+			SerialNumber:     "SN-PM500-9841",
+			FirmwareVersion:  "v2.4.1",
+			Description:      "Main incoming power quality and energy meter for switchboard A",
+			Location:         "Main Electrical Switchboard A",
+			Timezone:         "UTC",
+			Status:           model.DeviceStatusActive,
+			ConnectionStatus: model.DeviceConnOnline,
+			Enabled:          true,
+			DeviceTypeID:     &modbusTCPType.ID,
+			LatencyMs:        12,
+			SuccessCount:     14820,
+			FailedCount:      3,
+		}
+		dev2 := model.Device{
+			DeviceCode:       "TH-01",
+			DeviceName:       "Server Room Temp & Humidity Sensor",
+			DeviceType:       "MODBUS_RTU",
+			Manufacturer:     "Sensirion",
+			Model:            "SHT35-DIS",
+			SerialNumber:     "SN-TH01-5521",
+			FirmwareVersion:  "v1.0.3",
+			Description:      "Environmental temperature and humidity sensor for server rack 01",
+			Location:         "Edge Server Rack 01",
+			Timezone:         "UTC",
+			Status:           model.DeviceStatusActive,
+			ConnectionStatus: model.DeviceConnOnline,
+			Enabled:          true,
+			DeviceTypeID:     &modbusRTUType.ID,
+			LatencyMs:        35,
+			SuccessCount:     9640,
+			FailedCount:      12,
+		}
+		dev3 := model.Device{
+			DeviceCode:       "FM-01",
+			DeviceName:       "Cooling Water Flow Meter FM-100",
+			DeviceType:       "MODBUS_TCP",
+			Manufacturer:     "Endress+Hauser",
+			Model:            "Promag 50W",
+			SerialNumber:     "SN-FM100-3329",
+			FirmwareVersion:  "v3.1.0",
+			Description:      "Electromagnetic flow meter for chilled water loop",
+			Location:         "Chiller Plant Room",
+			Timezone:         "UTC",
+			Status:           model.DeviceStatusActive,
+			ConnectionStatus: model.DeviceConnOnline,
+			Enabled:          true,
+			DeviceTypeID:     &modbusTCPType.ID,
+			LatencyMs:        18,
+			SuccessCount:     8200,
+			FailedCount:      0,
+		}
+		db.Create(&dev1)
+		db.Create(&dev2)
+		db.Create(&dev3)
+
+		// Connections (Standard 5-second polling cycle)
+		db.Create(&model.DeviceConnection{DeviceID: dev1.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.101", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
+		db.Create(&model.DeviceConnection{DeviceID: dev2.ID, Protocol: model.ProtocolModbusRTU, ConnectionType: "SERIAL", SerialPort: "COM3", BaudRate: 9600, DataBits: 8, StopBits: 1, Parity: "N", Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
+		db.Create(&model.DeviceConnection{DeviceID: dev3.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.103", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
+
+		// Sample Parameters
+		v := 220.5
+		c := 45.2
+		t := 24.8
+		h := 58.2
+		f := 125.4
+		db.Create(&model.Parameter{DeviceID: dev1.ID, ParameterCode: "VOLTAGE_L1", ParameterName: "Phase Voltage L1-N", Unit: "V", DataType: model.DataTypeFloat32, RegisterAddress: 30001, Scale: 0.1, CurrentValue: &v, Enabled: true})
+		db.Create(&model.Parameter{DeviceID: dev1.ID, ParameterCode: "CURRENT_L1", ParameterName: "Line Current L1", Unit: "A", DataType: model.DataTypeFloat32, RegisterAddress: 30003, Scale: 0.01, CurrentValue: &c, Enabled: true})
+		db.Create(&model.Parameter{DeviceID: dev2.ID, ParameterCode: "ROOM_TEMP", ParameterName: "Ambient Temperature", Unit: "°C", DataType: model.DataTypeFloat32, RegisterAddress: 40001, Scale: 0.1, CurrentValue: &t, Enabled: true})
+		db.Create(&model.Parameter{DeviceID: dev2.ID, ParameterCode: "ROOM_HUM", ParameterName: "Relative Humidity", Unit: "%RH", DataType: model.DataTypeFloat32, RegisterAddress: 40002, Scale: 0.1, CurrentValue: &h, Enabled: true})
+		db.Create(&model.Parameter{DeviceID: dev3.ID, ParameterCode: "FLOW_RATE", ParameterName: "Chilled Water Flow Rate", Unit: "m³/h", DataType: model.DataTypeFloat32, RegisterAddress: 30101, Scale: 0.1, CurrentValue: &f, Enabled: true})
+
+		// 5. Notification Channels
+		db.Create(&model.NotificationChannel{Name: "Web Notification Alert", Type: model.ChannelWeb, Enabled: true})
+		emailCh := model.NotificationChannel{Name: "Plant Ops Email", Type: model.ChannelEmail, Enabled: false, ConfigJSON: `{"smtp_host":"","smtp_port":587}`}
+		db.Create(&emailCh)
+		db.Model(&emailCh).Update("enabled", false)
+		tgCh := model.NotificationChannel{Name: "Engineering Telegram Bot", Type: model.ChannelTelegram, Enabled: false, ConfigJSON: `{"bot_token":"","chat_id":""}`}
+		db.Create(&tgCh)
+		db.Model(&tgCh).Update("enabled", false)
 	}
-	dev2 := model.Device{
-		DeviceCode:       "TH-01",
-		DeviceName:       "Server Room Temp & Humidity Sensor",
-		DeviceType:       "MODBUS_RTU",
-		Manufacturer:     "Sensirion",
-		Model:            "SHT35-DIS",
-		SerialNumber:     "SN-TH01-5521",
-		FirmwareVersion:  "v1.0.3",
-		Description:      "Environmental temperature and humidity sensor for server rack 01",
-		Location:         "Edge Server Rack 01",
-		Timezone:         "UTC",
-		Status:           model.DeviceStatusActive,
-		ConnectionStatus: model.DeviceConnOnline,
-		Enabled:          true,
-		DeviceTypeID:     &modbusRTUType.ID,
-		LatencyMs:        35,
-		SuccessCount:     9640,
-		FailedCount:      12,
-	}
-	dev3 := model.Device{
-		DeviceCode:       "FM-01",
-		DeviceName:       "Cooling Water Flow Meter FM-100",
-		DeviceType:       "MODBUS_TCP",
-		Manufacturer:     "Endress+Hauser",
-		Model:            "Promag 50W",
-		SerialNumber:     "SN-FM100-3329",
-		FirmwareVersion:  "v3.1.0",
-		Description:      "Electromagnetic flow meter for chilled water loop",
-		Location:         "Chiller Plant Room",
-		Timezone:         "UTC",
-		Status:           model.DeviceStatusActive,
-		ConnectionStatus: model.DeviceConnOnline,
-		Enabled:          true,
-		DeviceTypeID:     &modbusTCPType.ID,
-		LatencyMs:        18,
-		SuccessCount:     8200,
-		FailedCount:      0,
-	}
-	db.Create(&dev1)
-	db.Create(&dev2)
-	db.Create(&dev3)
-
-	// Connections (Standard 5-second polling cycle)
-	db.Create(&model.DeviceConnection{DeviceID: dev1.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.101", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
-	db.Create(&model.DeviceConnection{DeviceID: dev2.ID, Protocol: model.ProtocolModbusRTU, ConnectionType: "SERIAL", SerialPort: "COM3", BaudRate: 9600, DataBits: 8, StopBits: 1, Parity: "N", Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
-	db.Create(&model.DeviceConnection{DeviceID: dev3.ID, Protocol: model.ProtocolModbusTCP, ConnectionType: "ETHERNET", Host: "192.168.1.103", Port: 502, Timeout: 1000, RetryCount: 3, PollingInterval: 5000, Enabled: true})
-
-	// Sample Parameters
-	v := 220.5
-	c := 45.2
-	t := 24.8
-	h := 58.2
-	f := 125.4
-	db.Create(&model.Parameter{DeviceID: dev1.ID, ParameterCode: "VOLTAGE_L1", ParameterName: "Phase Voltage L1-N", Unit: "V", DataType: model.DataTypeFloat32, RegisterAddress: 30001, Scale: 0.1, CurrentValue: &v, Enabled: true})
-	db.Create(&model.Parameter{DeviceID: dev1.ID, ParameterCode: "CURRENT_L1", ParameterName: "Line Current L1", Unit: "A", DataType: model.DataTypeFloat32, RegisterAddress: 30003, Scale: 0.01, CurrentValue: &c, Enabled: true})
-	db.Create(&model.Parameter{DeviceID: dev2.ID, ParameterCode: "ROOM_TEMP", ParameterName: "Ambient Temperature", Unit: "°C", DataType: model.DataTypeFloat32, RegisterAddress: 40001, Scale: 0.1, CurrentValue: &t, Enabled: true})
-	db.Create(&model.Parameter{DeviceID: dev2.ID, ParameterCode: "ROOM_HUM", ParameterName: "Relative Humidity", Unit: "%RH", DataType: model.DataTypeFloat32, RegisterAddress: 40002, Scale: 0.1, CurrentValue: &h, Enabled: true})
-	db.Create(&model.Parameter{DeviceID: dev3.ID, ParameterCode: "FLOW_RATE", ParameterName: "Chilled Water Flow Rate", Unit: "m³/h", DataType: model.DataTypeFloat32, RegisterAddress: 30101, Scale: 0.1, CurrentValue: &f, Enabled: true})
-
-	// 5. Notification Channels
-	db.Create(&model.NotificationChannel{Name: "Web Notification Alert", Type: model.ChannelWeb, Enabled: true})
-	emailCh := model.NotificationChannel{Name: "Plant Ops Email", Type: model.ChannelEmail, Enabled: false, ConfigJSON: `{"smtp_host":"","smtp_port":587}`}
-	db.Create(&emailCh)
-	db.Model(&emailCh).Update("enabled", false)
-	tgCh := model.NotificationChannel{Name: "Engineering Telegram Bot", Type: model.ChannelTelegram, Enabled: false, ConfigJSON: `{"bot_token":"","chat_id":""}`}
-	db.Create(&tgCh)
-	db.Model(&tgCh).Update("enabled", false)
 
 	// 6. Initial Audit Trail & Logs
 	db.Create(&model.AuditTrail{

@@ -976,6 +976,51 @@
             </div>
           </div>
 
+          <!-- Database Seeding Governance (SUPERADMIN Only) -->
+          <div v-if="isSuperAdmin" class="border-t border-slate-200 dark:border-slate-800/80 pt-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  Database Seeding &amp; Initial Account Provisioning
+                </h3>
+                <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Atur pembuatan otomatis akun demo (<code class="font-mono">seed_users</code>) dan perangkat contoh (<code class="font-mono">seed_sample_data</code>) pada <code class="font-mono">config.json</code> saat startup. Default <strong>OFF</strong> di mode CLOUD.
+                </p>
+              </div>
+              <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+                Superadmin Only · Startup Config
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" v-model="form.seed_users" class="mt-0.5 rounded text-indigo-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white">
+                    Seed Default Role Users (<code class="font-mono text-2xs">seed_users</code>)
+                    <span v-if="isCloudActive && !form.seed_users" class="ml-1 text-3xs font-mono text-sky-600 dark:text-sky-400">(Default OFF di Mode CLOUD)</span>
+                  </div>
+                  <div class="text-3xs text-slate-500 mt-0.5">
+                    Jika OFF, sistem tidak membuat akun demo (<code class="font-mono">admin_user</code>, <code class="font-mono">engineer_user</code>, <code class="font-mono">operator_user</code>) dan hanya menyiapkan 1 Superadmin awal bila tabel user kosong.
+                  </div>
+                </div>
+              </label>
+
+              <label class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" v-model="form.seed_sample_data" class="mt-0.5 rounded text-indigo-600" />
+                <div>
+                  <div class="font-semibold text-slate-900 dark:text-white">
+                    Seed Sample Devices &amp; Parameters (<code class="font-mono text-2xs">seed_sample_data</code>)
+                    <span v-if="isCloudActive && !form.seed_sample_data" class="ml-1 text-3xs font-mono text-sky-600 dark:text-sky-400">(Default OFF di Mode CLOUD)</span>
+                  </div>
+                  <div class="text-3xs text-slate-500 mt-0.5">
+                    Jika OFF, database baru tidak diisi perangkat contoh (<code class="font-mono">PM-01</code>, <code class="font-mono">TH-01</code>, <code class="font-mono">FM-01</code>) maupun kanal notifikasi bawaan.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <!-- Raw Telemetry Time Range Limit Governance -->
           <div class="border-t border-slate-200 dark:border-slate-800/80 pt-4">
             <div class="flex items-center justify-between mb-2">
@@ -1449,6 +1494,8 @@ export default {
         mqtt_ingest_enabled: true,
         mqtt_broker_url: '',
         mqtt_topic_prefix: 'datalogger/ingest/+',
+        seed_users: true,
+        seed_sample_data: true,
       },
     };
   },
@@ -1700,11 +1747,15 @@ export default {
         if (this.isSuperAdmin) {
           payload.sensor_polling_enabled = nextIsCloud ? false : this.form.sensor_polling_enabled;
           payload.mqtt_ingest_enabled = nextIsCloud ? false : this.form.mqtt_ingest_enabled;
+          payload.seed_users = nextIsCloud ? false : this.form.seed_users;
+          payload.seed_sample_data = nextIsCloud ? false : this.form.seed_sample_data;
         } else {
           delete payload.sensor_polling_enabled;
           delete payload.mqtt_ingest_enabled;
           delete payload.mqtt_broker_url;
           delete payload.mqtt_topic_prefix;
+          delete payload.seed_users;
+          delete payload.seed_sample_data;
         }
 
         const res = await axios.post('/api/system/config', payload);
@@ -1714,6 +1765,8 @@ export default {
           if (nextIsCloud) {
             this.form.sensor_polling_enabled = false;
             this.form.mqtt_ingest_enabled = false;
+            this.form.seed_users = false;
+            this.form.seed_sample_data = false;
           }
           await this.$store.dispatch('fetchSystemStatus');
           this.saveResult = {
@@ -1796,6 +1849,8 @@ export default {
             mqtt_ingest_enabled: cfg.mqtt_ingest_enabled !== false,
             mqtt_broker_url: cfg.mqtt_broker_url || '',
             mqtt_topic_prefix: cfg.mqtt_topic_prefix || 'datalogger/ingest/+',
+            seed_users: typeof cfg.seed_users === 'boolean' ? cfg.seed_users : !isCloudCfg,
+            seed_sample_data: typeof cfg.seed_sample_data === 'boolean' ? cfg.seed_sample_data : !isCloudCfg,
           };
         }
       } catch (err) {
@@ -1862,6 +1917,8 @@ export default {
           delete payload.mqtt_ingest_enabled;
           delete payload.mqtt_broker_url;
           delete payload.mqtt_topic_prefix;
+          delete payload.seed_users;
+          delete payload.seed_sample_data;
         }
         const res = await axios.post('/api/system/config', payload);
         if (res.data && res.data.success) {

@@ -53,6 +53,13 @@ type Config struct {
 	MonitoringDomain string `json:"monitoring_domain"`
 	CloudMode        bool   `json:"cloud_mode"`
 
+	// Database Seeding Governance (Default ON in Edge mode, Default OFF in Cloud mode)
+	SeedUsers           bool   `json:"seed_users"`
+	SeedSampleData      bool   `json:"seed_sample_data"`
+	BootstrapSuperadmin *bool  `json:"bootstrap_superadmin,omitempty"`
+	SuperadminUsername  string `json:"superadmin_username,omitempty"`
+	SuperadminPassword  string `json:"superadmin_password,omitempty"`
+
 	// Configurable Telemetry Acquisition Modules (Multi-Tenant Receiver & Hybrid Edge)
 	SensorPollingEnabled bool   `json:"sensor_polling_enabled"`
 	MQTTIngestEnabled    bool   `json:"mqtt_ingest_enabled"`
@@ -113,6 +120,9 @@ func DefaultConfig() *Config {
 		BackupMinFreeSpaceMB:        500,
 		BackupMaxKeepCount:          10,
 		MonitoringDomain:            "AQMS",
+		SeedUsers:                   true,
+		SeedSampleData:              true,
+		SuperadminUsername:          "admin",
 		SensorPollingEnabled:        true,
 		MQTTIngestEnabled:           true,
 		MQTTBrokerURL:               "",
@@ -127,12 +137,20 @@ func DefaultConfig() *Config {
 	}
 }
 
+func parseBoolEnvValue(raw string) bool {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	return v == "true" || v == "1" || v == "yes" || v == "on"
+}
+
 // Load loads configuration from environment variables, optional config file, or defaults.
 func Load(configPath string) (*Config, error) {
 	cfg := DefaultConfig()
 
 	// If config file exists, load it
 	hasExplicitMQTTInFile := false
+	hasExplicitSeedUsersInFile := false
+	hasExplicitSeedSampleInFile := false
+	fileExplicitCloudReady := false
 	if configPath != "" {
 		if rawBytes, err := os.ReadFile(configPath); err == nil {
 			if err := json.Unmarshal(rawBytes, cfg); err != nil {
@@ -141,6 +159,22 @@ func Load(configPath string) (*Config, error) {
 			var rawMap map[string]json.RawMessage
 			if json.Unmarshal(rawBytes, &rawMap) == nil {
 				_, hasExplicitMQTTInFile = rawMap["mqtt_ingest_enabled"]
+				_, hasExplicitSeedUsersInFile = rawMap["seed_users"]
+				_, hasExplicitSeedSampleInFile = rawMap["seed_sample_data"]
+
+				var rawDomain string
+				if rawDomBytes, ok := rawMap["monitoring_domain"]; ok {
+					_ = json.Unmarshal(rawDomBytes, &rawDomain)
+				}
+				rawCloudVal, hasRawCloudKey := false, false
+				if rawCloudBytes, ok := rawMap["cloud_mode"]; ok {
+					hasRawCloudKey = true
+					_ = json.Unmarshal(rawCloudBytes, &rawCloudVal)
+				}
+				// Consider seed flags in file explicitly intended for Cloud when either:
+				// - cloud_mode is true in file, OR
+				// - monitoring_domain is "CLOUD" in file without a leftover "cloud_mode": false from the Edge template.
+				fileExplicitCloudReady = rawCloudVal || (strings.EqualFold(strings.TrimSpace(rawDomain), "CLOUD") && !hasRawCloudKey)
 			}
 		}
 	}
@@ -258,6 +292,44 @@ func Load(configPath string) (*Config, error) {
 	if cfg.RawTelemetryMaxRangeHours <= 0 {
 		cfg.RawTelemetryMaxRangeHours = 168
 	}
+	hasEnvSeedUsers := false
+	if sUsers := strings.TrimSpace(os.Getenv("SEED_USERS")); sUsers != "" {
+		cfg.SeedUsers = parseBoolEnvValue(sUsers)
+		hasEnvSeedUsers = true
+	} else if sUsers2 := strings.TrimSpace(os.Getenv("DATALOGGER_SEED_USERS")); sUsers2 != "" {
+		cfg.SeedUsers = parseBoolEnvValue(sUsers2)
+		hasEnvSeedUsers = true
+	}
+
+	hasEnvSeedSample := false
+	if sSample := strings.TrimSpace(os.Getenv("SEED_SAMPLE_DATA")); sSample != "" {
+		cfg.SeedSampleData = parseBoolEnvValue(sSample)
+		hasEnvSeedSample = true
+	} else if sSample2 := strings.TrimSpace(os.Getenv("DATALOGGER_SEED_SAMPLE_DATA")); sSample2 != "" {
+		cfg.SeedSampleData = parseBoolEnvValue(sSample2)
+		hasEnvSeedSample = true
+	}
+
+	if bSuper := strings.TrimSpace(os.Getenv("BOOTSTRAP_SUPERADMIN")); bSuper != "" {
+		v := parseBoolEnvValue(bSuper)
+		cfg.BootstrapSuperadmin = &v
+	} else if bSuper2 := strings.TrimSpace(os.Getenv("DATALOGGER_BOOTSTRAP_SUPERADMIN")); bSuper2 != "" {
+		v := parseBoolEnvValue(bSuper2)
+		cfg.BootstrapSuperadmin = &v
+	}
+
+	if suUser := strings.TrimSpace(os.Getenv("SUPERADMIN_USER")); suUser != "" {
+		cfg.SuperadminUsername = suUser
+	} else if suUser2 := strings.TrimSpace(os.Getenv("DATALOGGER_SUPERADMIN_USER")); suUser2 != "" {
+		cfg.SuperadminUsername = suUser2
+	}
+
+	if suPass := os.Getenv("SUPERADMIN_PASSWORD"); suPass != "" {
+		cfg.SuperadminPassword = suPass
+	} else if suPass2 := os.Getenv("DATALOGGER_SUPERADMIN_PASSWORD"); suPass2 != "" {
+		cfg.SuperadminPassword = suPass2
+	}
+
 	if envCloud := strings.TrimSpace(os.Getenv("CLOUD_MODE")); envCloud != "" {
 		cfg.CloudMode = strings.EqualFold(envCloud, "true") || envCloud == "1" || strings.EqualFold(envCloud, "yes")
 	}
@@ -268,6 +340,12 @@ func Load(configPath string) (*Config, error) {
 		cfg.SensorPollingEnabled = false
 		if !hasExplicitMQTTInFile && os.Getenv("MQTT_INGEST_ENABLED") == "" && os.Getenv("DATALOGGER_MQTT_INGEST_ENABLED") == "" {
 			cfg.MQTTIngestEnabled = false
+		}
+		if !hasEnvSeedUsers && (!hasExplicitSeedUsersInFile || !fileExplicitCloudReady) {
+			cfg.SeedUsers = false
+		}
+		if !hasEnvSeedSample && (!hasExplicitSeedSampleInFile || !fileExplicitCloudReady) {
+			cfg.SeedSampleData = false
 		}
 	}
 
@@ -340,4 +418,31 @@ func (c *Config) EffectiveRawTelemetryMaxRangeHours() int {
 		return 8760
 	}
 	return c.RawTelemetryMaxRangeHours
+}
+
+// ShouldBootstrapSuperadmin returns true unless bootstrap_superadmin is explicitly disabled (false).
+func (c *Config) ShouldBootstrapSuperadmin() bool {
+	if c == nil || c.BootstrapSuperadmin == nil {
+		return true
+	}
+	return *c.BootstrapSuperadmin
+}
+
+// EffectiveSuperadminUsername returns the configured initial superadmin username (defaulting to "admin").
+func (c *Config) EffectiveSuperadminUsername() string {
+	if c == nil {
+		return "admin"
+	}
+	if u := strings.TrimSpace(c.SuperadminUsername); u != "" {
+		return u
+	}
+	return "admin"
+}
+
+// EffectiveSuperadminPassword returns the configured initial superadmin password (defaulting to "Password123!").
+func (c *Config) EffectiveSuperadminPassword() string {
+	if c == nil || c.SuperadminPassword == "" {
+		return "Password123!"
+	}
+	return c.SuperadminPassword
 }

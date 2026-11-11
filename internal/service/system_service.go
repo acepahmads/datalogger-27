@@ -474,6 +474,9 @@ type SystemConfigDTO struct {
 	BackupCompression           string `json:"backup_compression"`
 	MonitoringDomain            string `json:"monitoring_domain"`
 	CloudMode                   bool   `json:"cloud_mode"`
+	SeedUsers                   bool   `json:"seed_users"`
+	SeedSampleData              bool   `json:"seed_sample_data"`
+	SuperadminUsername          string `json:"superadmin_username,omitempty"`
 	SensorPollingEnabled        bool   `json:"sensor_polling_enabled"`
 	MQTTIngestEnabled           bool   `json:"mqtt_ingest_enabled"`
 	MQTTBrokerURL               string `json:"mqtt_broker_url"`
@@ -505,6 +508,9 @@ type SaveSystemConfigRequest struct {
 	SerialTimeoutMs           int                             `json:"serial_timeout_ms"`
 	MonitoringDomain          string                          `json:"monitoring_domain"`
 	CloudMode                 *bool                           `json:"cloud_mode,omitempty"`
+	SeedUsers                 *bool                           `json:"seed_users,omitempty"`
+	SeedSampleData            *bool                           `json:"seed_sample_data,omitempty"`
+	SuperadminUsername        *string                         `json:"superadmin_username,omitempty"`
 	SensorPollingEnabled      *bool                           `json:"sensor_polling_enabled,omitempty"`
 	MQTTIngestEnabled         *bool                           `json:"mqtt_ingest_enabled,omitempty"`
 	MQTTBrokerURL             *string                         `json:"mqtt_broker_url,omitempty"`
@@ -553,6 +559,9 @@ func (s *SystemService) GetSystemConfig() *SystemConfigDTO {
 		BackupCompression:           cfg.BackupCompression,
 		MonitoringDomain:            cfg.MonitoringDomain,
 		CloudMode:                   cfg.IsCloudMode(),
+		SeedUsers:                   cfg.SeedUsers,
+		SeedSampleData:              cfg.SeedSampleData,
+		SuperadminUsername:          cfg.EffectiveSuperadminUsername(),
 		SensorPollingEnabled:        cfg.SensorPollingEnabled && !cfg.IsCloudMode(),
 		MQTTIngestEnabled:           cfg.MQTTIngestEnabled,
 		MQTTBrokerURL:               cfg.MQTTBrokerURL,
@@ -718,6 +727,23 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		cfg.MQTTTopicPrefix = topic
 	}
 
+	// Database Seeding Governance
+	if req.SeedUsers != nil && *req.SeedUsers != cfg.SeedUsers {
+		changedNotes = append(changedNotes, fmt.Sprintf("seed_users: %t -> %t", cfg.SeedUsers, *req.SeedUsers))
+		cfg.SeedUsers = *req.SeedUsers
+	}
+	if req.SeedSampleData != nil && *req.SeedSampleData != cfg.SeedSampleData {
+		changedNotes = append(changedNotes, fmt.Sprintf("seed_sample_data: %t -> %t", cfg.SeedSampleData, *req.SeedSampleData))
+		cfg.SeedSampleData = *req.SeedSampleData
+	}
+	if req.SuperadminUsername != nil {
+		su := strings.TrimSpace(*req.SuperadminUsername)
+		if su != "" && su != cfg.EffectiveSuperadminUsername() {
+			changedNotes = append(changedNotes, fmt.Sprintf("superadmin_username: %s -> %s", cfg.EffectiveSuperadminUsername(), su))
+			cfg.SuperadminUsername = su
+		}
+	}
+
 	// Monitoring Domain & Platform Cloud Mode
 	if req.CloudMode != nil && *req.CloudMode && strings.TrimSpace(req.MonitoringDomain) == "" {
 		req.MonitoringDomain = "CLOUD"
@@ -730,13 +756,19 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 		wasCloud := cfg.IsCloudMode()
 		if dom == "CLOUD" {
 			if !wasCloud || cfg.MonitoringDomain != "CLOUD" {
-				changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> CLOUD (cloud_mode=true, sensor_polling_enabled=false, mqtt_ingest_enabled=false)", cfg.MonitoringDomain))
+				changedNotes = append(changedNotes, fmt.Sprintf("monitoring_domain: %s -> CLOUD (cloud_mode=true, sensor_polling_enabled=false, mqtt_ingest_enabled=false, seed_users=false, seed_sample_data=false)", cfg.MonitoringDomain))
 			}
 			cfg.MonitoringDomain = "CLOUD"
 			cfg.CloudMode = true
 			cfg.SensorPollingEnabled = false
 			if req.MQTTIngestEnabled == nil {
 				cfg.MQTTIngestEnabled = false
+			}
+			if req.SeedUsers == nil {
+				cfg.SeedUsers = false
+			}
+			if req.SeedSampleData == nil {
+				cfg.SeedSampleData = false
 			}
 			fVal := false
 			sensorPollingToggledTo = &fVal
@@ -754,6 +786,12 @@ func (s *SystemService) SaveSystemConfig(req SaveSystemConfigRequest, actorID ui
 				}
 				if req.MQTTIngestEnabled == nil {
 					cfg.MQTTIngestEnabled = true
+				}
+				if req.SeedUsers == nil {
+					cfg.SeedUsers = true
+				}
+				if req.SeedSampleData == nil {
+					cfg.SeedSampleData = true
 				}
 			}
 			if s.tenantService != nil && s.tenantService.GetRepo() != nil {

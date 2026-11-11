@@ -3595,33 +3595,61 @@ func ensurePhase7RBAC(db *gorm.DB) {
 		_ = db.Model(opRole).Association("Permissions").Replace(opPerms)
 	}
 
-	// 3. Ensure test user accounts for all 4 roles
-	hash123, _ := bcrypt.GenerateFromPassword([]byte("Password123!"), bcrypt.DefaultCost)
-	passHash := string(hash123)
+	// 3. Ensure initial SUPERADMIN bootstrap & optional default role accounts
+	cfg := config.Get()
+	seedUsers := true
+	bootstrapSuperadmin := true
+	superUsername := "admin"
+	superPlainPass := "Password123!"
+	if cfg != nil {
+		seedUsers = cfg.SeedUsers
+		bootstrapSuperadmin = cfg.ShouldBootstrapSuperadmin()
+		superUsername = cfg.EffectiveSuperadminUsername()
+		superPlainPass = cfg.EffectiveSuperadminPassword()
+	}
 
-	// Ensure user 'admin' has role SUPERADMIN and password set
+	hashSuper, _ := bcrypt.GenerateFromPassword([]byte(superPlainPass), bcrypt.DefaultCost)
+	superPassHash := string(hashSuper)
+
+	// Ensure user 'admin' (or configured superadmin_username):
+	// - Never overwrite an existing custom password (only set if empty or upgrading legacy Phase 1 "admin123").
+	// - When seed_users is false (e.g. Cloud mode), only bootstrap SUPERADMIN if 0 users exist in DB
+	//   so a fresh server is not locked out while deleted/renamed accounts are never resurrected.
 	if superadminRole, ok := roleMap["SUPERADMIN"]; ok && superadminRole != nil {
 		var adminUser model.User
-		if db.Where("username = ?", "admin").First(&adminUser).Error == nil {
-			updates := map[string]interface{}{
-				"role_id":   superadminRole.ID,
-				"is_active": true,
+		if db.Where("username = ?", superUsername).First(&adminUser).Error == nil {
+			updates := map[string]interface{}{}
+			if adminUser.RoleID != superadminRole.ID {
+				updates["role_id"] = superadminRole.ID
 			}
-			if adminUser.Password == "" || bcrypt.CompareHashAndPassword([]byte(adminUser.Password), []byte("Password123!")) != nil {
-				updates["password"] = passHash
+			if adminUser.Password == "" || bcrypt.CompareHashAndPassword([]byte(adminUser.Password), []byte("admin123")) == nil {
+				updates["password"] = superPassHash
 			}
-			_ = db.Model(&adminUser).Updates(updates).Error
+			if len(updates) > 0 {
+				_ = db.Model(&adminUser).Updates(updates).Error
+			}
 		} else {
-			db.Create(&model.User{
-				Username: "admin",
-				Email:    "admin@datalogger.local",
-				FullName: "Lead System Administrator",
-				Password: passHash,
-				RoleID:   superadminRole.ID,
-				IsActive: true,
-			})
+			var totalUsers int64
+			db.Model(&model.User{}).Count(&totalUsers)
+			if seedUsers || (bootstrapSuperadmin && totalUsers == 0) {
+				db.Create(&model.User{
+					Username: superUsername,
+					Email:    superUsername + "@datalogger.local",
+					FullName: "Lead System Administrator",
+					Password: superPassHash,
+					RoleID:   superadminRole.ID,
+					IsActive: true,
+				})
+			}
 		}
 	}
+
+	if !seedUsers {
+		return
+	}
+
+	hash123, _ := bcrypt.GenerateFromPassword([]byte("Password123!"), bcrypt.DefaultCost)
+	passHash := string(hash123)
 
 	// Seed admin_user (ADMIN)
 	if adminRole, ok := roleMap["ADMIN"]; ok && adminRole != nil {
@@ -3636,14 +3664,16 @@ func ensurePhase7RBAC(db *gorm.DB) {
 				IsActive: true,
 			})
 		} else {
-			updates := map[string]interface{}{
-				"role_id":   adminRole.ID,
-				"is_active": true,
+			updates := map[string]interface{}{}
+			if u.RoleID != adminRole.ID {
+				updates["role_id"] = adminRole.ID
 			}
-			if u.Password == "" || bcrypt.CompareHashAndPassword([]byte(u.Password), []byte("Password123!")) != nil {
+			if u.Password == "" {
 				updates["password"] = passHash
 			}
-			_ = db.Model(&u).Updates(updates).Error
+			if len(updates) > 0 {
+				_ = db.Model(&u).Updates(updates).Error
+			}
 		}
 	}
 
@@ -3660,14 +3690,16 @@ func ensurePhase7RBAC(db *gorm.DB) {
 				IsActive: true,
 			})
 		} else {
-			updates := map[string]interface{}{
-				"role_id":   engRole.ID,
-				"is_active": true,
+			updates := map[string]interface{}{}
+			if u.RoleID != engRole.ID {
+				updates["role_id"] = engRole.ID
 			}
-			if u.Password == "" || bcrypt.CompareHashAndPassword([]byte(u.Password), []byte("Password123!")) != nil {
+			if u.Password == "" {
 				updates["password"] = passHash
 			}
-			_ = db.Model(&u).Updates(updates).Error
+			if len(updates) > 0 {
+				_ = db.Model(&u).Updates(updates).Error
+			}
 		}
 	}
 
@@ -3684,14 +3716,16 @@ func ensurePhase7RBAC(db *gorm.DB) {
 				IsActive: true,
 			})
 		} else {
-			updates := map[string]interface{}{
-				"role_id":   opRole.ID,
-				"is_active": true,
+			updates := map[string]interface{}{}
+			if u.RoleID != opRole.ID {
+				updates["role_id"] = opRole.ID
 			}
-			if u.Password == "" || bcrypt.CompareHashAndPassword([]byte(u.Password), []byte("Password123!")) != nil {
+			if u.Password == "" {
 				updates["password"] = passHash
 			}
-			_ = db.Model(&u).Updates(updates).Error
+			if len(updates) > 0 {
+				_ = db.Model(&u).Updates(updates).Error
+			}
 		}
 	}
 }

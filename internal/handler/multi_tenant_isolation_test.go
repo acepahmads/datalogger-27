@@ -89,6 +89,8 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		if g := config.Get(); g != nil {
 			g.CloudMode = false
 			g.MonitoringDomain = "AQMS"
+			g.SeedUsers = true
+			g.SeedSampleData = true
 		}
 		_ = os.Remove("config.json")
 	})
