@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"datalogger/internal/config"
 	"datalogger/internal/model"
 	"datalogger/internal/repository"
 	"datalogger/internal/service"
@@ -12,6 +13,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func rejectCloudOperator(c *gin.Context) bool {
+	cfg := config.Get()
+	if cfg != nil && cfg.IsCloudMode() {
+		if roleVal, ok := c.Get("role"); ok {
+			if rStr, isStr := roleVal.(string); isStr && strings.EqualFold(strings.TrimSpace(rStr), "OPERATOR") {
+				response.Forbidden(c, "Role OPERATOR cannot access Delivery Queue or Outbound Integration in Cloud Mode")
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // OutboundHandler provides REST endpoints for destinations, configurable JSON payload schemas, and delivery queue inspection
 type OutboundHandler struct {
@@ -25,6 +39,9 @@ func NewOutboundHandler(service service.OutboundService) *OutboundHandler {
 
 // GetDestinations handles GET /api/destinations
 func (h *OutboundHandler) GetDestinations(c *gin.Context) {
+	if rejectCloudOperator(c) {
+		return
+	}
 	enabledParam := c.Query("enabled_only")
 	enabledOnly := enabledParam == "true" || enabledParam == "1"
 
@@ -43,6 +60,9 @@ func (h *OutboundHandler) GetDestinations(c *gin.Context) {
 
 // GetDestinationByID handles GET /api/destinations/:id
 func (h *OutboundHandler) GetDestinationByID(c *gin.Context) {
+	if rejectCloudOperator(c) {
+		return
+	}
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
@@ -266,6 +286,9 @@ func (h *OutboundHandler) TestPayload(c *gin.Context) {
 
 // GetQueueItems handles GET /api/integration/queue
 func (h *OutboundHandler) GetQueueItems(c *gin.Context) {
+	if rejectCloudOperator(c) {
+		return
+	}
 	filter := repository.QueueFilter{
 		Status: c.Query("status"),
 		Search: c.Query("search"),
@@ -336,6 +359,9 @@ func (h *OutboundHandler) GetQueueItems(c *gin.Context) {
 
 // GetQueueSummary handles GET /api/integration/queue/summary
 func (h *OutboundHandler) GetQueueSummary(c *gin.Context) {
+	if rejectCloudOperator(c) {
+		return
+	}
 	summary, err := h.service.GetQueueSummary(c.Request.Context())
 	if err != nil {
 		response.InternalError(c, "Failed to get queue summary: "+err.Error())
@@ -346,6 +372,9 @@ func (h *OutboundHandler) GetQueueSummary(c *gin.Context) {
 
 // GetQueueItemDetail handles GET /api/integration/queue/:id
 func (h *OutboundHandler) GetQueueItemDetail(c *gin.Context) {
+	if rejectCloudOperator(c) {
+		return
+	}
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 64)
 	if err != nil {

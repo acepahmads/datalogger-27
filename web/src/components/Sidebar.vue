@@ -312,7 +312,7 @@
       </div>
 
       <!-- SYSTEM -->
-      <div>
+      <div v-if="!isOperator || !isCloudMode">
         <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans">
           {{ $t('navigation.systemAdmin') }}
         </div>
@@ -382,7 +382,7 @@
             <span>{{ $t('navigation.integrations') || 'Outbound & Integration' }}</span>
           </router-link>
 
-          <router-link to="/integration/queue" class="nav-item" :class="{ 'nav-active': $route.path === '/integration/queue' || ($route.path === '/integration' && $route.query.tab === 'queue') }">
+          <router-link v-if="!isOperator || !isCloudMode" to="/integration/queue" class="nav-item" :class="{ 'nav-active': $route.path === '/integration/queue' || ($route.path === '/integration' && $route.query.tab === 'queue') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />

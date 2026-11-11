@@ -132,4 +132,16 @@ assert(storeCode.includes("'X-Auto-Login': '1'"), 'autoLoginOperator must send X
 assert(routerCode.includes('if (!isAuth && !isLoginPage && !isCloudMode)'), 'Router guard must never auto-login in Cloud mode');
 assert(mainCode.includes('if (isCloudMode)'), 'main.js must enforce mandatory login and skip autoLoginOperator in Cloud mode');
 
+// 12. LoginView Dark Mode Vue 2 Scoped CSS Compatibility & Cloud Mode Operator Delivery Queue Restriction
+assert(!loginViewCode.includes(':global('), 'LoginView.vue must not use Vue 3 :global() inside Vue 2 <style scoped>');
+assert(loginViewCode.includes('.login-dark .login-card'), 'LoginView.vue must define .login-dark .login-card');
+assert(loginViewCode.includes('.login-dark .login-field'), 'LoginView.vue must define .login-dark .login-field');
+assert(loginViewCode.includes('.login-dark .login-role-card'), 'LoginView.vue must define .login-dark .login-role-card');
+assert(loginViewCode.includes('.login-dark .login-top-control'), 'LoginView.vue must define .login-dark .login-top-control');
+assert(loginViewCode.includes('.login-dark .login-field:-webkit-autofill'), 'LoginView.vue must style dark mode browser autofill');
+
+assert(sidebarCode.includes('v-if="!isOperator || !isCloudMode" to="/integration/queue"'), 'Sidebar must hide Delivery Queue for OPERATOR in Cloud mode');
+assert(routerCode.includes("to.path === '/integration/queue'") && routerCode.includes('if (isCloudMode)'), 'Router must block OPERATOR from /integration/queue in Cloud mode');
+assert(integrationViewCode.includes('if (this.isOperator && this.isCloudMode)'), 'IntegrationView must guard against OPERATOR mount in Cloud mode');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

@@ -1,111 +1,254 @@
 <template>
-  <div class="space-y-6 font-sans">
-    <!-- Header & Breadcrumb -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <div class="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-          <router-link :to="isOperator ? '/monitoring/dashboard-operator' : '/monitoring/devices'" class="hover:text-blue-600 dark:hover:text-blue-400 flex items-center space-x-1">
+  <div class="space-y-2.5 font-sans compact-telemetry-workbench">
+    <!-- BAR 1: UNIFIED HEADER, MODE SWITCHER, QUICK TIME PILLS, LAYOUT & ACTIONS -->
+    <div class="saas-card px-3 py-2 bg-white dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
+      <!-- Left: Compact Breadcrumb + Title + Segmented Mode + Time Presets -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center space-x-2 pr-1">
+          <router-link
+            :to="isOperator ? '/monitoring/dashboard-operator' : '/monitoring/devices'"
+            class="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition"
+            :title="$t('navigation.monitoring')"
+          >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
-            <span>{{ $t('navigation.monitoring') }}</span>
           </router-link>
-          <span>/</span>
-          <span class="text-blue-600 dark:text-blue-400 font-semibold">{{ $t('analysis.breadcrumb') }}</span>
-        </div>
-        <div class="flex items-center space-x-3">
-          <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center space-x-2">
-            <span>{{ $t('analysis.title') }}</span>
+          <h1 class="text-sm font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+            {{ $t('analysis.breadcrumb') }}
           </h1>
-          <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 text-3xs font-mono font-bold uppercase tracking-wider">
-            {{ $t('analysis.semanticNotice') }}
-          </span>
         </div>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          {{ isOperator ? ($t('analysis.subtitleOperator') || $t('analysis.subtitle')) : $t('analysis.subtitle') }}
-        </p>
+
+        <span class="hidden sm:inline-block h-4 w-px bg-slate-200 dark:bg-slate-800"></span>
+
+        <!-- Segmented Data Source Mode Tabs -->
+        <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs">
+          <button
+            @click="setMode('HISTORICAL')"
+            :title="$t('analysis.historicalSemantic')"
+            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1.5"
+            :class="activeMode === 'HISTORICAL'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+          >
+            <span class="w-1.5 h-1.5 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-white' : 'bg-blue-500'"></span>
+            <span>{{ $t('analysis.modeHistorical') }}</span>
+          </button>
+
+          <button
+            v-if="!isOperator"
+            @click="setMode('RAW')"
+            :title="$t('analysis.rawSemantic')"
+            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1.5"
+            :class="activeMode === 'RAW'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+          >
+            <span class="w-1.5 h-1.5 rounded-full" :class="activeMode === 'RAW' ? 'bg-white' : 'bg-emerald-500'"></span>
+            <span>{{ $t('analysis.modeRaw') }}</span>
+          </button>
+
+          <button
+            @click="setMode('AGGREGATED')"
+            :title="$t('analysis.aggregatedSemantic')"
+            class="px-2.5 py-1 rounded-md font-semibold transition flex items-center space-x-1.5"
+            :class="activeMode === 'AGGREGATED'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+          >
+            <span class="w-1.5 h-1.5 rounded-full" :class="activeMode === 'AGGREGATED' ? 'bg-white' : 'bg-indigo-500'"></span>
+            <span>{{ $t('analysis.modeAggregated') }}</span>
+          </button>
+        </div>
+
+        <!-- 1-Click Quick Time Range Pills -->
+        <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-mono">
+          <button
+            v-for="tp in availableTimePresets"
+            :key="tp.value"
+            @click="selectTimePreset(tp.value)"
+            class="px-2 py-1 rounded-md font-semibold transition"
+            :class="filters.timePreset === tp.value
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-300/80 dark:bg-slate-800 dark:text-white dark:border-slate-700'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+          >
+            {{ tp.label }}
+          </button>
+        </div>
+        <span
+          v-if="activeMode === 'RAW'"
+          class="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-800/60 text-4xs font-mono font-semibold"
+        >
+          Max {{ rawMaxRangeShort }}
+        </span>
       </div>
 
-      <!-- Quick Action Buttons -->
-      <div class="flex flex-wrap items-center gap-2">
+      <!-- Right: Workspace Layout Switcher + Compact Actions -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <!-- Layout Density Mode (Split / Chart / Table) -->
+        <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-3xs font-semibold">
+          <button
+            @click="setWorkspaceLayout('SPLIT')"
+            class="px-2 py-1 rounded-md transition"
+            :class="workspaceLayout === 'SPLIT'
+              ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+            title="Split View: Trend Chart + Per-Series Stats + Data Table"
+          >
+            ⬒ {{ $t('analysis.layoutSplit') }}
+          </button>
+          <button
+            @click="setWorkspaceLayout('CHART')"
+            class="px-2 py-1 rounded-md transition"
+            :class="workspaceLayout === 'CHART'
+              ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+            title="Chart Focus View"
+          >
+            📈 {{ $t('analysis.layoutChart') }}
+          </button>
+          <button
+            @click="setWorkspaceLayout('TABLE')"
+            class="px-2 py-1 rounded-md transition"
+            :class="workspaceLayout === 'TABLE'
+              ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+            title="Table Focus View"
+          >
+            📋 {{ $t('analysis.layoutTable') }}
+          </button>
+        </div>
+
+        <!-- Refresh -->
         <button
           @click="fetchData"
           :disabled="loading"
-          class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-2 disabled:opacity-50"
+          :title="$t('common.refresh')"
+          class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold transition flex items-center space-x-1 disabled:opacity-50"
         >
           <svg class="w-3.5 h-3.5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          <span>{{ $t('common.refresh') }}</span>
+          <span class="hidden xl:inline">{{ $t('common.refresh') }}</span>
         </button>
 
-        <!-- Export Dropdown -->
-        <div class="relative">
+        <!-- Unified Export Dropdown (XLS, PDF, CSV, JSON + Chart PNG, JPG) -->
+        <div ref="exportMenuWrap" class="relative">
           <button
-            @click="exportDropdownOpen = !exportDropdownOpen"
-            class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-2"
+            @click.stop="exportDropdownOpen = !exportDropdownOpen"
+            :disabled="isExporting"
+            class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 text-2xs font-semibold transition flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
           >
-            <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>{{ $t('common.export') }}</span>
-            <svg class="w-3 h-3 text-slate-400 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
+
           <div
             v-if="exportDropdownOpen"
-            class="absolute right-0 mt-1 w-36 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 py-1"
+            class="absolute right-0 mt-1.5 w-52 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-40 py-1.5 divide-y divide-slate-100 dark:divide-slate-800"
           >
-            <button
-              @click="exportCSV"
-              class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center space-x-2"
-            >
-              <span>📄</span>
-              <span>{{ $t('analysis.exportCsv') }}</span>
-            </button>
-            <button
-              @click="exportJSON"
-              class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center space-x-2"
-            >
-              <span>📦</span>
-              <span>{{ $t('analysis.exportJson') }}</span>
-            </button>
+            <!-- Section 1: Data Export -->
+            <div class="pb-1">
+              <div class="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                {{ $t('analysis.exportDataGroup') }}
+              </div>
+              <button
+                @click="exportXLS"
+                :disabled="records.length === 0"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+              >
+                <span>📊 {{ $t('analysis.exportXls') }}</span>
+                <span class="text-4xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">XLS</span>
+              </button>
+              <button
+                @click="exportPDF"
+                :disabled="records.length === 0"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+              >
+                <span>📑 {{ $t('analysis.exportPdf') }}</span>
+                <span class="text-4xs font-mono text-rose-600 dark:text-rose-400 font-bold">PDF</span>
+              </button>
+              <button
+                @click="exportCSV"
+                :disabled="records.length === 0"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+              >
+                <span>📄 {{ $t('analysis.exportCsv') }}</span>
+                <span class="text-4xs font-mono text-slate-400 font-bold">CSV</span>
+              </button>
+              <button
+                @click="exportJSON"
+                :disabled="records.length === 0"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+              >
+                <span>📦 {{ $t('analysis.exportJson') }}</span>
+                <span class="text-4xs font-mono text-slate-400 font-bold">JSON</span>
+              </button>
+            </div>
+
+            <!-- Section 2: Chart Image Export -->
+            <div class="pt-1">
+              <div class="px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                {{ $t('analysis.exportChartGroup') }}
+              </div>
+              <button
+                @click="exportChart('png')"
+                :disabled="visibleSeries.length === 0"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+              >
+                <span>🖼️ {{ $t('analysis.exportChartPng') }}</span>
+                <span class="text-4xs font-mono text-blue-600 dark:text-blue-400 font-bold">PNG</span>
+              </button>
+              <button
+                @click="exportChart('jpg')"
+                :disabled="visibleSeries.length === 0"
+                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 flex items-center justify-between disabled:opacity-40"
+              >
+                <span>🖼️ {{ $t('analysis.exportChartJpg') }}</span>
+                <span class="text-4xs font-mono text-amber-600 dark:text-amber-400 font-bold">JPG</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- Superadmin Purge All Raw Telemetry (visible only in RAW mode for SUPERADMIN) -->
+        <!-- Superadmin Purge All Raw Telemetry -->
         <button
           v-if="isSuperAdmin && activeMode === 'RAW'"
           id="btn-analysis-purge-raw"
           @click="openPurgeRawModal"
           :disabled="isPurgingRaw || loading"
-          class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white border border-rose-500 text-xs font-semibold transition flex items-center space-x-1.5 shadow-sm disabled:opacity-50"
+          class="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white border border-rose-500 text-2xs font-semibold transition flex items-center space-x-1 shadow-xs disabled:opacity-50"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
-          <span>{{ $t('retention.purgeAllRawBtn') }}</span>
+          <span class="hidden sm:inline">{{ $t('retention.purgeAllRawBtn') }}</span>
         </button>
 
-        <!-- Superadmin Telemetry Injector Shortcut (visible strictly for SUPERADMIN) -->
+        <!-- Superadmin Telemetry Injector Shortcut -->
         <router-link
           v-if="isSuperAdmin"
           :to="filters.deviceId ? ('/monitoring/telemetry-injection?device_id=' + filters.deviceId) : '/monitoring/telemetry-injection'"
-          class="px-3.5 py-2 rounded-xl bg-violet-600/15 hover:bg-violet-600/25 text-violet-700 dark:text-violet-300 border border-violet-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-2.5 py-1.5 rounded-lg bg-violet-600/15 hover:bg-violet-600/25 text-violet-700 dark:text-violet-300 border border-violet-500/30 text-2xs font-semibold transition flex items-center space-x-1"
         >
           <span>⚡</span>
-          <span>Suntik Data</span>
+          <span class="hidden sm:inline">Suntik</span>
         </router-link>
 
         <!-- Shortcut to Live Telemetry (Hidden for Operator role) -->
         <router-link
           v-if="!isOperator"
           to="/monitoring/telemetry"
-          class="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 dark:border-emerald-500/30 text-xs font-semibold transition flex items-center space-x-1.5"
+          class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 dark:border-emerald-500/30 text-2xs font-semibold transition flex items-center space-x-1.5"
         >
-          <span class="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
-          <span>{{ $t('navigation.liveTelemetry') }}</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+          <span class="hidden xl:inline">{{ $t('navigation.liveTelemetry') }}</span>
+          <span class="xl:hidden">Live</span>
         </router-link>
       </div>
     </div>
@@ -113,147 +256,55 @@
     <!-- Purge Success Banner -->
     <div
       v-if="purgeSuccessMsg"
-      class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300"
+      class="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300"
     >
-      <div class="flex items-center space-x-2.5">
+      <div class="flex items-center space-x-2">
         <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
         </svg>
         <span class="font-semibold">{{ purgeSuccessMsg }}</span>
       </div>
-      <button @click="purgeSuccessMsg = ''" class="text-emerald-600 dark:text-emerald-400 hover:opacity-75 text-2xs font-bold px-2 py-0.5">
-        ✕
-      </button>
+      <button @click="purgeSuccessMsg = ''" class="text-emerald-600 dark:text-emerald-400 hover:opacity-75 text-2xs font-bold px-2 py-0.5">✕</button>
     </div>
 
-    <!-- Data Source / Semantic Mode Selector Bar -->
-    <div class="saas-card p-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-      <div class="grid gap-1.5 w-full md:w-auto" :class="isOperator ? 'grid-cols-2' : 'grid-cols-3'">
-        <!-- MODE 1: HISTORICAL / PROCESSED -->
-        <button
-          @click="setMode('HISTORICAL')"
-          class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
-          :class="activeMode === 'HISTORICAL'
-            ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-600/20 dark:text-blue-400 dark:border-blue-500/40 shadow-sm'
-            : 'bg-transparent text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          <div class="text-left">
-            <div class="font-bold leading-tight">{{ $t('analysis.modeHistorical') }}</div>
-            <div class="text-4xs text-slate-400 hidden sm:block">{{ $t('analysis.modeHistoricalDesc') }}</div>
-          </div>
-        </button>
-
-        <!-- MODE 2: RAW TELEMETRY (Hidden for Operator role) -->
-        <button
-          v-if="!isOperator"
-          @click="setMode('RAW')"
-          class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
-          :class="activeMode === 'RAW'
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-600/20 dark:text-emerald-400 dark:border-emerald-500/40 shadow-sm'
-            : 'bg-transparent text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
-          <div class="text-left">
-            <div class="font-bold leading-tight">{{ $t('analysis.modeRaw') }}</div>
-            <div class="text-4xs text-slate-400 hidden sm:block">{{ canAccessRawMode ? $t('analysis.modeRawDesc') : $t('deviceDetail.rawOperatorSubtitle') }}</div>
-          </div>
-        </button>
-
-        <!-- MODE 3: AGGREGATION & ROLLUP -->
-        <button
-          @click="setMode('AGGREGATED')"
-          class="px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center space-x-2 border"
-          :class="activeMode === 'AGGREGATED'
-            ? 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-600/20 dark:text-indigo-400 dark:border-indigo-500/40 shadow-sm'
-            : 'bg-transparent text-slate-500 border-transparent hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/40'"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <div class="text-left">
-            <div class="font-bold leading-tight">{{ $t('analysis.modeAggregated') }}</div>
-            <div class="text-4xs text-slate-400 hidden sm:block">{{ $t('analysis.modeAggregatedDesc') }}</div>
-          </div>
-        </button>
-      </div>
-
-      <!-- Mode Semantic Badge Description -->
-      <div class="px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 dark:bg-[#0B0F19] dark:border-slate-800/80 text-3xs font-mono dark:text-slate-300 flex items-center space-x-2">
-        <span class="w-2 h-2 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-blue-500' : activeMode === 'RAW' ? 'bg-emerald-500' : 'bg-indigo-500'"></span>
-        <span>
-          {{ activeMode === 'HISTORICAL' ? $t('analysis.historicalSemantic') : activeMode === 'RAW' ? $t('analysis.rawSemantic') : $t('analysis.aggregatedSemantic') }}
-        </span>
-      </div>
-    </div>
-
-    <!-- Unified Filters Bar -->
-    <div class="saas-card p-4 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <!-- 1. Device Filter (Hidden for Operator role) -->
-        <div v-if="!isOperator" class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('telemetry.device') }}</label>
+    <!-- BAR 2: SLIM INLINE FILTERS + LIVE TELEMETRY KPI STRIP -->
+    <div class="saas-card px-3 py-2 bg-white dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-xs">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <!-- Compact Inline Filter Controls -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          <!-- Device Filter (Hidden for Operator) -->
           <select
+            v-if="!isOperator"
             v-model="filters.deviceId"
             @change="onDeviceChange"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            :aria-label="$t('telemetry.device')"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[190px]"
           >
             <option value="">{{ $t('analysis.allDevices') }}</option>
             <option v-for="d in devicesList" :key="d.id" :value="d.id">
               {{ d.device_code }} — {{ d.device_name }}
             </option>
           </select>
-        </div>
 
-        <!-- 2. Parameter Filter -->
-        <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('telemetry.parameterName') }}</label>
+          <!-- Parameter Filter -->
           <select
             v-model="filters.parameterId"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            :aria-label="$t('telemetry.parameterName')"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 max-w-[210px]"
           >
             <option value="">{{ $t('analysis.allParameters') }}</option>
             <option v-for="p in availableParameters" :key="p.id" :value="p.id">
               {{ p.parameter_code }} ({{ p.parameter_name }})
             </option>
           </select>
-        </div>
 
-        <!-- 3. Time Preset Filter -->
-        <div class="space-y-1">
-          <div class="flex items-center justify-between">
-            <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.timeRange') }}</label>
-            <span v-if="activeMode === 'RAW'" class="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
-              {{ $t('deviceDetail.rawMaxWindowLabel', { limit: rawMaxRangeShort }) }}
-            </span>
-          </div>
-          <select
-            v-model="filters.timePreset"
-            @change="onTimePresetChange"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
-          >
-            <option value="15m">{{ $t('analysis.last15m') }}</option>
-            <option value="1h">{{ $t('analysis.last1h') }}</option>
-            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 6" value="6h">{{ $t('analysis.last6h') }}</option>
-            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 24" value="24h">{{ $t('analysis.last24h') }}</option>
-            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 168" value="7d">{{ $t('analysis.last7d') }}</option>
-            <option v-if="activeMode !== 'RAW' || rawMaxRangeHours >= 720" value="30d">{{ $t('analysis.last30d') }}</option>
-            <option value="custom">{{ $t('analysis.custom') }}</option>
-          </select>
-        </div>
-
-        <!-- 4. Quality Filter -->
-        <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.qualityFilter') }}</label>
+          <!-- Quality Filter -->
           <select
             v-model="filters.quality"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            :aria-label="$t('analysis.qualityFilter')"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('analysis.allQualities') }}</option>
             <option value="GOOD">{{ $t('telemetry.qualityGood') }}</option>
@@ -261,536 +312,538 @@
             <option value="BAD">{{ $t('telemetry.qualityBad') }}</option>
             <option value="STALE">{{ $t('telemetry.qualityStale') }}</option>
           </select>
-        </div>
 
-        <!-- 5. Mode Specific Filter (Aggregation function or Raw display toggle) -->
-        <div v-if="activeMode === 'AGGREGATED'" class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.function') }}</label>
+          <!-- Contextual Aggregation Function OR Raw Plot Mode -->
           <select
+            v-if="activeMode === 'AGGREGATED'"
             v-model="filters.aggFunction"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
           >
             <option value="">{{ $t('analysis.allFunctions') }}</option>
-            <option value="AVG">AVG</option>
-            <option value="MIN">MIN</option>
-            <option value="MAX">MAX</option>
-            <option value="SUM">SUM</option>
-            <option value="COUNT">COUNT</option>
-            <option value="FIRST">FIRST</option>
-            <option value="LAST">LAST</option>
+            <option value="AVG">Fn: AVG</option>
+            <option value="MIN">Fn: MIN</option>
+            <option value="MAX">Fn: MAX</option>
+            <option value="SUM">Fn: SUM</option>
+            <option value="COUNT">Fn: COUNT</option>
+            <option value="FIRST">Fn: FIRST</option>
+            <option value="LAST">Fn: LAST</option>
           </select>
-        </div>
 
-        <div v-else-if="activeMode === 'RAW' && canAccessRawMode" class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('analysis.trendChart') }}</label>
           <select
+            v-else-if="activeMode === 'RAW' && canAccessRawMode"
             v-model="rawChartMode"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
           >
             <option value="scaled">{{ $t('analysis.viewScaledValue') }}</option>
             <option value="raw">{{ $t('analysis.viewRawValue') }}</option>
           </select>
-        </div>
 
-        <!-- Page Size -->
-        <div class="space-y-1">
-          <label class="text-3xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ $t('common.limit') || 'Page Size' }}</label>
+          <!-- Page Size -->
           <select
             v-model="filters.pageSize"
             @change="fetchData"
-            class="w-full px-3 py-1.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 font-sans focus:outline-none focus:border-blue-500"
+            class="px-2 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-500"
           >
-            <option :value="50">50 records</option>
-            <option :value="100">100 records</option>
-            <option :value="250">250 records</option>
-            <option :value="500">500 records</option>
+            <option :value="50">50 / pg</option>
+            <option :value="100">100 / pg</option>
+            <option :value="250">250 / pg</option>
+            <option :value="500">500 / pg</option>
           </select>
+        </div>
+
+        <!-- Inline Monospace KPI Ribbon (Replaces 6 Tall KPI Cards) -->
+        <div
+          v-if="activeSingleSeriesStats"
+          class="flex flex-wrap items-center gap-2.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono tabular-nums"
+        >
+          <span class="font-bold text-slate-900 dark:text-white">
+            {{ activeSingleSeriesStats.label }}:
+            <span class="text-blue-600 dark:text-blue-400">{{ activeSingleSeriesStats.latest !== null ? activeSingleSeriesStats.latest : '--' }}</span>
+            <span class="text-3xs text-slate-500">{{ activeSingleSeriesStats.unit }}</span>
+          </span>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <span class="text-emerald-600 dark:text-emerald-400">Min <b>{{ activeSingleSeriesStats.min !== null ? activeSingleSeriesStats.min : '--' }}</b></span>
+          <span class="text-rose-600 dark:text-rose-400">Max <b>{{ activeSingleSeriesStats.max !== null ? activeSingleSeriesStats.max : '--' }}</b></span>
+          <span class="text-blue-600 dark:text-blue-400">Avg <b>{{ activeSingleSeriesStats.avg !== null ? activeSingleSeriesStats.avg : '--' }}</b></span>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <span class="text-slate-600 dark:text-slate-300">n=<b>{{ activeSingleSeriesStats.sampleCount }}</b></span>
+          <span class="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">{{ activeSingleSeriesStats.goodPercent }}% GOOD</span>
+        </div>
+
+        <div
+          v-else
+          class="flex flex-wrap items-center gap-2.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800 text-2xs font-mono tabular-nums"
+        >
+          <span class="text-slate-700 dark:text-slate-300">
+            {{ $t('analysis.activeSeries') }}: <b class="text-slate-900 dark:text-white">{{ visibleSeries.length }}/{{ seriesList.length }}</b>
+          </span>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <span class="text-slate-700 dark:text-slate-300">
+            {{ $t('analysis.samples') }}: <b class="text-slate-900 dark:text-white">{{ totalRecords }}</b>
+          </span>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <span class="px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+            {{ allSeriesOverview.goodPercent }}% GOOD
+          </span>
+          <template v-if="allSeriesOverview.latestMeasurement">
+            <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+            <span class="text-slate-500 dark:text-slate-400 hidden sm:inline truncate max-w-[240px]">
+              {{ (!isOperator && allSeriesOverview.latestMeasurement.deviceCode ? allSeriesOverview.latestMeasurement.deviceCode + ':' : '') + allSeriesOverview.latestMeasurement.paramCode }}
+              <b class="text-slate-900 dark:text-white">{{ formatVal(allSeriesOverview.latestMeasurement.value) }}</b>
+              {{ allSeriesOverview.latestMeasurement.unit || '' }}
+              <span class="text-4xs">({{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }})</span>
+            </span>
+          </template>
         </div>
       </div>
 
-      <!-- Custom Date Pickers (When custom preset selected) -->
-      <div v-if="filters.timePreset === 'custom'" class="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 text-xs">
-        <div class="flex items-center space-x-2">
+      <!-- Compact Custom Time Range Row -->
+      <div v-if="filters.timePreset === 'custom'" class="pt-1.5 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+        <div class="flex items-center space-x-1.5">
           <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.startDate') }}:</span>
           <input
             type="datetime-local"
             step="1"
             v-model="filters.startTime"
-            class="px-2.5 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            class="px-2 py-0.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
           />
         </div>
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-1.5">
           <span class="text-slate-500 dark:text-slate-400 text-3xs uppercase font-bold">{{ $t('analysis.endDate') }}:</span>
           <input
             type="datetime-local"
             step="1"
             v-model="filters.endTime"
-            class="px-2.5 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+            class="px-2 py-0.5 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none focus:border-blue-500"
           />
         </div>
         <button
           @click="fetchData"
-          class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition"
+          class="px-2.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition"
         >
           {{ $t('common.apply') || 'Apply' }}
         </button>
-        <span v-if="activeMode === 'RAW'" class="text-3xs font-mono text-cyan-600 dark:text-cyan-400">
-          * {{ $t('deviceDetail.rawMaxWindowLabel', { limit: rawMaxRangeShort }) }}
-        </span>
       </div>
     </div>
 
-    <!-- Summary KPI Cards -->
-    <!-- Case 1: Single Parameter Selected -->
-    <div v-if="filters.parameterId" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-      <!-- Latest Reading -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('analysis.latestValue') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ singleParamStats.latest !== null ? singleParamStats.latest : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono truncate">{{ singleParamStats.latestTime ? formatRelative(singleParamStats.latestTime) : '--' }}</div>
-      </div>
-
-      <!-- Minimum -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('analysis.min') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">{{ singleParamStats.min !== null ? singleParamStats.min : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">{{ $t('analysis.min') }} in window</div>
-      </div>
-
-      <!-- Maximum -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-rose-600 dark:text-rose-400">{{ $t('analysis.max') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-rose-600 dark:text-rose-400 tracking-tight">{{ singleParamStats.max !== null ? singleParamStats.max : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">{{ $t('analysis.max') }} in window</div>
-      </div>
-
-      <!-- Average -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-600 dark:text-blue-400">{{ $t('analysis.avg') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-blue-600 dark:text-blue-400 tracking-tight">{{ singleParamStats.avg !== null ? singleParamStats.avg : '--' }}</span>
-          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">{{ activeUnit }}</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">Mean across samples</div>
-      </div>
-
-      <!-- Sample Count -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('analysis.count') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ totalRecords }}</span>
-          <span class="text-3xs text-slate-500 dark:text-slate-400">items</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">{{ totalRecords }} points in set</div>
-      </div>
-
-      <!-- Quality Ratio -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-emerald-200 dark:border-emerald-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">{{ singleParamStats.goodPercent }}%</span>
-          <span class="text-3xs text-slate-500 dark:text-slate-400">Good</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">{{ singleParamStats.goodCount }} / {{ singleParamStats.sampleCount }} valid</div>
-      </div>
-    </div>
-
-    <!-- Case 2: All Parameters Selected (Overview Cards) -->
-    <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-      <!-- Active Series Count -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-blue-600 dark:text-blue-400">{{ $t('analysis.activeSeries') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ seriesList.length }}</span>
-          <span class="text-3xs font-mono text-slate-500 dark:text-slate-400">series</span>
-        </div>
-        <div class="text-4xs text-slate-500 dark:text-slate-400 font-mono">{{ allSeriesOverview.distinctUnitsCount }} distinct unit(s)</div>
-      </div>
-
-      <!-- Total Dataset Samples -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{{ $t('analysis.count') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">{{ totalRecords }}</span>
-          <span class="text-3xs text-slate-500 dark:text-slate-400">records</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">Total points across set</div>
-      </div>
-
-      <!-- Overall Quality Health -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-emerald-200 dark:border-emerald-500/20">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400">{{ $t('analysis.qualityRatio') }}</div>
-        <div class="flex items-baseline space-x-1.5">
-          <span class="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">{{ allSeriesOverview.goodPercent }}%</span>
-          <span class="text-3xs text-slate-500 dark:text-slate-400">Good</span>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono">{{ allSeriesOverview.goodCount }} / {{ allSeriesOverview.totalCount }} valid</div>
-      </div>
-
-      <!-- Most Recent Measurement (With explicit device, param, unit) -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800 col-span-2">
-        <div class="flex items-center justify-between">
-          <span class="text-3xs uppercase tracking-wider font-semibold text-purple-600 dark:text-purple-400">{{ $t('analysis.mostRecentPacket') }}</span>
-          <span v-if="allSeriesOverview.latestMeasurement" class="text-4xs font-mono text-slate-500 dark:text-slate-400">
-            {{ formatRelative(allSeriesOverview.latestMeasurement.timestamp) }}
-          </span>
-        </div>
-        <div v-if="allSeriesOverview.latestMeasurement" class="flex items-baseline space-x-2">
-          <span class="text-xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">
-            {{ formatVal(allSeriesOverview.latestMeasurement.value) }}
-          </span>
-          <span class="text-xs font-mono text-purple-600 dark:text-purple-300 font-bold">
-            {{ allSeriesOverview.latestMeasurement.unit || '--' }}
-          </span>
-          <span class="text-3xs text-slate-600 dark:text-slate-400 truncate font-mono ml-1">
-            [{{ (!isOperator && allSeriesOverview.latestMeasurement.deviceCode ? allSeriesOverview.latestMeasurement.deviceCode + ' : ' : '') + allSeriesOverview.latestMeasurement.paramCode }}]
-          </span>
-        </div>
-        <div v-else class="text-xs text-slate-500 font-mono">--</div>
-        <div class="text-4xs text-slate-500 font-mono truncate">
-          {{ allSeriesOverview.latestMeasurement ? allSeriesOverview.latestMeasurement.paramName : 'No recent packet' }}
-        </div>
-      </div>
-
-      <!-- Scale Mode Control Pill -->
-      <div class="saas-card p-3.5 space-y-1 bg-white dark:bg-[#0F172A]/70 border border-slate-200 dark:border-slate-800">
-        <div class="text-3xs uppercase tracking-wider font-semibold text-amber-600 dark:text-amber-400">{{ $t('analysis.scaleMode') }}</div>
-        <div class="flex items-center space-x-1 pt-0.5">
-          <button
-            @click="setChartScaleMode('normalized')"
-            class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
-            :class="chartScaleMode === 'normalized' ? 'bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-transparent'"
-            title="Scale 0-100% per series to visually compare parameters of different units without distortion"
-          >
-            % Norm
-          </button>
-          <button
-            @click="setChartScaleMode('native')"
-            class="px-2 py-1 rounded text-3xs font-semibold font-mono transition"
-            :class="chartScaleMode === 'native' ? 'bg-blue-50 text-blue-700 border border-blue-300 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-transparent'"
-            title="Show actual physical engineering values"
-          >
-            Native
-          </button>
-        </div>
-        <div class="text-4xs text-slate-500 font-mono truncate">
-          {{ chartScaleMode === 'normalized' ? '0–100% relative span' : 'Engineering units' }}
-        </div>
-      </div>
-    </div>
-
-    <!-- Trend Chart Card -->
-    <div class="saas-card p-5 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="flex items-center space-x-2.5">
-          <span class="w-2.5 h-2.5 rounded-full" :class="activeMode === 'HISTORICAL' ? 'bg-blue-500' : activeMode === 'RAW' ? 'bg-emerald-500' : 'bg-indigo-500'"></span>
-          <div>
-            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.trendChart') }}</h3>
-            <p class="text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
-              <span v-if="filters.parameterId">{{ activeParameterLabel }} • {{ activeUnit }}</span>
-              <span v-else>{{ $t('analysis.allParameters') }} ({{ visibleSeries.length }} / {{ seriesList.length }} series active)</span>
-              <span v-if="activeMode === 'RAW'" class="ml-1 text-slate-500">({{ rawChartMode === 'raw' ? 'Unscaled Register' : 'Scaled Engineering' }})</span>
-            </p>
-          </div>
-        </div>
-
-        <!-- Scale Mode Switcher & Reset in Chart Header -->
-        <div class="flex items-center space-x-2 text-2xs font-mono">
-          <!-- Scale switcher buttons -->
-          <div class="flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800 text-3xs">
-            <button
-              @click="setChartScaleMode('normalized')"
-              class="px-2 py-0.5 rounded transition font-semibold"
-              :class="chartScaleMode === 'normalized' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
-            >
-              {{ $t('analysis.scaleNormalized') }}
-            </button>
-            <button
-              @click="setChartScaleMode('native')"
-              class="px-2 py-0.5 rounded transition font-semibold"
-              :class="chartScaleMode === 'native' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
-            >
-              {{ $t('analysis.scaleNative') }}
-            </button>
-          </div>
-
-          <!-- Reset Filter if series hidden or focused -->
-          <button
-            v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
-            @click="resetSeriesFilters"
-            class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-blue-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-400 dark:border-transparent text-3xs font-semibold transition"
-          >
-            {{ $t('analysis.showAllSeries') }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Interactive Multi-Series Legend Bar -->
-      <div v-if="seriesList.length > 0" class="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/80">
-        <div
-          v-for="s in seriesList"
-          :key="'legend-' + s.id"
-          @mouseenter="hoveredSeriesId = s.id"
-          @mouseleave="hoveredSeriesId = null"
-          class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-3xs font-mono transition border cursor-pointer select-none"
-          :class="[
-            hiddenSeriesIds.includes(s.id)
-              ? 'opacity-40 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 line-through text-slate-400 dark:text-slate-500'
-              : focusedSeriesId === s.id
-                ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-400 dark:border-blue-500 text-blue-900 dark:text-white shadow-sm'
-                : 'bg-white dark:bg-[#0B0F19] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
-          ]"
-        >
-          <!-- Visibility Toggle Click -->
-          <div @click="toggleSeriesVisibility(s.id)" class="flex items-center space-x-1.5">
-            <span
-              class="w-2.5 h-2.5 rounded-full inline-block transition-transform"
-              :style="{ backgroundColor: s.color }"
-              :class="{ 'ring-2 ring-slate-400/50 dark:ring-white/50 scale-110': hoveredSeriesId === s.id }"
-            ></span>
-            <span class="font-bold text-slate-800 dark:text-slate-200"><span v-if="!isOperator">{{ s.deviceCode }}: </span>{{ s.paramCode }}</span>
-            <span v-if="s.unit" class="text-slate-500 dark:text-slate-400">({{ s.unit }})</span>
-            <span v-if="s.stats.latest !== null" class="text-slate-900 dark:text-white font-bold ml-1">{{ s.stats.latest }}</span>
-          </div>
-
-          <!-- Quick Solo Focus Button -->
-          <button
-            @click.stop="toggleFocusSeries(s.id)"
-            class="ml-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-4xs uppercase px-1 py-0.2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
-            :title="focusedSeriesId === s.id ? 'Exit focus' : 'Focus only this series'"
-          >
-            {{ focusedSeriesId === s.id ? '✕' : '⊙' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- SVG Chart Canvas Area -->
+    <!-- ZONE 3A: ADAPTIVE CHART + DOCKED PER-SERIES MATRIX -->
+    <div
+      v-show="workspaceLayout !== 'TABLE'"
+      class="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch"
+    >
+      <!-- Multi-Series SVG Trend Chart Panel -->
       <div
-        ref="chartContainer"
-        class="w-full h-80 bg-white dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 relative select-none overflow-hidden"
+        :class="workspaceLayout === 'CHART' ? 'lg:col-span-12' : 'lg:col-span-8'"
+        class="saas-card bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-xs"
       >
-        <!-- Empty State -->
-        <div v-if="seriesList.length === 0 || visibleSeries.length === 0" class="w-full h-full flex flex-col items-center justify-center space-y-2 text-center p-6">
-          <svg class="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-          </svg>
-          <p class="text-xs text-slate-600 dark:text-slate-400 font-medium">{{ $t('analysis.noRecords') }}</p>
-          <p class="text-3xs text-slate-500">{{ isOperator ? ($t('analysis.noRecordsSubtitleOperator') || $t('analysis.noRecordsSubtitle')) : $t('analysis.noRecordsSubtitle') }}</p>
-        </div>
-
-        <!-- SVG Multi-Series Chart -->
-        <svg
-          v-else
-          class="w-full h-full overflow-visible chart-svg"
-          :viewBox="`0 0 ${containerWidth} ${containerHeight}`"
-          @mousemove="onChartMouseMove"
-          @mouseleave="onChartMouseLeave"
-        >
-          <defs>
-            <linearGradient
-              v-for="s in chartPlotData.seriesPlots"
-              :key="'grad-' + s.id"
-              :id="'grad-' + s.id"
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="1"
-            >
-              <stop offset="0%" :stop-color="s.color" stop-opacity="0.08" />
-              <stop offset="60%" :stop-color="s.color" stop-opacity="0.02" />
-              <stop offset="100%" :stop-color="s.color" stop-opacity="0.00" />
-            </linearGradient>
-          </defs>
-
-          <!-- Horizontal Grid Lines & Y-Axis Labels -->
-          <g class="grid-lines">
-            <g v-for="(tick, idx) in chartPlotData.gridTicks" :key="'grid-' + idx">
-              <line
-                :x1="chartPlotData.padLeft"
-                :y1="tick.y"
-                :x2="containerWidth - chartPlotData.padRight"
-                :y2="tick.y"
-                :stroke="isDark ? '#1E293B' : '#E2E8F0'"
-                stroke-dasharray="4 4"
-                stroke-width="0.8"
-                stroke-opacity="0.8"
-              />
-              <text
-                :x="chartPlotData.padLeft - 8"
-                :y="tick.y + 4"
-                text-anchor="end"
-                :fill="isDark ? '#94A3B8' : '#64748B'"
-                font-size="11"
-                font-family="monospace"
-              >
-                {{ tick.label }}
-              </text>
-            </g>
-          </g>
-
-          <!-- Vertical Ticks & Timestamps on X-Axis -->
-          <g class="time-ticks">
-            <g v-for="(tick, idx) in chartPlotData.timeTicks" :key="'ttick-' + idx">
-              <line
-                :x1="tick.x"
-                :y1="containerHeight - chartPlotData.padBottom"
-                :x2="tick.x"
-                :y2="containerHeight - chartPlotData.padBottom + 6"
-                :stroke="isDark ? '#334155' : '#CBD5E1'"
-                stroke-width="1"
-              />
-              <text
-                :x="tick.x"
-                :y="containerHeight - 18"
-                text-anchor="middle"
-                :fill="isDark ? '#94A3B8' : '#64748B'"
-                font-size="10"
-                font-family="monospace"
-              >
-                {{ tick.label }}
-              </text>
-            </g>
-          </g>
-
-          <!-- Area Fills (Rendered only when 1 series is visible) -->
-          <g v-if="chartPlotData.seriesPlots.length === 1">
-            <path
-              v-for="s in chartPlotData.seriesPlots"
-              :key="'area-' + s.id"
-              :d="s.areaPath"
-              :fill="`url(#grad-${s.id})`"
-            />
-          </g>
-
-          <!-- Distinct Trend Lines for Each Series (Never interleaved!) -->
-          <g class="series-lines">
-            <path
-              v-for="s in chartPlotData.seriesPlots"
-              :key="'line-' + s.id"
-              :d="s.linePath"
-              fill="none"
-              :stroke="s.color"
-              :stroke-width="hoveredSeriesId === s.id || focusedSeriesId === s.id ? 2.2 : 1.8"
-              :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : hoveredSeriesId && hoveredSeriesId !== s.id ? 0.35 : 1"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="transition-all duration-150"
-            />
-          </g>
-
-          <!-- Scatter Dots for points if dataset size is reasonable -->
-          <g v-if="totalRecords <= 160" class="series-dots">
-            <template v-for="s in chartPlotData.seriesPlots">
-              <circle
-                v-for="(pt, idx) in s.points"
-                :key="'pt-' + s.id + '-' + idx"
-                :cx="pt.x"
-                :cy="pt.y"
-                :r="activePoint && activePoint.seriesId === s.id && activePoint.record.id === pt.record.id ? 5 : 2.5"
-                :fill="activePoint && activePoint.seriesId === s.id && activePoint.record.id === pt.record.id ? '#FFFFFF' : s.color"
-                :stroke="s.color"
-                stroke-width="1.5"
-                :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : 1"
-                class="transition-all duration-75"
-              />
-            </template>
-          </g>
-
-          <!-- Hover Crosshair & Tooltip Indicator -->
-          <g v-if="activePoint">
-            <line
-              :x1="activePoint.x"
-              :y1="chartPlotData.padTop"
-              :x2="activePoint.x"
-              :y2="containerHeight - chartPlotData.padBottom"
-              :stroke="isDark ? '#94A3B8' : '#64748B'"
-              stroke-width="1"
-              stroke-dasharray="3 3"
-            />
-            <circle
-              :cx="activePoint.x"
-              :cy="activePoint.y"
-              r="6"
-              fill="#FFFFFF"
-              :stroke="activePoint.color"
-              stroke-width="2.5"
-            />
-          </g>
-        </svg>
-
-        <!-- Interactive Floating Tooltip -->
-        <div
-          v-if="activePoint"
-          class="absolute z-20 pointer-events-none bg-white/95 dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs shadow-2xl text-slate-800 dark:text-slate-200 font-sans backdrop-blur-md"
-          :style="{
-            left: `${Math.min(Math.max(activePoint.x - 80, 10), containerWidth - 210)}px`,
-            top: `${Math.max(activePoint.y - 85, 10)}px`
-          }"
-        >
-          <div class="flex items-center space-x-2 text-3xs text-slate-500 dark:text-slate-400 font-mono">
-            <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: activePoint.color }"></span>
-            <span>{{ formatTimestamp(activePoint.timestamp) }}</span>
-          </div>
-          <div class="flex items-baseline space-x-1.5 mt-1">
-            <span class="text-base font-bold text-slate-900 dark:text-white font-mono">{{ formatVal(activePoint.value) }}</span>
-            <span class="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">{{ activePoint.unit || '' }}</span>
-            <span class="ml-1 px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(activePoint.quality)">
-              {{ activePoint.quality }}
+        <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-2 min-w-0">
+            <span class="w-2 h-2 rounded-full shrink-0" :class="activeMode === 'HISTORICAL' ? 'bg-blue-500' : activeMode === 'RAW' ? 'bg-emerald-500' : 'bg-indigo-500'"></span>
+            <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider truncate">{{ $t('analysis.trendChart') }}</h3>
+            <span class="text-3xs text-slate-500 dark:text-slate-400 font-mono truncate hidden sm:inline">
+              <span v-if="filters.parameterId">• {{ activeParameterLabel }}</span>
+              <span v-else>• {{ visibleSeries.length }}/{{ seriesList.length }} series</span>
+              <span v-if="activeMode === 'RAW'" class="ml-1">({{ rawChartMode === 'raw' ? 'Raw Reg' : 'Scaled' }})</span>
             </span>
           </div>
-          <div class="text-3xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-[190px] mt-0.5">
-            <span v-if="!isOperator">{{ activePoint.deviceCode }}: </span>{{ activePoint.paramCode }}
+
+          <!-- Quick Chart Image Export (PNG/JPG) + Scale Switcher + Reset -->
+          <div class="flex flex-wrap items-center gap-1.5 text-3xs font-mono">
+            <!-- Direct 1-Click PNG / JPG Chart Export -->
+            <div class="inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
+              <button
+                @click="exportChart('png')"
+                :disabled="visibleSeries.length === 0 || isExporting"
+                :title="$t('analysis.exportChartPng')"
+                class="px-1.5 py-0.5 rounded font-bold text-blue-600 hover:bg-white dark:text-blue-400 dark:hover:bg-slate-800 transition disabled:opacity-40"
+              >
+                ⬇ PNG
+              </button>
+              <button
+                @click="exportChart('jpg')"
+                :disabled="visibleSeries.length === 0 || isExporting"
+                :title="$t('analysis.exportChartJpg')"
+                class="px-1.5 py-0.5 rounded font-bold text-amber-600 hover:bg-white dark:text-amber-400 dark:hover:bg-slate-800 transition disabled:opacity-40"
+              >
+                ⬇ JPG
+              </button>
+            </div>
+
+            <!-- Scale switcher buttons -->
+            <div class="inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
+              <button
+                @click="setChartScaleMode('normalized')"
+                class="px-2 py-0.5 rounded transition font-semibold"
+                :class="chartScaleMode === 'normalized' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+              >
+                Norm %
+              </button>
+              <button
+                @click="setChartScaleMode('native')"
+                class="px-2 py-0.5 rounded transition font-semibold"
+                :class="chartScaleMode === 'native' ? 'bg-white text-slate-900 border border-slate-300 shadow-xs dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+              >
+                Native
+              </button>
+            </div>
+
+            <button
+              v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
+              @click="resetSeriesFilters"
+              class="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-blue-400 dark:border-slate-700 font-semibold transition"
+            >
+              ↺ {{ $t('analysis.showAllSeries') }}
+            </button>
           </div>
-          <div class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[190px]">
-            {{ activePoint.paramName }}<span v-if="!isOperator && activePoint.deviceName"> ({{ activePoint.deviceName }})</span>
+        </div>
+
+        <!-- SVG Chart Canvas Area -->
+        <div
+          ref="chartContainer"
+          :class="workspaceLayout === 'CHART' ? 'h-80' : 'h-60'"
+          class="w-full bg-white dark:bg-[#0B0F19] relative select-none overflow-hidden flex-1"
+        >
+          <!-- Empty State -->
+          <div v-if="seriesList.length === 0 || visibleSeries.length === 0" class="w-full h-full flex flex-col items-center justify-center space-y-1.5 text-center p-4">
+            <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+            </svg>
+            <p class="text-xs text-slate-600 dark:text-slate-400 font-medium">{{ $t('analysis.noRecords') }}</p>
+            <p class="text-3xs text-slate-500">{{ isOperator ? ($t('analysis.noRecordsSubtitleOperator') || $t('analysis.noRecordsSubtitle')) : $t('analysis.noRecordsSubtitle') }}</p>
           </div>
-          <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-600 dark:text-rose-400 font-mono mt-0.5">
-            Reason: {{ activePoint.qualityReason }}
+
+          <!-- SVG Multi-Series Chart -->
+          <svg
+            v-else
+            ref="chartSvg"
+            class="w-full h-full overflow-visible chart-svg"
+            :viewBox="`0 0 ${containerWidth} ${containerHeight}`"
+            @mousemove="onChartMouseMove"
+            @mouseleave="onChartMouseLeave"
+          >
+            <defs>
+              <linearGradient
+                v-for="s in chartPlotData.seriesPlots"
+                :key="'grad-' + s.id"
+                :id="'grad-' + s.id"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" :stop-color="s.color" stop-opacity="0.08" />
+                <stop offset="60%" :stop-color="s.color" stop-opacity="0.02" />
+                <stop offset="100%" :stop-color="s.color" stop-opacity="0.00" />
+              </linearGradient>
+            </defs>
+
+            <!-- Horizontal Grid Lines & Y-Axis Labels -->
+            <g class="grid-lines">
+              <g v-for="(tick, idx) in chartPlotData.gridTicks" :key="'grid-' + idx">
+                <line
+                  :x1="chartPlotData.padLeft"
+                  :y1="tick.y"
+                  :x2="containerWidth - chartPlotData.padRight"
+                  :y2="tick.y"
+                  :stroke="isDark ? '#1E293B' : '#E2E8F0'"
+                  stroke-dasharray="4 4"
+                  stroke-width="0.8"
+                  stroke-opacity="0.8"
+                />
+                <text
+                  :x="chartPlotData.padLeft - 8"
+                  :y="tick.y + 4"
+                  text-anchor="end"
+                  :fill="isDark ? '#94A3B8' : '#64748B'"
+                  font-size="10"
+                  font-family="monospace"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+            </g>
+
+            <!-- Vertical Ticks & Timestamps on X-Axis -->
+            <g class="time-ticks">
+              <g v-for="(tick, idx) in chartPlotData.timeTicks" :key="'ttick-' + idx">
+                <line
+                  :x1="tick.x"
+                  :y1="containerHeight - chartPlotData.padBottom"
+                  :x2="tick.x"
+                  :y2="containerHeight - chartPlotData.padBottom + 5"
+                  :stroke="isDark ? '#334155' : '#CBD5E1'"
+                  stroke-width="1"
+                />
+                <text
+                  :x="tick.x"
+                  :y="containerHeight - 12"
+                  text-anchor="middle"
+                  :fill="isDark ? '#94A3B8' : '#64748B'"
+                  font-size="10"
+                  font-family="monospace"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+            </g>
+
+            <!-- Area Fills (Rendered only when 1 series is visible) -->
+            <g v-if="chartPlotData.seriesPlots.length === 1">
+              <path
+                v-for="s in chartPlotData.seriesPlots"
+                :key="'area-' + s.id"
+                :d="s.areaPath"
+                :fill="`url(#grad-${s.id})`"
+              />
+            </g>
+
+            <!-- Distinct Trend Lines for Each Series -->
+            <g class="series-lines">
+              <path
+                v-for="s in chartPlotData.seriesPlots"
+                :key="'line-' + s.id"
+                :d="s.linePath"
+                fill="none"
+                :stroke="s.color"
+                :stroke-width="hoveredSeriesId === s.id || focusedSeriesId === s.id ? 2.2 : 1.8"
+                :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : hoveredSeriesId && hoveredSeriesId !== s.id ? 0.35 : 1"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="transition-all duration-150"
+              />
+            </g>
+
+            <!-- Scatter Dots -->
+            <g v-if="totalRecords <= 160" class="series-dots">
+              <template v-for="s in chartPlotData.seriesPlots">
+                <circle
+                  v-for="(pt, idx) in s.points"
+                  :key="'pt-' + s.id + '-' + idx"
+                  :cx="pt.x"
+                  :cy="pt.y"
+                  :r="activePoint && activePoint.seriesId === s.id && activePoint.record.id === pt.record.id ? 5 : 2.5"
+                  :fill="activePoint && activePoint.seriesId === s.id && activePoint.record.id === pt.record.id ? '#FFFFFF' : s.color"
+                  :stroke="s.color"
+                  stroke-width="1.5"
+                  :opacity="focusedSeriesId && focusedSeriesId !== s.id ? 0.2 : 1"
+                  class="transition-all duration-75"
+                />
+              </template>
+            </g>
+
+            <!-- Hover Crosshair & Tooltip Indicator -->
+            <g v-if="activePoint" class="chart-hover-crosshair">
+              <line
+                :x1="activePoint.x"
+                :y1="chartPlotData.padTop"
+                :x2="activePoint.x"
+                :y2="containerHeight - chartPlotData.padBottom"
+                :stroke="isDark ? '#94A3B8' : '#64748B'"
+                stroke-width="1"
+                stroke-dasharray="3 3"
+              />
+              <circle
+                :cx="activePoint.x"
+                :cy="activePoint.y"
+                r="5.5"
+                fill="#FFFFFF"
+                :stroke="activePoint.color"
+                stroke-width="2.5"
+              />
+            </g>
+          </svg>
+
+          <!-- Interactive Floating Tooltip -->
+          <div
+            v-if="activePoint"
+            class="absolute z-20 pointer-events-none bg-white/95 dark:bg-[#0F172A]/95 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-2xl text-slate-800 dark:text-slate-200 font-sans backdrop-blur-md"
+            :style="{
+              left: `${Math.min(Math.max(activePoint.x - 80, 10), containerWidth - 205)}px`,
+              top: `${Math.max(activePoint.y - 80, 8)}px`
+            }"
+          >
+            <div class="flex items-center space-x-2 text-3xs text-slate-500 dark:text-slate-400 font-mono">
+              <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: activePoint.color }"></span>
+              <span>{{ formatTimestamp(activePoint.timestamp) }}</span>
+            </div>
+            <div class="flex items-baseline space-x-1.5 mt-0.5">
+              <span class="text-sm font-bold text-slate-900 dark:text-white font-mono">{{ formatVal(activePoint.value) }}</span>
+              <span class="text-2xs font-mono font-bold text-slate-600 dark:text-slate-300">{{ activePoint.unit || '' }}</span>
+              <span class="ml-1 px-1.5 py-0.2 rounded text-4xs font-mono font-bold" :class="qualityBadgeClass(activePoint.quality)">
+                {{ activePoint.quality }}
+              </span>
+            </div>
+            <div class="text-3xs text-slate-700 dark:text-slate-300 font-medium truncate max-w-[190px] mt-0.5">
+              <span v-if="!isOperator">{{ activePoint.deviceCode }}: </span>{{ activePoint.paramCode }}
+            </div>
+            <div class="text-4xs text-slate-500 dark:text-slate-400 truncate max-w-[190px]">
+              {{ activePoint.paramName }}<span v-if="!isOperator && activePoint.deviceName"> ({{ activePoint.deviceName }})</span>
+            </div>
+            <div v-if="activePoint.qualityReason && activePoint.qualityReason !== 'NONE'" class="text-4xs text-rose-600 dark:text-rose-400 font-mono mt-0.5">
+              Reason: {{ activePoint.qualityReason }}
+            </div>
+            <div v-if="canAccessRawMode && activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+              Hex: {{ activePoint.rawHex }} (Reg: {{ activePoint.rawValue }})
+            </div>
           </div>
-          <div v-if="canAccessRawMode && activeMode === 'RAW' && activePoint.rawHex" class="text-4xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
-            Hex: {{ activePoint.rawHex }} (Reg: {{ activePoint.rawValue }})
+        </div>
+      </div>
+
+      <!-- Docked Per-Parameter Stats Matrix (Replaces Separate Legend + Bottom Breakdown Cards) -->
+      <div
+        :class="workspaceLayout === 'CHART' ? 'lg:col-span-12' : 'lg:col-span-4'"
+        class="saas-card bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-xs"
+      >
+        <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+          <div class="flex items-center space-x-1.5">
+            <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.perSeriesStats') }}</h4>
+            <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-4xs font-mono font-bold">
+              {{ seriesList.length }}
+            </span>
           </div>
+          <span class="text-4xs font-mono text-slate-400 dark:text-slate-500 truncate">{{ $t('analysis.clickMuteSoloHint') }}</span>
+        </div>
+
+        <div
+          v-if="seriesList.length > 0"
+          :class="workspaceLayout === 'CHART' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 dark:divide-slate-800/80' : 'divide-y divide-slate-100 dark:divide-slate-800/80 max-h-60 overflow-y-auto flex-1'"
+        >
+          <div
+            v-for="s in seriesList"
+            :key="'matrix-' + s.id"
+            @mouseenter="hoveredSeriesId = s.id"
+            @mouseleave="hoveredSeriesId = null"
+            class="px-2.5 py-1.5 flex items-center justify-between gap-2 text-2xs font-mono tabular-nums transition hover:bg-slate-50 dark:hover:bg-slate-800/40 select-none"
+            :class="[
+              hiddenSeriesIds.includes(s.id) ? 'opacity-40 line-through' : '',
+              focusedSeriesId === s.id ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
+            ]"
+          >
+            <!-- Toggle Visibility on Row Click -->
+            <div @click="toggleSeriesVisibility(s.id)" class="flex items-center space-x-2 min-w-0 flex-1 cursor-pointer">
+              <span
+                class="w-2.5 h-2.5 rounded-full shrink-0 transition-transform"
+                :style="{ backgroundColor: s.color }"
+                :class="{ 'scale-125 ring-2 ring-slate-400/50': hoveredSeriesId === s.id }"
+              ></span>
+              <div class="min-w-0">
+                <div class="font-bold text-slate-800 dark:text-slate-200 truncate text-2xs">
+                  <span v-if="!isOperator">{{ s.deviceCode }}: </span>{{ s.paramCode }}
+                  <span v-if="s.unit" class="text-4xs font-normal text-slate-400">({{ s.unit }})</span>
+                </div>
+                <div class="text-4xs text-slate-500 dark:text-slate-400 truncate font-sans">
+                  <span class="text-emerald-600 dark:text-emerald-400">↓{{ s.stats.min !== null ? s.stats.min : '--' }}</span>
+                  <span class="mx-1 text-rose-600 dark:text-rose-400">↑{{ s.stats.max !== null ? s.stats.max : '--' }}</span>
+                  <span class="text-blue-600 dark:text-blue-400">μ{{ s.stats.avg !== null ? s.stats.avg : '--' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Latest + %Good + Solo Button -->
+            <div class="flex items-center space-x-1.5 shrink-0">
+              <div class="text-right">
+                <div class="font-bold text-xs text-slate-900 dark:text-white leading-tight">
+                  {{ s.stats.latest !== null ? s.stats.latest : '--' }}
+                </div>
+                <div class="text-[9px] text-emerald-600 dark:text-emerald-400 leading-tight">
+                  {{ s.stats.goodPercent }}%G
+                </div>
+              </div>
+              <button
+                @click.stop="toggleFocusSeries(s.id)"
+                class="px-1.5 py-0.5 rounded border text-3xs font-bold transition"
+                :class="focusedSeriesId === s.id
+                  ? 'bg-blue-600 text-white border-blue-500'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700'"
+                :title="focusedSeriesId === s.id ? 'Exit focus' : 'Solo focus this series'"
+              >
+                {{ focusedSeriesId === s.id ? '✕' : '⊙' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="p-4 text-center text-slate-500 text-3xs font-mono flex-1 flex items-center justify-center">
+          {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
         </div>
       </div>
     </div>
 
-    <!-- Telemetry Data Records Table -->
-    <div class="saas-card overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0F172A] rounded-2xl space-y-0 shadow-sm">
-      <!-- Table Header & Controls -->
-      <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <!-- ZONE 3B: DENSE STICKY-HEADER TELEMETRY DATA TABLE -->
+    <div
+      v-show="workspaceLayout !== 'CHART'"
+      class="saas-card overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0F172A] rounded-xl space-y-0 shadow-xs"
+    >
+      <!-- Compact Table Header, Quick Data Export, Search & Inline Pagination -->
+      <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center space-x-2">
           <h3 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">{{ $t('analysis.dataTable') }}</h3>
-          <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-3xs font-mono font-bold">
+          <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-3xs font-mono font-bold">
             {{ totalRecords }} items
           </span>
+          <!-- Quick 1-Click XLS / PDF Data Buttons -->
+          <div class="hidden sm:inline-flex items-center bg-slate-100 dark:bg-[#0B0F19] rounded-lg p-0.5 border border-slate-200 dark:border-slate-800 text-3xs font-mono">
+            <button
+              @click="exportXLS"
+              :disabled="records.length === 0 || isExporting"
+              :title="$t('analysis.exportXls')"
+              class="px-1.5 py-0.5 rounded font-bold text-emerald-600 hover:bg-white dark:text-emerald-400 dark:hover:bg-slate-800 transition disabled:opacity-40"
+            >
+              ⬇ XLS
+            </button>
+            <button
+              @click="exportPDF"
+              :disabled="records.length === 0 || isExporting"
+              :title="$t('analysis.exportPdf')"
+              class="px-1.5 py-0.5 rounded font-bold text-rose-600 hover:bg-white dark:text-rose-400 dark:hover:bg-slate-800 transition disabled:opacity-40"
+            >
+              ⬇ PDF
+            </button>
+          </div>
         </div>
 
-        <div class="flex items-center space-x-3 text-xs">
-          <!-- Filter Search -->
+        <div class="flex flex-wrap items-center gap-2 text-xs">
           <input
             type="text"
             v-model="tableSearch"
             :placeholder="$t('analysis.searchTable')"
-            class="px-3 py-1 bg-white dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 w-48"
+            class="px-2.5 py-1 bg-slate-50 dark:bg-[#0B0F19] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500 w-44"
           />
+
+          <!-- Inline Compact Pagination -->
+          <div class="inline-flex items-center space-x-1 font-mono text-2xs">
+            <button
+              @click="prevPage"
+              :disabled="currentPage <= 1 || loading"
+              class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 disabled:opacity-40 transition font-bold"
+              :title="$t('analysis.prev')"
+            >
+              ‹
+            </button>
+            <span class="px-1.5 text-slate-600 dark:text-slate-400 tabular-nums">
+              {{ currentPage }} / {{ Math.ceil(totalRecords / filters.pageSize) || 1 }}
+            </span>
+            <button
+              @click="nextPage"
+              :disabled="currentPage * filters.pageSize >= totalRecords || loading"
+              class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 disabled:opacity-40 transition font-bold"
+              :title="$t('analysis.next')"
+            >
+              ›
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Table Body based on Active Mode -->
-      <div class="overflow-x-auto">
+      <!-- Dense Scrollable Table Body with Sticky Header -->
+      <div
+        :class="workspaceLayout === 'TABLE' ? 'max-h-[540px]' : 'max-h-[290px]'"
+        class="overflow-auto compact-analysis-table-wrap"
+      >
         <!-- MODE 1: HISTORICAL / PROCESSED TABLE -->
-        <table v-if="activeMode === 'HISTORICAL'" class="w-full text-left text-xs font-sans">
-          <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+        <table v-if="activeMode === 'HISTORICAL'" class="w-full text-left text-xs font-sans compact-analysis-table">
+          <thead class="sticky top-0 z-10 bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('telemetry.receivedAt') }}</th>
               <th v-if="!isOperator" class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
@@ -825,7 +878,7 @@
               <td v-if="canAccessRawMode" class="py-2.5 px-4 text-right text-slate-500 dark:text-slate-400">{{ formatVal(r.raw_value) }}</td>
               <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400 font-sans">{{ getParamUnit(r.parameter_id) }}</td>
               <td class="py-2.5 px-4 text-center">
-                <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
+                <span class="px-1.5 py-0.2 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
                   {{ r.quality || 'GOOD' }}
                 </span>
               </td>
@@ -843,7 +896,7 @@
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td :colspan="canAccessRawMode ? (isOperator ? 7 : 9) : (isOperator ? 6 : 8)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="canAccessRawMode ? (isOperator ? 7 : 9) : (isOperator ? 6 : 8)" class="py-6 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -851,8 +904,8 @@
         </table>
 
         <!-- MODE 2: RAW TELEMETRY TABLE -->
-        <table v-else-if="activeMode === 'RAW'" class="w-full text-left text-xs font-sans">
-          <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+        <table v-else-if="activeMode === 'RAW'" class="w-full text-left text-xs font-sans compact-analysis-table">
+          <thead class="sticky top-0 z-10 bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('deviceDetail.receivedTime') }}</th>
               <th v-if="!isOperator" class="py-2.5 px-4">{{ $t('telemetry.device') }}</th>
@@ -901,7 +954,7 @@
                 <span v-else class="text-slate-400 dark:text-slate-500 text-3xs">{{ formatCalibrationDelta(r) }}</span>
               </td>
               <td class="py-2.5 px-4 text-center">
-                <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
+                <span class="px-1.5 py-0.2 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
                   {{ r.quality || 'GOOD' }}
                 </span>
               </td>
@@ -909,7 +962,7 @@
               <td class="py-2.5 px-4 text-right text-3xs text-slate-400 dark:text-slate-500 truncate max-w-[100px]">{{ r.record_uuid || r.id }}</td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td :colspan="(isOperator ? 8 : 11) - (canAccessRawMode ? 0 : 2)" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="(isOperator ? 8 : 11) - (canAccessRawMode ? 0 : 2)" class="py-6 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
@@ -917,8 +970,8 @@
         </table>
 
         <!-- MODE 3: AGGREGATION & ROLLUP TABLE -->
-        <table v-else class="w-full text-left text-xs font-sans">
-          <thead class="bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+        <table v-else class="w-full text-left text-xs font-sans compact-analysis-table">
+          <thead class="sticky top-0 z-10 bg-slate-50 dark:bg-[#0B0F19] text-3xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
             <tr>
               <th class="py-2.5 px-4">{{ $t('analysis.period') }}</th>
               <th class="py-2.5 px-4">{{ $t('analysis.identifier') }}</th>
@@ -964,138 +1017,18 @@
                 <span class="text-emerald-600 dark:text-emerald-400 ml-1">({{ r.good_count }}G)</span>
               </td>
               <td class="py-2.5 px-4 text-center">
-                <span class="px-2 py-0.5 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
+                <span class="px-1.5 py-0.2 rounded text-3xs font-mono font-bold" :class="qualityBadgeClass(r.quality)">
                   {{ r.quality || 'GOOD' }}
                 </span>
               </td>
             </tr>
             <tr v-if="paginatedRecords.length === 0">
-              <td :colspan="isOperator ? 9 : 10" class="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <td :colspan="isOperator ? 9 : 10" class="py-6 text-center text-xs text-slate-500 dark:text-slate-400 font-sans">
                 {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
               </td>
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <!-- Pagination Footer -->
-      <div class="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-        <button
-          @click="prevPage"
-          :disabled="currentPage <= 1 || loading"
-          class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-transparent disabled:opacity-40 transition font-semibold"
-        >
-          {{ $t('analysis.prev') }}
-        </button>
-        <span class="text-slate-500 dark:text-slate-400 text-2xs font-mono">
-          {{ $t('analysis.pageOf', { page: currentPage, totalPages: Math.ceil(totalRecords / filters.pageSize) || 1 }) }}
-        </span>
-        <button
-          @click="nextPage"
-          :disabled="currentPage * filters.pageSize >= totalRecords || loading"
-          class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-transparent disabled:opacity-40 transition font-semibold"
-        >
-          {{ $t('analysis.next') }}
-        </button>
-      </div>
-    </div>
-
-    <!-- 6. Per-Parameter Summary Breakdown Grid (Positioned below Data Records Table) -->
-    <div class="space-y-3">
-      <div class="flex items-center justify-between px-1">
-        <div>
-          <h4 class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-2">
-            <span>{{ $t('analysis.perSeriesBreakdown') }}</span>
-            <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent text-4xs font-mono">
-              {{ seriesList.length }} {{ $t('analysis.activeSeries').toLowerCase() }}
-            </span>
-          </h4>
-          <p class="text-4xs text-slate-500 dark:text-slate-400">
-            {{ $t('analysis.perSeriesBreakdownSubtitle') }}
-          </p>
-        </div>
-        <button
-          v-if="focusedSeriesId || hiddenSeriesIds.length > 0"
-          @click="resetSeriesFilters"
-          class="text-3xs text-blue-600 dark:text-blue-400 hover:underline font-mono flex items-center space-x-1"
-        >
-          <span>↺</span>
-          <span>{{ $t('analysis.showAllSeries') }}</span>
-        </button>
-      </div>
-
-      <div v-if="seriesList.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-        <div
-          v-for="s in seriesList"
-          :key="'card-' + s.id"
-          class="saas-card p-3 rounded-xl bg-white dark:bg-[#0F172A]/90 border transition hover:border-slate-300 dark:hover:border-slate-700 shadow-sm"
-          :class="focusedSeriesId === s.id ? 'border-blue-500 ring-1 ring-blue-500/30' : 'border-slate-200 dark:border-slate-800'"
-        >
-          <!-- Series Header -->
-          <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800/80">
-            <div class="flex items-center space-x-2 min-w-0">
-              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: s.color }"></span>
-              <div class="min-w-0">
-                <div class="text-xs font-bold text-slate-900 dark:text-white truncate font-mono">
-                  <span v-if="!isOperator">{{ s.deviceCode }}: </span>{{ s.paramCode }}
-                </div>
-                <div class="text-4xs text-slate-500 dark:text-slate-400 truncate">
-                  {{ s.paramName }}
-                </div>
-              </div>
-            </div>
-            <div class="flex items-center space-x-1.5 shrink-0">
-              <span v-if="s.unit" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-4xs font-mono font-bold border border-slate-200 dark:border-transparent">
-                {{ s.unit }}
-              </span>
-              <button
-                @click="toggleFocusSeries(s.id)"
-                class="px-1.5 py-0.5 rounded text-4xs font-mono transition"
-                :class="focusedSeriesId === s.id ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-transparent'"
-                :title="focusedSeriesId === s.id ? 'Click to show all series' : 'Focus this series alone on the chart'"
-              >
-                {{ focusedSeriesId === s.id ? $t('analysis.isolatedSeries') : $t('analysis.focusSeries') }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Series Metrics Grid -->
-          <div class="grid grid-cols-4 gap-1.5 pt-2 text-center">
-            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
-              <div class="text-4xs text-slate-500 uppercase font-mono">{{ $t('analysis.latestValue') }}</div>
-              <div class="text-xs font-bold font-mono text-slate-900 dark:text-white truncate mt-0.5">
-                {{ s.stats.latest !== null ? s.stats.latest : '--' }}
-              </div>
-            </div>
-            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
-              <div class="text-4xs text-emerald-600 dark:text-emerald-400 uppercase font-mono">{{ $t('analysis.min') }}</div>
-              <div class="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
-                {{ s.stats.min !== null ? s.stats.min : '--' }}
-              </div>
-            </div>
-            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
-              <div class="text-4xs text-rose-600 dark:text-rose-400 uppercase font-mono">{{ $t('analysis.max') }}</div>
-              <div class="text-xs font-bold font-mono text-rose-600 dark:text-rose-400 truncate mt-0.5">
-                {{ s.stats.max !== null ? s.stats.max : '--' }}
-              </div>
-            </div>
-            <div class="bg-slate-50 dark:bg-[#0B0F19] border border-slate-100 dark:border-transparent p-1.5 rounded-lg">
-              <div class="text-4xs text-blue-600 dark:text-blue-400 uppercase font-mono">{{ $t('analysis.avg') }}</div>
-              <div class="text-xs font-bold font-mono text-blue-600 dark:text-blue-400 truncate mt-0.5">
-                {{ s.stats.avg !== null ? s.stats.avg : '--' }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Card Sub-Footer -->
-          <div class="flex items-center justify-between pt-2 mt-1 border-t border-slate-100 dark:border-slate-800/60 text-4xs font-mono text-slate-500 dark:text-slate-400">
-            <span>{{ s.stats.sampleCount }} samples</span>
-            <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ s.stats.goodPercent }}% Good</span>
-          </div>
-        </div>
-      </div>
-      <div v-else class="p-6 rounded-xl bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800/80 text-center text-slate-500 text-3xs font-mono">
-        {{ loading ? $t('analysis.loadingData') : $t('analysis.noRecords') }}
       </div>
     </div>
 
@@ -1190,6 +1123,11 @@
 import axios from 'axios';
 import { getParamSeriesColor } from '../utils/trendPalette';
 import { formatCalibrationEquation } from '../utils/calibrationMath';
+import {
+  exportAnalysisXLS,
+  exportAnalysisPDF,
+  exportAnalysisChartImage,
+} from '../utils/telemetryAnalysisExport';
 
 const SERIES_PALETTE = [
   '#00E5FF', // Cyan
@@ -1209,8 +1147,10 @@ export default {
   data() {
     return {
       activeMode: 'HISTORICAL', // 'HISTORICAL' | 'RAW' | 'AGGREGATED'
+      workspaceLayout: 'SPLIT', // 'SPLIT' | 'CHART' | 'TABLE'
       rawChartMode: 'scaled', // 'scaled' | 'raw'
       loading: false,
+      isExporting: false,
       exportDropdownOpen: false,
       devicesList: [],
       records: [],
@@ -1230,7 +1170,7 @@ export default {
       },
       // Chart canvas state
       containerWidth: 800,
-      containerHeight: 320,
+      containerHeight: 240,
       activePoint: null,
       hoveredSeriesId: null,
       focusedSeriesId: null,
@@ -1500,12 +1440,60 @@ export default {
         latestMeasurement,
       };
     },
+    availableTimePresets() {
+      const maxH = this.rawMaxRangeHours;
+      const isRaw = this.activeMode === 'RAW';
+      const list = [
+        { value: '15m', label: '15m', hours: 0.25 },
+        { value: '1h', label: '1h', hours: 1 },
+        { value: '6h', label: '6h', hours: 6 },
+        { value: '24h', label: '24h', hours: 24 },
+        { value: '7d', label: '7d', hours: 168 },
+        { value: '30d', label: '30d', hours: 720 },
+      ].filter((tp) => !isRaw || tp.hours <= maxH);
+      list.push({ value: 'custom', label: 'Custom' });
+      return list;
+    },
+    activeSingleSeriesStats() {
+      if (this.focusedSeriesId) {
+        const focused = this.seriesList.find((s) => s.id === this.focusedSeriesId);
+        if (focused) {
+          return {
+            label: (!this.isOperator && focused.deviceCode ? `${focused.deviceCode}:` : '') + focused.paramCode,
+            unit: focused.unit || '',
+            ...focused.stats,
+          };
+        }
+      }
+      if (this.filters.parameterId) {
+        const found = this.seriesList.find((s) => s.parameterId === Number(this.filters.parameterId));
+        if (found) {
+          return {
+            label: (!this.isOperator && found.deviceCode ? `${found.deviceCode}:` : '') + found.paramCode,
+            unit: found.unit || '',
+            ...found.stats,
+          };
+        }
+        return {
+          label: this.activeParameter ? this.activeParameter.parameter_code : 'Param',
+          unit: this.activeUnit,
+          ...this.singleParamStats,
+        };
+      }
+      return null;
+    },
+    exportTimeWindowLabel() {
+      if (this.filters.timePreset === 'custom') {
+        return `${this.filters.startTime || '--'} s/d ${this.filters.endTime || '--'}`;
+      }
+      return `Last ${this.filters.timePreset.toUpperCase()}`;
+    },
     chartPlotData() {
       const visible = this.visibleSeries;
-      const padLeft = 65;
-      const padRight = 35;
-      const padTop = 30;
-      const padBottom = 45;
+      const padLeft = 52;
+      const padRight = 20;
+      const padTop = 18;
+      const padBottom = 30;
 
       if (visible.length === 0) {
         return {
@@ -1714,6 +1702,9 @@ export default {
   },
   mounted() {
     this.initResizeObserver();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('click', this.handleOutsideClick);
+    }
     this.fetchDevices().then(() => {
       this.applyUrlParams(this.$route.query);
       this.fetchData();
@@ -1723,8 +1714,34 @@ export default {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('click', this.handleOutsideClick);
+    }
   },
   methods: {
+    handleOutsideClick(e) {
+      if (!this.exportDropdownOpen) return;
+      const wrap = this.$refs.exportMenuWrap;
+      if (wrap && !wrap.contains(e.target)) {
+        this.exportDropdownOpen = false;
+      }
+    },
+    setWorkspaceLayout(mode) {
+      this.workspaceLayout = mode;
+      this.$nextTick(() => {
+        if (this.$refs.chartContainer) {
+          const rect = this.$refs.chartContainer.getBoundingClientRect();
+          if (rect.width > 0) this.containerWidth = rect.width;
+          if (rect.height > 0) this.containerHeight = rect.height;
+        }
+      });
+    },
+    selectTimePreset(val) {
+      if (this.filters.timePreset === val && val !== 'custom') return;
+      this.filters.timePreset = val;
+      this.currentPage = 1;
+      this.onTimePresetChange();
+    },
     extractValue(r) {
       if (this.activeMode === 'HISTORICAL') {
         return r.processed_value !== undefined && r.processed_value !== null
@@ -1769,8 +1786,12 @@ export default {
         if (this.$refs.chartContainer && window.ResizeObserver) {
           this.resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
-              this.containerWidth = entry.contentRect.width || 800;
-              this.containerHeight = entry.contentRect.height || 320;
+              if (entry.contentRect.width > 0) {
+                this.containerWidth = entry.contentRect.width;
+              }
+              if (entry.contentRect.height > 0) {
+                this.containerHeight = entry.contentRect.height;
+              }
             }
           });
           this.resizeObserver.observe(this.$refs.chartContainer);
@@ -2251,6 +2272,80 @@ export default {
       a.click();
       URL.revokeObjectURL(url);
     },
+    buildExportContext() {
+      return {
+        activeMode: this.activeMode,
+        records: this.filteredRecords,
+        seriesList: this.seriesList,
+        visibleSeries: this.visibleSeries,
+        svgEl: this.$refs.chartSvg || null,
+        isDark: this.isDark,
+        isOperator: this.isOperator,
+        canAccessRawMode: this.canAccessRawMode,
+        isSuperAdmin: this.isSuperAdmin,
+        timeWindowLabel: this.exportTimeWindowLabel,
+        getDeviceCode: this.getDeviceCode,
+        getParamCode: this.getParamCode,
+        getParamUnit: this.getParamUnit,
+        formatTimestamp: this.formatTimestamp,
+        formatTimeOnly: this.formatTimeOnly,
+        formatVal: this.formatVal,
+        formatUncalibratedVal: this.formatUncalibratedVal,
+        formatCalibrationDelta: this.formatCalibrationDelta,
+        formatInterval: this.formatInterval,
+      };
+    },
+    exportXLS() {
+      this.exportDropdownOpen = false;
+      if (this.filteredRecords.length === 0) return;
+      if (this.activeMode === 'RAW' && !this.canAccessRawMode) return;
+      this.isExporting = true;
+      try {
+        exportAnalysisXLS(this.buildExportContext());
+      } catch (err) {
+        console.error('[TelemetryAnalysis XLS Export Error]:', err);
+        alert('Gagal mengekspor Excel: ' + (err.message || 'Unknown error'));
+      } finally {
+        this.isExporting = false;
+      }
+    },
+    async exportPDF() {
+      this.exportDropdownOpen = false;
+      if (this.filteredRecords.length === 0) return;
+      if (this.activeMode === 'RAW' && !this.canAccessRawMode) return;
+      this.isExporting = true;
+      try {
+        await exportAnalysisPDF(this.buildExportContext());
+      } catch (err) {
+        console.error('[TelemetryAnalysis PDF Export Error]:', err);
+        alert('Gagal mengekspor PDF: ' + (err.message || 'Unknown error'));
+      } finally {
+        this.isExporting = false;
+      }
+    },
+    async exportChart(format = 'png') {
+      this.exportDropdownOpen = false;
+      if (this.visibleSeries.length === 0 || !this.$refs.chartSvg) return;
+      if (this.activeMode === 'RAW' && !this.canAccessRawMode) return;
+      this.isExporting = true;
+      try {
+        await exportAnalysisChartImage({
+          svgEl: this.$refs.chartSvg,
+          activeMode: this.activeMode,
+          isDark: this.isDark,
+          format,
+          titleText: `${this.$t('analysis.breadcrumb')} — ${this.activeMode}`,
+          subtitleText: `${this.exportTimeWindowLabel} • ${this.visibleSeries.length}/${this.seriesList.length} series`,
+          visibleSeries: this.visibleSeries,
+          isOperator: this.isOperator,
+        });
+      } catch (err) {
+        console.error('[TelemetryAnalysis Chart Export Error]:', err);
+        alert('Gagal mengekspor gambar grafik: ' + (err.message || 'Unknown error'));
+      } finally {
+        this.isExporting = false;
+      }
+    },
     getAuthHeaders() {
       const token = (this.$store && this.$store.state && this.$store.state.token) ||
                     localStorage.getItem('datalogger_token') ||
@@ -2300,3 +2395,18 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.compact-analysis-table th {
+  padding-top: 0.42rem !important;
+  padding-bottom: 0.42rem !important;
+  padding-left: 0.7rem !important;
+  padding-right: 0.7rem !important;
+}
+.compact-analysis-table td {
+  padding-top: 0.34rem !important;
+  padding-bottom: 0.34rem !important;
+  padding-left: 0.7rem !important;
+  padding-right: 0.7rem !important;
+}
+</style>

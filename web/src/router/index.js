@@ -305,12 +305,20 @@ router.beforeEach(async (to, from, next) => {
     return next({ path: '/monitoring/dashboard-operator', replace: true });
   }
 
-  // 2c. Role OPERATOR retains full access to Outbound Delivery Queue via both /integration/queue and /integration?tab=queue
-  if (isAuth && isOperator && to.path === '/integration') {
-    if (to.query && to.query.tab === 'queue') {
-      return next();
+  // 2c. Role OPERATOR retains access to Outbound Delivery Queue in Edge mode only (blocked in Cloud mode)
+  if (isAuth && isOperator && (to.path === '/integration' || to.path === '/integration/queue' || to.path.startsWith('/integration/'))) {
+    if (isCloudMode) {
+      return next({
+        path: '/access-denied',
+        query: { from: to.fullPath },
+      });
     }
-    return next({ path: '/integration/queue', query: { ...to.query, tab: 'queue' }, replace: true });
+    if (to.path === '/integration') {
+      if (to.query && to.query.tab === 'queue') {
+        return next();
+      }
+      return next({ path: '/integration/queue', query: { ...to.query, tab: 'queue' }, replace: true });
+    }
   }
 
   // 3. RBAC validation

@@ -791,9 +791,14 @@ export default {
         });
       }
 
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      const isCloud = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
       const isOp = currentRole === 'OPERATOR';
       if (isOp && this.$route.path === '/integration' && this.$route.query && this.$route.query.tab === 'queue') {
-        allowed = true;
+        allowed = !isCloud;
+      }
+      if (isOp && isCloud && (this.$route.path === '/integration/queue' || this.$route.path.startsWith('/integration'))) {
+        allowed = false;
       }
       const onOperatorConsole = this.$route.path === '/monitoring/operator' || this.$route.path === '/operator';
 

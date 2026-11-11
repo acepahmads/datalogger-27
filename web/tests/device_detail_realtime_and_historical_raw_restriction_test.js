@@ -204,7 +204,10 @@ runTest('6.1: Sidebar hides Operator Console, Live Telemetry, Live Sensor Comm, 
   assert(sidebarContent.includes('v-if="!isOperator" to="/monitoring/telemetry"'), 'Sidebar must hide Live Telemetry for OPERATOR');
   assert(sidebarContent.includes('v-if="!isOperator" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for OPERATOR');
   assert(sidebarContent.includes('v-if="!isOperator" to="/integration"'), 'Sidebar must hide Outbound & Integration for OPERATOR');
-  assert(sidebarContent.includes('<router-link to="/integration/queue"'), 'Sidebar must keep Delivery Queue visible for OPERATOR');
+  assert(
+    sidebarContent.includes('v-if="!isOperator || !isCloudMode" to="/integration/queue"'),
+    'Sidebar must keep Delivery Queue visible for OPERATOR in Edge mode while hiding it in Cloud mode'
+  );
 });
 
 runTest('6.2: Router, Header & Login default OPERATOR landing to /monitoring/dashboard-operator and preserve Delivery Queue (/integration/queue & /integration?tab=queue)', () => {

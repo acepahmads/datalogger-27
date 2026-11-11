@@ -2478,6 +2478,10 @@ export default {
     isOperator() {
       return !this.isAdmin && !this.isEngineer;
     },
+    isCloudMode() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     canManageDestinations() {
       // Khusus untuk SUPERADMIN dan ADMIN
       return this.isSuperAdmin || this.isAdmin;
@@ -2522,6 +2526,10 @@ export default {
     },
   },
   mounted() {
+    if (this.isOperator && this.isCloudMode) {
+      this.$router.replace('/access-denied');
+      return;
+    }
     this.$nextTick(() => {
       const main = document.querySelector('main');
       if (main) main.scrollTop = 0;

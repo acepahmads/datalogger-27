@@ -301,7 +301,15 @@ export default {
   },
   computed: {
     isDarkMode() {
-      return this.$store.state.uiPreferences?.effectiveTheme === 'dark';
+      if (this.$store && this.$store.state) {
+        if (this.$store.state.uiPreferences && this.$store.state.uiPreferences.effectiveTheme) {
+          return this.$store.state.uiPreferences.effectiveTheme === 'dark';
+        }
+        if (this.$store.state.theme) {
+          return this.$store.state.theme === 'dark';
+        }
+      }
+      return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     },
     currentLanguage() {
       return this.$store.state.uiPreferences?.language || 'id';
@@ -347,6 +355,8 @@ export default {
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
           const isQualityRoute = redirect === '/dashboard' || redirect.startsWith('/dashboard') || redirect === '/quality' || redirect.startsWith('/monitoring/quality');
+          const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+          const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
           const isOperatorRestrictedRoute =
             redirect === '/' ||
             redirect === '/operator' ||
@@ -359,6 +369,7 @@ export default {
             redirect.startsWith('/system/communication') ||
             redirect.startsWith('/administration') ||
             redirect === '/integration' ||
+            (isCloudMode && (redirect === '/integration/queue' || redirect.startsWith('/integration/'))) ||
             redirect.startsWith('/integration/destinations') ||
             redirect === '/destinations';
 
@@ -404,13 +415,12 @@ export default {
 </script>
 
 <style scoped>
-/* Shell Background (Light & Dark) */
+/* Shell Background (Light & Dark — Vue 2 scoped compatible via .login-dark / .login-light) */
 .login-shell {
   background: linear-gradient(145deg, #F8FAFC 0%, #EFF6FF 48%, #F1F5F9 100%);
   color: #0F172A;
 }
 
-:global(html.dark) .login-shell,
 .login-shell.login-dark {
   background: radial-gradient(circle at 50% 0%, #0E1B33 0%, #070D18 58%, #050912 100%);
   color: #F8FAFC;
@@ -426,7 +436,7 @@ export default {
   -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.85) 25%, transparent 80%);
 }
 
-:global(html.dark) .login-grid-pattern {
+.login-dark .login-grid-pattern {
   background-image:
     linear-gradient(to right, rgba(56, 189, 248, 0.045) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(56, 189, 248, 0.045) 1px, transparent 1px);
@@ -453,11 +463,11 @@ export default {
   background: rgba(14, 165, 233, 0.11);
 }
 
-:global(html.dark) .login-orb-top {
+.login-dark .login-orb-top {
   background: rgba(37, 99, 235, 0.18);
 }
 
-:global(html.dark) .login-orb-bottom {
+.login-dark .login-orb-bottom {
   background: rgba(6, 182, 212, 0.13);
 }
 
@@ -480,13 +490,13 @@ export default {
   background: #FFFFFF;
 }
 
-:global(html.dark) .login-top-control {
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(51, 65, 85, 0.85);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+.login-dark .login-top-control {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
-:global(html.dark) .login-top-control:hover {
+.login-dark .login-top-control:hover {
   border-color: #38BDF8;
   background: #0F172A;
 }
@@ -497,7 +507,7 @@ export default {
   box-shadow: inset 0 0 0 1px #BFDBFE;
 }
 
-:global(html.dark) .login-seg-active {
+.login-dark .login-seg-active {
   background: rgba(56, 189, 248, 0.18);
   color: #38BDF8;
   box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
@@ -513,12 +523,12 @@ export default {
   backdrop-filter: blur(12px);
 }
 
-:global(html.dark) .login-card {
-  background: rgba(13, 21, 38, 0.94);
-  border: 1px solid rgba(51, 65, 85, 0.8);
+.login-dark .login-card {
+  background: rgba(13, 21, 38, 0.95);
+  border: 1px solid rgba(51, 65, 85, 0.85);
   box-shadow:
-    0 28px 56px -12px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(148, 163, 184, 0.05);
+    0 28px 56px -12px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(56, 189, 248, 0.08);
 }
 
 /* Input Group & Focus Highlighting */
@@ -531,11 +541,11 @@ export default {
   color: #2563EB;
 }
 
-:global(html.dark) .login-input-icon {
-  color: #64748B;
+.login-dark .login-input-icon {
+  color: #94A3B8;
 }
 
-:global(html.dark) .login-input-group:focus-within .login-input-icon {
+.login-dark .login-input-group:focus-within .login-input-icon {
   color: #38BDF8;
 }
 
@@ -552,17 +562,46 @@ export default {
   outline: none;
 }
 
-:global(html.dark) .login-field {
+.login-dark .login-field {
   background-color: #070D18 !important;
   border: 1px solid #1E293B !important;
   color: #F8FAFC !important;
 }
 
-:global(html.dark) .login-field:focus {
+.login-dark .login-field::placeholder {
+  color: #64748B !important;
+}
+
+.login-dark .login-field:focus {
   background-color: #050912 !important;
   border-color: #38BDF8 !important;
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16) !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18) !important;
   outline: none;
+}
+
+/* Browser Autofill Contrast Preservation (Light & Dark) */
+.login-light .login-field:-webkit-autofill,
+.login-light .login-field:-webkit-autofill:hover,
+.login-light .login-field:-webkit-autofill:focus,
+.login-light .login-field:-webkit-autofill:active {
+  -webkit-text-fill-color: #0F172A !important;
+  -webkit-box-shadow: 0 0 0 1000px #F8FAFC inset !important;
+  box-shadow: 0 0 0 1000px #F8FAFC inset !important;
+  border: 1px solid #CBD5E1 !important;
+  caret-color: #0F172A;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.login-dark .login-field:-webkit-autofill,
+.login-dark .login-field:-webkit-autofill:hover,
+.login-dark .login-field:-webkit-autofill:focus,
+.login-dark .login-field:-webkit-autofill:active {
+  -webkit-text-fill-color: #F8FAFC !important;
+  -webkit-box-shadow: 0 0 0 1000px #070D18 inset !important;
+  box-shadow: 0 0 0 1000px #070D18 inset !important;
+  border: 1px solid #1E293B !important;
+  caret-color: #F8FAFC;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 /* Primary Sign-In Button */
@@ -581,14 +620,14 @@ export default {
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-:global(html.dark) .login-primary-btn {
+.login-dark .login-primary-btn {
   background: linear-gradient(135deg, #2563EB 0%, #0284C7 100%);
   box-shadow:
-    0 10px 24px -6px rgba(2, 132, 199, 0.38),
+    0 10px 24px -6px rgba(2, 132, 199, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-:global(html.dark) .login-primary-btn:hover {
+.login-dark .login-primary-btn:hover {
   background: linear-gradient(135deg, #3B82F6 0%, #0EA5E9 100%);
 }
 
@@ -604,14 +643,14 @@ export default {
   box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.06);
 }
 
-:global(html.dark) .login-role-card {
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(30, 41, 59, 0.9);
+.login-dark .login-role-card {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(51, 65, 85, 0.78);
 }
 
-:global(html.dark) .login-role-card:hover {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(71, 85, 105, 0.8);
+.login-dark .login-role-card:hover {
+  background: rgba(30, 41, 59, 0.88);
+  border-color: rgba(71, 85, 105, 0.95);
 }
 
 .login-role-active-purple {
@@ -619,9 +658,9 @@ export default {
   border-color: #C084FC !important;
   box-shadow: 0 0 0 1px rgba(147, 51, 234, 0.15);
 }
-:global(html.dark) .login-role-active-purple {
-  background: rgba(147, 51, 234, 0.12) !important;
-  border-color: rgba(168, 85, 247, 0.55) !important;
+.login-dark .login-role-active-purple {
+  background: rgba(147, 51, 234, 0.16) !important;
+  border-color: rgba(168, 85, 247, 0.6) !important;
 }
 
 .login-role-active-blue {
@@ -629,9 +668,9 @@ export default {
   border-color: #60A5FA !important;
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
-:global(html.dark) .login-role-active-blue {
-  background: rgba(37, 99, 235, 0.14) !important;
-  border-color: rgba(59, 130, 246, 0.55) !important;
+.login-dark .login-role-active-blue {
+  background: rgba(37, 99, 235, 0.18) !important;
+  border-color: rgba(59, 130, 246, 0.6) !important;
 }
 
 .login-role-active-amber {
@@ -639,9 +678,9 @@ export default {
   border-color: #FBBF24 !important;
   box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.15);
 }
-:global(html.dark) .login-role-active-amber {
-  background: rgba(245, 158, 11, 0.12) !important;
-  border-color: rgba(251, 191, 36, 0.55) !important;
+.login-dark .login-role-active-amber {
+  background: rgba(245, 158, 11, 0.16) !important;
+  border-color: rgba(251, 191, 36, 0.6) !important;
 }
 
 .login-role-active-emerald {
@@ -649,9 +688,9 @@ export default {
   border-color: #34D399 !important;
   box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.15);
 }
-:global(html.dark) .login-role-active-emerald {
-  background: rgba(16, 185, 129, 0.12) !important;
-  border-color: rgba(52, 211, 153, 0.55) !important;
+.login-dark .login-role-active-emerald {
+  background: rgba(16, 185, 129, 0.16) !important;
+  border-color: rgba(52, 211, 153, 0.6) !important;
 }
 
 @keyframes shake {

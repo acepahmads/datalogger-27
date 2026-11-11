@@ -217,6 +217,13 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 			outGrp.POST("", outboundHandler.CreateDestination)
 			outGrp.GET("/:id", outboundHandler.GetDestinationByID)
 		}
+
+		qGrp := api.Group("/integration/queue")
+		qGrp.Use(middleware.JWTAuth(authService))
+		{
+			qGrp.GET("", outboundHandler.GetQueueItems)
+			qGrp.GET("/summary", outboundHandler.GetQueueSummary)
+		}
 	}
 
 	superTok, _, err := authService.Login("admin", "Password123!", "127.0.0.1", "test")
@@ -963,6 +970,12 @@ func TestCloudModeRBACBrandingAndLoginEnforcement(t *testing.T) {
 		t.Fatalf("ADMIN reset must NOT wipe global Superadmin Maker branding! got: %s", wAfterReset.Body.String())
 	}
 
+	// Before Cloud mode (Edge mode), OPERATOR can read Delivery Queue (/api/integration/queue)
+	wEdgeOpQueue := doJSONReq(t, env.Router, "GET", "/api/integration/queue", opTok, nil, nil)
+	if wEdgeOpQueue.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for OPERATOR on /api/integration/queue in Edge mode, got %d: %s", wEdgeOpQueue.Code, wEdgeOpQueue.Body.String())
+	}
+
 	// 4. Enable Cloud Mode -> Auto-login header X-Auto-Login: 1 MUST be rejected with 401, while manual Operator login succeeds!
 	wCloudCfg := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.SuperAdminToken, nil, map[string]interface{}{
 		"monitoring_domain": "CLOUD",
@@ -970,6 +983,19 @@ func TestCloudModeRBACBrandingAndLoginEnforcement(t *testing.T) {
 	})
 	if wCloudCfg.Code != http.StatusOK {
 		t.Fatalf("switch to CLOUD mode failed (%d): %s", wCloudCfg.Code, wCloudCfg.Body.String())
+	}
+
+	// In Cloud mode, OPERATOR MUST be blocked (403 Forbidden) from Delivery Queue (/api/integration/queue & /summary)
+	for _, qEp := range []string{"/api/integration/queue", "/api/integration/queue/summary", "/api/destinations"} {
+		wCloudOpQueue := doJSONReq(t, env.Router, "GET", qEp, opTok, nil, nil)
+		if wCloudOpQueue.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 Forbidden for OPERATOR on %s in Cloud mode, got %d: %s", qEp, wCloudOpQueue.Code, wCloudOpQueue.Body.String())
+		}
+	}
+	// Whereas ADMIN in Cloud mode still gets 200 OK on Delivery Queue
+	wCloudAdmQueue := doJSONReq(t, env.Router, "GET", "/api/integration/queue", env.Tenant1AdmToken, nil, nil)
+	if wCloudAdmQueue.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for ADMIN on /api/integration/queue in Cloud mode, got %d: %s", wCloudAdmQueue.Code, wCloudAdmQueue.Body.String())
 	}
 
 	wAutoLogin := doJSONReq(t, env.Router, "POST", "/api/auth/login", "", map[string]string{
