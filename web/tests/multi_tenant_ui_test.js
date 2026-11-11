@@ -152,4 +152,26 @@ assert(loginViewCode.includes("redirect === '/monitoring/system'"), 'LoginView m
 assert(sysMonitoringViewCode.includes('if (this.isOperator && this.isCloudMode)'), 'SystemMonitoringView must guard against OPERATOR mount in Cloud mode');
 assert(dashOpViewCode.includes('v-if="isNonOperator || !isCloudMode" class="relative toolbar-popover-anchor"'), 'DashboardOperatorView must hide System Monitor toolbar popover for OPERATOR in Cloud mode');
 
+// 14. Cloud Mode ADMIN Menu & Route Restrictions (Operator Console, Live Sensor Comm, Configuration, Backup & Restore, Retention & Storage)
+const liveCommViewCode = fs.readFileSync(path.join(srcDir, 'views', 'LiveCommView.vue'), 'utf8');
+const backupRestoreViewCode = fs.readFileSync(path.join(srcDir, 'views', 'BackupRestoreView.vue'), 'utf8');
+const retentionStorageViewCode = fs.readFileSync(path.join(srcDir, 'views', 'RetentionStorageView.vue'), 'utf8');
+
+assert(sidebarCode.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for ADMIN in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for ADMIN in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/administration/config"'), 'Sidebar must hide Configuration for ADMIN in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/administration/backup"'), 'Sidebar must hide Backup & Restore for ADMIN in Cloud mode');
+assert(sidebarCode.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/administration/retention"'), 'Sidebar must hide Retention & Storage for ADMIN in Cloud mode');
+
+assert(headerCode.includes('v-if="!isOperator && !(isAdmin && isCloudMode)"'), 'Header must hide Operator Console quick icon for ADMIN in Cloud mode');
+assert(routerCode.includes('const usesDashboardOperatorLanding = isOperator || (isAdmin && isCloudMode)'), 'Router must land Cloud ADMIN on /monitoring/dashboard-operator instead of /monitoring/operator');
+for (const blockedPath of ['/alarm/live-comm', '/administration/config', '/administration/backup', '/administration/retention']) {
+  assert(routerCode.includes(`'${blockedPath}'`) && routerCode.includes('cloudAdminRestrictedPrefixes'), `Router must block Cloud ADMIN from ${blockedPath}`);
+}
+assert(loginViewCode.includes('isCloudAdminRestrictedRoute'), 'LoginView must redirect Cloud ADMIN away from restricted routes after login');
+assert(liveCommViewCode.includes("if (role === 'ADMIN' && isCloud)"), 'LiveCommView must guard against Cloud ADMIN mount');
+assert(configViewCode.includes("if (role === 'ADMIN' && isCloud)"), 'ConfigView must guard against Cloud ADMIN mount');
+assert(backupRestoreViewCode.includes("if (role === 'ADMIN' && isCloud)"), 'BackupRestoreView must guard against Cloud ADMIN mount');
+assert(retentionStorageViewCode.includes("if (this.userRole === 'ADMIN' && isCloud)"), 'RetentionStorageView must guard against Cloud ADMIN mount');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

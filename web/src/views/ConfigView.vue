@@ -1481,6 +1481,13 @@ export default {
     },
   },
   mounted() {
+    const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
+    const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+    const isCloud = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    if (role === 'ADMIN' && isCloud) {
+      this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
+      return;
+    }
     if (this.$route.query && this.$route.query.tab && this.$route.query.tab !== 'serial') {
       this.activeTab = this.$route.query.tab;
     }

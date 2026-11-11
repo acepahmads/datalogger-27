@@ -5055,7 +5055,7 @@
           </div>
 
           <!-- System Admin Configuration Deep Link -->
-          <div v-if="canManageCategories" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex items-center justify-between text-xs">
+          <div v-if="canManageCategories && (!isCloudMode || canManageMakerBranding)" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex items-center justify-between text-xs">
             <span class="text-slate-500 dark:text-slate-400">Advanced settings available in System Admin:</span>
             <router-link
               to="/administration/config?tab=branding"

@@ -290,19 +290,37 @@ router.beforeEach(async (to, from, next) => {
   const user = store.state.user || {};
   const rawRole = (user.role || '').toUpperCase();
   const isSuper = rawRole === 'SUPERADMIN' || rawRole === 'ADMINISTRATOR';
+  const isAdmin = rawRole === 'ADMIN';
   const isOperator = rawRole === 'OPERATOR';
+  const usesDashboardOperatorLanding = isOperator || (isAdmin && isCloudMode);
 
   // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to role default landing
   if (isAuth && isLoginPage && !to.query.switch) {
     return next({
-      path: isSuper ? '/dashboard' : (isOperator ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
+      path: isSuper ? '/dashboard' : (usesDashboardOperatorLanding ? '/monitoring/dashboard-operator' : '/monitoring/operator'),
       replace: true,
     });
   }
 
-  // 2b. Role OPERATOR default landing & Operator Console hiding -> redirect straight to Dashboard Operator
-  if (isAuth && isOperator && (to.path === '/' || to.path === '/operator' || to.path === '/monitoring/operator')) {
+  // 2b. Role OPERATOR (and Role ADMIN in Cloud mode) default landing & Operator Console hiding -> redirect straight to Dashboard Operator
+  if (isAuth && usesDashboardOperatorLanding && (to.path === '/' || to.path === '/operator' || to.path === '/monitoring/operator')) {
     return next({ path: '/monitoring/dashboard-operator', replace: true });
+  }
+
+  // 2b-cloud-admin. Role ADMIN in Cloud mode cannot access Live Sensor Comm, Configuration, Backup & Restore, or Retention & Storage
+  if (isAuth && isAdmin && isCloudMode) {
+    const cloudAdminRestrictedPrefixes = [
+      '/alarm/live-comm',
+      '/administration/config',
+      '/administration/backup',
+      '/administration/retention',
+    ];
+    if (cloudAdminRestrictedPrefixes.some(p => to.path === p || to.path.startsWith(p + '/'))) {
+      return next({
+        path: '/access-denied',
+        query: { from: to.fullPath },
+      });
+    }
   }
 
   // 2c. Role OPERATOR cannot access System Monitoring (/monitoring/system) in Cloud mode
