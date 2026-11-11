@@ -212,18 +212,21 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 
 	// 3. Query server-side aggregated telemetry
 	type rawAggRow struct {
-		ParameterID     uint     `gorm:"column:parameter_id"`
-		SampleCount     int64    `gorm:"column:total_samples"`
-		MinVal          *float64 `gorm:"column:min_val"`
-		MaxVal          *float64 `gorm:"column:max_val"`
-		AvgVal          *float64 `gorm:"column:avg_val"`
-		GoodCount       int64    `gorm:"column:good_count"`
-		BadCount        int64    `gorm:"column:bad_count"`
-		UncertainCount  int64    `gorm:"column:uncertain_count"`
+		ParameterID    uint     `gorm:"column:parameter_id"`
+		SampleCount    int64    `gorm:"column:total_samples"`
+		MinVal         *float64 `gorm:"column:min_val"`
+		MaxVal         *float64 `gorm:"column:max_val"`
+		AvgVal         *float64 `gorm:"column:avg_val"`
+		FirstID        uint64   `gorm:"column:first_id"`
+		LastID         uint64   `gorm:"column:last_id"`
+		GoodCount      int64    `gorm:"column:good_count"`
+		BadCount       int64    `gorm:"column:bad_count"`
+		UncertainCount int64    `gorm:"column:uncertain_count"`
 	}
 
 	rawAggQuery := s.db.WithContext(ctx).Table("raw_data").
 		Select("parameter_id, COUNT(*) as total_samples, MIN(value_numeric) as min_val, MAX(value_numeric) as max_val, AVG(value_numeric) as avg_val, " +
+			"MIN(id) as first_id, MAX(id) as last_id, " +
 			"COUNT(CASE WHEN quality = 'GOOD' THEN 1 END) as good_count, " +
 			"COUNT(CASE WHEN quality = 'BAD' THEN 1 END) as bad_count, " +
 			"COUNT(CASE WHEN quality = 'UNCERTAIN' THEN 1 END) as uncertain_count").
@@ -249,8 +252,43 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 	_ = rawAggQuery.Group("parameter_id").Scan(&rawRows).Error
 
 	rawAggMap := make(map[uint]rawAggRow)
+	var rawBoundaryIDs []uint64
+	rawBoundarySet := make(map[uint64]struct{})
 	for _, r := range rawRows {
 		rawAggMap[r.ParameterID] = r
+		if r.FirstID > 0 {
+			if _, exists := rawBoundarySet[r.FirstID]; !exists {
+				rawBoundarySet[r.FirstID] = struct{}{}
+				rawBoundaryIDs = append(rawBoundaryIDs, r.FirstID)
+			}
+		}
+		if r.LastID > 0 {
+			if _, exists := rawBoundarySet[r.LastID]; !exists {
+				rawBoundarySet[r.LastID] = struct{}{}
+				rawBoundaryIDs = append(rawBoundaryIDs, r.LastID)
+			}
+		}
+	}
+
+	rawValByID := make(map[uint64]float64)
+	if len(rawBoundaryIDs) > 0 {
+		type rawIdVal struct {
+			ID           uint64   `gorm:"column:id"`
+			ValueNumeric *float64 `gorm:"column:value_numeric"`
+			Value        float64  `gorm:"column:value"`
+		}
+		var boundaryRows []rawIdVal
+		_ = s.db.WithContext(ctx).Table("raw_data").
+			Select("id, value_numeric, value").
+			Where("id IN ?", rawBoundaryIDs).
+			Scan(&boundaryRows).Error
+		for _, br := range boundaryRows {
+			if br.ValueNumeric != nil {
+				rawValByID[br.ID] = math.Round(*br.ValueNumeric*100) / 100
+			} else {
+				rawValByID[br.ID] = math.Round(br.Value*100) / 100
+			}
+		}
 	}
 
 	// Processed data fallback
@@ -260,10 +298,12 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 		MinVal      *float64 `gorm:"column:min_val"`
 		MaxVal      *float64 `gorm:"column:max_val"`
 		AvgVal      *float64 `gorm:"column:avg_val"`
+		FirstID     uint64   `gorm:"column:first_id"`
+		LastID      uint64   `gorm:"column:last_id"`
 	}
 	var procRows []procAggRow
 	procAggQuery := s.db.WithContext(ctx).Table("processed_data").
-		Select("parameter_id, COUNT(*) as total_samples, MIN(scaled_value) as min_val, MAX(scaled_value) as max_val, AVG(scaled_value) as avg_val").
+		Select("parameter_id, COUNT(*) as total_samples, MIN(scaled_value) as min_val, MAX(scaled_value) as max_val, AVG(scaled_value) as avg_val, MIN(id) as first_id, MAX(id) as last_id").
 		Where("timestamp >= ? AND timestamp <= ?", req.StartTime, req.EndTime)
 	if scope.TenantID > 0 {
 		procAggQuery = procAggQuery.Where("tenant_id = ?", scope.TenantID)
@@ -279,8 +319,38 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 	_ = procAggQuery.Group("parameter_id").Scan(&procRows).Error
 
 	procAggMap := make(map[uint]procAggRow)
+	var procBoundaryIDs []uint64
+	procBoundarySet := make(map[uint64]struct{})
 	for _, pr := range procRows {
 		procAggMap[pr.ParameterID] = pr
+		if pr.FirstID > 0 {
+			if _, exists := procBoundarySet[pr.FirstID]; !exists {
+				procBoundarySet[pr.FirstID] = struct{}{}
+				procBoundaryIDs = append(procBoundaryIDs, pr.FirstID)
+			}
+		}
+		if pr.LastID > 0 {
+			if _, exists := procBoundarySet[pr.LastID]; !exists {
+				procBoundarySet[pr.LastID] = struct{}{}
+				procBoundaryIDs = append(procBoundaryIDs, pr.LastID)
+			}
+		}
+	}
+
+	procValByID := make(map[uint64]float64)
+	if len(procBoundaryIDs) > 0 {
+		type procIdVal struct {
+			ID          uint64  `gorm:"column:id"`
+			ScaledValue float64 `gorm:"column:scaled_value"`
+		}
+		var boundaryRows []procIdVal
+		_ = s.db.WithContext(ctx).Table("processed_data").
+			Select("id, scaled_value").
+			Where("id IN ?", procBoundaryIDs).
+			Scan(&boundaryRows).Error
+		for _, br := range boundaryRows {
+			procValByID[br.ID] = math.Round(br.ScaledValue*100) / 100
+		}
 	}
 
 	// 4. Build parameter summaries
@@ -317,6 +387,14 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 					avg := math.Round(*raw.AvgVal*100) / 100
 					sum.AvgValue = &avg
 				}
+				if fv, exists := rawValByID[raw.FirstID]; exists {
+					v := fv
+					sum.FirstValue = &v
+				}
+				if lv, exists := rawValByID[raw.LastID]; exists {
+					v := lv
+					sum.LastValue = &v
+				}
 				sum.GoodCount = raw.GoodCount
 				sum.BadCount = raw.BadCount
 				sum.UncertainCount = raw.UncertainCount
@@ -337,6 +415,14 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 					avg := math.Round(*proc.AvgVal*100) / 100
 					sum.AvgValue = &avg
 				}
+				if fv, exists := procValByID[proc.FirstID]; exists {
+					v := fv
+					sum.FirstValue = &v
+				}
+				if lv, exists := procValByID[proc.LastID]; exists {
+					v := lv
+					sum.LastValue = &v
+				}
 				sum.GoodCount = proc.SampleCount
 				sum.GoodPercent = 100.0
 				sum.DataSource = "PROCESSED"
@@ -349,6 +435,8 @@ func (s *ReportService) BuildReport(ctx context.Context, req ReportRequest) (*Re
 				sum.MinValue = p.CurrentValue
 				sum.MaxValue = p.CurrentValue
 				sum.AvgValue = p.CurrentValue
+				sum.FirstValue = p.CurrentValue
+				sum.LastValue = p.CurrentValue
 				sum.GoodCount = 1
 				sum.GoodPercent = 100.0
 				sum.DataSource = "CURRENT_SNAPSHOT"

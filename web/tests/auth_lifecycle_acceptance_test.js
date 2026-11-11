@@ -365,7 +365,8 @@ async function main() {
     assert(fs.existsSync(loginViewPath), 'LoginView.vue must exist');
     const loginContent = fs.readFileSync(loginViewPath, 'utf8');
     assert(loginContent.includes('handleLogin'), 'LoginView must have handleLogin method');
-    assert(loginContent.includes('fillAccount'), 'LoginView must have quick account filler');
+    assert(!loginContent.includes('fillAccount'), 'LoginView must not expose demo user shortcut accounts');
+    assert(loginContent.includes('cbiLogoDay') && loginContent.includes('cbiLogoNight'), 'LoginView must render Cakrawala Bima Instrument day & night logo');
   })) passed++;
 
   console.log(`\n========================================`);

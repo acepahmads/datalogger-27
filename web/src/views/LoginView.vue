@@ -8,108 +8,127 @@
     <div class="login-orb login-orb-top pointer-events-none"></div>
     <div class="login-orb login-orb-bottom pointer-events-none"></div>
 
-    <!-- Top Navigation Bar for Brand Identity, Language & Theme -->
-    <header class="w-full max-w-6xl mx-auto px-5 sm:px-8 pt-5 pb-3 flex items-center justify-between z-10">
-      <div class="flex items-center space-x-3">
-        <div class="login-brand-mark w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.1">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-        </div>
-        <div>
-          <div class="text-xs font-extrabold tracking-tight uppercase text-slate-900 dark:text-white flex items-center gap-2">
-            <span>DATALOGGER-27</span>
-            <span class="px-2 py-0.5 rounded-md text-4xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-sky-300 dark:border-blue-500/30">
-              EDGE &bull; CBI
+    <!-- Top Navigation Bar: System Status, Platform Title, Language & Theme -->
+    <header class="login-topbar w-full z-10">
+      <div class="w-full max-w-6xl mx-auto px-5 sm:px-8 py-3.5 flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 min-w-0">
+          <!-- Online Status Pill -->
+          <span class="login-status-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-mono font-bold tracking-wide">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>{{ $t('auth.systemOnline') || 'SYSTEM ONLINE' }}</span>
+          </span>
+
+          <!-- Compact Telemetry Mark + Platform Title -->
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="login-brand-mark hidden sm:flex w-6 h-6 rounded-md items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <span class="login-platform-title text-xs sm:text-[13px] font-extrabold tracking-tight uppercase truncate">
+              {{ $t('auth.platformHeaderTitle') || 'DATALOGGER TELEMETRY PLATFORM' }}
             </span>
           </div>
-          <div class="text-3xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">
-            {{ $t('auth.platformSubtitle') || 'Industrial Telemetry & Edge Monitoring Platform' }}
-          </div>
+
+          <!-- Dynamic Mode Badge -->
+          <span class="login-mode-badge px-2 py-0.5 rounded-md text-[10px] font-mono font-bold uppercase tracking-wider">
+            {{ isCloudMode ? 'CLOUD' : 'EDGE' }}
+          </span>
         </div>
-      </div>
 
-      <!-- Language & Theme Controls -->
-      <div class="flex items-center space-x-2">
-        <!-- Segmented Language Switcher -->
-        <button
-          type="button"
-          @click="toggleLanguage"
-          class="login-top-control h-8 px-1.5 rounded-xl flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer"
-          :title="$t('header.toggleLang') || 'Switch Language'"
-          aria-label="Switch Language"
-        >
-          <span
-            class="px-2 py-0.5 rounded-lg text-3xs font-mono font-bold transition-all"
-            :class="currentLanguage === 'en' ? 'login-seg-active' : 'text-slate-500 dark:text-slate-400'"
-          >EN</span>
-          <span
-            class="px-2 py-0.5 rounded-lg text-3xs font-mono font-bold transition-all"
-            :class="currentLanguage === 'id' ? 'login-seg-active' : 'text-slate-500 dark:text-slate-400'"
-          >ID</span>
-        </button>
+        <!-- Language & Theme Controls -->
+        <div class="flex items-center space-x-2 shrink-0">
+          <!-- Segmented Language Switcher -->
+          <button
+            type="button"
+            @click="toggleLanguage"
+            class="login-top-control h-8 px-1.5 rounded-xl flex items-center gap-1 text-xs font-semibold transition-all cursor-pointer"
+            :title="$t('header.toggleLang') || 'Switch Language'"
+            aria-label="Switch Language"
+          >
+            <span
+              class="px-2 py-0.5 rounded-lg text-[10.5px] font-mono font-bold transition-all"
+              :class="currentLanguage === 'en' ? 'login-seg-active' : 'login-seg-idle'"
+            >EN</span>
+            <span class="login-seg-sep text-[10px]">|</span>
+            <span
+              class="px-2 py-0.5 rounded-lg text-[10.5px] font-mono font-bold transition-all"
+              :class="currentLanguage === 'id' ? 'login-seg-active' : 'login-seg-idle'"
+            >ID</span>
+          </button>
 
-        <!-- Clean Vector Theme Switcher -->
-        <button
-          type="button"
-          @click="toggleTheme"
-          class="login-top-control w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer"
-          :title="$t('header.toggleTheme') || 'Switch Theme'"
-          aria-label="Switch Theme"
-        >
-          <!-- Moon Icon when in Dark Mode (click to switch to Light) -->
-          <svg v-if="isDarkMode" class="w-4 h-4 text-sky-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-          </svg>
-          <!-- Sun Icon when in Light Mode (click to switch to Dark) -->
-          <svg v-else class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <circle cx="12" cy="12" r="4" />
-            <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
-          </svg>
-        </button>
+          <!-- Clean Vector Day / Night Switcher -->
+          <button
+            type="button"
+            @click="toggleTheme"
+            class="login-top-control w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer"
+            :title="$t('header.toggleTheme') || 'Switch Theme'"
+            aria-label="Switch Theme"
+          >
+            <!-- Moon Icon in Night Mode -->
+            <svg v-if="isDarkMode" class="w-4 h-4 text-sky-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+            </svg>
+            <!-- Sun Icon in Day Mode -->
+            <svg v-else class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <circle cx="12" cy="12" r="4" />
+              <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- Main Form Center Card -->
-    <main class="w-full max-w-[440px] mx-auto px-4 py-6 z-10 flex flex-col justify-center">
-      <div class="login-card relative rounded-3xl overflow-hidden">
-        <!-- Top Accent Hairline -->
-        <div class="h-1 w-full bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600"></div>
+    <!-- Main Centered Authentication Card -->
+    <main class="w-full max-w-[436px] mx-auto px-4 py-6 z-10 flex flex-col justify-center">
+      <div class="login-card relative rounded-2xl overflow-hidden">
+        <!-- Top Gradient Accent Bar -->
+        <div class="h-1 w-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600"></div>
 
-        <div class="p-6 sm:p-8">
-          <!-- Header in Card -->
+        <div class="px-6 py-7 sm:px-8 sm:py-8">
+          <!-- Official Cakrawala Bima Instrument Brand Header -->
+          <div class="flex flex-col items-center pb-5 mb-5 border-b login-divider">
+            <img
+              :src="isDarkMode ? cbiLogoNight : cbiLogoDay"
+              alt="Cakrawala Bima Instrument"
+              class="cbi-brand-logo h-11 sm:h-12 w-auto object-contain select-none"
+              draggable="false"
+            />
+          </div>
+
+          <!-- Access Control Title Block -->
           <div class="text-center mb-5">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-4xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/12 dark:text-sky-300 dark:border-blue-500/25 mb-2.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-sky-400 animate-pulse"></span>
+            <div class="login-access-pill inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>
               <span>{{ $t('auth.systemAccess') || 'SYSTEM ACCESS CONTROL' }}</span>
             </div>
-            <h1 class="text-base sm:text-[17px] font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
+            <h1 class="login-heading text-lg sm:text-[19px] font-bold tracking-tight leading-snug">
               {{ $t('auth.signInTitle') || 'Sign In to Datalogger' }}
             </h1>
-            <p class="text-2xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed max-w-[290px] mx-auto">
+            <p class="login-subtitle text-xs mt-1 leading-relaxed max-w-[310px] mx-auto">
               {{ $t('auth.signInSubtitle') || 'Enter your operational credentials to access telemetry and monitoring systems' }}
             </p>
           </div>
 
-          <!-- Error Feedback Toast -->
+          <!-- Error Feedback Banner -->
           <div
             v-if="errorMessage"
-            class="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/30 dark:text-rose-300 text-xs flex items-start gap-2.5 animate-shake"
+            class="login-error-banner mb-4 p-3 rounded-xl text-xs flex items-start gap-2.5 animate-shake"
           >
-            <svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke-width="2" />
               <line x1="12" y1="8" x2="12" y2="12" stroke-width="2" />
               <line x1="12" y1="16" x2="12.01" y2="16" stroke-width="2" />
             </svg>
             <div class="flex-1 font-medium leading-relaxed">{{ errorMessage }}</div>
-            <button type="button" @click="errorMessage = ''" class="text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-200 font-bold">&times;</button>
+            <button type="button" @click="errorMessage = ''" class="opacity-80 hover:opacity-100 font-bold">&times;</button>
           </div>
 
           <!-- Credentials Form -->
           <form @submit.prevent="handleLogin" class="space-y-4">
             <!-- Username Input -->
             <div>
-              <label for="login-username" class="block text-3xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label for="login-username" class="login-label block text-[10.5px] font-bold uppercase tracking-wider mb-1.5">
                 {{ $t('auth.username') || 'Username' }}
               </label>
               <div class="login-input-group relative">
@@ -124,7 +143,7 @@
                   v-model="form.username"
                   required
                   autocomplete="username"
-                  :placeholder="$t('auth.usernamePlaceholder') || 'e.g. admin or operator_user'"
+                  :placeholder="$t('auth.usernamePlaceholder') || 'Enter your registered username'"
                   class="login-field w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-mono transition-all"
                 />
               </div>
@@ -132,7 +151,7 @@
 
             <!-- Password Input -->
             <div>
-              <label for="login-password" class="block text-3xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label for="login-password" class="login-label block text-[10.5px] font-bold uppercase tracking-wider mb-1.5">
                 {{ $t('auth.password') || 'Password' }}
               </label>
               <div class="login-input-group relative">
@@ -147,13 +166,13 @@
                   v-model="form.password"
                   required
                   autocomplete="current-password"
-                  :placeholder="$t('auth.passwordPlaceholder') || 'Enter password'"
+                  :placeholder="$t('auth.passwordPlaceholder') || 'Enter your password'"
                   class="login-field w-full pl-10 pr-10 py-2.5 rounded-xl text-xs font-mono transition-all"
                 />
                 <button
                   type="button"
                   @click="showPassword = !showPassword"
-                  class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                  class="login-eye-btn absolute inset-y-0 right-0 pr-3.5 flex items-center transition-colors cursor-pointer"
                   title="Toggle password visibility"
                 >
                   <svg v-if="!showPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -167,8 +186,8 @@
               </div>
             </div>
 
-            <!-- Submit Button -->
-            <div class="pt-2">
+            <!-- Submit CTA -->
+            <div class="pt-1.5">
               <button
                 id="btn-login-submit"
                 type="submit"
@@ -187,109 +206,41 @@
             </div>
           </form>
 
-          <!-- Development & Testing Quick Fill Accounts Strip -->
-          <div class="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800/80">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="h-px flex-1 bg-slate-200/80 dark:bg-slate-800"></div>
-              <span class="text-4xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                {{ $t('auth.testAccounts') || 'Testing & Demo Accounts (1-Click Fill)' }}
-              </span>
-              <div class="h-px flex-1 bg-slate-200/80 dark:bg-slate-800"></div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 text-2xs">
-              <!-- 1. Superadmin -->
-              <button
-                type="button"
-                @click="fillAccount('admin', 'Password123!')"
-                class="login-role-card p-2.5 rounded-xl text-left transition-all group cursor-pointer"
-                :class="form.username === 'admin' ? 'login-role-active-purple' : ''"
-              >
-                <div class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-purple-700 dark:group-hover:text-purple-300 flex items-center justify-between">
-                  <span class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400"></span>
-                    <span>SUPERADMIN</span>
-                  </span>
-                  <span v-if="form.username === 'admin'" class="text-purple-600 dark:text-purple-400 text-3xs font-mono">✓</span>
-                </div>
-                <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">@admin &bull; Full Access</div>
-              </button>
-
-              <!-- 2. Admin -->
-              <button
-                type="button"
-                @click="fillAccount('admin_user', 'Password123!')"
-                class="login-role-card p-2.5 rounded-xl text-left transition-all group cursor-pointer"
-                :class="form.username === 'admin_user' ? 'login-role-active-blue' : ''"
-              >
-                <div class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 flex items-center justify-between">
-                  <span class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400"></span>
-                    <span>ADMIN</span>
-                  </span>
-                  <span v-if="form.username === 'admin_user'" class="text-blue-600 dark:text-blue-400 text-3xs font-mono">✓</span>
-                </div>
-                <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">@admin_user &bull; Ops Admin</div>
-              </button>
-
-              <!-- 3. Engineer -->
-              <button
-                type="button"
-                @click="fillAccount('engineer_user', 'Password123!')"
-                class="login-role-card p-2.5 rounded-xl text-left transition-all group cursor-pointer"
-                :class="form.username === 'engineer_user' ? 'login-role-active-amber' : ''"
-              >
-                <div class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-700 dark:group-hover:text-amber-300 flex items-center justify-between">
-                  <span class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400"></span>
-                    <span>ENGINEER</span>
-                  </span>
-                  <span v-if="form.username === 'engineer_user'" class="text-amber-600 dark:text-amber-400 text-3xs font-mono">✓</span>
-                </div>
-                <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">@engineer_user &bull; Sensors</div>
-              </button>
-
-              <!-- 4. Operator -->
-              <button
-                type="button"
-                @click="fillAccount('operator_user', 'Password123!')"
-                class="login-role-card p-2.5 rounded-xl text-left transition-all group cursor-pointer"
-                :class="form.username === 'operator_user' ? 'login-role-active-emerald' : ''"
-              >
-                <div class="font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-700 dark:group-hover:text-emerald-300 flex items-center justify-between">
-                  <span class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-600 dark:bg-emerald-400"></span>
-                    <span>OPERATOR</span>
-                  </span>
-                  <span v-if="form.username === 'operator_user'" class="text-emerald-600 dark:text-emerald-400 text-3xs font-mono">✓</span>
-                </div>
-                <div class="text-4xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">@operator_user &bull; Dashboard</div>
-              </button>
-            </div>
+          <!-- Minimal Production Security Note (No User Shortcuts) -->
+          <div class="login-security-note mt-5 pt-4 border-t login-divider flex items-center justify-center gap-1.5 text-[11px]">
+            <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0110 0v4"></path>
+            </svg>
+            <span>{{ $t('auth.securitySessionNote') || 'Authorized RBAC Session • Encrypted Telemetry Access' }}</span>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- Minimal System Footer -->
+    <!-- Official Brand & System Footer -->
     <footer class="w-full max-w-6xl mx-auto px-6 pb-5 pt-2 text-center z-10">
-      <div class="inline-flex flex-wrap items-center justify-center gap-2.5 text-3xs font-mono text-slate-500 dark:text-slate-400">
-        <span class="inline-flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          <span class="font-semibold text-slate-600 dark:text-slate-300">Datalogger-27 Edge v1.0.0</span>
-        </span>
-        <span class="text-slate-300 dark:text-slate-700">&bull;</span>
-        <span>{{ $t('auth.footerSystemLabel') || 'Autonomous Edge Telemetry Gateway' }}</span>
+      <div class="login-footer-text inline-flex flex-wrap items-center justify-center gap-2 text-[11px]">
+        <span class="font-semibold">&copy; Cakrawala Bima Instrument</span>
+        <span class="opacity-50">&bull;</span>
+        <span>{{ $t('auth.platformSubtitle') || 'Industrial Telemetry & Environmental Monitoring Platform' }}</span>
       </div>
     </footer>
   </div>
 </template>
 
 <script>
+import cbiLogoDay from '../assets/cbi-logo-day.png';
+import cbiLogoNight from '../assets/cbi-logo-night.png';
+
 export default {
   name: 'LoginView',
   data() {
     return {
+      cbiLogoDay,
+      cbiLogoNight,
+      domDark: false,
+      themeObserver: null,
       form: {
         username: '',
         password: '',
@@ -309,13 +260,38 @@ export default {
           return this.$store.state.theme === 'dark';
         }
       }
-      return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+      return this.domDark;
+    },
+    isCloudMode() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
     },
     currentLanguage() {
       return this.$store.state.uiPreferences?.language || 'id';
     },
   },
+  mounted() {
+    this.syncDomDark();
+    if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+      this.themeObserver = new MutationObserver(() => this.syncDomDark());
+      this.themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class'],
+      });
+    }
+  },
+  beforeDestroy() {
+    if (this.themeObserver) {
+      this.themeObserver.disconnect();
+      this.themeObserver = null;
+    }
+  },
   methods: {
+    syncDomDark() {
+      if (typeof document !== 'undefined' && document.documentElement) {
+        this.domDark = document.documentElement.classList.contains('dark');
+      }
+    },
     toggleLanguage() {
       const next = this.currentLanguage === 'id' ? 'en' : 'id';
       this.$store.dispatch('setLanguage', next);
@@ -323,11 +299,7 @@ export default {
     toggleTheme() {
       const next = this.isDarkMode ? 'light' : 'dark';
       this.$store.dispatch('setTheme', next);
-    },
-    fillAccount(username, password) {
-      this.form.username = username;
-      this.form.password = password;
-      this.errorMessage = '';
+      this.syncDomDark();
     },
     async handleLogin() {
       this.isLoading = true;
@@ -435,72 +407,73 @@ export default {
 </script>
 
 <style scoped>
-/* Shell Background (Light & Dark — Vue 2 scoped compatible via .login-dark / .login-light) */
+/* =========================================================================
+   DAY MODE (MODE SIANG — CLEAN ENTERPRISE LIGHT)
+   ========================================================================= */
 .login-shell {
-  background: linear-gradient(145deg, #F8FAFC 0%, #EFF6FF 48%, #F1F5F9 100%);
+  background: linear-gradient(145deg, #F8FAFC 0%, #EFF6FF 50%, #F1F5F9 100%);
   color: #0F172A;
 }
 
-.login-shell.login-dark {
-  background: radial-gradient(circle at 50% 0%, #0E1B33 0%, #070D18 58%, #050912 100%);
-  color: #F8FAFC;
+.login-topbar {
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid rgba(203, 213, 225, 0.75);
+  backdrop-filter: blur(10px);
 }
 
-/* Precision Architectural Grid Overlay */
+.login-status-pill {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.login-platform-title {
+  color: #0F172A;
+}
+
+.login-mode-badge {
+  background: #F1F5F9;
+  color: #334155;
+  border: 1px solid #CBD5E1;
+}
+
 .login-grid-pattern {
   background-image:
     linear-gradient(to right, rgba(15, 23, 42, 0.035) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-size: 28px 28px;
   mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.85) 25%, transparent 80%);
   -webkit-mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.85) 25%, transparent 80%);
 }
 
-.login-dark .login-grid-pattern {
-  background-image:
-    linear-gradient(to right, rgba(56, 189, 248, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(56, 189, 248, 0.045) 1px, transparent 1px);
-}
-
-/* Soft Ambient Orbs */
 .login-orb {
   position: absolute;
   width: 28rem;
   height: 28rem;
   border-radius: 9999px;
-  filter: blur(72px);
+  filter: blur(76px);
 }
 
 .login-orb-top {
   top: -10rem;
   right: -8rem;
-  background: rgba(37, 99, 235, 0.12);
+  background: rgba(14, 165, 233, 0.13);
 }
 
 .login-orb-bottom {
   bottom: -10rem;
   left: -8rem;
-  background: rgba(14, 165, 233, 0.11);
+  background: rgba(37, 99, 235, 0.11);
 }
 
-.login-dark .login-orb-top {
-  background: rgba(37, 99, 235, 0.18);
-}
-
-.login-dark .login-orb-bottom {
-  background: rgba(6, 182, 212, 0.13);
-}
-
-/* Brand Mark */
 .login-brand-mark {
-  background: linear-gradient(135deg, #1D4ED8 0%, #0284C7 100%);
-  box-shadow: 0 8px 18px -4px rgba(29, 78, 216, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #0284C7 0%, #2563EB 100%);
+  box-shadow: 0 4px 10px -2px rgba(2, 132, 199, 0.35);
   color: #FFFFFF !important;
 }
 
-/* Top Controls */
 .login-top-control {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid #CBD5E1;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
@@ -510,8 +483,171 @@ export default {
   background: #FFFFFF;
 }
 
+.login-seg-active {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  box-shadow: inset 0 0 0 1px #BFDBFE;
+}
+
+.login-seg-idle {
+  color: #64748B;
+}
+
+.login-seg-sep {
+  color: #CBD5E1;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #E2E8F0;
+  box-shadow:
+    0 24px 48px -12px rgba(15, 23, 42, 0.11),
+    0 4px 12px -2px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
+}
+
+.login-divider {
+  border-color: #E2E8F0;
+}
+
+.login-access-pill {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.login-heading {
+  color: #0F172A !important;
+}
+
+.login-subtitle {
+  color: #64748B;
+}
+
+.login-label {
+  color: #334155;
+}
+
+.login-error-banner {
+  background: #FFF1F2;
+  border: 1px solid #FECDD3;
+  color: #BE123C;
+}
+
+.login-input-icon {
+  color: #64748B;
+  transition: color 0.15s ease;
+}
+
+.login-input-group:focus-within .login-input-icon {
+  color: #0284C7;
+}
+
+.login-eye-btn {
+  color: #64748B;
+}
+
+.login-eye-btn:hover {
+  color: #0F172A;
+}
+
+.login-field {
+  background-color: #FFFFFF !important;
+  border: 1px solid #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+.login-field::placeholder {
+  color: #94A3B8 !important;
+}
+
+.login-field:focus {
+  background-color: #FFFFFF !important;
+  border-color: #0284C7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+  outline: none;
+}
+
+.login-light .login-field:-webkit-autofill,
+.login-light .login-field:-webkit-autofill:hover,
+.login-light .login-field:-webkit-autofill:focus,
+.login-light .login-field:-webkit-autofill:active {
+  -webkit-text-fill-color: #0F172A !important;
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  border: 1px solid #CBD5E1 !important;
+  caret-color: #0F172A;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.login-primary-btn {
+  background: linear-gradient(90deg, #0284C7 0%, #2563EB 100%);
+  color: #FFFFFF !important;
+  box-shadow:
+    0 10px 20px -6px rgba(37, 99, 235, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.login-primary-btn:hover {
+  background: linear-gradient(90deg, #0369A1 0%, #1D4ED8 100%);
+  box-shadow:
+    0 12px 24px -6px rgba(29, 78, 216, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.login-security-note {
+  color: #64748B;
+}
+
+.login-footer-text {
+  color: #64748B;
+}
+
+/* =========================================================================
+   NIGHT MODE (MODE MALAM — HIGH-CONTRAST INDUSTRIAL DARK)
+   ========================================================================= */
+.login-shell.login-dark {
+  background: radial-gradient(circle at 50% 0%, #0D1B30 0%, #070D19 58%, #040811 100%);
+  color: #F8FAFC;
+}
+
+.login-dark .login-topbar {
+  background: rgba(7, 13, 25, 0.78);
+  border-bottom-color: rgba(30, 41, 59, 0.85);
+}
+
+.login-dark .login-status-pill {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34D399;
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.login-dark .login-platform-title {
+  color: #F8FAFC;
+}
+
+.login-dark .login-mode-badge {
+  background: rgba(15, 23, 42, 0.9);
+  color: #CBD5E1;
+  border-color: #334155;
+}
+
+.login-dark .login-grid-pattern {
+  background-image:
+    linear-gradient(to right, rgba(56, 189, 248, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.045) 1px, transparent 1px);
+}
+
+.login-dark .login-orb-top {
+  background: rgba(14, 165, 233, 0.16);
+}
+
+.login-dark .login-orb-bottom {
+  background: rgba(37, 99, 235, 0.16);
+}
+
 .login-dark .login-top-control {
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.9);
   border: 1px solid rgba(51, 65, 85, 0.9);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
@@ -521,44 +657,54 @@ export default {
   background: #0F172A;
 }
 
-.login-seg-active {
-  background: #EFF6FF;
-  color: #1D4ED8;
-  box-shadow: inset 0 0 0 1px #BFDBFE;
-}
-
 .login-dark .login-seg-active {
   background: rgba(56, 189, 248, 0.18);
   color: #38BDF8;
   box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
 }
 
-/* Main Login Card */
-.login-card {
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid #CBD5E1;
-  box-shadow:
-    0 24px 48px -12px rgba(15, 23, 42, 0.10),
-    0 4px 12px -2px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(12px);
+.login-dark .login-seg-idle {
+  color: #94A3B8;
+}
+
+.login-dark .login-seg-sep {
+  color: #334155;
 }
 
 .login-dark .login-card {
-  background: rgba(13, 21, 38, 0.95);
+  background: rgba(15, 23, 42, 0.96);
   border: 1px solid rgba(51, 65, 85, 0.85);
   box-shadow:
-    0 28px 56px -12px rgba(0, 0, 0, 0.6),
+    0 28px 56px -12px rgba(0, 0, 0, 0.65),
     0 0 0 1px rgba(56, 189, 248, 0.08);
 }
 
-/* Input Group & Focus Highlighting */
-.login-input-icon {
-  color: #64748B;
-  transition: color 0.15s ease;
+.login-dark .login-divider {
+  border-color: rgba(51, 65, 85, 0.75);
 }
 
-.login-input-group:focus-within .login-input-icon {
-  color: #2563EB;
+.login-dark .login-access-pill {
+  background: rgba(14, 165, 233, 0.14);
+  color: #38BDF8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.login-dark .login-heading {
+  color: #F8FAFC !important;
+}
+
+.login-dark .login-subtitle {
+  color: #94A3B8;
+}
+
+.login-dark .login-label {
+  color: #CBD5E1;
+}
+
+.login-dark .login-error-banner {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.32);
+  color: #FDA4AF;
 }
 
 .login-dark .login-input-icon {
@@ -569,17 +715,12 @@ export default {
   color: #38BDF8;
 }
 
-.login-field {
-  background-color: #F8FAFC !important;
-  border: 1px solid #CBD5E1 !important;
-  color: #0F172A !important;
+.login-dark .login-eye-btn {
+  color: #94A3B8;
 }
 
-.login-field:focus {
-  background-color: #FFFFFF !important;
-  border-color: #2563EB !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14) !important;
-  outline: none;
+.login-dark .login-eye-btn:hover {
+  color: #F8FAFC;
 }
 
 .login-dark .login-field {
@@ -599,19 +740,6 @@ export default {
   outline: none;
 }
 
-/* Browser Autofill Contrast Preservation (Light & Dark) */
-.login-light .login-field:-webkit-autofill,
-.login-light .login-field:-webkit-autofill:hover,
-.login-light .login-field:-webkit-autofill:focus,
-.login-light .login-field:-webkit-autofill:active {
-  -webkit-text-fill-color: #0F172A !important;
-  -webkit-box-shadow: 0 0 0 1000px #F8FAFC inset !important;
-  box-shadow: 0 0 0 1000px #F8FAFC inset !important;
-  border: 1px solid #CBD5E1 !important;
-  caret-color: #0F172A;
-  transition: background-color 5000s ease-in-out 0s;
-}
-
 .login-dark .login-field:-webkit-autofill,
 .login-dark .login-field:-webkit-autofill:hover,
 .login-dark .login-field:-webkit-autofill:focus,
@@ -624,93 +752,23 @@ export default {
   transition: background-color 5000s ease-in-out 0s;
 }
 
-/* Primary Sign-In Button */
-.login-primary-btn {
-  background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 55%, #0284C7 100%);
-  color: #FFFFFF !important;
-  box-shadow:
-    0 10px 20px -6px rgba(37, 99, 235, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.login-primary-btn:hover {
-  background: linear-gradient(135deg, #1E40AF 0%, #1D4ED8 55%, #0369A1 100%);
-  box-shadow:
-    0 12px 24px -6px rgba(29, 78, 216, 0.52),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-
 .login-dark .login-primary-btn {
-  background: linear-gradient(135deg, #2563EB 0%, #0284C7 100%);
+  background: linear-gradient(90deg, #0284C7 0%, #2563EB 100%);
   box-shadow:
-    0 10px 24px -6px rgba(2, 132, 199, 0.4),
+    0 10px 24px -6px rgba(2, 132, 199, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .login-dark .login-primary-btn:hover {
-  background: linear-gradient(135deg, #3B82F6 0%, #0EA5E9 100%);
+  background: linear-gradient(90deg, #0EA5E9 0%, #3B82F6 100%);
 }
 
-/* Quick-Fill Role Cards */
-.login-role-card {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
+.login-dark .login-security-note {
+  color: #94A3B8;
 }
 
-.login-role-card:hover {
-  background: #FFFFFF;
-  border-color: #CBD5E1;
-  box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.06);
-}
-
-.login-dark .login-role-card {
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(51, 65, 85, 0.78);
-}
-
-.login-dark .login-role-card:hover {
-  background: rgba(30, 41, 59, 0.88);
-  border-color: rgba(71, 85, 105, 0.95);
-}
-
-.login-role-active-purple {
-  background: #FAF5FF !important;
-  border-color: #C084FC !important;
-  box-shadow: 0 0 0 1px rgba(147, 51, 234, 0.15);
-}
-.login-dark .login-role-active-purple {
-  background: rgba(147, 51, 234, 0.16) !important;
-  border-color: rgba(168, 85, 247, 0.6) !important;
-}
-
-.login-role-active-blue {
-  background: #EFF6FF !important;
-  border-color: #60A5FA !important;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
-}
-.login-dark .login-role-active-blue {
-  background: rgba(37, 99, 235, 0.18) !important;
-  border-color: rgba(59, 130, 246, 0.6) !important;
-}
-
-.login-role-active-amber {
-  background: #FFFBEB !important;
-  border-color: #FBBF24 !important;
-  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.15);
-}
-.login-dark .login-role-active-amber {
-  background: rgba(245, 158, 11, 0.16) !important;
-  border-color: rgba(251, 191, 36, 0.6) !important;
-}
-
-.login-role-active-emerald {
-  background: #ECFDF5 !important;
-  border-color: #34D399 !important;
-  box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.15);
-}
-.login-dark .login-role-active-emerald {
-  background: rgba(16, 185, 129, 0.16) !important;
-  border-color: rgba(52, 211, 153, 0.6) !important;
+.login-dark .login-footer-text {
+  color: #94A3B8;
 }
 
 @keyframes shake {

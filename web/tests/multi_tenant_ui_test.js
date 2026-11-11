@@ -132,11 +132,13 @@ assert(storeCode.includes("'X-Auto-Login': '1'"), 'autoLoginOperator must send X
 assert(routerCode.includes('if (!isAuth && !isLoginPage && !isCloudMode)'), 'Router guard must never auto-login in Cloud mode');
 assert(mainCode.includes('if (isCloudMode)'), 'main.js must enforce mandatory login and skip autoLoginOperator in Cloud mode');
 
-// 12. LoginView Dark Mode Vue 2 Scoped CSS Compatibility & Cloud Mode Operator Delivery Queue Restriction
+// 12. LoginView Dark Mode Vue 2 Scoped CSS Compatibility, Official CBI Logo (No User Shortcuts), & Cloud Mode Operator Delivery Queue Restriction
 assert(!loginViewCode.includes(':global('), 'LoginView.vue must not use Vue 3 :global() inside Vue 2 <style scoped>');
 assert(loginViewCode.includes('.login-dark .login-card'), 'LoginView.vue must define .login-dark .login-card');
+assert(loginViewCode.includes('.login-dark .login-heading'), 'LoginView.vue must define .login-dark .login-heading');
 assert(loginViewCode.includes('.login-dark .login-field'), 'LoginView.vue must define .login-dark .login-field');
-assert(loginViewCode.includes('.login-dark .login-role-card'), 'LoginView.vue must define .login-dark .login-role-card');
+assert(!loginViewCode.includes('fillAccount') && !loginViewCode.includes('login-role-card'), 'LoginView.vue must not render demo user shortcut buttons');
+assert(loginViewCode.includes('cbi-logo-day.png') && loginViewCode.includes('cbi-logo-night.png'), 'LoginView.vue must import official CBI day & night logo assets');
 assert(loginViewCode.includes('.login-dark .login-top-control'), 'LoginView.vue must define .login-dark .login-top-control');
 assert(loginViewCode.includes('.login-dark .login-field:-webkit-autofill'), 'LoginView.vue must style dark mode browser autofill');
 
