@@ -491,16 +491,22 @@ export default {
       );
     },
     showIspuMenu() {
-      if (this.isCloudMode) {
+      if (this.monitoringDomain === 'AQMS' || this.monitoringDomain === 'CUSTOM') {
+        return true;
+      }
+      if (this.isCloudMode && this.monitoringDomain === 'CLOUD') {
         return this.isSuperAdmin;
       }
-      return this.monitoringDomain === 'AQMS' || this.monitoringDomain === 'CUSTOM';
+      return false;
     },
     showWqmsMenu() {
-      if (this.isCloudMode) {
+      if (this.monitoringDomain === 'WQMS' || this.monitoringDomain === 'ONLIMO' || this.monitoringDomain === 'CUSTOM') {
+        return true;
+      }
+      if (this.isCloudMode && this.monitoringDomain === 'CLOUD') {
         return this.isSuperAdmin;
       }
-      return this.monitoringDomain === 'WQMS' || this.monitoringDomain === 'CUSTOM';
+      return false;
     },
   },
   methods: {

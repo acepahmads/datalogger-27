@@ -2447,6 +2447,13 @@
           @device-change="handleIspuDeviceChange"
         />
 
+        <!-- WQMS IP & IKA Indicator Bar (PP 22/2021 · Kepmen LH 115/2003 · Permen LHK 27/2021) -->
+        <BentoWQMSIndexBar
+          v-else-if="isWQMSDomain && isIspuBarVisible"
+          :is-dark="isDark"
+          :devices-list="devicesList"
+        />
+
         <!-- VIEW MODE 1: SCADA PARAMETER CARD TILES (Single Main Parameter Panel) -->
         <div
           v-if="viewMode === 'cards'"
@@ -6055,6 +6062,7 @@ import ParameterConfigViewModal from '../components/ParameterConfigViewModal.vue
 import ParameterHistoryModal from '../components/ParameterHistoryModal.vue';
 import ParameterModal from '../components/ParameterModal.vue';
 import ISPUIndicatorBar from '../components/ISPUIndicatorBar.vue';
+import BentoWQMSIndexBar from '../components/BentoWQMSIndexBar.vue';
 import {
   loadOrganizationBranding,
   saveCustomerBranding,
@@ -6172,6 +6180,7 @@ export default {
     ParameterHistoryModal,
     ParameterModal,
     ISPUIndicatorBar,
+    BentoWQMSIndexBar,
     MultiPanelConfigModal,
     AlarmNotificationModal,
   },
@@ -8130,6 +8139,10 @@ export default {
     },
     isAQMSDomain() {
       return (this.currentMonitoringDomain || 'AQMS').toUpperCase() === 'AQMS';
+    },
+    isWQMSDomain() {
+      const dom = (this.currentMonitoringDomain || '').toUpperCase();
+      return dom === 'WQMS' || dom === 'ONLIMO';
     },
     monitoringDomainBadgeClass() {
       const d = (this.currentMonitoringDomain || 'AQMS').toUpperCase();

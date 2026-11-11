@@ -1074,7 +1074,8 @@ export default {
       return true;
     },
     isAqmsDomain() {
-      return (this.systemDomain || 'AQMS').toUpperCase() === 'AQMS';
+      const dom = (this.systemDomain || 'AQMS').toUpperCase();
+      return dom === 'AQMS' || dom === 'CLOUD' || dom === 'CUSTOM';
     },
     currentMonitoringDomain() {
       return this.systemDomain || 'AQMS';
@@ -1189,12 +1190,20 @@ export default {
     this.loadStationData();
     window.addEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.addEventListener('aggregation-result-event', this.handleAggregationUpdated);
+    window.addEventListener('tenant-context-changed', this.handleTenantContextChanged);
   },
   beforeDestroy() {
     window.removeEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
+    window.removeEventListener('tenant-context-changed', this.handleTenantContextChanged);
   },
   methods: {
+    async handleTenantContextChanged() {
+      this.selectedDeviceId = 0;
+      await this.fetchDomain();
+      await this.fetchDevices();
+      await this.loadStationData();
+    },
     setMode(mode) {
       if (this.ispuMode === mode) return;
       this.ispuMode = mode;
@@ -1320,14 +1329,9 @@ export default {
       this.recalculating = true;
       try {
         const token = this.getAuthToken();
-        await Promise.all([
-          axios.post('/api/ispu/backfill', { device_id: this.selectedDeviceId || 0, hours: 24 }, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          }),
-          axios.post('/api/ispu/recalculate', { device_id: this.selectedDeviceId || 0 }, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          })
-        ]);
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        await axios.post('/api/ispu/backfill', { device_id: this.selectedDeviceId || 0, hours: 24 }, { headers });
+        await axios.post('/api/ispu/recalculate', { device_id: this.selectedDeviceId || 0 }, { headers });
         await this.loadStationData();
       } catch (err) {
         alert('Recalculation error: ' + (err.response?.data?.error || err.message));

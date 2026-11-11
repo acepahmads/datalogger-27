@@ -6933,7 +6933,7 @@ export default {
       return this.stationLocation.station_name || this.stationLocation.address || '';
     },
     isWQMSDomain() {
-      return this.activeMonitoringDomain === 'WQMS';
+      return this.activeMonitoringDomain === 'WQMS' || this.activeMonitoringDomain === 'ONLIMO';
     },
     isCompactScreen() {
       return this.bentoViewportWidth < 1280;

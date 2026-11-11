@@ -746,17 +746,24 @@ export default {
       return this.trendSampledDots.map(d => `${d.x},${d.y}`).join(' ');
     },
   },
+  watch: {
+    devicesList() {
+      this.fetchLatest();
+    },
+  },
   mounted() {
     this.fetchLatest();
     this.pollTimer = setInterval(() => {
       this.fetchLatest();
     }, 30000);
     window.addEventListener('wqms-calculated-event', this.onWqmsCalculatedEvent);
+    window.addEventListener('tenant-context-changed', this.onWqmsCalculatedEvent);
     document.addEventListener('click', this.handleOutsideClick);
   },
   beforeDestroy() {
     if (this.pollTimer) clearInterval(this.pollTimer);
     window.removeEventListener('wqms-calculated-event', this.onWqmsCalculatedEvent);
+    window.removeEventListener('tenant-context-changed', this.onWqmsCalculatedEvent);
     document.removeEventListener('click', this.handleOutsideClick);
   },
   methods: {

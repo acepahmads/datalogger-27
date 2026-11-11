@@ -583,5 +583,115 @@ func TestISPUService_AuditTrackingAndPeakOutliers(t *testing.T) {
 	}
 }
 
+func TestISPUService_CloudUnifiedStationMultiDevice(t *testing.T) {
+	db, ispuSvc, _ := setupISPUTestDB(t)
+	ctx := context.Background()
+
+	// Remove default setup devices/mappings so we test multi-device station (PM + GAS + MET) cleanly
+	db.Exec("DELETE FROM ispu_parameter_mappings")
+	db.Exec("DELETE FROM parameters")
+	db.Exec("DELETE FROM devices")
+
+	devPM := &model.Device{
+		TenantID:   1,
+		SiteID:     1,
+		DeviceCode: "PM",
+		DeviceName: "Particulate Monitor",
+		DeviceType: "CLOUD_PUSH",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+		Timezone:   "Asia/Jakarta",
+	}
+	devGAS := &model.Device{
+		TenantID:   1,
+		SiteID:     1,
+		DeviceCode: "GAS",
+		DeviceName: "Gas Analyzer",
+		DeviceType: "CLOUD_PUSH",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+		Timezone:   "Asia/Jakarta",
+	}
+	devMET := &model.Device{
+		TenantID:   1,
+		SiteID:     1,
+		DeviceCode: "MET",
+		DeviceName: "Weather Station",
+		DeviceType: "CLOUD_PUSH",
+		Status:     model.DeviceStatusActive,
+		Enabled:    true,
+		Timezone:   "Asia/Jakarta",
+	}
+	db.Create(devPM)
+	db.Create(devGAS)
+	db.Create(devMET)
+
+	now := time.Now().UTC()
+	seedParam := func(devID uint, code, name, unit string, val float64) {
+		v := val
+		p := &model.Parameter{
+			DeviceID:      devID,
+			ParameterCode: code,
+			ParameterName: name,
+			Unit:          unit,
+			Enabled:       true,
+			CurrentValue:  &v,
+		}
+		db.Create(p)
+		db.Create(&model.RawData{
+			TenantID:       1,
+			SiteID:         1,
+			DeviceID:       devID,
+			ParameterID:    p.ID,
+			Value:          val,
+			ProcessedValue: val,
+			Quality:        model.QualityGood,
+			Timestamp:      now,
+			ReceivedAt:     now,
+		})
+	}
+
+	// Match user screenshot values from Stasiun AQMS DLH Indragiri Hulu
+	seedParam(devPM.ID, "PM25", "PM2.5", "µg/m³", 114.48)
+	seedParam(devPM.ID, "PM10", "PM10", "µg/m³", 93.50)
+	seedParam(devGAS.ID, "SO2", "SO2", "µg/m³", 7.46)
+	seedParam(devGAS.ID, "NO2", "NO2", "µg/m³", 50.47)
+	seedParam(devGAS.ID, "O3", "O3", "µg/m³", 34.34)
+	seedParam(devGAS.ID, "HC", "HC", "µg/m³", 10.44)
+	seedParam(devGAS.ID, "CO", "CO", "µg/m³", 287.50)
+	seedParam(devMET.ID, "TEMP", "Temperature", "°C", 28.5)
+
+	// Even if an individual sub-device (e.g. MET with 0 pollutants) was calculated earlier with TIDAK_TERSEDIA,
+	// GetLatestSummary(ctx, 0, "REGULATORY") must compute and return the unified 7/7 station result.
+	_, _ = ispuSvc.CalculateStationWindowWithReason(ctx, devMET.ID, now, "EDGE_PUSH")
+
+	summary, err := ispuSvc.GetLatestSummary(ctx, 0, "REGULATORY")
+	if err != nil {
+		t.Fatalf("GetLatestSummary(0) failed: %v", err)
+	}
+	if summary == nil {
+		t.Fatalf("Expected non-nil unified station ISPU summary")
+	}
+	if summary.DeviceID != 0 {
+		t.Errorf("Expected unified station summary DeviceID=0, got %d", summary.DeviceID)
+	}
+	if summary.OverallCategory == model.CategoryUnavailable {
+		t.Errorf("Expected valid ISPU category, got TIDAK_TERSEDIA")
+	}
+	if summary.DominantPollutant != model.PollutantPM25 {
+		t.Errorf("Expected dominant pollutant PM25, got %s", summary.DominantPollutant)
+	}
+	validCount := 0
+	for _, pr := range summary.ParameterResults {
+		if pr.Category != model.CategoryUnavailable && pr.ValidSamples > 0 {
+			validCount++
+		}
+	}
+	if validCount != 7 {
+		t.Errorf("Expected 7/7 valid pollutant results on unified station, got %d/7", validCount)
+	}
+}
+
+
 
 

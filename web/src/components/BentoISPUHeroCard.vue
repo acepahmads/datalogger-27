@@ -125,12 +125,12 @@
                       <div>{{ validityTooltip }}</div>
                     </div>
 
-                    <div v-if="canRecalculate && effectiveDeviceId" class="pt-1 flex justify-end">
+                    <div v-if="canRecalculate" class="pt-1 flex justify-end">
                       <button
                         type="button"
                         @click="triggerRecalculation"
                         :disabled="recalculating"
-                        class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white transition cursor-pointer"
+                        class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white btn-text transition cursor-pointer"
                       >
                         {{ recalculating ? 'Menghitung ulang...' : '↻ Hitung Ulang ISPU' }}
                       </button>
@@ -307,12 +307,12 @@
                 <div>{{ validityTooltip }}</div>
               </div>
 
-              <div v-if="canRecalculate && effectiveDeviceId" class="pt-1 flex justify-end">
+              <div v-if="canRecalculate" class="pt-1 flex justify-end">
                 <button
                   type="button"
                   @click="triggerRecalculation"
                   :disabled="recalculating"
-                  class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white transition cursor-pointer"
+                  class="px-2.5 py-1 rounded-md text-[10.5px] font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white btn-text transition cursor-pointer"
                 >
                   {{ recalculating ? 'Menghitung ulang...' : '↻ Hitung Ulang ISPU' }}
                 </button>

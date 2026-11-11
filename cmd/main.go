@@ -363,6 +363,10 @@ func main() {
 		wqmsService.EnqueueCalculation(deviceID, bucketEnd, "AGGREGATION_COMPLETED")
 		_ = outboundService.HandleBucketCompleted(ctx, deviceID, bucketEnd)
 	})
+	ingestService.SetOnDeviceIngested(func(deviceID uint, lastTS time.Time) {
+		ispuService.EnqueueCalculation(deviceID, lastTS, "EDGE_PUSH")
+		wqmsService.EnqueueCalculation(deviceID, lastTS, "EDGE_PUSH")
+	})
 
 	// WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {

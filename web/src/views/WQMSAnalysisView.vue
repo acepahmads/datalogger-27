@@ -856,11 +856,17 @@ export default {
     this.loadAll();
     this.fetchDevices();
     window.addEventListener('wqms-calculated-event', this.onWqmsCalculatedEvent);
+    window.addEventListener('tenant-context-changed', this.onTenantContextChanged);
   },
   beforeDestroy() {
     window.removeEventListener('wqms-calculated-event', this.onWqmsCalculatedEvent);
+    window.removeEventListener('tenant-context-changed', this.onTenantContextChanged);
   },
   methods: {
+    onTenantContextChanged() {
+      this.loadAll();
+      this.fetchDevices();
+    },
     onWqmsCalculatedEvent() {
       this.loadAll();
     },

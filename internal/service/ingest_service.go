@@ -36,6 +36,7 @@ type IngestService struct {
 	categoryRepo     *repository.CategoryRepository
 	telemetryService *TelemetryService
 	hub              *websocket.Hub
+	onDeviceIngested func(deviceID uint, lastTS time.Time)
 	ingestMu         sync.Mutex
 }
 
@@ -57,6 +58,12 @@ func NewIngestService(
 // live device.connection.changed events to OperatorCommandCenterView identically to physical polling.
 func (s *IngestService) SetHub(h *websocket.Hub) {
 	s.hub = h
+}
+
+// SetOnDeviceIngested registers a callback triggered whenever an Edge Push or MQTT batch updates a device's parameters,
+// allowing ISPU (AQMS) and IP/IKA (WQMS/ONLIMO) engines to recalculate immediately in Cloud mode.
+func (s *IngestService) SetOnDeviceIngested(fn func(deviceID uint, lastTS time.Time)) {
+	s.onDeviceIngested = fn
 }
 
 type EdgeIngestResponse struct {
@@ -911,6 +918,10 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		_ = s.deviceRepo.UpdateLastData(devID, lastTS)
 		_ = s.deviceRepo.SetConnectionStatus(devID, model.DeviceConnOnline)
 		_ = s.deviceRepo.RecordCommunicationResult(devID, true, 1)
+
+		if s.onDeviceIngested != nil {
+			s.onDeviceIngested(devID, seenAt)
+		}
 
 		if s.hub != nil && dev != nil {
 			s.hub.Broadcast(websocket.WSMessage{

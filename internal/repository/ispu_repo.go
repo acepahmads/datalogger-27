@@ -99,6 +99,10 @@ func (r *ISPURepository) UpsertCalculationResult(ctx context.Context, res *model
 // Mode can be "REGULATORY", "OPERATIONAL", or empty/ALL.
 func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint, mode string) (*model.ISPUCalculationResult, error) {
 	var res model.ISPUCalculationResult
+	orderClause := "CASE WHEN overall_category = 'TIDAK_TERSEDIA' THEN 1 ELSE 0 END ASC, period_end DESC, calculated_at DESC"
+	if deviceID == 0 {
+		orderClause = "CASE WHEN device_id = 0 THEN 0 ELSE 1 END ASC, " + orderClause
+	}
 	query := applyISPUScope(ctx, r.db.WithContext(ctx)).
 		Preload("Device").
 		Preload("ParameterResults").
@@ -107,28 +111,10 @@ func (r *ISPURepository) GetLatestByDeviceID(ctx context.Context, deviceID uint,
 		query = query.Where("device_id = ?", deviceID)
 	}
 	if mode != "" && mode != "ALL" {
-		if mode == string(model.CalculationModeRegulatory) {
-			// First attempt to query strictly cadence-aligned hourly regulatory checkpoint
-			var hourlyRes model.ISPUCalculationResult
-			hourlyQuery := applyISPUScope(ctx, r.db.WithContext(ctx)).
-				Preload("Device").
-				Preload("ParameterResults").
-				Preload("ParameterResults.Parameter").
-				Where("calculation_mode = ? AND MINUTE(period_end) = 0 AND SECOND(period_end) = 0", mode)
-			if deviceID > 0 {
-				hourlyQuery = hourlyQuery.Where("device_id = ?", deviceID)
-			}
-			err := hourlyQuery.
-				Order("period_end DESC, calculated_at DESC").
-				First(&hourlyRes).Error
-			if err == nil {
-				return &hourlyRes, nil
-			}
-		}
 		query = query.Where("calculation_mode = ?", mode)
 	}
 	err := query.
-		Order("period_end DESC, calculated_at DESC").
+		Order(orderClause).
 		First(&res).Error
 	if err != nil {
 		return nil, err
@@ -226,6 +212,18 @@ func (r *ISPURepository) GetTrend(ctx context.Context, deviceID uint, startTime,
 
 	if err := query.Find(&results).Error; err != nil {
 		return nil, err
+	}
+
+	if deviceID == 0 && len(results) > 0 {
+		var unifiedResults []model.ISPUCalculationResult
+		for _, res := range results {
+			if res.DeviceID == 0 {
+				unifiedResults = append(unifiedResults, res)
+			}
+		}
+		if len(unifiedResults) > 0 {
+			results = unifiedResults
+		}
 	}
 
 	if mode == string(model.CalculationModeRegulatory) {

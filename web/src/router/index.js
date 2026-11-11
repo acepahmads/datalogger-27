@@ -268,7 +268,7 @@ router.beforeEach(async (to, from, next) => {
         if (store.state.systemStatus) {
           store.state.systemStatus._cloudChecked = true;
         }
-      } catch (_) {}
+      } catch (_) { }
     }
     const isCloudMode = Boolean(
       (store.state.systemStatus && store.state.systemStatus.cloud_mode) ||
@@ -282,10 +282,6 @@ router.beforeEach(async (to, from, next) => {
         '/monitoring/calibration',
         '/calibration',
         '/monitoring/telemetry-injection',
-        '/monitoring/ispu',
-        '/ispu',
-        '/monitoring/wqms',
-        '/wqms',
       ];
       if (cloudRestrictedPrefixes.some(p => to.path === p || to.path.startsWith(p + '/'))) {
         return next({

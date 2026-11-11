@@ -127,7 +127,7 @@ func (s *WQMSService) EnqueueCalculation(deviceID uint, bucketEnd time.Time, rea
 			dom = strings.ToUpper(strings.TrimSpace(site.MonitoringDomain))
 		}
 	}
-	if dom != "WQMS" && dom != "CUSTOM" {
+	if dom != "WQMS" && dom != "ONLIMO" && dom != "CUSTOM" {
 		// Only run if explicit WQMS mappings exist for this tenant/site
 		var cnt int64
 		s.db.Model(&model.WQMSParameterMapping{}).Where("tenant_id = ? AND (site_id = ? OR site_id = 0) AND enabled = ?", tenantID, siteID, true).Count(&cnt)
@@ -281,7 +281,6 @@ func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.W
 	}
 
 	devSubQ := s.db.WithContext(ctx).Model(&model.Device{}).
-		Select("id").
 		Where("enabled = ? AND (status != ? AND status != ?)", true, "DISABLED", "INACTIVE")
 	if scope.TenantID > 0 {
 		devSubQ = devSubQ.Where("tenant_id = ?", scope.TenantID)
@@ -291,10 +290,15 @@ func (s *WQMSService) GetMappings(ctx context.Context, deviceID uint) ([]model.W
 	} else if len(scope.AllowedSiteIDs) > 0 {
 		devSubQ = devSubQ.Where("site_id IN ?", scope.AllowedSiteIDs)
 	}
+	var activeDevIDs []uint
+	_ = devSubQ.Pluck("id", &activeDevIDs).Error
+	if len(activeDevIDs) == 0 {
+		return mappings, nil
+	}
 
 	var allParams []model.Parameter
 	pQuery := s.db.WithContext(ctx).
-		Where("enabled = ? AND device_id IN (?)", true, devSubQ)
+		Where("enabled = ? AND device_id IN ?", true, activeDevIDs)
 	if deviceID > 0 {
 		pQuery = pQuery.Where("device_id = ?", deviceID)
 	}
@@ -596,17 +600,26 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			var rawAvg *float64
 			var rawCnt int64
 			rawSince := targetEnd.UTC().Add(-30 * time.Minute)
+			rawUntil := targetEnd.UTC().Add(1 * time.Minute)
 			s.db.WithContext(ctx).Model(&model.RawData{}).
-				Where("parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
-					pid, rawSince, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
+				Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
+					pid, rawSince, rawUntil, rawSince, rawUntil, model.QualityBad).
 				Count(&rawCnt)
 			if rawCnt > 0 {
 				_ = s.db.WithContext(ctx).Model(&model.RawData{}).
-					Where("parameter_id = ? AND timestamp >= ? AND timestamp <= ? AND quality != ?",
-						pid, rawSince, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
-					Select("AVG(value)").Row().Scan(&rawAvg)
+					Where("parameter_id = ? AND ((timestamp >= ? AND timestamp <= ?) OR (received_at >= ? AND received_at <= ?)) AND quality != ?",
+						pid, rawSince, rawUntil, rawSince, rawUntil, model.QualityBad).
+					Select("AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawAvg)
 				if rawAvg != nil && !math.IsNaN(*rawAvg) && !math.IsInf(*rawAvg, 0) {
 					opVal = rawAvg
+					opSamples = 1
+				}
+			}
+			if opSamples == 0 {
+				var p model.Parameter
+				if err := s.db.WithContext(ctx).First(&p, pid).Error; err == nil && p.Enabled && p.CurrentValue != nil && !math.IsNaN(*p.CurrentValue) && !math.IsInf(*p.CurrentValue, 0) {
+					v := *p.CurrentValue
+					opVal = &v
 					opSamples = 1
 				}
 			}
@@ -661,20 +674,26 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 			// Fallback to recent RawData 24h average if aggregation buckets have not populated yet
 			var rawAvg24 *float64
 			var rawCnt24 int64
+			rawUntil24 := targetEnd.UTC().Add(1 * time.Minute)
 			s.db.WithContext(ctx).Model(&model.RawData{}).
-				Where("parameter_id = ? AND timestamp > ? AND timestamp <= ? AND quality != ?",
-					pid, regStart, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
+				Where("parameter_id = ? AND ((timestamp > ? AND timestamp <= ?) OR (received_at > ? AND received_at <= ?)) AND quality != ?",
+					pid, regStart, rawUntil24, regStart, rawUntil24, model.QualityBad).
 				Count(&rawCnt24)
 			if rawCnt24 > 0 {
 				_ = s.db.WithContext(ctx).Model(&model.RawData{}).
-					Where("parameter_id = ? AND timestamp > ? AND timestamp <= ? AND quality != ?",
-						pid, regStart, targetEnd.UTC().Add(1*time.Minute), model.QualityBad).
-					Select("AVG(value)").Row().Scan(&rawAvg24)
+					Where("parameter_id = ? AND ((timestamp > ? AND timestamp <= ?) OR (received_at > ? AND received_at <= ?)) AND quality != ?",
+						pid, regStart, rawUntil24, regStart, rawUntil24, model.QualityBad).
+					Select("AVG(COALESCE(NULLIF(processed_value, 0), value))").Row().Scan(&rawAvg24)
 				if rawAvg24 != nil {
 					regMeasured = *rawAvg24
 					regValid = 1
 					expSamples = 1
 				}
+			}
+			if regValid == 0 {
+				regMeasured = *opVal
+				regValid = 1
+				expSamples = 1
 			}
 		}
 
@@ -730,7 +749,7 @@ func (s *WQMSService) CalculateStationWindow(ctx context.Context, deviceID uint,
 	// Build & persist Regulatory 24h result (snap regulatory period_end to top-of-hour or current aligned boundary on manual/config runs)
 	regEnd := alignedEnd
 	localAligned := alignedEnd.In(loc)
-	isManualOrConfig := reason == "MANUAL_RECALCULATE" || reason == "CLASS_CONFIG_CHANGED" || reason == "MAPPING_UPDATED" || reason == "ON_DEMAND_INITIAL"
+	isManualOrConfig := reason == "MANUAL_RECALCULATE" || reason == "CLASS_CONFIG_CHANGED" || reason == "MAPPING_UPDATED" || reason == "ON_DEMAND_INITIAL" || reason == "EDGE_PUSH"
 	isHourlyBoundary := localAligned.Minute() == 0 && localAligned.Second() == 0
 
 	regEval := s.calculator.EvaluateStation(regInputs, cfg.WaterClass, cfg.DOSaturationMgL)
@@ -854,7 +873,7 @@ func (s *WQMSService) GetLatestSummary(ctx context.Context, deviceID uint, mode 
 	primaryRes, err := s.wqmsRepo.GetLatestByDeviceID(ctx, 0, normMode)
 	opRes, _ := s.wqmsRepo.GetLatestByDeviceID(ctx, 0, "OPERATIONAL")
 
-	if err != nil || primaryRes == nil || primaryRes.WaterClass != cfg.WaterClass {
+	if err != nil || primaryRes == nil || primaryRes.WaterClass != cfg.WaterClass || primaryRes.ActiveParametersCount == 0 {
 		regCalc, opCalc, _ := s.CalculateStationWindow(ctx, 0, time.Now().UTC(), "ON_DEMAND_INITIAL")
 		if normMode == "OPERATIONAL" && opCalc != nil {
 			primaryRes = opCalc

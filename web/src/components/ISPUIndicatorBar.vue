@@ -682,13 +682,7 @@ export default {
   },
   data() {
     return {
-      selectedDeviceId: (() => {
-        try {
-          const saved = localStorage.getItem('scada_ispu_selected_device_id');
-          if (saved) return Number(saved);
-        } catch (e) {}
-        return null;
-      })(),
+      selectedDeviceId: this.deviceId || 0,
       internalDevicesList: [],
       ispuData: null,
       loading: false,
@@ -766,8 +760,13 @@ export default {
       return this.internalDevicesList || [];
     },
     effectiveDeviceId() {
-      if (this.selectedDeviceId) return Number(this.selectedDeviceId);
-      if (this.deviceId) return Number(this.deviceId);
+      if (this.selectedDeviceId && Number(this.selectedDeviceId) > 0) {
+        const list = this.availableDevices;
+        if (!list.length || list.some(d => Number(d.id) === Number(this.selectedDeviceId))) {
+          return Number(this.selectedDeviceId);
+        }
+      }
+      if (this.deviceId && Number(this.deviceId) > 0) return Number(this.deviceId);
       return 0;
     },
     currentDeviceName() {
@@ -944,19 +943,35 @@ export default {
     deviceId: {
       immediate: true,
       handler(newId) {
-        if (newId && (!this.selectedDeviceId || this.selectedDeviceId === 0)) {
-          this.selectedDeviceId = newId;
+        this.selectedDeviceId = Number(newId) || 0;
+      }
+    },
+    devicesList: {
+      handler() {
+        if (this.isAqmsDomain) {
+          this.fetchLatestISPU();
+          if (this.showTrend) {
+            this.fetchTrend();
+          }
+        }
+      }
+    },
+    isAqmsDomain(newVal) {
+      if (newVal) {
+        this.fetchLatestISPU();
+        if (this.showTrend) {
+          this.fetchTrend();
         }
       }
     },
     effectiveDeviceId: {
       immediate: true,
       handler(newId) {
-        if (newId && this.isAqmsDomain) {
+        if (this.isAqmsDomain) {
           try {
-            const saved = localStorage.getItem(`scada_ispu_selected_param_${newId}`);
+            const saved = localStorage.getItem(`scada_ispu_selected_param_${newId || 0}`);
             this.selectedDisplayParam = saved || 'OVERALL';
-            const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${newId}`);
+            const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${newId || 0}`);
             if (devSaved !== null) {
               this.showBreakdown = devSaved === 'true';
             }
@@ -987,40 +1002,38 @@ export default {
   },
   mounted() {
     try {
-      const savedDev = localStorage.getItem('scada_ispu_selected_device_id');
-      if (savedDev) {
-        this.selectedDeviceId = Number(savedDev);
-      }
-      const saved = localStorage.getItem(`scada_ispu_selected_param_${this.effectiveDeviceId}`);
+      const saved = localStorage.getItem(`scada_ispu_selected_param_${this.effectiveDeviceId || 0}`);
       if (saved) {
         this.selectedDisplayParam = saved;
       }
-      if (this.effectiveDeviceId) {
-        const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${this.effectiveDeviceId}`);
-        if (devSaved !== null) {
-          this.showBreakdown = devSaved === 'true';
-        } else {
-          const globalSaved = localStorage.getItem('scada_ispu_show_breakdown');
-          if (globalSaved !== null) {
-            this.showBreakdown = globalSaved === 'true';
-          }
+      const devSaved = localStorage.getItem(`scada_ispu_show_breakdown_${this.effectiveDeviceId || 0}`);
+      if (devSaved !== null) {
+        this.showBreakdown = devSaved === 'true';
+      } else {
+        const globalSaved = localStorage.getItem('scada_ispu_show_breakdown');
+        if (globalSaved !== null) {
+          this.showBreakdown = globalSaved === 'true';
         }
       }
     } catch (e) {}
 
     // Fetch devices list if empty
     this.fetchDevicesList();
+    if (this.isAqmsDomain && !this.ispuData && !this.loading) {
+      this.fetchLatestISPU();
+    }
 
     // 1. Polling fallback every 30 seconds
     this.pollTimer = setInterval(() => {
-      if (this.effectiveDeviceId && this.isAqmsDomain) {
+      if (this.isAqmsDomain) {
         this.fetchLatestISPU();
       }
     }, 30000);
 
-    // 2. Real-time WebSocket Listeners
+    // 2. Real-time WebSocket & Tenant Context Listeners
     window.addEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.addEventListener('aggregation-result-event', this.handleAggregationUpdated);
+    window.addEventListener('tenant-context-changed', this.handleTenantContextChanged);
     document.addEventListener('click', this.handleDocumentClick);
     document.addEventListener('keydown', this.handleDocumentKeydown);
   },
@@ -1030,10 +1043,23 @@ export default {
     }
     window.removeEventListener('ispu-calculated-event', this.handleISPUCalculated);
     window.removeEventListener('aggregation-result-event', this.handleAggregationUpdated);
+    window.removeEventListener('tenant-context-changed', this.handleTenantContextChanged);
     document.removeEventListener('click', this.handleDocumentClick);
     document.removeEventListener('keydown', this.handleDocumentKeydown);
   },
   methods: {
+    handleTenantContextChanged() {
+      this.selectedDeviceId = this.deviceId || 0;
+      this.ispuData = null;
+      this.trendRecords = [];
+      this.fetchDevicesList();
+      if (this.isAqmsDomain) {
+        this.fetchLatestISPU();
+        if (this.showTrend) {
+          this.fetchTrend();
+        }
+      }
+    },
     toggleWindowPopover(e) {
       if (e) e.stopPropagation();
       this.showWindowPopover = !this.showWindowPopover;
@@ -1182,9 +1208,6 @@ export default {
         });
         const items = res.data?.data?.items || res.data?.data || [];
         this.internalDevicesList = Array.isArray(items) ? items : [];
-        if (!this.selectedDeviceId && this.internalDevicesList.length > 0) {
-          this.selectedDeviceId = this.internalDevicesList[0].id;
-        }
       } catch (err) {
         // silent ignore
       }
@@ -1254,19 +1277,14 @@ export default {
       });
     },
     async triggerRecalculation() {
-      if (!this.effectiveDeviceId || this.recalculating) return;
+      if (this.recalculating) return;
       this.recalculating = true;
       try {
         const token = this.getAuthToken();
-        // Trigger both backfill and recalculate for immediate rich history
-        await Promise.all([
-          axios.post('/api/ispu/backfill', { device_id: this.effectiveDeviceId, hours: 24 }, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          }),
-          axios.post('/api/ispu/recalculate', { device_id: this.effectiveDeviceId }, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          })
-        ]);
+        const targetDevId = this.effectiveDeviceId || 0;
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        await axios.post('/api/ispu/backfill', { device_id: targetDevId, hours: 24 }, { headers });
+        await axios.post('/api/ispu/recalculate', { device_id: targetDevId }, { headers });
         await Promise.all([this.fetchLatestISPU(), this.fetchTrend()]);
       } catch (err) {
         alert('ISPU recalculation error: ' + (err.response?.data?.error || err.message));
