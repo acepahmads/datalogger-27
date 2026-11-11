@@ -38,9 +38,23 @@ axios.interceptors.response.use(
       // Don't intercept auth login/logout endpoint errors or when user explicitly navigated to /login
       const onLoginScreen = (router.currentRoute && router.currentRoute.path === '/login') ||
         (typeof window !== 'undefined' && (window.location.hash || '').startsWith('#/login'));
-      if (!url.includes('/auth/login') && !url.includes('/auth/logout') && !onLoginScreen) {
-        // Silently re-authenticate as default operator rather than dumping user to login screen
-        store.dispatch('autoLoginOperator').catch(() => { });
+      if (!url.includes('/auth/login') && !url.includes('/auth/logout') && !url.includes('/auth/me') && !onLoginScreen) {
+        const sys = store.state.systemStatus || {};
+        const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+        if (isCloudMode) {
+          store.dispatch('closeWebSocket');
+          store.commit('CLEAR_SENSITIVE_DATA');
+          store.commit('CLEAR_AUTH');
+          router.replace({
+            path: '/login',
+            query: router.currentRoute && router.currentRoute.fullPath && router.currentRoute.path !== '/login'
+              ? { redirect: router.currentRoute.fullPath }
+              : undefined,
+          }).catch(() => { });
+        } else {
+          // Silently re-authenticate as default operator rather than dumping user to login screen (Edge mode)
+          store.dispatch('autoLoginOperator').catch(() => { });
+        }
       }
     }
     return Promise.reject(error);
@@ -71,28 +85,54 @@ new Vue({
       this.$store.commit('SET_EFFECTIVE_THEME', effective);
     });
 
-    // Automatically ensure operator session exists on startup without requiring manual login
-    // (Skip auto-login when user explicitly opened or refreshed the /login screen)
+    // Check Cloud vs Edge mode first before deciding startup authentication flow
     const isLoginEntry = typeof window !== 'undefined' && (window.location.hash || '').startsWith('#/login');
-    if (!this.$store.state.token && !isLoginEntry) {
-      this.$store.dispatch('autoLoginOperator').then(() => {
-        this.$store.dispatch('fetchSystemStatus');
+    this.$store.dispatch('fetchSystemStatus').finally(() => {
+      const sys = this.$store.state.systemStatus || {};
+      const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+
+      if (isCloudMode) {
+        // Cloud mode strictly requires explicit login — never auto-login as guest/operator
+        if (this.$store.state.token === 'datalogger_operator_session_token' || this.$store.state.authSource !== 'manual') {
+          this.$store.commit('CLEAR_AUTH');
+        }
+        if (this.$store.state.token && this.$store.state.user) {
+          this.$store.dispatch('fetchTenantContext');
+          this.$store.dispatch('fetchDevices');
+          this.$store.dispatch('fetchAlarms');
+          if (this.$store.getters.isSuperAdmin) {
+            this.$store.dispatch('fetchProgress');
+            this.$store.dispatch('fetchTasks');
+            this.$store.dispatch('fetchActivity');
+          }
+          this.$store.dispatch('initWebSocket');
+        } else if (!isLoginEntry && (!this.$route || this.$route.path !== '/login')) {
+          this.$router.replace({
+            path: '/login',
+            query: this.$route && this.$route.fullPath && this.$route.path !== '/login'
+              ? { redirect: this.$route.fullPath }
+              : undefined,
+          }).catch(() => { });
+        }
+      } else if (!this.$store.state.token && !isLoginEntry) {
+        this.$store.dispatch('autoLoginOperator').then(() => {
+          this.$store.dispatch('fetchSystemStatus');
+          this.$store.dispatch('fetchDevices');
+          this.$store.dispatch('fetchAlarms');
+          this.$store.dispatch('initWebSocket');
+        }).catch(() => { });
+      } else {
+        this.$store.dispatch('fetchTenantContext');
         this.$store.dispatch('fetchDevices');
         this.$store.dispatch('fetchAlarms');
+        if (this.$store.getters.isSuperAdmin) {
+          this.$store.dispatch('fetchProgress');
+          this.$store.dispatch('fetchTasks');
+          this.$store.dispatch('fetchActivity');
+        }
         this.$store.dispatch('initWebSocket');
-      }).catch(() => { });
-    } else {
-      this.$store.dispatch('fetchTenantContext');
-      this.$store.dispatch('fetchSystemStatus');
-      this.$store.dispatch('fetchDevices');
-      this.$store.dispatch('fetchAlarms');
-      if (this.$store.getters.isSuperAdmin) {
-        this.$store.dispatch('fetchProgress');
-        this.$store.dispatch('fetchTasks');
-        this.$store.dispatch('fetchActivity');
       }
-      this.$store.dispatch('initWebSocket');
-    }
+    });
 
     // Fallback telemetry polling: only poll via HTTP if WebSocket is disconnected and authenticated
     setInterval(() => {

@@ -317,7 +317,7 @@
           {{ $t('navigation.systemAdmin') }}
         </div>
         <div class="space-y-1">
-          <router-link to="/system/logs" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/system/logs') || $route.path.startsWith('/system/audit') || $route.path.startsWith('/system/communication') }">
+          <router-link v-if="!isOperator" to="/system/logs" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/system/logs') || $route.path.startsWith('/system/audit') || $route.path.startsWith('/system/communication') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <polyline points="4 17 10 11 4 5"></polyline>

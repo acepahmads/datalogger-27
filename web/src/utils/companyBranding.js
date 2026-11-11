@@ -299,13 +299,41 @@ function blobToDataUrl(blob) {
   });
 }
 
+function buildBrandingRequestHeaders(includeJsonContentType = false) {
+  const headers = {};
+  if (includeJsonContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const token = localStorage.getItem('datalogger_token');
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const activeTenantId = Number(localStorage.getItem('datalogger_active_tenant_id') || 0);
+      if (activeTenantId > 0) {
+        headers['X-Tenant-ID'] = String(activeTenantId);
+      }
+      const activeSiteId = Number(localStorage.getItem('datalogger_active_site_id') || 0);
+      if (activeSiteId > 0) {
+        headers['X-Site-ID'] = String(activeSiteId);
+      }
+    }
+  } catch (e) {
+    // ignore storage access issues
+  }
+  return headers;
+}
+
 /**
  * Helper to fetch database branding from backend REST API
  */
 export async function fetchBrandingFromDatabase() {
   if (typeof window === 'undefined') return null;
   try {
-    const res = await fetch('/api/system/branding');
+    const res = await fetch('/api/system/branding', {
+      headers: buildBrandingRequestHeaders(false),
+    });
     if (!res.ok) return null;
     const json = await res.json();
     if (json && json.success && json.data) {
@@ -322,16 +350,20 @@ export async function fetchBrandingFromDatabase() {
  */
 export async function syncBrandingToDatabase(payload) {
   if (typeof window === 'undefined') return;
-  try {
-    await fetch('/api/system/branding', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-  } catch (e) {
-    console.warn('Could not sync branding to database API:', e);
+  const res = await fetch('/api/system/branding', {
+    method: 'POST',
+    headers: buildBrandingRequestHeaders(true),
+    body: JSON.stringify(payload)
+  });
+  if (res && !res.ok) {
+    let errMsg = `Failed to save branding (HTTP ${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson && (errJson.error || errJson.message)) {
+        errMsg = errJson.error || errJson.message;
+      }
+    } catch (_) {}
+    throw new Error(errMsg);
   }
 }
 
@@ -448,7 +480,9 @@ export async function loadOrganizationBranding() {
         meta.customer.hasLogo = !!remote.customer_has_logo;
         changed = true;
       }
-      if (remote.customer_logo && remote.customer_logo !== customerLogoUrl) {
+      if (remote.customer_has_logo === false) {
+        customerLogoUrl = null;
+      } else if (remote.customer_logo && remote.customer_logo !== customerLogoUrl) {
         customerLogoUrl = remote.customer_logo;
       }
 
@@ -464,7 +498,11 @@ export async function loadOrganizationBranding() {
         meta.maker.hasLogo = !!remote.maker_has_logo;
         changed = true;
       }
-      if (remote.maker_logo && remote.maker_logo !== makerLogoUrl) {
+      if (remote.maker_has_logo === false) {
+        makerLogoUrl = null;
+        await deleteBlobFromDB(MAKER_LOGO_KEY);
+        await deleteBlobFromDB(LEGACY_LOGO_KEY);
+      } else if (remote.maker_logo && remote.maker_logo !== makerLogoUrl) {
         makerLogoUrl = remote.maker_logo;
       }
 
@@ -695,7 +733,32 @@ export async function saveOrganizationTextBranding({ customerName, customerSubti
 }
 
 /**
- * Reset Organization Branding to Default
+ * Reset Customer-only Branding to Default (preserves global Maker / Provider set by Superadmin)
+ */
+export async function resetCustomerBranding() {
+  await deleteBlobFromDB(CUSTOMER_LOGO_KEY);
+  const meta = getOrganizationBrandingMeta();
+  meta.customer = JSON.parse(JSON.stringify(DEFAULT_BRANDING.customer));
+  meta.customer.updatedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(ORGANIZATION_BRANDING_KEY, JSON.stringify(meta));
+  } catch (e) {
+    // ignore
+  }
+  await syncBrandingToDatabase({
+    customer_name: meta.customer.name,
+    customer_subtitle: meta.customer.subtitle,
+    station_type_mode: meta.customer.stationTypeMode || 'MANUAL',
+    station_domain_prefix: meta.customer.domainPrefix || 'AQMS',
+    customer_has_logo: false,
+    customer_logo: '',
+  });
+  notifyBrandingChanged();
+  return meta;
+}
+
+/**
+ * Reset Organization Branding to Default (Superadmin full reset)
  */
 export async function resetOrganizationBranding() {
   await deleteBlobFromDB(CUSTOMER_LOGO_KEY);

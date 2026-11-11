@@ -664,17 +664,28 @@
         </div>
 
         <!-- 2. Maker Company (Right Header) -->
-        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] space-y-4 shadow-xs">
-          <div class="flex items-center space-x-2.5 border-b border-slate-200 dark:border-slate-800 pb-3">
-            <div class="w-7 h-7 rounded-lg bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/10 dark:border-cyan-500/20 dark:text-cyan-400 flex items-center justify-center text-sm font-bold">
-              ⚙️
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111827] space-y-4 shadow-xs"
+             :class="!isSuperAdmin ? 'opacity-90' : ''">
+          <div class="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-7 h-7 rounded-lg bg-cyan-100 text-cyan-700 border border-cyan-200 dark:bg-cyan-500/10 dark:border-cyan-500/20 dark:text-cyan-400 flex items-center justify-center text-sm font-bold">
+                ⚙️
+              </div>
+              <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                  {{ $t('config.branding.makerSection') || 'Perusahaan Pembuat (Header Kanan)' }}
+                </h3>
+                <p class="text-3xs text-slate-500 dark:text-slate-400">Identitas pengembang sistem & vendor perangkat keras (berlaku global untuk semua user & tenant)</p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
-                {{ $t('config.branding.makerSection') || 'Perusahaan Pembuat (Header Kanan)' }}
-              </h3>
-              <p class="text-3xs text-slate-500 dark:text-slate-400">Identitas pengembang sistem & vendor perangkat keras</p>
-            </div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-3xs font-mono font-bold uppercase whitespace-nowrap"
+                  :class="isSuperAdmin ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/30' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30'">
+              {{ isSuperAdmin ? 'Global · Semua Tenant' : '🔒 Khusus Superadmin' }}
+            </span>
+          </div>
+
+          <div v-if="!isSuperAdmin" class="px-3 py-2 rounded-lg bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-2xs text-amber-800 dark:text-amber-300">
+            Identitas <strong>Maker / Provider</strong> hanya dapat diubah oleh <strong>Superadmin</strong> dan otomatis berlaku untuk seluruh user dan tenant.
           </div>
 
           <!-- Maker Company Name -->
@@ -685,7 +696,8 @@
             <input
               v-model="branding.maker.name"
               type="text"
-              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
+              :disabled="!isSuperAdmin"
+              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500 disabled:opacity-60 disabled:cursor-not-allowed"
               placeholder="e.g. PT. Centra Biotech Indonesia"
             />
           </div>
@@ -698,7 +710,8 @@
             <input
               v-model="branding.maker.subtitle"
               type="text"
-              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500"
+              :disabled="!isSuperAdmin"
+              class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0B1422] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-cyan-500 disabled:opacity-60 disabled:cursor-not-allowed"
               placeholder="e.g. CBI Industrial IoT"
             />
           </div>
@@ -713,7 +726,7 @@
                 <img v-if="makerLogoPreview" :src="makerLogoPreview" class="max-h-full max-w-full object-contain" alt="Maker Logo Preview" />
                 <span v-else class="text-4xs text-slate-500 text-center">No Logo (Default Icon)</span>
               </div>
-              <div class="flex flex-col space-y-1.5 flex-1">
+              <div v-if="isSuperAdmin" class="flex flex-col space-y-1.5 flex-1">
                 <label class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 text-2xs font-semibold cursor-pointer transition text-center flex items-center justify-center space-x-1 shadow-xs">
                   <span>📁</span>
                   <span>{{ makerLogoPreview ? 'Ganti Logo...' : 'Upload Logo...' }}</span>
@@ -727,6 +740,9 @@
                 >
                   Hapus Logo (Gunakan Icon)
                 </button>
+              </div>
+              <div v-else class="flex-1 text-3xs text-slate-500 dark:text-slate-400 italic">
+                Logo Maker / Provider diatur secara global oleh Superadmin.
               </div>
             </div>
           </div>
@@ -1349,6 +1365,7 @@ import {
   saveMakerBranding,
   removeMakerLogo,
   resetOrganizationBranding,
+  resetCustomerBranding,
   extractConcisePlaceName,
   composeAutoGpsStationType,
   reverseGeocodePlaceName,
@@ -1564,12 +1581,14 @@ export default {
       this.branding.customer.hasLogo = false;
     },
     handleMakerLogoUpload(e) {
+      if (!this.isSuperAdmin) return;
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       this.makerLogoFile = file;
       this.makerLogoPreview = URL.createObjectURL(file);
     },
     async deleteMakerLogo() {
+      if (!this.isSuperAdmin) return;
       await removeMakerLogo();
       this.makerLogoFile = null;
       this.makerLogoPreview = null;
@@ -1593,11 +1612,13 @@ export default {
           stationTypeMode: nextMode,
           domainPrefix: nextPrefix,
         });
-        await saveMakerBranding({
-          file: this.makerLogoFile,
-          name: this.branding.maker.name,
-          subtitle: this.branding.maker.subtitle
-        });
+        if (this.isSuperAdmin) {
+          await saveMakerBranding({
+            file: this.makerLogoFile,
+            name: this.branding.maker.name,
+            subtitle: this.branding.maker.subtitle
+          });
+        }
         this.customerLogoFile = null;
         this.makerLogoFile = null;
         await this.loadBrandingConfig();
@@ -1611,7 +1632,11 @@ export default {
     },
     async resetBrandingToDefault() {
       if (!confirm('Reset company branding to standard defaults?')) return;
-      await resetOrganizationBranding();
+      if (this.isSuperAdmin) {
+        await resetOrganizationBranding();
+      } else {
+        await resetCustomerBranding();
+      }
       this.customerLogoFile = null;
       this.makerLogoFile = null;
       await this.loadBrandingConfig();

@@ -15,15 +15,18 @@
       <div class="relative flex items-center justify-between gap-1.5 leading-none w-full min-h-[34px]">
         <!-- Area 1 (Left): Customer Company Branding (Icon/Logo, Name, Subtitle & Station Info) -->
         <div class="flex items-center space-x-2 z-0 min-w-0 pr-2">
-          <!-- Customer Logo / Icon Button (Clickable to configure Customer Branding) -->
+          <!-- Customer Logo / Icon Button (Clickable to configure Customer Branding for non-Operator) -->
           <button
             type="button"
-            @click="openBrandingModal('customer')"
+            @click="canManageCustomerBranding && openBrandingModal('customer')"
             class="h-7 px-1.5 rounded transition flex items-center justify-center border flex-shrink-0"
-            :class="customerLogoUrl
-              ? 'border-transparent hover:border-cyan-500/40 bg-slate-50/50 dark:bg-[#101B2B]/60'
-              : 'border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-blue-600/10 text-cyan-500 hover:border-cyan-400 dark:hover:border-cyan-400 shadow-glow-blue/20'"
-            :title="(customerCompanyName || 'Customer Organization') + ' · Click to configure'"
+            :class="[
+              customerLogoUrl
+                ? 'border-transparent hover:border-cyan-500/40 bg-slate-50/50 dark:bg-[#101B2B]/60'
+                : 'border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-blue-600/10 text-cyan-500 hover:border-cyan-400 dark:hover:border-cyan-400 shadow-glow-blue/20',
+              canManageCustomerBranding ? 'cursor-pointer' : 'cursor-default'
+            ]"
+            :title="canManageCustomerBranding ? ((customerCompanyName || 'Customer Organization') + ' · Click to configure') : (customerCompanyName || 'Customer Organization')"
             aria-label="Configure Customer Company Logo"
           >
             <img
@@ -75,15 +78,18 @@
             </span>
           </div>
 
-          <!-- Maker Logo / Icon Button -->
+          <!-- Maker Logo / Icon Button (Configurable by SUPERADMIN only) -->
           <button
             type="button"
-            @click="openBrandingModal('maker')"
+            @click="canManageMakerBranding && openBrandingModal('maker')"
             class="h-7 px-1.5 rounded transition flex items-center justify-center border flex-shrink-0"
-            :class="makerLogoUrl
-              ? 'border-transparent hover:border-cyan-500/40 bg-slate-50/50 dark:bg-[#101B2B]/60'
-              : 'border border-dashed border-slate-300 dark:border-[#20354B] hover:border-cyan-500 text-slate-500 dark:text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 bg-slate-50 dark:bg-[#101B2B]'"
-            :title="(makerCompanyName || 'Maker / Solution Provider') + ' · Click to configure'"
+            :class="[
+              makerLogoUrl
+                ? 'border-transparent hover:border-cyan-500/40 bg-slate-50/50 dark:bg-[#101B2B]/60'
+                : 'border border-dashed border-slate-300 dark:border-[#20354B] hover:border-cyan-500 text-slate-500 dark:text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 bg-slate-50 dark:bg-[#101B2B]',
+              canManageMakerBranding ? 'cursor-pointer' : 'cursor-default'
+            ]"
+            :title="canManageMakerBranding ? ((makerCompanyName || 'Maker / Solution Provider') + ' · Click to configure') : (makerCompanyName || 'Maker / Solution Provider')"
             aria-label="Configure Maker Company Logo"
           >
             <img
@@ -4171,7 +4177,7 @@
 
     <!-- MODAL: DUAL ORGANIZATION BRANDING SETUP (CUSTOMER & MAKER) -->
     <div
-      v-if="showBrandingModal || showLogoModal"
+      v-if="(showBrandingModal || showLogoModal) && canManageCustomerBranding"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm"
       @click.self="closeBrandingModal"
     >
@@ -4192,8 +4198,11 @@
           <span>{{ brandingErrorMsg || logoErrorMsg }}</span>
         </div>
 
-        <!-- Tab Selection (Customer Left Header vs Maker Right Header) -->
-        <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-[#101B2B] rounded-lg border border-slate-200 dark:border-[#20354B]">
+        <!-- Tab Selection (Customer Left Header vs Maker Right Header — Maker tab SUPERADMIN only) -->
+        <div
+          class="grid gap-1 p-1 bg-slate-100 dark:bg-[#101B2B] rounded-lg border border-slate-200 dark:border-[#20354B]"
+          :class="canManageMakerBranding ? 'grid-cols-2' : 'grid-cols-1'"
+        >
           <button
             type="button"
             @click="activeBrandingTab = 'customer'"
@@ -4206,6 +4215,7 @@
             <span>{{ $t('branding.customerTab') || 'Customer (Left Header)' }}</span>
           </button>
           <button
+            v-if="canManageMakerBranding"
             type="button"
             @click="activeBrandingTab = 'maker'"
             class="py-1.5 px-3 rounded text-3xs font-bold transition flex items-center justify-center space-x-1.5"
@@ -4320,8 +4330,8 @@
           </div>
         </div>
 
-        <!-- TAB 2: MAKER COMPANY SETUP -->
-        <div v-else-if="activeBrandingTab === 'maker'" class="space-y-3">
+        <!-- TAB 2: MAKER COMPANY SETUP (SUPERADMIN ONLY) -->
+        <div v-else-if="activeBrandingTab === 'maker' && canManageMakerBranding" class="space-y-3">
           <div class="space-y-1">
             <label class="block text-3xs font-semibold text-slate-700 dark:text-slate-300">
               {{ $t('branding.makerName') || 'Maker / Provider Company Name (Appears Top-Right)' }}
@@ -8263,6 +8273,12 @@ export default {
       const role = (this.userRole || '').toUpperCase();
       return role !== 'OPERATOR' && role !== '';
     },
+    canManageCustomerBranding() {
+      return this.isNonOperator && !!(this.$store && this.$store.state && this.$store.state.token);
+    },
+    canManageMakerBranding() {
+      return this.isSuperAdmin && !!(this.$store && this.$store.state && this.$store.state.token);
+    },
     canAccessOperationalReport() {
       return this.isNonOperator;
     },
@@ -9232,6 +9248,10 @@ export default {
       this.initCompanyBranding();
     },
     openBrandingModal(tab = 'customer') {
+      if (!this.canManageCustomerBranding) return;
+      if (tab === 'maker' && !this.canManageMakerBranding) {
+        tab = 'customer';
+      }
       this.activeBrandingTab = tab;
       this.modalCustomerName = this.customerCompanyName !== undefined ? this.customerCompanyName : '';
       this.modalCustomerSubtitle = (this.customerSubtitle !== undefined && this.customerSubtitle !== null)
@@ -9296,6 +9316,7 @@ export default {
       reader.readAsDataURL(file);
     },
     async handleRemoveCustomerLogo() {
+      if (!this.canManageCustomerBranding) return;
       try {
         await removeCustomerLogo();
         this.customerLogoUrl = null;
@@ -9307,11 +9328,13 @@ export default {
       }
     },
     triggerMakerFileInput() {
+      if (!this.canManageMakerBranding) return;
       if (this.$refs.makerLogoFileInput) {
         this.$refs.makerLogoFileInput.click();
       }
     },
     onMakerFileSelected(e) {
+      if (!this.canManageMakerBranding) return;
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       this.brandingErrorMsg = '';
@@ -9332,6 +9355,7 @@ export default {
       reader.readAsDataURL(file);
     },
     async handleRemoveMakerLogo() {
+      if (!this.canManageMakerBranding) return;
       try {
         await removeMakerLogo();
         this.makerLogoUrl = null;
@@ -9344,6 +9368,7 @@ export default {
       }
     },
     async saveBrandingFromModal() {
+      if (!this.canManageCustomerBranding) return;
       this.brandingSaving = true;
       this.logoSaving = true;
       this.brandingErrorMsg = '';
@@ -9355,12 +9380,14 @@ export default {
           subtitle: this.modalCustomerSubtitle
         });
 
-        // Save Maker Branding
-        await saveMakerBranding({
-          file: this.modalMakerLogoFile,
-          name: this.modalMakerName,
-          subtitle: this.modalMakerSubtitle
-        });
+        // Save Maker Branding (SUPERADMIN ONLY — global across all users & tenants)
+        if (this.canManageMakerBranding) {
+          await saveMakerBranding({
+            file: this.modalMakerLogoFile,
+            name: this.modalMakerName,
+            subtitle: this.modalMakerSubtitle
+          });
+        }
 
         await this.initCompanyBranding();
         this.closeBrandingModal();
@@ -11264,6 +11291,10 @@ export default {
       await this.$store.dispatch('fetchActiveAlarms');
     },
     async fetchEvents() {
+      if (this.isOperator) {
+        this.recentEvents = [];
+        return;
+      }
       try {
         const res = await axios.get('/api/audit-trails?page=1&page_size=30');
         if (res.data && res.data.data) {

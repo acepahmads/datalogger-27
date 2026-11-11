@@ -54,6 +54,8 @@ export function filterOperationalActiveAlarms(alarms, devices = []) {
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem('datalogger_token') || '',
+    authSource: localStorage.getItem('datalogger_auth_source') || '',
+    _cloudSessionVerified: false,
     user: (() => {
       try {
         const saved = localStorage.getItem('datalogger_user');
@@ -180,8 +182,24 @@ export default new Vuex.Store({
         }
       } catch (e) {}
     },
+    SET_AUTH_SOURCE(state, source) {
+      const val = source || '';
+      state.authSource = val;
+      try {
+        if (val) {
+          localStorage.setItem('datalogger_auth_source', val);
+        } else {
+          localStorage.removeItem('datalogger_auth_source');
+        }
+      } catch (e) {}
+    },
+    SET_CLOUD_SESSION_VERIFIED(state, verified) {
+      state._cloudSessionVerified = Boolean(verified);
+    },
     CLEAR_AUTH(state) {
       state.token = '';
+      state.authSource = '';
+      state._cloudSessionVerified = false;
       state.user = null;
       state.tenants = [];
       state.sites = [];
@@ -189,6 +207,7 @@ export default new Vuex.Store({
       state.activeSiteId = 0;
       try {
         localStorage.removeItem('datalogger_token');
+        localStorage.removeItem('datalogger_auth_source');
         localStorage.removeItem('datalogger_user');
         localStorage.removeItem('datalogger_active_tenant_id');
         localStorage.removeItem('datalogger_active_site_id');
@@ -401,11 +420,13 @@ export default new Vuex.Store({
       try {
         const res = await axios.get(`${API_BASE}/system/status`);
         if (res.data && res.data.data) {
-          commit('SET_SYSTEM_STATUS', res.data.data);
+          commit('SET_SYSTEM_STATUS', { ...res.data.data, _cloudChecked: true });
+          return res.data.data;
         }
       } catch (err) {
         console.error('Failed to fetch system status:', err);
       }
+      return null;
     },
     async fetchProgress({ commit, getters }) {
       if (!getters.canAccessDev) return;
@@ -535,6 +556,8 @@ export default new Vuex.Store({
         commit('SET_ACTIVE_TENANT_ID', 0);
         commit('SET_ACTIVE_SITE_ID', 0);
         commit('SET_TOKEN', data.token);
+        commit('SET_AUTH_SOURCE', 'manual');
+        commit('SET_CLOUD_SESSION_VERIFIED', true);
         const u = data.user || {};
         let role = 'OPERATOR';
         if (typeof u.role === 'string') {
@@ -568,10 +591,25 @@ export default new Vuex.Store({
       throw new Error((res.data && res.data.error) || 'Login failed');
     },
     async autoLoginOperator({ commit, dispatch }) {
+      const state = this.state;
+      if (!state.systemStatus || !state.systemStatus._cloudChecked) {
+        await dispatch('fetchSystemStatus');
+      }
+      const isCloudMode = Boolean(
+        (state.systemStatus && state.systemStatus.cloud_mode) ||
+        String((state.systemStatus && state.systemStatus.monitoring_domain) || '').toUpperCase() === 'CLOUD'
+      );
+      if (isCloudMode) {
+        commit('CLEAR_AUTH');
+        return null;
+      }
+
       try {
         const res = await axios.post(`${API_BASE}/auth/login`, {
           username: 'operator_user',
           password: 'Password123!',
+        }, {
+          headers: { 'X-Auto-Login': '1' },
         });
         if (res.data && res.data.data) {
           const data = res.data.data;
@@ -579,6 +617,7 @@ export default new Vuex.Store({
           commit('SET_ACTIVE_TENANT_ID', 0);
           commit('SET_ACTIVE_SITE_ID', 0);
           commit('SET_TOKEN', data.token);
+          commit('SET_AUTH_SOURCE', 'auto');
           const u = data.user || {};
           let role = 'OPERATOR';
           if (typeof u.role === 'string') {
@@ -608,7 +647,16 @@ export default new Vuex.Store({
           return data;
         }
       } catch (err) {
-        // Fallback local operator session so dashboard is immediately active and never blocked
+        const cloudRejected = Boolean(
+          (state.systemStatus && state.systemStatus.cloud_mode) ||
+          String((state.systemStatus && state.systemStatus.monitoring_domain) || '').toUpperCase() === 'CLOUD' ||
+          (err && err.response && err.response.status === 401 && String((err.response.data && (err.response.data.error || err.response.data.message)) || '').toLowerCase().includes('cloud mode'))
+        );
+        if (cloudRejected) {
+          commit('CLEAR_AUTH');
+          return null;
+        }
+        // Fallback local operator session for Edge kiosk mode only
         const fallbackData = {
           token: 'datalogger_operator_session_token',
           user: {
@@ -620,6 +668,7 @@ export default new Vuex.Store({
           },
         };
         commit('SET_TOKEN', fallbackData.token);
+        commit('SET_AUTH_SOURCE', 'auto');
         commit('SET_USER', fallbackData.user);
         dispatch('fetchSystemStatus');
         dispatch('fetchDevices');
@@ -639,6 +688,8 @@ export default new Vuex.Store({
         commit('SET_ACTIVE_TENANT_ID', 0);
         commit('SET_ACTIVE_SITE_ID', 0);
         commit('SET_TOKEN', data.token);
+        commit('SET_AUTH_SOURCE', 'manual');
+        commit('SET_CLOUD_SESSION_VERIFIED', true);
         const u = data.user || {};
         let role = 'OPERATOR';
         if (typeof u.role === 'string') {

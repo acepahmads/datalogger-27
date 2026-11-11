@@ -361,8 +361,13 @@ func (h *SystemHandler) GetDeviceStatus(c *gin.Context) {
 
 // Data endpoints
 func (h *SystemHandler) GetData(c *gin.Context) {
+	scope := middleware.GetScope(c)
+	if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() && !scope.Authenticated {
+		response.Unauthorized(c, "Authentication required in Cloud mode")
+		return
+	}
 	// Returns latest operational telemetry readings from parameters (scoped to tenant/site)
-	devices, err := h.systemService.GetDevicesScoped(middleware.GetScope(c))
+	devices, err := h.systemService.GetDevicesScoped(scope)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -934,6 +939,17 @@ func parseFlexibleDate(str string) *time.Time {
 
 // Logs
 func (h *SystemHandler) GetLogs(c *gin.Context) {
+	if roleVal, hasRole := c.Get("role"); hasRole {
+		roleStr, _ := roleVal.(string)
+		if strings.EqualFold(roleStr, "OPERATOR") {
+			response.Forbidden(c, "Access denied: role OPERATOR tidak dapat mengakses halaman System Logs")
+			return
+		}
+	} else if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+
 	pageStr := c.Query("page")
 	pageSizeStr := c.Query("page_size")
 	level := c.Query("level")
@@ -1014,6 +1030,17 @@ func (h *SystemHandler) GetLogs(c *gin.Context) {
 }
 
 func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
+	if roleVal, hasRole := c.Get("role"); hasRole {
+		roleStr, _ := roleVal.(string)
+		if strings.EqualFold(roleStr, "OPERATOR") {
+			response.Forbidden(c, "Access denied: role OPERATOR tidak dapat mengakses halaman System Logs")
+			return
+		}
+	} else if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+
 	scope := middleware.GetScope(c)
 	pageStr := c.Query("page")
 	pageSizeStr := c.Query("page_size")
@@ -1108,6 +1135,17 @@ func (h *SystemHandler) GetAuditTrails(c *gin.Context) {
 }
 
 func (h *SystemHandler) GetCommunicationLogs(c *gin.Context) {
+	if roleVal, hasRole := c.Get("role"); hasRole {
+		roleStr, _ := roleVal.(string)
+		if strings.EqualFold(roleStr, "OPERATOR") {
+			response.Forbidden(c, "Access denied: role OPERATOR tidak dapat mengakses halaman System Logs")
+			return
+		}
+	} else if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+
 	scope := middleware.GetScope(c)
 	pageStr := c.Query("page")
 	pageSizeStr := c.Query("page_size")
@@ -1393,11 +1431,20 @@ func (h *SystemHandler) GetBranding(c *gin.Context) {
 	if h.tenantService != nil && scope.TenantID > 0 {
 		if t, tErr := h.tenantService.GetTenantByID(scope.TenantID); tErr == nil && t != nil {
 			merged := *branding
-			if strings.TrimSpace(t.CustomerName) != "" {
-				merged.CustomerName = t.CustomerName
-			}
-			if strings.TrimSpace(t.CustomerSubtitle) != "" {
+			if t.ID != tenantctx.DefaultTenantID {
+				if strings.TrimSpace(t.CustomerName) != "" {
+					merged.CustomerName = t.CustomerName
+				} else {
+					merged.CustomerName = t.Name
+				}
 				merged.CustomerSubtitle = t.CustomerSubtitle
+			} else {
+				if strings.TrimSpace(t.CustomerName) != "" {
+					merged.CustomerName = t.CustomerName
+				}
+				if strings.TrimSpace(t.CustomerSubtitle) != "" {
+					merged.CustomerSubtitle = t.CustomerSubtitle
+				}
 			}
 			merged.CustomerLogo = t.CustomerLogo
 			merged.CustomerHasLogo = t.CustomerHasLogo
@@ -1425,14 +1472,50 @@ func (h *SystemHandler) SaveBranding(c *gin.Context) {
 	}
 
 	scope := middleware.GetScope(c)
-	// Scoped Tenant ADMIN (or SUPERADMIN explicitly viewing Tenant > 1)
+	if roleVal, hasRole := c.Get("role"); hasRole {
+		roleStr, _ := roleVal.(string)
+		if strings.EqualFold(roleStr, "OPERATOR") {
+			response.Forbidden(c, "Access denied: role OPERATOR tidak dapat mengatur Organization & Company Branding")
+			return
+		}
+	} else if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+		response.Unauthorized(c, "Authentication required")
+		return
+	}
+
+	touchesMaker := req.MakerName != nil || req.MakerSubtitle != nil || req.MakerLogo != nil || req.MakerHasLogo != nil
+	if scope.Authenticated && !scope.IsSuperAdmin && touchesMaker {
+		response.Forbidden(c, "Access denied: Maker / Provider branding hanya dapat diatur oleh Superadmin")
+		return
+	}
+
+	// Non-SUPERADMIN reset must NEVER wipe global Maker / Provider branding
+	wasCustomerReset := false
+	if scope.Authenticated && !scope.IsSuperAdmin && req.Reset {
+		wasCustomerReset = true
+		emptyStr := ""
+		defSub := "AQMS"
+		defMode := "MANUAL"
+		noLogo := false
+		req = service.UpdateSystemBrandingRequest{
+			CustomerName:        &emptyStr,
+			CustomerSubtitle:    &defSub,
+			CustomerLogo:        &emptyStr,
+			CustomerHasLogo:     &noLogo,
+			StationTypeMode:     &defMode,
+			StationDomainPrefix: &defSub,
+			Reset:               false,
+		}
+	}
+
+	// Scoped Tenant ADMIN/ENGINEER (or SUPERADMIN explicitly viewing Tenant > 1)
 	if h.tenantService != nil && ((!scope.IsSuperAdmin && scope.UserTenantID != nil) || (scope.IsSuperAdmin && scope.TenantID > 1)) {
 		tid := scope.TenantID
 		if tid == 0 && scope.UserTenantID != nil {
 			tid = *scope.UserTenantID
 		}
-		// If SUPERADMIN passed Maker fields while scoped to Tenant > 1, update Maker fields globally
-		if scope.IsSuperAdmin && (req.MakerName != nil || req.MakerSubtitle != nil || req.MakerLogo != nil || req.MakerHasLogo != nil) {
+		// If SUPERADMIN passed Maker fields while scoped to Tenant > 1, update Maker fields globally for ALL users & tenants
+		if scope.IsSuperAdmin && touchesMaker {
 			makerReq := service.UpdateSystemBrandingRequest{
 				MakerName:     req.MakerName,
 				MakerSubtitle: req.MakerSubtitle,
@@ -1440,9 +1523,14 @@ func (h *SystemHandler) SaveBranding(c *gin.Context) {
 				MakerHasLogo:  req.MakerHasLogo,
 			}
 			_, _ = h.systemService.SaveBranding(makerReq)
+			touchesCustomer := req.CustomerName != nil || req.CustomerSubtitle != nil || req.CustomerLogo != nil || req.CustomerHasLogo != nil || req.StationTypeMode != nil || req.StationDomainPrefix != nil || req.Reset
+			if !touchesCustomer {
+				h.GetBranding(c)
+				return
+			}
 		}
 
-		clearLogo := req.Reset || (req.CustomerHasLogo != nil && !*req.CustomerHasLogo)
+		clearLogo := req.Reset || wasCustomerReset || (req.CustomerHasLogo != nil && !*req.CustomerHasLogo)
 		var custName, custSub, custLogo *string
 		if req.Reset {
 			defSub := "AQMS"

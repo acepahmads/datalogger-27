@@ -2,17 +2,17 @@
   <div id="app" class="flex flex-col h-screen overflow-hidden bg-transparent dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-150 relative">
     <!-- Top System Header (Hidden in Full-Width SCADA Mode or on Login) -->
     <Header
-      v-if="!isLoginRoute"
+      v-if="!isLoginRoute && isShellReady"
       v-show="!isTopPanelHidden"
       @toggle-sidebar="toggleSidebar"
       @toggle-autohide="onSidebarAutoHideToggle"
     />
 
     <!-- Global Alarm Banner (Directly beneath header) -->
-    <GlobalAlarmBanner v-if="!isLoginRoute" v-show="!isTopPanelHidden" />
+    <GlobalAlarmBanner v-if="!isLoginRoute && isShellReady" v-show="!isTopPanelHidden" />
 
     <!-- Main Content Area with Sidebar -->
-    <div class="flex flex-1 overflow-hidden relative" v-if="!isLoginRoute">
+    <div class="flex flex-1 overflow-hidden relative" v-if="!isLoginRoute && isShellReady">
       <!-- 1. Normal Pinned Sidebar (rendered when auto-hide is FALSE) -->
       <Sidebar
         v-if="!sidebarAutoHide"
@@ -79,9 +79,12 @@
     </div>
 
     <!-- Login Route Viewport (when isLoginRoute is true) -->
-    <main v-else class="flex-1 overflow-y-auto p-0 bg-transparent">
+    <main v-else-if="isLoginRoute" class="flex-1 overflow-y-auto p-0 bg-transparent">
       <router-view />
     </main>
+
+    <!-- Initial Auth Check Placeholder (prevents dashboard flash before Cloud /login redirect) -->
+    <div v-else class="flex-1 bg-slate-50 dark:bg-slate-950"></div>
 
     <!-- Global Logout Confirmation Modal (Accessible from Sidebar even when Top Header is hidden) -->
     <div
@@ -148,6 +151,9 @@ export default {
   computed: {
     isLoginRoute() {
       return this.$route && (this.$route.path === '/login' || this.$route.name === 'Login');
+    },
+    isShellReady() {
+      return Boolean(this.$store && this.$store.getters && this.$store.getters.isAuthenticated);
     },
     isOperatorRoute() {
       return this.$route && (this.$route.path === '/monitoring/operator' || this.$route.path === '/operator');

@@ -354,6 +354,9 @@ export default {
             redirect.startsWith('/monitoring/telemetry') ||
             redirect.startsWith('/monitoring/reports') ||
             redirect.startsWith('/alarm/live-comm') ||
+            redirect.startsWith('/system/logs') ||
+            redirect.startsWith('/system/audit') ||
+            redirect.startsWith('/system/communication') ||
             redirect.startsWith('/administration') ||
             redirect === '/integration' ||
             redirect.startsWith('/integration/destinations') ||

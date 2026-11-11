@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
+import axios from 'axios';
 import store from '../store';
 
 import DashboardView from '../views/DashboardView.vue';
@@ -136,10 +137,25 @@ const routes = [
   },
   { path: '/system/activity-monitor', redirect: '/alarm/activity-monitor' },
 
-  // System Logs & Audit
-  { path: '/system/logs', name: 'SystemLogs', component: LogsView },
-  { path: '/system/audit', name: 'AuditTrails', component: LogsView },
-  { path: '/system/communication-logs', name: 'CommunicationLogs', component: LogsView },
+  // System Logs & Audit — Restricted from OPERATOR
+  {
+    path: '/system/logs',
+    name: 'SystemLogs',
+    component: LogsView,
+    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+  },
+  {
+    path: '/system/audit',
+    name: 'AuditTrails',
+    component: LogsView,
+    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+  },
+  {
+    path: '/system/communication-logs',
+    name: 'CommunicationLogs',
+    component: LogsView,
+    meta: { disallowOperator: true, roles: ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'] },
+  },
 
   // Administration Modules
   {
@@ -211,12 +227,49 @@ const router = new VueRouter({
 
 // Centralized Frontend Route Guard for Authentication and Role-Based Access Control
 router.beforeEach(async (to, from, next) => {
-  let token = store.state.token;
-  let isAuth = !!token && !!store.state.user;
   const isLoginPage = to.path === '/login';
 
-  // Automatically authenticate as default operator if unauthenticated, so entry to dashboard is immediate
-  if (!isAuth && !isLoginPage) {
+  // Ensure Cloud vs Edge runtime mode is resolved before evaluating authentication or auto-login
+  if (!store.state.systemStatus || !store.state.systemStatus._cloudChecked) {
+    try {
+      await store.dispatch('fetchSystemStatus');
+      if (store.state.systemStatus) {
+        store.state.systemStatus._cloudChecked = true;
+      }
+    } catch (_) { }
+  }
+  const isCloudMode = Boolean(
+    (store.state.systemStatus && store.state.systemStatus.cloud_mode) ||
+    String((store.state.systemStatus && store.state.systemStatus.monitoring_domain) || '').toUpperCase() === 'CLOUD'
+  );
+
+  let token = store.state.token;
+  let isAuth = !!token && !!store.state.user;
+
+  // In Cloud Mode: disallow kiosk/auto-login tokens and verify server session before granting access
+  if (isCloudMode && isAuth) {
+    if (token === 'datalogger_operator_session_token' || store.state.authSource !== 'manual') {
+      store.dispatch('closeWebSocket');
+      store.commit('CLEAR_SENSITIVE_DATA');
+      store.commit('CLEAR_AUTH');
+      token = '';
+      isAuth = false;
+    } else if (!store.state._cloudSessionVerified) {
+      try {
+        await axios.get('/api/auth/me');
+        store.commit('SET_CLOUD_SESSION_VERIFIED', true);
+      } catch (_) {
+        store.dispatch('closeWebSocket');
+        store.commit('CLEAR_SENSITIVE_DATA');
+        store.commit('CLEAR_AUTH');
+        token = '';
+        isAuth = false;
+      }
+    }
+  }
+
+  // Automatically authenticate as default operator in Edge mode only (Cloud mode ALWAYS requires manual login)
+  if (!isAuth && !isLoginPage && !isCloudMode) {
     try {
       await store.dispatch('autoLoginOperator');
       token = store.state.token;
@@ -261,34 +314,20 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 3. RBAC validation
-  if (isAuth && !isSuper) {
-    if (!store.state.systemStatus || !store.state.systemStatus._cloudChecked) {
-      try {
-        await store.dispatch('fetchSystemStatus');
-        if (store.state.systemStatus) {
-          store.state.systemStatus._cloudChecked = true;
-        }
-      } catch (_) { }
-    }
-    const isCloudMode = Boolean(
-      (store.state.systemStatus && store.state.systemStatus.cloud_mode) ||
-      String((store.state.systemStatus && store.state.systemStatus.monitoring_domain) || '').toUpperCase() === 'CLOUD'
-    );
-    if (isCloudMode) {
-      const cloudRestrictedPrefixes = [
-        '/monitoring/devices',
-        '/devices',
-        '/monitoring/parameters',
-        '/monitoring/calibration',
-        '/calibration',
-        '/monitoring/telemetry-injection',
-      ];
-      if (cloudRestrictedPrefixes.some(p => to.path === p || to.path.startsWith(p + '/'))) {
-        return next({
-          path: '/access-denied',
-          query: { from: to.fullPath },
-        });
-      }
+  if (isAuth && !isSuper && isCloudMode) {
+    const cloudRestrictedPrefixes = [
+      '/monitoring/devices',
+      '/devices',
+      '/monitoring/parameters',
+      '/monitoring/calibration',
+      '/calibration',
+      '/monitoring/telemetry-injection',
+    ];
+    if (cloudRestrictedPrefixes.some(p => to.path === p || to.path.startsWith(p + '/'))) {
+      return next({
+        path: '/access-denied',
+        query: { from: to.fullPath },
+      });
     }
   }
 

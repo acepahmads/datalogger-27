@@ -801,6 +801,10 @@ export default {
     this.syncTabFromRoute(this.$route.path);
   },
   mounted() {
+    if (this.$store && this.$store.getters && this.$store.getters.isOperator) {
+      this.$router.replace('/access-denied');
+      return;
+    }
     this.fetchLogs(1);
     this.fetchAudit(1);
     this.fetchComm(1);

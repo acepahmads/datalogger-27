@@ -3,6 +3,7 @@ package handler
 import (
 	"strings"
 
+	"datalogger/internal/config"
 	"datalogger/internal/middleware"
 	"datalogger/internal/model"
 	"datalogger/internal/service"
@@ -54,6 +55,13 @@ func serializeAuthUser(user *model.User, roleName string) gin.H {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
+	if strings.TrimSpace(c.GetHeader("X-Auto-Login")) == "1" {
+		if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() {
+			response.Unauthorized(c, "Auto-login dinonaktifkan pada mode Cloud. Silakan login terlebih dahulu.")
+			return
+		}
+	}
+
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Username and password are required")

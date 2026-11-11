@@ -110,4 +110,26 @@ assert(occViewCode.includes('isCloudMode()'), 'OperatorCommandCenterView must de
 assert((occViewCode.match(/v-if="!isCloudMode"\s+class="relative toolbar-popover-anchor"/g) || []).length >= 2, 'OperatorCommandCenterView must hide Actuators and Network Monitor toolbar icons when isCloudMode is true');
 assert((dashOpViewCode.match(/v-if="!isCloudMode"\s+class="relative toolbar-popover-anchor"/g) || []).length >= 2, 'DashboardOperatorView must hide Actuators and Network Monitor toolbar icons when isCloudMode is true');
 
+// 11. Role RBAC on Organization Branding, Global Superadmin Maker Branding, System Logs Restriction, and Mandatory Cloud Login
+const brandingUtilCode = fs.readFileSync(path.join(srcDir, 'utils', 'companyBranding.js'), 'utf8');
+const loginViewCode = fs.readFileSync(path.join(srcDir, 'views', 'LoginView.vue'), 'utf8');
+const logsViewCode = fs.readFileSync(path.join(srcDir, 'views', 'LogsView.vue'), 'utf8');
+
+assert(occViewCode.includes('canManageCustomerBranding') && occViewCode.includes('canManageMakerBranding'), 'OperatorCommandCenterView must separate Customer vs Maker branding permissions');
+assert(dashOpViewCode.includes('canManageCustomerBranding') && dashOpViewCode.includes('canManageMakerBranding'), 'DashboardOperatorView must separate Customer vs Maker branding permissions');
+assert(configViewCode.includes(':disabled="!isSuperAdmin"'), 'ConfigView must disable Maker / Provider branding inputs for non-Superadmin');
+assert(configViewCode.includes('resetCustomerBranding'), 'ConfigView must only reset Customer branding when non-Superadmin resets branding');
+assert(brandingUtilCode.includes('buildBrandingRequestHeaders'), 'companyBranding.js must send Authorization, X-Tenant-ID, and X-Site-ID headers');
+
+assert(sidebarCode.includes('<router-link v-if="!isOperator" to="/system/logs"'), 'Sidebar must hide /system/logs menu from OPERATOR role');
+assert(/path:\s*'\/system\/logs'[\s\S]{0,180}disallowOperator:\s*true/.test(routerCode), 'Router must block OPERATOR on /system/logs');
+assert(/path:\s*'\/system\/audit'[\s\S]{0,180}disallowOperator:\s*true/.test(routerCode), 'Router must block OPERATOR on /system/audit');
+assert(/path:\s*'\/system\/communication-logs'[\s\S]{0,180}disallowOperator:\s*true/.test(routerCode), 'Router must block OPERATOR on /system/communication-logs');
+assert(loginViewCode.includes("redirect.startsWith('/system/logs')"), 'LoginView must treat /system/logs as restricted for OPERATOR');
+assert(logsViewCode.includes("this.$router.replace('/access-denied')"), 'LogsView must guard against direct OPERATOR mount');
+
+assert(storeCode.includes("'X-Auto-Login': '1'"), 'autoLoginOperator must send X-Auto-Login header so backend blocks auto-login in Cloud mode');
+assert(routerCode.includes('if (!isAuth && !isLoginPage && !isCloudMode)'), 'Router guard must never auto-login in Cloud mode');
+assert(mainCode.includes('if (isCloudMode)'), 'main.js must enforce mandatory login and skip autoLoginOperator in Cloud mode');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

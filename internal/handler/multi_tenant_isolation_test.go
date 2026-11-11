@@ -86,6 +86,10 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	telemetryService.SetParamLookup(deviceRepo.FindParameterByID)
 	t.Cleanup(func() {
 		telemetryService.Stop()
+		if g := config.Get(); g != nil {
+			g.CloudMode = false
+			g.MonitoringDomain = "AQMS"
+		}
 		_ = os.Remove("config.json")
 	})
 
@@ -125,8 +129,13 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		api.POST("/v1/ingest/mqtt", ingestHandler.IngestMQTT)
 
 		api.GET("/system/status", systemHandler.GetStatus)
+		api.GET("/data", systemHandler.GetData)
 		api.GET("/system/branding", systemHandler.GetBranding)
-		api.PUT("/system/branding", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveBranding)
+		api.POST("/system/branding", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.SaveBranding)
+		api.PUT("/system/branding", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.SaveBranding)
+		api.GET("/logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetLogs)
+		api.GET("/audit-trails", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetAuditTrails)
+		api.GET("/communication-logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetCommunicationLogs)
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.PUT("/system/location", middleware.JWTAuth(authService), middleware.RequirePermission("config.manage"), systemHandler.SaveStationLocation)
 		api.GET("/system/config", middleware.JWTAuth(authService), middleware.RequirePermission("config.view"), systemHandler.GetConfig)
@@ -858,5 +867,131 @@ func TestMultiTenant_StandardizedBearerReceiverStrictManualAndOperatorSync(t *te
 	wT1Check := doJSONReq(t, env.Router, "GET", "/api/devices?all=true", env.Tenant1AdmToken, nil, nil)
 	if bytes.Contains(wT1Check.Body.Bytes(), []byte("ONLIMO-CTR-01")) {
 		t.Fatalf("SECURITY VIOLATION: Tenant 1 saw Tenant 2 ONLIMO-CTR-01 device!")
+	}
+}
+
+// Test 4: Cloud Mode RBAC — Operator Branding & System Logs Restrictions, Global Superadmin Maker Branding, and Mandatory Cloud Login
+func TestCloudModeRBACBrandingAndLoginEnforcement(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	opTok, _, err := env.AuthService.Login("operator_user", "Password123!", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatalf("operator_user login failed: %v", err)
+	}
+
+	// 1. Role OPERATOR cannot access System Logs, Audit Trails, Communication Logs, or save Organization Branding
+	for _, ep := range []string{"/api/logs", "/api/audit-trails", "/api/communication-logs"} {
+		w := doJSONReq(t, env.Router, "GET", ep, opTok, nil, nil)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 Forbidden for OPERATOR on %s, got %d: %s", ep, w.Code, w.Body.String())
+		}
+	}
+	wOpBrand := doJSONReq(t, env.Router, "PUT", "/api/system/branding", opTok, nil, map[string]interface{}{
+		"customer_name": "Hacked By Operator",
+	})
+	if wOpBrand.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden for OPERATOR saving branding, got %d: %s", wOpBrand.Code, wOpBrand.Body.String())
+	}
+
+	// 2. SUPERADMIN sets Maker / Provider branding -> applies globally to ALL users & ALL tenants
+	wSuperMaker := doJSONReq(t, env.Router, "PUT", "/api/system/branding", env.SuperAdminToken, nil, map[string]interface{}{
+		"maker_name":     "PT. CAKRAWALA BIMA INSTRUMENT",
+		"maker_subtitle": "CBI Industrial Cloud",
+	})
+	if wSuperMaker.Code != http.StatusOK {
+		t.Fatalf("SUPERADMIN save maker branding failed (%d): %s", wSuperMaker.Code, wSuperMaker.Body.String())
+	}
+
+	// 3. Tenant #1 ADMIN can set own Customer branding, CANNOT set Maker / Provider branding
+	wAdmCust := doJSONReq(t, env.Router, "PUT", "/api/system/branding", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"customer_name":     "DINAS LINGKUNGAN HIDUP INHU",
+		"customer_subtitle": "AQMS Indragiri Hulu",
+	})
+	if wAdmCust.Code != http.StatusOK {
+		t.Fatalf("Tenant 1 ADMIN save customer branding failed (%d): %s", wAdmCust.Code, wAdmCust.Body.String())
+	}
+	wAdmMaker := doJSONReq(t, env.Router, "PUT", "/api/system/branding", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"maker_name": "Unauthorized Maker Override",
+	})
+	if wAdmMaker.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden when ADMIN attempts to modify Maker branding, got %d: %s", wAdmMaker.Code, wAdmMaker.Body.String())
+	}
+
+	// Create Tenant #2 and verify global Maker branding applies to Tenant #2 while Tenant #1 Customer branding does NOT leak
+	wT2 := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+		"code":   "dlh-kampar",
+		"name":   "DLH Kabupaten Kampar",
+		"status": "ACTIVE",
+	})
+	if wT2.Code != http.StatusCreated && wT2.Code != http.StatusOK {
+		t.Fatalf("create Tenant #2 failed (%d): %s", wT2.Code, wT2.Body.String())
+	}
+	var t2Resp struct {
+		Data model.Tenant `json:"data"`
+	}
+	_ = json.Unmarshal(wT2.Body.Bytes(), &t2Resp)
+	t2ID := t2Resp.Data.ID
+
+	// Check Tenant #1 branding (via Operator & Admin) -> has Tenant #1 Customer + Global Superadmin Maker
+	wGetT1Op := doJSONReq(t, env.Router, "GET", "/api/system/branding", opTok, nil, nil)
+	if !bytes.Contains(wGetT1Op.Body.Bytes(), []byte("DINAS LINGKUNGAN HIDUP INHU")) ||
+		!bytes.Contains(wGetT1Op.Body.Bytes(), []byte("PT. CAKRAWALA BIMA INSTRUMENT")) {
+		t.Fatalf("expected Tenant #1 Operator to see Tenant #1 Customer + Global Maker, got: %s", wGetT1Op.Body.String())
+	}
+
+	// Check Tenant #2 branding -> has Tenant #2 default Customer (NOT Tenant #1!) + Global Superadmin Maker!
+	wGetT2 := doJSONReq(t, env.Router, "GET", "/api/system/branding", env.SuperAdminToken, map[string]string{
+		"X-Tenant-ID": fmt.Sprintf("%d", t2ID),
+	}, nil)
+	if bytes.Contains(wGetT2.Body.Bytes(), []byte("DINAS LINGKUNGAN HIDUP INHU")) {
+		t.Fatalf("branding leak: Tenant #2 saw Tenant #1 customer branding: %s", wGetT2.Body.String())
+	}
+	if !bytes.Contains(wGetT2.Body.Bytes(), []byte("PT. CAKRAWALA BIMA INSTRUMENT")) ||
+		!bytes.Contains(wGetT2.Body.Bytes(), []byte("DLH Kabupaten Kampar")) {
+		t.Fatalf("expected Tenant #2 to see own tenant name + Global Superadmin Maker branding, got: %s", wGetT2.Body.String())
+	}
+
+	// Non-Superadmin reset only resets Customer branding, preserving Global Superadmin Maker branding
+	wAdmReset := doJSONReq(t, env.Router, "PUT", "/api/system/branding", env.Tenant1AdmToken, nil, map[string]interface{}{
+		"reset": true,
+	})
+	if wAdmReset.Code != http.StatusOK {
+		t.Fatalf("Tenant 1 ADMIN customer reset failed (%d): %s", wAdmReset.Code, wAdmReset.Body.String())
+	}
+	wAfterReset := doJSONReq(t, env.Router, "GET", "/api/system/branding", env.Tenant1AdmToken, nil, nil)
+	if !bytes.Contains(wAfterReset.Body.Bytes(), []byte("PT. CAKRAWALA BIMA INSTRUMENT")) {
+		t.Fatalf("ADMIN reset must NOT wipe global Superadmin Maker branding! got: %s", wAfterReset.Body.String())
+	}
+
+	// 4. Enable Cloud Mode -> Auto-login header X-Auto-Login: 1 MUST be rejected with 401, while manual Operator login succeeds!
+	wCloudCfg := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.SuperAdminToken, nil, map[string]interface{}{
+		"monitoring_domain": "CLOUD",
+		"cloud_mode":        true,
+	})
+	if wCloudCfg.Code != http.StatusOK {
+		t.Fatalf("switch to CLOUD mode failed (%d): %s", wCloudCfg.Code, wCloudCfg.Body.String())
+	}
+
+	wAutoLogin := doJSONReq(t, env.Router, "POST", "/api/auth/login", "", map[string]string{
+		"X-Auto-Login": "1",
+	}, map[string]interface{}{
+		"username": "operator_user",
+		"password": "Password123!",
+	})
+	if wAutoLogin.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized for X-Auto-Login in Cloud mode, got %d: %s", wAutoLogin.Code, wAutoLogin.Body.String())
+	}
+
+	wUnauthData := doJSONReq(t, env.Router, "GET", "/api/data", "", nil, nil)
+	if wUnauthData.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized for unauthenticated /api/data in Cloud mode, got %d", wUnauthData.Code)
+	}
+
+	wManualOpLogin := doJSONReq(t, env.Router, "POST", "/api/auth/login", "", nil, map[string]interface{}{
+		"username": "operator_user",
+		"password": "Password123!",
+	})
+	if wManualOpLogin.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for manual OPERATOR login in Cloud mode, got %d: %s", wManualOpLogin.Code, wManualOpLogin.Body.String())
 	}
 }

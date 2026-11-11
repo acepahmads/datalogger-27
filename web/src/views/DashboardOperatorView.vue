@@ -12,11 +12,12 @@
     <!-- =================================================================== -->
     <header class="header-shell">
       <div class="h-row1" :class="{ 'is-compact-row1': isCompactScreen }">
-        <!-- Area 1 (Left): Customer Company Branding (Configured Values Only — No Default Text) -->
+        <!-- Area 1 (Left): Customer Company Branding (Configured Values Only — Non-Operator Editable) -->
         <div
-          class="brand-left cursor-pointer"
-          @click="openBrandingModal('customer')"
-          :title="(customerCompanyName ? customerCompanyName + ' · ' : '') + 'Klik untuk konfigurasi branding'"
+          class="brand-left"
+          :class="canManageCustomerBranding ? 'cursor-pointer' : 'cursor-default'"
+          @click="canManageCustomerBranding && openBrandingModal('customer')"
+          :title="canManageCustomerBranding ? ((customerCompanyName ? customerCompanyName + ' · ' : '') + 'Klik untuk konfigurasi branding') : (customerCompanyName || '')"
         >
           <div v-if="customerLogoUrl" class="logo-img-wrap">
             <img
@@ -68,11 +69,12 @@
           </div>
         </div>
 
-        <!-- Area 3 (Right): Single Clean Maker Branding (Configured Values Only — No Default Text) -->
+        <!-- Area 3 (Right): Single Clean Maker Branding (Global across all users & tenants — SUPERADMIN Editable Only) -->
         <div
-          class="brand-right cursor-pointer"
-          @click="openBrandingModal('maker')"
-          :title="(makerCompanyName ? makerCompanyName + ' · ' : '') + 'Klik untuk konfigurasi branding'"
+          class="brand-right"
+          :class="canManageMakerBranding ? 'cursor-pointer' : 'cursor-default'"
+          @click="canManageMakerBranding && openBrandingModal('maker')"
+          :title="canManageMakerBranding ? ((makerCompanyName ? makerCompanyName + ' · ' : '') + 'Klik untuk konfigurasi branding') : (makerCompanyName || '')"
         >
           <div v-if="makerCompanyName || makerSubtitle" class="maker-info hidden lg:block">
             <div v-if="makerCompanyName" class="maker-title truncate" :class="isCompactScreen ? 'max-w-[165px]' : 'max-w-[215px]'">
@@ -4700,7 +4702,7 @@
     <!-- =================================================================== -->
     <!-- MODAL: DUAL ORGANIZATION BRANDING SETUP (CUSTOMER & MAKER) -->
     <div
-      v-if="showBrandingModal || showLogoModal"
+      v-if="(showBrandingModal || showLogoModal) && canManageCustomerBranding"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm font-sans"
       @click.self="closeBrandingModal"
     >
@@ -4741,8 +4743,11 @@
             <span>{{ brandingErrorMsg || logoErrorMsg }}</span>
           </div>
 
-          <!-- Tab Selection (Customer Left Header vs Maker Right Header) -->
-          <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/70">
+          <!-- Tab Selection (Customer Left Header vs Maker Right Header — Maker tab SUPERADMIN only) -->
+          <div
+            class="grid gap-1 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/70"
+            :class="canManageMakerBranding ? 'grid-cols-2' : 'grid-cols-1'"
+          >
             <button
               type="button"
               @click="activeBrandingTab = 'customer'"
@@ -4757,6 +4762,7 @@
               <span>{{ $t('branding.customerTab') || 'Customer (Left Header)' }}</span>
             </button>
             <button
+              v-if="canManageMakerBranding"
               type="button"
               @click="activeBrandingTab = 'maker'"
               class="py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
@@ -4958,8 +4964,8 @@
             </div>
           </div>
 
-          <!-- TAB 2: MAKER COMPANY SETUP -->
-          <div v-else-if="activeBrandingTab === 'maker'" class="space-y-3.5">
+          <!-- TAB 2: MAKER COMPANY SETUP (SUPERADMIN ONLY) -->
+          <div v-else-if="activeBrandingTab === 'maker' && canManageMakerBranding" class="space-y-3.5">
             <div class="space-y-1">
               <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 {{ $t('branding.makerName') || 'Maker / Provider Company Name (Appears Top-Right)' }}
@@ -6709,6 +6715,7 @@ import {
   applyAlarmPreferences,
 } from '../utils/alarmPreferences';
 import {
+  fetchBrandingFromDatabase,
   saveCustomerBranding,
   saveMakerBranding,
   extractConcisePlaceName,
@@ -8013,21 +8020,28 @@ export default {
         await OperatorCommandCenterView.methods.initCompanyBranding.call(this);
       }
       try {
-        const res = await fetch('/api/system/branding');
-        if (res && res.ok) {
-          const json = await res.json();
-          const remote = (json && json.data) ? json.data : json;
-          if (remote) {
-            this.customerCompanyName = remote.customer_name || '';
-            this.customerSubtitle = remote.customer_subtitle === 'Local Autonomous Edge' ? '' : (remote.customer_subtitle || '');
-            this.stationTypeMode = remote.station_type_mode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
-            this.stationDomainPrefix = remote.station_domain_prefix || inferStationDomainPrefix(this.customerSubtitle, 'AQMS');
-            this.makerCompanyName = remote.maker_name || '';
-            this.makerSubtitle = remote.maker_subtitle || '';
-            this.companyName = this.makerCompanyName;
-            if (this.stationTypeMode === 'AUTO_GPS') {
-              this.refreshAutoGpsPlaceName(false);
-            }
+        const remote = await fetchBrandingFromDatabase();
+        if (remote) {
+          this.customerCompanyName = remote.customer_name || '';
+          this.customerSubtitle = remote.customer_subtitle === 'Local Autonomous Edge' ? '' : (remote.customer_subtitle || '');
+          this.stationTypeMode = remote.station_type_mode === 'AUTO_GPS' ? 'AUTO_GPS' : 'MANUAL';
+          this.stationDomainPrefix = remote.station_domain_prefix || inferStationDomainPrefix(this.customerSubtitle, 'AQMS');
+          if (remote.customer_has_logo === false) {
+            this.customerLogoUrl = null;
+          } else if (remote.customer_logo) {
+            this.customerLogoUrl = remote.customer_logo;
+          }
+          this.makerCompanyName = remote.maker_name || '';
+          this.makerSubtitle = remote.maker_subtitle || '';
+          if (remote.maker_has_logo === false) {
+            this.makerLogoUrl = null;
+          } else if (remote.maker_logo) {
+            this.makerLogoUrl = remote.maker_logo;
+          }
+          this.companyLogoUrl = this.makerLogoUrl;
+          this.companyName = this.makerCompanyName;
+          if (this.stationTypeMode === 'AUTO_GPS') {
+            this.refreshAutoGpsPlaceName(false);
           }
         } else if (!hadSavedLocal) {
           this.customerCompanyName = '';
@@ -8060,6 +8074,10 @@ export default {
       }
     },
     openBrandingModal(tab = 'customer') {
+      if (!this.canManageCustomerBranding) return;
+      if (tab === 'maker' && !this.canManageMakerBranding) {
+        tab = 'customer';
+      }
       if (OperatorCommandCenterView.methods && OperatorCommandCenterView.methods.openBrandingModal) {
         OperatorCommandCenterView.methods.openBrandingModal.call(this, tab);
       }
@@ -8140,6 +8158,7 @@ export default {
       }
     },
     async saveBrandingFromModal() {
+      if (!this.canManageCustomerBranding) return;
       this.brandingSaving = true;
       this.logoSaving = true;
       this.brandingErrorMsg = '';
@@ -8158,11 +8177,14 @@ export default {
           domainPrefix: nextPrefix,
         });
 
-        await saveMakerBranding({
-          file: this.modalMakerLogoFile,
-          name: this.modalMakerName,
-          subtitle: this.modalMakerSubtitle,
-        });
+        // Maker / Provider branding is exclusively managed by SUPERADMIN and applies globally to all users & tenants
+        if (this.canManageMakerBranding) {
+          await saveMakerBranding({
+            file: this.modalMakerLogoFile,
+            name: this.modalMakerName,
+            subtitle: this.modalMakerSubtitle,
+          });
+        }
 
         this.stationTypeMode = nextMode;
         this.stationDomainPrefix = nextPrefix;

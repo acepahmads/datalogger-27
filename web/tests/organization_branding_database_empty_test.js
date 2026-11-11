@@ -104,8 +104,14 @@ runTest('1.5: Handler and Router expose /api/system/branding endpoints', () => {
   assert(handlerContent.includes('func (h *SystemHandler) GetBranding'), 'system_handler.go must have GetBranding');
   assert(handlerContent.includes('func (h *SystemHandler) SaveBranding'), 'system_handler.go must have SaveBranding');
   assert(mainContent.includes('api.GET("/system/branding", systemHandler.GetBranding)'), 'main.go must register GET /system/branding');
-  assert(mainContent.includes('api.POST("/system/branding", systemHandler.SaveBranding)'), 'main.go must register POST /system/branding');
-  assert(mainContent.includes('api.PUT("/system/branding", systemHandler.SaveBranding)'), 'main.go must register PUT /system/branding');
+  assert(
+    mainContent.includes('api.POST("/system/branding"') && mainContent.includes('systemHandler.SaveBranding)'),
+    'main.go must register POST /system/branding'
+  );
+  assert(
+    mainContent.includes('api.PUT("/system/branding"') && mainContent.includes('systemHandler.SaveBranding)'),
+    'main.go must register PUT /system/branding'
+  );
 });
 
 // 2. Frontend Database Synchronization & Empty Values Support

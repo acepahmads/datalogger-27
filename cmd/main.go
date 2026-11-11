@@ -447,8 +447,8 @@ func main() {
 		api.GET("/devices/serial-ports", systemHandler.GetSerialPorts)
 		api.GET("/devices/serial-ports/details", systemHandler.GetDetailedSerialPorts)
 		api.GET("/system/branding", systemHandler.GetBranding)
-		api.POST("/system/branding", systemHandler.SaveBranding)
-		api.PUT("/system/branding", systemHandler.SaveBranding)
+		api.POST("/system/branding", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.SaveBranding)
+		api.PUT("/system/branding", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.SaveBranding)
 		api.GET("/system/location", systemHandler.GetStationLocation)
 		api.GET("/system/location/ip-estimate", systemHandler.GetIPGeolocationEstimate)
 		api.GET("/system/location/search", systemHandler.SearchLocation)
@@ -654,10 +654,10 @@ func main() {
 			calibrationsGroup.POST("/logs/:logId/rollback", middleware.RequirePermission("calibration.manage"), calibrationHandler.RollbackLog)
 		}
 
-		// Logs
-		api.GET("/logs", systemHandler.GetLogs)
-		api.GET("/audit-trails", systemHandler.GetAuditTrails)
-		api.GET("/communication-logs", systemHandler.GetCommunicationLogs)
+		// Logs (Restricted — role OPERATOR cannot access System Logs)
+		api.GET("/logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetLogs)
+		api.GET("/audit-trails", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetAuditTrails)
+		api.GET("/communication-logs", middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMINISTRATOR", "ADMIN", "ENGINEER"), systemHandler.GetCommunicationLogs)
 
 		// Database Management & Monitoring
 		api.GET("/system/database/status", systemHandler.GetDatabaseStatus)
