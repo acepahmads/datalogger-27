@@ -274,9 +274,13 @@ func (h *SystemHandler) GetHealth(c *gin.Context) {
 		"go_heap_alloc_bytes": info.GoHeapAllocBytes,
 		"go_heap_sys_bytes":   info.GoHeapSysBytes,
 		"go_num_goroutine":    info.GoNumGoroutine,
-		"ram_percent":         info.RAMPercent,
-		"disk_percent":        info.DiskPercent,
-		"uptime":              info.UptimeHuman,
+		"ram_percent":          info.RAMPercent,
+		"disk_percent":         info.DiskPercent,
+		"net_rx_bytes_per_sec": info.NetRxBytesPerSec,
+		"net_tx_bytes_per_sec": info.NetTxBytesPerSec,
+		"net_rx_total_bytes":   info.NetRxTotalBytes,
+		"net_tx_total_bytes":   info.NetTxTotalBytes,
+		"uptime":               info.UptimeHuman,
 		"goroutines":          info.Goroutines,
 	})
 }

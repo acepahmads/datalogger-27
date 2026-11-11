@@ -39,6 +39,10 @@ type SystemStatusOverview struct {
 	DiskPercent       float64   `json:"disk_percent"`
 	DiskUsedGB        float64   `json:"disk_used_gb"`
 	DiskTotalGB       float64   `json:"disk_total_gb"`
+	NetRxBytesPerSec  float64   `json:"net_rx_bytes_per_sec"`
+	NetTxBytesPerSec  float64   `json:"net_tx_bytes_per_sec"`
+	NetRxTotalBytes   uint64    `json:"net_rx_total_bytes"`
+	NetTxTotalBytes   uint64    `json:"net_tx_total_bytes"`
 	UptimeHuman    string  `json:"uptime_human"`
 	UptimeSeconds  uint64  `json:"uptime_seconds"`
 	OS             string  `json:"os"`

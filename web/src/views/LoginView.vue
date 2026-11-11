@@ -369,7 +369,12 @@ export default {
             redirect.startsWith('/system/communication') ||
             redirect.startsWith('/administration') ||
             redirect === '/integration' ||
-            (isCloudMode && (redirect === '/integration/queue' || redirect.startsWith('/integration/'))) ||
+            (isCloudMode && (
+              redirect === '/monitoring/system' ||
+              redirect.startsWith('/monitoring/system/') ||
+              redirect === '/integration/queue' ||
+              redirect.startsWith('/integration/')
+            )) ||
             redirect.startsWith('/integration/destinations') ||
             redirect === '/destinations';
 

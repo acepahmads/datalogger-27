@@ -15,16 +15,22 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+	gopsutilnet "github.com/shirou/gopsutil/v3/net"
 	"github.com/shirou/gopsutil/v3/process"
 )
 
 var (
-	startTime      = time.Now()
-	mu             sync.RWMutex
-	lastCPU        float64
-	lastPerCoreCPU []float64
-	lastProcessCPU float64
-	currentProc    *process.Process
+	startTime        = time.Now()
+	mu               sync.RWMutex
+	lastCPU          float64
+	lastPerCoreCPU   []float64
+	lastProcessCPU   float64
+	lastNetRxBytes   uint64
+	lastNetTxBytes   uint64
+	lastNetSampleAt  time.Time
+	lastNetRxPerSec  float64
+	lastNetTxPerSec  float64
+	currentProc      *process.Process
 )
 
 type SystemInfo struct {
@@ -42,6 +48,10 @@ type SystemInfo struct {
 	DiskUsedBytes     uint64    `json:"disk_used_bytes"`
 	DiskTotalBytes    uint64    `json:"disk_total_bytes"`
 	DiskPercent       float64   `json:"disk_percent"`
+	NetRxBytesPerSec  float64   `json:"net_rx_bytes_per_sec"`
+	NetTxBytesPerSec  float64   `json:"net_tx_bytes_per_sec"`
+	NetRxTotalBytes   uint64    `json:"net_rx_total_bytes"`
+	NetTxTotalBytes   uint64    `json:"net_tx_total_bytes"`
 	UptimeSeconds     uint64    `json:"uptime_seconds"`
 	UptimeHuman       string    `json:"uptime_human"`
 	OS                string    `json:"os"`
@@ -69,11 +79,26 @@ func init() {
 	go startCPUSampler()
 }
 
+func sampleNetworkCounters() (rxTotal uint64, txTotal uint64, ok bool) {
+	counters, err := gopsutilnet.IOCounters(false)
+	if err != nil || len(counters) == 0 {
+		return 0, 0, false
+	}
+	return counters[0].BytesRecv, counters[0].BytesSent, true
+}
+
 func startCPUSampler() {
 	// Initial baseline reading
 	_, _ = cpu.Percent(100*time.Millisecond, true)
 	if currentProc != nil {
 		_, _ = currentProc.CPUPercent()
+	}
+	if rx0, tx0, ok := sampleNetworkCounters(); ok {
+		mu.Lock()
+		lastNetRxBytes = rx0
+		lastNetTxBytes = tx0
+		lastNetSampleAt = time.Now()
+		mu.Unlock()
 	}
 
 	for {
@@ -91,6 +116,9 @@ func startCPUSampler() {
 			}
 		}
 
+		rxNow, txNow, netOK := sampleNetworkCounters()
+		now := time.Now()
+
 		if err == nil && len(perCores) > 0 {
 			var total float64
 			for _, p := range perCores {
@@ -103,10 +131,42 @@ func startCPUSampler() {
 			lastProcessCPU = procCPU
 			lastPerCoreCPU = make([]float64, len(perCores))
 			copy(lastPerCoreCPU, perCores)
+			if netOK {
+				elapsed := now.Sub(lastNetSampleAt).Seconds()
+				if !lastNetSampleAt.IsZero() && elapsed > 0 {
+					if rxNow >= lastNetRxBytes {
+						lastNetRxPerSec = float64(rxNow-lastNetRxBytes) / elapsed
+					} else {
+						lastNetRxPerSec = 0
+					}
+					if txNow >= lastNetTxBytes {
+						lastNetTxPerSec = float64(txNow-lastNetTxBytes) / elapsed
+					} else {
+						lastNetTxPerSec = 0
+					}
+				}
+				lastNetRxBytes = rxNow
+				lastNetTxBytes = txNow
+				lastNetSampleAt = now
+			}
 			mu.Unlock()
 		} else {
 			mu.Lock()
 			lastProcessCPU = procCPU
+			if netOK {
+				elapsed := now.Sub(lastNetSampleAt).Seconds()
+				if !lastNetSampleAt.IsZero() && elapsed > 0 {
+					if rxNow >= lastNetRxBytes {
+						lastNetRxPerSec = float64(rxNow-lastNetRxBytes) / elapsed
+					}
+					if txNow >= lastNetTxBytes {
+						lastNetTxPerSec = float64(txNow-lastNetTxBytes) / elapsed
+					}
+				}
+				lastNetRxBytes = rxNow
+				lastNetTxBytes = txNow
+				lastNetSampleAt = now
+			}
 			mu.Unlock()
 			time.Sleep(1 * time.Second)
 		}
@@ -291,15 +351,25 @@ func GetInfo() SystemInfo {
 		info.DiskPercent = dUsage.UsedPercent
 	}
 
-	// CPU percentage from background sampler
+	// CPU & Network percentage/throughput from background sampler
 	mu.RLock()
 	info.CPUPercent = lastCPU
 	info.ProcessCPUPercent = lastProcessCPU
+	info.NetRxBytesPerSec = lastNetRxPerSec
+	info.NetTxBytesPerSec = lastNetTxPerSec
+	info.NetRxTotalBytes = lastNetRxBytes
+	info.NetTxTotalBytes = lastNetTxBytes
 	if len(lastPerCoreCPU) > 0 {
 		info.CPUPerCore = make([]float64, len(lastPerCoreCPU))
 		copy(info.CPUPerCore, lastPerCoreCPU)
 	}
 	mu.RUnlock()
+	if info.NetRxTotalBytes == 0 && info.NetTxTotalBytes == 0 {
+		if rxNow, txNow, ok := sampleNetworkCounters(); ok {
+			info.NetRxTotalBytes = rxNow
+			info.NetTxTotalBytes = txNow
+		}
+	}
 
 	return info
 }

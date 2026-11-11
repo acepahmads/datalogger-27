@@ -1636,7 +1636,7 @@
           </div>
 
           <!-- 9. System Monitor (Icon Only + Dot) -->
-          <div class="relative toolbar-popover-anchor">
+          <div v-if="isNonOperator || !isCloudMode" class="relative toolbar-popover-anchor">
             <button
               type="button"
               @click.stop="toggleToolbarPopover('systemMonitor')"

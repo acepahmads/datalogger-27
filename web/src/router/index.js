@@ -305,7 +305,15 @@ router.beforeEach(async (to, from, next) => {
     return next({ path: '/monitoring/dashboard-operator', replace: true });
   }
 
-  // 2c. Role OPERATOR retains access to Outbound Delivery Queue in Edge mode only (blocked in Cloud mode)
+  // 2c. Role OPERATOR cannot access System Monitoring (/monitoring/system) in Cloud mode
+  if (isAuth && isOperator && isCloudMode && (to.path === '/monitoring/system' || to.path.startsWith('/monitoring/system/'))) {
+    return next({
+      path: '/access-denied',
+      query: { from: to.fullPath },
+    });
+  }
+
+  // 2d. Role OPERATOR retains access to Outbound Delivery Queue in Edge mode only (blocked in Cloud mode)
   if (isAuth && isOperator && (to.path === '/integration' || to.path === '/integration/queue' || to.path.startsWith('/integration/'))) {
     if (isCloudMode) {
       return next({

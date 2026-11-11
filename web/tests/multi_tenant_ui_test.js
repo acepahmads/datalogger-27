@@ -144,4 +144,12 @@ assert(sidebarCode.includes('v-if="!isOperator || !isCloudMode" to="/integration
 assert(routerCode.includes("to.path === '/integration/queue'") && routerCode.includes('if (isCloudMode)'), 'Router must block OPERATOR from /integration/queue in Cloud mode');
 assert(integrationViewCode.includes('if (this.isOperator && this.isCloudMode)'), 'IntegrationView must guard against OPERATOR mount in Cloud mode');
 
+// 13. Cloud Mode Operator System Monitoring (/monitoring/system) Restriction
+const sysMonitoringViewCode = fs.readFileSync(path.join(srcDir, 'views', 'SystemMonitoringView.vue'), 'utf8');
+assert(sidebarCode.includes('v-if="!isOperator || !isCloudMode" to="/monitoring/system"'), 'Sidebar must hide System Monitoring for OPERATOR in Cloud mode');
+assert(routerCode.includes("to.path === '/monitoring/system'") && routerCode.includes('isAuth && isOperator && isCloudMode'), 'Router must block OPERATOR from /monitoring/system in Cloud mode');
+assert(loginViewCode.includes("redirect === '/monitoring/system'"), 'LoginView must redirect Cloud OPERATOR away from /monitoring/system after login');
+assert(sysMonitoringViewCode.includes('if (this.isOperator && this.isCloudMode)'), 'SystemMonitoringView must guard against OPERATOR mount in Cloud mode');
+assert(dashOpViewCode.includes('v-if="isNonOperator || !isCloudMode" class="relative toolbar-popover-anchor"'), 'DashboardOperatorView must hide System Monitor toolbar popover for OPERATOR in Cloud mode');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');
