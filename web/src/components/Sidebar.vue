@@ -93,8 +93,8 @@
           <span>{{ $t('navigation.monitoring') }}</span>
         </div>
         <div class="space-y-1">
-          <!-- Operator Command Center / SCADA Console (Hidden for Operator role, and hidden for Admin in Cloud mode) -->
-          <router-link v-if="!isOperator && !(isAdmin && isCloudMode)" to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
+          <!-- Operator Command Center / SCADA Console (Hidden for Operator role, and hidden for Admin & Engineer in Cloud mode) -->
+          <router-link v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/monitoring/operator" class="nav-item" :class="{ 'nav-active': $route.path === '/monitoring/operator' || $route.path === '/operator' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-cyan-500 dark:text-cyan-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.25 2.25L15 6" />
@@ -280,7 +280,7 @@
             <span>{{ $t('navigation.deliveryStatus') || 'Delivery Status' }}</span>
           </router-link>
 
-          <router-link v-if="!isOperator && !(isAdmin && isCloudMode)" to="/alarm/live-comm" class="nav-item" :class="{ 'nav-active': $route.path === '/alarm/live-comm' }">
+          <router-link v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/alarm/live-comm" class="nav-item" :class="{ 'nav-active': $route.path === '/alarm/live-comm' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
@@ -326,7 +326,7 @@
             <span>{{ $t('navigation.systemLogs') }}</span>
           </router-link>
 
-          <router-link v-if="!isOperator && !(isAdmin && isCloudMode)" to="/administration/config" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/config' }">
+          <router-link v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/administration/config" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/config' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <circle cx="12" cy="12" r="3"></circle>
@@ -335,7 +335,7 @@
             <span>{{ $t('navigation.configuration') }}</span>
           </router-link>
 
-          <router-link v-if="!isOperator && !(isAdmin && isCloudMode)" to="/administration/backup" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/backup' }">
+          <router-link v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/administration/backup" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/backup' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16m-8 4v6m0 0l-3-3m3 3l3-3"></path>
@@ -343,7 +343,7 @@
             <span>{{ $t('navigation.backupRestore') }}</span>
           </router-link>
 
-          <router-link v-if="!isOperator && !(isAdmin && isCloudMode)" to="/administration/retention" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/retention' }">
+          <router-link v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/administration/retention" class="nav-item" :class="{ 'nav-active': $route.path === '/administration/retention' }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-slate-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -351,7 +351,7 @@
             <span>{{ $t('navigation.retentionStorage') }}</span>
           </router-link>
 
-          <router-link v-if="isSuperAdmin || isAdmin" to="/administration/tenants" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/tenants') }">
+          <router-link v-if="isSuperAdmin || isAdmin || (isEngineer && isCloudMode)" to="/administration/tenants" class="nav-item" :class="{ 'nav-active': $route.path.startsWith('/administration/tenants') }">
             <span class="active-indicator"></span>
             <svg class="w-4 h-4 mr-2.5 text-purple-500 dark:text-purple-400 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.85">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />

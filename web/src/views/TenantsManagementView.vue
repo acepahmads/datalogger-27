@@ -12,7 +12,7 @@
           <h1 class="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2 flex-wrap">
             <span>Manajemen Multi-Tenant, Stasiun &amp; Hybrid Edge</span>
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-              {{ isSuperAdmin ? 'GLOBAL SUPERADMIN' : 'TENANT ADMIN' }}
+              {{ isSuperAdmin ? 'GLOBAL SUPERADMIN' : (isEngineer ? 'TENANT ENGINEER' : 'TENANT ADMIN') }}
             </span>
           </h1>
           <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -1250,6 +1250,13 @@ export default {
     isSuperAdmin() {
       return this.userRole === 'SUPERADMIN' || this.userRole === 'ADMINISTRATOR';
     },
+    isEngineer() {
+      return this.userRole === 'ENGINEER';
+    },
+    isCloudMode() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     activeTenantId() {
       return Number(this.$store.state.activeTenantId || 0);
     },
@@ -1397,6 +1404,10 @@ export default {
     },
   },
   mounted() {
+    if (this.isEngineer && !this.isCloudMode) {
+      this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
+      return;
+    }
     if (this.$route && this.$route.query && this.$route.query.tab) {
       const t = String(this.$route.query.tab);
       if (['tenants', 'sites', 'ingest'].includes(t)) {

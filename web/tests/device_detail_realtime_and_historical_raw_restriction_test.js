@@ -200,9 +200,9 @@ runTest('5.1: Telemetry Parameters table hides SCALE / OFFSET column for non-adm
 // OPERATOR NAVIGATION, LANDING & TELEMETRY ANALYSIS RESTRICTIONS
 runTest('6.1: Sidebar hides Operator Console, Live Telemetry, Live Sensor Comm, and Outbound & Integration for OPERATOR while keeping Delivery Queue', () => {
   const sidebarContent = fs.readFileSync(path.resolve(__dirname, '../src/components/Sidebar.vue'), 'utf8');
-  assert(sidebarContent.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for OPERATOR and Cloud ADMIN');
+  assert(sidebarContent.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/monitoring/operator"'), 'Sidebar must hide Operator Console for OPERATOR and Cloud ADMIN/ENGINEER');
   assert(sidebarContent.includes('v-if="!isOperator" to="/monitoring/telemetry"'), 'Sidebar must hide Live Telemetry for OPERATOR');
-  assert(sidebarContent.includes('v-if="!isOperator && !(isAdmin && isCloudMode)" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for OPERATOR and Cloud ADMIN');
+  assert(sidebarContent.includes('v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)" to="/alarm/live-comm"'), 'Sidebar must hide Live Sensor Comm for OPERATOR and Cloud ADMIN/ENGINEER');
   assert(sidebarContent.includes('v-if="!isOperator" to="/integration"'), 'Sidebar must hide Outbound & Integration for OPERATOR');
   assert(
     sidebarContent.includes('v-if="!isOperator || !isCloudMode" to="/integration/queue"'),
@@ -217,7 +217,7 @@ runTest('6.2: Router, Header & Login default OPERATOR landing to /monitoring/das
   assert(routerContent.includes("return next({ path: '/monitoring/dashboard-operator', replace: true });"), 'Router beforeEach must redirect OPERATOR default/console routes to /monitoring/dashboard-operator');
   assert(routerContent.includes("if (to.query && to.query.tab === 'queue')"), 'Router beforeEach must allow OPERATOR on /integration?tab=queue');
   assert(headerContent.includes("if (isOp && this.$route.path === '/integration' && this.$route.query && this.$route.query.tab === 'queue')"), 'Header switch-account must keep OPERATOR on /integration?tab=queue');
-  assert(loginContent.includes("(isOperator || (isAdmin && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator'"), 'LoginView must land OPERATOR and Cloud ADMIN on /monitoring/dashboard-operator');
+  assert(loginContent.includes("(isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator'"), 'LoginView must land OPERATOR and Cloud ADMIN/ENGINEER on /monitoring/dashboard-operator');
 });
 
 runTest('6.3: TelemetryAnalysisView hides Raw Telemetry tab & Live Telemetry button for OPERATOR and removes Formula text on Historical tab', () => {

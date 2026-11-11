@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"datalogger/internal/config"
 	"datalogger/internal/middleware"
 	"datalogger/internal/service"
 	"datalogger/pkg/response"
@@ -46,7 +47,13 @@ func (h *TenantHandler) GetContext(c *gin.Context) {
 }
 
 func isTenantAdminOrSuper(scope tenantctx.Scope) bool {
-	return scope.IsSuperAdmin || strings.EqualFold(scope.Role, "ADMIN")
+	if scope.IsSuperAdmin || strings.EqualFold(scope.Role, "ADMIN") {
+		return true
+	}
+	if cfg := config.Get(); cfg != nil && cfg.IsCloudMode() && strings.EqualFold(scope.Role, "ENGINEER") {
+		return true
+	}
+	return false
 }
 
 func (h *TenantHandler) ListTenants(c *gin.Context) {

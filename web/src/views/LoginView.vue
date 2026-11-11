@@ -317,18 +317,20 @@ export default {
 
         const isSuper = role === 'SUPERADMIN' || role === 'ADMINISTRATOR';
         const isAdmin = role === 'ADMIN';
+        const isEngineer = role === 'ENGINEER';
         const isOperator = role === 'OPERATOR';
         const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
         const isCloudMode = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
         const defaultLanding = isSuper
           ? '/dashboard'
-          : ((isOperator || (isAdmin && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator');
+          : ((isOperator || ((isAdmin || isEngineer) && isCloudMode)) ? '/monitoring/dashboard-operator' : '/monitoring/operator');
 
         if (redirect && redirect !== '/login') {
           // Check if destination is restricted for the logged-in role
           const isDevRoute = redirect.startsWith('/development');
           const isUsersRoute = redirect.startsWith('/administration/users');
           const isRolesRoute = redirect.startsWith('/administration/roles');
+          const isTenantsRoute = redirect.startsWith('/administration/tenants');
           const isQualityRoute = redirect === '/dashboard' || redirect.startsWith('/dashboard') || redirect === '/quality' || redirect.startsWith('/monitoring/quality');
           const isCloudAdminRestrictedRoute =
             isCloudMode && (
@@ -365,8 +367,12 @@ export default {
             this.$router.push('/monitoring/dashboard-operator');
             return;
           }
-          if (isAdmin && isCloudAdminRestrictedRoute) {
+          if ((isAdmin || isEngineer) && isCloudAdminRestrictedRoute) {
             this.$router.push('/monitoring/dashboard-operator');
+            return;
+          }
+          if (isTenantsRoute && !isSuper && !isAdmin && !(isEngineer && isCloudMode)) {
+            this.$router.push(defaultLanding);
             return;
           }
           if (isQualityRoute && !isSuper) {

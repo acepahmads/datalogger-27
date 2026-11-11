@@ -103,12 +103,16 @@ export default {
       const r = (this.currentUser.role || '').toUpperCase();
       return r === 'ADMIN';
     },
+    isEngineer() {
+      const r = (this.currentUser.role || '').toUpperCase();
+      return r === 'ENGINEER';
+    },
     isCloudMode() {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
       return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
     },
     useDashboardOperatorHome() {
-      return this.isOperator || (this.isAdmin && this.isCloudMode);
+      return this.isOperator || ((this.isAdmin || this.isEngineer) && this.isCloudMode);
     },
     attemptedUrl() {
       return this.$route.query.from || '';

@@ -59,9 +59,9 @@
           </option>
         </select>
 
-        <!-- Quick Manage Tenants/Sites Shortcut (SUPERADMIN & Scoped ADMIN) -->
+        <!-- Quick Manage Tenants/Sites Shortcut (SUPERADMIN, Scoped ADMIN, & Cloud ENGINEER) -->
         <router-link
-          v-if="isSuperAdmin || isAdmin"
+          v-if="isSuperAdmin || isAdmin || (isEngineer && isCloudMode)"
           to="/administration/tenants"
           class="hidden sm:flex w-7 h-7 rounded-lg border items-center justify-center transition-colors shadow-xs"
           :class="$route.path.startsWith('/administration/tenants')
@@ -100,7 +100,7 @@
 
       <!-- 1. Operator Console / Dashboard Operator Quick Icon Button -->
       <router-link
-        v-if="!isOperator && !(isAdmin && isCloudMode)"
+        v-if="!isOperator && !((isAdmin || isEngineer) && isCloudMode)"
         to="/monitoring/operator"
         class="relative w-7 h-7 rounded-lg border transition-colors flex items-center justify-center shadow-xs"
         :class="$route.path === '/monitoring/operator' || $route.path === '/operator'
@@ -580,6 +580,9 @@ export default {
     isAdmin() {
       return this.userRole === 'ADMIN';
     },
+    isEngineer() {
+      return this.userRole === 'ENGINEER';
+    },
     isOperator() {
       return this.userRole === 'OPERATOR';
     },
@@ -798,6 +801,7 @@ export default {
       const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
       const isCloud = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
       const isAdm = currentRole === 'ADMIN';
+      const isEng = currentRole === 'ENGINEER';
       const isOp = currentRole === 'OPERATOR';
       if (isOp && this.$route.path === '/integration' && this.$route.query && this.$route.query.tab === 'queue') {
         allowed = !isCloud;
@@ -805,7 +809,10 @@ export default {
       if (isOp && isCloud && (this.$route.path === '/integration/queue' || this.$route.path.startsWith('/integration') || this.$route.path === '/monitoring/system' || this.$route.path.startsWith('/monitoring/system/'))) {
         allowed = false;
       }
-      if (isAdm && isCloud) {
+      if (isEng && !isCloud && (this.$route.path === '/administration/tenants' || this.$route.path.startsWith('/administration/tenants/'))) {
+        allowed = false;
+      }
+      if ((isAdm || isEng) && isCloud) {
         const cloudAdmBlocked = ['/alarm/live-comm', '/administration/config', '/administration/backup', '/administration/retention'];
         if (cloudAdmBlocked.some(p => this.$route.path === p || this.$route.path.startsWith(p + '/'))) {
           allowed = false;
@@ -813,10 +820,10 @@ export default {
       }
       const onOperatorConsole = this.$route.path === '/monitoring/operator' || this.$route.path === '/operator';
 
-      if (!allowed || ((isOp || (isAdm && isCloud)) && onOperatorConsole)) {
+      if (!allowed || ((isOp || ((isAdm || isEng) && isCloud)) && onOperatorConsole)) {
         if (isSuper) {
           this.$router.push('/dashboard');
-        } else if (isOp || (isAdm && isCloud)) {
+        } else if (isOp || ((isAdm || isEng) && isCloud)) {
           this.$router.push('/monitoring/dashboard-operator');
         } else {
           this.$router.push('/monitoring/operator');

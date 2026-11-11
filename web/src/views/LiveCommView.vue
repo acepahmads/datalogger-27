@@ -1171,7 +1171,7 @@ export default {
     const role = String((this.$store && this.$store.state && this.$store.state.user && this.$store.state.user.role) || '').toUpperCase();
     const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
     const isCloud = Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
-    if (role === 'ADMIN' && isCloud) {
+    if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud) {
       this.$router.replace({ path: '/access-denied', query: { from: this.$route.fullPath } });
       return;
     }

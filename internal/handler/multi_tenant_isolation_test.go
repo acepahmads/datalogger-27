@@ -150,11 +150,11 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		tenantsGrp.Use(middleware.JWTAuth(authService))
 		{
 			tenantsGrp.GET("/context", tenantHandler.GetContext)
-			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.GetCurrentTenant)
-			tenantsGrp.PUT("/current", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateCurrentTenant)
-			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.ListTenants)
+			tenantsGrp.GET("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.GetCurrentTenant)
+			tenantsGrp.PUT("/current", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateCurrentTenant)
+			tenantsGrp.GET("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.ListTenants)
 			tenantsGrp.POST("", middleware.RequireRole("SUPERADMIN"), tenantHandler.CreateTenant)
-			tenantsGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateTenant)
+			tenantsGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateTenant)
 			tenantsGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN"), tenantHandler.DeleteTenant)
 		}
 
@@ -162,13 +162,13 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 		sitesGrp.Use(middleware.JWTAuth(authService))
 		{
 			sitesGrp.GET("", middleware.RequirePermission("site.view"), tenantHandler.ListSites)
-			sitesGrp.POST("", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.CreateSite)
-			sitesGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.UpdateSite)
-			sitesGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN"), tenantHandler.DeleteSite)
+			sitesGrp.POST("", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.CreateSite)
+			sitesGrp.PUT("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.UpdateSite)
+			sitesGrp.DELETE("/:id", middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"), tenantHandler.DeleteSite)
 		}
 
 		keysGrp := api.Group("/ingest-keys")
-		keysGrp.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMIN"))
+		keysGrp.Use(middleware.JWTAuth(authService), middleware.RequireRole("SUPERADMIN", "ADMIN", "ENGINEER"))
 		{
 			keysGrp.GET("/payload-template", ingestHandler.GetPayloadTemplate)
 			keysGrp.GET("", tenantHandler.ListAPIKeys)
@@ -1021,5 +1021,129 @@ func TestCloudModeRBACBrandingAndLoginEnforcement(t *testing.T) {
 	})
 	if wManualOpLogin.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK for manual OPERATOR login in Cloud mode, got %d: %s", wManualOpLogin.Code, wManualOpLogin.Body.String())
+	}
+}
+
+// Test 11: Role ENGINEER in Cloud mode gets scoped Tenant & Stasiun / API Key management parity with ADMIN,
+// while remaining blocked from Tenant management in Edge mode and strictly blocked from Users & RBAC in all modes.
+func TestCloudMode_EngineerTenantParityExceptUsersRBAC(t *testing.T) {
+	env := setupMultiTenantTestEnv(t)
+
+	engTok, _, err := env.AuthService.Login("engineer_user", "Password123!", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatalf("engineer_user login failed: %v", err)
+	}
+
+	// Create Tenant #2 via SUPERADMIN to verify tenant isolation for Cloud ENGINEER
+	wT2 := doJSONReq(t, env.Router, "POST", "/api/tenants", env.SuperAdminToken, nil, map[string]interface{}{
+		"code":   "tenant-two-iso",
+		"name":   "Tenant Two Isolation Corp",
+		"status": "ACTIVE",
+	})
+	if wT2.Code != http.StatusCreated && wT2.Code != http.StatusOK {
+		t.Fatalf("create Tenant #2 failed (%d): %s", wT2.Code, wT2.Body.String())
+	}
+	var t2Resp struct {
+		Data model.Tenant `json:"data"`
+	}
+	_ = json.Unmarshal(wT2.Body.Bytes(), &t2Resp)
+	t2ID := t2Resp.Data.ID
+
+	// 1. In Edge mode (cloud_mode = false), ENGINEER MUST be blocked (403 Forbidden) from Tenant, Site CRUD, and Ingest Keys
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   map[string]interface{}
+	}{
+		{"GET", "/api/tenants/current", nil},
+		{"GET", "/api/tenants", nil},
+		{"PUT", "/api/tenants/1", map[string]interface{}{"name": "Blocked Edge Update"}},
+		{"POST", "/api/sites", map[string]interface{}{"code": "edge-eng-site", "name": "Blocked Site"}},
+		{"GET", "/api/ingest-keys", nil},
+		{"POST", "/api/ingest-keys", map[string]interface{}{"name": "Blocked Key"}},
+		{"GET", "/api/ingest-keys/payload-template", nil},
+	} {
+		w := doJSONReq(t, env.Router, tc.method, tc.path, engTok, nil, tc.body)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("Edge mode: expected 403 Forbidden for ENGINEER on %s %s, got %d: %s", tc.method, tc.path, w.Code, w.Body.String())
+		}
+	}
+
+	// 2. Switch to Cloud mode (cloud_mode = true) via SUPERADMIN
+	wCloud := doJSONReq(t, env.Router, "PUT", "/api/system/config", env.SuperAdminToken, nil, map[string]interface{}{
+		"monitoring_domain": "CLOUD",
+		"cloud_mode":        true,
+	})
+	if wCloud.Code != http.StatusOK {
+		t.Fatalf("switch to CLOUD mode failed (%d): %s", wCloud.Code, wCloud.Body.String())
+	}
+
+	// 3. In Cloud mode, ENGINEER can view & update their own Tenant (#1), manage Sites, manage Bearer API Keys, and fetch Payload Templates
+	wCur := doJSONReq(t, env.Router, "GET", "/api/tenants/current", engTok, nil, nil)
+	if wCur.Code != http.StatusOK {
+		t.Fatalf("Cloud mode: expected 200 OK for ENGINEER on GET /api/tenants/current, got %d: %s", wCur.Code, wCur.Body.String())
+	}
+
+	wList := doJSONReq(t, env.Router, "GET", "/api/tenants", engTok, nil, nil)
+	if wList.Code != http.StatusOK || bytes.Contains(wList.Body.Bytes(), []byte("tenant-two-iso")) {
+		t.Fatalf("Cloud mode: ENGINEER GET /api/tenants must return 200 OK scoped only to own tenant, got %d: %s", wList.Code, wList.Body.String())
+	}
+
+	wUpdOwn := doJSONReq(t, env.Router, "PUT", "/api/tenants/1", engTok, nil, map[string]interface{}{
+		"contact_name": "Ir. Engineer Cloud",
+	})
+	if wUpdOwn.Code != http.StatusOK {
+		t.Fatalf("Cloud mode: expected 200 OK for ENGINEER updating own tenant profile, got %d: %s", wUpdOwn.Code, wUpdOwn.Body.String())
+	}
+
+	// Cross-tenant update & Global tenant creation remain strictly forbidden
+	wUpdOther := doJSONReq(t, env.Router, "PUT", fmt.Sprintf("/api/tenants/%d", t2ID), engTok, nil, map[string]interface{}{
+		"contact_name": "Cross Tenant Tamper",
+	})
+	if wUpdOther.Code != http.StatusForbidden {
+		t.Fatalf("Cloud mode: expected 403 Forbidden for ENGINEER updating another tenant, got %d: %s", wUpdOther.Code, wUpdOther.Body.String())
+	}
+	wCreateTenant := doJSONReq(t, env.Router, "POST", "/api/tenants", engTok, nil, map[string]interface{}{
+		"code": "unauth-tenant",
+		"name": "Unauthorized Tenant",
+	})
+	if wCreateTenant.Code != http.StatusForbidden {
+		t.Fatalf("Cloud mode: expected 403 Forbidden for ENGINEER creating new tenant, got %d: %s", wCreateTenant.Code, wCreateTenant.Body.String())
+	}
+
+	// Create Site, Create Ingest Key, and Fetch Payload Template in Cloud mode
+	wSite := doJSONReq(t, env.Router, "POST", "/api/sites", engTok, nil, map[string]interface{}{
+		"code":              "cloud-eng-sparing-01",
+		"name":              "Stasiun SPARING Cloud Engineer",
+		"monitoring_domain": "SPARING",
+	})
+	if wSite.Code != http.StatusCreated && wSite.Code != http.StatusOK {
+		t.Fatalf("Cloud mode: expected 201/200 for ENGINEER creating site, got %d: %s", wSite.Code, wSite.Body.String())
+	}
+
+	wKey := doJSONReq(t, env.Router, "POST", "/api/ingest-keys", engTok, nil, map[string]interface{}{
+		"name": "Edge Gateway Key by Cloud Engineer",
+	})
+	if wKey.Code != http.StatusCreated && wKey.Code != http.StatusOK {
+		t.Fatalf("Cloud mode: expected 201/200 for ENGINEER creating ingest key, got %d: %s", wKey.Code, wKey.Body.String())
+	}
+
+	wTpl := doJSONReq(t, env.Router, "GET", "/api/ingest-keys/payload-template?logger_type=SPARING", engTok, nil, nil)
+	if wTpl.Code != http.StatusOK {
+		t.Fatalf("Cloud mode: expected 200 OK for ENGINEER on GET /api/ingest-keys/payload-template, got %d: %s", wTpl.Code, wTpl.Body.String())
+	}
+
+	// 4. Users & RBAC (/api/users) MUST remain strictly restricted (403 Forbidden) for ENGINEER even in Cloud mode
+	wUsersGet := doJSONReq(t, env.Router, "GET", "/api/users", engTok, nil, nil)
+	if wUsersGet.Code != http.StatusForbidden {
+		t.Fatalf("Cloud mode: expected 403 Forbidden for ENGINEER on GET /api/users, got %d: %s", wUsersGet.Code, wUsersGet.Body.String())
+	}
+	wUsersPost := doJSONReq(t, env.Router, "POST", "/api/users", engTok, nil, map[string]interface{}{
+		"username": "sneaky_user",
+		"password": "Password123!",
+		"role":     "OPERATOR",
+	})
+	if wUsersPost.Code != http.StatusForbidden {
+		t.Fatalf("Cloud mode: expected 403 Forbidden for ENGINEER on POST /api/users, got %d: %s", wUsersPost.Code, wUsersPost.Body.String())
 	}
 }

@@ -180,7 +180,7 @@ const routes = [
     path: '/administration/tenants',
     name: 'TenantsManagement',
     component: TenantsManagementView,
-    meta: { roles: ['SUPERADMIN', 'ADMIN'] },
+    meta: { roles: ['SUPERADMIN', 'ADMIN', 'ENGINEER'] },
   },
   { path: '/system/tenants', redirect: '/administration/tenants' },
   {
@@ -291,8 +291,9 @@ router.beforeEach(async (to, from, next) => {
   const rawRole = (user.role || '').toUpperCase();
   const isSuper = rawRole === 'SUPERADMIN' || rawRole === 'ADMINISTRATOR';
   const isAdmin = rawRole === 'ADMIN';
+  const isEngineer = rawRole === 'ENGINEER';
   const isOperator = rawRole === 'OPERATOR';
-  const usesDashboardOperatorLanding = isOperator || (isAdmin && isCloudMode);
+  const usesDashboardOperatorLanding = isOperator || ((isAdmin || isEngineer) && isCloudMode);
 
   // 2. If authenticated and navigating to /login (without explicit ?switch=true) -> redirect to role default landing
   if (isAuth && isLoginPage && !to.query.switch) {
@@ -302,13 +303,13 @@ router.beforeEach(async (to, from, next) => {
     });
   }
 
-  // 2b. Role OPERATOR (and Role ADMIN in Cloud mode) default landing & Operator Console hiding -> redirect straight to Dashboard Operator
+  // 2b. Role OPERATOR (and Role ADMIN / ENGINEER in Cloud mode) default landing & Operator Console hiding -> redirect straight to Dashboard Operator
   if (isAuth && usesDashboardOperatorLanding && (to.path === '/' || to.path === '/operator' || to.path === '/monitoring/operator')) {
     return next({ path: '/monitoring/dashboard-operator', replace: true });
   }
 
-  // 2b-cloud-admin. Role ADMIN in Cloud mode cannot access Live Sensor Comm, Configuration, Backup & Restore, or Retention & Storage
-  if (isAuth && isAdmin && isCloudMode) {
+  // 2b-cloud-admin. Role ADMIN and ENGINEER in Cloud mode cannot access Live Sensor Comm, Configuration, Backup & Restore, or Retention & Storage
+  if (isAuth && (isAdmin || isEngineer) && isCloudMode) {
     const cloudAdminRestrictedPrefixes = [
       '/alarm/live-comm',
       '/administration/config',
@@ -321,6 +322,14 @@ router.beforeEach(async (to, from, next) => {
         query: { from: to.fullPath },
       });
     }
+  }
+
+  // 2b-edge-engineer-tenants. Role ENGINEER only gets Tenant & Stasiun (/administration/tenants) in Cloud mode
+  if (isAuth && isEngineer && !isCloudMode && (to.path === '/administration/tenants' || to.path.startsWith('/administration/tenants/'))) {
+    return next({
+      path: '/access-denied',
+      query: { from: to.fullPath },
+    });
   }
 
   // 2c. Role OPERATOR cannot access System Monitoring (/monitoring/system) in Cloud mode
