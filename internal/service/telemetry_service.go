@@ -168,6 +168,7 @@ type TelemetryService struct {
 	cfg              TelemetryConfig
 	qualityProcessor *quality.QualityProcessor
 	buffer           chan *model.RawData
+	flushReqCh       chan chan struct{}
 	latestMu         sync.RWMutex
 	latestCache      map[uint]*LatestTelemetry // Key: parameter_id
 	staleEvalLastAt  map[uint]time.Time        // Key: parameter_id (tracks last stale alarm evaluation step)
@@ -231,6 +232,7 @@ func NewTelemetryService(
 		cfg:               cfg,
 		qualityProcessor:  quality.NewQualityProcessor(),
 		buffer:            make(chan *model.RawData, cfg.BufferSize),
+		flushReqCh:        make(chan chan struct{}, 4),
 		latestCache:       make(map[uint]*LatestTelemetry),
 		staleEvalLastAt:   make(map[uint]time.Time),
 		ctx:               ctx,
@@ -992,12 +994,53 @@ func (s *TelemetryService) batchPersistenceWorker() {
 				batch = batch[:0]
 			}
 
+		case done := <-s.flushReqCh:
+			for len(s.buffer) > 0 {
+				item := <-s.buffer
+				batch = append(batch, item)
+				if len(batch) >= s.cfg.BatchSize {
+					s.persistBatch(batch)
+					batch = batch[:0]
+				}
+			}
+			if len(batch) > 0 {
+				s.persistBatch(batch)
+				batch = batch[:0]
+			}
+			close(done)
+
 		case <-ticker.C:
 			if len(batch) > 0 {
 				s.persistBatch(batch)
 				batch = batch[:0]
 			}
 		}
+	}
+}
+
+// FlushNow synchronously drains buffered telemetry items and commits them to the database.
+func (s *TelemetryService) FlushNow(ctx context.Context) error {
+	if s == nil || atomic.LoadInt32(&s.stopped) == 1 || s.flushReqCh == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	done := make(chan struct{})
+	select {
+	case s.flushReqCh <- done:
+	case <-s.ctx.Done():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-s.ctx.Done():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

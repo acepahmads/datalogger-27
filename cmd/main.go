@@ -363,6 +363,19 @@ func main() {
 		wqmsService.EnqueueCalculation(deviceID, bucketEnd, "AGGREGATION_COMPLETED")
 		_ = outboundService.HandleBucketCompleted(ctx, deviceID, bucketEnd)
 	})
+	ingestService.SetOnDeviceWindowIngested(func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time) {
+		ctx := context.Background()
+		endTS := maxTS.Add(1 * time.Second)
+		_, completedEnds, err := aggService.RecalculateRangeForDevice(ctx, deviceID, paramIDs, minTS, endTS, false)
+		if err != nil {
+			return
+		}
+		for _, bucketEnd := range completedEnds {
+			ispuService.EnqueueCalculation(deviceID, bucketEnd, "EDGE_BATCH_RECALC")
+			wqmsService.EnqueueCalculation(deviceID, bucketEnd, "EDGE_BATCH_RECALC")
+			_ = outboundService.HandleBucketCompleted(ctx, deviceID, bucketEnd)
+		}
+	})
 	ingestService.SetOnDeviceIngested(func(deviceID uint, lastTS time.Time) {
 		ispuService.EnqueueCalculation(deviceID, lastTS, "EDGE_PUSH")
 		wqmsService.EnqueueCalculation(deviceID, lastTS, "EDGE_PUSH")

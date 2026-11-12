@@ -1476,34 +1476,121 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		rootMap[nestedKey] = deviceGroups
 
 	case structure == "ARRAY_BY_DEVICE":
-		// Array of devices: devices: [ { "device": "AQMS-01", ... }, ... ]
-		deviceMap := make(map[string]map[string]interface{})
-		var deviceOrder []string
-
-		for _, item := range batch.Values {
-			enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
-			if !enabled {
-				continue
-			}
-
-			devName := item.DeviceCode
-			if devName == "" {
-				devName = fmt.Sprintf("DEV_%d", item.DeviceID)
-			}
-
-			if _, ok := deviceMap[devName]; !ok {
-				deviceMap[devName] = map[string]interface{}{
-					"device_code": devName,
-					"device_name": item.DeviceName,
+		// Array of devices: devices: [ { "device_code": "AQMS-01", ... }, ... ]
+		// When bundling multiple sub-buckets (e.g. SPARING 30x2-minute hourly sync), preserve all chronological buckets in device["records"].
+		distinctBucketSet := make(map[int64]bool)
+		for i := range batch.Values {
+			if !batch.Values[i].PeriodStart.IsZero() || !batch.Values[i].PeriodEnd.IsZero() {
+				bt := resolveBucketTimestamp(batch.Values[i].PeriodStart, batch.Values[i].PeriodEnd, cfg.TimestampSource)
+				if !bt.IsZero() {
+					distinctBucketSet[bt.UnixNano()] = true
 				}
-				deviceOrder = append(deviceOrder, devName)
 			}
-			deviceMap[devName][targetFieldName] = extractVal(item)
 		}
 
 		var deviceList []map[string]interface{}
-		for _, devName := range deviceOrder {
-			deviceList = append(deviceList, deviceMap[devName])
+		if len(distinctBucketSet) > 1 {
+			type devBucketRec struct {
+				ts     time.Time
+				values map[string]interface{}
+			}
+			type devBundledAcc struct {
+				devCode   string
+				devName   string
+				bucketMap map[int64]*devBucketRec
+				keys      []int64
+			}
+			devAccMap := make(map[string]*devBundledAcc)
+			var devOrder []string
+
+			for _, item := range batch.Values {
+				enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
+				if !enabled {
+					continue
+				}
+				devName := item.DeviceCode
+				if devName == "" {
+					devName = fmt.Sprintf("DEV_%d", item.DeviceID)
+				}
+				acc, ok := devAccMap[devName]
+				if !ok {
+					acc = &devBundledAcc{
+						devCode:   devName,
+						devName:   item.DeviceName,
+						bucketMap: make(map[int64]*devBucketRec),
+					}
+					devAccMap[devName] = acc
+					devOrder = append(devOrder, devName)
+				}
+				pStart := item.PeriodStart
+				pEnd := item.PeriodEnd
+				if pStart.IsZero() && pEnd.IsZero() {
+					pStart = batch.PeriodStart
+					pEnd = batch.PeriodEnd
+				}
+				bt := resolveBucketTimestamp(pStart, pEnd, cfg.TimestampSource)
+				bKey := bt.UnixNano()
+				rec, hasRec := acc.bucketMap[bKey]
+				if !hasRec {
+					rec = &devBucketRec{
+						ts:     bt,
+						values: make(map[string]interface{}),
+					}
+					acc.bucketMap[bKey] = rec
+					acc.keys = append(acc.keys, bKey)
+				}
+				rec.values[targetFieldName] = extractVal(item)
+			}
+
+			for _, devName := range devOrder {
+				acc := devAccMap[devName]
+				sort.Slice(acc.keys, func(i, j int) bool { return acc.keys[i] < acc.keys[j] })
+				recs := make([]map[string]interface{}, 0, len(acc.keys))
+				for _, bKey := range acc.keys {
+					r := acc.bucketMap[bKey]
+					var recTS interface{} = r.ts.UTC().Format(time.RFC3339)
+					if formattedTS, fErr := formatTimestamp(r.ts, cfg.TimestampFormat, cfg.TimestampTimezone); fErr == nil && formattedTS != nil {
+						recTS = formattedTS
+					}
+					recs = append(recs, map[string]interface{}{
+						"timestamp": recTS,
+						"values":    r.values,
+					})
+				}
+				deviceList = append(deviceList, map[string]interface{}{
+					"device_code": acc.devCode,
+					"device_name": acc.devName,
+					"records":     recs,
+				})
+			}
+		} else {
+			deviceMap := make(map[string]map[string]interface{})
+			var deviceOrder []string
+
+			for _, item := range batch.Values {
+				enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
+				if !enabled {
+					continue
+				}
+
+				devName := item.DeviceCode
+				if devName == "" {
+					devName = fmt.Sprintf("DEV_%d", item.DeviceID)
+				}
+
+				if _, ok := deviceMap[devName]; !ok {
+					deviceMap[devName] = map[string]interface{}{
+						"device_code": devName,
+						"device_name": item.DeviceName,
+					}
+					deviceOrder = append(deviceOrder, devName)
+				}
+				deviceMap[devName][targetFieldName] = extractVal(item)
+			}
+
+			for _, devName := range deviceOrder {
+				deviceList = append(deviceList, deviceMap[devName])
+			}
 		}
 
 		nestedKey := cfg.NestedDataKey

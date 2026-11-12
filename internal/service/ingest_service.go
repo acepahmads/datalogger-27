@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -31,13 +32,14 @@ func (e *IngestHTTPError) Error() string {
 }
 
 type IngestService struct {
-	tenantService    *TenantService
-	deviceRepo       *repository.DeviceRepository
-	categoryRepo     *repository.CategoryRepository
-	telemetryService *TelemetryService
-	hub              *websocket.Hub
-	onDeviceIngested func(deviceID uint, lastTS time.Time)
-	ingestMu         sync.Mutex
+	tenantService          *TenantService
+	deviceRepo             *repository.DeviceRepository
+	categoryRepo           *repository.CategoryRepository
+	telemetryService       *TelemetryService
+	hub                    *websocket.Hub
+	onDeviceIngested       func(deviceID uint, lastTS time.Time)
+	onDeviceWindowIngested func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time)
+	ingestMu               sync.Mutex
 }
 
 func NewIngestService(
@@ -66,6 +68,12 @@ func (s *IngestService) SetOnDeviceIngested(fn func(deviceID uint, lastTS time.T
 	s.onDeviceIngested = fn
 }
 
+// SetOnDeviceWindowIngested registers a callback triggered when multi-record / historical bundled batches
+// (such as SPARING 30x2-minute hourly pushes) are committed, recalculating historical aggregation buckets immediately.
+func (s *IngestService) SetOnDeviceWindowIngested(fn func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time)) {
+	s.onDeviceWindowIngested = fn
+}
+
 type EdgeIngestResponse struct {
 	Accepted               bool     `json:"accepted"`
 	TenantID               uint     `json:"tenant_id"`
@@ -91,25 +99,29 @@ type edgeReading struct {
 }
 
 type edgeDeviceBatch struct {
-	LoggerType string
-	SiteCode   string
-	DeviceCode string
-	DeviceName string
-	RawTS      interface{}
-	Timestamp  *time.Time
-	Readings   []edgeReading
+	LoggerType  string
+	SiteCode    string
+	StationHint string
+	DeviceCode  string
+	DeviceHint  string
+	DeviceName  string
+	RawTS       interface{}
+	Timestamp   *time.Time
+	Readings    []edgeReading
 }
 
 var reservedEnvelopeKeys = map[string]bool{
-	"site_id": true, "site_code": true, "station_code": true, "id_stasiun": true, "idstasiun": true,
+	"site_id": true, "site_code": true, "station_code": true, "station_id": true, "id_stasiun": true, "idstasiun": true,
 	"tenant_id": true, "tenant_code": true,
 	"device_id": true, "device_code": true, "device_name": true, "module_id": true,
 	"logger_type": true, "domain": true, "monitoring_domain": true,
 	"timestamp": true, "datetime": true, "waktu": true, "tanggal": true, "jam": true,
+	"created_at": true, "updated_at": true,
 	"period_start": true, "period_end": true, "interval_seconds": true,
 	"apikey": true, "apisecret": true, "token": true, "uid": true,
 	"topic": true, "qos": true, "retain": true, "client_id": true,
 	"devices": true, "records": true, "readings": true, "parameters": true, "data": true, "values": true,
+	"hourly_data": true, "multi": true, "tick": true, "sensor_name": true,
 }
 
 func isValidLoggerType(lt string) bool {
@@ -138,6 +150,27 @@ func parseIngestTimestampInLocation(raw interface{}, loc *time.Location) *time.T
 			t := time.Unix(int64(v), 0).UTC()
 			return &t
 		}
+	case int64:
+		if v > 1e12 {
+			t := time.UnixMilli(v).UTC()
+			return &t
+		}
+		if v > 1e9 {
+			t := time.Unix(v, 0).UTC()
+			return &t
+		}
+	case int:
+		iv := int64(v)
+		if iv > 1e12 {
+			t := time.UnixMilli(iv).UTC()
+			return &t
+		}
+		if iv > 1e9 {
+			t := time.Unix(iv, 0).UTC()
+			return &t
+		}
+	case json.Number:
+		return parseIngestTimestampInLocation(v.String(), loc)
 	case string:
 		s := strings.TrimSpace(v)
 		if s == "" {
@@ -153,8 +186,17 @@ func parseIngestTimestampInLocation(raw interface{}, loc *time.Location) *time.T
 				return &t
 			}
 		}
-		// Explicit timezone offset formats
-		for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05-07:00", "2006-01-02 15:04:05Z07:00"} {
+		// Explicit timezone offset formats (RFC3339 + Cloud CBI "+0700" / "+07:00")
+		for _, layout := range []string{
+			time.RFC3339Nano,
+			time.RFC3339,
+			"2006-01-02 15:04:05 -0700",
+			"2006-01-02 15:04:05 -07:00",
+			"2006-01-02 15:04:05-07:00",
+			"2006-01-02 15:04:05-0700",
+			"2006-01-02 15:04:05Z07:00",
+			"2006-01-02 15:04:05Z0700",
+		} {
 			if t, err := time.Parse(layout, s); err == nil {
 				utc := t.UTC()
 				return &utc
@@ -288,6 +330,38 @@ func stringField(m map[string]interface{}, keys ...string) string {
 	return ""
 }
 
+func scalarIDField(m map[string]interface{}, keys ...string) string {
+	for _, k := range keys {
+		raw, ok := m[k]
+		if !ok || raw == nil {
+			continue
+		}
+		switch v := raw.(type) {
+		case string:
+			if strings.TrimSpace(v) != "" {
+				return strings.TrimSpace(v)
+			}
+		case float64:
+			if !math.IsNaN(v) && !math.IsInf(v, 0) && v > 0 && v == math.Trunc(v) {
+				return strconv.FormatInt(int64(v), 10)
+			}
+		case int64:
+			if v > 0 {
+				return strconv.FormatInt(v, 10)
+			}
+		case int:
+			if v > 0 {
+				return strconv.Itoa(v)
+			}
+		case json.Number:
+			if s := strings.TrimSpace(v.String()); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
 func firstNonNilField(m map[string]interface{}, keys ...string) interface{} {
 	for _, k := range keys {
 		if raw, ok := m[k]; ok && raw != nil {
@@ -298,6 +372,32 @@ func firstNonNilField(m map[string]interface{}, keys ...string) interface{} {
 		}
 	}
 	return nil
+}
+
+func rowTimestampFromMap(m map[string]interface{}, fallback interface{}) interface{} {
+	if ts := firstNonNilField(m, "timestamp", "datetime", "waktu", "created_at", "period_start", "period_end", "updated_at"); ts != nil {
+		return ts
+	}
+	tgl := stringField(m, "Tanggal", "tanggal")
+	jam := stringField(m, "Jam", "jam")
+	if tgl != "" && jam != "" {
+		return tgl + " " + jam
+	}
+	return fallback
+}
+
+func isCodeValueReadingList(arr []interface{}) bool {
+	for _, elem := range arr {
+		m, ok := elem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if stringField(m, "code", "parameter_code") != "" {
+			return true
+		}
+		return false
+	}
+	return false
 }
 
 // unwrapMQTTWebhookEnvelope transparently extracts {"topic":"datalogger/ingest/<site>/<device>","payload":{...}}
@@ -356,17 +456,18 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 		}
 	}
 
-	rootSiteCode := stringField(root, "site_code", "station_code", "id_stasiun", "IDStasiun")
-	rootDevCode := stringField(root, "device_code", "code", "module_id")
+	rootSiteCode := stringField(root, "site_code", "station_code")
+	rootStationHint := scalarIDField(root, "station_id", "uid", "id_stasiun", "IDStasiun")
+	rootDevCode := stringField(root, "device_code", "code")
+	rootDevHint := scalarIDField(root, "module_id", "uid")
 	rootDevName := stringField(root, "device_name", "name")
-	rootRawTS := firstNonNilField(root, "timestamp", "datetime", "waktu", "period_end")
+	rootRawTS := rowTimestampFromMap(root, nil)
 
-	// 1. Mode B — Standardized Batch / Offline Backfill format: {"records": [ {"timestamp": "...", "values": {...}}, ... ]}
-	if rawRecs, ok := root["records"].([]interface{}); ok {
+	parseRowArray := func(rawRecs []interface{}, arrayLabel string, fallbackLoggerType string) ([]edgeDeviceBatch, error) {
 		if len(rawRecs) == 0 {
 			return nil, &IngestHTTPError{
 				StatusCode: 400,
-				Message:    "Batch 'records' array cannot be empty",
+				Message:    fmt.Sprintf("Batch '%s' array cannot be empty", arrayLabel),
 			}
 		}
 		batches := make([]edgeDeviceBatch, 0, len(rawRecs))
@@ -375,13 +476,10 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 			if !ok {
 				return nil, &IngestHTTPError{
 					StatusCode: 400,
-					Message:    fmt.Sprintf("Invalid JSON object at records[%d]", idx),
+					Message:    fmt.Sprintf("Invalid JSON object at %s[%d]", arrayLabel, idx),
 				}
 			}
-			recRawTS := firstNonNilField(rm, "timestamp", "datetime", "waktu", "period_end")
-			if recRawTS == nil {
-				recRawTS = rootRawTS
-			}
+			recRawTS := rowTimestampFromMap(rm, rootRawTS)
 			var readings []edgeReading
 			for _, key := range []string{"values", "readings", "parameters", "data"} {
 				if sub, exists := rm[key]; exists {
@@ -394,34 +492,146 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 			if len(readings) == 0 {
 				return nil, &IngestHTTPError{
 					StatusCode: 400,
-					Message:    fmt.Sprintf("records[%d] contains no numeric telemetry values", idx),
+					Message:    fmt.Sprintf("%s[%d] contains no numeric telemetry values", arrayLabel, idx),
 				}
 			}
 			sCode := stringField(rm, "site_code", "station_code")
 			if sCode == "" {
 				sCode = rootSiteCode
 			}
-			dCode := stringField(rm, "device_code", "code", "module_id")
+			sHint := scalarIDField(rm, "station_id", "uid", "id_stasiun", "IDStasiun")
+			if sHint == "" {
+				sHint = rootStationHint
+			}
+			dCode := stringField(rm, "device_code", "code")
 			if dCode == "" {
 				dCode = rootDevCode
+			}
+			dHint := scalarIDField(rm, "module_id", "uid")
+			if dHint == "" {
+				dHint = rootDevHint
 			}
 			lt := strings.ToUpper(stringField(rm, "logger_type", "domain"))
 			if lt == "" {
 				lt = rootLoggerType
 			}
+			if lt == "" {
+				lt = fallbackLoggerType
+			}
 			batches = append(batches, edgeDeviceBatch{
-				LoggerType: lt,
-				SiteCode:   sCode,
-				DeviceCode: dCode,
-				DeviceName: rootDevName,
-				RawTS:      recRawTS,
-				Readings:   readings,
+				LoggerType:  lt,
+				SiteCode:    sCode,
+				StationHint: sHint,
+				DeviceCode:  dCode,
+				DeviceHint:  dHint,
+				DeviceName:  rootDevName,
+				RawTS:       recRawTS,
+				Readings:    readings,
 			})
 		}
 		return batches, nil
 	}
 
-	// 2. Multi-device Outbound Sync format: {"devices": [ ... ]}
+	// 1. Mode B — Standardized Batch / Offline Backfill format: {"records": [ {"timestamp": "...", "values": {...}}, ... ]}
+	if rawRecs, ok := root["records"].([]interface{}); ok {
+		return parseRowArray(rawRecs, "records", "")
+	}
+
+	// 1b. Cloud CBI Multi 30x2-Minute SPARING format: {"module_id": "4", "station_id": "3", "hourly_data": [ {"ph": 7.03, ..., "created_at": "2026-11-12 08:00:00 +0700"}, ... ]}
+	if rawHourly, ok := root["hourly_data"].([]interface{}); ok {
+		return parseRowArray(rawHourly, "hourly_data", "SPARING")
+	}
+
+	// 1c. KLHK SPARING Hourly 30x2-Minute format: {"uid": "...", "data": [ {"datetime": 1794445200, "pH": 7.03, "cod": 85.54, "tss": 19.21, "nh3n": 0, "debit": 0.23}, ... ]}
+	if rawDataArr, ok := root["data"].([]interface{}); ok && !isCodeValueReadingList(rawDataArr) {
+		return parseRowArray(rawDataArr, "data", "SPARING")
+	}
+
+	// 1d. Cloud CBI Multi-Tick format: {"multi": [ {"tick": {"module_id": 4, "station_id": 3, "sensor_name": "ph", "value": 7.03, "created_at": "..."}}, ... ]}
+	if rawMulti, ok := root["multi"].([]interface{}); ok {
+		if len(rawMulti) == 0 {
+			return nil, &IngestHTTPError{
+				StatusCode: 400,
+				Message:    "Batch 'multi' array cannot be empty",
+			}
+		}
+		type tickGroupKey struct {
+			sHint string
+			dHint string
+			tsKey string
+		}
+		groupMap := make(map[tickGroupKey]*edgeDeviceBatch)
+		var groupOrder []tickGroupKey
+		for idx, elem := range rawMulti {
+			em, ok := elem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			tm := em
+			if inner, hasTick := em["tick"].(map[string]interface{}); hasTick {
+				tm = inner
+			}
+			sensorCode := stringField(tm, "sensor_name", "parameter_code", "code")
+			if sensorCode == "" {
+				continue
+			}
+			f, name, unit, ok := parseNumericValue(tm["value"])
+			if !ok {
+				continue
+			}
+			sHint := scalarIDField(tm, "station_id", "uid")
+			if sHint == "" {
+				sHint = rootStationHint
+			}
+			dHint := scalarIDField(tm, "module_id", "uid")
+			if dHint == "" {
+				dHint = rootDevHint
+			}
+			rawTS := rowTimestampFromMap(tm, rootRawTS)
+			tsKey := fmt.Sprintf("%v", rawTS)
+			if rawTS == nil {
+				tsKey = fmt.Sprintf("idx-%d", idx)
+			}
+			gk := tickGroupKey{sHint: sHint, dHint: dHint, tsKey: tsKey}
+			grp, exists := groupMap[gk]
+			if !exists {
+				lt := rootLoggerType
+				if lt == "" {
+					lt = "SPARING"
+				}
+				grp = &edgeDeviceBatch{
+					LoggerType:  lt,
+					SiteCode:    rootSiteCode,
+					StationHint: sHint,
+					DeviceCode:  rootDevCode,
+					DeviceHint:  dHint,
+					DeviceName:  rootDevName,
+					RawTS:       rawTS,
+				}
+				groupMap[gk] = grp
+				groupOrder = append(groupOrder, gk)
+			}
+			grp.Readings = append(grp.Readings, edgeReading{
+				Code:  sensorCode,
+				Name:  name,
+				Unit:  unit,
+				Value: f,
+			})
+		}
+		if len(groupOrder) == 0 {
+			return nil, &IngestHTTPError{
+				StatusCode: 400,
+				Message:    "Batch 'multi' contains no numeric sensor tick values",
+			}
+		}
+		batches := make([]edgeDeviceBatch, 0, len(groupOrder))
+		for _, gk := range groupOrder {
+			batches = append(batches, *groupMap[gk])
+		}
+		return batches, nil
+	}
+
+	// 2. Multi-device Outbound Sync format: {"devices": [ ... ]} (supports both single-bucket and bundled 30x2m per-device records)
 	if rawDevs, ok := root["devices"].([]interface{}); ok && len(rawDevs) > 0 {
 		var batches []edgeDeviceBatch
 		for _, item := range rawDevs {
@@ -429,15 +639,61 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 			if !ok {
 				continue
 			}
-			dCode := stringField(dm, "device_code", "code", "module_id")
+			dCode := stringField(dm, "device_code", "code")
 			if dCode == "" {
 				dCode = rootDevCode
 			}
-			dName := stringField(dm, "device_name", "name")
-			rawTS := firstNonNilField(dm, "timestamp", "datetime", "waktu")
-			if rawTS == nil {
-				rawTS = rootRawTS
+			dHint := scalarIDField(dm, "module_id", "uid")
+			if dHint == "" {
+				dHint = rootDevHint
 			}
+			dName := stringField(dm, "device_name", "name")
+			sCode := stringField(dm, "site_code", "station_code")
+			if sCode == "" {
+				sCode = rootSiteCode
+			}
+			sHint := scalarIDField(dm, "station_id", "uid", "id_stasiun", "IDStasiun")
+			if sHint == "" {
+				sHint = rootStationHint
+			}
+			lt := strings.ToUpper(stringField(dm, "logger_type", "domain"))
+			if lt == "" {
+				lt = rootLoggerType
+			}
+			devRawTS := rowTimestampFromMap(dm, rootRawTS)
+
+			if devRecs, hasDevRecs := dm["records"].([]interface{}); hasDevRecs && len(devRecs) > 0 {
+				for _, rItem := range devRecs {
+					rm, ok := rItem.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					recTS := rowTimestampFromMap(rm, devRawTS)
+					var recReadings []edgeReading
+					for _, key := range []string{"values", "readings", "parameters", "data"} {
+						if sub, exists := rm[key]; exists {
+							recReadings = append(recReadings, extractReadingsFromAny(sub)...)
+						}
+					}
+					if len(recReadings) == 0 {
+						recReadings = extractReadingsFromAny(rm)
+					}
+					if len(recReadings) > 0 {
+						batches = append(batches, edgeDeviceBatch{
+							LoggerType:  lt,
+							SiteCode:    sCode,
+							StationHint: sHint,
+							DeviceCode:  dCode,
+							DeviceHint:  dHint,
+							DeviceName:  dName,
+							RawTS:       recTS,
+							Readings:    recReadings,
+						})
+					}
+				}
+				continue
+			}
+
 			var readings []edgeReading
 			for _, key := range []string{"values", "readings", "parameters", "data"} {
 				if sub, exists := dm[key]; exists {
@@ -448,21 +704,15 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 				readings = extractReadingsFromAny(dm)
 			}
 			if len(readings) > 0 {
-				sCode := stringField(dm, "site_code", "station_code")
-				if sCode == "" {
-					sCode = rootSiteCode
-				}
-				lt := strings.ToUpper(stringField(dm, "logger_type", "domain"))
-				if lt == "" {
-					lt = rootLoggerType
-				}
 				batches = append(batches, edgeDeviceBatch{
-					LoggerType: lt,
-					SiteCode:   sCode,
-					DeviceCode: dCode,
-					DeviceName: dName,
-					RawTS:      rawTS,
-					Readings:   readings,
+					LoggerType:  lt,
+					SiteCode:    sCode,
+					StationHint: sHint,
+					DeviceCode:  dCode,
+					DeviceHint:  dHint,
+					DeviceName:  dName,
+					RawTS:       devRawTS,
+					Readings:    readings,
 				})
 			}
 		}
@@ -477,10 +727,19 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 		if sub, exists := root[key]; exists {
 			if subMap, isMap := sub.(map[string]interface{}); isMap {
 				if rootSiteCode == "" {
-					rootSiteCode = stringField(subMap, "site_code", "IDStasiun", "id_stasiun")
+					rootSiteCode = stringField(subMap, "site_code", "station_code")
+				}
+				if rootStationHint == "" {
+					rootStationHint = scalarIDField(subMap, "station_id", "uid", "IDStasiun", "id_stasiun")
 				}
 				if rootDevCode == "" {
-					rootDevCode = stringField(subMap, "device_code", "IDStasiun", "uid")
+					rootDevCode = stringField(subMap, "device_code", "code")
+				}
+				if rootDevHint == "" {
+					rootDevHint = scalarIDField(subMap, "module_id", "uid", "IDStasiun", "id_stasiun")
+				}
+				if rootRawTS == nil {
+					rootRawTS = rowTimestampFromMap(subMap, nil)
 				}
 			}
 			readings = append(readings, extractReadingsFromAny(sub)...)
@@ -498,12 +757,14 @@ func parseEdgeBatches(rawJSON []byte) ([]edgeDeviceBatch, error) {
 
 	return []edgeDeviceBatch{
 		{
-			LoggerType: rootLoggerType,
-			SiteCode:   rootSiteCode,
-			DeviceCode: rootDevCode,
-			DeviceName: rootDevName,
-			RawTS:      rootRawTS,
-			Readings:   readings,
+			LoggerType:  rootLoggerType,
+			SiteCode:    rootSiteCode,
+			StationHint: rootStationHint,
+			DeviceCode:  rootDevCode,
+			DeviceHint:  rootDevHint,
+			DeviceName:  rootDevName,
+			RawTS:       rootRawTS,
+			Readings:    readings,
 		},
 	}, nil
 }
@@ -605,7 +866,31 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 		} else {
-			site, _ = s.tenantService.GetRepo().GetDefaultSiteForTenant(tenantID)
+			if sHint := strings.TrimSpace(batch.StationHint); sHint != "" {
+				site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, model.NormalizeSlugCode(sHint))
+				if site == nil {
+					site, _ = s.tenantService.GetRepo().GetSiteByCode(tenantID, sHint)
+				}
+				if site == nil {
+					if parsedSiteID, pErr := strconv.ParseUint(sHint, 10, 64); pErr == nil && parsedSiteID > 0 {
+						if st, _ := s.tenantService.GetRepo().GetSiteByID(uint(parsedSiteID)); st != nil && st.TenantID == tenantID && st.Enabled {
+							site = st
+						}
+					}
+				}
+			}
+			if site == nil {
+				if dHint := strings.TrimSpace(batch.DeviceHint); dHint != "" {
+					if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, dHint); d != nil && d.SiteID > 0 {
+						if st, _ := s.tenantService.GetRepo().GetSiteByID(d.SiteID); st != nil && st.TenantID == tenantID && st.Enabled {
+							site = st
+						}
+					}
+				}
+			}
+			if site == nil {
+				site, _ = s.tenantService.GetRepo().GetDefaultSiteForTenant(tenantID)
+			}
 			if site == nil {
 				return nil, &IngestHTTPError{
 					StatusCode: 404,
@@ -639,24 +924,35 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				}
 			}
 		} else {
-			enabledFlag := true
-			siteDevs, _, _ := s.deviceRepo.List(repository.DeviceFilterParams{
-				TenantID: tenantID,
-				SiteID:   site.ID,
-				Enabled:  &enabledFlag,
-				PageSize: 10,
-			})
-			if len(siteDevs) == 1 {
-				dev = &siteDevs[0]
-			} else if len(siteDevs) == 0 {
-				return nil, &IngestHTTPError{
-					StatusCode: 404,
-					Message:    fmt.Sprintf("No active device registered in station '%s' (please create device manually first)", site.Code),
+			if devHint := strings.TrimSpace(batch.DeviceHint); devHint != "" {
+				if d, _ := s.deviceRepo.GetByCodeInTenant(tenantID, devHint); d != nil && d.SiteID == site.ID && d.Enabled {
+					dev = d
+				} else if parsedDevID, pErr := strconv.ParseUint(devHint, 10, 64); pErr == nil && parsedDevID > 0 {
+					if dByID, _ := s.deviceRepo.GetByID(uint(parsedDevID)); dByID != nil && dByID.TenantID == tenantID && dByID.SiteID == site.ID && dByID.Enabled {
+						dev = dByID
+					}
 				}
-			} else {
-				return nil, &IngestHTTPError{
-					StatusCode: 400,
-					Message:    fmt.Sprintf("Station '%s' has %d active devices; please specify 'device_code' in JSON payload", site.Code, len(siteDevs)),
+			}
+			if dev == nil {
+				enabledFlag := true
+				siteDevs, _, _ := s.deviceRepo.List(repository.DeviceFilterParams{
+					TenantID: tenantID,
+					SiteID:   site.ID,
+					Enabled:  &enabledFlag,
+					PageSize: 10,
+				})
+				if len(siteDevs) == 1 {
+					dev = &siteDevs[0]
+				} else if len(siteDevs) == 0 {
+					return nil, &IngestHTTPError{
+						StatusCode: 404,
+						Message:    fmt.Sprintf("No active device registered in station '%s' (please create device manually first)", site.Code),
+					}
+				} else {
+					return nil, &IngestHTTPError{
+						StatusCode: 400,
+						Message:    fmt.Sprintf("Station '%s' has %d active devices; please specify 'device_code' in JSON payload", site.Code, len(siteDevs)),
+					}
 				}
 			}
 		}
@@ -742,8 +1038,16 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		formulaVal *float64
 		ts         time.Time
 	}
+	type devIngestWindow struct {
+		minTS    time.Time
+		maxTS    time.Time
+		recCount int
+		paramSet map[uint]bool
+		paramIDs []uint
+	}
 	latestByParam := make(map[uint]latestParamReading)
 	touchedDevices := make(map[uint]time.Time)
+	devWindows := make(map[uint]*devIngestWindow)
 
 	var (
 		totalIngested    int
@@ -770,6 +1074,7 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 
 		bundle := paramMapsByDev[item.dev.ID]
 		recTS := item.ts
+		recordIngestedCount := 0
 
 		for _, r := range item.batch.Readings {
 			rawCode := strings.TrimSpace(r.Code)
@@ -865,11 +1170,39 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 				touchedDevices[item.dev.ID] = recTS
 			}
 
+			win, hasWin := devWindows[item.dev.ID]
+			if !hasWin {
+				win = &devIngestWindow{
+					minTS:    recTS,
+					maxTS:    recTS,
+					paramSet: make(map[uint]bool),
+				}
+				devWindows[item.dev.ID] = win
+			} else {
+				if recTS.Before(win.minTS) {
+					win.minTS = recTS
+				}
+				if recTS.After(win.maxTS) {
+					win.maxTS = recTS
+				}
+			}
+			if !win.paramSet[param.ID] {
+				win.paramSet[param.ID] = true
+				win.paramIDs = append(win.paramIDs, param.ID)
+			}
+
 			if !ingestedSet[param.ParameterCode] {
 				ingestedSet[param.ParameterCode] = true
 				ingestedList = append(ingestedList, param.ParameterCode)
 			}
+			recordIngestedCount++
 			totalIngested++
+		}
+
+		if recordIngestedCount > 0 {
+			if win, ok := devWindows[item.dev.ID]; ok {
+				win.recCount++
+			}
 		}
 	}
 
@@ -902,6 +1235,11 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		}
 	}
 
+	// Ensure buffered raw_data rows are synchronously committed to DB before triggering historical bucket recalculations
+	if s.telemetryService != nil {
+		_ = s.telemetryService.FlushNow(context.Background())
+	}
+
 	// Persist latest parameter values & device ONLINE state so Operator Dashboard reflects pushed values immediately
 	for paramID, lr := range latestByParam {
 		u := lr.uncalVal
@@ -918,6 +1256,12 @@ func (s *IngestService) IngestPayloadWithSource(rawKey string, rawJSON []byte, c
 		_ = s.deviceRepo.UpdateLastData(devID, lastTS)
 		_ = s.deviceRepo.SetConnectionStatus(devID, model.DeviceConnOnline)
 		_ = s.deviceRepo.RecordCommunicationResult(devID, true, 1)
+
+		if s.onDeviceWindowIngested != nil {
+			if win, ok := devWindows[devID]; ok && (win.recCount > 1 || now.Sub(win.minTS) > 90*time.Second) {
+				s.onDeviceWindowIngested(devID, win.paramIDs, win.minTS, win.maxTS)
+			}
+		}
 
 		if s.onDeviceIngested != nil {
 			s.onDeviceIngested(devID, seenAt)
@@ -969,6 +1313,8 @@ type PayloadTemplateResponse struct {
 	UsingActualParams    bool                     `json:"using_actual_params"`
 	SinglePayload        map[string]interface{}   `json:"single_payload"`
 	BatchPayload         map[string]interface{}   `json:"batch_payload"`
+	CBIHourlyPayload     map[string]interface{}   `json:"cbi_hourly_payload,omitempty"`
+	SparingHourlyPayload map[string]interface{}   `json:"sparing_hourly_payload,omitempty"`
 	CurlBearerCommand    string                   `json:"curl_bearer_command"`
 }
 
@@ -1136,20 +1482,81 @@ func (s *IngestService) BuildPayloadTemplate(scope tenantctx.Scope, siteID, devi
 		"values":      values1,
 	}
 
-	batchPayload := map[string]interface{}{
-		"logger_type": lt,
-		"site_code":   siteCode,
-		"device_code": devCode,
-		"records": []map[string]interface{}{
-			{
-				"timestamp": prevLocal.Format(time.RFC3339),
-				"values":    values1,
+	var batchPayload map[string]interface{}
+	var cbiHourlyPayload map[string]interface{}
+	var sparingHourlyPayload map[string]interface{}
+
+	if lt == "SPARING" {
+		hourAnchor := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), nowLocal.Hour()-1, 0, 0, 0, loc)
+		stdRecords := make([]map[string]interface{}, 0, 30)
+		cbiRows := make([]map[string]interface{}, 0, 30)
+		klhkRows := make([]map[string]interface{}, 0, 30)
+
+		for slot := 0; slot < 30; slot++ {
+			slotTS := hourAnchor.Add(time.Duration(slot*2) * time.Minute)
+			slotVals := make(map[string]float64, len(values1))
+			cbiRow := make(map[string]interface{}, len(values1)+2)
+			klhkRow := map[string]interface{}{
+				"datetime": slotTS.Unix(),
+			}
+			factor := 1.0 + float64(slot%5)*0.005
+			for k, v := range values1 {
+				sv := roundIngestPrecision(v*factor, 2)
+				slotVals[k] = sv
+				cbiRow[k] = sv
+				klhkRow[k] = sv
+			}
+			tsCBI := slotTS.Format("2006-01-02 15:04:05 -0700")
+			cbiRow["created_at"] = tsCBI
+			cbiRow["updated_at"] = tsCBI
+
+			stdRecords = append(stdRecords, map[string]interface{}{
+				"timestamp": slotTS.Format(time.RFC3339),
+				"values":    slotVals,
+			})
+			cbiRows = append(cbiRows, cbiRow)
+			klhkRows = append(klhkRows, klhkRow)
+		}
+
+		batchPayload = map[string]interface{}{
+			"logger_type": lt,
+			"site_code":   siteCode,
+			"device_code": devCode,
+			"records":     stdRecords,
+		}
+		modIDStr := "4"
+		if dev != nil && dev.ID > 0 {
+			modIDStr = strconv.FormatUint(uint64(dev.ID), 10)
+		}
+		stIDStr := "3"
+		if site != nil && site.ID > 0 {
+			stIDStr = strconv.FormatUint(uint64(site.ID), 10)
+		}
+		cbiHourlyPayload = map[string]interface{}{
+			"module_id":   modIDStr,
+			"station_id":  stIDStr,
+			"hourly_data": cbiRows,
+		}
+		sparingHourlyPayload = map[string]interface{}{
+			"uid":  siteCode,
+			"data": klhkRows,
+		}
+	} else {
+		batchPayload = map[string]interface{}{
+			"logger_type": lt,
+			"site_code":   siteCode,
+			"device_code": devCode,
+			"records": []map[string]interface{}{
+				{
+					"timestamp": prevLocal.Format(time.RFC3339),
+					"values":    values1,
+				},
+				{
+					"timestamp": nowLocal.Format(time.RFC3339),
+					"values":    values2,
+				},
 			},
-			{
-				"timestamp": nowLocal.Format(time.RFC3339),
-				"values":    values2,
-			},
-		},
+		}
 	}
 
 	if strings.TrimSpace(baseURL) == "" {
@@ -1177,6 +1584,8 @@ func (s *IngestService) BuildPayloadTemplate(scope tenantctx.Scope, siteID, devi
 		UsingActualParams:    usingActual,
 		SinglePayload:        singlePayload,
 		BatchPayload:         batchPayload,
+		CBIHourlyPayload:     cbiHourlyPayload,
+		SparingHourlyPayload: sparingHourlyPayload,
 		CurlBearerCommand:    curlCmd,
 	}, nil
 }

@@ -696,13 +696,13 @@
 
           <div>
             <label class="block text-3xs font-semibold uppercase text-slate-500 mb-1">Mode Contoh Payload</label>
-            <div class="flex items-center p-1 bg-slate-100 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 gap-1">
+            <div class="flex flex-wrap items-center p-1 bg-slate-100 dark:bg-[#0B0F19] rounded-xl border border-slate-200 dark:border-slate-800 gap-1">
               <button
-                v-for="m in payloadFormatTabs"
+                v-for="m in effectivePayloadFormatTabs"
                 :key="m.id"
                 type="button"
                 @click="payloadBuilder.mode = m.id"
-                class="flex-1 px-2 py-1 rounded-lg text-3xs font-bold transition cursor-pointer text-center"
+                class="flex-1 min-w-fit px-2 py-1 rounded-lg text-3xs font-bold transition cursor-pointer text-center whitespace-nowrap"
                 :class="payloadBuilder.mode === m.id
                   ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'"
@@ -772,6 +772,12 @@
               {{ pr.label }}
             </button>
           </div>
+          <p
+            v-if="payloadBuilder.loggerType === 'SPARING'"
+            class="text-3xs text-sky-900 dark:text-sky-200 bg-sky-100/80 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-800/70 rounded-lg px-2.5 py-1.5"
+          >
+            💡 <strong>Pengiriman SPARING Per Jam (30 Data × 2 Menit):</strong> Pilih preset <strong>65 Menit (3900s)</strong> lalu klik <strong>Simpan Timeout</strong> agar status perangkat tetap <strong>ONLINE</strong> di antara siklus pengiriman tiap jam.
+          </p>
         </div>
 
         <!-- Registered Parameter Chips Notice -->
@@ -1328,6 +1334,19 @@ export default {
       }
       return `${this.payloadBuilder.loggerType}-LOGGER-01`;
     },
+    effectivePayloadFormatTabs() {
+      if (String(this.payloadBuilder.loggerType || '').toUpperCase() === 'SPARING') {
+        return [
+          { id: 'single', label: 'Per 2m' },
+          { id: 'batch', label: '30×2m Standar' },
+          { id: 'cbi_hourly', label: '30×2m CBI' },
+          { id: 'klhk_hourly', label: '30×2m KLHK' },
+          { id: 'curl', label: 'cURL' },
+          { id: 'mqtt', label: 'MQTT' },
+        ];
+      }
+      return this.payloadFormatTabs;
+    },
     generatedPayloadObject() {
       const lt = String(this.payloadBuilder.loggerType || 'AQMS').toUpperCase();
       const siteCode = this.resolvedBuilderSiteCode;
@@ -1337,9 +1356,9 @@ export default {
         const k = String(rawCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const map = {
           pm25: 34.5, pm10: 62.1, so2: 12.4, co: 1150.0, o3: 41.2, no2: 18.9, hc: 8.4,
-          ws: 2.8, wd: 185.0, temp: 28.4, temperature: 28.4, humidity: 71.2, rh: 71.2, pressure: 1009.5, sr: 540.0, rain: 0.0,
-          ph: 7.18, cod: 45.2, bod: 16.4, tss: 31.4, nh3n: 0.42, nh4: 0.48, no3: 2.85,
-          do: 6.45, tds: 312.0, turbidity: 14.8, debit: 124.8, flow: 124.8, waterlevel: 1.42, level: 1.42,
+          ws: 2.8, wd: 185.0, temp: 28.4, temperature: 28.4, temp_panel: 28.1, temppanel: 28.1, humidity: 71.2, rh: 71.2, pressure: 1009.5, sr: 540.0, rain: 0.0,
+          ph: 7.03, cod: 85.54, bod: 16.4, tss: 19.21, nh3n: 0.42, nh4: 0.48, no3: 2.85,
+          do: 6.45, tds: 312.0, turbidity: 14.8, debit: 0.23, flow: 0.23, waterlevel: 1.42, level: 1.42,
         };
         return map[k] !== undefined ? map[k] : 15.25;
       };
@@ -1354,14 +1373,76 @@ export default {
           values2[code] = Number((v * 1.03).toFixed(2));
         });
       } else if (lt === 'SPARING') {
-        values1 = { ph: 7.18, cod: 45.2, tss: 31.4, nh3n: 0.42, debit: 124.8 };
-        values2 = { ph: 7.21, cod: 46.5, tss: 32.1, nh3n: 0.44, debit: 126.2 };
+        values1 = { ph: 7.03, cod: 85.54, tss: 19.21, nh3n: 0.42, debit: 0.23 };
+        values2 = { ph: 7.05, cod: 86.12, tss: 19.48, nh3n: 0.44, debit: 0.23 };
       } else if (lt === 'ONLIMO') {
         values1 = { ph: 7.05, do: 6.45, bod: 14.2, cod: 32.6, tss: 24.0, nh3n: 0.31, no3: 2.85, tds: 312.0, turbidity: 14.8, temperature: 27.6, water_level: 1.42 };
         values2 = { ph: 7.09, do: 6.52, bod: 14.6, cod: 33.4, tss: 24.8, nh3n: 0.33, no3: 2.91, tds: 315.0, turbidity: 15.1, temperature: 27.8, water_level: 1.44 };
       } else {
         values1 = { pm25: 34.5, pm10: 62.1, so2: 12.4, co: 1150.0, o3: 41.2, no2: 18.9, hc: 8.4, ws: 2.8, wd: 185.0, temperature: 28.4, humidity: 71.2, pressure: 1009.5, sr: 540.0, rain: 0.0 };
         values2 = { pm25: 35.2, pm10: 63.4, so2: 12.8, co: 1165.0, o3: 42.0, no2: 19.3, hc: 8.6, ws: 3.0, wd: 188.0, temperature: 28.5, humidity: 70.8, pressure: 1009.4, sr: 548.0, rain: 0.0 };
+      }
+
+      if (lt === 'SPARING' && ['batch', 'cbi_hourly', 'klhk_hourly'].includes(this.payloadBuilder.mode)) {
+        const baseUnix = 1794445200; // 2026-11-12 08:00:00 +0700
+        const pad2 = (n) => String(n).padStart(2, '0');
+
+        if (this.payloadBuilder.mode === 'cbi_hourly') {
+          const hourlyData = [];
+          for (let i = 0; i < 30; i += 1) {
+            const mm = pad2(i * 2);
+            const tsStr = `2026-11-12 08:${mm}:00 +0700`;
+            const factor = 1 + ((i % 5) * 0.004);
+            const row = {};
+            Object.keys(values1).forEach((k) => {
+              row[k] = Number((values1[k] * factor).toFixed(2));
+            });
+            row.created_at = tsStr;
+            row.updated_at = tsStr;
+            hourlyData.push(row);
+          }
+          return {
+            module_id: String((this.selectedBuilderDevice && this.selectedBuilderDevice.id) || '4'),
+            station_id: String((this.selectedBuilderSite && this.selectedBuilderSite.id) || '3'),
+            hourly_data: hourlyData,
+          };
+        }
+
+        if (this.payloadBuilder.mode === 'klhk_hourly') {
+          const dataRows = [];
+          for (let i = 0; i < 30; i += 1) {
+            const factor = 1 + ((i % 5) * 0.004);
+            const row = { datetime: baseUnix + (i * 120) };
+            Object.keys(values1).forEach((k) => {
+              row[k] = Number((values1[k] * factor).toFixed(2));
+            });
+            dataRows.push(row);
+          }
+          return {
+            uid: siteCode,
+            data: dataRows,
+          };
+        }
+
+        const stdRecords = [];
+        for (let i = 0; i < 30; i += 1) {
+          const mm = pad2(i * 2);
+          const factor = 1 + ((i % 5) * 0.004);
+          const slotVals = {};
+          Object.keys(values1).forEach((k) => {
+            slotVals[k] = Number((values1[k] * factor).toFixed(2));
+          });
+          stdRecords.push({
+            timestamp: `2026-11-12T08:${mm}:00+07:00`,
+            values: slotVals,
+          });
+        }
+        return {
+          logger_type: lt,
+          site_code: siteCode,
+          device_code: deviceCode,
+          records: stdRecords,
+        };
       }
 
       const nowIso = '2026-11-09T16:00:00+07:00';
@@ -1536,6 +1617,9 @@ export default {
     },
     selectPayloadLoggerType(lt) {
       this.payloadBuilder.loggerType = lt;
+      if (lt !== 'SPARING' && ['cbi_hourly', 'klhk_hourly'].includes(this.payloadBuilder.mode)) {
+        this.payloadBuilder.mode = 'batch';
+      }
       const matchingSite = this.sites.find(s => String(s.monitoring_domain || '').toUpperCase() === lt);
       if (matchingSite) {
         this.payloadBuilder.siteId = matchingSite.id;
@@ -1554,6 +1638,9 @@ export default {
         } else if (dom === 'WQMS') {
           this.payloadBuilder.loggerType = 'ONLIMO';
         }
+      }
+      if (this.payloadBuilder.loggerType !== 'SPARING' && ['cbi_hourly', 'klhk_hourly'].includes(this.payloadBuilder.mode)) {
+        this.payloadBuilder.mode = 'batch';
       }
       const devs = this.filteredDevicesForBuilder;
       this.payloadBuilder.deviceId = devs.length > 0 ? devs[0].id : 0;

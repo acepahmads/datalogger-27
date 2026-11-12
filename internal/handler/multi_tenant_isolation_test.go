@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -99,9 +100,22 @@ func setupMultiTenantTestEnv(t *testing.T) *multiTenantTestEnv {
 	calibrationService := service.NewCalibrationService(calibRepo, deviceRepo, systemRepo, telemetryService)
 	calibrationService.SetTenantService(tenantService)
 
+	aggRepo := repository.NewAggregationRepository(db)
+	aggService := service.NewAggregationService(aggRepo, deviceRepo, systemRepo, hub)
+
 	ingestService := service.NewIngestService(tenantService, deviceRepo, categoryRepo, telemetryService)
 	ingestService.SetHub(hub)
 	outboundService := service.NewOutboundService(outboundRepo, deviceRepo, nil)
+	ingestService.SetOnDeviceWindowIngested(func(deviceID uint, paramIDs []uint, minTS, maxTS time.Time) {
+		ctx := context.Background()
+		_, completedEnds, err := aggService.RecalculateRangeForDevice(ctx, deviceID, paramIDs, minTS, maxTS.Add(1*time.Second), false)
+		if err != nil {
+			return
+		}
+		for _, pe := range completedEnds {
+			_ = outboundService.HandleBucketCompleted(ctx, deviceID, pe)
+		}
+	})
 
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(authService)
