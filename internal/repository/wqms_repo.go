@@ -293,7 +293,7 @@ func (r *WQMSRepository) SaveMapping(ctx context.Context, m *model.WQMSParameter
 		m.SiteID = scope.WriteSiteID(0)
 	}
 	if m.ID > 0 {
-		return r.db.WithContext(ctx).Save(m).Error
+		return r.db.WithContext(ctx).Omit("created_at").Save(m).Error
 	}
 	return r.db.WithContext(ctx).Create(m).Error
 }

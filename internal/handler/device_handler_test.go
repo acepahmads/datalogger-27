@@ -253,10 +253,21 @@ func TestDeviceCRUDAPI(t *testing.T) {
 		t.Fatalf("Expected 200, got %d", getW.Code)
 	}
 
-	// 4. Update Device
+	// 4. Update Device (including connection upsert + subsequent update to ensure CreatedAt is never zeroed on MariaDB)
 	updatePayload, _ := json.Marshal(map[string]interface{}{
 		"device_name": "Updated Substation Meter",
 		"status":      "MAINTENANCE",
+		"connection": map[string]interface{}{
+			"protocol":         "MODBUS_RTU",
+			"serial_port":      "/dev/ttyUSB0",
+			"baud_rate":        9600,
+			"data_bits":        8,
+			"parity":           "N",
+			"stop_bits":        1,
+			"timeout":          2000,
+			"retry_count":      3,
+			"polling_interval": 2000,
+		},
 	})
 	putReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d", deviceID), bytes.NewBuffer(updatePayload))
 	putReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
@@ -264,7 +275,27 @@ func TestDeviceCRUDAPI(t *testing.T) {
 	putW := httptest.NewRecorder()
 	env.Router.ServeHTTP(putW, putReq)
 	if putW.Code != http.StatusOK {
-		t.Fatalf("Expected 200 on update, got %d", putW.Code)
+		t.Fatalf("Expected 200 on update, got %d (%s)", putW.Code, putW.Body.String())
+	}
+
+	// Second update on existing connection row must preserve non-zero CreatedAt
+	putReq2, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d", deviceID), bytes.NewBuffer(updatePayload))
+	putReq2.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	putReq2.Header.Set("Content-Type", "application/json")
+	putW2 := httptest.NewRecorder()
+	env.Router.ServeHTTP(putW2, putReq2)
+	if putW2.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on second update, got %d (%s)", putW2.Code, putW2.Body.String())
+	}
+	var updatedDevResp struct {
+		Data model.Device `json:"data"`
+	}
+	_ = json.Unmarshal(putW2.Body.Bytes(), &updatedDevResp)
+	if updatedDevResp.Data.CreatedAt.IsZero() {
+		t.Fatalf("Expected non-zero device CreatedAt after update")
+	}
+	if updatedDevResp.Data.Connection == nil || updatedDevResp.Data.Connection.CreatedAt.IsZero() {
+		t.Fatalf("Expected non-zero device Connection.CreatedAt after update, got %+v", updatedDevResp.Data.Connection)
 	}
 
 	// 5. Toggle Device Enabled

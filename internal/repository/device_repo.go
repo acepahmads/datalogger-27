@@ -208,8 +208,8 @@ func (r *DeviceRepository) Create(device *model.Device) error {
 func (r *DeviceRepository) Update(device *model.Device) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		conn := device.Connection
-		// Update device attributes
-		if err := tx.Omit("Tenant", "Site", "Connection", "Parameters").Save(device).Error; err != nil {
+		// Update device attributes (never overwrite immutable created_at with zero value on MariaDB)
+		if err := tx.Omit("Tenant", "Site", "Connection", "Parameters", "created_at").Save(device).Error; err != nil {
 			return err
 		}
 
@@ -219,7 +219,8 @@ func (r *DeviceRepository) Update(device *model.Device) error {
 			var existingConn model.DeviceConnection
 			if err := tx.Where("device_id = ?", device.ID).First(&existingConn).Error; err == nil {
 				conn.ID = existingConn.ID
-				if err := tx.Save(conn).Error; err != nil {
+				conn.CreatedAt = existingConn.CreatedAt
+				if err := tx.Omit("created_at").Save(conn).Error; err != nil {
 					return err
 				}
 			} else {
@@ -322,7 +323,7 @@ func (r *DeviceRepository) CreateParameter(param *model.Parameter) error {
 }
 
 func (r *DeviceRepository) UpdateParameter(param *model.Parameter) error {
-	if err := r.db.Save(param).Error; err != nil {
+	if err := r.db.Omit("created_at").Save(param).Error; err != nil {
 		return err
 	}
 	if param.CategoryID != nil && *param.CategoryID > 0 {

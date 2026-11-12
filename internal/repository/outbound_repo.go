@@ -140,7 +140,7 @@ func (r *outboundRepository) CreateDestination(ctx context.Context, dest *model.
 
 // UpdateDestination updates mutable fields on an existing outbound destination without touching associations
 func (r *outboundRepository) UpdateDestination(ctx context.Context, dest *model.OutputDestination) error {
-	return r.db.WithContext(ctx).Omit("PayloadConfig", "Device", "Site").Save(dest).Error
+	return r.db.WithContext(ctx).Omit("PayloadConfig", "Device", "Site", "created_at").Save(dest).Error
 }
 
 // DeleteDestination removes a destination setup and its associated payload config,
@@ -172,8 +172,9 @@ func (r *outboundRepository) UpsertPayloadConfig(ctx context.Context, cfg *model
 	err := r.db.WithContext(ctx).Where("destination_id = ?", cfg.DestinationID).First(&existing).Error
 	if err == nil {
 		cfg.ID = existing.ID
+		cfg.CreatedAt = existing.CreatedAt
 		cfg.Version = existing.Version + 1
-		return r.db.WithContext(ctx).Save(cfg).Error
+		return r.db.WithContext(ctx).Omit("created_at").Save(cfg).Error
 	}
 	if cfg.Version <= 0 {
 		cfg.Version = 1

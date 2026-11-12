@@ -278,7 +278,7 @@ func (r *ISPURepository) SaveMapping(ctx context.Context, mapping *model.ISPUPar
 		mapping.SiteID = scope.WriteSiteID(0)
 	}
 	if mapping.ID > 0 {
-		return r.db.WithContext(ctx).Save(mapping).Error
+		return r.db.WithContext(ctx).Omit("created_at").Save(mapping).Error
 	}
 	return r.db.WithContext(ctx).Create(mapping).Error
 }
