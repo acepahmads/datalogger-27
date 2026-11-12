@@ -268,21 +268,44 @@
 
               <!-- Enabled -->
               <td class="py-3.5 px-3.5 text-center whitespace-nowrap">
-                <button
-                  @click="toggleDeviceEnabled(dev)"
-                  class="relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                  :class="dev.enabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'"
-                >
+                <div class="inline-flex items-center space-x-2">
+                  <button
+                    @click="toggleDeviceEnabled(dev)"
+                    :disabled="!!togglingDeviceIds[dev.id]"
+                    class="relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50"
+                    :class="dev.enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'"
+                    :title="dev.enabled ? $t('devices.setInactive') : $t('devices.setActive')"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="dev.enabled ? 'translate-x-4' : 'translate-x-0'"
+                    ></span>
+                  </button>
                   <span
-                    class="pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                    :class="dev.enabled ? 'translate-x-4' : 'translate-x-0'"
-                  ></span>
-                </button>
+                    class="font-mono text-3xs font-bold"
+                    :class="dev.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'"
+                  >
+                    {{ dev.enabled ? ($t('devices.activeState') || 'Active') : ($t('devices.inactiveState') || 'Inactive') }}
+                  </span>
+                </div>
               </td>
 
               <!-- Actions -->
               <td class="py-3.5 px-4 text-right whitespace-nowrap pr-5">
                 <div class="flex items-center justify-end space-x-1.5">
+                  <button
+                    @click="toggleDeviceEnabled(dev)"
+                    :disabled="!!togglingDeviceIds[dev.id]"
+                    :class="dev.enabled
+                      ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200 dark:text-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:border-amber-500/30'
+                      : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:border-emerald-500/30'"
+                    class="inline-flex items-center space-x-1 font-semibold text-3xs px-2 py-1 rounded-lg border transition shadow-2xs disabled:opacity-50"
+                    :title="dev.enabled ? $t('devices.disableDevice') : $t('devices.enableDevice')"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" :class="dev.enabled ? 'bg-amber-500' : 'bg-emerald-500'"></span>
+                    <span>{{ dev.enabled ? ($t('devices.setInactive') || 'Set Inactive') : ($t('devices.setActive') || 'Set Active') }}</span>
+                  </button>
+
                   <router-link
                     :to="'/monitoring/devices/' + dev.id + '?tab=telemetry'"
                     class="inline-flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-semibold text-3xs bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/60 transition shadow-2xs"
@@ -432,7 +455,17 @@
               <span>{{ $t('devices.live') }}</span>
             </router-link>
           </div>
-          <div class="space-x-2">
+          <div class="flex items-center space-x-2">
+            <button
+              @click="toggleDeviceEnabled(dev)"
+              :disabled="!!togglingDeviceIds[dev.id]"
+              :class="dev.enabled
+                ? 'text-amber-400 hover:text-amber-300 bg-amber-950/40 hover:bg-amber-900/50 border-amber-700/50'
+                : 'text-emerald-400 hover:text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-700/50'"
+              class="px-2 py-0.5 rounded border text-2xs font-semibold transition disabled:opacity-50"
+            >
+              {{ dev.enabled ? ($t('devices.setInactive') || 'Set Inactive') : ($t('devices.setActive') || 'Set Active') }}
+            </button>
             <button @click="openCopyModal(dev)" class="text-cyan-400 hover:text-cyan-300 text-2xs font-semibold">{{ $t('devices.copyDevice') || 'Copy' }}</button>
             <button @click="openEditModal(dev)" class="text-slate-400 hover:text-white text-2xs">{{ $t('common.edit') }}</button>
             <button @click="confirmDelete(dev)" class="text-rose-400 hover:text-rose-300 text-2xs">{{ $t('common.delete') }}</button>
@@ -481,6 +514,7 @@ export default {
       deviceToCopy: null,
       copySuccessMessage: '',
       createdCopiedDevice: null,
+      togglingDeviceIds: {},
     };
   },
   computed: {
@@ -581,14 +615,26 @@ export default {
       this.deviceToCopy = null;
     },
     async toggleDeviceEnabled(device) {
+      if (!device || this.togglingDeviceIds[device.id]) return;
+      const nextEnabled = !device.enabled;
+      this.$set(this.togglingDeviceIds, device.id, true);
       try {
-        await this.$store.dispatch('toggleDeviceEnabled', {
+        const res = await this.$store.dispatch('toggleDeviceEnabled', {
           id: device.id,
-          enabled: !device.enabled,
+          enabled: nextEnabled,
         });
-        device.enabled = !device.enabled;
+        device.enabled = nextEnabled;
+        if (res && res.status) {
+          device.status = res.status;
+        } else if (nextEnabled && (device.status === 'INACTIVE' || device.status === 'DISABLED')) {
+          device.status = 'ACTIVE';
+        } else if (!nextEnabled && device.status === 'ACTIVE') {
+          device.status = 'INACTIVE';
+        }
       } catch (err) {
         alert('Failed to toggle device state: ' + err.message);
+      } finally {
+        this.$delete(this.togglingDeviceIds, device.id);
       }
     },
     async confirmDelete(device) {

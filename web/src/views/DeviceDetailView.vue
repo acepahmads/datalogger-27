@@ -96,10 +96,20 @@
       <!-- Admin Status -->
       <div class="saas-card p-3 space-y-1">
         <div class="text-3xs text-slate-400 font-semibold uppercase tracking-wider">{{ $t('deviceDetail.adminStatus') }}</div>
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center justify-between gap-2">
           <span class="px-2 py-0.5 rounded-md text-2xs font-bold font-mono" :class="statusBadgeClass(device.status)">
             {{ device.status }}
           </span>
+          <button
+            @click="toggleEnabled"
+            :disabled="deviceToggleLoading"
+            :class="device.enabled
+              ? 'text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border-amber-200 dark:text-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:border-amber-500/30'
+              : 'text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:border-emerald-500/30'"
+            class="px-2 py-0.5 rounded border text-3xs font-semibold transition disabled:opacity-50"
+          >
+            {{ device.enabled ? ($t('deviceDetail.setInactive') || 'Set Inactive') : ($t('deviceDetail.setActive') || 'Set Active') }}
+          </button>
         </div>
       </div>
 
@@ -740,10 +750,37 @@
 
     <!-- TAB 3: PARAMETERS -->
     <div v-if="device && activeTab === 'parameters'" class="saas-card p-5 space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
-          <div class="flex items-center space-x-2">
+          <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-sm font-bold text-slate-900 dark:text-white">{{ $t('deviceDetail.telemetryParamsCount', { count: device.parameters ? device.parameters.length : 0 }) }}</h3>
+            <!-- Active / Inactive Filter Pills -->
+            <div v-if="device.parameters && device.parameters.length > 0" class="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-100/80 dark:bg-slate-900/60 p-0.5 text-3xs font-semibold">
+              <button
+                type="button"
+                @click="paramStatusFilter = 'all'"
+                :class="paramStatusFilter === 'all' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'"
+                class="px-2 py-0.5 rounded-md transition"
+              >
+                {{ $t('deviceDetail.filterAll') || 'All' }} ({{ device.parameters.length }})
+              </button>
+              <button
+                type="button"
+                @click="paramStatusFilter = 'active'"
+                :class="paramStatusFilter === 'active' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shadow-2xs' : 'text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300'"
+                class="px-2 py-0.5 rounded-md transition"
+              >
+                {{ $t('deviceDetail.filterActive') || 'Active' }} ({{ activeParamsCount }})
+              </button>
+              <button
+                type="button"
+                @click="paramStatusFilter = 'inactive'"
+                :class="paramStatusFilter === 'inactive' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 shadow-2xs' : 'text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-300'"
+                class="px-2 py-0.5 rounded-md transition"
+              >
+                {{ $t('deviceDetail.filterInactive') || 'Inactive' }} ({{ inactiveParamsCount }})
+              </button>
+            </div>
             <!-- Active Sort Indicator Pill with Reset -->
             <span
               v-if="paramSortKey"
@@ -759,15 +796,70 @@
           </div>
           <p class="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $t('deviceDetail.paramDefSubtitle') }}</p>
         </div>
-        <button
-          @click="openAddParamModal"
-          class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition flex items-center space-x-1.5"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-          </svg>
-          <span>{{ $t('deviceDetail.addParam') }}</span>
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Selected Bulk Actions -->
+          <template v-if="selectedParamIds.length > 0">
+            <button
+              type="button"
+              @click="bulkSetParamsEnabled(true)"
+              :disabled="bulkParamLoading"
+              class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>{{ $t('deviceDetail.activateSelected', { count: selectedParamIds.length }) }}</span>
+            </button>
+            <button
+              type="button"
+              @click="bulkSetParamsEnabled(false)"
+              :disabled="bulkParamLoading"
+              class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-500/15 dark:hover:bg-amber-500/25 dark:text-amber-300 dark:border-amber-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span>{{ $t('deviceDetail.deactivateSelected', { count: selectedParamIds.length }) }}</span>
+            </button>
+            <button
+              type="button"
+              @click="selectedParamIds = []"
+              class="px-2 py-1.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white text-xs font-mono"
+              title="Clear Selection"
+            >
+              ✕
+            </button>
+          </template>
+          <!-- Quick Activate All / Deactivate All when none explicitly checked -->
+          <template v-else-if="device.parameters && device.parameters.length > 0">
+            <button
+              v-if="inactiveParamsCount > 0"
+              type="button"
+              @click="bulkSetAllParamsEnabled(true)"
+              :disabled="bulkParamLoading"
+              class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>{{ $t('deviceDetail.activateAll') || 'Activate All' }}</span>
+            </button>
+            <button
+              v-if="activeParamsCount > 0"
+              type="button"
+              @click="bulkSetAllParamsEnabled(false)"
+              :disabled="bulkParamLoading"
+              class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30 text-xs font-semibold transition flex items-center space-x-1.5 disabled:opacity-50"
+            >
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span>{{ $t('deviceDetail.deactivateAll') || 'Deactivate All' }}</span>
+            </button>
+          </template>
+
+          <button
+            @click="openAddParamModal"
+            class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs hover:shadow transition flex items-center space-x-1.5"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            <span>{{ $t('deviceDetail.addParam') }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- Parameters Table -->
@@ -775,6 +867,15 @@
         <table class="w-full text-left text-xs font-sans">
           <thead>
             <tr class="border-b border-slate-200 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 text-3xs uppercase font-semibold text-slate-600 dark:text-slate-400 tracking-wider">
+              <th class="py-2.5 px-2.5 w-8 text-center">
+                <input
+                  type="checkbox"
+                  :checked="allFilteredParamsSelected"
+                  :disabled="!filteredParameters.length"
+                  @change="toggleSelectAllParams"
+                  class="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 cursor-pointer"
+                />
+              </th>
               <th
                 @click="toggleParamSort('code')"
                 class="py-2.5 px-3 cursor-pointer select-none group hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
@@ -858,12 +959,41 @@
                   </span>
                 </div>
               </th>
-              <th class="py-2.5 px-3">{{ $t('deviceDetail.colEnabled') }}</th>
+              <th
+                @click="toggleParamSort('enabled')"
+                class="py-2.5 px-3 cursor-pointer select-none group hover:text-slate-900 dark:hover:text-slate-100 transition-colors whitespace-nowrap"
+                :title="$t('deviceDetail.sortByEnabled') || 'Sort by Active / Inactive State'"
+              >
+                <div class="inline-flex items-center space-x-1">
+                  <span>{{ $t('deviceDetail.colEnabled') }}</span>
+                  <span
+                    class="p-0.5 rounded transition"
+                    :class="paramSortKey === 'enabled' ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-400 opacity-40 group-hover:opacity-100'"
+                  >
+                    <svg v-if="paramSortKey === 'enabled' && paramSortDir === 'asc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+                    <svg v-else-if="paramSortKey === 'enabled' && paramSortDir === 'desc'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+                  </span>
+                </div>
+              </th>
               <th class="py-2.5 px-3 text-right">{{ $t('deviceDetail.colActions') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 dark:divide-slate-800/60">
-            <tr v-for="param in sortedParameters" :key="param.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+            <tr
+              v-for="param in filteredParameters"
+              :key="param.id"
+              class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+              :class="{ 'opacity-65 bg-slate-50/50 dark:bg-slate-900/30': !param.enabled }"
+            >
+              <td class="py-2.5 px-2.5 text-center">
+                <input
+                  type="checkbox"
+                  :checked="selectedParamIds.includes(param.id)"
+                  @change="toggleSelectParam(param.id)"
+                  class="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 cursor-pointer"
+                />
+              </td>
               <td class="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">{{ param.parameter_code || param.code }}</td>
               <td class="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
                 <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
@@ -988,18 +1118,47 @@
                   Awal (x): {{ getParamUncalibratedValue(param) }} · Δ {{ formatParamCalDelta(param) }}
                 </div>
               </td>
-              <td class="py-2.5 px-3">
+              <td class="py-2.5 px-3 whitespace-nowrap">
                 <button
+                  type="button"
                   @click="toggleParamEnabled(param)"
-                  :class="param.enabled
-                    ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-                    : 'text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
-                  class="font-mono text-3xs font-semibold px-2 py-0.5 rounded transition"
+                  :disabled="!!paramToggleLoading[param.id] || bulkParamLoading"
+                  class="inline-flex items-center space-x-2 group focus:outline-none disabled:opacity-50"
+                  :title="param.enabled ? ($t('deviceDetail.setInactive') || 'Set Inactive') : ($t('deviceDetail.setActive') || 'Set Active')"
                 >
-                  {{ param.enabled ? $t('deviceDetail.active') : $t('deviceDetail.disabled') }}
+                  <span
+                    class="relative inline-flex h-4 w-7 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out"
+                    :class="param.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="param.enabled ? 'translate-x-3' : 'translate-x-0'"
+                    ></span>
+                  </span>
+                  <span
+                    :class="param.enabled
+                      ? 'text-emerald-700 bg-emerald-50 group-hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                      : 'text-slate-600 bg-slate-100 group-hover:bg-slate-200 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
+                    class="font-mono text-3xs font-semibold px-2 py-0.5 rounded transition"
+                  >
+                    {{ param.enabled ? $t('deviceDetail.active') : ($t('deviceDetail.inactive') || 'Inactive') }}
+                  </span>
                 </button>
               </td>
               <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                <button
+                  type="button"
+                  @click="toggleParamEnabled(param)"
+                  :disabled="!!paramToggleLoading[param.id] || bulkParamLoading"
+                  :class="param.enabled
+                    ? 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30'
+                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30'"
+                  class="transition text-2xs font-semibold px-2.5 py-1 rounded-lg shadow-2xs inline-flex items-center space-x-1 disabled:opacity-50"
+                  :title="param.enabled ? ($t('deviceDetail.setInactive') || 'Set Inactive') : ($t('deviceDetail.setActive') || 'Set Active')"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="param.enabled ? 'bg-amber-500 dark:bg-amber-400' : 'bg-emerald-500 dark:bg-emerald-400'"></span>
+                  <span>{{ param.enabled ? ($t('deviceDetail.setInactive') || 'Set Inactive') : ($t('deviceDetail.setActive') || 'Set Active') }}</span>
+                </button>
                 <router-link
                   v-if="!isOperator && !['BOOL', 'COIL', 'DISCRETE', 'STRING'].includes(String(param.data_type || '').toUpperCase())"
                   :to="{ path: '/monitoring/calibration', query: { parameter_id: param.id } }"
@@ -1054,8 +1213,13 @@
               </td>
             </tr>
             <tr v-if="!device.parameters || device.parameters.length === 0">
-              <td :colspan="canAccessRawMode ? 11 : 10" class="py-8 text-center text-xs text-slate-400">
+              <td :colspan="canAccessRawMode ? 12 : 11" class="py-8 text-center text-xs text-slate-400">
                 {{ $t('deviceDetail.noParamsConfigured') }}
+              </td>
+            </tr>
+            <tr v-else-if="filteredParameters.length === 0">
+              <td :colspan="canAccessRawMode ? 12 : 11" class="py-8 text-center text-xs text-slate-400">
+                {{ paramStatusFilter === 'active' ? 'No active parameters.' : 'No inactive parameters.' }}
               </td>
             </tr>
           </tbody>
@@ -3797,9 +3961,14 @@ export default {
       testReadLoading: false,
       testReadResult: null,
 
-      // Parameters Table Sorting (Persistent)
+      // Parameters Table Sorting & Active/Inactive Actions
       paramSortKey: localStorage.getItem('datalogger_param_sort_key') || '',
       paramSortDir: localStorage.getItem('datalogger_param_sort_dir') || '',
+      paramStatusFilter: 'all',
+      selectedParamIds: [],
+      paramToggleLoading: {},
+      bulkParamLoading: false,
+      deviceToggleLoading: false,
 
       // Modbus Multi-Address Batch Read Polling Plan
       pollingPlan: null,
@@ -3993,6 +4162,28 @@ export default {
     displayParameters() {
       return this.sortedParameters;
     },
+    activeParamsCount() {
+      if (!this.device || !Array.isArray(this.device.parameters)) return 0;
+      return this.device.parameters.filter(p => !!p.enabled).length;
+    },
+    inactiveParamsCount() {
+      if (!this.device || !Array.isArray(this.device.parameters)) return 0;
+      return this.device.parameters.filter(p => !p.enabled).length;
+    },
+    filteredParameters() {
+      const list = this.sortedParameters;
+      if (this.paramStatusFilter === 'active') {
+        return list.filter(p => !!p.enabled);
+      }
+      if (this.paramStatusFilter === 'inactive') {
+        return list.filter(p => !p.enabled);
+      }
+      return list;
+    },
+    allFilteredParamsSelected() {
+      if (!this.filteredParameters.length) return false;
+      return this.filteredParameters.every(p => this.selectedParamIds.includes(p.id));
+    },
     sortedParameters() {
       if (!this.device || !this.device.parameters) return [];
       const list = [...this.device.parameters];
@@ -4022,6 +4213,11 @@ export default {
           const valA = parseFloat(this.formatParamValue(a)) || 0;
           const valB = parseFloat(this.formatParamValue(b)) || 0;
           return (valA - valB) * dir;
+        }
+        if (key === 'enabled') {
+          const enA = a.enabled ? 1 : 0;
+          const enB = b.enabled ? 1 : 0;
+          return (enA - enB) * dir;
         }
         return 0;
       });
@@ -4632,15 +4828,27 @@ export default {
       this.paramToCopy = null;
     },
     async toggleEnabled() {
-      if (!this.device) return;
+      if (!this.device || this.deviceToggleLoading) return;
+      const nextEnabled = !this.device.enabled;
+      this.deviceToggleLoading = true;
       try {
-        await this.$store.dispatch('toggleDeviceEnabled', {
+        const res = await this.$store.dispatch('toggleDeviceEnabled', {
           id: this.device.id,
-          enabled: !this.device.enabled,
+          enabled: nextEnabled,
         });
+        this.device.enabled = nextEnabled;
+        if (res && res.status) {
+          this.device.status = res.status;
+        } else if (nextEnabled && (this.device.status === 'INACTIVE' || this.device.status === 'DISABLED')) {
+          this.device.status = 'ACTIVE';
+        } else if (!nextEnabled && this.device.status === 'ACTIVE') {
+          this.device.status = 'INACTIVE';
+        }
         this.loadDevice();
       } catch (err) {
-        alert(this.$t('deviceDetail.toggleDeviceError') + ': ' + err.message);
+        alert(this.$t('deviceDetail.toggleDeviceError') + ': ' + ((err.response && err.response.data && err.response.data.error) || err.message));
+      } finally {
+        this.deviceToggleLoading = false;
       }
     },
     async confirmDelete() {
@@ -4654,16 +4862,96 @@ export default {
         alert(this.$t('deviceDetail.deleteDeviceError') + ': ' + err.message);
       }
     },
+    toggleSelectParam(paramId) {
+      const idx = this.selectedParamIds.indexOf(paramId);
+      if (idx >= 0) {
+        this.selectedParamIds.splice(idx, 1);
+      } else {
+        this.selectedParamIds.push(paramId);
+      }
+    },
+    toggleSelectAllParams() {
+      if (this.allFilteredParamsSelected) {
+        const visibleSet = new Set(this.filteredParameters.map(p => p.id));
+        this.selectedParamIds = this.selectedParamIds.filter(id => !visibleSet.has(id));
+      } else {
+        const merged = new Set([...this.selectedParamIds, ...this.filteredParameters.map(p => p.id)]);
+        this.selectedParamIds = Array.from(merged);
+      }
+    },
     async toggleParamEnabled(param) {
+      if (!param || !this.device || this.paramToggleLoading[param.id]) return;
+      const nextEnabled = !param.enabled;
+      this.$set(this.paramToggleLoading, param.id, true);
       try {
         await this.$store.dispatch('toggleParameterEnabled', {
           deviceId: this.device.id,
           paramId: param.id,
-          enabled: !param.enabled,
+          enabled: nextEnabled,
         });
-        this.loadDevice();
+        param.enabled = nextEnabled;
+        const code = param.parameter_code || param.code;
+        this.showToast(
+          nextEnabled
+            ? (this.$t('deviceDetail.paramToggledActive', { code }) || `Parameter ${code} set to Active`)
+            : (this.$t('deviceDetail.paramToggledInactive', { code }) || `Parameter ${code} set to Inactive`),
+          'success'
+        );
+        if (this.isModbusDevice) {
+          this.fetchPollingPlan();
+        }
+        this.loadActivity();
       } catch (err) {
-        alert(this.$t('deviceDetail.toggleParamError') + ': ' + err.message);
+        alert(this.$t('deviceDetail.toggleParamError') + ': ' + ((err.response && err.response.data && err.response.data.error) || err.message));
+      } finally {
+        this.$delete(this.paramToggleLoading, param.id);
+      }
+    },
+    async bulkSetAllParamsEnabled(enabled) {
+      if (!this.device || !Array.isArray(this.device.parameters)) return;
+      const targetIds = this.device.parameters
+        .filter(p => Boolean(p.enabled) !== Boolean(enabled))
+        .map(p => p.id);
+      if (!targetIds.length) return;
+      await this.bulkSetParamsEnabled(enabled, targetIds);
+    },
+    async bulkSetParamsEnabled(enabled, explicitIds = null) {
+      if (!this.device || this.bulkParamLoading) return;
+      const ids = Array.isArray(explicitIds) && explicitIds.length ? explicitIds : [...this.selectedParamIds];
+      if (!ids.length) return;
+      this.bulkParamLoading = true;
+      try {
+        const res = await this.$store.dispatch('bulkToggleParametersEnabled', {
+          deviceId: this.device.id,
+          parameterIds: ids,
+          enabled,
+        });
+        const idSet = new Set(ids);
+        if (Array.isArray(this.device.parameters)) {
+          this.device.parameters.forEach(p => {
+            if (idSet.has(p.id)) {
+              p.enabled = enabled;
+            }
+          });
+        }
+        this.selectedParamIds = [];
+        const updatedCount = (res && res.count) || ids.length;
+        const stateLabel = enabled
+          ? (this.$t('deviceDetail.active') || 'Active')
+          : (this.$t('deviceDetail.inactive') || 'Inactive');
+        this.showToast(
+          this.$t('deviceDetail.bulkParamsUpdated', { count: updatedCount, state: stateLabel })
+            || `${updatedCount} parameter(s) set to ${stateLabel}`,
+          'success'
+        );
+        if (this.isModbusDevice) {
+          this.fetchPollingPlan();
+        }
+        this.loadActivity();
+      } catch (err) {
+        alert(this.$t('deviceDetail.toggleParamError') + ': ' + ((err.response && err.response.data && err.response.data.error) || err.message));
+      } finally {
+        this.bulkParamLoading = false;
       }
     },
     async confirmDeleteParam(param) {

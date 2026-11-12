@@ -986,7 +986,7 @@ func (s *DeviceService) DeleteDevice(id uint, username, ipAddress, userAgent str
 	return nil
 }
 
-// ToggleDeviceEnabled enables or disables a device
+// ToggleDeviceEnabled enables or disables a device and synchronizes ACTIVE/INACTIVE status
 func (s *DeviceService) ToggleDeviceEnabled(id uint, enabled bool, username, ipAddress, userAgent string) error {
 	device, err := s.repo.GetByID(id)
 	if err != nil {
@@ -995,6 +995,19 @@ func (s *DeviceService) ToggleDeviceEnabled(id uint, enabled bool, username, ipA
 
 	if err := s.repo.SetEnabled(id, enabled); err != nil {
 		return err
+	}
+
+	newStatus := device.Status
+	if enabled {
+		if device.Status == model.DeviceStatusInactive || device.Status == model.DeviceStatusDisabled || device.Status == "" {
+			newStatus = model.DeviceStatusActive
+			_ = s.repo.SetStatus(id, newStatus)
+		}
+	} else {
+		if device.Status == model.DeviceStatusActive || device.Status == "" {
+			newStatus = model.DeviceStatusInactive
+			_ = s.repo.SetStatus(id, newStatus)
+		}
 	}
 
 	action := "ENABLE_DEVICE"
@@ -1007,6 +1020,7 @@ func (s *DeviceService) ToggleDeviceEnabled(id uint, enabled bool, username, ipA
 		"device_id":   id,
 		"device_code": device.DeviceCode,
 		"enabled":     enabled,
+		"status":      newStatus,
 	})
 	s.recordAudit(username, action, "DEVICE", string(auditDetails), ipAddress, userAgent)
 
@@ -1028,6 +1042,12 @@ func (s *DeviceService) UpdateDeviceStatus(id uint, status model.DeviceAdminStat
 
 	if err := s.repo.SetStatus(id, status); err != nil {
 		return err
+	}
+
+	if status == model.DeviceStatusActive && !device.Enabled {
+		_ = s.repo.SetEnabled(id, true)
+	} else if (status == model.DeviceStatusDisabled || status == model.DeviceStatusInactive) && device.Enabled {
+		_ = s.repo.SetEnabled(id, false)
 	}
 
 	if status == model.DeviceStatusDisabled || status == model.DeviceStatusInactive {
@@ -1875,6 +1895,60 @@ func (s *DeviceService) ToggleParameterEnabled(deviceID, paramID uint, enabled b
 	s.recordAudit(username, "UPDATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
 
 	return nil
+}
+
+func (s *DeviceService) BulkToggleParametersEnabled(deviceID uint, paramIDs []uint, enabled bool, username, ipAddress, userAgent string) ([]uint, error) {
+	if _, err := s.repo.GetByID(deviceID); err != nil {
+		return nil, errors.New("device not found")
+	}
+	if len(paramIDs) == 0 {
+		return nil, errors.New("no parameter IDs provided")
+	}
+
+	params, err := s.repo.ListParameters(deviceID)
+	if err != nil {
+		return nil, err
+	}
+
+	wanted := make(map[uint]struct{}, len(paramIDs))
+	for _, pid := range paramIDs {
+		if pid > 0 {
+			wanted[pid] = struct{}{}
+		}
+	}
+
+	validIDs := make([]uint, 0, len(wanted))
+	codes := make([]string, 0, len(wanted))
+	for _, p := range params {
+		if _, ok := wanted[p.ID]; ok {
+			validIDs = append(validIDs, p.ID)
+			codes = append(codes, p.ParameterCode)
+		}
+	}
+	if len(validIDs) == 0 {
+		return nil, errors.New("no matching parameters found for device")
+	}
+
+	if err := s.repo.SetParametersEnabledBulk(deviceID, validIDs, enabled); err != nil {
+		return nil, err
+	}
+
+	if !enabled {
+		for _, pid := range validIDs {
+			s.clearParameterAlarms(pid)
+		}
+	}
+
+	auditDetails, _ := json.Marshal(map[string]interface{}{
+		"device_id":       deviceID,
+		"parameter_ids":   validIDs,
+		"parameter_codes": codes,
+		"count":           len(validIDs),
+		"enabled":         enabled,
+	})
+	s.recordAudit(username, "UPDATE_PARAMETER", "PARAMETER", string(auditDetails), ipAddress, userAgent)
+
+	return validIDs, nil
 }
 
 // GetDeviceAuditTrail fetches audit trail for a device

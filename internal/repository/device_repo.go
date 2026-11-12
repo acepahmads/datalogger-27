@@ -345,6 +345,15 @@ func (r *DeviceRepository) SetParameterEnabled(deviceID, paramID uint, enabled b
 	return r.db.Model(&model.Parameter{}).Where("id = ? AND device_id = ?", paramID, deviceID).Update("enabled", enabled).Error
 }
 
+func (r *DeviceRepository) SetParametersEnabledBulk(deviceID uint, paramIDs []uint, enabled bool) error {
+	if deviceID == 0 || len(paramIDs) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.Parameter{}).
+		Where("device_id = ? AND id IN ? AND deleted_at IS NULL", deviceID, paramIDs).
+		Update("enabled", enabled).Error
+}
+
 func (r *DeviceRepository) SyncDeviceParametersStaleTimeout(deviceID uint, staleTimeoutSeconds int) error {
 	if deviceID == 0 || staleTimeoutSeconds <= 0 {
 		return nil

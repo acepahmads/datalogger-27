@@ -317,8 +317,13 @@ func (h *DeviceHandler) ToggleDeviceEnabled(c *gin.Context) {
 		return
 	}
 
-	if h.pollingEngine != nil {
-		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil {
+	updatedStatus := model.DeviceStatusActive
+	if !req.Enabled {
+		updatedStatus = model.DeviceStatusInactive
+	}
+	if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev != nil {
+		updatedStatus = dev.Status
+		if h.pollingEngine != nil {
 			if dev.Enabled && dev.Status == model.DeviceStatusActive {
 				h.pollingEngine.StartDeviceWorker(dev)
 			} else {
@@ -327,7 +332,7 @@ func (h *DeviceHandler) ToggleDeviceEnabled(c *gin.Context) {
 		}
 	}
 
-	response.OK(c, gin.H{"id": id, "enabled": req.Enabled})
+	response.OK(c, gin.H{"id": id, "enabled": req.Enabled, "status": updatedStatus})
 }
 
 // UpdateDeviceStatus handles PUT /api/devices/:id/status
@@ -359,8 +364,10 @@ func (h *DeviceHandler) UpdateDeviceStatus(c *gin.Context) {
 		return
 	}
 
-	if h.pollingEngine != nil {
-		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil {
+	enabledState := req.Status == model.DeviceStatusActive
+	if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev != nil {
+		enabledState = dev.Enabled
+		if h.pollingEngine != nil {
 			if dev.Enabled && dev.Status == model.DeviceStatusActive {
 				h.pollingEngine.StartDeviceWorker(dev)
 			} else {
@@ -369,7 +376,7 @@ func (h *DeviceHandler) UpdateDeviceStatus(c *gin.Context) {
 		}
 	}
 
-	response.OK(c, gin.H{"id": id, "status": req.Status})
+	response.OK(c, gin.H{"id": id, "status": req.Status, "enabled": enabledState})
 }
 
 // UpdateConnection handles PUT /api/devices/:id/connection
@@ -658,6 +665,62 @@ func (h *DeviceHandler) ToggleParameterEnabled(c *gin.Context) {
 	}
 
 	response.OK(c, gin.H{"device_id": id, "parameter_id": paramID, "enabled": req.Enabled})
+}
+
+// BulkToggleParametersEnabled handles POST /api/devices/:id/parameters/bulk-enable
+func (h *DeviceHandler) BulkToggleParametersEnabled(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "Invalid device ID")
+		return
+	}
+	if _, ok := h.checkDeviceAccess(c, uint(id)); !ok {
+		return
+	}
+
+	var req struct {
+		ParameterIDs []uint `json:"parameter_ids"`
+		Enabled      bool   `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid payload")
+		return
+	}
+
+	username := h.getUsername(c)
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+
+	updatedIDs, err := h.deviceService.BulkToggleParametersEnabled(uint(id), req.ParameterIDs, req.Enabled, username, ip, ua)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	if h.pollingEngine != nil {
+		if !req.Enabled {
+			ae := h.pollingEngine.GetAlarmEvaluator()
+			ts := h.pollingEngine.GetTelemetryService()
+			for _, pid := range updatedIDs {
+				if ae != nil {
+					ae.ClearParameterAlarms(c.Request.Context(), uint(id), pid)
+				}
+				if ts != nil {
+					ts.ClearParameterCache(pid)
+				}
+			}
+		}
+		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev != nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
+			h.pollingEngine.StartDeviceWorker(dev)
+		}
+	}
+
+	response.OK(c, gin.H{
+		"device_id":     id,
+		"parameter_ids": updatedIDs,
+		"count":         len(updatedIDs),
+		"enabled":       req.Enabled,
+	})
 }
 
 // GetParameterQuality handles GET /api/devices/:id/parameters/:paramId/quality

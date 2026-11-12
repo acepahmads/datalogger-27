@@ -102,7 +102,9 @@ func setupDeviceTestRouter(t *testing.T) *TestEnv {
 			devicesGroup.PUT("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameter)
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
+			devicesGroup.POST("/:id/parameters/bulk-enable", middleware.RequirePermission("device.manage"), deviceHandler.BulkToggleParametersEnabled)
 			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
+			devicesGroup.POST("/:id/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
 			devicesGroup.PUT("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameterQuality)
 		}
@@ -379,6 +381,54 @@ func TestDeviceParameterAPI(t *testing.T) {
 	env.Router.ServeHTTP(putW, putReq)
 	if putW.Code != http.StatusOK {
 		t.Fatalf("Expected 200 on update parameter, got %d", putW.Code)
+	}
+
+	// 4b. Bulk deactivate & re-activate parameter via POST /api/devices/:id/parameters/bulk-enable
+	bulkOffBody, _ := json.Marshal(map[string]interface{}{
+		"parameter_ids": []uint{paramID},
+		"enabled":       false,
+	})
+	bulkOffReq, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters/bulk-enable", devID), bytes.NewBuffer(bulkOffBody))
+	bulkOffReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	bulkOffReq.Header.Set("Content-Type", "application/json")
+	bulkOffW := httptest.NewRecorder()
+	env.Router.ServeHTTP(bulkOffW, bulkOffReq)
+	if bulkOffW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on bulk deactivate parameter, got %d (%s)", bulkOffW.Code, bulkOffW.Body.String())
+	}
+
+	bulkOnBody, _ := json.Marshal(map[string]interface{}{
+		"parameter_ids": []uint{paramID},
+		"enabled":       true,
+	})
+	bulkOnReq, _ := http.NewRequest("POST", fmt.Sprintf("/api/devices/%d/parameters/bulk-enable", devID), bytes.NewBuffer(bulkOnBody))
+	bulkOnReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	bulkOnReq.Header.Set("Content-Type", "application/json")
+	bulkOnW := httptest.NewRecorder()
+	env.Router.ServeHTTP(bulkOnW, bulkOnReq)
+	if bulkOnW.Code != http.StatusOK {
+		t.Fatalf("Expected 200 on bulk activate parameter, got %d (%s)", bulkOnW.Code, bulkOnW.Body.String())
+	}
+
+	// 4c. Device Active/Inactive status sync via PUT /api/devices/:id/enable
+	devOffBody, _ := json.Marshal(map[string]bool{"enabled": false})
+	devOffReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d/enable", devID), bytes.NewBuffer(devOffBody))
+	devOffReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	devOffReq.Header.Set("Content-Type", "application/json")
+	devOffW := httptest.NewRecorder()
+	env.Router.ServeHTTP(devOffW, devOffReq)
+	if devOffW.Code != http.StatusOK || !bytes.Contains(devOffW.Body.Bytes(), []byte(`"INACTIVE"`)) {
+		t.Fatalf("Expected 200 and status=INACTIVE on device disable, got %d (%s)", devOffW.Code, devOffW.Body.String())
+	}
+
+	devOnBody, _ := json.Marshal(map[string]bool{"enabled": true})
+	devOnReq, _ := http.NewRequest("PUT", fmt.Sprintf("/api/devices/%d/enable", devID), bytes.NewBuffer(devOnBody))
+	devOnReq.Header.Set("Authorization", "Bearer "+env.AdminToken)
+	devOnReq.Header.Set("Content-Type", "application/json")
+	devOnW := httptest.NewRecorder()
+	env.Router.ServeHTTP(devOnW, devOnReq)
+	if devOnW.Code != http.StatusOK || !bytes.Contains(devOnW.Body.Bytes(), []byte(`"ACTIVE"`)) {
+		t.Fatalf("Expected 200 and status=ACTIVE on device enable, got %d (%s)", devOnW.Code, devOnW.Body.String())
 	}
 
 	// 5. Delete parameter

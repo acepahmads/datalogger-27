@@ -880,6 +880,20 @@ export default new Vuex.Store({
         throw err;
       }
     },
+    async bulkToggleParametersEnabled({ dispatch }, { deviceId, parameterIds, enabled }) {
+      try {
+        const res = await axios.post(`${API_BASE}/devices/${deviceId}/parameters/bulk-enable`, {
+          parameter_ids: parameterIds,
+          enabled,
+        });
+        dispatch('fetchDevices');
+        dispatch('fetchActiveAlarms');
+        return res.data ? res.data.data : null;
+      } catch (err) {
+        console.error('Failed to bulk toggle parameters enabled:', err);
+        throw err;
+      }
+    },
     async connectDevice(_, id) {
       try {
         const res = await axios.post(`${API_BASE}/devices/${id}/communication/connect`);

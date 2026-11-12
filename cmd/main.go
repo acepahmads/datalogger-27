@@ -499,6 +499,7 @@ func main() {
 			devicesGroup.PUT("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.UpdateParameter)
 			devicesGroup.DELETE("/:id/parameters/:paramId", middleware.RequirePermission("device.manage"), deviceHandler.DeleteParameter)
 			devicesGroup.PUT("/:id/parameters/:paramId/enable", middleware.RequirePermission("device.manage"), deviceHandler.ToggleParameterEnabled)
+			devicesGroup.POST("/:id/parameters/bulk-enable", middleware.RequirePermission("device.manage"), deviceHandler.BulkToggleParametersEnabled)
 			devicesGroup.POST("/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 			devicesGroup.POST("/:id/parameters/validate-formula", middleware.RequirePermission("device.view"), deviceHandler.ValidateFormula)
 			devicesGroup.GET("/:id/parameters/:paramId/quality", middleware.RequirePermission("device.view"), deviceHandler.GetParameterQuality)
