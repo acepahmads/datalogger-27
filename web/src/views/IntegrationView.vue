@@ -814,7 +814,8 @@
                 <option value="KLHK_SPARING_HOURLY">KLHK SPARING — Per 1 Jam / 30 Data (uid + data[30])</option>
                 <option value="KLHK_SPARING">KLHK SPARING — Per 2 Menit (Flat: uid + datetime + sensor)</option>
                 <option value="KLHK_ISPU_AQMS">KLHK ISPU AQMS (id_stasiun + waktu + stat_*)</option>
-                <option value="MULTI_TICK_SENSOR">Multi-Sensor Tick Array (multi[tick])</option>
+                <option value="CBI_MULTI_HOURLY">Cloud CBI — Multi 30×2 Menit (module_id + station_id + hourly_data[30])</option>
+                <option value="MULTI_TICK_SENSOR">Cloud CBI — Multi-Sensor Tick Array (multi[tick])</option>
                 <option value="MULTI_DEVICE_FLAT">Multi-Device Unified Flat</option>
                 <option value="MULTI_DEVICE_NESTED">Multi-Device Nested by Device</option>
                 <option value="MULTI_DEVICE_ARRAY">Multi-Device Array of Devices</option>
@@ -835,6 +836,7 @@
                 <option value="CUSTOM_SCHEMA">CUSTOM_SCHEMA (Bebas Sesuai User — Visual / JSON)</option>
                 <option value="ONLIMO_DATA_OBJECT">ONLIMO_DATA_OBJECT (Root data{IDStasiun, Tanggal, Jam, ...} + apikey)</option>
                 <option value="SPARING_DATA_ARRAY">SPARING_DATA_ARRAY (Root uid + data[datetime, ...])</option>
+                <option value="CBI_HOURLY_ARRAY">CBI_HOURLY_ARRAY (Root module_id + station_id + hourly_data[...])</option>
                 <option value="MULTI_TICK_ARRAY">MULTI_TICK_ARRAY (Array multi[tick])</option>
                 <option value="NESTED">NESTED (Sub-Object under key)</option>
                 <option value="NESTED_BY_DEVICE">NESTED_BY_DEVICE (Grouped by Device)</option>
@@ -1211,20 +1213,20 @@
             </p>
           </div>
 
-          <!-- Nested Key Name (if NESTED, SPARING_DATA_ARRAY, or ONLIMO_DATA_OBJECT) -->
-          <div v-if="payloadConfig.structure === 'NESTED' || payloadConfig.structure === 'SPARING_DATA_ARRAY' || payloadConfig.structure === 'ONLIMO_DATA_OBJECT'" class="text-2xs">
+          <!-- Nested Key Name (if NESTED, SPARING_DATA_ARRAY, CBI_HOURLY_ARRAY, or ONLIMO_DATA_OBJECT) -->
+          <div v-if="payloadConfig.structure === 'NESTED' || payloadConfig.structure === 'SPARING_DATA_ARRAY' || payloadConfig.structure === 'CBI_HOURLY_ARRAY' || payloadConfig.structure === 'ONLIMO_DATA_OBJECT'" class="text-2xs">
             <label class="block text-slate-500 mb-1">Nested Array / Object Key Name</label>
             <input
               v-model="payloadConfig.nested_data_key"
               @input="triggerLivePreview"
               type="text"
               class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-              placeholder="e.g. data, measurements, telemetry"
+              placeholder="e.g. hourly_data, data, measurements"
             />
           </div>
 
           <!-- Station ID & Override -->
-          <div class="grid grid-cols-1 gap-3 text-2xs" :class="{ 'sm:grid-cols-2': !isCustomSchemaActive, 'sm:grid-cols-3': payloadConfig.structure === 'MULTI_TICK_ARRAY' }">
+          <div class="grid grid-cols-1 gap-3 text-2xs" :class="{ 'sm:grid-cols-2': !isCustomSchemaActive && payloadConfig.structure !== 'MULTI_TICK_ARRAY' && payloadConfig.structure !== 'CBI_HOURLY_ARRAY', 'sm:grid-cols-3': payloadConfig.structure === 'MULTI_TICK_ARRAY' || payloadConfig.structure === 'CBI_HOURLY_ARRAY' }">
             <div v-if="!isCustomSchemaActive">
               <label class="block text-slate-500 mb-1">Station ID / UID Field Name</label>
               <input
@@ -1244,19 +1246,28 @@
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="e.g. STASIUN_WQMS_01 or 79456d9c51128700b78b6fd0"
+                placeholder="e.g. 3, STASIUN_WQMS_01, or 79456d9c51128700b78b6fd0"
               />
             </div>
-            <div v-if="payloadConfig.structure === 'MULTI_TICK_ARRAY'">
-              <label class="block text-slate-500 mb-1">Module ID Value (tick.module_id)</label>
+            <div v-if="payloadConfig.structure === 'MULTI_TICK_ARRAY' || payloadConfig.structure === 'CBI_HOURLY_ARRAY'">
+              <label class="block text-slate-500 mb-1">
+                {{ payloadConfig.structure === 'CBI_HOURLY_ARRAY' ? 'Module ID Value (root "module_id")' : 'Module ID Value (tick.module_id)' }}
+              </label>
               <input
                 v-model="payloadConfig.module_id_value"
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                placeholder="e.g. 3453 or 1"
+                placeholder="e.g. 4 or 3453"
               />
             </div>
+          </div>
+
+          <div
+            v-if="payloadConfig.structure === 'CBI_HOURLY_ARRAY'"
+            class="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-3xs text-cyan-700 dark:text-cyan-300 leading-relaxed"
+          >
+            Format <strong>Cloud CBI Multi 30×2 Menit</strong> mengirim root <code class="font-mono">"module_id"</code> &amp; <code class="font-mono">"station_id"</code> bertipe string, mengelompokkan 30 bucket agregasi 2 menit (<code class="font-mono">:00..:58</code>) ke array <code class="font-mono">"hourly_data"</code>, mengisi nilai sensor kosong/BAD dengan <code class="font-mono">0</code>, serta menambahkan <code class="font-mono">"created_at"</code> &amp; <code class="font-mono">"updated_at"</code> di akhir tiap baris.
           </div>
 
           <!-- Timestamp Field, Format & Timezone -->
@@ -1270,7 +1281,7 @@
                 @input="triggerLivePreview"
                 type="text"
                 class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono"
-                :placeholder="payloadConfig.structure === 'ONLIMO_DATA_OBJECT' ? 'Tanggal,Jam' : 'datetime / timestamp'"
+                :placeholder="payloadConfig.structure === 'ONLIMO_DATA_OBJECT' ? 'Tanggal,Jam' : 'datetime / created_at / timestamp'"
               />
             </div>
             <div>
@@ -1284,6 +1295,7 @@
                 <option value="UNIX_MS">UNIX Epoch Milliseconds</option>
                 <option value="UNIX_SEC">UNIX Epoch Seconds (int_datetime)</option>
                 <option value="CUSTOM">Custom (YYYY-MM-DD HH:mm:ss)</option>
+                <option value="CUSTOM_OFFSET">Custom + Offset (YYYY-MM-DD HH:mm:ss +0700 — Cloud CBI)</option>
               </select>
             </div>
             <div>
@@ -1981,10 +1993,10 @@
             >
               <option :value="0">Kirim Langsung Tiap Selesai Agregasi (mis. Per 2 Menit / Realtime)</option>
               <option :value="1800">Kumpulkan & Kirim Tiap 30 Menit (Bundle 15 Data × 2 Menit)</option>
-              <option :value="3600">Kumpulkan & Kirim Tiap 1 Jam (Bundle 30 Data × 2 Menit — SPARING)</option>
+              <option :value="3600">Kumpulkan & Kirim Tiap 1 Jam (Bundle 30 Data × 2 Menit — SPARING / Cloud CBI)</option>
             </select>
             <p v-if="editingDest.dispatch_interval_seconds > 0" class="mt-1 text-3xs text-cyan-600 dark:text-cyan-400">
-              📦 Mode Bundling: Mengumpulkan {{ Math.max(1, Math.round(editingDest.dispatch_interval_seconds / (editingDest.interval_seconds || 120))) }} data agregasi {{ (editingDest.interval_seconds || 120) / 60 }} menit ({{ ':00..' + String(Math.max(0, Math.round(editingDest.dispatch_interval_seconds / 60) - Math.round((editingDest.interval_seconds || 120) / 60))).padStart(2, '0') }}) lalu dikirim setiap {{ editingDest.dispatch_interval_seconds / 60 }} menit dalam format array "data": [...].
+              📦 Mode Bundling: Mengumpulkan {{ Math.max(1, Math.round(editingDest.dispatch_interval_seconds / (editingDest.interval_seconds || 120))) }} data agregasi {{ (editingDest.interval_seconds || 120) / 60 }} menit ({{ ':00..' + String(Math.max(0, Math.round(editingDest.dispatch_interval_seconds / 60) - Math.round((editingDest.interval_seconds || 120) / 60))).padStart(2, '0') }}) lalu dikirim setiap {{ editingDest.dispatch_interval_seconds / 60 }} menit dalam format array ("data": [...] / "hourly_data": [...]).
             </p>
           </div>
 
@@ -2198,25 +2210,13 @@
 
           <div>
             <label class="block text-slate-500 mb-1">
-              {{ editingDest.auth_type === 'LOGIN_BEARER'
-                ? 'Step 2 — Data Endpoint URL (data_url, Bearer Token otomatis)'
-                : (editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'SPARING_JWT_STATIC'
-                  ? 'Step 2 — KLHK Send URL (KLHK_URL_2STEP — POST {"token": "<jwt_hs256>"})'
-                  : (editingDest.auth_type === 'KLHK_ONLIMO_BODY'
-                    ? 'KLHK WQMS / ONLIMO Endpoint URL (POST JSON { data, apikey, apisecret })'
-                    : 'Endpoint (URL or host:port)')) }}
+              {{ editingEndpointLabel }}
             </label>
             <input
               v-model="editingDest.endpoint"
               type="text"
               class="w-full bg-slate-100 dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 font-mono text-3xs"
-              :placeholder="editingDest.auth_type === 'LOGIN_BEARER'
-                ? 'https://ispu.kemenlh.go.id/api/v1/aqmdata'
-                : (editingDest.auth_type === 'SPARING_JWT_2STEP' || editingDest.auth_type === 'SPARING_JWT_STATIC'
-                  ? 'https://sparing.kemenlh.go.id/api/send'
-                  : (editingDest.auth_type === 'KLHK_ONLIMO_BODY'
-                    ? 'https://ppkl.menlhk.go.id/onlimo/api/...'
-                    : 'https://sparing.kemenlh.go.id/api/send or 192.168.1.50:5000'))"
+              :placeholder="editingEndpointPlaceholder"
             />
           </div>
 
@@ -2489,6 +2489,32 @@ export default {
     canManageQueue() {
       // Khusus untuk SUPERADMIN dan ADMIN
       return this.isSuperAdmin || this.isAdmin;
+    },
+    editingEndpointLabel() {
+      const auth = this.editingDest && this.editingDest.auth_type;
+      if (auth === 'LOGIN_BEARER') {
+        return 'Step 2 — Data Endpoint URL (data_url, Bearer Token otomatis)';
+      }
+      if (auth === 'SPARING_JWT_2STEP' || auth === 'SPARING_JWT_STATIC') {
+        return 'Step 2 — KLHK Send URL (KLHK_URL_2STEP — POST {"token": "<jwt_hs256>"})';
+      }
+      if (auth === 'KLHK_ONLIMO_BODY') {
+        return 'KLHK WQMS / ONLIMO Endpoint URL (POST JSON { data, apikey, apisecret })';
+      }
+      return 'Endpoint (URL or host:port)';
+    },
+    editingEndpointPlaceholder() {
+      const auth = this.editingDest && this.editingDest.auth_type;
+      if (auth === 'LOGIN_BEARER') {
+        return 'https://ispu.kemenlh.go.id/api/v1/aqmdata';
+      }
+      if (auth === 'SPARING_JWT_2STEP' || auth === 'SPARING_JWT_STATIC') {
+        return 'https://sparing.kemenlh.go.id/api/send';
+      }
+      if (auth === 'KLHK_ONLIMO_BODY') {
+        return 'https://ppkl.menlhk.go.id/onlimo/api/...';
+      }
+      return 'https://cbi.mdtapps.id/api/v1/ticks/create_multi or 192.168.1.50:5000';
     },
   },
   watch: {
@@ -2878,6 +2904,32 @@ export default {
       }
     },
     getPresetAliasMap(templateType) {
+      if (templateType === 'CBI_MULTI_HOURLY') {
+        return {
+          'ph': 'ph',
+          'p_h': 'ph',
+          'debit': 'debit',
+          'flow': 'debit',
+          'flowrate': 'debit',
+          'flow_rate': 'debit',
+          'flow-rate': 'debit',
+          'tss': 'tss',
+          'cod': 'cod',
+          'nh3n': 'nh3n',
+          'nh3-n': 'nh3n',
+          'nh3_n': 'nh3n',
+          'ammonia': 'nh3n',
+          'amonia': 'nh3n',
+          'temp_panel': 'temp_panel',
+          'panel_temp': 'temp_panel',
+          'panel-temp': 'temp_panel',
+          'humidity': 'humidity',
+          'hum': 'humidity',
+          'rh': 'humidity',
+          'temp': 'temp',
+          'temperature': 'temp',
+        };
+      }
       if (templateType === 'KLHK_SPARING' || templateType === 'KLHK_SPARING_HOURLY') {
         return {
           'ph': 'pH',
@@ -3137,7 +3189,9 @@ export default {
             const existing = existingByKey[compositeKey] || existingByCode[lowerCode];
             const pName = param.parameter_name || param.name || existing?.parameter_name || code;
             const isONLIMO = this.payloadConfig?.template_type === 'KLHK_WQMS_ONLIMO';
+            const isCBIHourly = this.payloadConfig?.template_type === 'CBI_MULTI_HOURLY';
             const wqmsAlias = isONLIMO ? this.resolveKLHKWQMSAlias(code, pName) : '';
+            const defaultAlias = isONLIMO ? (wqmsAlias || code) : (aliasMap[lowerCode] || (isCBIHourly ? lowerCode : code));
 
             if (existing && !forceOverwrite) {
               newMappings.push({
@@ -3146,7 +3200,7 @@ export default {
                 parameter_id: param.id,
                 parameter_code: code,
                 parameter_name: pName,
-                external_name: existing.external_name || (isONLIMO ? (wqmsAlias || code) : (aliasMap[lowerCode] || code)),
+                external_name: existing.external_name || defaultAlias,
                 enabled: existing.enabled !== undefined ? Boolean(existing.enabled) : (isONLIMO ? Boolean(wqmsAlias) : true),
               });
             } else {
@@ -3156,7 +3210,7 @@ export default {
                 parameter_id: param.id,
                 parameter_code: code,
                 parameter_name: pName,
-                external_name: isONLIMO ? (wqmsAlias || code) : (aliasMap[lowerCode] || code),
+                external_name: defaultAlias,
                 enabled: isONLIMO ? Boolean(wqmsAlias) : true,
               });
             }
@@ -3255,6 +3309,30 @@ export default {
           this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
         }
         this.ensureDefaultCustomSchemaScaffold();
+      } else if (this.payloadConfig.structure === 'CBI_HOURLY_ARRAY') {
+        if (this.payloadConfig.template_type === 'CUSTOM') {
+          this.payloadConfig.template_type = 'CBI_MULTI_HOURLY';
+          this.payloadConfig.custom_schema_mode = '';
+        }
+        if (!this.payloadConfig.nested_data_key || this.payloadConfig.nested_data_key === 'data') {
+          this.payloadConfig.nested_data_key = 'hourly_data';
+        }
+        if (!this.payloadConfig.station_id_field || this.payloadConfig.station_id_field === 'uid') {
+          this.payloadConfig.station_id_field = 'station_id';
+        }
+        if (!this.payloadConfig.timestamp_format || this.payloadConfig.timestamp_format === 'CUSTOM' || this.payloadConfig.timestamp_format === 'ISO8601') {
+          this.payloadConfig.timestamp_format = 'CUSTOM_OFFSET';
+        }
+        this.payloadConfig.timestamp_timezone = this.payloadConfig.timestamp_timezone || 'Asia/Jakarta';
+        this.payloadConfig.timestamp_source = 'PERIOD_START';
+        this.payloadConfig.numeric_precision_mode = 'NATURAL_2';
+        this.payloadConfig.omit_interval_field = true;
+        this.payloadConfig.include_metadata = false;
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        if (!this.payloadConfig.conflict_resolution || this.payloadConfig.conflict_resolution === 'FAIL_ON_CONFLICT' || this.payloadConfig.conflict_resolution === 'PREFIX') {
+          this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
+        }
       } else if (this.payloadConfig.template_type === 'CUSTOM') {
         this.payloadConfig.template_type = 'STANDARD';
         this.payloadConfig.custom_schema_mode = '';
@@ -3644,14 +3722,15 @@ export default {
     async saveDestination() {
       try {
         let requeued = 0;
-        if (this.editingDest.id) {
-          const res = await axios.put(`/api/destinations/${this.editingDest.id}`, this.editingDest);
+        const savedId = this.editingDest.id;
+        if (savedId) {
+          const res = await axios.put(`/api/destinations/${savedId}`, this.editingDest);
           requeued = Number(res.data?.data?.requeued_batches || 0);
         } else {
           await axios.post('/api/destinations', this.editingDest);
         }
         this.showDestModal = false;
-        this.fetchDestinations();
+        await this.fetchDestinations();
         this.fetchSummary();
         this.fetchQueue();
         if (requeued > 0) {
@@ -3749,6 +3828,36 @@ export default {
           if (aliasMap[lower]) {
             m.external_name = aliasMap[lower];
             m.enabled = true;
+          }
+        }
+      } else if (p === 'CBI_MULTI_HOURLY') {
+        this.payloadConfig.station_id_field = 'station_id';
+        this.payloadConfig.station_id_value = this.payloadConfig.station_id_value || '3';
+        this.payloadConfig.module_id_value = this.payloadConfig.module_id_value || '4';
+        this.payloadConfig.timestamp_field = 'created_at';
+        this.payloadConfig.timestamp_format = 'CUSTOM_OFFSET';
+        this.payloadConfig.timestamp_source = 'PERIOD_START';
+        this.payloadConfig.timestamp_timezone = 'Asia/Jakarta';
+        this.payloadConfig.numeric_precision_mode = 'NATURAL_2';
+        this.payloadConfig.omit_interval_field = true;
+        this.payloadConfig.structure = 'CBI_HOURLY_ARRAY';
+        this.payloadConfig.nested_data_key = 'hourly_data';
+        this.payloadConfig.include_device_identity = false;
+        this.payloadConfig.device_identity_mode = 'NONE';
+        this.payloadConfig.conflict_resolution = 'PRIORITY_PRIMARY';
+        this.payloadConfig.include_units = false;
+        this.payloadConfig.include_quality = false;
+        this.payloadConfig.include_metadata = false;
+        this.payloadConfig.include_sensor_stat_flags = false;
+
+        const aliasMap = this.getPresetAliasMap('CBI_MULTI_HOURLY');
+        for (const m of this.parameterMappings || []) {
+          const lower = (m.parameter_code || '').toLowerCase().trim();
+          if (aliasMap[lower]) {
+            m.external_name = aliasMap[lower];
+            m.enabled = true;
+          } else if (lower) {
+            m.external_name = (m.external_name || lower).toLowerCase();
           }
         }
       } else if (p === 'MULTI_TICK_SENSOR') {
@@ -3947,7 +4056,7 @@ export default {
         return str;
       }
 
-      const preserveNaturalNumbers = /"uid"\s*:|"IDStasiun"\s*:/.test(str);
+      const preserveNaturalNumbers = /"uid"\s*:|"IDStasiun"\s*:|"hourly_data"\s*:/.test(str);
       let out = '';
       let depth = 0;
       const len = str.length;

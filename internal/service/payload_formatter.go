@@ -229,6 +229,8 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 
 	isONLIMO := strings.EqualFold(strings.TrimSpace(cfg.TemplateType), "KLHK_WQMS_ONLIMO") ||
 		strings.EqualFold(strings.TrimSpace(cfg.Structure), "ONLIMO_DATA_OBJECT")
+	isCBIHourly := strings.EqualFold(strings.TrimSpace(cfg.TemplateType), "CBI_MULTI_HOURLY") ||
+		strings.EqualFold(strings.TrimSpace(cfg.Structure), "CBI_HOURLY_ARRAY")
 
 	if cfg.StationIDField == "" {
 		if isONLIMO {
@@ -240,6 +242,8 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	if cfg.TimestampField == "" {
 		if isONLIMO {
 			cfg.TimestampField = "Tanggal,Jam"
+		} else if isCBIHourly {
+			cfg.TimestampField = "created_at"
 		} else {
 			cfg.TimestampField = "timestamp"
 		}
@@ -250,6 +254,8 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	if cfg.Structure == "" {
 		if isONLIMO {
 			cfg.Structure = "ONLIMO_DATA_OBJECT"
+		} else if isCBIHourly {
+			cfg.Structure = "CBI_HOURLY_ARRAY"
 		} else {
 			cfg.Structure = "FLAT"
 		}
@@ -259,6 +265,9 @@ func (f *ConfigurablePayloadFormatter) ValidateConfig(cfg *model.DestinationPayl
 	}
 	if cfg.DeviceIdentityMode == "" {
 		cfg.DeviceIdentityMode = "NONE"
+	}
+	if cfg.Structure == "CBI_HOURLY_ARRAY" && (cfg.NestedDataKey == "" || (cfg.NestedDataKey == "data" && isCBIHourly)) {
+		cfg.NestedDataKey = "hourly_data"
 	}
 	if (cfg.Structure == "NESTED" || cfg.Structure == "NESTED_BY_DEVICE" || cfg.Structure == "ARRAY_BY_DEVICE" || cfg.Structure == "SPARING_DATA_ARRAY" || cfg.Structure == "ONLIMO_DATA_OBJECT") && cfg.NestedDataKey == "" {
 		cfg.NestedDataKey = "data"
@@ -362,6 +371,31 @@ func defaultKLHKSPARINGAlias(code string) string {
 		return "debit"
 	default:
 		return trimmed
+	}
+}
+
+func defaultCBIHourlyAlias(code string) (string, bool) {
+	trimmed := strings.TrimSpace(code)
+	lower := strings.ToLower(trimmed)
+	switch lower {
+	case "ph", "p_h":
+		return "ph", true
+	case "debit", "flow", "flowrate", "flow_rate", "flow-rate":
+		return "debit", true
+	case "tss":
+		return "tss", true
+	case "cod":
+		return "cod", true
+	case "nh3n", "nh3-n", "nh3_n", "ammonia", "amonia":
+		return "nh3n", true
+	case "temp_panel", "panel_temp", "panel-temp":
+		return "temp_panel", true
+	case "humidity", "hum", "rh":
+		return "humidity", true
+	case "temperature", "temp":
+		return "temp", true
+	default:
+		return lower, false
 	}
 }
 
@@ -555,6 +589,8 @@ func buildParameterMappingMatcher(cfg *model.DestinationPayloadConfig) *paramete
 			switch matcher.templateType {
 			case "KLHK_SPARING", "KLHK_SPARING_HOURLY":
 				extName = defaultKLHKSPARINGAlias(m.ParameterCode)
+			case "CBI_MULTI_HOURLY":
+				extName, _ = defaultCBIHourlyAlias(m.ParameterCode)
 			case "KLHK_ISPU_AQMS":
 				extName = defaultKLHKISPUAlias(m.ParameterCode)
 			case "KLHK_WQMS_ONLIMO":
@@ -619,6 +655,9 @@ func (m *parameterMappingMatcher) ResolveForValuesCollection(deviceID uint, devi
 				return true, defaultKLHKISPUAlias(trimmedCode)
 			case "KLHK_SPARING", "KLHK_SPARING_HOURLY":
 				return true, defaultKLHKSPARINGAlias(trimmedCode)
+			case "CBI_MULTI_HOURLY":
+				alias, _ := defaultCBIHourlyAlias(trimmedCode)
+				return true, alias
 			case "KLHK_WQMS_ONLIMO":
 				if alias, ok := matchKLHKWQMSAlias(trimmedCode, paramName); ok {
 					return true, alias
@@ -975,6 +1014,346 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 		rootFields = append(rootFields, orderedJSONField{Key: nestedKey, Value: orderedRows})
 		orderedRootPayload = orderedJSONObject(rootFields)
 
+	case structure == "CBI_HOURLY_ARRAY":
+		type cbiHourlyBucketAcc struct {
+			bucketTime      time.Time
+			measurements    map[string]interface{}
+			keyOrder        []string
+			keySourceDevice map[string]string
+			keyHasValid     map[string]bool
+			keyValuesList   map[string][]float64
+		}
+
+		// Resolve string module_id & station_id (Cloud CBI format: {"module_id":"4","station_id":"3","hourly_data":[...]})
+		var resolvedModuleID interface{} = "1"
+		if strings.TrimSpace(cfg.ModuleIDValue) != "" {
+			resolvedModuleID = strings.TrimSpace(cfg.ModuleIDValue)
+		} else if batch.DeviceID > 0 {
+			resolvedModuleID = strconv.FormatUint(uint64(batch.DeviceID), 10)
+		} else if len(batch.Values) > 0 && batch.Values[0].DeviceID > 0 {
+			resolvedModuleID = strconv.FormatUint(uint64(batch.Values[0].DeviceID), 10)
+		}
+
+		cbiStationKey := strings.TrimSpace(cfg.StationIDField)
+		if cbiStationKey == "" || (strings.EqualFold(cbiStationKey, "uid") && (templateUpper == "CBI_MULTI_HOURLY" || templateUpper == "MULTI_TICK_SENSOR")) {
+			cbiStationKey = "station_id"
+		}
+		var resolvedStationID interface{} = stationID
+
+		var extraStaticMap map[string]interface{}
+		var extraStaticKeys []string
+		if strings.TrimSpace(cfg.StaticMetadataJSON) != "" {
+			var staticMap map[string]interface{}
+			if err := json.Unmarshal([]byte(cfg.StaticMetadataJSON), &staticMap); err == nil {
+				extraStaticMap = make(map[string]interface{})
+				for k, v := range staticMap {
+					if strings.EqualFold(k, "module_id") && v != nil {
+						resolvedModuleID = v
+						continue
+					}
+					if strings.EqualFold(k, cbiStationKey) && v != nil {
+						resolvedStationID = v
+						continue
+					}
+					extraStaticMap[k] = v
+					extraStaticKeys = append(extraStaticKeys, k)
+				}
+				sort.Strings(extraStaticKeys)
+			}
+		}
+
+		tsFormat := strings.TrimSpace(cfg.TimestampFormat)
+		if tsFormat == "" {
+			tsFormat = "CUSTOM_OFFSET"
+		}
+		tsTimezone := strings.TrimSpace(cfg.TimestampTimezone)
+		if tsTimezone == "" {
+			tsTimezone = "Asia/Jakarta"
+		}
+		tsSource := strings.TrimSpace(cfg.TimestampSource)
+		if tsSource == "" {
+			tsSource = "PERIOD_START"
+		}
+		precisionMode := strings.TrimSpace(cfg.NumericPrecisionMode)
+		if precisionMode == "" {
+			precisionMode = "NATURAL_2"
+		}
+
+		zeroScalar := formatScalarOutboundNumber(0, precisionMode)
+		buildZeroVal := func() interface{} {
+			if cfg.IncludeUnits || cfg.IncludeQuality {
+				detail := map[string]interface{}{"value": zeroScalar}
+				if cfg.IncludeQuality {
+					detail["quality"] = "BAD"
+				}
+				return detail
+			}
+			return zeroScalar
+		}
+		extractCBIVal := func(item model.SourceAggregationValueItem) interface{} {
+			if cfg.IncludeUnits || cfg.IncludeQuality {
+				detail := make(map[string]interface{})
+				if item.Value != nil {
+					detail["value"] = formatScalarOutboundNumber(*item.Value, precisionMode)
+				} else {
+					detail["value"] = zeroScalar
+				}
+				if cfg.IncludeUnits && item.Unit != "" {
+					detail["unit"] = item.Unit
+				}
+				if cfg.IncludeQuality && item.Quality != "" {
+					detail["quality"] = item.Quality
+				}
+				if cfg.IncludeDeviceIdentity && item.DeviceCode != "" {
+					detail["device"] = item.DeviceCode
+				}
+				return detail
+			}
+			if item.Value != nil {
+				return formatScalarOutboundNumber(*item.Value, precisionMode)
+			}
+			return zeroScalar
+		}
+
+		// Collect deterministic master order of enabled sensor keys across all 30 buckets
+		var orderedParamKeys []string
+		seenParamKey := make(map[string]bool)
+		addParamKey := func(k string) {
+			trimmed := strings.TrimSpace(k)
+			if trimmed == "" || trimmed == "created_at" || trimmed == "updated_at" || seenParamKey[trimmed] {
+				return
+			}
+			seenParamKey[trimmed] = true
+			orderedParamKeys = append(orderedParamKeys, trimmed)
+		}
+
+		usePrefixMode := deviceMode == "PREFIX" || (cfg.IncludeDeviceIdentity && deviceMode != "TAG" && deviceMode != "NONE")
+		if strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
+			var mappings []model.ParameterMappingItem
+			if err := json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings); err == nil {
+				for _, m := range mappings {
+					if !m.Enabled || strings.TrimSpace(m.ParameterCode) == "" {
+						continue
+					}
+					extName := strings.TrimSpace(m.ExternalName)
+					if extName == "" {
+						if templateUpper == "CBI_MULTI_HOURLY" {
+							extName, _ = defaultCBIHourlyAlias(m.ParameterCode)
+						} else {
+							extName = strings.TrimSpace(m.ParameterCode)
+						}
+					}
+					if usePrefixMode && strings.TrimSpace(m.DeviceCode) != "" {
+						extName = fmt.Sprintf("%s_%s", strings.ToLower(strings.TrimSpace(m.DeviceCode)), strings.ToLower(extName))
+					}
+					addParamKey(extName)
+				}
+			}
+		}
+
+		bucketMap := make(map[int64]*cbiHourlyBucketAcc)
+		var bucketKeys []int64
+		ensureBucket := func(rowTime time.Time) *cbiHourlyBucketAcc {
+			bKey := rowTime.UnixNano()
+			acc, exists := bucketMap[bKey]
+			if !exists {
+				acc = &cbiHourlyBucketAcc{
+					bucketTime:      rowTime,
+					measurements:    make(map[string]interface{}),
+					keySourceDevice: make(map[string]string),
+					keyHasValid:     make(map[string]bool),
+					keyValuesList:   make(map[string][]float64),
+				}
+				bucketMap[bKey] = acc
+				bucketKeys = append(bucketKeys, bKey)
+			}
+			return acc
+		}
+
+		// Pre-seed all chronological sub-buckets (e.g. 30 x 2-minute slots :00..:58) when batch spans an aligned multi-bucket window
+		hasItemPeriods := false
+		for i := range batch.Values {
+			if !batch.Values[i].PeriodStart.IsZero() || !batch.Values[i].PeriodEnd.IsZero() {
+				hasItemPeriods = true
+				break
+			}
+		}
+		if hasItemPeriods && batch.IntervalSeconds > 0 && !batch.PeriodStart.IsZero() && batch.PeriodEnd.After(batch.PeriodStart) {
+			spanSec := int(batch.PeriodEnd.Sub(batch.PeriodStart).Seconds())
+			if spanSec > batch.IntervalSeconds && spanSec%batch.IntervalSeconds == 0 && spanSec/batch.IntervalSeconds <= 120 {
+				step := time.Duration(batch.IntervalSeconds) * time.Second
+				for cur := batch.PeriodStart; cur.Before(batch.PeriodEnd); cur = cur.Add(step) {
+					subEnd := cur.Add(step)
+					ensureBucket(resolveBucketTimestamp(cur, subEnd, tsSource))
+				}
+			}
+		}
+
+		for _, item := range batch.Values {
+			enabled, targetFieldName := matcher.ResolveWithName(item.DeviceID, item.DeviceCode, item.ParameterID, item.ParameterCode, item.ParameterName)
+			if !enabled {
+				continue
+			}
+
+			if usePrefixMode && item.DeviceCode != "" {
+				targetFieldName = fmt.Sprintf("%s_%s", strings.ToLower(item.DeviceCode), strings.ToLower(targetFieldName))
+			}
+
+			pStart := item.PeriodStart
+			pEnd := item.PeriodEnd
+			if pStart.IsZero() && pEnd.IsZero() {
+				pStart = batch.PeriodStart
+				pEnd = batch.PeriodEnd
+			}
+			rowTime := resolveBucketTimestamp(pStart, pEnd, tsSource)
+			acc := ensureBucket(rowTime)
+
+			val := extractCBIVal(item)
+			isNonNil := item.Value != nil
+			prevDev, conflict := acc.keySourceDevice[targetFieldName]
+			if conflict && prevDev != item.DeviceCode {
+				switch conflictResolution {
+				case "PREFIX":
+					prefixedKey := fmt.Sprintf("%s_%s", strings.ToLower(item.DeviceCode), strings.ToLower(targetFieldName))
+					addParamKey(prefixedKey)
+					if _, seen := acc.measurements[prefixedKey]; !seen {
+						acc.keyOrder = append(acc.keyOrder, prefixedKey)
+					}
+					acc.measurements[prefixedKey] = val
+					acc.keySourceDevice[prefixedKey] = item.DeviceCode
+					acc.keyHasValid[prefixedKey] = isNonNil
+				case "ARRAY":
+					addParamKey(targetFieldName)
+					switch existing := acc.measurements[targetFieldName].(type) {
+					case []interface{}:
+						acc.measurements[targetFieldName] = append(existing, val)
+					default:
+						acc.measurements[targetFieldName] = []interface{}{existing, val}
+					}
+				case "PRIORITY_PRIMARY":
+					if !acc.keyHasValid[targetFieldName] && isNonNil {
+						acc.measurements[targetFieldName] = val
+						acc.keyHasValid[targetFieldName] = true
+					}
+					continue
+				case "AVERAGE":
+					addParamKey(targetFieldName)
+					if isNonNil {
+						acc.keyValuesList[targetFieldName] = append(acc.keyValuesList[targetFieldName], *item.Value)
+						sum := 0.0
+						for _, v := range acc.keyValuesList[targetFieldName] {
+							sum += v
+						}
+						avg := sum / float64(len(acc.keyValuesList[targetFieldName]))
+						acc.measurements[targetFieldName] = formatScalarOutboundNumber(avg, precisionMode)
+						acc.keyHasValid[targetFieldName] = true
+					}
+				case "CUSTOM_MAPPING":
+					return nil, fmt.Errorf("parameter key collision on '%s' between device %s and %s; please specify distinct external aliases per device", targetFieldName, prevDev, item.DeviceCode)
+				default:
+					return nil, fmt.Errorf("parameter key collision on '%s' between device %s and %s; configure distinct external aliases or enable device grouping", targetFieldName, prevDev, item.DeviceCode)
+				}
+			} else {
+				addParamKey(targetFieldName)
+				if _, seen := acc.measurements[targetFieldName]; !seen {
+					acc.keyOrder = append(acc.keyOrder, targetFieldName)
+				}
+				acc.measurements[targetFieldName] = val
+				acc.keySourceDevice[targetFieldName] = item.DeviceCode
+				if isNonNil {
+					acc.keyHasValid[targetFieldName] = true
+					acc.keyValuesList[targetFieldName] = []float64{*item.Value}
+				}
+			}
+		}
+
+		sort.Slice(bucketKeys, func(i, j int) bool { return bucketKeys[i] < bucketKeys[j] })
+
+		orderedRows := make([]orderedJSONObject, 0, len(bucketKeys))
+		sparingRowMaps = make([]map[string]interface{}, 0, len(bucketKeys))
+
+		for _, bKey := range bucketKeys {
+			acc := bucketMap[bKey]
+			rowTsVal, tsErr := formatTimestamp(acc.bucketTime, tsFormat, tsTimezone)
+			if tsErr != nil {
+				return nil, fmt.Errorf("failed to format bucket timestamp: %w", tsErr)
+			}
+
+			rowFields := make([]orderedJSONField, 0, len(orderedParamKeys)+2)
+			flatCheck := make(map[string]interface{}, len(orderedParamKeys)+2)
+			addedInRow := make(map[string]bool, len(orderedParamKeys))
+
+			for _, k := range orderedParamKeys {
+				v, ok := acc.measurements[k]
+				if !ok || v == nil {
+					v = buildZeroVal()
+				}
+				rowFields = append(rowFields, orderedJSONField{Key: k, Value: v})
+				flatCheck[k] = v
+				addedInRow[k] = true
+			}
+			for _, k := range acc.keyOrder {
+				if addedInRow[k] || k == "created_at" || k == "updated_at" {
+					continue
+				}
+				v := acc.measurements[k]
+				if v == nil {
+					v = buildZeroVal()
+				}
+				rowFields = append(rowFields, orderedJSONField{Key: k, Value: v})
+				flatCheck[k] = v
+				addedInRow[k] = true
+			}
+
+			rowFields = append(rowFields,
+				orderedJSONField{Key: "created_at", Value: rowTsVal},
+				orderedJSONField{Key: "updated_at", Value: rowTsVal},
+			)
+			flatCheck["created_at"] = rowTsVal
+			flatCheck["updated_at"] = rowTsVal
+
+			orderedRows = append(orderedRows, orderedJSONObject(rowFields))
+			sparingRowMaps = append(sparingRowMaps, flatCheck)
+		}
+
+		nestedKey := strings.TrimSpace(cfg.NestedDataKey)
+		if nestedKey == "" || (nestedKey == "data" && (templateUpper == "CBI_MULTI_HOURLY" || templateUpper == "MULTI_TICK_SENSOR")) {
+			nestedKey = "hourly_data"
+		}
+
+		rootMap = map[string]interface{}{
+			"module_id":   resolvedModuleID,
+			cbiStationKey: resolvedStationID,
+			nestedKey:     orderedRows,
+		}
+
+		rootFields := []orderedJSONField{
+			{Key: "module_id", Value: resolvedModuleID},
+			{Key: cbiStationKey, Value: resolvedStationID},
+		}
+		if cfg.IncludeMetadata {
+			rootMap["period_start"] = batch.PeriodStart.Format(time.RFC3339)
+			rootMap["period_end"] = batch.PeriodEnd.Format(time.RFC3339)
+			rootMap["interval_seconds"] = batch.IntervalSeconds
+			rootMap["device_count"] = batch.DeviceCount
+			rootFields = append(rootFields,
+				orderedJSONField{Key: "period_start", Value: rootMap["period_start"]},
+				orderedJSONField{Key: "period_end", Value: rootMap["period_end"]},
+				orderedJSONField{Key: "interval_seconds", Value: batch.IntervalSeconds},
+				orderedJSONField{Key: "device_count", Value: batch.DeviceCount},
+			)
+			if batch.DevicesSummary != "" {
+				rootMap["devices"] = batch.DevicesSummary
+				rootFields = append(rootFields, orderedJSONField{Key: "devices", Value: batch.DevicesSummary})
+			}
+		}
+		for _, k := range extraStaticKeys {
+			rootMap[k] = extraStaticMap[k]
+			rootFields = append(rootFields, orderedJSONField{Key: k, Value: extraStaticMap[k]})
+		}
+		rootFields = append(rootFields, orderedJSONField{Key: nestedKey, Value: orderedRows})
+		orderedRootPayload = orderedJSONObject(rootFields)
+
 	case structure == "MULTI_TICK_ARRAY" || structure == "TICK_ARRAY":
 		var tickList []map[string]interface{}
 
@@ -1033,13 +1412,27 @@ func (f *ConfigurablePayloadFormatter) Format(batch *OutboundBatchData, cfg *mod
 				val = fixed2Float(0)
 			}
 
+			itemCreatedAt := createdAtTs
+			if !item.PeriodStart.IsZero() {
+				if cs, err := formatTimestamp(item.PeriodStart, cfg.TimestampFormat, cfg.TimestampTimezone); err == nil {
+					itemCreatedAt = cs
+				}
+			}
+			itemUpdatedAt := updatedAtTs
+			if !item.PeriodStart.IsZero() || !item.PeriodEnd.IsZero() {
+				uTime := resolveBucketTimestamp(item.PeriodStart, item.PeriodEnd, cfg.TimestampSource)
+				if us, err := formatTimestamp(uTime, cfg.TimestampFormat, cfg.TimestampTimezone); err == nil {
+					itemUpdatedAt = us
+				}
+			}
+
 			tickMap := map[string]interface{}{
 				"module_id":   modID,
 				"station_id":  resolvedStationID,
 				"sensor_name": sensorName,
 				"value":       val,
-				"created_at":  createdAtTs,
-				"updated_at":  updatedAtTs,
+				"created_at":  itemCreatedAt,
+				"updated_at":  itemUpdatedAt,
 			}
 
 			tickList = append(tickList, map[string]interface{}{
@@ -1500,6 +1893,8 @@ func formatTimestamp(t time.Time, format string, tz string) (interface{}, error)
 		return t.Unix(), nil
 	case "CUSTOM":
 		return t.Format("2006-01-02 15:04:05"), nil
+	case "CUSTOM_OFFSET", "DATETIME_OFFSET":
+		return t.Format("2006-01-02 15:04:05 -0700"), nil
 	case "ISO8601", "":
 		fallthrough
 	default:

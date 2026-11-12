@@ -810,6 +810,144 @@ func TestPayloadFormatter_CustomSchemaVisualFieldsAndJSONTemplate(t *testing.T) 
 	}
 }
 
+func TestPayloadFormatter_CBIHourlyData_30x2Minute(t *testing.T) {
+	formatter := NewConfigurablePayloadFormatter()
+	wib, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		wib = time.FixedZone("WIB", 7*3600)
+	}
+
+	windowStart := time.Date(2026, 11, 12, 8, 0, 0, 0, wib).UTC()
+	windowEnd := time.Date(2026, 11, 12, 9, 0, 0, 0, wib).UTC()
+
+	mappings := []model.ParameterMappingItem{
+		{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 1, ParameterCode: "PH", ExternalName: "ph", Enabled: true},
+		{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 2, ParameterCode: "DEBIT", ExternalName: "debit", Enabled: true},
+		{DeviceID: 2, DeviceCode: "DEV-2", ParameterID: 3, ParameterCode: "TSS", ExternalName: "tss", Enabled: true},
+		{DeviceID: 2, DeviceCode: "DEV-2", ParameterID: 4, ParameterCode: "COD", ExternalName: "cod", Enabled: true},
+		{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 5, ParameterCode: "TEMP_PANEL", ExternalName: "temp_panel", Enabled: true},
+		{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 6, ParameterCode: "HUMIDITY", ExternalName: "humidity", Enabled: true},
+	}
+	mappingsJSON, _ := json.Marshal(mappings)
+
+	cfg := &model.DestinationPayloadConfig{
+		TemplateType:          "CBI_MULTI_HOURLY",
+		Structure:             "CBI_HOURLY_ARRAY",
+		NestedDataKey:         "hourly_data",
+		StationIDField:        "station_id",
+		StationIDValue:        "3",
+		ModuleIDValue:         "4",
+		TimestampField:        "created_at",
+		TimestampFormat:       "CUSTOM_OFFSET",
+		TimestampSource:       "PERIOD_START",
+		TimestampTimezone:     "Asia/Jakarta",
+		NumericPrecisionMode:  "NATURAL_2",
+		OmitIntervalField:     true,
+		ConflictResolution:    "PRIORITY_PRIMARY",
+		ParameterMappingsJSON: string(mappingsJSON),
+	}
+	if err := formatter.ValidateConfig(cfg); err != nil {
+		t.Fatalf("ValidateConfig failed: %v", err)
+	}
+
+	var values []model.SourceAggregationValueItem
+	for idx := 0; idx < 30; idx++ {
+		subStart := windowStart.Add(time.Duration(idx*2) * time.Minute)
+		subEnd := subStart.Add(2 * time.Minute)
+
+		// Bucket 20 (08:40:00) completely omitted to verify pre-seeded 0-fill across all 30 slots
+		if idx == 20 {
+			continue
+		}
+
+		// Bucket 22 (08:44:00): DEV-1 offline (no rows emitted for ph, debit, temp_panel, humidity), DEV-2 online (tss=36.82, cod=87.41)
+		if idx == 22 {
+			tssVal := 36.82
+			codVal := 87.41
+			values = append(values,
+				model.SourceAggregationValueItem{DeviceID: 2, DeviceCode: "DEV-2", ParameterID: 3, ParameterCode: "TSS", Value: &tssVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+				model.SourceAggregationValueItem{DeviceID: 2, DeviceCode: "DEV-2", ParameterID: 4, ParameterCode: "COD", Value: &codVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+			)
+			continue
+		}
+
+		phVal := 7.03
+		debitVal := 0.23
+		tssVal := 19.21
+		codVal := 85.54
+		tempPanelVal := 28.10 // should serialize naturally as 28.1
+		humVal := 0.0         // should serialize naturally as 0
+		if idx == 1 {
+			phVal = 7.02
+			tssVal = 18.98
+			codVal = 85.50 // should serialize naturally as 85.5
+			tempPanelVal = 28.11
+		}
+
+		values = append(values,
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 1, ParameterCode: "PH", Value: &phVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 2, ParameterCode: "DEBIT", Value: &debitVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+			model.SourceAggregationValueItem{DeviceID: 2, DeviceCode: "DEV-2", ParameterID: 3, ParameterCode: "TSS", Value: &tssVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+			model.SourceAggregationValueItem{DeviceID: 2, DeviceCode: "DEV-2", ParameterID: 4, ParameterCode: "COD", Value: &codVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 5, ParameterCode: "TEMP_PANEL", Value: &tempPanelVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+			model.SourceAggregationValueItem{DeviceID: 1, DeviceCode: "DEV-1", ParameterID: 6, ParameterCode: "HUMIDITY", Value: &humVal, Quality: "GOOD", PeriodStart: subStart, PeriodEnd: subEnd},
+		)
+	}
+
+	batch := &OutboundBatchData{
+		DeviceCount:     2,
+		DevicesSummary:  "DEV-1, DEV-2",
+		IntervalSeconds: 120,
+		PeriodStart:     windowStart,
+		PeriodEnd:       windowEnd,
+		Values:          values,
+	}
+
+	raw, err := formatter.Format(batch, cfg)
+	if err != nil {
+		t.Fatalf("Format failed: %v", err)
+	}
+	rawStr := string(raw)
+
+	// Verify exact root prefix (string module_id + string station_id + hourly_data) and exact first two items
+	wantPrefix := `{"module_id":"4","station_id":"3","hourly_data":[{"ph":7.03,"debit":0.23,"tss":19.21,"cod":85.54,"temp_panel":28.1,"humidity":0,"created_at":"2026-11-12 08:00:00 +0700","updated_at":"2026-11-12 08:00:00 +0700"},{"ph":7.02,"debit":0.23,"tss":18.98,"cod":85.5,"temp_panel":28.11,"humidity":0,"created_at":"2026-11-12 08:02:00 +0700","updated_at":"2026-11-12 08:02:00 +0700"},`
+	if !strings.HasPrefix(rawStr, wantPrefix) {
+		t.Fatalf("unexpected JSON root/prefix:\ngot:  %s\nwant prefix: %s", rawStr, wantPrefix)
+	}
+
+	// Verify partial device outage bucket 08:44:00 +0700 fills missing sensors with 0 in exact field order
+	wantPartialOutage := `{"ph":0,"debit":0,"tss":36.82,"cod":87.41,"temp_panel":0,"humidity":0,"created_at":"2026-11-12 08:44:00 +0700","updated_at":"2026-11-12 08:44:00 +0700"}`
+	if !strings.Contains(rawStr, wantPartialOutage) {
+		t.Fatalf("expected partial outage row %s in:\n%s", wantPartialOutage, rawStr)
+	}
+
+	// Verify completely omitted bucket 08:40:00 +0700 is pre-seeded with 0
+	wantFullOutage := `{"ph":0,"debit":0,"tss":0,"cod":0,"temp_panel":0,"humidity":0,"created_at":"2026-11-12 08:40:00 +0700","updated_at":"2026-11-12 08:40:00 +0700"}`
+	if !strings.Contains(rawStr, wantFullOutage) {
+		t.Fatalf("expected omitted bucket row %s in:\n%s", wantFullOutage, rawStr)
+	}
+
+	// Verify total 30 rows ending at 08:58:00 +0700
+	var parsed struct {
+		ModuleID   string                   `json:"module_id"`
+		StationID  string                   `json:"station_id"`
+		HourlyData []map[string]interface{} `json:"hourly_data"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+	if parsed.ModuleID != "4" || parsed.StationID != "3" {
+		t.Fatalf("expected module_id=4 station_id=3, got module_id=%q station_id=%q", parsed.ModuleID, parsed.StationID)
+	}
+	if len(parsed.HourlyData) != 30 {
+		t.Fatalf("expected 30 hourly_data rows, got %d", len(parsed.HourlyData))
+	}
+	if parsed.HourlyData[29]["created_at"] != "2026-11-12 08:58:00 +0700" || parsed.HourlyData[29]["updated_at"] != "2026-11-12 08:58:00 +0700" {
+		t.Fatalf("expected last row timestamp 2026-11-12 08:58:00 +0700, got %+v", parsed.HourlyData[29])
+	}
+}
+
+
 
 
 

@@ -1177,4 +1177,163 @@ func TestOutboundService_KLHKONLIMOBodyDeliveryAndRedaction(t *testing.T) {
 	}
 }
 
+func TestOutboundService_CBIHourlyBundled30x2DeliveryAndAutoSync(t *testing.T) {
+	db := setupOutboundTestDB(t)
+	outboundRepo := repository.NewOutboundRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
+	formatter := service.NewConfigurablePayloadFormatter()
+	svc := service.NewOutboundService(outboundRepo, deviceRepo, formatter)
+
+	ctx := context.Background()
+
+	db.Create(&model.Device{
+		ID:         1,
+		DeviceCode: "SPARING-CBI-01",
+		DeviceName: "Logger SPARING CBI",
+		Enabled:    true,
+		Status:     model.DeviceStatusActive,
+	})
+	params := []model.Parameter{
+		{ID: 1, DeviceID: 1, ParameterCode: "PH", ParameterName: "pH", Unit: "", Enabled: true},
+		{ID: 2, DeviceID: 1, ParameterCode: "DEBIT", ParameterName: "Debit", Unit: "m3/h", Enabled: true},
+		{ID: 3, DeviceID: 1, ParameterCode: "TSS", ParameterName: "TSS", Unit: "mg/L", Enabled: true},
+		{ID: 4, DeviceID: 1, ParameterCode: "COD", ParameterName: "COD", Unit: "mg/L", Enabled: true},
+		{ID: 5, DeviceID: 1, ParameterCode: "TEMP_PANEL", ParameterName: "Temp Panel", Unit: "C", Enabled: true},
+		{ID: 6, DeviceID: 1, ParameterCode: "HUMIDITY", ParameterName: "Humidity", Unit: "%", Enabled: true},
+	}
+	for _, p := range params {
+		pCopy := p
+		db.Create(&pCopy)
+	}
+
+	wib := time.FixedZone("WIB", 7*3600)
+	hourStart := time.Date(2026, 11, 12, 8, 0, 0, 0, wib).UTC()
+	hourEnd := time.Date(2026, 11, 12, 9, 0, 0, 0, wib).UTC()
+
+	var aggID uint64 = 5000
+	for slot := 0; slot < 30; slot++ {
+		subStart := hourStart.Add(time.Duration(slot*2) * time.Minute)
+		subEnd := subStart.Add(2 * time.Minute)
+		vals := []float64{7.03, 0.23, 19.21, 85.54, 28.1, 0}
+		for idx, p := range params {
+			aggID++
+			v := vals[idx]
+			db.Create(&model.AggregationResult{
+				ID:                      aggID,
+				AggregationDefinitionID: p.ID,
+				DeviceID:                1,
+				ParameterID:             p.ID,
+				SourceType:              model.SourceCustomerProcessed,
+				PeriodStart:             subStart,
+				PeriodEnd:               subEnd,
+				IntervalSeconds:         120,
+				Value:                   &v,
+				Quality:                 "GOOD",
+				Identifier:              fmt.Sprintf("cbi_%d_%d", p.ID, subEnd.Unix()),
+			})
+		}
+	}
+
+	var receivedBody atomic.Value
+	var receivedAuth atomic.Value
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawBytes, _ := io.ReadAll(r.Body)
+		receivedBody.Store(string(rawBytes))
+		receivedAuth.Store(r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer ts.Close()
+
+	// 1. Simulate an existing MULTI_TICK_SENSOR destination that gets switched/saved with DispatchIntervalSeconds=3600 & IntervalSeconds=0 (All Configured Intervals)
+	dest := &model.OutputDestination{
+		Name:                    "CBI",
+		Type:                    model.DestREST,
+		Endpoint:                ts.URL + "/api/v1/ticks/create_multi",
+		IntervalSeconds:         0,
+		DispatchIntervalSeconds: 0,
+		AuthType:                "BEARER_TOKEN",
+		AuthToken:               "cbi-bearer-token-123",
+		Enabled:                 true,
+		RetryLimit:              5,
+	}
+	if err := svc.CreateDestination(ctx, dest); err != nil {
+		t.Fatalf("CreateDestination failed: %v", err)
+	}
+
+	// Simulate legacy MULTI_TICK_SENSOR config with uppercase raw parameter aliases
+	legacyMappings, _ := json.Marshal([]model.ParameterMappingItem{
+		{DeviceID: 1, DeviceCode: "SPARING-CBI-01", ParameterID: 1, ParameterCode: "PH", ExternalName: "PH", Enabled: true},
+		{DeviceID: 1, DeviceCode: "SPARING-CBI-01", ParameterID: 2, ParameterCode: "DEBIT", ExternalName: "DEBIT", Enabled: true},
+		{DeviceID: 1, DeviceCode: "SPARING-CBI-01", ParameterID: 3, ParameterCode: "TSS", ExternalName: "TSS", Enabled: true},
+		{DeviceID: 1, DeviceCode: "SPARING-CBI-01", ParameterID: 4, ParameterCode: "COD", ExternalName: "COD", Enabled: true},
+		{DeviceID: 1, DeviceCode: "SPARING-CBI-01", ParameterID: 5, ParameterCode: "TEMP_PANEL", ExternalName: "TEMP_PANEL", Enabled: true},
+		{DeviceID: 1, DeviceCode: "SPARING-CBI-01", ParameterID: 6, ParameterCode: "HUMIDITY", ExternalName: "HUMIDITY", Enabled: true},
+	})
+	cfg, err := svc.GetPayloadConfig(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("GetPayloadConfig failed: %v", err)
+	}
+	cfg.TemplateType = "MULTI_TICK_SENSOR"
+	cfg.Structure = "MULTI_TICK_ARRAY"
+	cfg.StationIDField = "station_id"
+	cfg.StationIDValue = "3"
+	cfg.ModuleIDValue = "4"
+	cfg.TimestampField = "created_at"
+	cfg.TimestampFormat = "CUSTOM"
+	cfg.ParameterMappingsJSON = string(legacyMappings)
+	if err := svc.UpdatePayloadConfig(ctx, cfg); err != nil {
+		t.Fatalf("UpdatePayloadConfig legacy failed: %v", err)
+	}
+
+	// 2. Save destination with DispatchIntervalSeconds = 3600 (Bundle 30 Data x 2 Menit)
+	dest.DispatchIntervalSeconds = 3600
+	if err := svc.UpdateDestination(ctx, dest); err != nil {
+		t.Fatalf("UpdateDestination bundled failed: %v", err)
+	}
+
+	syncedCfg, err := svc.GetPayloadConfig(ctx, dest.ID)
+	if err != nil {
+		t.Fatalf("GetPayloadConfig after sync failed: %v", err)
+	}
+	if syncedCfg.TemplateType != "CBI_MULTI_HOURLY" || syncedCfg.Structure != "CBI_HOURLY_ARRAY" || syncedCfg.NestedDataKey != "hourly_data" || syncedCfg.TimestampFormat != "CUSTOM_OFFSET" {
+		t.Fatalf("expected auto-synced CBI_MULTI_HOURLY / CBI_HOURLY_ARRAY / hourly_data / CUSTOM_OFFSET, got %+v", syncedCfg)
+	}
+
+	// 3. Trigger non-boundary 2-minute bucket (08:02) -> must NOT enqueue yet
+	if err := svc.HandleBucketCompleted(ctx, 1, hourStart.Add(2*time.Minute)); err != nil {
+		t.Fatalf("HandleBucketCompleted 08:02 failed: %v", err)
+	}
+	qMid, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(qMid) != 0 {
+		t.Fatalf("expected 0 queue items before hourly boundary, got %d", len(qMid))
+	}
+
+	// 4. Trigger hourly boundary (09:00 WIB) -> must bundle all 30 x 2-minute rows into hourly_data and deliver
+	if err := svc.HandleBucketCompleted(ctx, 1, hourEnd); err != nil {
+		t.Fatalf("HandleBucketCompleted 09:00 failed: %v", err)
+	}
+	svc.ProcessPendingQueueOnce()
+
+	qFinal, _, _ := svc.GetQueueItems(ctx, repository.QueueFilter{DestinationID: &dest.ID})
+	if len(qFinal) != 1 || (qFinal[0].Status != model.DeliveryDelivered && qFinal[0].Status != model.DeliveryAcknowledged) {
+		t.Fatalf("expected 1 DELIVERED/ACKNOWLEDGED bundled CBI item, got len=%d items=%+v", len(qFinal), qFinal)
+	}
+
+	if gotAuth, _ := receivedAuth.Load().(string); gotAuth != "Bearer cbi-bearer-token-123" {
+		t.Fatalf("expected Bearer auth header, got %q", gotAuth)
+	}
+
+	wireBody, _ := receivedBody.Load().(string)
+	wantPrefix := `{"module_id":"4","station_id":"3","hourly_data":[{"ph":7.03,"debit":0.23,"tss":19.21,"cod":85.54,"temp_panel":28.1,"humidity":0,"created_at":"2026-11-12 08:00:00 +0700","updated_at":"2026-11-12 08:00:00 +0700"},`
+	if !strings.HasPrefix(wireBody, wantPrefix) {
+		t.Fatalf("wire body mismatch:\ngot:  %s\nwant prefix: %s", wireBody, wantPrefix)
+	}
+	if !strings.Contains(wireBody, `"created_at":"2026-11-12 08:58:00 +0700","updated_at":"2026-11-12 08:58:00 +0700"}]}`) {
+		t.Fatalf("expected wire body to end with 08:58:00 +0700 item, got:\n%s", wireBody)
+	}
+}
+
+
 

@@ -81,18 +81,18 @@ type OutputDestination struct {
 type DestinationPayloadConfig struct {
 	ID                    uint      `gorm:"primaryKey" json:"id"`
 	DestinationID          uint      `gorm:"uniqueIndex;not null" json:"destination_id"`
-	TemplateType            string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_WQMS_ONLIMO, KLHK_SPARING, KLHK_SPARING_HOURLY, KLHK_ISPU_AQMS, NESTED_SCADA, MULTI_DEVICE, CUSTOM
+	TemplateType            string    `gorm:"size:32;default:'STANDARD'" json:"template_type"` // STANDARD, KLHK_WQMS_ONLIMO, KLHK_SPARING, KLHK_SPARING_HOURLY, KLHK_ISPU_AQMS, CBI_MULTI_HOURLY, MULTI_TICK_SENSOR, NESTED_SCADA, MULTI_DEVICE, CUSTOM
 	StationIDField          string    `gorm:"size:64;default:'station_id'" json:"station_id_field"`
 	StationIDValue          string    `gorm:"size:64" json:"station_id_value,omitempty"` // optional override
-	ModuleIDValue           string    `gorm:"size:64" json:"module_id_value,omitempty"`  // optional override for tick schemas
+	ModuleIDValue           string    `gorm:"size:64" json:"module_id_value,omitempty"`  // optional override for tick / CBI hourly schemas
 	TimestampField          string    `gorm:"size:64;default:'timestamp'" json:"timestamp_field"`
-	TimestampFormat         string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"`                    // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM
+	TimestampFormat         string    `gorm:"size:32;default:'ISO8601'" json:"timestamp_format"`                    // ISO8601, UNIX_MS, UNIX_SEC, CUSTOM, CUSTOM_OFFSET
 	TimestampSource         string    `gorm:"size:24;default:'PERIOD_END'" json:"timestamp_source,omitempty"`       // PERIOD_END (default) or PERIOD_START
 	TimestampTimezone       string    `gorm:"size:64;default:''" json:"timestamp_timezone,omitempty"`               // e.g. Asia/Jakarta, Asia/Makassar, Asia/Jayapura, UTC
 	NumericPrecisionMode    string    `gorm:"size:24;default:'FIXED_2'" json:"numeric_precision_mode,omitempty"`    // FIXED_2 (default 41.00) or NATURAL_2 (41, 41.1, 40.99, 0)
 	IntervalField           string    `gorm:"size:64;default:'interval_minutes'" json:"interval_field"`
 	OmitIntervalField       bool      `gorm:"default:false" json:"omit_interval_field"`
-	Structure               string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE, MULTI_TICK_ARRAY, SPARING_DATA_ARRAY, ONLIMO_DATA_OBJECT
+	Structure               string    `gorm:"size:32;default:'FLAT'" json:"structure"` // FLAT, NESTED, NESTED_BY_DEVICE, ARRAY_BY_DEVICE, MULTI_TICK_ARRAY, CBI_HOURLY_ARRAY, SPARING_DATA_ARRAY, ONLIMO_DATA_OBJECT
 	NestedDataKey           string    `gorm:"size:64;default:'data'" json:"nested_data_key"`
 	IncludeDeviceIdentity   bool      `gorm:"default:false" json:"include_device_identity"` // true: include device code/name in payload
 	DeviceIdentityMode      string    `gorm:"size:32;default:'NONE'" json:"device_identity_mode"` // NONE, PREFIX, NESTED, TAG

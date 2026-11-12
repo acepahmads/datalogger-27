@@ -1997,6 +1997,23 @@ func (s *outboundService) CreateDestination(ctx context.Context, dest *model.Out
 			cfg.TemplateType = "KLHK_SPARING"
 			cfg.Structure = "FLAT"
 		}
+	} else if dest.DispatchIntervalSeconds > 0 && (strings.Contains(strings.ToLower(dest.Endpoint), "cbi.") ||
+		strings.Contains(strings.ToLower(dest.Endpoint), "create_multi") ||
+		strings.Contains(strings.ToLower(dest.Endpoint), "hourly_data")) {
+		cfg.TemplateType = "CBI_MULTI_HOURLY"
+		cfg.StationIDField = "station_id"
+		cfg.TimestampField = "created_at"
+		cfg.TimestampFormat = "CUSTOM_OFFSET"
+		cfg.TimestampSource = "PERIOD_START"
+		cfg.TimestampTimezone = "Asia/Jakarta"
+		cfg.NumericPrecisionMode = "NATURAL_2"
+		cfg.OmitIntervalField = true
+		cfg.IncludeMetadata = false
+		cfg.IncludeDeviceIdentity = false
+		cfg.DeviceIdentityMode = "NONE"
+		cfg.Structure = "CBI_HOURLY_ARRAY"
+		cfg.NestedDataKey = "hourly_data"
+		cfg.ConflictResolution = "PRIORITY_PRIMARY"
 	}
 	_ = s.repo.UpsertPayloadConfig(ctx, cfg)
 	return nil
@@ -2092,37 +2109,103 @@ func (s *outboundService) UpdateDestination(ctx context.Context, dest *model.Out
 		return err
 	}
 
-	// Keep SPARING payload structure synchronized when user toggles DispatchIntervalSeconds (Per 2 Menit <-> Per 1 Jam / 30 Data)
+	// Keep SPARING & Cloud CBI payload structure synchronized with DispatchIntervalSeconds (Per 2 Menit <-> Per 1 Jam / 30 Data)
 	var updatedCfg *model.DestinationPayloadConfig
-	if existing.DispatchIntervalSeconds != dest.DispatchIntervalSeconds {
-		if cfg, cfgErr := s.repo.GetPayloadConfigByDestinationID(ctx, dest.ID); cfgErr == nil && cfg != nil {
-			tpl := strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
-			str := strings.ToUpper(strings.TrimSpace(cfg.Structure))
-			isSparing := tpl == "KLHK_SPARING" || tpl == "KLHK_SPARING_HOURLY" ||
-				dest.AuthType == "SPARING_JWT_2STEP" || dest.AuthType == "SPARING_JWT_STATIC"
-			if isSparing {
-				if dest.DispatchIntervalSeconds > 0 && str == "FLAT" {
-					cfg.TemplateType = "KLHK_SPARING_HOURLY"
-					cfg.Structure = "SPARING_DATA_ARRAY"
-					if cfg.NestedDataKey == "" {
-						cfg.NestedDataKey = "data"
-					}
-					if cfg.TimestampSource == "" || cfg.TimestampSource == "PERIOD_END" {
-						cfg.TimestampSource = "PERIOD_START"
-					}
-					if cfg.NumericPrecisionMode == "" || cfg.NumericPrecisionMode == "FIXED_2" {
-						cfg.NumericPrecisionMode = "NATURAL_2"
-					}
-					cfg.OmitIntervalField = true
-					cfg.IncludeMetadata = false
-					_ = s.repo.UpsertPayloadConfig(ctx, cfg)
-					updatedCfg = cfg
-				} else if dest.DispatchIntervalSeconds == 0 && str == "SPARING_DATA_ARRAY" {
-					cfg.TemplateType = "KLHK_SPARING"
-					cfg.Structure = "FLAT"
-					_ = s.repo.UpsertPayloadConfig(ctx, cfg)
-					updatedCfg = cfg
+	if cfg, cfgErr := s.repo.GetPayloadConfigByDestinationID(ctx, dest.ID); cfgErr == nil && cfg != nil {
+		tpl := strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
+		str := strings.ToUpper(strings.TrimSpace(cfg.Structure))
+		epLower := strings.ToLower(strings.TrimSpace(dest.Endpoint))
+		isCBIEndpoint := strings.Contains(epLower, "cbi.") || strings.Contains(epLower, "create_multi") || strings.Contains(epLower, "hourly_data")
+		isSparing := (tpl == "KLHK_SPARING" || tpl == "KLHK_SPARING_HOURLY" ||
+			dest.AuthType == "SPARING_JWT_2STEP" || dest.AuthType == "SPARING_JWT_STATIC") &&
+			!(isCBIEndpoint && dest.AuthType != "SPARING_JWT_2STEP" && dest.AuthType != "SPARING_JWT_STATIC")
+		isCBIMulti := tpl == "MULTI_TICK_SENSOR" || tpl == "CBI_MULTI_HOURLY" ||
+			str == "MULTI_TICK_ARRAY" || str == "TICK_ARRAY" || str == "CBI_HOURLY_ARRAY" ||
+			(isCBIEndpoint && (tpl == "" || tpl == "STANDARD" || tpl == "KLHK_SPARING" || tpl == "KLHK_SPARING_HOURLY"))
+
+		if existing.DispatchIntervalSeconds != dest.DispatchIntervalSeconds && isSparing {
+			if dest.DispatchIntervalSeconds > 0 && str == "FLAT" {
+				cfg.TemplateType = "KLHK_SPARING_HOURLY"
+				cfg.Structure = "SPARING_DATA_ARRAY"
+				if cfg.NestedDataKey == "" {
+					cfg.NestedDataKey = "data"
 				}
+				if cfg.TimestampSource == "" || cfg.TimestampSource == "PERIOD_END" {
+					cfg.TimestampSource = "PERIOD_START"
+				}
+				if cfg.NumericPrecisionMode == "" || cfg.NumericPrecisionMode == "FIXED_2" {
+					cfg.NumericPrecisionMode = "NATURAL_2"
+				}
+				cfg.OmitIntervalField = true
+				cfg.IncludeMetadata = false
+				_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+				updatedCfg = cfg
+			} else if dest.DispatchIntervalSeconds == 0 && str == "SPARING_DATA_ARRAY" {
+				cfg.TemplateType = "KLHK_SPARING"
+				cfg.Structure = "FLAT"
+				_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+				updatedCfg = cfg
+			}
+		} else if isCBIMulti {
+			if dest.DispatchIntervalSeconds > 0 && str != "CBI_HOURLY_ARRAY" && str != "CUSTOM_SCHEMA" {
+				cfg.TemplateType = "CBI_MULTI_HOURLY"
+				cfg.Structure = "CBI_HOURLY_ARRAY"
+				cfg.NestedDataKey = "hourly_data"
+				if cfg.StationIDField == "" || strings.EqualFold(cfg.StationIDField, "uid") {
+					cfg.StationIDField = "station_id"
+				}
+				cfg.TimestampField = "created_at"
+				if cfg.TimestampFormat == "" || cfg.TimestampFormat == "CUSTOM" || cfg.TimestampFormat == "ISO8601" || cfg.TimestampFormat == "UNIX_SEC" {
+					cfg.TimestampFormat = "CUSTOM_OFFSET"
+				}
+				if cfg.TimestampTimezone == "" {
+					cfg.TimestampTimezone = "Asia/Jakarta"
+				}
+				if cfg.TimestampSource == "" || cfg.TimestampSource == "PERIOD_END" {
+					cfg.TimestampSource = "PERIOD_START"
+				}
+				if cfg.NumericPrecisionMode == "" || cfg.NumericPrecisionMode == "FIXED_2" {
+					cfg.NumericPrecisionMode = "NATURAL_2"
+				}
+				if cfg.ConflictResolution == "" || cfg.ConflictResolution == "FAIL_ON_CONFLICT" || cfg.ConflictResolution == "PREFIX" {
+					cfg.ConflictResolution = "PRIORITY_PRIMARY"
+				}
+				cfg.IncludeDeviceIdentity = false
+				cfg.DeviceIdentityMode = "NONE"
+				cfg.OmitIntervalField = true
+				cfg.IncludeMetadata = false
+				if strings.TrimSpace(cfg.ParameterMappingsJSON) != "" {
+					var mappings []model.ParameterMappingItem
+					if err := json.Unmarshal([]byte(cfg.ParameterMappingsJSON), &mappings); err == nil && len(mappings) > 0 {
+						changedMappings := false
+						for i := range mappings {
+							ext := strings.TrimSpace(mappings[i].ExternalName)
+							code := strings.TrimSpace(mappings[i].ParameterCode)
+							if ext == "" || strings.EqualFold(ext, code) || ext == "pH" {
+								alias, _ := defaultCBIHourlyAlias(code)
+								if alias != "" && alias != ext {
+									mappings[i].ExternalName = alias
+									changedMappings = true
+								}
+							}
+						}
+						if changedMappings {
+							if b, mErr := json.Marshal(mappings); mErr == nil {
+								cfg.ParameterMappingsJSON = string(b)
+							}
+						}
+					}
+				}
+				_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+				updatedCfg = cfg
+			} else if existing.DispatchIntervalSeconds != dest.DispatchIntervalSeconds && dest.DispatchIntervalSeconds == 0 && str == "CBI_HOURLY_ARRAY" {
+				cfg.TemplateType = "MULTI_TICK_SENSOR"
+				cfg.Structure = "MULTI_TICK_ARRAY"
+				if cfg.TimestampFormat == "CUSTOM_OFFSET" {
+					cfg.TimestampFormat = "CUSTOM"
+				}
+				_ = s.repo.UpsertPayloadConfig(ctx, cfg)
+				updatedCfg = cfg
 			}
 		}
 	}
@@ -3162,6 +3245,8 @@ func resolveTemplateDefaultAlias(cfg *model.DestinationPayloadConfig, code, name
 	switch {
 	case tmpl == "KLHK_SPARING" || tmpl == "KLHK_SPARING_HOURLY" || struc == "SPARING_DATA_ARRAY":
 		return defaultKLHKSPARINGAlias(trimmed), isCanonicalSPARINGParam(trimmed, name)
+	case tmpl == "CBI_MULTI_HOURLY" || struc == "CBI_HOURLY_ARRAY":
+		return defaultCBIHourlyAlias(trimmed)
 	case tmpl == "KLHK_WQMS_ONLIMO" || struc == "ONLIMO_DATA_OBJECT":
 		if alias, ok := matchKLHKWQMSAlias(trimmed, name); ok {
 			return alias, true
@@ -3379,10 +3464,12 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 	structureUpper := strings.ToUpper(strings.TrimSpace(cfg.Structure))
 	templateUpper := strings.ToUpper(strings.TrimSpace(cfg.TemplateType))
 	isSparingArray := structureUpper == "SPARING_DATA_ARRAY"
+	isCBIHourlyArray := structureUpper == "CBI_HOURLY_ARRAY" || templateUpper == "CBI_MULTI_HOURLY"
+	isBundledArray := isSparingArray || isCBIHourlyArray
 
 	var realResults []model.AggregationResult
 	var err error
-	if isSparingArray || (dest != nil && dest.DispatchIntervalSeconds > 0 && customCfg == nil) {
+	if isBundledArray || (dest != nil && dest.DispatchIntervalSeconds > 0 && customCfg == nil) {
 		srcInterval := 120
 		if dest != nil && dest.IntervalSeconds > 0 {
 			srcInterval = dest.IntervalSeconds
@@ -3489,8 +3576,8 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			batch.DeviceCode = devicesList[0].DeviceCode
 			batch.DeviceName = devicesList[0].DeviceName
 		}
-	} else if isSparingArray || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
-		// Construct realistic KLHK SPARING sample batch (either 30x 2-minute hourly bundle or 1x 2-minute flat record)
+	} else if isBundledArray || templateUpper == "KLHK_SPARING" || templateUpper == "KLHK_SPARING_HOURLY" {
+		// Construct realistic KLHK SPARING / Cloud CBI 30x 2-minute hourly bundle or 1x 2-minute flat sample batch
 		srcSec := 120
 		if dest != nil && dest.IntervalSeconds > 0 {
 			srcSec = dest.IntervalSeconds
@@ -3500,7 +3587,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			dispSec = dest.DispatchIntervalSeconds
 		}
 		bucketCount := 1
-		if isSparingArray {
+		if isBundledArray {
 			bucketCount = dispSec / srcSec
 			if bucketCount < 1 {
 				bucketCount = 30
@@ -3510,7 +3597,7 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 		}
 
 		alignedHourEnd := time.Unix((time.Now().Unix()/3600)*3600, 0).UTC()
-		if !isSparingArray {
+		if !isBundledArray {
 			alignedHourEnd = time.Unix((time.Now().Unix()/int64(srcSec))*int64(srcSec), 0).UTC()
 		}
 		windowStart := alignedHourEnd.Add(-time.Duration(bucketCount*srcSec) * time.Second)
@@ -3544,15 +3631,19 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 				delta := 0.02
 				switch strings.ToLower(strings.TrimSpace(m.ParameterCode)) {
 				case "ph", "p_h":
-					base, delta = 6.93, 0.01
+					base, delta = 7.03, 0.01
 				case "cod":
-					base, delta = 40.99, 0.12
+					base, delta = 85.54, 0.12
 				case "tss":
-					base, delta = 27.95, 0.03
+					base, delta = 19.21, 0.03
 				case "nh3n", "nh3-n", "nh3_n", "ammonia", "amonia":
 					base, delta = 0, 0
 				case "debit", "flow", "flowrate", "flow_rate", "flow-rate":
-					base, delta = 0.24, 0.01
+					base, delta = 0.23, 0.01
+				case "temp_panel", "temperature", "temp":
+					base, delta = 28.1, 0.01
+				case "humidity", "hum":
+					base, delta = 0, 0
 				}
 				specs = append(specs, sparingParamSpec{
 					deviceID:   dID,
@@ -3566,12 +3657,23 @@ func (s *outboundService) GeneratePreviewWithConfig(ctx context.Context, destID 
 			}
 		}
 		if len(specs) == 0 {
-			specs = []sparingParamSpec{
-				{deviceID: 1, deviceCode: "SPARING-01", paramID: 1, code: "ph", name: "pH", baseVal: 6.93, stepDelta: 0.01},
-				{deviceID: 1, deviceCode: "SPARING-01", paramID: 2, code: "cod", name: "COD", baseVal: 40.99, stepDelta: 0.12},
-				{deviceID: 1, deviceCode: "SPARING-01", paramID: 3, code: "tss", name: "TSS", baseVal: 27.95, stepDelta: 0.03},
-				{deviceID: 1, deviceCode: "SPARING-01", paramID: 4, code: "nh3n", name: "NH3-N", baseVal: 0, stepDelta: 0},
-				{deviceID: 1, deviceCode: "SPARING-01", paramID: 5, code: "debit", name: "Debit", baseVal: 0.24, stepDelta: 0.01},
+			if isCBIHourlyArray {
+				specs = []sparingParamSpec{
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 1, code: "ph", name: "pH", baseVal: 7.03, stepDelta: 0.01},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 2, code: "debit", name: "Debit", baseVal: 0.23, stepDelta: 0},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 3, code: "tss", name: "TSS", baseVal: 19.21, stepDelta: 0.14},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 4, code: "cod", name: "COD", baseVal: 85.54, stepDelta: 0.12},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 5, code: "temp_panel", name: "Temp Panel", baseVal: 28.1, stepDelta: 0.01},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 6, code: "humidity", name: "Humidity", baseVal: 0, stepDelta: 0},
+				}
+			} else {
+				specs = []sparingParamSpec{
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 1, code: "ph", name: "pH", baseVal: 6.93, stepDelta: 0.01},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 2, code: "cod", name: "COD", baseVal: 40.99, stepDelta: 0.12},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 3, code: "tss", name: "TSS", baseVal: 27.95, stepDelta: 0.03},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 4, code: "nh3n", name: "NH3-N", baseVal: 0, stepDelta: 0},
+					{deviceID: 1, deviceCode: "SPARING-01", paramID: 5, code: "debit", name: "Debit", baseVal: 0.24, stepDelta: 0.01},
+				}
 			}
 		}
 
