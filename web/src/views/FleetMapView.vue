@@ -164,7 +164,7 @@
           @click="isRightDockCollapsed = !isRightDockCollapsed"
           class="h-7 px-2 rounded-lg text-2xs font-semibold border transition cursor-pointer whitespace-nowrap"
           :class="!isRightDockCollapsed
-            ? 'bg-slate-900 dark:bg-sky-600 text-white btn-text border-slate-900 dark:border-sky-500'
+            ? 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs'
             : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80'"
           title="Tampilkan / sembunyikan panel Prioritas Stasiun"
         >
@@ -337,9 +337,9 @@
         <!-- Offline Tiles Notice Pill -->
         <div
           v-if="!isTilesOnline"
-          class="absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-slate-900/85 text-amber-300 border border-amber-500/40 text-3xs font-semibold flex items-center gap-1.5 pointer-events-none"
+          class="absolute bottom-2.5 left-2.5 z-[450] px-2.5 py-1 rounded-lg bg-amber-50/95 dark:bg-amber-950/90 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-3xs font-semibold flex items-center gap-1.5 pointer-events-none shadow-sm"
         >
-          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
           <span>Tile peta online tidak terjangkau (koordinat pin tetap akurat)</span>
         </div>
 
@@ -846,14 +846,14 @@
           </div>
 
           <div>
-            <label class="block text-2xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tema Peta</label>
-            <div class="grid grid-cols-4 gap-1.5">
+            <label class="block text-2xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tema Peta (100% Free)</label>
+            <div class="grid grid-cols-5 gap-1">
               <button
                 v-for="opt in mapStyleOptions"
                 :key="opt.value"
                 type="button"
                 @click="setMapStyle(opt.value)"
-                class="py-1.5 rounded-lg text-2xs font-bold border cursor-pointer"
+                class="py-1.5 rounded-lg text-3xs font-bold border cursor-pointer"
                 :class="mapStyle === opt.value
                   ? 'bg-sky-600 text-white btn-text border-sky-600'
                   : 'bg-slate-50 dark:bg-[#0B0F19] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'"
@@ -989,20 +989,28 @@ import StationMapViewer from '../components/StationMapViewer.vue';
 const INDONESIA_DEFAULT_CENTER = [-2.5489, 118.0149];
 const INDONESIA_DEFAULT_ZOOM = 5;
 
+// 100% Free, Zero-API-Key, Zero-Watermark Map Tile Providers (Esri Public ArcGIS Online & OpenStreetMap)
 const TILE_LAYERS = {
-  light: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    fallbackUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 19, subdomains: 'abcd' },
+  clean: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: { maxZoom: 19 },
+  },
+  osm: {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: { maxZoom: 19, className: 'fleet-tiles-osm' },
   },
   dark: {
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    fallbackUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 19, subdomains: 'abcd' },
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    fallbackClassName: 'fleet-tiles-dark-osm',
+    options: { maxZoom: 16 },
   },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    fallbackUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    overlayUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: { maxZoom: 18 },
   },
 };
@@ -1067,11 +1075,12 @@ export default {
       // Map & Selection State
       map: null,
       tileLayer: null,
+      tileOverlayLayer: null,
       markersLayer: null,
       markerBySiteId: {},
       hasInitialFitDone: false,
       isTilesOnline: true,
-      mapStyle: 'auto', // 'auto' | 'light' | 'dark' | 'satellite'
+      mapStyle: 'auto', // 'auto' | 'clean' | 'osm' | 'dark' | 'satellite'
       selectedSiteId: 0,
       switchingSiteId: 0,
 
@@ -1107,18 +1116,19 @@ export default {
     },
     resolvedTileTheme() {
       if (this.mapStyle === 'auto') {
-        return this.effectiveAppDark ? 'dark' : 'light';
+        return this.effectiveAppDark ? 'dark' : 'clean';
       }
       return this.mapStyle;
     },
     mapStyleLabel() {
-      const map = { auto: 'Auto', light: 'Terang', dark: 'Gelap', satellite: 'Satelit' };
+      const map = { auto: 'Auto', clean: 'Clean', osm: 'OSM', dark: 'Gelap', satellite: 'Satelit' };
       return map[this.mapStyle] || 'Auto';
     },
     mapStyleOptions() {
       return [
         { value: 'auto', label: 'Auto' },
-        { value: 'light', label: 'Terang' },
+        { value: 'clean', label: 'Clean' },
+        { value: 'osm', label: 'OSM' },
         { value: 'dark', label: 'Gelap' },
         { value: 'satellite', label: 'Satelit' },
       ];
@@ -1130,7 +1140,7 @@ export default {
           label: 'Semua',
           count: this.summary.total_sites || 0,
           dotClass: '',
-          activeClass: 'bg-slate-900 dark:bg-sky-600 text-white btn-text border-slate-900 dark:border-sky-500 shadow-2xs',
+          activeClass: 'bg-sky-600 text-white btn-text border-sky-600 shadow-2xs',
           idleClass: 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
         },
         {
@@ -1170,7 +1180,7 @@ export default {
           label: 'No-GPS',
           count: this.summary.no_gps_sites || 0,
           dotClass: 'bg-slate-400',
-          activeClass: 'bg-slate-700 text-white btn-text border-slate-700 shadow-2xs',
+          activeClass: 'bg-indigo-600 text-white btn-text border-indigo-600 shadow-2xs',
           idleClass: 'bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F19] dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800',
         },
       ];
@@ -1344,6 +1354,263 @@ export default {
         this.fetchFleetOverview(false);
       }, 1200);
     },
+    applyOverviewPayload(payload) {
+      if (!payload) return;
+      this.generatedAt = payload.generated_at || new Date().toISOString();
+      this.nowTick = Date.now();
+      this.summary = { ...this.summary, ...(payload.summary || {}) };
+      this.tenants = Array.isArray(payload.tenants) ? payload.tenants : [];
+      this.sites = Array.isArray(payload.sites) ? payload.sites : [];
+      this.errorMessage = '';
+
+      this.$nextTick(() => {
+        this.syncMapMarkers();
+        if (!this.hasInitialFitDone && this.mappedFilteredSites.length > 0) {
+          this.hasInitialFitDone = true;
+          this.fitMapToVisibleSites();
+        }
+      });
+    },
+    async fetchFleetOverviewFallback() {
+      const globalHeaders = { 'X-Tenant-ID': '0', 'X-Site-ID': '0' };
+      const [tenantsRes, sitesRes, devsRes, alarmsRes] = await Promise.all([
+        axios.get('/api/tenants', { headers: globalHeaders }),
+        axios.get('/api/sites', { headers: globalHeaders }),
+        axios.get('/api/devices', { params: { page_size: 500 }, headers: globalHeaders }),
+        axios.get('/api/alarms/active', { headers: globalHeaders }).catch(() => ({ data: { data: [] } })),
+      ]);
+
+      const rawTenants = Array.isArray(tenantsRes.data && tenantsRes.data.data) ? tenantsRes.data.data : [];
+      const rawSites = Array.isArray(sitesRes.data && sitesRes.data.data) ? sitesRes.data.data : [];
+      const rawDevsPayload = devsRes.data && devsRes.data.data;
+      const rawDevs = Array.isArray(rawDevsPayload)
+        ? rawDevsPayload
+        : Array.isArray(rawDevsPayload && rawDevsPayload.items)
+        ? rawDevsPayload.items
+        : [];
+      const rawAlarmsPayload = alarmsRes.data && alarmsRes.data.data;
+      const rawAlarms = Array.isArray(rawAlarmsPayload)
+        ? rawAlarmsPayload
+        : Array.isArray(rawAlarmsPayload && rawAlarmsPayload.items)
+        ? rawAlarmsPayload.items
+        : [];
+
+      const nowMs = Date.now();
+      const tenantMap = {};
+      rawTenants.forEach((t) => {
+        tenantMap[t.id] = t;
+      });
+      const devById = {};
+      const devsBySite = {};
+      rawDevs.forEach((d) => {
+        devById[d.id] = d;
+        const sid = d.site_id || 1;
+        if (!devsBySite[sid]) devsBySite[sid] = [];
+        devsBySite[sid].push(d);
+      });
+
+      const alarmsBySite = {};
+      rawAlarms.forEach((al) => {
+        if (!al || al.status === 'CLEARED') return;
+        const dev = al.device_id ? devById[al.device_id] : al.device;
+        if (dev && (dev.enabled === false || String(dev.status || '').toUpperCase() === 'DISABLED')) return;
+        const sid = (dev && dev.site_id) || al.site_id || 1;
+        if (!alarmsBySite[sid]) alarmsBySite[sid] = [];
+        alarmsBySite[sid].push(al);
+      });
+
+      const summary = {
+        total_tenants: rawTenants.length,
+        active_tenants: rawTenants.filter(t => String(t.status || 'ACTIVE').toUpperCase() !== 'SUSPENDED').length,
+        total_sites: 0,
+        mapped_sites: 0,
+        no_gps_sites: 0,
+        online_sites: 0,
+        delayed_sites: 0,
+        offline_sites: 0,
+        inactive_sites: 0,
+        sites_with_alarms: 0,
+        total_active_alarms: 0,
+        critical_alarms: 0,
+        warning_alarms: 0,
+        total_devices: 0,
+        online_devices: 0,
+      };
+
+      const tenantStats = {};
+      const tenantOpts = rawTenants.map((t) => {
+        const opt = { id: t.id, code: t.code, name: t.name, status: t.status || 'ACTIVE', site_count: 0, online_sites: 0, alarm_sites: 0 };
+        tenantStats[t.id] = opt;
+        return opt;
+      });
+
+      const sites = [];
+      rawSites.forEach((st) => {
+        const ten = tenantMap[st.tenant_id] || { id: st.tenant_id, code: '', name: `Tenant #${st.tenant_id}`, status: 'ACTIVE' };
+        const sDevs = devsBySite[st.id] || [];
+        let lat = null;
+        let lng = null;
+        let hasCoords = false;
+        let locSrc = st.location_source || 'UNCONFIGURED';
+
+        if (isValidStationCoordinate(st.latitude, st.longitude)) {
+          lat = Number(st.latitude);
+          lng = Number(st.longitude);
+          hasCoords = true;
+        } else {
+          const fbDev = sDevs.find(d => isValidStationCoordinate(d.latitude, d.longitude));
+          if (fbDev) {
+            lat = Number(fbDev.latitude);
+            lng = Number(fbDev.longitude);
+            hasCoords = true;
+            locSrc = 'DEVICE_FALLBACK';
+          }
+        }
+
+        let enabledDevs = 0;
+        let onlineDevs = 0;
+        let explicitOfflineDevs = 0;
+        let latestTransMs = 0;
+        let latestDataAt = null;
+        let latestSeenAt = null;
+        let primaryProto = '';
+        let timeoutSec = 300;
+
+        sDevs.forEach((d) => {
+          const disabled = d.enabled === false || ['DISABLED', 'INACTIVE'].includes(String(d.status || '').toUpperCase());
+          if (disabled) return;
+          enabledDevs += 1;
+          const proto = String((d.connection && d.connection.protocol) || d.device_type || '').toUpperCase();
+          if (!primaryProto && proto) primaryProto = proto;
+          const connT = Number(d.connection && d.connection.timeout) || 0;
+          if (connT >= 10 && connT !== 1000 && connT <= 86400) timeoutSec = Math.max(timeoutSec, connT);
+
+          const dDataMs = d.last_data_at ? new Date(d.last_data_at).getTime() : 0;
+          const dSeenMs = (d.last_seen_at || d.last_communication) ? new Date(d.last_seen_at || d.last_communication).getTime() : 0;
+          if (dDataMs > latestTransMs) {
+            latestTransMs = dDataMs;
+            latestDataAt = d.last_data_at;
+          }
+          if (dSeenMs > 0 && (!latestSeenAt || dSeenMs > new Date(latestSeenAt).getTime())) {
+            latestSeenAt = d.last_seen_at || d.last_communication;
+            if (!latestTransMs) latestTransMs = dSeenMs;
+          }
+          const connSt = String(d.connection_status || '').toUpperCase();
+          if (connSt === 'OFFLINE' || connSt === 'ERROR') explicitOfflineDevs += 1;
+          else if (connSt === 'ONLINE') onlineDevs += 1;
+        });
+
+        const lastTransIso = latestDataAt || latestSeenAt || null;
+        const ageSec = latestTransMs > 0 ? Math.max(0, Math.floor((nowMs - latestTransMs) / 1000)) : null;
+        let deliveryStatus = 'ONLINE';
+        if (String(ten.status || '').toUpperCase() === 'SUSPENDED' || st.enabled === false || enabledDevs === 0) {
+          deliveryStatus = 'INACTIVE';
+        } else if (!lastTransIso) {
+          deliveryStatus = onlineDevs > 0 ? 'DELAYED' : 'OFFLINE';
+        } else if ((onlineDevs === 0 && explicitOfflineDevs === enabledDevs) || ageSec > Math.max(timeoutSec * 3, 1800)) {
+          deliveryStatus = 'OFFLINE';
+        } else if (ageSec > timeoutSec || (onlineDevs > 0 && onlineDevs < enabledDevs)) {
+          deliveryStatus = 'DELAYED';
+        }
+
+        const sAlarms = alarmsBySite[st.id] || [];
+        let critCount = 0;
+        let warnCount = 0;
+        const alarmItems = sAlarms.slice(0, 5).map((al) => {
+          const sev = String(al.severity || 'WARNING').toUpperCase();
+          if (sev === 'CRITICAL') critCount += 1;
+          else warnCount += 1;
+          return {
+            id: al.id,
+            alarm_code: al.alarm_code,
+            severity: sev,
+            status: al.status,
+            device_code: (al.device && al.device.device_code) || '',
+            parameter_name: (al.parameter && al.parameter.parameter_name) || '',
+            message: al.message,
+            triggered_at: al.triggered_at,
+          };
+        });
+        if (sAlarms.length > 5) {
+          sAlarms.slice(5).forEach((al) => {
+            if (String(al.severity || '').toUpperCase() === 'CRITICAL') critCount += 1;
+            else warnCount += 1;
+          });
+        }
+        const totalAlarms = critCount + warnCount;
+        let severityState = 'NORMAL';
+        if (deliveryStatus === 'INACTIVE') severityState = 'INACTIVE';
+        else if (critCount > 0 || deliveryStatus === 'OFFLINE') severityState = 'CRITICAL';
+        else if (totalAlarms > 0 || deliveryStatus === 'DELAYED') severityState = 'WARNING';
+
+        sites.push({
+          site_id: st.id,
+          site_code: st.code,
+          site_name: st.name,
+          tenant_id: ten.id,
+          tenant_code: ten.code,
+          tenant_name: ten.name,
+          tenant_status: ten.status || 'ACTIVE',
+          customer_name: ten.customer_name || '',
+          monitoring_domain: String(st.monitoring_domain || 'AQMS').toUpperCase(),
+          enabled: st.enabled !== false,
+          address: st.address || '',
+          timezone: st.timezone || 'Asia/Jakarta',
+          has_coordinates: hasCoords,
+          latitude: lat,
+          longitude: lng,
+          location_source: locSrc,
+          device_count: sDevs.length,
+          enabled_device_count: enabledDevs,
+          online_device_count: onlineDevs,
+          offline_device_count: Math.max(0, enabledDevs - onlineDevs),
+          primary_protocol: primaryProto,
+          effective_timeout_seconds: timeoutSec,
+          last_data_at: latestDataAt,
+          last_seen_at: latestSeenAt,
+          last_transmission_at: lastTransIso,
+          data_age_seconds: ageSec,
+          delivery_status: deliveryStatus,
+          severity_state: severityState,
+          critical_alarm_count: critCount,
+          warning_alarm_count: warnCount,
+          total_active_alarms: totalAlarms,
+          active_alarms: alarmItems,
+          devices: [],
+        });
+
+        summary.total_sites += 1;
+        if (hasCoords) summary.mapped_sites += 1;
+        else summary.no_gps_sites += 1;
+        if (deliveryStatus === 'ONLINE') summary.online_sites += 1;
+        else if (deliveryStatus === 'DELAYED') summary.delayed_sites += 1;
+        else if (deliveryStatus === 'OFFLINE') summary.offline_sites += 1;
+        else summary.inactive_sites += 1;
+        if (totalAlarms > 0) {
+          summary.sites_with_alarms += 1;
+          summary.total_active_alarms += totalAlarms;
+          summary.critical_alarms += critCount;
+          summary.warning_alarms += warnCount;
+        }
+        summary.total_devices += enabledDevs;
+        summary.online_devices += onlineDevs;
+        if (tenantStats[ten.id]) {
+          tenantStats[ten.id].site_count += 1;
+          if (deliveryStatus === 'ONLINE') tenantStats[ten.id].online_sites += 1;
+          if (totalAlarms > 0) tenantStats[ten.id].alarm_sites += 1;
+        }
+      });
+
+      const sevOrder = { CRITICAL: 0, WARNING: 1, NORMAL: 2, INACTIVE: 3 };
+      sites.sort((a, b) => (sevOrder[a.severity_state] - sevOrder[b.severity_state]) || (b.critical_alarm_count - a.critical_alarm_count));
+
+      return {
+        generated_at: new Date().toISOString(),
+        summary,
+        tenants: tenantOpts,
+        sites,
+      };
+    },
     async fetchFleetOverview(manual = false) {
       if (this.loading && !manual) return;
       this.loading = true;
@@ -1351,22 +1618,22 @@ export default {
         const res = await axios.get('/api/tenants/fleet-overview');
         const payload = res.data && res.data.data;
         if (payload) {
-          this.generatedAt = payload.generated_at || new Date().toISOString();
-          this.nowTick = Date.now();
-          this.summary = { ...this.summary, ...(payload.summary || {}) };
-          this.tenants = Array.isArray(payload.tenants) ? payload.tenants : [];
-          this.sites = Array.isArray(payload.sites) ? payload.sites : [];
-          this.errorMessage = '';
-
-          this.$nextTick(() => {
-            this.syncMapMarkers();
-            if (!this.hasInitialFitDone && this.mappedFilteredSites.length > 0) {
-              this.hasInitialFitDone = true;
-              this.fitMapToVisibleSites();
-            }
-          });
+          this.applyOverviewPayload(payload);
         }
       } catch (err) {
+        if (err && err.response && err.response.status === 404) {
+          try {
+            const fallbackPayload = await this.fetchFleetOverviewFallback();
+            this.applyOverviewPayload(fallbackPayload);
+            return;
+          } catch (fbErr) {
+            this.errorMessage =
+              (fbErr.response && fbErr.response.data && (fbErr.response.data.error || fbErr.response.data.message)) ||
+              fbErr.message ||
+              'Gagal memuat ringkasan peta stasiun global.';
+            return;
+          }
+        }
         this.errorMessage =
           (err.response && err.response.data && (err.response.data.error || err.response.data.message)) ||
           err.message ||
@@ -1398,7 +1665,11 @@ export default {
         this.map.removeLayer(this.tileLayer);
         this.tileLayer = null;
       }
-      const cfg = TILE_LAYERS[this.resolvedTileTheme] || TILE_LAYERS.light;
+      if (this.tileOverlayLayer) {
+        this.map.removeLayer(this.tileOverlayLayer);
+        this.tileOverlayLayer = null;
+      }
+      const cfg = TILE_LAYERS[this.resolvedTileTheme] || TILE_LAYERS.clean;
       let fallbackAttempted = false;
 
       const attachLayer = (url, opts) => {
@@ -1412,7 +1683,13 @@ export default {
             if (this.map && this.tileLayer) {
               this.map.removeLayer(this.tileLayer);
             }
-            this.tileLayer = attachLayer(cfg.fallbackUrl, { maxZoom: 19 });
+            if (this.map && this.tileOverlayLayer) {
+              this.map.removeLayer(this.tileOverlayLayer);
+              this.tileOverlayLayer = null;
+            }
+            const fbOpts = { maxZoom: 19 };
+            if (cfg.fallbackClassName) fbOpts.className = cfg.fallbackClassName;
+            this.tileLayer = attachLayer(cfg.fallbackUrl, fbOpts);
             if (this.map) this.tileLayer.addTo(this.map);
           } else {
             this.isTilesOnline = false;
@@ -1423,6 +1700,14 @@ export default {
 
       this.tileLayer = attachLayer(cfg.url, cfg.options);
       this.tileLayer.addTo(this.map);
+
+      if (cfg.overlayUrl) {
+        this.tileOverlayLayer = L.tileLayer(cfg.overlayUrl, {
+          maxZoom: cfg.options && cfg.options.maxZoom ? cfg.options.maxZoom : 18,
+          pane: 'tilePane',
+        });
+        this.tileOverlayLayer.addTo(this.map);
+      }
     },
 
     buildPinIcon(site, isSelected) {
@@ -1593,7 +1878,7 @@ export default {
     },
 
     cycleMapStyle() {
-      const order = ['auto', 'light', 'dark', 'satellite'];
+      const order = ['auto', 'clean', 'osm', 'dark', 'satellite'];
       const idx = order.indexOf(this.mapStyle);
       this.mapStyle = order[(idx + 1) % order.length];
     },
@@ -1866,6 +2151,12 @@ export default {
 .fleet-no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+.fleet-tiles-osm {
+  filter: saturate(0.88) contrast(1.02);
+}
+.fleet-tiles-dark-osm {
+  filter: invert(100%) hue-rotate(180deg) brightness(93%) contrast(92%) saturate(80%);
 }
 </style>
 

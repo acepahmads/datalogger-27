@@ -89,8 +89,14 @@ assert(fleetViewCode.includes('id="btn-mobile-mode-map"') && fleetViewCode.inclu
 assert(fleetViewCode.includes('id="fleet-mobile-bottom-card"'), 'FleetMapView must render thumb-friendly Mobile Docked Bottom Preview Card');
 assert(fleetViewCode.includes('id="fleet-mobile-priority-list"'), 'FleetMapView must render Mobile Priority Card List in Daftar mode');
 assert(fleetViewCode.includes('showMobileFilterSheet'), 'FleetMapView must include Mobile Filter Bottom Sheet');
+assert(!fleetViewCode.includes('cartocdn') && !fleetViewCode.includes('carto.com'), 'FleetMapView must NOT use watermarked/paid Carto tile servers');
+assert(
+  fleetViewCode.includes('server.arcgisonline.com') && fleetViewCode.includes('tile.openstreetmap.org'),
+  'FleetMapView must use 100% free no-API-key Esri ArcGIS Online & OpenStreetMap tiles'
+);
+assert(fleetViewCode.includes('fetchFleetOverviewFallback'), 'FleetMapView must gracefully fall back if Go binary has not been restarted yet');
 
-// 5. Light-Mode CSS Hygiene Check (No bare text-white without btn-text or badge-text)
+// 5. Light-Mode CSS Hygiene Check (No bare text-white without btn-text or badge-text, and no bg-slate-900 + text-white)
 const classRegex = /class="([^"]*)"/g;
 let match;
 while ((match = classRegex.exec(fleetViewCode)) !== null) {
@@ -100,6 +106,10 @@ while ((match = classRegex.exec(fleetViewCode)) !== null) {
     assert(
       tokens.includes('btn-text') || tokens.includes('badge-text'),
       `FleetMapView Light-Mode violation: class="${cls}" uses bare text-white without btn-text or badge-text`
+    );
+    assert(
+      !tokens.includes('bg-slate-900'),
+      `FleetMapView Light-Mode contrast violation: class="${cls}" combines bg-slate-900 (mapped to #fff in light mode) with text-white`
     );
   }
 }
