@@ -295,6 +295,12 @@ func (e *AlarmEvaluator) ReloadActiveAlarms(ctx context.Context) error {
 					}(*alm.ParameterID)
 					continue
 				}
+				if !param.IsStuckDetectionEnabled() && alm.AlarmCode == AlarmCodeAbnormalityStuck {
+					go func(alarmID uint) {
+						_, _ = e.alarmService.ClearAlarm(context.Background(), alarmID)
+					}(alm.ID)
+					continue
+				}
 				if param.IsDiscreteStatus() {
 					isAnalogOrStuckAlarm := alm.AlarmCode == AlarmCodeAbnormalityStuck ||
 						alm.AlarmCode == AlarmCodeAbnormalitySpike ||
@@ -613,6 +619,18 @@ func (e *AlarmEvaluator) evaluateDataAbnormality(ctx context.Context, latest *La
 
 	stuckKey := fmt.Sprintf("%s:%s", paramKey, AlarmCodeAbnormalityStuck)
 
+	// Per-parameter Stuck Value toggle: if disabled on this parameter, clear any active stuck alarm and skip
+	if !param.IsStuckDetectionEnabled() {
+		st.stuckCount = 0
+		st.stuckSince = time.Time{}
+		st.hasValue = false
+		if existing, ok := e.activeAbnormality[stuckKey]; ok {
+			e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+			delete(e.activeAbnormality, stuckKey)
+		}
+		return
+	}
+
 	// If zero-value policy is SUPPRESS_THRESHOLD and value is 0.0 (e.g. continuous 0.0 rainfall or calm wind speed),
 	// do not treat repeated 0.0 as an abnormal stuck value!
 	if param.ZeroValueAlarmPolicy == model.ZeroValuePolicySuppressThreshold && math.Abs(val) < 1e-9 {
@@ -634,6 +652,10 @@ func (e *AlarmEvaluator) evaluateDataAbnormality(ctx context.Context, latest *La
 	durLimit := e.cfg.StuckValueDurationThreshold
 	if durLimit <= 0 {
 		durLimit = DefaultStuckValueDuration
+	}
+	if param.StuckCountThreshold >= 2 {
+		countLimit = param.StuckCountThreshold
+		durLimit = 0
 	}
 
 	if !st.hasValue {
@@ -1065,6 +1087,25 @@ func (e *AlarmEvaluator) ClearParameterAlarms(ctx context.Context, deviceID, par
 
 	if e.alarmService != nil {
 		_ = e.alarmService.ClearAllParameterAlarms(ctx, paramID)
+	}
+}
+
+// ResetParameterStuckState clears active STUCK_VALUE alarm and resets consecutive stuck counter for a parameter
+// when its stuck detection configuration is modified.
+func (e *AlarmEvaluator) ResetParameterStuckState(ctx context.Context, deviceID, paramID uint) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	key := fmt.Sprintf("%d:%d", deviceID, paramID)
+	stuckKey := fmt.Sprintf("%s:%s", key, AlarmCodeAbnormalityStuck)
+	if existing, ok := e.activeAbnormality[stuckKey]; ok {
+		e.clearActiveAlarm(ctx, existing.AlarmID, existing.AlarmCode)
+		delete(e.activeAbnormality, stuckKey)
+	}
+	if st, ok := e.abnormalityTracking[key]; ok && st != nil {
+		st.stuckCount = 0
+		st.stuckSince = time.Time{}
+		st.hasValue = false
 	}
 }
 

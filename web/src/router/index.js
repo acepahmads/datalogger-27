@@ -332,8 +332,15 @@ router.beforeEach(async (to, from, next) => {
     });
   }
 
-  // 2c. Role OPERATOR cannot access System Monitoring (/monitoring/system) in Cloud mode
-  if (isAuth && isOperator && isCloudMode && (to.path === '/monitoring/system' || to.path.startsWith('/monitoring/system/'))) {
+  // 2c. Role OPERATOR cannot access System Monitoring (/monitoring/system) or Alarms & Events (/alarm/*) in Cloud mode
+  if (isAuth && isOperator && isCloudMode && (
+    to.path === '/monitoring/system' ||
+    to.path.startsWith('/monitoring/system/') ||
+    to.path === '/alarm' ||
+    to.path === '/alarms' ||
+    to.path.startsWith('/alarm/') ||
+    to.path === '/monitoring/delivery'
+  )) {
     return next({
       path: '/access-denied',
       query: { from: to.fullPath },

@@ -157,6 +157,7 @@
 
       <!-- 2. Notification Bell with Unread / Active Alarms Badge -->
       <router-link
+        v-if="!isOperator || !isCloudMode"
         to="/alarm/active"
         class="relative w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 transition-colors flex items-center justify-center shadow-xs flex-shrink-0"
         :title="$t('navigation.alarmsEvents') || 'Active Alarms'"
@@ -833,7 +834,20 @@ export default {
       if (isOp && this.$route.path === '/integration' && this.$route.query && this.$route.query.tab === 'queue') {
         allowed = !isCloud;
       }
-      if (isOp && isCloud && (this.$route.path === '/integration/queue' || this.$route.path.startsWith('/integration') || this.$route.path === '/monitoring/system' || this.$route.path.startsWith('/monitoring/system/'))) {
+      if (
+        isOp &&
+        isCloud &&
+        (
+          this.$route.path === '/integration/queue' ||
+          this.$route.path.startsWith('/integration') ||
+          this.$route.path === '/monitoring/system' ||
+          this.$route.path.startsWith('/monitoring/system/') ||
+          this.$route.path === '/alarm' ||
+          this.$route.path === '/alarms' ||
+          this.$route.path.startsWith('/alarm/') ||
+          this.$route.path === '/monitoring/delivery'
+        )
+      ) {
         allowed = false;
       }
       if (isEng && !isCloud && (this.$route.path === '/administration/tenants' || this.$route.path.startsWith('/administration/tenants/'))) {

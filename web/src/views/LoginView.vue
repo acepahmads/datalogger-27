@@ -357,6 +357,10 @@ export default {
             (isCloudMode && (
               redirect === '/monitoring/system' ||
               redirect.startsWith('/monitoring/system/') ||
+              redirect === '/alarm' ||
+              redirect === '/alarms' ||
+              redirect.startsWith('/alarm/') ||
+              redirect === '/monitoring/delivery' ||
               redirect === '/integration/queue' ||
               redirect.startsWith('/integration/')
             )) ||

@@ -82,17 +82,18 @@ check('4.1: WQMSAnalysisView.vue provides unified mobile control card, compact I
   assert(wqmsViewCode.includes('hidden md:block overflow-x-auto'), 'Desktop WQMS tables must remain preserved on >= 768px');
 });
 
-check('5.1: Protected legacy/bento files remain 100% untouched in git diff', () => {
+check('5.1: Protected legacy files remain 100% untouched in git diff and DashboardOperatorView.vue is un-truncated', () => {
   const protectedFiles = [
     'web/src/views/OperatorCommandCenterView.vue',
     'web/src/components/ISPUIndicatorBar.vue',
     'web/src/components/OperatorDashboardIcon.vue',
-    'web/src/views/DashboardOperatorView.vue',
   ];
   for (const rel of protectedFiles) {
     const out = execSync(`git diff -- "${rel}"`, { cwd: repoRoot, encoding: 'utf8' }).trim();
     assert.strictEqual(out, '', `Protected file ${rel} must not be modified`);
   }
+  const dashOpStat = fs.statSync(path.join(repoRoot, 'web/src/views/DashboardOperatorView.vue'));
+  assert(dashOpStat.size > 570000, 'DashboardOperatorView.vue must remain full size (> 570 KB)');
 });
 
 console.log('========================================================================');

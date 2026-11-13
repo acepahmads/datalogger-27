@@ -1425,6 +1425,10 @@ export default {
     isOperator() {
       return this.userRole === 'OPERATOR';
     },
+    isCloudMode() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     canManageChannels() {
       const role = this.userRole;
       return role === 'SUPERADMIN' || role === 'ADMIN' || role === 'ENGINEER';
@@ -1490,6 +1494,10 @@ export default {
     },
   },
   mounted() {
+    if (this.isOperator && this.isCloudMode) {
+      this.$router.replace('/access-denied');
+      return;
+    }
     this.$store.dispatch('fetchDevices');
     if (this.$route.query.tab && ['alarms', 'history', 'queue', 'channels'].includes(this.$route.query.tab)) {
       this.activeTab = this.$route.query.tab;

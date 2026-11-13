@@ -1090,7 +1090,7 @@
 
     <!-- PARAMETER MAPPINGS MODAL (Admin/Superadmin) -->
     <div
-      v-if="showMappingsModal"
+      v-if="showMappingsModal && canManageMapping"
       class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 bg-slate-950/75 backdrop-blur-sm"
       @click.self="showMappingsModal = false"
     >
@@ -1309,8 +1309,11 @@ export default {
   },
   computed: {
     userRole() {
-      const u = this.$store && this.$store.state && this.$store.state.user;
-      return String((u && (u.role_name || u.role)) || '').toUpperCase();
+      const u = (this.$store && this.$store.state && this.$store.state.user) || {};
+      const rawRole = typeof u.role === 'string'
+        ? u.role
+        : ((u.role && u.role.name) || (u.Role && u.Role.name) || u.role_name || '');
+      return String(rawRole || '').toUpperCase();
     },
     isOperator() {
       if (this.userRole === 'OPERATOR') return true;
@@ -1455,7 +1458,8 @@ export default {
       return 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40';
     },
     canManageMapping() {
-      return true;
+      if (this.isOperator) return false;
+      return ['SUPERADMIN', 'ADMINISTRATOR', 'ADMIN', 'ENGINEER'].includes(this.userRole);
     }
   },
   async mounted() {
@@ -1927,6 +1931,7 @@ export default {
       return num.toFixed(2);
     },
     async openMappingsModal() {
+      if (!this.canManageMapping) return;
       this.showMappingsModal = true;
       try {
         const token = this.getAuthToken();

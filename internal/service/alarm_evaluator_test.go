@@ -1633,5 +1633,84 @@ func TestAlarmEvaluator_DataAbnormalityStaleData_RecoversOnFreshUncertain(t *tes
 	}
 }
 
+// Test Per-Parameter Stuck Value Count Threshold & Disable Toggle
+func TestAlarmEvaluator_PerParameterStuckCountAndDisable(t *testing.T) {
+	db, evaluator, _, alarmRepo := setupTestEvaluatorEnvironment(t)
+	ctx := context.Background()
+
+	dev, param := createTestDeviceAndParam(db, nil, nil, nil, nil, nil)
+	stuckEnabled := true
+	param.StuckDetectionEnabled = &stuckEnabled
+	param.StuckCountThreshold = 4
+	_ = db.Save(param).Error
+
+	now := time.Now().UTC()
+
+	// 3 identical readings within 3 seconds -> Below custom threshold (4) -> No alarm
+	for i := 0; i < 3; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 18.25,
+			Quality:        model.QualityGood,
+			ReceivedAt:     now.Add(time.Duration(i) * time.Second),
+		}, param)
+	}
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Fatalf("expected 0 stuck alarms after 3 readings (threshold 4), got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	// 4th identical reading (only 3s elapsed, well under global 30s default) -> Must trigger immediately!
+	evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+		DeviceID:       dev.ID,
+		DeviceCode:     dev.DeviceCode,
+		ParameterID:    param.ID,
+		ParameterCode:  param.ParameterCode,
+		ParameterName:  param.ParameterName,
+		ProcessedValue: 18.25,
+		Quality:        model.QualityGood,
+		ReceivedAt:     now.Add(3 * time.Second),
+	}, param)
+
+	if evaluator.GetActiveAbnormalityCount() != 1 {
+		t.Fatalf("expected 1 active stuck alarm on 4th reading with custom threshold=4, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+	active, _ := alarmRepo.GetActive(ctx)
+	if len(active) != 1 || active[0].AlarmCode != service.AlarmCodeAbnormalityStuck {
+		t.Fatalf("expected active stuck alarm in DB, got %+v", active)
+	}
+
+	// Disable stuck detection on parameter & reset stuck state -> Active alarm must clear immediately
+	stuckDisabled := false
+	param.StuckDetectionEnabled = &stuckDisabled
+	_ = db.Save(param).Error
+	evaluator.ResetParameterStuckState(ctx, dev.ID, param.ID)
+
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Fatalf("expected active stuck alarm cleared on ResetParameterStuckState, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+
+	// Send 15 identical readings over 60 seconds while StuckDetectionEnabled=false -> Must never trigger
+	for i := 0; i < 15; i++ {
+		evaluator.EvaluateTelemetry(ctx, &service.LatestTelemetry{
+			DeviceID:       dev.ID,
+			DeviceCode:     dev.DeviceCode,
+			ParameterID:    param.ID,
+			ParameterCode:  param.ParameterCode,
+			ParameterName:  param.ParameterName,
+			ProcessedValue: 18.25,
+			Quality:        model.QualityGood,
+			ReceivedAt:     now.Add(time.Duration(10+i*5) * time.Second),
+		}, param)
+	}
+	if evaluator.GetActiveAbnormalityCount() != 0 {
+		t.Fatalf("expected 0 stuck alarms when StuckDetectionEnabled=false, got %d", evaluator.GetActiveAbnormalityCount())
+	}
+}
+
+
 
 

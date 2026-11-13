@@ -243,7 +243,8 @@
               </div>
               <p class="text-slate-300 font-sans text-2xs leading-relaxed">
                 Marks parameter STALE after {{ staleTimeoutSec }}s without updates.
-                Spike detection: <strong :class="isSpikeDetectionActive ? 'text-emerald-400' : 'text-slate-500'">{{ isSpikeDetectionActive ? 'Enabled' : 'Disabled' }}</strong>.
+                Spike: <strong :class="isSpikeDetectionActive ? 'text-emerald-400' : 'text-slate-500'">{{ isSpikeDetectionActive ? 'Enabled' : 'Disabled' }}</strong>
+                · Stuck: <strong :class="isStuckDetectionActive ? 'text-amber-400' : 'text-slate-500'">{{ isStuckDetectionActive ? ('≥ ' + stuckCountThreshold + 'x') : 'Disabled' }}</strong>.
               </p>
             </div>
           </div>
@@ -432,6 +433,15 @@ export default {
     },
     isSpikeDetectionActive() {
       return !!(this.rawParam.spike_detection_enabled || this.rawParam.anomaly_detection_enabled || (this.targetParam && this.targetParam.spike_detection_enabled));
+    },
+    isStuckDetectionActive() {
+      if (this.rawParam.stuck_detection_enabled === false) return false;
+      if (this.targetParam && this.targetParam.stuck_detection_enabled === false) return false;
+      return true;
+    },
+    stuckCountThreshold() {
+      const c = Number(this.rawParam.stuck_count_threshold || (this.targetParam && this.targetParam.stuck_count_threshold) || 0);
+      return c >= 2 ? c : 10;
     },
   },
   methods: {

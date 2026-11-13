@@ -850,7 +850,13 @@ export default {
     "zeroPolicyInvalid": "INVALID_READING (Zero indicates sensor fault / disconnection)",
     "zeroPolicyNormalHelp": "Zero is evaluated normally. Critical and warning threshold alarms will trigger if 0 is outside limits.",
     "zeroPolicySuppressHelp": "Recommended for Wind Speed, Solar Radiation, Rainfall, etc. Zero readings are valid and will not trigger low-threshold or stuck alarms.",
-    "zeroPolicyInvalidHelp": "Zero indicates a disconnected or faulty sensor and will trigger a DATA_ABNORMALITY_ZERO_INVALID warning alarm."
+    "zeroPolicyInvalidHelp": "Zero indicates a disconnected or faulty sensor and will trigger a DATA_ABNORMALITY_ZERO_INVALID warning alarm.",
+    "stuckDetectionTitle": "Stuck Value Alarm (DATA_ABNORMALITY_STUCK_VALUE)",
+    "stuckDetectionDesc": "Trigger an abnormality alarm when sensor readings remain identical consecutively.",
+    "stuckCountThreshold": "Consecutive Stuck Readings Threshold",
+    "stuckReadingsUnit": "readings",
+    "stuckCountHelp": "Triggers DATA_ABNORMALITY_STUCK_VALUE when the exact same value is received {count} consecutive times (tolerance ±0.0001).",
+    "stuckDisabledHelp": "Stuck Value detection is disabled for this parameter. Identical consecutive readings will not trigger a stuck alarm."
   },
   "parameters": {
     "title": "Device Parameters",

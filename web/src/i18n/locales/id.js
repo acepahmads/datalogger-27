@@ -850,7 +850,13 @@ export default {
     "zeroPolicyInvalid": "INVALID_READING (Nol menandakan sensor rusak / terputus)",
     "zeroPolicyNormalHelp": "Nilai nol dievaluasi normal. Alarm batas rendah dan kritis akan terpicu bila 0 berada di luar ambang batas.",
     "zeroPolicySuppressHelp": "Disarankan untuk Kecepatan Angin, Radiasi Surya, Curah Hujan, dll. Nilai nol adalah sah dan tidak memicu alarm ambang batas atau macet.",
-    "zeroPolicyInvalidHelp": "Nilai nol menandakan sensor rusak/terputus dan akan memicu alarm peringatan DATA_ABNORMALITY_ZERO_INVALID."
+    "zeroPolicyInvalidHelp": "Nilai nol menandakan sensor rusak/terputus dan akan memicu alarm peringatan DATA_ABNORMALITY_ZERO_INVALID.",
+    "stuckDetectionTitle": "Deteksi Nilai Stuck / Macet (DATA_ABNORMALITY_STUCK_VALUE)",
+    "stuckDetectionDesc": "Picu alarm abnormalitas saat nilai sensor tidak berubah secara berturut-turut.",
+    "stuckCountThreshold": "Jumlah Pembacaan Stuck Berturut-turut",
+    "stuckReadingsUnit": "pembacaan",
+    "stuckCountHelp": "Memicu alarm DATA_ABNORMALITY_STUCK_VALUE apabila nilai yang sama persis diterima {count}x berturut-turut (toleransi ±0.0001).",
+    "stuckDisabledHelp": "Deteksi Stuck Value dinonaktifkan untuk parameter ini. Nilai konstan berturut-turut tidak akan memicu alarm macet."
   },
   "parameters": {
     "title": "Parameter Perangkat",

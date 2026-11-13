@@ -570,6 +570,10 @@ func (h *DeviceHandler) UpdateParameter(c *gin.Context) {
 			if ts := h.pollingEngine.GetTelemetryService(); ts != nil {
 				ts.ClearParameterCache(uint(paramID))
 			}
+		} else if req.StuckDetectionEnabled != nil || req.StuckCountThreshold != nil {
+			if ae := h.pollingEngine.GetAlarmEvaluator(); ae != nil {
+				ae.ResetParameterStuckState(c.Request.Context(), uint(id), uint(paramID))
+			}
 		}
 		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
 			h.pollingEngine.StartDeviceWorker(dev)
@@ -781,6 +785,11 @@ func (h *DeviceHandler) UpdateParameterQuality(c *gin.Context) {
 	}
 
 	if h.pollingEngine != nil {
+		if req.StuckDetectionEnabled != nil || req.StuckCountThreshold != nil {
+			if ae := h.pollingEngine.GetAlarmEvaluator(); ae != nil {
+				ae.ResetParameterStuckState(c.Request.Context(), uint(id), uint(paramID))
+			}
+		}
 		if dev, err := h.deviceService.GetDeviceByID(uint(id)); err == nil && dev.Enabled && dev.Status == model.DeviceStatusActive {
 			h.pollingEngine.StartDeviceWorker(dev)
 		}

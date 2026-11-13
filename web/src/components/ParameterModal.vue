@@ -937,6 +937,82 @@
               </span>
             </p>
           </div>
+
+          <!-- Per-Parameter Stuck Value Detection & Count Setup -->
+          <div v-if="!isStatusCategoryOrBool" class="pt-3 border-t border-slate-200/60 dark:border-slate-800/50 space-y-2.5">
+            <div class="flex items-start justify-between gap-3">
+              <label class="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  v-model="form.stuck_detection_enabled"
+                  class="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <span class="block text-2xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                    {{ $t('parameterModal.stuckDetectionTitle') }}
+                  </span>
+                  <span class="block text-3xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {{ $t('parameterModal.stuckDetectionDesc') }}
+                  </span>
+                </div>
+              </label>
+              <span
+                class="flex-shrink-0 text-4xs font-mono font-bold px-2 py-0.5 rounded shadow-2xs"
+                :class="form.stuck_detection_enabled ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60' : 'bg-slate-100 text-slate-600 border border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'"
+              >
+                <template v-if="form.stuck_detection_enabled">
+                  ≥ {{ effectiveStuckCount }}x<template v-if="estimatedStuckDurationLabel"> (~{{ estimatedStuckDurationLabel }})</template>
+                </template>
+                <template v-else>
+                  OFF
+                </template>
+              </span>
+            </div>
+
+            <div v-if="form.stuck_detection_enabled" class="p-3 rounded-lg bg-white/80 dark:bg-[#0B0F19]/80 border border-slate-200/80 dark:border-slate-800/80 space-y-2.5">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <div class="flex-1">
+                  <label class="block text-3xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    {{ $t('parameterModal.stuckCountThreshold') }}
+                  </label>
+                  <div class="relative">
+                    <input
+                      type="number"
+                      min="2"
+                      max="10000"
+                      step="1"
+                      v-model.number="form.stuck_count_threshold"
+                      placeholder="10"
+                      class="w-full pl-3 pr-24 py-1.5 bg-white dark:bg-[#070b13] border border-slate-300 dark:border-slate-700/80 rounded-lg text-xs font-mono font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                    <span class="absolute inset-y-0 right-2.5 flex items-center text-3xs font-mono text-slate-400 dark:text-slate-500 pointer-events-none">
+                      × {{ $t('parameterModal.stuckReadingsUnit') }}
+                    </span>
+                  </div>
+                </div>
+                <div class="sm:pt-4">
+                  <div class="flex flex-wrap items-center gap-1">
+                    <button
+                      v-for="preset in [3, 5, 10, 15, 20, 30, 60]"
+                      :key="'stuck-preset-' + preset"
+                      type="button"
+                      @click="form.stuck_count_threshold = preset"
+                      class="px-2 py-1 rounded-md text-3xs font-mono font-bold border transition"
+                      :class="Number(form.stuck_count_threshold) === preset ? 'bg-blue-600 text-white border-blue-600 shadow-2xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700'"
+                    >
+                      {{ preset }}x
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p class="text-3xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                ℹ️ {{ $t('parameterModal.stuckCountHelp', { count: effectiveStuckCount }) }}
+              </p>
+            </div>
+            <p v-else class="text-3xs text-slate-500 dark:text-slate-400 italic leading-relaxed">
+              {{ $t('parameterModal.stuckDisabledHelp') }}
+            </p>
+          </div>
         </div>
 
         <!-- ========================================== -->
@@ -1370,6 +1446,8 @@ export default {
         spike_detection_enabled: false,
         spike_threshold: 0.0,
         spike_window_size: 3,
+        stuck_detection_enabled: true,
+        stuck_count_threshold: 10,
         precision: 2,
         scale: 1.0,
         offset: 0.0,
@@ -1466,6 +1544,24 @@ export default {
     effectiveStaleTimeoutSeconds() {
       const configured = Number(this.form.stale_timeout_seconds) > 0 ? Math.round(Number(this.form.stale_timeout_seconds)) : 120;
       return Math.max(configured, this.minPollingStaleSeconds);
+    },
+    effectiveStuckCount() {
+      const n = this.cleanNum(this.form.stuck_count_threshold);
+      if (n === null || n < 2) return 10;
+      return Math.min(10000, Math.round(n));
+    },
+    estimatedStuckDurationLabel() {
+      if (this.isPushOrMqttDevice) return null;
+      const pollMs = Number(this.effectivePollingInterval) || 0;
+      if (pollMs <= 0) return null;
+      const totalSec = Math.max(1, Math.round((this.effectiveStuckCount * pollMs) / 1000));
+      if (totalSec < 60) return `${totalSec}s`;
+      if (totalSec < 3600) {
+        const mins = (totalSec / 60).toFixed(1).replace(/\.0$/, '');
+        return `${mins}m`;
+      }
+      const hrs = (totalSec / 3600).toFixed(1).replace(/\.0$/, '');
+      return `${hrs}h`;
     },
     srcProtocolName() {
       const dev = this.currentDevice;
@@ -1970,6 +2066,8 @@ export default {
         spike_detection_enabled: false,
         spike_threshold: 0.0,
         spike_window_size: 3,
+        stuck_detection_enabled: true,
+        stuck_count_threshold: 10,
         precision: 2,
         scale: 1.0,
         offset: 0.0,
@@ -2033,6 +2131,8 @@ export default {
         spike_detection_enabled: param.spike_detection_enabled !== undefined ? param.spike_detection_enabled : false,
         spike_threshold: param.spike_threshold || 0.0,
         spike_window_size: param.spike_window_size || 3,
+        stuck_detection_enabled: param.stuck_detection_enabled !== false,
+        stuck_count_threshold: (param.stuck_count_threshold !== undefined && param.stuck_count_threshold !== null && Number(param.stuck_count_threshold) >= 2) ? Number(param.stuck_count_threshold) : 10,
         precision: param.precision !== undefined ? param.precision : 2,
         scale: param.scale !== undefined ? param.scale : (param.scale_factor || 1.0),
         offset: param.offset !== undefined ? param.offset : 0.0,
@@ -2077,6 +2177,8 @@ export default {
         spike_detection_enabled: source.spike_detection_enabled !== undefined ? source.spike_detection_enabled : false,
         spike_threshold: source.spike_threshold || 0.0,
         spike_window_size: source.spike_window_size || 3,
+        stuck_detection_enabled: source.stuck_detection_enabled !== false,
+        stuck_count_threshold: (source.stuck_count_threshold !== undefined && source.stuck_count_threshold !== null && Number(source.stuck_count_threshold) >= 2) ? Number(source.stuck_count_threshold) : 10,
         precision: source.precision !== undefined ? source.precision : 2,
         scale: source.scale !== undefined ? source.scale : (source.scale_factor || 1.0),
         offset: source.offset !== undefined ? source.offset : 0.0,
@@ -2300,6 +2402,11 @@ export default {
         spike_detection_enabled: !!this.form.spike_detection_enabled,
         spike_threshold: this.cleanNum(this.form.spike_threshold) || 0.0,
         spike_window_size: this.cleanNum(this.form.spike_window_size) || 3,
+        stuck_detection_enabled: this.isStatusCategoryOrBool ? false : !!this.form.stuck_detection_enabled,
+        stuck_count_threshold: (() => {
+          const rawStuck = this.cleanNum(this.form.stuck_count_threshold);
+          return (rawStuck !== null && rawStuck >= 2) ? Math.min(10000, Math.round(rawStuck)) : 10;
+        })(),
         precision: this.cleanNum(this.form.precision) !== null ? this.cleanNum(this.form.precision) : 2,
         scale: this.cleanNum(this.form.scale) !== null ? this.cleanNum(this.form.scale) : 1.0,
         offset: this.cleanNum(this.form.offset) !== null ? this.cleanNum(this.form.offset) : 0.0,

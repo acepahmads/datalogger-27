@@ -102,6 +102,8 @@ type CreateParameterRequest struct {
 	SpikeDetectionEnabled    *bool                       `json:"spike_detection_enabled"`
 	SpikeThreshold           *float64                    `json:"spike_threshold"`
 	SpikeWindowSize          *int                        `json:"spike_window_size"`
+	StuckDetectionEnabled    *bool                       `json:"stuck_detection_enabled"`
+	StuckCountThreshold      *int                        `json:"stuck_count_threshold"`
 	Precision                int                         `json:"precision"`
 	Scale                    float64                     `json:"scale"`
 	Offset                   float64                     `json:"offset"`
@@ -174,6 +176,9 @@ func (r *CreateParameterRequest) UnmarshalJSON(data []byte) error {
 	if val, ok := rawMap["polling_interval_ms"]; ok {
 		r.PollingIntervalMs = parseNullableInt(val, nil)
 	}
+	if val, ok := rawMap["stuck_count_threshold"]; ok {
+		r.StuckCountThreshold = parseNullableInt(val, nil)
+	}
 	return nil
 }
 
@@ -202,6 +207,8 @@ type UpdateParameterRequest struct {
 	SpikeDetectionEnabled    *bool                       `json:"spike_detection_enabled"`
 	SpikeThreshold           *float64                    `json:"spike_threshold"`
 	SpikeWindowSize          *int                        `json:"spike_window_size"`
+	StuckDetectionEnabled    *bool                       `json:"stuck_detection_enabled"`
+	StuckCountThreshold      *int                        `json:"stuck_count_threshold"`
 	Precision                *int                        `json:"precision"`
 	Scale                    *float64                    `json:"scale"`
 	Offset                   *float64                    `json:"offset"`
@@ -274,6 +281,9 @@ func (r *UpdateParameterRequest) UnmarshalJSON(data []byte) error {
 	if val, ok := rawMap["polling_interval_ms"]; ok {
 		r.PollingIntervalMs = parseNullableInt(val, &r.ClearPollingIntervalMs)
 	}
+	if val, ok := rawMap["stuck_count_threshold"]; ok {
+		r.StuckCountThreshold = parseNullableInt(val, nil)
+	}
 	return nil
 }
 
@@ -292,6 +302,8 @@ type ParameterQualityDTO struct {
 	SpikeDetectionEnabled    bool     `json:"spike_detection_enabled"`
 	SpikeThreshold           float64  `json:"spike_threshold"`
 	SpikeWindowSize          int      `json:"spike_window_size"`
+	StuckDetectionEnabled    bool     `json:"stuck_detection_enabled"`
+	StuckCountThreshold      int      `json:"stuck_count_threshold"`
 }
 
 // UpdateParameterQualityRequest allows updating only quality & processing parameters
@@ -310,6 +322,8 @@ type UpdateParameterQualityRequest struct {
 	SpikeDetectionEnabled    *bool    `json:"spike_detection_enabled"`
 	SpikeThreshold           *float64 `json:"spike_threshold"`
 	SpikeWindowSize          *int     `json:"spike_window_size"`
+	StuckDetectionEnabled    *bool    `json:"stuck_detection_enabled"`
+	StuckCountThreshold      *int     `json:"stuck_count_threshold"`
 }
 
 func (r *UpdateParameterQualityRequest) UnmarshalJSON(data []byte) error {
@@ -347,6 +361,9 @@ func (r *UpdateParameterQualityRequest) UnmarshalJSON(data []byte) error {
 		if f := parseNullableFloat(val, nil); f != nil {
 			r.SpikeThreshold = f
 		}
+	}
+	if val, ok := rawMap["stuck_count_threshold"]; ok {
+		r.StuckCountThreshold = parseNullableInt(val, nil)
 	}
 	return nil
 }
@@ -1341,6 +1358,18 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 	if req.SpikeWindowSize != nil && *req.SpikeWindowSize > 0 {
 		spikeWindow = *req.SpikeWindowSize
 	}
+	stuckEnabled := true
+	if req.StuckDetectionEnabled != nil {
+		stuckEnabled = *req.StuckDetectionEnabled
+	}
+	stuckCount := 0
+	if req.StuckCountThreshold != nil {
+		if *req.StuckCountThreshold == 1 {
+			stuckCount = 2
+		} else if *req.StuckCountThreshold >= 2 {
+			stuckCount = *req.StuckCountThreshold
+		}
+	}
 
 	slaveID := req.SlaveID
 	if slaveID <= 0 {
@@ -1380,6 +1409,8 @@ func (s *DeviceService) CreateParameter(deviceID uint, req *CreateParameterReque
 		SpikeDetectionEnabled:    spikeEnabled,
 		SpikeThreshold:           spikeThresh,
 		SpikeWindowSize:          spikeWindow,
+		StuckDetectionEnabled:    &stuckEnabled,
+		StuckCountThreshold:      stuckCount,
 		Precision:                precision,
 		Scale:                    scale,
 		Offset:                   req.Offset,
@@ -1635,6 +1666,27 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		}
 		param.SpikeWindowSize = win
 	}
+	stuckRuleChanged := false
+	if req.StuckDetectionEnabled != nil {
+		prevEnabled := param.IsStuckDetectionEnabled()
+		newEnabled := *req.StuckDetectionEnabled
+		param.StuckDetectionEnabled = &newEnabled
+		if prevEnabled != newEnabled {
+			stuckRuleChanged = true
+		}
+	}
+	if req.StuckCountThreshold != nil {
+		cnt := *req.StuckCountThreshold
+		if cnt < 0 {
+			cnt = 0
+		} else if cnt == 1 {
+			cnt = 2
+		}
+		if param.StuckCountThreshold != cnt {
+			stuckRuleChanged = true
+		}
+		param.StuckCountThreshold = cnt
+	}
 
 	// Re-evaluate quality limits against current value if present
 	if param.CurrentValue != nil {
@@ -1663,8 +1715,13 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 
 	if !param.Enabled {
 		s.clearParameterAlarms(param.ID)
-	} else if param.IsDiscreteStatus() && s.alarmService != nil && s.alarmService.alarmEvaluator != nil {
-		_ = s.alarmService.alarmEvaluator.ReloadActiveAlarms(context.Background())
+	} else if s.alarmService != nil && s.alarmService.alarmEvaluator != nil {
+		if stuckRuleChanged {
+			s.alarmService.alarmEvaluator.ResetParameterStuckState(context.Background(), deviceID, param.ID)
+		}
+		if param.IsDiscreteStatus() {
+			_ = s.alarmService.alarmEvaluator.ReloadActiveAlarms(context.Background())
+		}
 	}
 
 	afterState, _ := json.Marshal(map[string]interface{}{
@@ -1677,6 +1734,8 @@ func (s *DeviceService) UpdateParameter(deviceID, paramID uint, req *UpdateParam
 		"warning_high":               param.WarningHigh,
 		"quality_validation_enabled": param.QualityValidationEnabled,
 		"stale_timeout_seconds":      param.StaleTimeoutSeconds,
+		"stuck_detection_enabled":    param.IsStuckDetectionEnabled(),
+		"stuck_count_threshold":      param.StuckCountThreshold,
 	})
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
@@ -1711,6 +1770,8 @@ func (s *DeviceService) GetParameterQualityConfig(deviceID, paramID uint) (*Para
 		SpikeDetectionEnabled:    param.SpikeDetectionEnabled,
 		SpikeThreshold:           param.SpikeThreshold,
 		SpikeWindowSize:          param.SpikeWindowSize,
+		StuckDetectionEnabled:    param.IsStuckDetectionEnabled(),
+		StuckCountThreshold:      param.StuckCountThreshold,
 	}, nil
 }
 
@@ -1732,6 +1793,8 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 		"spike_detection_enabled":    param.SpikeDetectionEnabled,
 		"spike_threshold":            param.SpikeThreshold,
 		"spike_window_size":          param.SpikeWindowSize,
+		"stuck_detection_enabled":    param.IsStuckDetectionEnabled(),
+		"stuck_count_threshold":      param.StuckCountThreshold,
 	})
 
 	if req.QualityValidationEnabled != nil {
@@ -1790,6 +1853,27 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 		}
 		param.SpikeWindowSize = win
 	}
+	stuckRuleChanged := false
+	if req.StuckDetectionEnabled != nil {
+		prevEnabled := param.IsStuckDetectionEnabled()
+		newEnabled := *req.StuckDetectionEnabled
+		param.StuckDetectionEnabled = &newEnabled
+		if prevEnabled != newEnabled {
+			stuckRuleChanged = true
+		}
+	}
+	if req.StuckCountThreshold != nil {
+		cnt := *req.StuckCountThreshold
+		if cnt < 0 {
+			cnt = 0
+		} else if cnt == 1 {
+			cnt = 2
+		}
+		if param.StuckCountThreshold != cnt {
+			stuckRuleChanged = true
+		}
+		param.StuckCountThreshold = cnt
+	}
 
 	// Re-evaluate quality limits against current value if present
 	if param.CurrentValue != nil {
@@ -1811,6 +1895,10 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 		return nil, fmt.Errorf("failed to update parameter quality: %w", err)
 	}
 
+	if stuckRuleChanged && s.alarmService != nil && s.alarmService.alarmEvaluator != nil {
+		s.alarmService.alarmEvaluator.ResetParameterStuckState(context.Background(), deviceID, param.ID)
+	}
+
 	afterState, _ := json.Marshal(map[string]interface{}{
 		"quality_validation_enabled": param.QualityValidationEnabled,
 		"processing_enabled":         param.ProcessingEnabled,
@@ -1822,6 +1910,8 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 		"spike_detection_enabled":    param.SpikeDetectionEnabled,
 		"spike_threshold":            param.SpikeThreshold,
 		"spike_window_size":          param.SpikeWindowSize,
+		"stuck_detection_enabled":    param.IsStuckDetectionEnabled(),
+		"stuck_count_threshold":      param.StuckCountThreshold,
 	})
 
 	auditDetails, _ := json.Marshal(map[string]interface{}{
@@ -1846,6 +1936,8 @@ func (s *DeviceService) UpdateParameterQualityConfig(deviceID, paramID uint, req
 		SpikeDetectionEnabled:    param.SpikeDetectionEnabled,
 		SpikeThreshold:           param.SpikeThreshold,
 		SpikeWindowSize:          param.SpikeWindowSize,
+		StuckDetectionEnabled:    param.IsStuckDetectionEnabled(),
+		StuckCountThreshold:      param.StuckCountThreshold,
 	}, nil
 }
 

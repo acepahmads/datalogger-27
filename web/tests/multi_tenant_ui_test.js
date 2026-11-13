@@ -186,4 +186,41 @@ assert(configViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER') &&
 assert(backupRestoreViewCode.includes("if ((role === 'ADMIN' || role === 'ENGINEER') && isCloud)"), 'BackupRestoreView must guard against Cloud ADMIN & ENGINEER mount');
 assert(retentionStorageViewCode.includes("if ((this.userRole === 'ADMIN' || this.userRole === 'ENGINEER') && isCloud)"), 'RetentionStorageView must guard against Cloud ADMIN & ENGINEER mount');
 
+// 15. Cloud Mode Operator Alarms & Events Restriction
+const alarmsViewCode = fs.readFileSync(path.join(srcDir, 'views', 'AlarmsView.vue'), 'utf8');
+const globalAlarmBannerCode = fs.readFileSync(path.join(srcDir, 'components', 'GlobalAlarmBanner.vue'), 'utf8');
+
+assert(/<!-- ALARMS -->\s*<div v-if="!isOperator \|\| !isCloudMode">/.test(sidebarCode), 'Sidebar must hide Alarms & Events section for OPERATOR in Cloud mode');
+assert(/v-if="!isOperator \|\| !isCloudMode"\s+to="\/alarm\/active"/.test(headerCode), 'Header must hide Notification Bell (/alarm/active) for OPERATOR in Cloud mode');
+assert(headerCode.includes("this.$route.path.startsWith('/alarm/')"), 'Header redirectAfterRoleChange must redirect Cloud OPERATOR away from /alarm/*');
+assert(/v-if="!isOperator \|\| !isCloudMode"\s+to="\/alarm\/active"/.test(globalAlarmBannerCode), 'GlobalAlarmBanner must hide Alarm Console link for OPERATOR in Cloud mode');
+assert(routerCode.includes("to.path.startsWith('/alarm/')") && routerCode.includes("to.path === '/monitoring/delivery'"), 'Router must block Cloud OPERATOR from /alarm/* and /monitoring/delivery');
+assert(loginViewCode.includes("redirect.startsWith('/alarm/')") && loginViewCode.includes("redirect === '/monitoring/delivery'"), 'LoginView must redirect Cloud OPERATOR away from /alarm/* after login');
+assert(alarmsViewCode.includes('if (this.isOperator && this.isCloudMode)'), 'AlarmsView must guard against OPERATOR mount in Cloud mode');
+assert(dashOpViewCode.includes('<router-link v-if="isNonOperator || !isCloudMode" to="/alarm/history" class="dock-btn">'), 'DashboardOperatorView must hide docked Alarm History shortcut for OPERATOR in Cloud mode');
+
+// 16. Operator Role Hide ISPU Parameter Mapping Setup
+const bentoIspuHeroCode = fs.readFileSync(path.join(srcDir, 'components', 'BentoISPUHeroCard.vue'), 'utf8');
+const ispuAnalysisViewCode = fs.readFileSync(path.join(srcDir, 'views', 'ISPUAnalysisView.vue'), 'utf8');
+
+assert((bentoIspuHeroCode.match(/v-if="canManageMapping"/g) || []).length >= 2, 'BentoISPUHeroCard must hide Mappings buttons (compact & widescreen) when !canManageMapping');
+assert(bentoIspuHeroCode.includes('v-if="showMappingsModal && canManageMapping"'), 'BentoISPUHeroCard must guard showMappingsModal with canManageMapping');
+assert(bentoIspuHeroCode.includes("if (!r || r === 'OPERATOR') return false;"), 'BentoISPUHeroCard canManageMapping must block OPERATOR');
+assert(ispuAnalysisViewCode.includes('if (this.isOperator) return false;'), 'ISPUAnalysisView canManageMapping must return false for OPERATOR');
+assert(ispuAnalysisViewCode.includes('v-if="showMappingsModal && canManageMapping"'), 'ISPUAnalysisView must guard showMappingsModal with canManageMapping');
+
+// 17. Per-Parameter Stuck Value Detection & Count Setup
+const paramModalCode = fs.readFileSync(path.join(srcDir, 'components', 'ParameterModal.vue'), 'utf8');
+const paramConfigViewModalCode = fs.readFileSync(path.join(srcDir, 'components', 'ParameterConfigViewModal.vue'), 'utf8');
+const enLocaleCode = fs.readFileSync(path.join(srcDir, 'i18n', 'locales', 'en.js'), 'utf8');
+const idLocaleCode = fs.readFileSync(path.join(srcDir, 'i18n', 'locales', 'id.js'), 'utf8');
+
+assert(paramModalCode.includes('v-model="form.stuck_detection_enabled"'), 'ParameterModal must expose per-parameter stuck_detection_enabled toggle');
+assert(paramModalCode.includes('v-model.number="form.stuck_count_threshold"'), 'ParameterModal must expose per-parameter stuck_count_threshold numeric input');
+assert(paramModalCode.includes('for="preset in [3, 5, 10, 15, 20, 30, 60]"'), 'ParameterModal must provide quick presets for stuck count threshold');
+assert(paramModalCode.includes('stuck_detection_enabled: this.isStatusCategoryOrBool ? false : !!this.form.stuck_detection_enabled'), 'ParameterModal submitForm must serialize stuck_detection_enabled');
+assert(paramModalCode.includes('stuck_count_threshold: (() => {'), 'ParameterModal submitForm must serialize validated stuck_count_threshold');
+assert(paramConfigViewModalCode.includes('isStuckDetectionActive') && paramConfigViewModalCode.includes('stuckCountThreshold'), 'ParameterConfigViewModal must display per-parameter stuck configuration');
+assert(enLocaleCode.includes('"stuckDetectionTitle"') && idLocaleCode.includes('"stuckDetectionTitle"'), 'Both EN and ID locales must define stuckDetectionTitle');
+
 console.log('PASS: All Multi-Tenant, Multi-Site, and Hybrid Edge Push UI assertions verified!');

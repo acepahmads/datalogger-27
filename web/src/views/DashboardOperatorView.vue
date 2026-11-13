@@ -1446,6 +1446,7 @@
                     <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center justify-between">
                       <span>Active Incidents</span>
                       <router-link
+                        v-if="isNonOperator || !isCloudMode"
                         to="/alarm/history"
                         @click.native="closeToolbarPopover"
                         class="text-cyan-600 dark:text-cyan-400 hover:underline"
@@ -1489,6 +1490,7 @@
 
                   <!-- Action Link -->
                   <router-link
+                    v-if="isNonOperator || !isCloudMode"
                     to="/alarm/active"
                     @click.native="closeToolbarPopover"
                     class="w-full py-2 px-3 rounded-md text-[10.5px] font-semibold transition border flex items-center justify-center space-x-1.5"
@@ -4581,7 +4583,7 @@
           <span class="dock-lbl-mobile">Report</span>
         </button>
 
-        <router-link to="/alarm/history" class="dock-btn">
+        <router-link v-if="isNonOperator || !isCloudMode" to="/alarm/history" class="dock-btn">
           <OperatorDashboardIcon name="history" :size="12" />
           <span class="dock-lbl-desktop">{{ $t('operator.alarmHistory') || 'Alarm History' }}</span>
           <span class="dock-lbl-mobile">Alarm</span>

@@ -1111,6 +1111,8 @@ export default {
               min_value: 'Batas Kritis Minimum',
               max_value: 'Batas Kritis Maksimum',
               stale_timeout_seconds: 'Batas Waktu Data Stale',
+              stuck_detection_enabled: 'Deteksi Nilai Stuck',
+              stuck_count_threshold: 'Jumlah Pembacaan Stuck',
               status: 'Status',
               location: 'Lokasi',
             };

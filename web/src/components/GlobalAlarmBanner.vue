@@ -124,6 +124,7 @@
 
         <!-- View Alarm Console Link -->
         <router-link
+          v-if="!isOperator || !isCloudMode"
           to="/alarm/active"
           class="px-2 py-1 rounded-lg bg-black/15 hover:bg-black/25 text-3xs font-medium transition-colors hidden sm:flex items-center space-x-1"
           :title="$t('alarms.viewAlarmConsole') || 'Go to Alarm Console'"
@@ -318,6 +319,20 @@ export default {
     };
   },
   computed: {
+    userRole() {
+      const u = (this.$store && this.$store.state && this.$store.state.user) || {};
+      const rawRole = typeof u.role === 'string'
+        ? u.role
+        : ((u.role && u.role.name) || (u.Role && u.Role.name) || 'OPERATOR');
+      return String(rawRole).toUpperCase();
+    },
+    isOperator() {
+      return this.userRole === 'OPERATOR';
+    },
+    isCloudMode() {
+      const sys = (this.$store && this.$store.state && this.$store.state.systemStatus) || {};
+      return Boolean(sys.cloud_mode || String(sys.monitoring_domain || '').toUpperCase() === 'CLOUD');
+    },
     username() {
       return (this.$store.state.user && this.$store.state.user.username) || 'admin';
     },

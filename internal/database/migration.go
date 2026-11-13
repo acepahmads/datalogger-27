@@ -115,6 +115,12 @@ func RunMigrations(db *gorm.DB) error {
 		if !db.Migrator().HasColumn(&model.Parameter{}, "status_off_label") {
 			_ = db.Migrator().AddColumn(&model.Parameter{}, "status_off_label")
 		}
+		if !db.Migrator().HasColumn(&model.Parameter{}, "stuck_detection_enabled") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "stuck_detection_enabled")
+		}
+		if !db.Migrator().HasColumn(&model.Parameter{}, "stuck_count_threshold") {
+			_ = db.Migrator().AddColumn(&model.Parameter{}, "stuck_count_threshold")
+		}
 
 		// Sensor Calibration (1–10 Points: AQMS, SPARING, WQMS ONLIMO) non-destructive column sync
 		calCols := []string{

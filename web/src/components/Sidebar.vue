@@ -265,7 +265,7 @@
       </div>
 
       <!-- ALARMS -->
-      <div>
+      <div v-if="!isOperator || !isCloudMode">
         <div class="px-3 text-3xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 font-sans flex items-center justify-between">
           <span>{{ $t('navigation.alarmsEvents') }}</span>
           <span v-if="systemStatus.active_alarms > 0" class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>

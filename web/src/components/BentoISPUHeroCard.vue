@@ -161,7 +161,7 @@
         </div>
 
         <!-- Right: Click-to-Expand 7 Pollutants + Mappings / Trend / Full ISPU -->
-        <div class="compact-right">
+        <div class="compact-right" :class="{ 'is-no-mappings': !canManageMapping }">
           <button
             type="button"
             class="expand-7-btn"
@@ -174,6 +174,7 @@
           </button>
 
           <button
+            v-if="canManageMapping"
             type="button"
             class="h-act-btn compact-act"
             @click="openMappingsModal"
@@ -423,6 +424,7 @@
       <!-- Bottom Action Buttons: Mappings, Trend ISPU, Full ISPU -->
       <div class="hero-actions">
         <button
+          v-if="canManageMapping"
           type="button"
           class="h-act-btn"
           @click="openMappingsModal"
@@ -497,7 +499,7 @@
 
     <!-- Built-in Parameter Mapping Modal (100% preserved from ISPUIndicatorBar) -->
     <div
-      v-if="showMappingsModal"
+      v-if="showMappingsModal && canManageMapping"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 sm:p-4 animate-fadeIn"
       @click.self="showMappingsModal = false"
     >
@@ -817,6 +819,18 @@ export default {
     };
   },
   computed: {
+    actualUserRole() {
+      const u = (this.$store && this.$store.state && this.$store.state.user) || {};
+      const rawRole = typeof u.role === 'string'
+        ? u.role
+        : ((u.role && u.role.name) || (u.Role && u.Role.name) || u.role_name || '');
+      return String(rawRole || '').toUpperCase();
+    },
+    canManageMapping() {
+      const r = this.actualUserRole;
+      if (!r || r === 'OPERATOR') return false;
+      return r === 'SUPERADMIN' || r === 'ADMINISTRATOR' || r === 'ADMIN' || r === 'ENGINEER';
+    },
     orderedBentoPollutants() {
       return [
         { code: 'PM25', pretty: 'PM2.5' },
@@ -922,6 +936,12 @@ export default {
     },
   },
   methods: {
+    openMappingsModal() {
+      if (!this.canManageMapping) return;
+      if (ISPUIndicatorBar.methods && typeof ISPUIndicatorBar.methods.openMappingsModal === 'function') {
+        return ISPUIndicatorBar.methods.openMappingsModal.call(this);
+      }
+    },
     formatPollutantCodePretty(code) {
       if (!code || code === '-') return '-';
       const map = {
@@ -972,7 +992,9 @@ export default {
     getPollutantRowTitle(item) {
       const pr = this.getParameterResult(item.code);
       if (!pr) {
-        return `${item.pretty}: Belum dipetakan ke sensor. Klik Mappings untuk mengatur.`;
+        return this.canManageMapping
+          ? `${item.pretty}: Belum dipetakan ke sensor. Klik Mappings untuk mengatur.`
+          : `${item.pretty}: Belum dipetakan ke sensor.`;
       }
       const conc = pr.concentration != null ? `${Number(pr.concentration).toFixed(2)} ${pr.source_unit || 'µg/m³'}` : '-';
       return `Klik untuk menampilkan ISPU ${item.pretty} · Konsentrasi 24j: ${conc}`;
@@ -1230,6 +1252,9 @@ export default {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     padding-top: 8px;
+  }
+  .compact-right.is-no-mappings {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .is-day .compact-right {
     border-top: 1px solid #EDF2F7;

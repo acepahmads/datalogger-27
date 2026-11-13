@@ -393,6 +393,8 @@ type Parameter struct {
 	SpikeDetectionEnabled    bool     `gorm:"default:false" json:"spike_detection_enabled"`
 	SpikeThreshold           float64  `gorm:"default:0.0" json:"spike_threshold"`
 	SpikeWindowSize          int      `gorm:"default:3" json:"spike_window_size"`
+	StuckDetectionEnabled    *bool    `gorm:"column:stuck_detection_enabled" json:"stuck_detection_enabled"`
+	StuckCountThreshold      int      `gorm:"column:stuck_count_threshold;default:0" json:"stuck_count_threshold"`
 
 	// Phase 3.1 & 3.2 Latest Telemetry State
 	CurrentValueNumeric    *float64         `gorm:"type:double" json:"current_value_numeric,omitempty"`
@@ -437,6 +439,17 @@ func (p *Parameter) IsDiscreteStatus() bool {
 		return true
 	}
 	return false
+}
+
+// IsStuckDetectionEnabled returns true unless StuckDetectionEnabled is explicitly set to false.
+func (p *Parameter) IsStuckDetectionEnabled() bool {
+	if p == nil {
+		return false
+	}
+	if p.StuckDetectionEnabled == nil {
+		return true
+	}
+	return *p.StuckDetectionEnabled
 }
 
 func (p *Parameter) BeforeSave(tx *gorm.DB) error {
