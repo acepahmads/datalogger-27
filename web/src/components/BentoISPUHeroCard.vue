@@ -169,7 +169,8 @@
             @click="showCompactPollutantsDrawer = !showCompactPollutantsDrawer"
             title="Tampilkan atau sembunyikan rincian 7 polutan ISPU"
           >
-            <span>{{ showCompactPollutantsDrawer ? '▴ Sembunyikan 6 Lainnya' : '▾ Lihat 7 Polutan' }}</span>
+            <span class="cmp-7-lbl-desktop">{{ showCompactPollutantsDrawer ? '▴ Sembunyikan 6 Lainnya' : '▾ Lihat 7 Polutan' }}</span>
+            <span class="cmp-7-lbl-mobile">{{ showCompactPollutantsDrawer ? '▴ Tutup 7 Polutan' : '▾ 7 Polutan' }}</span>
           </button>
 
           <button
@@ -1061,9 +1062,14 @@ export default {
   font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 .is-day .compact-kicker { color: #64748B; }
 .is-night .compact-kicker { color: #94A3B8; }
+
+.cmp-7-lbl-mobile {
+  display: none;
+}
 
 .compact-dom-line2 {
   display: flex;
@@ -1152,9 +1158,83 @@ export default {
 .is-day .compact-7-drawer { border-top: 1px dashed #DDE5EF; }
 .is-night .compact-7-drawer { border-top: 1px dashed rgba(148, 163, 184, 0.18); }
 
+@media (max-width: 767px) {
+  .is-compact-bar {
+    padding: 9px 11px;
+    gap: 8px;
+    border-radius: 13px;
+  }
+  .compact-main-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .compact-left {
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+  }
+  .compact-left > svg {
+    width: 44px;
+    height: 44px;
+  }
+  .compact-dom-info {
+    gap: 3.5px;
+  }
+  .compact-dom-line1 {
+    gap: 5px;
+    row-gap: 4px;
+  }
+  .compact-dom-bar {
+    width: 72px;
+  }
+  .compact-right {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1.06fr);
+    gap: 5px;
+    padding-top: 7px;
+  }
+  .is-day .compact-right {
+    border-top: 1px solid #EDF2F7;
+  }
+  .is-night .compact-right {
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+  }
+  .expand-7-btn,
+  .compact-act {
+    width: 100%;
+    height: 28px !important;
+    padding: 0 5px !important;
+    justify-content: center;
+    font-size: 10px !important;
+  }
+  .cmp-7-lbl-desktop {
+    display: none;
+  }
+  .cmp-7-lbl-mobile {
+    display: inline;
+  }
+  .is-compact-bar .ispu-popover-anchor > div {
+    position: fixed !important;
+    left: 12px !important;
+    right: 12px !important;
+    top: 132px !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-top: 0 !important;
+  }
+}
+
 @media (max-width: 720px) {
   .compact-7-drawer {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .compact-7-drawer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

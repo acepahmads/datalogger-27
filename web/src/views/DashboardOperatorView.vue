@@ -4,7 +4,11 @@
     :class="[
       isDark ? 'is-night dark-mode' : 'is-day light-mode',
       isCompactScreen ? 'is-compact-vp' : 'is-wide-vp',
-      { 'no-perf-animations': perfSettings && !perfSettings.chartAnimationsEnabled }
+      {
+        'is-mobile-vp': isMobileScreen,
+        'has-mobile-trend-sheet': isMobileScreen && mobileTrendSheetOpen,
+        'no-perf-animations': perfSettings && !perfSettings.chartAnimationsEnabled
+      }
     ]"
   >
     <!-- =================================================================== -->
@@ -3192,7 +3196,10 @@
                   <span v-if="param.is_held_value" class="s-held-tag">HELD</span>
                 </div>
 
-                <div class="s-spark-wrap">
+                <div
+                  class="s-spark-wrap"
+                  :class="{ 'is-flat-spark': perfSettings.parameterSparklinesEnabled && getSparkline(param).isFlat }"
+                >
                   <svg
                     v-if="perfSettings.parameterSparklinesEnabled && getSparkline(param).hasHistory"
                     class="s-spark-svg"
@@ -3520,7 +3527,29 @@
     <!-- =================================================================== -->
     <!-- 3. BOTTOM ZONE: COMPLETE TREND ANALYSIS STUDIO (COMPACT 1-ROW BAR)  -->
     <!-- =================================================================== -->
-    <section v-if="perfSettings.trendAnalysisEnabled" class="trend-studio">
+    <div
+      v-if="isMobileScreen && mobileTrendSheetOpen && perfSettings.trendAnalysisEnabled"
+      class="mobile-trend-backdrop"
+      @click="closeMobileTrendSheet"
+    ></div>
+
+    <section
+      v-if="perfSettings.trendAnalysisEnabled"
+      class="trend-studio"
+      :class="{
+        'is-mobile-sheet-closed': isMobileScreen && !mobileTrendSheetOpen,
+        'is-mobile-sheet-open': isMobileScreen && mobileTrendSheetOpen
+      }"
+    >
+      <div
+        v-if="isMobileScreen && mobileTrendSheetOpen"
+        class="mobile-sheet-grabber"
+        @click="closeMobileTrendSheet"
+        title="Tutup panel grafik"
+      >
+        <span class="mobile-sheet-grabber-bar"></span>
+      </div>
+
       <!-- Single Compact Control Bar: Zero Horizontal Scrollbar, Minimal Vertical Footprint -->
       <div
         class="ts-compact-bar"
@@ -4155,13 +4184,13 @@
             id="btn-bento-trend-hide"
             type="button"
             class="op-icon-btn xs"
-            @click="setPerfSetting('trendAnalysisEnabled', false)"
-            title="Sembunyikan Grafik Tren (Tampilkan Semua Tabel/Kartu Penuh)"
+            @click="onBentoTrendMinimizeClick"
+            :title="isMobileScreen ? 'Tutup Panel Grafik Tren' : 'Sembunyikan Grafik Tren (Tampilkan Semua Tabel/Kartu Penuh)'"
             aria-label="Hide Trend Chart"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="6 9 12 15 18 9" />
-              <line x1="5" y1="19" x2="19" y2="19" stroke-opacity="0.5" />
+              <line v-if="!isMobileScreen" x1="5" y1="19" x2="19" y2="19" stroke-opacity="0.5" />
             </svg>
           </button>
         </div>
@@ -4174,6 +4203,8 @@
         :style="{ height: bentoTrendCanvasHeight + 'px' }"
         @mousemove="onChartScrub"
         @mouseleave="scrubPoint = null"
+        @touchstart.passive="onMobileChartTouchScrub"
+        @touchmove.passive="onMobileChartTouchScrub"
       >
         <div v-if="isResizingBentoTrend" class="trend-resize-live-badge">
           Tinggi Grafik: {{ bentoTrendCanvasHeight }} px
@@ -4492,6 +4523,42 @@
         </div>
 
     <!-- =================================================================== -->
+    <!-- 3B. MOBILE DOCKED COLLAPSIBLE TREND PILL BAR (< 768px)              -->
+    <!-- =================================================================== -->
+    <div
+      v-if="isMobileScreen && !mobileTrendSheetOpen"
+      class="mobile-trend-dock-bar"
+      @click="openMobileTrendSheet"
+    >
+      <div class="mtd-left">
+        <span class="ts-title">Analisis Tren</span>
+        <span
+          class="live-badge"
+          :class="!$store.state.wsConnected ? 'is-offline' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'is-live' : 'is-warn')"
+        >
+          <span
+            class="status-dot"
+            :class="!$store.state.wsConnected ? 'dot-rose' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'dot-emerald' : 'dot-amber')"
+          ></span>
+          <span>{{ !$store.state.wsConnected ? 'OFFLINE' : (trendCommDiagnostics.state === 'ONLINE' || trendCommDiagnostics.state === 'RECOVERED' ? 'LIVE' : trendCommDiagnostics.badge) }}</span>
+        </span>
+        <span class="mtd-count">{{ activeTrendSeries.length }}/{{ allParameters.length }}</span>
+      </div>
+
+      <button
+        type="button"
+        id="btn-mobile-open-trend"
+        class="mtd-open-btn"
+        @click.stop="openMobileTrendSheet"
+      >
+        <span>Buka Grafik</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="18 15 12 9 6 15" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- =================================================================== -->
     <!-- 4. DOCKED BOTTOM QUICK ACTIONS & SHORTCUTS BAR                      -->
     <!-- =================================================================== -->
     <footer class="dock-footer">
@@ -4510,12 +4577,14 @@
           class="dock-btn teal"
         >
           <OperatorDashboardIcon name="report" :size="12" />
-          <span>{{ $t('operator.generateReport') || 'Operational Report' }}</span>
+          <span class="dock-lbl-desktop">{{ $t('operator.generateReport') || 'Operational Report' }}</span>
+          <span class="dock-lbl-mobile">Report</span>
         </button>
 
-        <router-link to="/alarm/history" class="dock-btn hidden md:inline-flex">
+        <router-link to="/alarm/history" class="dock-btn">
           <OperatorDashboardIcon name="history" :size="12" />
-          <span>{{ $t('operator.alarmHistory') || 'Alarm History' }}</span>
+          <span class="dock-lbl-desktop">{{ $t('operator.alarmHistory') || 'Alarm History' }}</span>
+          <span class="dock-lbl-mobile">Alarm</span>
         </router-link>
       </div>
 
@@ -4538,7 +4607,8 @@
             :class="{ 'is-muted': isAudioMuted || !isSoundEnabled }"
           >
             <OperatorDashboardIcon :name="isAudioMuted ? 'sound-muted' : (isSoundEnabled ? 'sound-on' : 'sound-off')" :size="12" />
-            <span>{{ isAudioMuted ? 'MUTED' : (isSoundEnabled ? 'SOUND ON' : 'SOUND OFF') }}</span>
+            <span class="dock-lbl-desktop">{{ isAudioMuted ? 'MUTED' : (isSoundEnabled ? 'SOUND ON' : 'SOUND OFF') }}</span>
+            <span class="dock-lbl-mobile">{{ isAudioMuted ? 'MUTED' : (isSoundEnabled ? 'ON' : 'OFF') }}</span>
             <svg width="10.5" height="10.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="6 9 12 15 18 9" />
             </svg>
@@ -6833,6 +6903,7 @@ export default {
       gpsModbusMapping: savedGpsModbus,
       showAdvancedGpsRegisterMap: false,
       lastModbusAutoSyncMs: 0,
+      mobileTrendSheetOpen: false,
     };
   },
   computed: {
@@ -6944,6 +7015,9 @@ export default {
     },
     isCompactScreen() {
       return this.bentoViewportWidth < 1280;
+    },
+    isMobileScreen() {
+      return this.bentoViewportWidth < 768;
     },
     bentoToolbarPopoverMaxHeight() {
       const vh = this.bentoViewportHeight || 900;
@@ -7413,7 +7487,7 @@ export default {
       return this.bentoPerTableCardWidth >= 560;
     },
     bentoParamsScrollAreaStyle() {
-      if (!this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
+      if (this.isMobileScreen || !this.perfSettings || !this.perfSettings.trendAnalysisEnabled) {
         return null;
       }
       const isCatCards = this.viewMode === 'cards' && Boolean(this.bentoCardGroupByCategory);
@@ -7998,10 +8072,50 @@ export default {
     },
     onBentoViewportResize() {
       if (typeof window === 'undefined') return;
+      const wasMobile = this.bentoViewportWidth < 768;
       this.bentoViewportWidth = window.innerWidth;
       this.bentoViewportHeight = window.innerHeight;
+      if (wasMobile && this.bentoViewportWidth >= 768) {
+        this.mobileTrendSheetOpen = false;
+        if (this.initTrendResizeObserver) {
+          this.initTrendResizeObserver();
+        }
+      }
       this.measureBentoParamsWrap();
       this.measureBentoPopoverBounds();
+    },
+    openMobileTrendSheet() {
+      if (this.perfSettings && !this.perfSettings.trendAnalysisEnabled) {
+        this.setPerfSetting('trendAnalysisEnabled', true);
+      }
+      this.mobileTrendSheetOpen = true;
+      this.$nextTick(() => {
+        if (this.initTrendResizeObserver) {
+          this.initTrendResizeObserver();
+        }
+      });
+    },
+    closeMobileTrendSheet() {
+      this.mobileTrendSheetOpen = false;
+      this.scrubPoint = null;
+      if (this.bentoActiveMiniPopover === 'trendFilter' || this.bentoActiveMiniPopover === 'trendHeight') {
+        this.bentoActiveMiniPopover = null;
+      }
+      this.showTrendDownloadMenu = false;
+    },
+    onBentoTrendMinimizeClick() {
+      if (this.isMobileScreen) {
+        this.closeMobileTrendSheet();
+      } else {
+        this.setPerfSetting('trendAnalysisEnabled', false);
+      }
+    },
+    onMobileChartTouchScrub(event) {
+      if (!event || !event.touches || !event.touches.length) return;
+      const touch = event.touches[0];
+      if (this.onChartScrub) {
+        this.onChartScrub({ clientX: touch.clientX, clientY: touch.clientY });
+      }
     },
     onDocumentClick(e) {
       if (this.bentoActiveMiniPopover && e && e.target && !e.target.closest('.bento-mini-popover-anchor')) {
@@ -11865,6 +11979,316 @@ export default {
   background: rgba(245, 158, 11, 0.16);
   color: #FCD34D;
   border-color: rgba(245, 158, 11, 0.30);
+}
+
+.dock-lbl-mobile {
+  display: none;
+}
+
+/* ========================================================================= */
+/* 5. MOBILE PHONE RESPONSIVE LAYOUT (< 768px — DESKTOP 100% UNTOUCHED)      */
+/* ========================================================================= */
+@media (max-width: 767px) {
+  .bento-dashboard-page,
+  .bento-dashboard-page.is-compact-vp {
+    padding: 6px 8px 92px;
+    gap: 7px;
+  }
+
+  /* 1. Clean 2-Zone Mobile Header (Full Station Name + Compact Emblem & Clock) */
+  .header-shell,
+  .is-compact-vp .header-shell {
+    padding: 7px 10px;
+    gap: 6px;
+    border-radius: 13px;
+  }
+
+  .h-row1 {
+    gap: 6px;
+  }
+
+  .brand-left {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .logo-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .brand-left .logo-img-wrap {
+    height: 30px;
+    padding: 2px 5px;
+  }
+
+  .brand-left .logo-img-wrap img {
+    max-width: 72px;
+    height: 22px;
+  }
+
+  .station-name,
+  .is-compact-vp .station-name {
+    font-size: 13px;
+  }
+
+  .station-loc {
+    font-size: 10.5px;
+  }
+
+  .brand-right {
+    order: 2;
+    gap: 0;
+  }
+
+  .maker-info {
+    display: none !important;
+  }
+
+  .brand-right .logo-img-wrap {
+    width: 28px;
+    height: 28px;
+    padding: 3px;
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .brand-right .logo-img-wrap img {
+    width: 20px;
+    height: 20px;
+    max-width: none;
+    object-fit: cover;
+    object-position: left center;
+    border-radius: 3px;
+  }
+
+  .maker-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .clock-center {
+    order: 3;
+  }
+
+  .clock-pill {
+    padding: 3.5px 8px;
+    font-size: 11px;
+    gap: 4.5px;
+    border-radius: 7px;
+  }
+
+  /* Hide desktop sidebar-pin & duplicate 2P sliders button in Header Row 2 */
+  #btn-operator-sidebar-autohide,
+  .h-row2 .op-v-div,
+  #btn-toolbar-view-options {
+    display: none !important;
+  }
+
+  .toolbar-popover-anchor > div {
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    top: 94px !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-top: 0 !important;
+  }
+
+  /* 2. Simplified Parameter Channel Bar (Hide Desktop Multi-Column Table Modes) */
+  #btn-bento-view-cat,
+  #btn-bento-view-2t {
+    display: none !important;
+  }
+
+  .bento-mini-popover {
+    max-width: calc(100vw - 20px);
+  }
+
+  /* 3. Unclipped Single-Scroll Sensor Cards & Clean Stale State */
+  .sensors-scroll-area,
+  .sensors-scroll-area.is-compact-scroll,
+  .bento-table-area,
+  .bento-table-area.is-compact-scroll {
+    max-height: none !important;
+    overflow-y: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .s-spark-wrap.is-flat-spark,
+  .s-card .s-spark-empty {
+    display: none !important;
+  }
+
+  .sensors-grid.is-compact-cards {
+    gap: 7px;
+  }
+
+  .sensors-grid.is-compact-cards:not(.is-inside-cat-group) .s-card {
+    padding: 8px 9.5px;
+    border-radius: 11px;
+    gap: 5px;
+  }
+
+  .sensors-grid.is-compact-cards:not(.is-inside-cat-group) .s-val {
+    font-size: 18px;
+  }
+
+  .sensors-grid.is-compact-cards:not(.is-inside-cat-group) .s-unit {
+    font-size: 10px;
+  }
+
+  /* 4. Collapsible Mobile Trend Dock Bar & Focused Bottom Sheet */
+  .trend-studio.is-collapsed-trend,
+  .trend-studio.is-mobile-sheet-closed {
+    display: none !important;
+  }
+
+  .mobile-trend-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 42;
+    background: rgba(2, 6, 23, 0.48);
+    backdrop-filter: blur(1.5px);
+  }
+
+  .trend-studio.is-mobile-sheet-open {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 38px;
+    z-index: 45;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    padding: 6px 12px 12px;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+    box-shadow: 0 -12px 32px rgba(2, 6, 23, 0.34);
+  }
+
+  .mobile-sheet-grabber {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 0 4px;
+    cursor: pointer;
+  }
+
+  .mobile-sheet-grabber-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--b-border);
+  }
+
+  .trend-studio.is-mobile-sheet-open #btn-bento-trend-height,
+  .trend-studio.is-mobile-sheet-open .trend-resize-handle {
+    display: none !important;
+  }
+
+  .trend-studio.is-mobile-sheet-open .bento-chart-canvas {
+    height: 220px !important;
+    min-height: 200px;
+  }
+
+  .trend-studio.is-mobile-sheet-open .ts-compact-bar {
+    gap: 6px;
+  }
+
+  .trend-studio.is-mobile-sheet-open .ts-c-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mobile-trend-dock-bar {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 43px;
+    height: 38px;
+    z-index: 35;
+    background: var(--b-card);
+    border: 1px solid var(--b-border);
+    border-radius: 11px;
+    padding: 0 9px 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08), var(--b-shadow);
+    cursor: pointer;
+  }
+
+  .is-night .mobile-trend-dock-bar {
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.42);
+  }
+
+  .mtd-left {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .mtd-count {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--b-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mtd-open-btn {
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 7px;
+    font-size: 10.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--b-subtle);
+    border: 1px solid var(--b-border);
+    color: var(--b-text-main);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* 5. Clean Touch-Friendly Docked Footer */
+  .dock-footer {
+    height: 38px;
+    padding: 0 10px;
+    z-index: 46;
+  }
+
+  .dock-kicker,
+  .dock-right .dock-btn {
+    display: none !important;
+  }
+
+  .dock-btn {
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 7px;
+    font-size: 10.5px;
+  }
+
+  .sound-pill {
+    height: 26px;
+    padding: 0 8.5px;
+    border-radius: 7px;
+  }
+
+  .dock-lbl-desktop {
+    display: none;
+  }
+
+  .dock-lbl-mobile {
+    display: inline;
+  }
 }
 
 .no-perf-animations * {

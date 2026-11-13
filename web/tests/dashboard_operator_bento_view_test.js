@@ -570,6 +570,48 @@ check('16.4: Station Type supports Isi Manual vs Otomatis Lokasi GPS using Place
   assert.strictEqual(stCompObj.isAQMSDomain.call(autoCtx), false, 'WQMS prefix in AUTO_GPS mode must hide ISPU controls');
 });
 
+// 17. Mobile Phone Responsive Layout (< 768px) — Zero Desktop Impact
+check('17.1: Mobile (< 768px) arranges ISPU card in 2 symmetrical rows, compacts Maker emblem, hides duplicate desktop controls & stale flatline bars', () => {
+  assert(heroContent.includes('@media (max-width: 767px)'), 'BentoISPUHeroCard must define mobile-only @media (max-width: 767px) rules');
+  assert(heroContent.includes('cmp-7-lbl-mobile') && heroContent.includes('▾ 7 Polutan'), 'BentoISPUHeroCard must render concise mobile 7-pollutant button label while keeping desktop label intact');
+  assert(heroContent.includes('@media (max-width: 480px)'), 'BentoISPUHeroCard must stack 7-pollutant drawer in 2 columns on narrow phones');
+
+  assert(viewContent.includes('isMobileScreen()') && viewContent.includes('this.bentoViewportWidth < 768'), 'DashboardOperatorView must detect mobile phone viewport (< 768px)');
+  assert(viewContent.includes('@media (max-width: 767px)'), 'DashboardOperatorView must scope mobile styling strictly inside @media (max-width: 767px)');
+  assert(viewContent.includes("'is-flat-spark': perfSettings.parameterSparklinesEnabled && getSparkline(param).isFlat"), 'Sensor card sparkline wrapper must tag flatline state so stale horizontal bars hide cleanly on mobile');
+  assert(viewContent.includes('.s-spark-wrap.is-flat-spark'), 'Mobile CSS must hide flatline placeholder bars on stale cards');
+});
+
+check('17.2: Mobile (< 768px) unclips sensor scroll height and provides docked collapsible Analisis Tren bar + Bottom Sheet', () => {
+  assert(viewContent.includes('class="mobile-trend-dock-bar"') && viewContent.includes('Buka Grafik'), 'Must render docked collapsible Analisis Tren bar on mobile');
+  assert(viewContent.includes('is-mobile-sheet-open') && viewContent.includes('is-mobile-sheet-closed'), 'Trend Studio must switch cleanly between collapsed dock bar and focused bottom sheet on mobile');
+  assert(viewContent.includes('openMobileTrendSheet()') && viewContent.includes('closeMobileTrendSheet()') && viewContent.includes('onMobileChartTouchScrub('), 'Must implement mobile bottom sheet open/close & touch scrubbing handlers');
+
+  const vm = require('vm');
+  const styleStart = viewContent.indexOf('bentoParamsScrollAreaStyle() {');
+  const styleEnd = viewContent.indexOf('bentoCategorySlotCols() {');
+  assert(styleStart > 0 && styleEnd > styleStart, 'Must locate bentoParamsScrollAreaStyle computed');
+  const styleObj = vm.runInNewContext(`({ ${viewContent.slice(styleStart, styleEnd).trim().replace(/,\s*$/, '')} })`, {});
+
+  const mobileStyle = styleObj.bentoParamsScrollAreaStyle.call({
+    isMobileScreen: true,
+    isCompactScreen: true,
+    perfSettings: { trendAnalysisEnabled: true },
+    viewMode: 'cards',
+    bentoTrendCanvasHeight: 205,
+  });
+  assert.strictEqual(mobileStyle, null, 'Mobile (< 768px) must never clamp sensor card container max-height');
+
+  const desktopStyle = styleObj.bentoParamsScrollAreaStyle.call({
+    isMobileScreen: false,
+    isCompactScreen: false,
+    perfSettings: { trendAnalysisEnabled: true },
+    viewMode: 'cards',
+    bentoTrendCanvasHeight: 205,
+  });
+  assert(desktopStyle && desktopStyle.maxHeight, 'Desktop (>= 768px) must retain dynamic viewport maxHeight');
+});
+
 console.log('========================================================================');
 console.log(`SUMMARY: ${passed}/${total} TESTS PASSED`);
 console.log('========================================================================');
